@@ -8,7 +8,10 @@ import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionMode;
+import config.backend.AttentionMatMulPolicy;
+import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
+import config.backend.SumAccuracyMode;
 import config.runtime.RuntimeConfig;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -128,6 +131,98 @@ class Cpu1DispatchPolicyTest {
     }
 
     @Test
+    void automaticMemorySegmentF32CheapElementwiseUsesNativeThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
+
+        Cpu1DispatchDecision belowNative = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT32,
+                tuned.nativeF32CheapVectorMinSize() - 1,
+                config
+        );
+        Cpu1DispatchDecision atNative = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT32,
+                tuned.nativeF32CheapVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowNative.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atNative.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticMemorySegmentF64CheapElementwiseUsesNativeThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
+
+        Cpu1DispatchDecision belowNative = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT64,
+                tuned.nativeF64CheapVectorMinSize() - 1,
+                config
+        );
+        Cpu1DispatchDecision atNative = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT64,
+                tuned.nativeF64CheapVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowNative.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atNative.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticArrayCheapElementwiseKeepsCheapVectorThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1DispatchDecision belowCheap = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT32,
+                tuned.cheapVectorMinSize() - 1,
+                config
+        );
+        Cpu1DispatchDecision atCheap = policy.decideElementwise(
+                Operation.OpType.ADD,
+                DataType.FLOAT32,
+                tuned.cheapVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowCheap.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atCheap.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticMemorySegmentExpensiveElementwiseKeepsTranscendentalThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
+
+        Cpu1DispatchDecision belowTranscendental = policy.decideElementwise(
+                Operation.OpType.EXP,
+                DataType.FLOAT32,
+                tuned.transcendentalVectorMinSize() - 1,
+                config
+        );
+        Cpu1DispatchDecision atTranscendental = policy.decideElementwise(
+                Operation.OpType.EXP,
+                DataType.FLOAT32,
+                tuned.transcendentalVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowTranscendental.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atTranscendental.requestedVectorizationKind());
+    }
+
+    @Test
     void automaticFactoryUsesRuntimeProfileCpuKernelConfig() {
         CpuKernelConfig expected = RuntimeConfig.inferenceDefaults(DataType.FLOAT32).cpuKernelConfig();
 
@@ -139,5 +234,30 @@ class Cpu1DispatchPolicyTest {
         assertEquals(expected.transcendentalParallelMinSize(), config.cpuKernelConfig().transcendentalParallelMinSize());
         assertEquals(expected.minScalarChunkSize(), config.cpuKernelConfig().minScalarChunkSize());
         assertEquals(expected.minVectorChunkSize(), config.cpuKernelConfig().minVectorChunkSize());
+    }
+
+    private static CpuKernelConfig cpuKernelConfigWithNativeCheapThresholds(
+            int cheapVectorMinSize,
+            int nativeF32CheapVectorMinSize,
+            int nativeF64CheapVectorMinSize
+    ) {
+        return new CpuKernelConfig(
+                4, 32, 32, 32,
+                cheapVectorMinSize, 256, cheapVectorMinSize, 256, 256, 256,
+                Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,
+                Integer.MAX_VALUE, Integer.MAX_VALUE,
+                1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+                4, 2, 1,
+                4_096, 8_192, 16_384, 16_384,
+                0,
+                SumAccuracyMode.FAST,
+                2_000_000,
+                AttentionMatMulPolicy.AUTO,
+                CpuMatMulMicroKernel.AUTO,
+                CpuMatMulMicroKernel.AUTO,
+                32, 32, 32,
+                nativeF32CheapVectorMinSize,
+                nativeF64CheapVectorMinSize
+        );
     }
 }

@@ -4,6 +4,7 @@ import backend.cpu1.exec.Cpu1ExecutableUnit;
 import backend.cpu1.exec.Cpu1ElementwiseExecutableUnit;
 import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
+import backend.cpu1.exec.Cpu1MseLossExecutableUnit;
 import backend.cpu1.exec.Cpu1ReductionExecutableUnit;
 import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
@@ -25,6 +26,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
     private final Cpu1PreparedLayoutUnit preparedLayoutUnit;
     private final Cpu1PreparedReductionUnit preparedReductionUnit;
     private final Cpu1PreparedMatmulUnit preparedMatmulUnit;
+    private final Cpu1PreparedMseLossUnit preparedMseLossUnit;
     private final Cpu1ExecutableUnit executableUnit;
 
     public Cpu1PreparedArtifact(Cpu1PreparedElementwiseUnit preparedUnit) {
@@ -32,6 +34,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
         this.executableUnit = new Cpu1ElementwiseExecutableUnit(preparedUnit);
     }
 
@@ -40,6 +43,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         this.preparedLayoutUnit = Objects.requireNonNull(preparedLayoutUnit, "preparedLayoutUnit cannot be null");
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
         this.executableUnit = new Cpu1LayoutExecutableUnit(preparedLayoutUnit);
     }
 
@@ -48,6 +52,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = Objects.requireNonNull(preparedReductionUnit, "preparedReductionUnit cannot be null");
         this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
         this.executableUnit = new Cpu1ReductionExecutableUnit(preparedReductionUnit);
     }
 
@@ -56,7 +61,17 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = Objects.requireNonNull(preparedMatmulUnit, "preparedMatmulUnit cannot be null");
+        this.preparedMseLossUnit = null;
         this.executableUnit = new Cpu1MatmulExecutableUnit(preparedMatmulUnit);
+    }
+
+    public Cpu1PreparedArtifact(Cpu1PreparedMseLossUnit preparedMseLossUnit) {
+        this.preparedUnit = null;
+        this.preparedLayoutUnit = null;
+        this.preparedReductionUnit = null;
+        this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = Objects.requireNonNull(preparedMseLossUnit, "preparedMseLossUnit cannot be null");
+        this.executableUnit = new Cpu1MseLossExecutableUnit(preparedMseLossUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1ExecutableUnit executableUnit) {
@@ -64,6 +79,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
         this.executableUnit = Objects.requireNonNull(executableUnit, "executableUnit cannot be null");
     }
 
@@ -93,6 +109,13 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
             throw new IllegalStateException("This cpu1 artifact does not expose a prepared matmul unit");
         }
         return preparedMatmulUnit;
+    }
+
+    public Cpu1PreparedMseLossUnit preparedMseLossUnit() {
+        if (preparedMseLossUnit == null) {
+            throw new IllegalStateException("This cpu1 artifact does not expose a prepared MSE loss unit");
+        }
+        return preparedMseLossUnit;
     }
 
     public Cpu1ExecutableUnit executableUnit() {
@@ -129,7 +152,8 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
                 node,
                 preparedLayoutUnit,
                 preparedReductionUnit,
-                preparedMatmulUnit
+                preparedMatmulUnit,
+                preparedMseLossUnit
         );
     }
 }

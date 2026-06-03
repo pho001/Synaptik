@@ -8,8 +8,7 @@ import java.util.Objects;
  * Runtime BLAS dispatch policy for matrix multiplication.
  *
  * <p>The config records the provider, minimum work threshold, shape filters for FLOAT32 dispatch, debug
- * flag, and requested thread count. The current implementation normalizes {@code threads} to
- * {@link #DEFAULT_THREADS}, so calibration must not treat BLAS thread count as an active tuning knob.</p>
+ * flag, and requested thread counts. A thread value of {@code 0} means provider/default behavior.</p>
  *
  * @param provider BLAS provider; {@code null} becomes {@link BlasProvider#NONE}
  * @param matmulMinWork minimum estimated matmul work before BLAS is eligible
@@ -19,7 +18,9 @@ import java.util.Objects;
  * @param f32WideMaxNOverK maximum {@code N / K} ratio for wide FLOAT32 BLAS dispatch
  * @param storageMode BLAS storage route policy
  * @param debug whether BLAS dispatch should emit debug diagnostics
- * @param threads requested BLAS thread count; normalized to {@link #DEFAULT_THREADS}
+ * @param threads fallback requested BLAS thread count
+ * @param openBlasArrayCopyThreads requested OpenBLAS thread count for array-copy GEMM, or {@code 0}
+ * @param openBlasNativeSegmentThreads requested OpenBLAS thread count for native-segment GEMM, or {@code 0}
  */
 public record BlasConfig(
         BlasProvider provider,
@@ -30,7 +31,9 @@ public record BlasConfig(
         double f32WideMaxNOverK,
         BlasStorageMode storageMode,
         boolean debug,
-        int threads
+        int threads,
+        int openBlasArrayCopyThreads,
+        int openBlasNativeSegmentThreads
 ) {
     public static final long DEFAULT_MATMUL_MIN_WORK = 2_000_000L;
     public static final boolean DEFAULT_F32_REQUIRE_M_GE_K = true;
@@ -43,7 +46,35 @@ public record BlasConfig(
         matmulMinWork = matmulMinWork > 0 ? matmulMinWork : DEFAULT_MATMUL_MIN_WORK;
         f32MaxNOverK = f32MaxNOverK > 0.0d ? f32MaxNOverK : DEFAULT_F32_MAX_N_OVER_K;
         f32WideMaxNOverK = f32WideMaxNOverK > 0.0d ? f32WideMaxNOverK : f32MaxNOverK;
-        threads = DEFAULT_THREADS;
+        threads = normalizeThreads(threads, "threads");
+        openBlasArrayCopyThreads = normalizeThreads(openBlasArrayCopyThreads, "openBlasArrayCopyThreads");
+        openBlasNativeSegmentThreads = normalizeThreads(openBlasNativeSegmentThreads, "openBlasNativeSegmentThreads");
+    }
+
+    public BlasConfig(
+            BlasProvider provider,
+            long matmulMinWork,
+            boolean f32RequireMgeK,
+            double f32MaxNOverK,
+            boolean f32WideRequireMgeK,
+            double f32WideMaxNOverK,
+            BlasStorageMode storageMode,
+            boolean debug,
+            int threads
+    ) {
+        this(
+                provider,
+                matmulMinWork,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                storageMode,
+                debug,
+                threads,
+                DEFAULT_THREADS,
+                DEFAULT_THREADS
+        );
     }
 
     public BlasConfig(
@@ -134,7 +165,56 @@ public record BlasConfig(
                 f32WideMaxNOverK,
                 storageMode,
                 debug,
-                threads
+                threads,
+                openBlasArrayCopyThreads,
+                openBlasNativeSegmentThreads
         );
+    }
+
+    public BlasConfig withThreads(int threads) {
+        return new BlasConfig(
+                provider,
+                matmulMinWork,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                storageMode,
+                debug,
+                threads,
+                openBlasArrayCopyThreads,
+                openBlasNativeSegmentThreads
+        );
+    }
+
+    public BlasConfig withOpenBlasRouteThreads(int arrayCopyThreads, int nativeSegmentThreads) {
+        return new BlasConfig(
+                provider,
+                matmulMinWork,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                storageMode,
+                debug,
+                threads,
+                arrayCopyThreads,
+                nativeSegmentThreads
+        );
+    }
+
+    public int openBlasArrayCopyEffectiveThreads() {
+        return openBlasArrayCopyThreads > 0 ? openBlasArrayCopyThreads : threads;
+    }
+
+    public int openBlasNativeSegmentEffectiveThreads() {
+        return openBlasNativeSegmentThreads > 0 ? openBlasNativeSegmentThreads : threads;
+    }
+
+    private static int normalizeThreads(int value, String name) {
+        if (value < 0) {
+            throw new IllegalArgumentException(name + " must be non-negative: " + value);
+        }
+        return value;
     }
 }

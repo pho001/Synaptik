@@ -25,6 +25,9 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.dtype.TensorDTypeOps;
+import tensor.storage.NativeFloat32Storage;
+import tensor.storage.NativeFloat64Storage;
+import tensor.storage.NativeTensorStorage;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,6 +92,59 @@ class Cpu1ReductionExecutionContractTest {
                 context.runtimeTensorForNodeId(fixture.node().id()).toDoubleArrayCopy(),
                 1.0e-12
         );
+    }
+
+    @Test
+    void preparedF32SumReducesNativeSegmentWithoutCpuMaterialization() {
+        float[] values = new float[]{
+                1.0f, 2.0f, 3.0f,
+                4.0f, 5.0f, 6.0f
+        };
+        Tensor input = new Tensor(values, new int[]{2, 3}, null, "input", DataType.FLOAT32);
+        Fixture fixture = fixture(input.sum(1));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertReductionKernel(artifact, Cpu1ReductionKernelId.SUM_F32_DENSE_SCALAR);
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+        attachNativeF32Input(context, fixture.node().inputIds().getFirst(), values);
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        NativeFloat32Storage output = assertInstanceOf(
+                NativeFloat32Storage.class,
+                context.nativeStorageForNodeId(fixture.node().id())
+        );
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+        NativeTensorStorage secondOutput = context.nativeStorageForNodeId(fixture.node().id());
+        assertSame(output, secondOutput);
+        assertArrayEquals(new float[]{6.0f, 15.0f}, nativeF32Values(secondOutput), 1.0e-6f);
+        assertEquals(0, context.cpuMaterializationTraceCount());
+    }
+
+    @Test
+    void preparedF64MeanReducesNativeSegmentWithoutCpuMaterialization() {
+        double[] values = new double[]{
+                1.0d, 2.0d,
+                3.0d, 4.0d,
+                5.0d, 6.0d,
+                7.0d, 8.0d
+        };
+        Tensor input = new Tensor(values, new int[]{2, 2, 2}, null, "input", DataType.FLOAT64);
+        Fixture fixture = fixture(input.mean(1, true));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertReductionKernel(artifact, Cpu1ReductionKernelId.MEAN_F64_DENSE_SCALAR);
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+        attachNativeF64Input(context, fixture.node().inputIds().getFirst(), values);
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        NativeFloat64Storage output = assertInstanceOf(
+                NativeFloat64Storage.class,
+                context.nativeStorageForNodeId(fixture.node().id())
+        );
+        assertArrayEquals(new double[]{2.0d, 3.0d, 6.0d, 7.0d}, nativeF64Values(output), 1.0e-12);
+        assertEquals(0, context.cpuMaterializationTraceCount());
     }
 
     @Test
@@ -579,6 +635,46 @@ class Cpu1ReductionExecutionContractTest {
         byte[] out = new byte[values.length];
         for (int i = 0; i < values.length; i++) {
             out[i] = values[i] ? (byte) 1 : (byte) 0;
+        }
+        return out;
+    }
+
+    private static void attachNativeF32Input(ExecutionContext context, int nodeId, float[] values) {
+        NativeFloat32Storage storage = assertInstanceOf(
+                NativeFloat32Storage.class,
+                context.allocateNativeStorage(DataType.FLOAT32, values.length, "cpu1 reduction native f32 input")
+        );
+        for (int i = 0; i < values.length; i++) {
+            storage.setFloat32At(i, values[i]);
+        }
+        context.attachNativeStorage(nodeId, storage, "cpu1 reduction test native F32 input");
+    }
+
+    private static void attachNativeF64Input(ExecutionContext context, int nodeId, double[] values) {
+        NativeFloat64Storage storage = assertInstanceOf(
+                NativeFloat64Storage.class,
+                context.allocateNativeStorage(DataType.FLOAT64, values.length, "cpu1 reduction native f64 input")
+        );
+        for (int i = 0; i < values.length; i++) {
+            storage.setFloat64At(i, values[i]);
+        }
+        context.attachNativeStorage(nodeId, storage, "cpu1 reduction test native F64 input");
+    }
+
+    private static float[] nativeF32Values(NativeTensorStorage storage) {
+        NativeFloat32Storage f32 = assertInstanceOf(NativeFloat32Storage.class, storage);
+        float[] out = new float[f32.getSize()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = f32.getFloat32At(i);
+        }
+        return out;
+    }
+
+    private static double[] nativeF64Values(NativeTensorStorage storage) {
+        NativeFloat64Storage f64 = assertInstanceOf(NativeFloat64Storage.class, storage);
+        double[] out = new double[f64.getSize()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = f64.getFloat64At(i);
         }
         return out;
     }

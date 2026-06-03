@@ -4,6 +4,7 @@ import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
+import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
@@ -37,6 +38,8 @@ public final class Cpu1DispatchPolicy {
                 config,
                 cpuKernelConfig,
                 costClass,
+                config.storageKind(),
+                computeType,
                 totalLength,
                 vectorWidth
         );
@@ -97,6 +100,8 @@ public final class Cpu1DispatchPolicy {
             Cpu1PrepareConfig config,
             CpuKernelConfig cpuKernelConfig,
             Cpu1CostClass costClass,
+            Cpu1StorageKind storageKind,
+            DataType computeType,
             int totalLength,
             int vectorWidth
     ) {
@@ -107,11 +112,27 @@ public final class Cpu1DispatchPolicy {
         if (vectorWidth <= 1) {
             return Cpu1VectorizationKind.SCALAR;
         }
-        int minSize = switch (costClass) {
-            case EXPENSIVE_ELEMENTWISE -> cpuKernelConfig.transcendentalVectorMinSize();
-            default -> cpuKernelConfig.cheapVectorMinSize();
-        };
+        int minSize = vectorMinSize(cpuKernelConfig, costClass, storageKind, computeType);
         return totalLength >= minSize ? Cpu1VectorizationKind.VECTOR : Cpu1VectorizationKind.SCALAR;
+    }
+
+    private static int vectorMinSize(
+            CpuKernelConfig cpuKernelConfig,
+            Cpu1CostClass costClass,
+            Cpu1StorageKind storageKind,
+            DataType computeType
+    ) {
+        if (costClass == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
+            return cpuKernelConfig.transcendentalVectorMinSize();
+        }
+        if (storageKind == Cpu1StorageKind.MEMORY_SEGMENT) {
+            return switch (computeType) {
+                case FLOAT32 -> cpuKernelConfig.nativeF32CheapVectorMinSize();
+                case FLOAT64 -> cpuKernelConfig.nativeF64CheapVectorMinSize();
+                default -> cpuKernelConfig.cheapVectorMinSize();
+            };
+        }
+        return cpuKernelConfig.cheapVectorMinSize();
     }
 
     private static int resolvePlannedWorkers(

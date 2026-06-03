@@ -78,10 +78,10 @@ public final class PreparedExecutionBuilder {
                 );
                 continue;
             }
-            LoweredExecutionUnit nativeUnit = context.cpuNativeUnitForStart(node.id());
-            if (nativeUnit != null) {
+            LoweredExecutionUnit specializedUnit = context.cpuSpecializedUnitForStart(node.id());
+            if (specializedUnit != null) {
                 addPreparedRegionStep(
-                        prepareCpuNativeRegionStep(nativeUnit, context, dispatcher),
+                        prepareCpuSpecializedStep(specializedUnit, context, dispatcher),
                         context,
                         program.forwardBoundaryNodeId(),
                         executionSteps,
@@ -181,14 +181,24 @@ public final class PreparedExecutionBuilder {
         );
     }
 
-    private static PreparedExecutionStep prepareCpuNativeRegionStep(
-            LoweredExecutionUnit nativeUnit,
+    private static PreparedExecutionStep prepareCpuSpecializedStep(
+            LoweredExecutionUnit specializedUnit,
             BackendPrepareContext context,
             BackendPrepareDispatcher dispatcher
     ) {
-        RegionExecutionPlan regionPlan = requireBoundaryStepNode(nativeUnit.requireRegionPlan(), context, "CPU native");
-        CompiledNode outputNode = context.compiledNode(representativeBoundaryNodeId(regionPlan));
-        CompiledNodeExecutionMetadata metadata = dispatcher.prepareCpuNativeRegionStep(nativeUnit, context);
+        var regionPlan = requireBoundaryStepNode(
+                specializedUnit.requireRegionPlan(),
+                context,
+                "CPU specialized"
+        );
+        int outputNodeId = representativeBoundaryNodeId(regionPlan);
+        if (specializedUnit.orderedNodeIds().isEmpty() || specializedUnit.orderedNodeIds().getLast() != outputNodeId) {
+            throw new IllegalStateException("CPU specialized prepared step output must be the last ordered node. unit="
+                    + specializedUnit.unitId() + ", outputNodeId=" + outputNodeId
+                    + ", orderedNodeIds=" + specializedUnit.orderedNodeIds());
+        }
+        CompiledNode outputNode = context.compiledNode(outputNodeId);
+        CompiledNodeExecutionMetadata metadata = dispatcher.prepareCpuSpecializedStep(outputNode, specializedUnit, context);
         return new PreparedExecutionStep(
                 outputNode,
                 metadata,

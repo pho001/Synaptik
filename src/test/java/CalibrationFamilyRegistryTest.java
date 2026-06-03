@@ -2,6 +2,8 @@ import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.calibration.family.CalibrationFamilyId;
 import tuning.calibration.family.CalibrationFamilyRegistry;
+import tuning.ownership.TuningKnobOwner;
+import tuning.ownership.TuningKnobOwnership;
 
 import java.util.HashSet;
 
@@ -46,6 +48,18 @@ public class CalibrationFamilyRegistryTest {
                 assertTrue(seen.add(knob), () -> "Duplicate calibration knob ownership: " + knob);
             }
         }
+    }
+
+    @Test
+    void elementwiseDispatchOwnsNativeCheapVectorThresholds() {
+        var ownedKnobs = CalibrationFamilyRegistry.spec(CalibrationFamilyId.ELEMENTWISE_DISPATCH).ownedKnobs();
+
+        assertTrue(ownedKnobs.contains("cpu.nativeF32CheapVectorMinSize"));
+        assertTrue(ownedKnobs.contains("cpu.nativeF64CheapVectorMinSize"));
+        assertEquals(TuningKnobOwner.PLATFORM_DTYPE,
+                TuningKnobOwnership.ownerOf("cpu.nativeF32CheapVectorMinSize"));
+        assertEquals(TuningKnobOwner.PLATFORM_DTYPE,
+                TuningKnobOwnership.ownerOf("cpu.nativeF64CheapVectorMinSize"));
     }
 
     @Test

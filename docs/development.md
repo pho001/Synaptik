@@ -157,14 +157,14 @@ The CPU backend is the complete execution backend. New CPU kernels should live u
 CPU kernel checklist:
 
 1. Implement `src/main/java/backend/cpu/kernels/CpuKernel.java`.
-2. Override the supported dtype entry points: `forwardF64`, `forwardF32`, `forwardBF16`, `forwardBOOL`, or `forwardI32`.
-3. Use the existing family executor where possible, such as `ElementwiseBinaryExecutor`, `ElementwiseUnaryExecutor`, reduction executors, matmul executables, or conv/pool executors.
-4. Read prepared metadata from `CpuKernelContext`, not from ad hoc policy logic inside the hot loop.
+2. Implement `execute(CpuKernelCall)` and keep dtype/storage/layout routing at the kernel-family boundary.
+3. Use the existing family owner where possible, such as `StorageAwareBinaryElementwiseKernel`, `ElementwiseUnaryExecutor`, reduction executors, matmul executables, or conv/pool executors.
+4. Read prepared metadata from `CpuKernelCall` / `CpuKernelContext`, not from ad hoc policy logic inside the hot loop.
 5. Add a singleton field and switch case in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
-6. If the op needs workspace or special prepared metadata, update `src/main/java/backend/cpu/prepare/CpuNodePreparer.java` and the relevant planner under `src/main/java/backend/cpu/kernels/.../plan`.
+6. If the op needs workspace or special prepared metadata, update the relevant planner under `src/main/java/backend/cpu/prepare/...`.
 7. Add execution tests that call `CompiledGraph.compile(...).execute(...)` rather than only testing helper methods.
 
-For elementwise kernels, use `CpuAddKernel` as the reference shape: scalar application methods, vector support methods, and direct F64/F32/BF16 implementations live together while dispatch is handled by the shared executor and planner.
+For numeric binary elementwise kernels, use `CpuAddKernel` as the reference shape: concrete scalar/vector loops live in the final op kernel while storage/layout/native routing is handled by the storage-aware binary family base.
 
 For native or accelerator-adjacent paths:
 

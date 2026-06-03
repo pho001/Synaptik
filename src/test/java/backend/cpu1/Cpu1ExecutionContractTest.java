@@ -48,6 +48,7 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class Cpu1ExecutionContractTest {
@@ -1008,6 +1009,34 @@ class Cpu1ExecutionContractTest {
                 readNativeF32(context.nativeStorageForNodeId(fixture.node().id()), 3),
                 1.0e-6f
         );
+    }
+
+    @Test
+    void preparedMemorySegmentElementwiseReusesNativeOutputStorage() {
+        Tensor left = new Tensor(new float[]{1.0f, 2.0f, 3.0f}, new int[]{3}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{10.0f, 20.0f, 30.0f}, new int[]{3}, null, "right", DataType.FLOAT32);
+        Fixture fixture = fixture(left.add(right));
+        Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(
+                fixture.node(),
+                fixture.descriptorIndex(),
+                Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
+        );
+        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, metadata);
+        attachNativeInputs(context, fixture);
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+        NativeTensorStorage first = context.nativeStorageForNodeId(fixture.node().id());
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+        NativeTensorStorage second = context.nativeStorageForNodeId(fixture.node().id());
+
+        assertSame(first, second);
+        assertArrayEquals(
+                new float[]{11.0f, 22.0f, 33.0f},
+                readNativeF32(second, 3),
+                1.0e-6f
+        );
+        assertEquals(0, context.cpuMaterializationTraceCount());
     }
 
     @Test

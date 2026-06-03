@@ -45,7 +45,7 @@ public class PlatformRuntimeProfileResolverTest {
 
             assertEquals(BlasProvider.OPENBLAS_FFM, runtime.blas().provider());
             assertEquals(123_456L, runtime.blas().matmulMinWork());
-            assertEquals(config.runtime.BlasConfig.DEFAULT_THREADS, runtime.blas().threads());
+            assertEquals(2, runtime.blas().threads());
         } finally {
             restoreProperty(previous);
         }

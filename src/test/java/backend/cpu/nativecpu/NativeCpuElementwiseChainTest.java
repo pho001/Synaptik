@@ -1593,7 +1593,7 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void unsupportedCpuNativeSoftmaxLikeFallsBackToArrayWithStableTraceReason() {
+    void unsupportedCpuNativeSoftmaxLikeDoesNotEmitNativeRegionTrace() {
         Tensor softmaxOut = specialSoftmax(a(), 1);
         Tensor logSoftmaxOut = specialLogSoftmax(a(), 1);
 
@@ -1611,22 +1611,12 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals("REJECTED", softmax.get("nativeCpuRegionDecision"));
-        assertEquals("CPU_ARRAY", softmax.get("nativeCpuRegionRoute"));
-        assertEquals("SOFTMAX", softmax.get("nativeCpuRegionRejectedOp"));
-        assertEquals(
-                "native-cpu-region-rejected:native-softmax-scalar-loop-slower-than-array",
-                softmax.get("nativeCpuRegionFallbackReason")
-        );
-        assertEquals("LOG_SOFTMAX", logSoftmax.get("nativeCpuRegionRejectedOp"));
-        assertEquals(
-                "native-cpu-region-rejected:native-softmax-scalar-loop-slower-than-array",
-                logSoftmax.get("nativeCpuRegionFallbackReason")
-        );
+        assertFalse(softmax.containsKey("nativeCpuRegionDecision"));
+        assertFalse(logSoftmax.containsKey("nativeCpuRegionDecision"));
     }
 
     @Test
-    void unsupportedCpuNativeArgMaxFallsBackToArrayWithStableTraceReason() {
+    void unsupportedCpuNativeArgMaxDoesNotEmitNativeRegionTrace() {
         Tensor out = a().argMax(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
@@ -1637,17 +1627,11 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals("REJECTED", argMax.get("nativeCpuRegionDecision"));
-        assertEquals("CPU_ARRAY", argMax.get("nativeCpuRegionRoute"));
-        assertEquals("ARGMAX", argMax.get("nativeCpuRegionRejectedOp"));
-        assertEquals(
-                "native-cpu-region-rejected:native-argmax-index-output-unsupported",
-                argMax.get("nativeCpuRegionFallbackReason")
-        );
+        assertFalse(argMax.containsKey("nativeCpuRegionDecision"));
     }
 
     @Test
-    void unsupportedCpuNativeBf16MinMaxReductionFallsBackToArrayWithStableTraceReason() {
+    void unsupportedCpuNativeBf16MinMaxReductionDoesNotEmitNativeRegionTrace() {
         Tensor out = bf16(new float[]{1.0f, 4.0f, 2.0f, 3.0f}, "bf16_reduce_min").min(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
@@ -1658,13 +1642,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertEquals("REJECTED", reduceMin.get("nativeCpuRegionDecision"));
-        assertEquals("CPU_ARRAY", reduceMin.get("nativeCpuRegionRoute"));
-        assertEquals("REDUCE_MIN", reduceMin.get("nativeCpuRegionRejectedOp"));
-        assertEquals(
-                "native-cpu-region-rejected:native-bf16-reduce-minmax-output-policy-unsupported",
-                reduceMin.get("nativeCpuRegionFallbackReason")
-        );
+        assertFalse(reduceMin.containsKey("nativeCpuRegionDecision"));
     }
 
     @Test

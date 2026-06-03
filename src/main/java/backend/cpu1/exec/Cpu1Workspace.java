@@ -1,5 +1,9 @@
 package backend.cpu1.exec;
 
+import backend.runtime.ExecutionContext;
+import tensor.DataType;
+import tensor.storage.NativeTensorStorage;
+
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
@@ -13,6 +17,7 @@ public final class Cpu1Workspace {
     private final int[] i32Array;
     private final MemorySegment segment;
     private final Cpu1ProviderCache providerCache;
+    private NativeTensorStorage nativeOutputStorage;
 
     private Cpu1Workspace(
             Cpu1WorkspaceSpec spec,
@@ -99,6 +104,37 @@ public final class Cpu1Workspace {
                     + requiredBytes + ", actualBytes=" + (segment == null ? 0L : segment.byteSize()));
         }
         return segment;
+    }
+
+    public NativeTensorStorage requireNativeOutputStorage(
+            DataType dataType,
+            int requiredElements,
+            int nodeId,
+            ExecutionContext context,
+            String label
+    ) {
+        Objects.requireNonNull(dataType, "dataType cannot be null");
+        Objects.requireNonNull(context, "context cannot be null");
+        requireNonNegative(requiredElements, "requiredElements");
+        if (spec.nativeOutputDataType() == null) {
+            throw new IllegalStateException("cpu1 workspace does not provide native output storage.");
+        }
+        if (spec.nativeOutputDataType() != dataType || spec.nativeOutputElements() != requiredElements) {
+            throw new IllegalStateException("cpu1 workspace native output storage mismatch. expected="
+                    + spec.nativeOutputDataType() + "[" + spec.nativeOutputElements() + "], requested="
+                    + dataType + "[" + requiredElements + "]");
+        }
+        if (nativeOutputStorage == null) {
+            nativeOutputStorage = context.allocateNativeStorage(dataType, requiredElements, label);
+        }
+        if (nativeOutputStorage.getType() != dataType || nativeOutputStorage.getSize() != requiredElements) {
+            throw new IllegalStateException("cpu1 workspace native output storage is invalid for nodeId=" + nodeId
+                    + ". expected=" + dataType + "[" + requiredElements + "], actual="
+                    + nativeOutputStorage.getType() + "[" + nativeOutputStorage.getSize() + "]");
+        }
+        nativeOutputStorage.ensureOpen();
+        context.reserveNativeOutputStorage(nodeId, nativeOutputStorage);
+        return nativeOutputStorage;
     }
 
     public Cpu1ProviderCache providerCache() {

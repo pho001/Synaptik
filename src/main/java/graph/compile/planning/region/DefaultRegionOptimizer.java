@@ -4,9 +4,15 @@ import graph.CompiledNode;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionTarget;
 import graph.compile.planning.partition.PartitionValue;
+import graph.compile.planning.region.specialization.DefaultRegionSpecializationCapability;
+import graph.compile.planning.region.specialization.RegionSpecializationCapability;
+import graph.compile.planning.region.specialization.RegionSpecializationPlanner;
+import graph.compile.planning.region.specialization.RegionSpecializationResult;
 import graph.compile.planning.value.GraphValueRef;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Default partition-to-region optimizer.
@@ -16,6 +22,19 @@ import java.util.List;
  * capability decisions belong to backend lowerers.
  */
 public final class DefaultRegionOptimizer {
+    private final RegionSpecializationCapability specializationCapability;
+
+    public DefaultRegionOptimizer() {
+        this(new DefaultRegionSpecializationCapability());
+    }
+
+    public DefaultRegionOptimizer(RegionSpecializationCapability specializationCapability) {
+        this.specializationCapability = Objects.requireNonNull(
+                specializationCapability,
+                "specializationCapability cannot be null"
+        );
+    }
+
     /**
      * Converts a partition to an optimized region.
      *
@@ -31,19 +50,19 @@ public final class DefaultRegionOptimizer {
             throw new IllegalArgumentException("context cannot be null");
         }
 
-        List<ExecutionUnit> units = buildUnits(partition, context);
+        UnitBuildResult unitBuild = buildUnits(partition, context);
+        List<ExecutionUnit> units = unitBuild.units();
         List<RegionValue> regionValues = partition.values().stream()
                 .map(value -> toRegionValue(value, partition, context, units))
                 .toList();
 
-        RegionOptimizationTrace trace = new RegionOptimizationTrace(
-                List.of(
-                        "units=" + units.size(),
-                        "target=" + partition.target().name(),
-                        "regionKind=" + partition.regionKind().name(),
-                        "plannerStrategy=" + partition.plannerStrategy().name()
-                )
-        );
+        ArrayList<String> traceEvents = new ArrayList<>();
+        traceEvents.add("units=" + units.size());
+        traceEvents.add("target=" + partition.target().name());
+        traceEvents.add("regionKind=" + partition.regionKind().name());
+        traceEvents.add("plannerStrategy=" + partition.plannerStrategy().name());
+        traceEvents.addAll(unitBuild.traceEvents());
+        RegionOptimizationTrace trace = new RegionOptimizationTrace(traceEvents);
 
         return new OptimizedRegion(
                 partition.partitionId(),
@@ -56,11 +75,22 @@ public final class DefaultRegionOptimizer {
         );
     }
 
-    private List<ExecutionUnit> buildUnits(Partition partition, RegionOptimizationContext context) {
-        if (partition.target() == PartitionTarget.CPU) {
-            return new CpuRegionOptimizationPolicy().buildUnits(partition, context);
+    private UnitBuildResult buildUnits(Partition partition, RegionOptimizationContext context) {
+        RegionSpecializationResult specialization = RegionSpecializationPlanner.tryBuildUnits(
+                partition,
+                context,
+                specializationCapability
+        );
+        if (specialization.accepted()) {
+            return new UnitBuildResult(specialization.units(), specialization.traceEvents());
         }
-        return StructuralRegionUnitPlanner.buildUnits(partition, context);
+        List<ExecutionUnit> units;
+        if (partition.target() == PartitionTarget.CPU) {
+            units = new CpuRegionOptimizationPolicy().buildUnits(partition, context);
+        } else {
+            units = StructuralRegionUnitPlanner.buildUnits(partition, context);
+        }
+        return new UnitBuildResult(units, specialization.traceEvents());
     }
 
     private RegionValue toRegionValue(
@@ -116,6 +146,16 @@ public final class DefaultRegionOptimizer {
             throw new IllegalStateException("Missing compiled node for producerNodeId=" + producerNodeId);
         }
         return Math.max(0, producer.flatDataSize());
+    }
+
+    private record UnitBuildResult(
+            List<ExecutionUnit> units,
+            List<String> traceEvents
+    ) {
+        private UnitBuildResult {
+            units = List.copyOf(units == null ? List.of() : units);
+            traceEvents = List.copyOf(traceEvents == null ? List.of() : traceEvents);
+        }
     }
 
 }

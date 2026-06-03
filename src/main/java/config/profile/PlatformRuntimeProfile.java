@@ -254,6 +254,8 @@ public record PlatformRuntimeProfile(
                         profile.runtime().blas().provider(),
                         profile.runtime().blas().matmulMinWork(),
                         profile.runtime().blas().threads(),
+                        profile.runtime().blas().openBlasArrayCopyThreads(),
+                        profile.runtime().blas().openBlasNativeSegmentThreads(),
                         profile.runtime().blas().f32RequireMgeK(),
                         profile.runtime().blas().f32MaxNOverK(),
                         profile.runtime().blas().f32WideRequireMgeK(),
@@ -289,6 +291,8 @@ public record PlatformRuntimeProfile(
                 ),
                 new ElementwiseDispatchPlatformProfile(
                         cpu.cheapVectorMinSize(),
+                        cpu.nativeF32CheapVectorMinSize(),
+                        cpu.nativeF64CheapVectorMinSize(),
                         cpu.transcendentalVectorMinSize(),
                         cpu.cheapParallelMinSize(),
                         cpu.transcendentalParallelMinSize()
@@ -375,7 +379,9 @@ public record PlatformRuntimeProfile(
                 matmul.attentionMatMulMicroKernel() == null ? matmul.matMulMicroKernel() : matmul.attentionMatMulMicroKernel(),
                 matmul.attentionMatMulTileM(),
                 matmul.attentionMatMulTileN(),
-                matmul.attentionMatMulTileK()
+                matmul.attentionMatMulTileK(),
+                elementwiseDispatch.nativeF32CheapVectorMinSize(),
+                elementwiseDispatch.nativeF64CheapVectorMinSize()
         );
         return new RuntimeConfig(
                 new KernelTuningConfig(
@@ -393,7 +399,9 @@ public record PlatformRuntimeProfile(
                         matmul.f32WideMaxNOverK(),
                         matmul.blasStorageMode(),
                         false,
-                        matmul.blasThreads()
+                        matmul.blasThreads(),
+                        matmul.openBlasArrayCopyThreads(),
+                        matmul.openBlasNativeSegmentThreads()
                 ),
                 new config.runtime.Conv2dConfig(
                         conv2d.blasProvider(),

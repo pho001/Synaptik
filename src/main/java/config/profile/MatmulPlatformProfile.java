@@ -16,7 +16,9 @@ import java.util.Objects;
  *
  * @param blasProvider BLAS provider eligible for matmul dispatch
  * @param blasMatmulMinWork minimum regular matmul work before BLAS dispatch is eligible
- * @param blasThreads BLAS thread count; currently normalized to {@code 0} for provider default behavior
+ * @param blasThreads fallback BLAS thread count; {@code 0} means provider default behavior
+ * @param openBlasArrayCopyThreads OpenBLAS array-copy route thread count; {@code 0} falls back to {@code blasThreads}
+ * @param openBlasNativeSegmentThreads OpenBLAS native-segment route thread count; {@code 0} falls back to {@code blasThreads}
  * @param f32RequireMgeK whether F32 regular BLAS dispatch requires {@code M >= K}
  * @param f32MaxNOverK maximum {@code N / K} ratio for regular F32 BLAS dispatch
  * @param f32WideRequireMgeK whether F32 wide BLAS dispatch requires {@code M >= K}
@@ -37,6 +39,8 @@ public record MatmulPlatformProfile(
         BlasProvider blasProvider,
         long blasMatmulMinWork,
         int blasThreads,
+        int openBlasArrayCopyThreads,
+        int openBlasNativeSegmentThreads,
         boolean f32RequireMgeK,
         double f32MaxNOverK,
         boolean f32WideRequireMgeK,
@@ -56,7 +60,9 @@ public record MatmulPlatformProfile(
     public MatmulPlatformProfile {
         blasProvider = Objects.requireNonNull(blasProvider, "blasProvider cannot be null");
         blasStorageMode = blasStorageMode == null ? BlasStorageMode.CPU_ARRAY : blasStorageMode;
-        blasThreads = 0;
+        blasThreads = normalizeThreads(blasThreads, "blasThreads");
+        openBlasArrayCopyThreads = normalizeThreads(openBlasArrayCopyThreads, "openBlasArrayCopyThreads");
+        openBlasNativeSegmentThreads = normalizeThreads(openBlasNativeSegmentThreads, "openBlasNativeSegmentThreads");
         attentionMatMulTileM = attentionMatMulTileM <= 0 ? matMulTileM : attentionMatMulTileM;
         attentionMatMulTileN = attentionMatMulTileN <= 0 ? matMulTileN : attentionMatMulTileN;
         attentionMatMulTileK = attentionMatMulTileK <= 0 ? matMulTileK : attentionMatMulTileK;
@@ -92,6 +98,7 @@ public record MatmulPlatformProfile(
             double f32MaxNOverK,
             boolean f32WideRequireMgeK,
             double f32WideMaxNOverK,
+            BlasStorageMode blasStorageMode,
             int loopUnrollFactor,
             int matMulTileM,
             int matMulTileN,
@@ -107,6 +114,51 @@ public record MatmulPlatformProfile(
                 blasProvider,
                 blasMatmulMinWork,
                 blasThreads,
+                0,
+                0,
+                f32RequireMgeK,
+                f32MaxNOverK,
+                f32WideRequireMgeK,
+                f32WideMaxNOverK,
+                blasStorageMode,
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK,
+                matMulParallelMinSize,
+                matMulMicroKernel,
+                attentionMatMulMicroKernel
+        );
+    }
+
+    public MatmulPlatformProfile(
+            BlasProvider blasProvider,
+            long blasMatmulMinWork,
+            int blasThreads,
+            boolean f32RequireMgeK,
+            double f32MaxNOverK,
+            boolean f32WideRequireMgeK,
+            double f32WideMaxNOverK,
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int attentionMatMulTileM,
+            int attentionMatMulTileN,
+            int attentionMatMulTileK,
+            int matMulParallelMinSize,
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel
+    ) {
+        this(
+                blasProvider,
+                blasMatmulMinWork,
+                blasThreads,
+                0,
+                0,
                 f32RequireMgeK,
                 f32MaxNOverK,
                 f32WideRequireMgeK,
@@ -146,6 +198,8 @@ public record MatmulPlatformProfile(
                 blasProvider,
                 blasMatmulMinWork,
                 blasThreads,
+                0,
+                0,
                 f32RequireMgeK,
                 f32MaxNOverK,
                 f32RequireMgeK,
@@ -162,5 +216,12 @@ public record MatmulPlatformProfile(
                 matMulMicroKernel,
                 attentionMatMulMicroKernel
         );
+    }
+
+    private static int normalizeThreads(int value, String name) {
+        if (value < 0) {
+            throw new IllegalArgumentException(name + " must be non-negative: " + value);
+        }
+        return value;
     }
 }

@@ -61,7 +61,7 @@ class RegionExecutionPlanTest {
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1),
                 List.of(),
@@ -69,7 +69,7 @@ class RegionExecutionPlanTest {
                 List.of(),
                 List.of(),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
     }
@@ -79,7 +79,7 @@ class RegionExecutionPlanTest {
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1, 1),
                 List.of(),
@@ -87,14 +87,14 @@ class RegionExecutionPlanTest {
                 List.of(),
                 List.of(),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
 
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1, 2),
                 List.of(),
@@ -102,7 +102,7 @@ class RegionExecutionPlanTest {
                 List.of(),
                 List.of(),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
     }
@@ -112,7 +112,7 @@ class RegionExecutionPlanTest {
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1, 2),
                 List.of(),
@@ -120,7 +120,7 @@ class RegionExecutionPlanTest {
                 List.of(),
                 List.of(),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
     }
@@ -130,7 +130,7 @@ class RegionExecutionPlanTest {
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1, 2),
                 List.of(),
@@ -138,14 +138,14 @@ class RegionExecutionPlanTest {
                 List.of(nodePlan(3)),
                 List.of(),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
 
         assertThrows(IllegalArgumentException.class, () -> new RegionExecutionPlan(
                 "region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 1,
                 List.of(1, 2),
                 List.of(),
@@ -163,7 +163,7 @@ class RegionExecutionPlanTest {
                         "test"
                 )),
                 RegionCost.ofWork(1L),
-                RegionDecision.selected("CPU_NATIVE_REGION", "test"),
+                RegionDecision.selected("DIRECT_KERNEL", "test"),
                 EmptyRegionPayload.INSTANCE
         ));
     }

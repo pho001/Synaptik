@@ -8,6 +8,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.PreparedRuntimeStateAllocator;
 import org.junit.jupiter.api.Test;
+import tensor.DataType;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;
@@ -65,6 +66,21 @@ class Cpu1WorkspaceTest {
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, -1, 0L, false));
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, -1L, false));
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, (long) Integer.MAX_VALUE + 1L, false));
+        assertThrows(IllegalArgumentException.class, () -> Cpu1WorkspaceSpec.nativeOutput(DataType.FLOAT32, -1));
+        assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, 0L, false, null, 1));
+    }
+
+    @Test
+    void nativeOutputSpecAllocatesWorkspaceWithoutArrayScratch() {
+        Cpu1WorkspaceSpec spec = Cpu1WorkspaceSpec.nativeOutput(DataType.FLOAT32, 6);
+
+        Cpu1Workspace workspace = Cpu1Workspace.allocate(spec);
+
+        assertSame(spec, workspace.spec());
+        assertEquals(DataType.FLOAT32, workspace.spec().nativeOutputDataType());
+        assertEquals(6, workspace.spec().nativeOutputElements());
+        assertThrows(IllegalStateException.class, workspace::requireF32Array);
+        assertThrows(IllegalStateException.class, workspace::requireSegment);
     }
 
     @Test

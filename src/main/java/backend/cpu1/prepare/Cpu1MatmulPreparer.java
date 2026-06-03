@@ -33,57 +33,154 @@ public final class Cpu1MatmulPreparer {
             CompiledTensorDescriptorIndex descriptorIndex,
             Cpu1PrepareConfig config
     ) {
-        Objects.requireNonNull(node, "node cannot be null");
+        return prepare(node, descriptorIndex, config, Cpu1MatmulPostOp.NONE);
+    }
+
+    public Cpu1PreparedArtifact prepare(
+            CompiledNode node,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1PrepareConfig config,
+            Cpu1MatmulPostOp postOp
+    ) {
+        return prepare(node, node, descriptorIndex, config, postOp);
+    }
+
+    public Cpu1PreparedArtifact prepare(
+            CompiledNode matmulNode,
+            CompiledNode outputNode,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1PrepareConfig config,
+            Cpu1MatmulPostOp postOp
+    ) {
+        return prepare(matmulNode, outputNode, descriptorIndex, config, postOp, -1, null);
+    }
+
+    public Cpu1PreparedArtifact prepareMatmulBiasRelu(
+            CompiledNode matmulNode,
+            CompiledNode addNode,
+            CompiledNode outputNode,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1PrepareConfig config
+    ) {
+        Objects.requireNonNull(matmulNode, "matmulNode cannot be null");
+        Objects.requireNonNull(addNode, "addNode cannot be null");
+        if (addNode.operation() == null || addNode.operation().opType() != Operation.OpType.ADD) {
+            throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU requires an ADD node.");
+        }
+        if (addNode.inputIds().size() != 2) {
+            throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU expects ADD with 2 inputs, got "
+                    + addNode.inputIds().size());
+        }
+        int biasNodeId = biasNodeId(addNode, matmulNode.id());
+        return prepare(
+                matmulNode,
+                outputNode,
+                descriptorIndex,
+                config,
+                Cpu1MatmulPostOp.ADD_BIAS_RELU,
+                biasNodeId,
+                addNode
+        );
+    }
+
+    public Cpu1PreparedArtifact prepareLinearBiasRelu(
+            CompiledNode linearNode,
+            CompiledNode outputNode,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1PrepareConfig config
+    ) {
+        return prepare(
+                linearNode,
+                outputNode,
+                descriptorIndex,
+                config,
+                Cpu1MatmulPostOp.ADD_BIAS_RELU,
+                -1,
+                null
+        );
+    }
+
+    private Cpu1PreparedArtifact prepare(
+            CompiledNode matmulNode,
+            CompiledNode outputNode,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1PrepareConfig config,
+            Cpu1MatmulPostOp postOp,
+            int biasNodeId,
+            CompiledNode addNode
+    ) {
+        Objects.requireNonNull(matmulNode, "matmulNode cannot be null");
+        Objects.requireNonNull(outputNode, "outputNode cannot be null");
         Objects.requireNonNull(config, "config cannot be null");
-        Operation operation = Objects.requireNonNull(node.operation(), "node operation cannot be null");
-        if (operation.opType() != Operation.OpType.MATMUL) {
+        Objects.requireNonNull(postOp, "postOp cannot be null");
+        Operation operation = Objects.requireNonNull(matmulNode.operation(), "matmulNode operation cannot be null");
+        boolean linearWithBias = operation.opType() == Operation.OpType.LINEAR;
+        if (operation.opType() != Operation.OpType.MATMUL && !linearWithBias) {
             throw new UnsupportedOperationException("cpu1 matmul preparer does not support " + operation.opType());
         }
         if (descriptorIndex == null) {
             throw new UnsupportedOperationException("cpu1 MATMUL requires descriptors.");
         }
-        if (node.inputIds().size() != 2) {
-            throw new UnsupportedOperationException("cpu1 MATMUL expects 2 inputs, got " + node.inputIds().size());
+        if (linearWithBias && postOp != Cpu1MatmulPostOp.ADD_BIAS_RELU) {
+            throw new UnsupportedOperationException("cpu1 LINEAR specialization requires ADD_BIAS_RELU post-op.");
         }
-        if (config.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
-            throw new UnsupportedOperationException("cpu1 initial MATMUL supports only JAVA_ARRAY storage.");
+        if (linearWithBias && matmulNode.inputIds().size() != 3) {
+            throw new UnsupportedOperationException("cpu1 LINEAR expects 3 inputs, got " + matmulNode.inputIds().size());
         }
-        CompiledTensorDescriptor left = descriptorIndex.byNodeId(node.inputIds().get(0));
-        CompiledTensorDescriptor right = descriptorIndex.byNodeId(node.inputIds().get(1));
-        requireDenseArrayContract(node, left, right);
+        if (!linearWithBias && matmulNode.inputIds().size() != 2) {
+            throw new UnsupportedOperationException("cpu1 MATMUL expects 2 inputs, got " + matmulNode.inputIds().size());
+        }
+        CompiledTensorDescriptor left = descriptorIndex.byNodeId(matmulNode.inputIds().get(0));
+        CompiledTensorDescriptor right = descriptorIndex.byNodeId(matmulNode.inputIds().get(1));
+        requireDenseMatmulContract(matmulNode, outputNode, left, right);
+        int effectiveBiasNodeId = linearWithBias ? matmulNode.inputIds().get(2) : biasNodeId;
+        CompiledTensorDescriptor bias = postOp.requiresBias() ? descriptorIndex.byNodeId(effectiveBiasNodeId) : null;
+        if (postOp.requiresBias()) {
+            requireBiasContract(linearWithBias ? matmulNode : addNode, outputNode, bias);
+        }
 
         int[] leftShape = left.shape();
         int[] rightShape = right.shape();
-        int[] outputShape = node.shape();
+        int[] outputShape = outputNode.shape();
         int[] leftStrides = left.strides();
         int[] rightStrides = right.strides();
-        int[] outputStrides = node.strides();
+        int[] outputStrides = outputNode.strides();
         validateShape(leftShape, rightShape, outputShape);
 
         int batchCount = batchCount(outputShape);
         int m = outputShape[outputShape.length - 2];
         int n = outputShape[outputShape.length - 1];
         int k = leftShape[leftShape.length - 1];
-        Cpu1MatmulRoute route = resolveMatmulRoute(config, node.dataType(), batchCount, m, n, k);
+        int[] biasBroadcastStrides = bias == null
+                ? null
+                : broadcastStrides(bias.shape(), bias.strides(), outputShape, "bias");
+        Cpu1MatmulRoute route = resolveMatmulRoute(config, postOp, outputNode.dataType(), batchCount, m, n, k);
+        requireStorageContract(route, config.storageKind());
+        requirePostOpContract(route, postOp);
         Cpu1MatmulProvider provider = Cpu1MatmulProviders.forRoute(route);
         Cpu1LaunchConfig launchConfig = resolveMatmulLaunch(provider.route(), batchCount, m, n, k, config);
         Cpu1VectorizationKind vectorizationKind = resolveMatmulVectorization(
                 provider.route(),
-                node.dataType(),
+                outputNode.dataType(),
                 batchCount,
                 m,
                 n,
                 k,
                 config
         );
-        Cpu1MatmulKernelId kernelId = resolveMatmulKernelId(provider, node.dataType(), vectorizationKind);
+        Cpu1MatmulKernelId kernelId = resolveMatmulKernelId(provider, outputNode.dataType(), vectorizationKind);
         Cpu1PreparedMatmulUnit unit = new Cpu1PreparedMatmulUnit(
-                node.id(),
-                node.inputIds().get(0),
-                node.inputIds().get(1),
-                node.dataType(),
+                outputNode.id(),
+                matmulNode.inputIds().get(0),
+                matmulNode.inputIds().get(1),
+                outputNode.dataType(),
                 config.storageKind(),
                 route,
+                postOp,
+                bias == null ? -1 : bias.nodeId(),
+                bias == null ? 0 : biasBroadcastStrides[biasBroadcastStrides.length - 2],
+                bias == null ? 0 : biasBroadcastStrides[biasBroadcastStrides.length - 1],
+                bias == null ? null : batchOffsetsFromBroadcastStrides(outputShape, biasBroadcastStrides),
                 vectorizationKind,
                 kernelId,
                 batchCount,
@@ -100,7 +197,8 @@ public final class Cpu1MatmulPreparer {
                 batchOffsets(rightShape, rightStrides, outputShape, true),
                 batchOffsets(outputShape, outputStrides, outputShape, false),
                 launchConfig,
-                workspaceSpec(kernelId, batchCount, n, k)
+                workspaceSpec(kernelId, outputNode.dataType(), batchCount, m, n, k),
+                openBlasThreads(route, config.blasConfig())
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -109,24 +207,70 @@ public final class Cpu1MatmulPreparer {
         return opType == Operation.OpType.MATMUL;
     }
 
-    private static void requireDenseArrayContract(
-            CompiledNode node,
+    private static void requireDenseMatmulContract(
+            CompiledNode matmulNode,
+            CompiledNode outputNode,
             CompiledTensorDescriptor left,
             CompiledTensorDescriptor right
     ) {
-        DataType dataType = node.dataType();
+        DataType dataType = outputNode.dataType();
         if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64 && dataType != DataType.BFLOAT16) {
             throw new UnsupportedOperationException("cpu1 MATMUL does not support output dtype " + dataType);
         }
-        if (left.dataType() != dataType || right.dataType() != dataType) {
+        if (matmulNode.dataType() != dataType || left.dataType() != dataType || right.dataType() != dataType) {
             throw new UnsupportedOperationException("cpu1 initial MATMUL requires matching input/output dtype. left="
-                    + left.dataType() + ", right=" + right.dataType() + ", output=" + dataType);
+                    + left.dataType() + ", right=" + right.dataType() + ", matmul=" + matmulNode.dataType()
+                    + ", output=" + dataType);
+        }
+        if (!Arrays.equals(matmulNode.shape(), outputNode.shape())) {
+            throw new UnsupportedOperationException("cpu1 MATMUL post-op output shape must match matmul shape. matmul="
+                    + Arrays.toString(matmulNode.shape()) + ", output=" + Arrays.toString(outputNode.shape()));
         }
         if (!left.denseContiguousWithoutOffset() || !right.denseContiguousWithoutOffset()) {
             throw new UnsupportedOperationException("cpu1 initial MATMUL supports only dense contiguous inputs without storage offset.");
         }
-        if (!node.contiguous() || node.hasStorageOffset()) {
+        if (!outputNode.contiguous() || outputNode.hasStorageOffset()) {
             throw new UnsupportedOperationException("cpu1 initial MATMUL supports only dense contiguous output without storage offset.");
+        }
+    }
+
+    private static void requireBiasContract(
+            CompiledNode addNode,
+            CompiledNode outputNode,
+            CompiledTensorDescriptor bias
+    ) {
+        Objects.requireNonNull(addNode, "addNode cannot be null");
+        Objects.requireNonNull(bias, "bias cannot be null");
+        if (!Arrays.equals(addNode.shape(), outputNode.shape())) {
+            throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU ADD output shape must match RELU output. add="
+                    + Arrays.toString(addNode.shape()) + ", output=" + Arrays.toString(outputNode.shape()));
+        }
+        if (addNode.dataType() != outputNode.dataType() || bias.dataType() != outputNode.dataType()) {
+            throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU requires matching add/bias/output dtype. add="
+                    + addNode.dataType() + ", bias=" + bias.dataType() + ", output=" + outputNode.dataType());
+        }
+        if (!bias.denseContiguousWithoutOffset()) {
+            throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU supports only dense contiguous bias without storage offset.");
+        }
+    }
+
+    private static void requireStorageContract(Cpu1MatmulRoute route, Cpu1StorageKind storageKind) {
+        if (route == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
+            if (storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
+                throw new UnsupportedOperationException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL requires MEMORY_SEGMENT storage, got "
+                        + storageKind);
+            }
+            return;
+        }
+        if (storageKind != Cpu1StorageKind.JAVA_ARRAY) {
+            throw new UnsupportedOperationException("cpu1 " + route + " MATMUL supports only JAVA_ARRAY storage, got "
+                    + storageKind);
+        }
+    }
+
+    private static void requirePostOpContract(Cpu1MatmulRoute route, Cpu1MatmulPostOp postOp) {
+        if (!postOp.supportedBy(route)) {
+            throw new UnsupportedOperationException("cpu1 " + route + " MATMUL does not support post-op " + postOp);
         }
     }
 
@@ -209,6 +353,69 @@ public final class Cpu1MatmulPreparer {
         return offsets;
     }
 
+    private static int[] broadcastStrides(
+            int[] inputShape,
+            int[] inputStrides,
+            int[] outputShape,
+            String label
+    ) {
+        if (inputShape.length > outputShape.length) {
+            throw new UnsupportedOperationException("cpu1 MATMUL cannot broadcast " + label + " rank "
+                    + inputShape.length + " to output rank " + outputShape.length);
+        }
+        int[] out = new int[outputShape.length];
+        int shift = outputShape.length - inputShape.length;
+        for (int dim = 0; dim < outputShape.length; dim++) {
+            int inputDim = dim - shift;
+            int sourceSize = inputDim < 0 ? 1 : inputShape[inputDim];
+            int sourceStride = inputDim < 0 ? 0 : inputStrides[inputDim];
+            int targetSize = outputShape[dim];
+            if (sourceSize == targetSize) {
+                out[dim] = sourceStride;
+            } else if (sourceSize == 1) {
+                out[dim] = 0;
+            } else {
+                throw new UnsupportedOperationException("cpu1 MATMUL cannot broadcast " + label + " shape "
+                        + Arrays.toString(inputShape) + " to output shape " + Arrays.toString(outputShape));
+            }
+        }
+        return out;
+    }
+
+    private static int[] batchOffsetsFromBroadcastStrides(int[] outputShape, int[] broadcastStrides) {
+        int outputBatchRank = outputShape.length - 2;
+        int batchCount = batchCount(outputShape);
+        int[] offsets = new int[batchCount];
+        if (outputBatchRank == 0) {
+            return offsets;
+        }
+        int[] outputBatchShape = Arrays.copyOf(outputShape, outputBatchRank);
+        int[] outputBatchDenseStrides = denseStrides(outputBatchShape);
+        for (int batch = 0; batch < batchCount; batch++) {
+            int remaining = batch;
+            int offset = 0;
+            for (int dim = 0; dim < outputBatchRank; dim++) {
+                int coordinate = remaining / outputBatchDenseStrides[dim];
+                remaining %= outputBatchDenseStrides[dim];
+                offset += coordinate * broadcastStrides[dim];
+            }
+            offsets[batch] = offset;
+        }
+        return offsets;
+    }
+
+    private static int biasNodeId(CompiledNode addNode, int matmulNodeId) {
+        int first = addNode.inputIds().get(0);
+        int second = addNode.inputIds().get(1);
+        if (first == matmulNodeId && second != matmulNodeId) {
+            return second;
+        }
+        if (second == matmulNodeId && first != matmulNodeId) {
+            return first;
+        }
+        throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU ADD must consume the MATMUL output once.");
+    }
+
     private static int batchCount(int[] outputShape) {
         int count = 1;
         for (int dim = 0; dim < outputShape.length - 2; dim++) {
@@ -250,6 +457,7 @@ public final class Cpu1MatmulPreparer {
 
     private static Cpu1MatmulRoute resolveMatmulRoute(
             Cpu1PrepareConfig config,
+            Cpu1MatmulPostOp postOp,
             DataType dataType,
             int batchCount,
             int m,
@@ -259,6 +467,9 @@ public final class Cpu1MatmulPreparer {
         Cpu1MatmulRoute requested = config.matmulRoute();
         if (requested != Cpu1MatmulRoute.AUTO) {
             return requested;
+        }
+        if (postOp != Cpu1MatmulPostOp.NONE) {
+            return Cpu1MatmulRoute.JAVA_SCALAR;
         }
         return openBlasArrayCopyingEligible(config, dataType, batchCount, m, n, k)
                 ? Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
@@ -345,19 +556,31 @@ public final class Cpu1MatmulPreparer {
         return scalarKernelId;
     }
 
+    private static int openBlasThreads(Cpu1MatmulRoute route, BlasConfig blasConfig) {
+        return switch (route) {
+            case OPENBLAS_ARRAY_COPYING -> blasConfig.openBlasArrayCopyEffectiveThreads();
+            case OPENBLAS_NATIVE_SEGMENT -> blasConfig.openBlasNativeSegmentEffectiveThreads();
+            case JAVA_SCALAR, AUTO -> 0;
+        };
+    }
+
     private static long matmulWork(int batchCount, int m, int n, int k) {
         return Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
     }
 
     private static Cpu1WorkspaceSpec workspaceSpec(
             Cpu1MatmulKernelId kernelId,
+            DataType dataType,
             int batchCount,
+            int m,
             int n,
             int k
     ) {
         return switch (kernelId) {
             case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(packedBElements(batchCount, n, k), 0, 0);
             case MATMUL_F64_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(0, packedBElements(batchCount, n, k), 0);
+            case MATMUL_F32_OPENBLAS_NATIVE_SEGMENT, MATMUL_F64_OPENBLAS_NATIVE_SEGMENT ->
+                    Cpu1WorkspaceSpec.nativeOutput(dataType, outputElements(batchCount, m, n));
             default -> Cpu1WorkspaceSpec.none();
         };
     }
@@ -372,6 +595,10 @@ public final class Cpu1MatmulPreparer {
 
     private static int packedBElements(int batchCount, int n, int k) {
         return Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, n), k));
+    }
+
+    private static int outputElements(int batchCount, int m, int n) {
+        return Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n));
     }
 
     private static CpuKernelConfig requireCpuKernelConfig(Cpu1PrepareConfig config) {

@@ -22,6 +22,11 @@ public final class Cpu1PreparedMatmulUnit {
     private final DataType dataType;
     private final Cpu1StorageKind storageKind;
     private final Cpu1MatmulRoute route;
+    private final Cpu1MatmulPostOp postOp;
+    private final int biasNodeId;
+    private final int biasRowStride;
+    private final int biasColStride;
+    private final int[] biasBatchOffsets;
     private final Cpu1VectorizationKind vectorizationKind;
     private final Cpu1MatmulKernelId kernelId;
     private final Cpu1MatmulKernel kernel;
@@ -41,6 +46,7 @@ public final class Cpu1PreparedMatmulUnit {
     private final long work;
     private final Cpu1LaunchConfig launchConfig;
     private final Cpu1WorkspaceSpec workspaceSpec;
+    private final int openBlasThreads;
 
     public Cpu1PreparedMatmulUnit(
             int nodeId,
@@ -49,6 +55,7 @@ public final class Cpu1PreparedMatmulUnit {
             DataType dataType,
             Cpu1StorageKind storageKind,
             Cpu1MatmulRoute route,
+            Cpu1MatmulPostOp postOp,
             Cpu1VectorizationKind vectorizationKind,
             Cpu1MatmulKernelId kernelId,
             int batchCount,
@@ -65,7 +72,72 @@ public final class Cpu1PreparedMatmulUnit {
             int[] rightBatchOffsets,
             int[] outputBatchOffsets,
             Cpu1LaunchConfig launchConfig,
-            Cpu1WorkspaceSpec workspaceSpec
+            Cpu1WorkspaceSpec workspaceSpec,
+            int openBlasThreads
+    ) {
+        this(
+                nodeId,
+                leftNodeId,
+                rightNodeId,
+                dataType,
+                storageKind,
+                route,
+                postOp,
+                -1,
+                0,
+                0,
+                null,
+                vectorizationKind,
+                kernelId,
+                batchCount,
+                m,
+                n,
+                k,
+                leftRowStride,
+                leftColStride,
+                rightRowStride,
+                rightColStride,
+                outputRowStride,
+                outputColStride,
+                leftBatchOffsets,
+                rightBatchOffsets,
+                outputBatchOffsets,
+                launchConfig,
+                workspaceSpec,
+                openBlasThreads
+        );
+    }
+
+    public Cpu1PreparedMatmulUnit(
+            int nodeId,
+            int leftNodeId,
+            int rightNodeId,
+            DataType dataType,
+            Cpu1StorageKind storageKind,
+            Cpu1MatmulRoute route,
+            Cpu1MatmulPostOp postOp,
+            int biasNodeId,
+            int biasRowStride,
+            int biasColStride,
+            int[] biasBatchOffsets,
+            Cpu1VectorizationKind vectorizationKind,
+            Cpu1MatmulKernelId kernelId,
+            int batchCount,
+            int m,
+            int n,
+            int k,
+            int leftRowStride,
+            int leftColStride,
+            int rightRowStride,
+            int rightColStride,
+            int outputRowStride,
+            int outputColStride,
+            int[] leftBatchOffsets,
+            int[] rightBatchOffsets,
+            int[] outputBatchOffsets,
+            Cpu1LaunchConfig launchConfig,
+            Cpu1WorkspaceSpec workspaceSpec,
+            int openBlasThreads
     ) {
         if (nodeId < 0 || leftNodeId < 0 || rightNodeId < 0) {
             throw new IllegalArgumentException("node ids cannot be negative");
@@ -80,6 +152,22 @@ public final class Cpu1PreparedMatmulUnit {
         this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.route = Objects.requireNonNull(route, "route cannot be null");
+        this.postOp = Objects.requireNonNull(postOp, "postOp cannot be null");
+        if (!postOp.supportedBy(route)) {
+            throw new UnsupportedOperationException("cpu1 " + route + " MATMUL does not support post-op " + postOp);
+        }
+        if (postOp.requiresBias() && biasNodeId < 0) {
+            throw new IllegalArgumentException("cpu1 " + postOp + " MATMUL requires a bias node id");
+        }
+        if (!postOp.requiresBias() && biasNodeId >= 0) {
+            throw new IllegalArgumentException("cpu1 " + postOp + " MATMUL does not accept a bias node id");
+        }
+        this.biasNodeId = biasNodeId;
+        this.biasRowStride = biasRowStride;
+        this.biasColStride = biasColStride;
+        this.biasBatchOffsets = postOp.requiresBias()
+                ? requireOffsets(biasBatchOffsets, batchCount, "biasBatchOffsets")
+                : new int[batchCount];
         this.vectorizationKind = Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
         this.kernel = Cpu1MatmulKernelDispatch.kernelFor(kernelId);
@@ -99,6 +187,10 @@ public final class Cpu1PreparedMatmulUnit {
         this.work = Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
         this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
         this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
+        if (openBlasThreads < 0) {
+            throw new IllegalArgumentException("openBlasThreads must be non-negative: " + openBlasThreads);
+        }
+        this.openBlasThreads = openBlasThreads;
     }
 
     public int nodeId() {
@@ -123,6 +215,29 @@ public final class Cpu1PreparedMatmulUnit {
 
     public Cpu1MatmulRoute route() {
         return route;
+    }
+
+    public Cpu1MatmulPostOp postOp() {
+        return postOp;
+    }
+
+    public boolean hasBias() {
+        return postOp.requiresBias();
+    }
+
+    public int biasNodeId() {
+        if (!hasBias()) {
+            throw new IllegalStateException("This cpu1 matmul unit does not have a bias input");
+        }
+        return biasNodeId;
+    }
+
+    public int biasRowStride() {
+        return biasRowStride;
+    }
+
+    public int biasColStride() {
+        return biasColStride;
     }
 
     public Cpu1VectorizationKind vectorizationKind() {
@@ -189,6 +304,10 @@ public final class Cpu1PreparedMatmulUnit {
         return outputBatchOffsets[batch];
     }
 
+    public int biasBatchOffset(int batch) {
+        return biasBatchOffsets[batch];
+    }
+
     public long work() {
         return work;
     }
@@ -199,6 +318,10 @@ public final class Cpu1PreparedMatmulUnit {
 
     public Cpu1WorkspaceSpec workspaceSpec() {
         return workspaceSpec;
+    }
+
+    public int openBlasThreads() {
+        return openBlasThreads;
     }
 
     private static int[] requireOffsets(int[] offsets, int batchCount, String name) {

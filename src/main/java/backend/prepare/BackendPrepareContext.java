@@ -106,8 +106,8 @@ public final class BackendPrepareContext {
         return loweredRegionIndex.cpuFusedUnitForStart(nodeId);
     }
 
-    public LoweredExecutionUnit cpuNativeUnitForStart(int nodeId) {
-        return loweredRegionIndex.cpuNativeUnitForStart(nodeId);
+    public LoweredExecutionUnit cpuSpecializedUnitForStart(int nodeId) {
+        return loweredRegionIndex.cpuSpecializedUnitForStart(nodeId);
     }
 
     public LoweredRegion metalLoweredRegionForAnchor(int nodeId) {

@@ -23,6 +23,9 @@ Current public matmul-related runtime knobs include:
 - `runtime.blas.f32MaxNOverK`
 - `runtime.blas.f32WideRequireMgeK`
 - `runtime.blas.f32WideMaxNOverK`
+- `runtime.blas.threads`
+- `runtime.blas.openBlasArrayCopyThreads`
+- `runtime.blas.openBlasNativeSegmentThreads`
 - `cpu.matMulParallelMinSize`
 - `cpu.matMulTileM`
 - `cpu.matMulTileN`
@@ -35,9 +38,9 @@ Current public matmul-related runtime knobs include:
 
 Important current behavior:
 
-- `runtime.blas.threads` is canonicalized to `0`
 - `0` means provider-managed auto behavior
-- Synaptik does not calibrate provider thread counts while this canonicalization exists
+- `runtime.blas.threads` is the generic fallback thread count
+- `runtime.blas.openBlasArrayCopyThreads` and `runtime.blas.openBlasNativeSegmentThreads` are calibrated route-specific OpenBLAS thread counts
 
 ### `FUSED_DISPATCH`
 
@@ -60,6 +63,8 @@ They are no longer just internal experiment flags.
 ### `ELEMENTWISE_DISPATCH`
 
 - `cpu.cheapVectorMinSize`
+- `cpu.nativeF32CheapVectorMinSize`
+- `cpu.nativeF64CheapVectorMinSize`
 - `cpu.transcendentalVectorMinSize`
 - `cpu.cheapParallelMinSize`
 - `cpu.transcendentalParallelMinSize`

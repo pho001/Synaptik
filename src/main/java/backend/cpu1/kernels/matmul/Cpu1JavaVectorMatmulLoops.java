@@ -3,6 +3,7 @@ package backend.cpu1.kernels.matmul;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.launch.Cpu1RangeLauncher;
+import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
@@ -25,6 +26,7 @@ public final class Cpu1JavaVectorMatmulLoops {
     public static void matmulF32DensePackedBVector(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
         float[] packedB = packedBWorkspace(unit, context);
 
@@ -32,8 +34,10 @@ public final class Cpu1JavaVectorMatmulLoops {
         runPackedB(
                 left.float32Array(),
                 packedB,
+                bias == null ? null : bias.float32Array(),
                 output.float32Array(),
                 left.storageOffset(),
+                bias == null ? 0 : bias.storageOffset(),
                 output.storageOffset(),
                 unit
         );
@@ -43,6 +47,7 @@ public final class Cpu1JavaVectorMatmulLoops {
     public static void matmulF64DensePackedBVector(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
         double[] packedB = packedBF64Workspace(unit, context);
 
@@ -50,8 +55,10 @@ public final class Cpu1JavaVectorMatmulLoops {
         runPackedBF64(
                 left.float64Array(),
                 packedB,
+                bias == null ? null : bias.float64Array(),
                 output.float64Array(),
                 left.storageOffset(),
+                bias == null ? 0 : bias.storageOffset(),
                 output.storageOffset(),
                 unit
         );
@@ -109,8 +116,10 @@ public final class Cpu1JavaVectorMatmulLoops {
     private static void runPackedB(
             float[] left,
             float[] packedB,
+            float[] bias,
             float[] output,
             int leftStorageOffset,
+            int biasStorageOffset,
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -123,6 +132,8 @@ public final class Cpu1JavaVectorMatmulLoops {
         int batchPackedSize = Math.multiplyExact(n, k);
         int outputRows = Math.multiplyExact(unit.batchCount(), m);
         int vectorUpper = F32.loopBound(k);
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        boolean hasBias = unit.hasBias();
 
         Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
             for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
@@ -135,14 +146,15 @@ public final class Cpu1JavaVectorMatmulLoops {
                 int outputRowBase = outputBatchBase + row * outputRowStride;
                 for (int col = 0; col < n; col++) {
                     int packedColBase = packedBatchBase + col * k;
-                    output[outputRowBase + col * outputColStride] = dotContiguousF32(
-                            left,
-                            leftRowBase,
-                            packedB,
-                            packedColBase,
-                            k,
-                            vectorUpper
-                    );
+                    float sum = dotContiguousF32(left, leftRowBase, packedB, packedColBase, k, vectorUpper);
+                    if (hasBias) {
+                        int biasIndex = biasStorageOffset + unit.biasBatchOffset(batch)
+                                + row * unit.biasRowStride()
+                                + col * unit.biasColStride();
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum, bias[biasIndex]);
+                    } else {
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum);
+                    }
                 }
             }
         });
@@ -151,8 +163,10 @@ public final class Cpu1JavaVectorMatmulLoops {
     private static void runPackedBF64(
             double[] left,
             double[] packedB,
+            double[] bias,
             double[] output,
             int leftStorageOffset,
+            int biasStorageOffset,
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -165,6 +179,8 @@ public final class Cpu1JavaVectorMatmulLoops {
         int batchPackedSize = Math.multiplyExact(n, k);
         int outputRows = Math.multiplyExact(unit.batchCount(), m);
         int vectorUpper = F64.loopBound(k);
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        boolean hasBias = unit.hasBias();
 
         Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
             for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
@@ -177,14 +193,15 @@ public final class Cpu1JavaVectorMatmulLoops {
                 int outputRowBase = outputBatchBase + row * outputRowStride;
                 for (int col = 0; col < n; col++) {
                     int packedColBase = packedBatchBase + col * k;
-                    output[outputRowBase + col * outputColStride] = dotContiguousF64(
-                            left,
-                            leftRowBase,
-                            packedB,
-                            packedColBase,
-                            k,
-                            vectorUpper
-                    );
+                    double sum = dotContiguousF64(left, leftRowBase, packedB, packedColBase, k, vectorUpper);
+                    if (hasBias) {
+                        int biasIndex = biasStorageOffset + unit.biasBatchOffset(batch)
+                                + row * unit.biasRowStride()
+                                + col * unit.biasColStride();
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum, bias[biasIndex]);
+                    } else {
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum);
+                    }
                 }
             }
         });
@@ -203,7 +220,7 @@ public final class Cpu1JavaVectorMatmulLoops {
         for (; index < vectorUpper; index += F32.length()) {
             FloatVector leftVector = FloatVector.fromArray(F32, left, leftBase + index);
             FloatVector rightVector = FloatVector.fromArray(F32, packedB, packedBase + index);
-            sum = sum.add(leftVector.mul(rightVector));
+            sum = leftVector.fma(rightVector, sum);
         }
         float scalarSum = sum.reduceLanes(VectorOperators.ADD);
         for (; index < k; index++) {
@@ -225,7 +242,7 @@ public final class Cpu1JavaVectorMatmulLoops {
         for (; index < vectorUpper; index += F64.length()) {
             DoubleVector leftVector = DoubleVector.fromArray(F64, left, leftBase + index);
             DoubleVector rightVector = DoubleVector.fromArray(F64, packedB, packedBase + index);
-            sum = sum.add(leftVector.mul(rightVector));
+            sum = leftVector.fma(rightVector, sum);
         }
         double scalarSum = sum.reduceLanes(VectorOperators.ADD);
         for (; index < k; index++) {

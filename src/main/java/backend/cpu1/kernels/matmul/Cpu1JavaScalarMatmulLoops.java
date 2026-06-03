@@ -2,6 +2,7 @@ package backend.cpu1.kernels.matmul;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
+import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
@@ -18,33 +19,68 @@ public final class Cpu1JavaScalarMatmulLoops {
     public static void matmulF32DenseScalar(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
-        runF32(left.float32Array(), right.float32Array(), output.float32Array(), left.storageOffset(), right.storageOffset(), output.storageOffset(), unit);
+        runF32(
+                left.float32Array(),
+                right.float32Array(),
+                bias == null ? null : bias.float32Array(),
+                output.float32Array(),
+                left.storageOffset(),
+                right.storageOffset(),
+                bias == null ? 0 : bias.storageOffset(),
+                output.storageOffset(),
+                unit
+        );
         markOutputWritten(unit, output, context);
     }
 
     public static void matmulF64DenseScalar(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
-        runF64(left.float64Array(), right.float64Array(), output.float64Array(), left.storageOffset(), right.storageOffset(), output.storageOffset(), unit);
+        runF64(
+                left.float64Array(),
+                right.float64Array(),
+                bias == null ? null : bias.float64Array(),
+                output.float64Array(),
+                left.storageOffset(),
+                right.storageOffset(),
+                bias == null ? 0 : bias.storageOffset(),
+                output.storageOffset(),
+                unit
+        );
         markOutputWritten(unit, output, context);
     }
 
     public static void matmulBf16DenseScalar(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
+        Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
-        runBf16(left.bfloat16Array(), right.bfloat16Array(), output.bfloat16Array(), left.storageOffset(), right.storageOffset(), output.storageOffset(), unit);
+        runBf16(
+                left.bfloat16Array(),
+                right.bfloat16Array(),
+                bias == null ? null : bias.bfloat16Array(),
+                output.bfloat16Array(),
+                left.storageOffset(),
+                right.storageOffset(),
+                bias == null ? 0 : bias.storageOffset(),
+                output.storageOffset(),
+                unit
+        );
         markOutputWritten(unit, output, context);
     }
 
     private static void runF32(
             float[] left,
             float[] right,
+            float[] bias,
             float[] output,
             int leftStorageOffset,
             int rightStorageOffset,
+            int biasStorageOffset,
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -58,6 +94,8 @@ public final class Cpu1JavaScalarMatmulLoops {
         int outputRowStride = unit.outputRowStride();
         int outputColStride = unit.outputColStride();
         int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        boolean hasBias = unit.hasBias();
         Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
             for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
                 int batch = rowIndex / m;
@@ -74,7 +112,14 @@ public final class Cpu1JavaScalarMatmulLoops {
                         sum += left[leftRowBase + index * leftColStride]
                                 * right[rightColBase + index * rightRowStride];
                     }
-                    output[outputRowBase + col * outputColStride] = sum;
+                    if (hasBias) {
+                        int biasIndex = biasStorageOffset + unit.biasBatchOffset(batch)
+                                + row * unit.biasRowStride()
+                                + col * unit.biasColStride();
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum, bias[biasIndex]);
+                    } else {
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum);
+                    }
                 }
             }
         });
@@ -83,9 +128,11 @@ public final class Cpu1JavaScalarMatmulLoops {
     private static void runF64(
             double[] left,
             double[] right,
+            double[] bias,
             double[] output,
             int leftStorageOffset,
             int rightStorageOffset,
+            int biasStorageOffset,
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -99,6 +146,8 @@ public final class Cpu1JavaScalarMatmulLoops {
         int outputRowStride = unit.outputRowStride();
         int outputColStride = unit.outputColStride();
         int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        boolean hasBias = unit.hasBias();
         Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
             for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
                 int batch = rowIndex / m;
@@ -115,7 +164,14 @@ public final class Cpu1JavaScalarMatmulLoops {
                         sum += left[leftRowBase + index * leftColStride]
                                 * right[rightColBase + index * rightRowStride];
                     }
-                    output[outputRowBase + col * outputColStride] = sum;
+                    if (hasBias) {
+                        int biasIndex = biasStorageOffset + unit.biasBatchOffset(batch)
+                                + row * unit.biasRowStride()
+                                + col * unit.biasColStride();
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum, bias[biasIndex]);
+                    } else {
+                        output[outputRowBase + col * outputColStride] = postOp.apply(sum);
+                    }
                 }
             }
         });
@@ -124,9 +180,11 @@ public final class Cpu1JavaScalarMatmulLoops {
     private static void runBf16(
             short[] left,
             short[] right,
+            short[] bias,
             short[] output,
             int leftStorageOffset,
             int rightStorageOffset,
+            int biasStorageOffset,
             int outputStorageOffset,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -140,6 +198,8 @@ public final class Cpu1JavaScalarMatmulLoops {
         int outputRowStride = unit.outputRowStride();
         int outputColStride = unit.outputColStride();
         int outputRows = Math.multiplyExact(unit.batchCount(), m);
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        boolean hasBias = unit.hasBias();
         Cpu1RangeLauncher.launch(outputRows, unit.launchConfig(), (startRow, endRow) -> {
             for (int rowIndex = startRow; rowIndex < endRow; rowIndex++) {
                 int batch = rowIndex / m;
@@ -157,7 +217,16 @@ public final class Cpu1JavaScalarMatmulLoops {
                         float rightValue = TensorDTypeOps.fromBFloat16Bits(right[rightColBase + index * rightRowStride]);
                         sum += leftValue * rightValue;
                     }
-                    output[outputRowBase + col * outputColStride] = TensorDTypeOps.toBFloat16Bits(sum);
+                    float value;
+                    if (hasBias) {
+                        int biasIndex = biasStorageOffset + unit.biasBatchOffset(batch)
+                                + row * unit.biasRowStride()
+                                + col * unit.biasColStride();
+                        value = postOp.apply(sum, TensorDTypeOps.fromBFloat16Bits(bias[biasIndex]));
+                    } else {
+                        value = postOp.apply(sum);
+                    }
+                    output[outputRowBase + col * outputColStride] = TensorDTypeOps.toBFloat16Bits(value);
                 }
             }
         });

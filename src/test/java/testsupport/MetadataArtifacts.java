@@ -5,12 +5,10 @@ import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.ComputeBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
-import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.execution.CpuNodeWorkspace;
-import backend.cpu.region.PreparedCpuRegionExecutable;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 import java.util.List;
@@ -57,12 +55,6 @@ public final class MetadataArtifacts {
 
     public static PreparedAcceleratorExecutable acceleratorExecutable(CompiledNodeExecutionMetadata metadata) {
         return metadata.artifact() instanceof AcceleratorExecutionArtifact artifact
-                ? artifact.executable()
-                : null;
-    }
-
-    public static PreparedCpuRegionExecutable cpuRegionExecutable(CompiledNodeExecutionMetadata metadata) {
-        return metadata.artifact() instanceof CpuRegionExecutionArtifact artifact
                 ? artifact.executable()
                 : null;
     }

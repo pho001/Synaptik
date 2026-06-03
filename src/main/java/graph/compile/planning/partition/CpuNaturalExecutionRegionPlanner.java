@@ -3,8 +3,10 @@ package graph.compile.planning.partition;
 import config.optimizer.CpuRegionBoundaryPolicy;
 import config.optimizer.CpuRegionPolicy;
 import graph.CompiledNode;
+import graph.compile.planning.value.GraphValueRef;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
+import operations.Operation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -39,6 +41,34 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
                 decisions.add(rejectedDecision(request, start, "unsupported-or-non-cpu-node"));
                 index++;
                 continue;
+            }
+            List<Integer> exactEpilogueNodeIds = exactMatmulEpilogueNodeIds(start, request);
+            if (!exactEpilogueNodeIds.isEmpty()) {
+                LinkedHashSet<Integer> selected = new LinkedHashSet<>(exactEpilogueNodeIds);
+                PartitionCandidate candidate = request.capability().createCandidate(
+                        selected,
+                        context,
+                        request.requiredMaterializedValueRefs()
+                );
+                PartitionPlan plan = candidate == null ? null : request.capability().createPlan(candidate, context);
+                if (candidate != null && plan != null) {
+                    Partition partition = PartitionAssembly.acceptedPartition(
+                            request,
+                            candidate,
+                            plan,
+                            "cpu-natural-exact-matmul-epilogue",
+                            -1,
+                            selected.size(),
+                            false,
+                            null,
+                            List.of()
+                    );
+                    partitions.add(partition);
+                    plansByPartitionId.put(partition.partitionId(), plan);
+                    decisions.add(partition.debugTrace());
+                    index = Math.max(index + 1, indexOfLastNode(nodes, exactEpilogueNodeIds.getLast()) + 1);
+                    continue;
+                }
             }
             LinkedHashSet<Integer> selected = new LinkedHashSet<>();
             int cursor = index;
@@ -108,6 +138,87 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
             return node.operation().opType().isFusable();
         }
         return true;
+    }
+
+    private List<Integer> exactMatmulEpilogueNodeIds(CompiledNode start, PartitionPlanningRequest request) {
+        Operation.OpType startOp = opType(start);
+        if ((startOp != Operation.OpType.MATMUL && startOp != Operation.OpType.LINEAR)
+                || requiredMaterialized(request, start.id())) {
+            return List.of();
+        }
+        CompiledNode firstConsumer = soleConsumer(start.id(), request);
+        if (firstConsumer == null || !isSupportedCpuNode(firstConsumer, request)) {
+            return List.of();
+        }
+        if (startOp == Operation.OpType.LINEAR) {
+            if (opType(firstConsumer) == Operation.OpType.RELU && reluConsumes(firstConsumer, start.id())) {
+                return List.of(start.id(), firstConsumer.id());
+            }
+            return List.of();
+        }
+        if (opType(firstConsumer) == Operation.OpType.ADD) {
+            return exactMatmulAddReluNodeIds(start, firstConsumer, request);
+        }
+        if (opType(firstConsumer) == Operation.OpType.RELU && reluConsumes(firstConsumer, start.id())) {
+            return List.of(start.id(), firstConsumer.id());
+        }
+        return List.of();
+    }
+
+    private List<Integer> exactMatmulAddReluNodeIds(
+            CompiledNode matmul,
+            CompiledNode add,
+            PartitionPlanningRequest request
+    ) {
+        if (!addConsumesMatmulWithExternalBias(add, matmul.id()) || requiredMaterialized(request, add.id())) {
+            return List.of();
+        }
+        CompiledNode relu = soleConsumer(add.id(), request);
+        if (relu == null
+                || !isSupportedCpuNode(relu, request)
+                || opType(relu) != Operation.OpType.RELU
+                || !reluConsumes(relu, add.id())) {
+            return List.of();
+        }
+        return List.of(matmul.id(), add.id(), relu.id());
+    }
+
+    private boolean addConsumesMatmulWithExternalBias(CompiledNode add, int matmulNodeId) {
+        if (add == null || add.inputIds().size() != 2) {
+            return false;
+        }
+        int first = add.inputIds().get(0);
+        int second = add.inputIds().get(1);
+        return (first == matmulNodeId && second != matmulNodeId)
+                || (second == matmulNodeId && first != matmulNodeId);
+    }
+
+    private boolean reluConsumes(CompiledNode relu, int producerNodeId) {
+        return relu != null && relu.inputIds().size() == 1 && relu.inputIds().getFirst() == producerNodeId;
+    }
+
+    private CompiledNode soleConsumer(int nodeId, PartitionPlanningRequest request) {
+        List<CompiledNode> consumers = request.context().consumersFor(nodeId).stream()
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        return consumers.size() == 1 ? consumers.getFirst() : null;
+    }
+
+    private boolean requiredMaterialized(PartitionPlanningRequest request, int nodeId) {
+        return request.requiredMaterializedValueRefs().contains(GraphValueRef.node(nodeId));
+    }
+
+    private Operation.OpType opType(CompiledNode node) {
+        return node == null || node.operation() == null ? null : node.operation().opType();
+    }
+
+    private int indexOfLastNode(List<CompiledNode> nodes, int nodeId) {
+        for (int i = nodes.size() - 1; i >= 0; i--) {
+            if (nodes.get(i).id() == nodeId) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private boolean isSkippableExternalValue(CompiledNode node) {

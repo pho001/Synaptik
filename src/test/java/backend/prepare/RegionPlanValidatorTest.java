@@ -128,7 +128,7 @@ class RegionPlanValidatorTest {
         return new RegionExecutionPlan(
                 "test-region",
                 PartitionTarget.CPU,
-                LoweringFamily.CPU_NATIVE_REGION,
+                LoweringFamily.DIRECT_KERNEL,
                 anchorNodeId,
                 orderedNodeIds,
                 List.of(),

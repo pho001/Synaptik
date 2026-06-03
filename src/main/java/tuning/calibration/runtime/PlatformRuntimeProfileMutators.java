@@ -14,9 +14,12 @@ import config.profile.MatmulPlatformProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.ReductionPlatformProfile;
 import config.profile.SchedulerPlatformProfile;
+import config.runtime.CpuStorageProfile;
+import tensor.DataType;
 import tuning.workload.WorkloadKind;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -217,8 +220,13 @@ public final class PlatformRuntimeProfileMutators {
                             BlasProvider.NONE,
                             baseProfile.matmul().blasMatmulMinWork(),
                             baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().openBlasArrayCopyThreads(),
+                            baseProfile.matmul().openBlasNativeSegmentThreads(),
                             baseProfile.matmul().f32RequireMgeK(),
                             baseProfile.matmul().f32MaxNOverK(),
+                            baseProfile.matmul().f32WideRequireMgeK(),
+                            baseProfile.matmul().f32WideMaxNOverK(),
+                            baseProfile.matmul().blasStorageMode(),
                             baseProfile.matmul().loopUnrollFactor(),
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
@@ -242,8 +250,13 @@ public final class PlatformRuntimeProfileMutators {
                             provider,
                             minWork == null ? baseProfile.matmul().blasMatmulMinWork() : minWork,
                             baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().openBlasArrayCopyThreads(),
+                            baseProfile.matmul().openBlasNativeSegmentThreads(),
                             baseProfile.matmul().f32RequireMgeK(),
                             baseProfile.matmul().f32MaxNOverK(),
+                            baseProfile.matmul().f32WideRequireMgeK(),
+                            baseProfile.matmul().f32WideMaxNOverK(),
+                            baseProfile.matmul().blasStorageMode(),
                             baseProfile.matmul().loopUnrollFactor(),
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
@@ -286,8 +299,13 @@ public final class PlatformRuntimeProfileMutators {
                             baseProfile.matmul().blasProvider(),
                             baseProfile.matmul().blasMatmulMinWork(),
                             baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().openBlasArrayCopyThreads(),
+                            baseProfile.matmul().openBlasNativeSegmentThreads(),
                             require == null ? baseProfile.matmul().f32RequireMgeK() : require,
                             ratio == null ? baseProfile.matmul().f32MaxNOverK() : ratio,
+                            baseProfile.matmul().f32WideRequireMgeK(),
+                            baseProfile.matmul().f32WideMaxNOverK(),
+                            baseProfile.matmul().blasStorageMode(),
                             baseProfile.matmul().loopUnrollFactor(),
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
@@ -330,10 +348,13 @@ public final class PlatformRuntimeProfileMutators {
                             baseProfile.matmul().blasProvider(),
                             baseProfile.matmul().blasMatmulMinWork(),
                             baseProfile.matmul().blasThreads(),
+                            baseProfile.matmul().openBlasArrayCopyThreads(),
+                            baseProfile.matmul().openBlasNativeSegmentThreads(),
                             baseProfile.matmul().f32RequireMgeK(),
                             baseProfile.matmul().f32MaxNOverK(),
                             require == null ? baseProfile.matmul().f32WideRequireMgeK() : require,
                             ratio == null ? baseProfile.matmul().f32WideMaxNOverK() : ratio,
+                            baseProfile.matmul().blasStorageMode(),
                             baseProfile.matmul().loopUnrollFactor(),
                             baseProfile.matmul().matMulTileM(),
                             baseProfile.matmul().matMulTileN(),
@@ -359,6 +380,62 @@ public final class PlatformRuntimeProfileMutators {
         };
     }
 
+    public static PlatformRuntimeProfileMutator openBlasRouteThreads(
+            List<Integer> arrayCopyThreads,
+            List<Integer> nativeSegmentThreads
+    ) {
+        List<Integer> safeArrayCopyThreads = arrayCopyThreads == null ? List.of() : List.copyOf(arrayCopyThreads);
+        List<Integer> safeNativeSegmentThreads = nativeSegmentThreads == null ? List.of() : List.copyOf(nativeSegmentThreads);
+        return (baseProfile, workload) -> {
+            if (!usesMatmulFamily(workload.kind())) {
+                return List.of(new RuntimeProfileCandidate("openBlasRouteThreads=current", baseProfile, Map.of()));
+            }
+            if (baseProfile.matmul().blasProvider() != BlasProvider.OPENBLAS_FFM) {
+                return List.of(new RuntimeProfileCandidate("openBlasRouteThreads=provider-disabled", baseProfile, Map.of()));
+            }
+            List<RuntimeProfileCandidate> out = new ArrayList<>();
+            for (Integer arrayThreads : safeArrayCopyThreads) {
+                for (Integer nativeThreads : safeNativeSegmentThreads) {
+                    MatmulPlatformProfile matmul = new MatmulPlatformProfile(
+                            baseProfile.matmul().blasProvider(),
+                            baseProfile.matmul().blasMatmulMinWork(),
+                            baseProfile.matmul().blasThreads(),
+                            arrayThreads == null ? baseProfile.matmul().openBlasArrayCopyThreads() : arrayThreads,
+                            nativeThreads == null ? baseProfile.matmul().openBlasNativeSegmentThreads() : nativeThreads,
+                            baseProfile.matmul().f32RequireMgeK(),
+                            baseProfile.matmul().f32MaxNOverK(),
+                            baseProfile.matmul().f32WideRequireMgeK(),
+                            baseProfile.matmul().f32WideMaxNOverK(),
+                            baseProfile.matmul().blasStorageMode(),
+                            baseProfile.matmul().loopUnrollFactor(),
+                            baseProfile.matmul().matMulTileM(),
+                            baseProfile.matmul().matMulTileN(),
+                            baseProfile.matmul().matMulTileK(),
+                            baseProfile.matmul().attentionMatMulTileM(),
+                            baseProfile.matmul().attentionMatMulTileN(),
+                            baseProfile.matmul().attentionMatMulTileK(),
+                            baseProfile.matmul().matMulParallelMinSize(),
+                            baseProfile.matmul().matMulMicroKernel(),
+                            baseProfile.matmul().attentionMatMulMicroKernel()
+                    );
+                    out.add(new RuntimeProfileCandidate(
+                            "openBlasRouteThreads="
+                                    + formatThreads(matmul.openBlasArrayCopyThreads())
+                                    + "/" + formatThreads(matmul.openBlasNativeSegmentThreads()),
+                            withMatmul(baseProfile, matmul),
+                            Map.of(
+                                    "runtime.blas.openBlasArrayCopyThreads",
+                                    String.valueOf(matmul.openBlasArrayCopyThreads()),
+                                    "runtime.blas.openBlasNativeSegmentThreads",
+                                    String.valueOf(matmul.openBlasNativeSegmentThreads())
+                            )
+                    ));
+                }
+            }
+            return out;
+        };
+    }
+
     public static PlatformRuntimeProfileMutator matmulParallelThresholds(List<Integer> thresholds) {
         List<Integer> safe = thresholds == null ? List.of() : List.copyOf(thresholds);
         return (baseProfile, workload) -> {
@@ -371,8 +448,13 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().blasProvider(),
                         baseProfile.matmul().blasMatmulMinWork(),
                         baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().openBlasArrayCopyThreads(),
+                        baseProfile.matmul().openBlasNativeSegmentThreads(),
                         baseProfile.matmul().f32RequireMgeK(),
                         baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().f32WideRequireMgeK(),
+                        baseProfile.matmul().f32WideMaxNOverK(),
+                        baseProfile.matmul().blasStorageMode(),
                         baseProfile.matmul().loopUnrollFactor(),
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
@@ -413,8 +495,13 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().blasProvider(),
                         baseProfile.matmul().blasMatmulMinWork(),
                         baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().openBlasArrayCopyThreads(),
+                        baseProfile.matmul().openBlasNativeSegmentThreads(),
                         baseProfile.matmul().f32RequireMgeK(),
                         baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().f32WideRequireMgeK(),
+                        baseProfile.matmul().f32WideMaxNOverK(),
+                        baseProfile.matmul().blasStorageMode(),
                         baseProfile.matmul().loopUnrollFactor(),
                         resolved.tileM(),
                         resolved.tileN(),
@@ -498,8 +585,13 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().blasProvider(),
                         baseProfile.matmul().blasMatmulMinWork(),
                         baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().openBlasArrayCopyThreads(),
+                        baseProfile.matmul().openBlasNativeSegmentThreads(),
                         baseProfile.matmul().f32RequireMgeK(),
                         baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().f32WideRequireMgeK(),
+                        baseProfile.matmul().f32WideMaxNOverK(),
+                        baseProfile.matmul().blasStorageMode(),
                         baseProfile.matmul().loopUnrollFactor(),
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
@@ -536,8 +628,13 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().blasProvider(),
                         baseProfile.matmul().blasMatmulMinWork(),
                         baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().openBlasArrayCopyThreads(),
+                        baseProfile.matmul().openBlasNativeSegmentThreads(),
                         baseProfile.matmul().f32RequireMgeK(),
                         baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().f32WideRequireMgeK(),
+                        baseProfile.matmul().f32WideMaxNOverK(),
+                        baseProfile.matmul().blasStorageMode(),
                         baseProfile.matmul().loopUnrollFactor(),
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
@@ -578,8 +675,13 @@ public final class PlatformRuntimeProfileMutators {
                         baseProfile.matmul().blasProvider(),
                         baseProfile.matmul().blasMatmulMinWork(),
                         baseProfile.matmul().blasThreads(),
+                        baseProfile.matmul().openBlasArrayCopyThreads(),
+                        baseProfile.matmul().openBlasNativeSegmentThreads(),
                         baseProfile.matmul().f32RequireMgeK(),
                         baseProfile.matmul().f32MaxNOverK(),
+                        baseProfile.matmul().f32WideRequireMgeK(),
+                        baseProfile.matmul().f32WideMaxNOverK(),
+                        baseProfile.matmul().blasStorageMode(),
                         baseProfile.matmul().loopUnrollFactor(),
                         baseProfile.matmul().matMulTileM(),
                         baseProfile.matmul().matMulTileN(),
@@ -675,6 +777,8 @@ public final class PlatformRuntimeProfileMutators {
                     for (Integer red : safeRed) {
                         ElementwiseDispatchPlatformProfile elementwise = new ElementwiseDispatchPlatformProfile(
                                 baseProfile.elementwiseDispatch().cheapVectorMinSize(),
+                                baseProfile.elementwiseDispatch().nativeF32CheapVectorMinSize(),
+                                baseProfile.elementwiseDispatch().nativeF64CheapVectorMinSize(),
                                 baseProfile.elementwiseDispatch().transcendentalVectorMinSize(),
                                 cheap == null ? baseProfile.elementwiseDispatch().cheapParallelMinSize() : cheap,
                                 trans == null ? baseProfile.elementwiseDispatch().transcendentalParallelMinSize() : trans
@@ -721,25 +825,56 @@ public final class PlatformRuntimeProfileMutators {
                 for (Integer transVec : safeTransVec) {
                     for (Integer cheapPar : safeCheapPar) {
                         for (Integer transPar : safeTransPar) {
+                            int cheapVectorMinSize = cheapVec == null
+                                    ? baseProfile.elementwiseDispatch().cheapVectorMinSize()
+                                    : cheapVec;
+                            boolean canMeasureNativeStorage = baseProfile.cpuStorageProfile() != CpuStorageProfile.CPU_ARRAY;
+                            int nativeF32CheapVectorMinSize = canMeasureNativeStorage && baseProfile.dataType() == DataType.FLOAT32
+                                    ? cheapVectorMinSize
+                                    : baseProfile.elementwiseDispatch().nativeF32CheapVectorMinSize();
+                            int nativeF64CheapVectorMinSize = canMeasureNativeStorage && baseProfile.dataType() == DataType.FLOAT64
+                                    ? cheapVectorMinSize
+                                    : baseProfile.elementwiseDispatch().nativeF64CheapVectorMinSize();
                             ElementwiseDispatchPlatformProfile elementwise = new ElementwiseDispatchPlatformProfile(
-                                    cheapVec == null ? baseProfile.elementwiseDispatch().cheapVectorMinSize() : cheapVec,
+                                    cheapVectorMinSize,
+                                    nativeF32CheapVectorMinSize,
+                                    nativeF64CheapVectorMinSize,
                                     transVec == null ? baseProfile.elementwiseDispatch().transcendentalVectorMinSize() : transVec,
                                     cheapPar == null ? baseProfile.elementwiseDispatch().cheapParallelMinSize() : cheapPar,
                                     transPar == null ? baseProfile.elementwiseDispatch().transcendentalParallelMinSize() : transPar
                             );
+                            LinkedHashMap<String, String> assignments = new LinkedHashMap<>();
+                            assignments.put("cpu.cheapVectorMinSize", String.valueOf(elementwise.cheapVectorMinSize()));
+                            if (canMeasureNativeStorage && baseProfile.dataType() == DataType.FLOAT32) {
+                                assignments.put(
+                                        "cpu.nativeF32CheapVectorMinSize",
+                                        String.valueOf(elementwise.nativeF32CheapVectorMinSize())
+                                );
+                            } else if (canMeasureNativeStorage && baseProfile.dataType() == DataType.FLOAT64) {
+                                assignments.put(
+                                        "cpu.nativeF64CheapVectorMinSize",
+                                        String.valueOf(elementwise.nativeF64CheapVectorMinSize())
+                                );
+                            }
+                            assignments.put(
+                                    "cpu.transcendentalVectorMinSize",
+                                    String.valueOf(elementwise.transcendentalVectorMinSize())
+                            );
+                            assignments.put("cpu.cheapParallelMinSize", String.valueOf(elementwise.cheapParallelMinSize()));
+                            assignments.put(
+                                    "cpu.transcendentalParallelMinSize",
+                                    String.valueOf(elementwise.transcendentalParallelMinSize())
+                            );
                             out.add(new RuntimeProfileCandidate(
                                     "elementwiseDispatch="
                                             + elementwise.cheapVectorMinSize() + "/"
+                                            + elementwise.nativeF32CheapVectorMinSize() + "/"
+                                            + elementwise.nativeF64CheapVectorMinSize() + "/"
                                             + elementwise.transcendentalVectorMinSize() + "/"
                                             + elementwise.cheapParallelMinSize() + "/"
                                             + elementwise.transcendentalParallelMinSize(),
                                     withElementwiseDispatch(baseProfile, elementwise),
-                                    Map.of(
-                                            "cpu.cheapVectorMinSize", String.valueOf(elementwise.cheapVectorMinSize()),
-                                            "cpu.transcendentalVectorMinSize", String.valueOf(elementwise.transcendentalVectorMinSize()),
-                                            "cpu.cheapParallelMinSize", String.valueOf(elementwise.cheapParallelMinSize()),
-                                            "cpu.transcendentalParallelMinSize", String.valueOf(elementwise.transcendentalParallelMinSize())
-                                    )
+                                    Map.copyOf(assignments)
                             ));
                         }
                     }
@@ -1097,7 +1232,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1112,7 +1250,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 materialization,
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1127,7 +1268,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1142,7 +1286,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1160,7 +1307,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1175,7 +1325,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1194,7 +1347,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1209,7 +1365,10 @@ public final class PlatformRuntimeProfileMutators {
                 scheduler,
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1224,7 +1383,10 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 numerics,
-                baseProfile.accelerator()
+                baseProfile.accelerator(),
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
     }
 
@@ -1242,7 +1404,14 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.scheduler(),
                 baseProfile.materialization(),
                 baseProfile.numerics(),
-                accelerator
+                accelerator,
+                baseProfile.cpuStorageProfile(),
+                baseProfile.nativeCpuFailurePolicy(),
+                baseProfile.deviceTransferPolicy()
         );
+    }
+
+    private static String formatThreads(int threads) {
+        return threads == 0 ? "AUTO" : String.valueOf(threads);
     }
 }

@@ -29,6 +29,9 @@ final class OpenBlasGemmLayout {
                     + ", byteLength=" + byteLength
                     + ", segmentBytes=" + segment.byteSize());
         }
+        if (byteOffset == 0L) {
+            return segment;
+        }
         return segment.asSlice(byteOffset, byteLength);
     }
 }

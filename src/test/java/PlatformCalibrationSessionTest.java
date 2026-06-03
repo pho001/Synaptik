@@ -99,7 +99,8 @@ public class PlatformCalibrationSessionTest {
                                         config.backend.AttentionMatMulPolicy.AUTO,
                                         config.backend.CpuMatMulMicroKernel.AUTO,
                                         config.backend.CpuMatMulMicroKernel.AUTO,
-                                        32, 32, 32
+                                        32, 32, 32,
+                                        4_096, 8_192
                                 ),
                                 config.backend.CudaKernelConfig.defaultsInference(),
                                 config.backend.OpenClKernelConfig.defaultsInference()
@@ -164,6 +165,8 @@ public class PlatformCalibrationSessionTest {
         assertEquals(4_096, loaded.materialization().cheapF32MaterializeThreshold());
         assertEquals(2_048, loaded.materialization().cheapBF16MaterializeThreshold());
         assertEquals(8_192, loaded.materialization().whereMaterializeThreshold());
+        assertEquals(4_096, loaded.elementwiseDispatch().nativeF32CheapVectorMinSize());
+        assertEquals(8_192, loaded.elementwiseDispatch().nativeF64CheapVectorMinSize());
         assertEquals(123L, loaded.accelerator().cuda().minimumEstimatedWork());
         assertEquals(456L, loaded.accelerator().opencl().minimumEstimatedWork());
         assertEquals(789L, loaded.accelerator().metal().minimumEstimatedWork());
@@ -183,6 +186,8 @@ public class PlatformCalibrationSessionTest {
         assertEquals(4_096, loaded.toRuntimeConfig().kernel().cpu().cheapF32MaterializeThreshold());
         assertEquals(2_048, loaded.toRuntimeConfig().kernel().cpu().cheapBF16MaterializeThreshold());
         assertEquals(8_192, loaded.toRuntimeConfig().kernel().cpu().whereMaterializeThreshold());
+        assertEquals(4_096, loaded.toRuntimeConfig().kernel().cpu().nativeF32CheapVectorMinSize());
+        assertEquals(8_192, loaded.toRuntimeConfig().kernel().cpu().nativeF64CheapVectorMinSize());
         assertEquals(789L, loaded.toRuntimeConfig().accelerator().metal().minimumEstimatedWork());
         assertEquals(
                 config.runtime.AcceleratorBufferBindingMode.REQUIRE,
@@ -193,6 +198,66 @@ public class PlatformCalibrationSessionTest {
         assertEquals(CpuStorageProfile.AUTO, loaded.toRuntimeConfig().cpuStorageProfile());
         assertEquals(NativeCpuFailurePolicy.REQUIRE_NATIVE, loaded.toRuntimeConfig().nativeCpuFailurePolicy());
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, loaded.toRuntimeConfig().deviceTransferPolicy());
+    }
+
+    @Test
+    void legacyPlatformProfilesWithoutNativeCheapVectorThresholdsUseCheapVectorFallback() {
+        PlatformRuntimeProfile profile = PlatformRuntimeProfile.fromExecutionProfile(
+                "platform",
+                "hardware",
+                "TEST",
+                new ExecutionProfile(
+                        "seed",
+                        "seed",
+                        tensor.DataType.FLOAT32,
+                        ExecutionMode.FORWARD,
+                        config.compile.CompileConfig.inference(),
+                        new config.runtime.RuntimeConfig(
+                                new config.backend.KernelTuningConfig(
+                                        new config.backend.CpuKernelConfig(
+                                                4, 32, 32, 32,
+                                                256, 512, 256, 512, 512, 512,
+                                                50_000, 50_000, 50_000, 50_000, 50_000, 50_000,
+                                                16_384,
+                                                16_384, 16_384, 16_384, 16_384,
+                                                4, 2, 1,
+                                                2_048, 4_096, 8_192, 32_768,
+                                                0,
+                                                config.backend.SumAccuracyMode.FAST,
+                                                2_000_000,
+                                                config.backend.AttentionMatMulPolicy.AUTO,
+                                                config.backend.CpuMatMulMicroKernel.AUTO,
+                                                config.backend.CpuMatMulMicroKernel.AUTO,
+                                                32, 32, 32,
+                                                4_096, 8_192
+                                        ),
+                                        config.backend.CudaKernelConfig.defaultsInference(),
+                                        config.backend.OpenClKernelConfig.defaultsInference()
+                                ),
+                                config.runtime.ApproximationConfig.defaults(),
+                                config.runtime.BlasConfig.disabled(),
+                                config.runtime.FusedExecutionPolicy.defaultsInference()
+                        ),
+                        WorkloadProfile.none()
+                )
+        );
+        PlatformRuntimeProfile fallback = PlatformRuntimeProfile.fromExecutionProfile(
+                "fallback",
+                "fallback",
+                "TEST",
+                defaultSeed()
+        );
+        String legacyJson = PlatformRuntimeProfileIO.toJson(profile)
+                .replace("    \"nativeF32CheapVectorMinSize\": 4096,\n", "")
+                .replace("    \"nativeF64CheapVectorMinSize\": 8192,\n", "");
+
+        PlatformRuntimeProfile loaded = PlatformRuntimeProfileIO.fromJsonOrDefault(legacyJson, fallback);
+
+        assertEquals(256, loaded.elementwiseDispatch().cheapVectorMinSize());
+        assertEquals(256, loaded.elementwiseDispatch().nativeF32CheapVectorMinSize());
+        assertEquals(256, loaded.elementwiseDispatch().nativeF64CheapVectorMinSize());
+        assertEquals(256, loaded.toRuntimeConfig().kernel().cpu().nativeF32CheapVectorMinSize());
+        assertEquals(256, loaded.toRuntimeConfig().kernel().cpu().nativeF64CheapVectorMinSize());
     }
 
     @Test

@@ -1,0 +1,10 @@
+package backend.cpu1.kernels.loss.mse;
+
+public enum Cpu1MseLossKernelId {
+    MSE_SUM_F32_DENSE_SCALAR,
+    MSE_MEAN_F32_DENSE_SCALAR,
+    MSE_SUM_F64_DENSE_SCALAR,
+    MSE_MEAN_F64_DENSE_SCALAR,
+    MSE_SUM_BF16_DENSE_SCALAR,
+    MSE_MEAN_BF16_DENSE_SCALAR
+}

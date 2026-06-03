@@ -29,6 +29,8 @@ public final class CpuKernelConfig {
     private final int attentionMatMulTileN;
     private final int attentionMatMulTileK;
     private final int cheapVectorMinSize;
+    private final int nativeF32CheapVectorMinSize;
+    private final int nativeF64CheapVectorMinSize;
     private final int transcendentalVectorMinSize;
     private final int fusedCheapVectorMinSize;
     private final int fusedTranscendentalVectorMinSize;
@@ -494,6 +496,90 @@ public final class CpuKernelConfig {
             int attentionMatMulTileN,
             int attentionMatMulTileK
     ) {
+        this(
+                loopUnrollFactor,
+                matMulTileM,
+                matMulTileN,
+                matMulTileK,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize,
+                reductionVectorMinSize,
+                attentionVectorMinSize,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize,
+                reductionParallelMinSize,
+                attentionParallelMinSize,
+                contiguousMaterializeThreshold,
+                cheapF64MaterializeThreshold,
+                cheapF32MaterializeThreshold,
+                cheapBF16MaterializeThreshold,
+                whereMaterializeThreshold,
+                lowCostTargetChunksPerWorker,
+                mediumCostTargetChunksPerWorker,
+                highCostTargetChunksPerWorker,
+                minScalarChunkSize,
+                minVectorChunkSize,
+                minReductionChunkSize,
+                commonPoolLowCostMaxWorkPerWorker,
+                fusedAsmVectorWidth,
+                sumAccuracyMode,
+                matMulParallelMinSize,
+                attentionMatMulPolicy,
+                matMulMicroKernel,
+                attentionMatMulMicroKernel,
+                attentionMatMulTileM,
+                attentionMatMulTileN,
+                attentionMatMulTileK,
+                cheapVectorMinSize,
+                cheapVectorMinSize
+        );
+    }
+
+    public CpuKernelConfig(
+            int loopUnrollFactor,
+            int matMulTileM,
+            int matMulTileN,
+            int matMulTileK,
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int reductionVectorMinSize,
+            int attentionVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize,
+            int reductionParallelMinSize,
+            int attentionParallelMinSize,
+            int contiguousMaterializeThreshold,
+            int cheapF64MaterializeThreshold,
+            int cheapF32MaterializeThreshold,
+            int cheapBF16MaterializeThreshold,
+            int whereMaterializeThreshold,
+            int lowCostTargetChunksPerWorker,
+            int mediumCostTargetChunksPerWorker,
+            int highCostTargetChunksPerWorker,
+            int minScalarChunkSize,
+            int minVectorChunkSize,
+            int minReductionChunkSize,
+            int commonPoolLowCostMaxWorkPerWorker,
+            int fusedAsmVectorWidth,
+            SumAccuracyMode sumAccuracyMode,
+            int matMulParallelMinSize,
+            AttentionMatMulPolicy attentionMatMulPolicy,
+            CpuMatMulMicroKernel matMulMicroKernel,
+            CpuMatMulMicroKernel attentionMatMulMicroKernel,
+            int attentionMatMulTileM,
+            int attentionMatMulTileN,
+            int attentionMatMulTileK,
+            int nativeF32CheapVectorMinSize,
+            int nativeF64CheapVectorMinSize
+    ) {
         this.loopUnrollFactor = loopUnrollFactor;
         this.matMulTileM = matMulTileM;
         this.matMulTileN = matMulTileN;
@@ -502,6 +588,8 @@ public final class CpuKernelConfig {
         this.attentionMatMulTileN = attentionMatMulTileN <= 0 ? matMulTileN : attentionMatMulTileN;
         this.attentionMatMulTileK = attentionMatMulTileK <= 0 ? matMulTileK : attentionMatMulTileK;
         this.cheapVectorMinSize = Math.max(1, cheapVectorMinSize);
+        this.nativeF32CheapVectorMinSize = Math.max(1, nativeF32CheapVectorMinSize);
+        this.nativeF64CheapVectorMinSize = Math.max(1, nativeF64CheapVectorMinSize);
         this.transcendentalVectorMinSize = Math.max(1, transcendentalVectorMinSize);
         this.fusedCheapVectorMinSize = Math.max(1, fusedCheapVectorMinSize);
         this.fusedTranscendentalVectorMinSize = Math.max(1, fusedTranscendentalVectorMinSize);
@@ -543,6 +631,8 @@ public final class CpuKernelConfig {
     public int attentionMatMulTileN() { return attentionMatMulTileN; }
     public int attentionMatMulTileK() { return attentionMatMulTileK; }
     public int cheapVectorMinSize() { return cheapVectorMinSize; }
+    public int nativeF32CheapVectorMinSize() { return nativeF32CheapVectorMinSize; }
+    public int nativeF64CheapVectorMinSize() { return nativeF64CheapVectorMinSize; }
     public int transcendentalVectorMinSize() { return transcendentalVectorMinSize; }
     public int fusedCheapVectorMinSize() { return fusedCheapVectorMinSize; }
     public int fusedTranscendentalVectorMinSize() { return fusedTranscendentalVectorMinSize; }

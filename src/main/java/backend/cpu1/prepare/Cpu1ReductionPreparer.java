@@ -44,9 +44,6 @@ public final class Cpu1ReductionPreparer {
             throw new UnsupportedOperationException("cpu1 " + opType + " expects 1 input, got "
                     + node.inputIds().size());
         }
-        if (config.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
-            throw new UnsupportedOperationException("cpu1 initial reductions support only JAVA_ARRAY storage.");
-        }
         CompiledTensorDescriptor input = descriptorIndex == null
                 ? null
                 : descriptorIndex.byNodeId(node.inputIds().getFirst());
@@ -57,6 +54,11 @@ public final class Cpu1ReductionPreparer {
         if (!isSupportedDType(opType, node.dataType(), inputDataType)) {
             throw new UnsupportedOperationException("cpu1 reduction preparer does not support input dtype "
                     + inputDataType + " and output dtype " + node.dataType() + " for " + opType);
+        }
+        if (!isSupportedStorage(opType, node.dataType(), inputDataType, config.storageKind())) {
+            throw new UnsupportedOperationException("cpu1 reduction preparer does not support storage "
+                    + config.storageKind() + " for input dtype " + inputDataType + ", output dtype "
+                    + node.dataType() + ", op " + opType);
         }
         if (input != null) {
             requireInputContract(opType, node, input);
@@ -92,7 +94,7 @@ public final class Cpu1ReductionPreparer {
                 argMaxLastIndexWins(operation),
                 cumSumExclusive(operation),
                 cumSumReverse(operation),
-                Cpu1WorkspaceSpec.none()
+                workspaceSpec(config.storageKind(), node.dataType(), node.flatDataSize())
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -359,6 +361,21 @@ public final class Cpu1ReductionPreparer {
                 || outputDataType == DataType.BFLOAT16);
     }
 
+    private static boolean isSupportedStorage(
+            Operation.OpType opType,
+            DataType outputDataType,
+            DataType inputDataType,
+            Cpu1StorageKind storageKind
+    ) {
+        if (storageKind == Cpu1StorageKind.JAVA_ARRAY) {
+            return true;
+        }
+        return storageKind == Cpu1StorageKind.MEMORY_SEGMENT
+                && (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN)
+                && inputDataType == outputDataType
+                && (outputDataType == DataType.FLOAT32 || outputDataType == DataType.FLOAT64);
+    }
+
     private static boolean isArgMaxInputDType(DataType inputDataType) {
         return inputDataType == DataType.FLOAT32
                 || inputDataType == DataType.FLOAT64
@@ -394,5 +411,12 @@ public final class Cpu1ReductionPreparer {
             product = Math.multiplyExact(product, shape[i]);
         }
         return product;
+    }
+
+    private static Cpu1WorkspaceSpec workspaceSpec(Cpu1StorageKind storageKind, DataType dataType, int outputElements) {
+        if (storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
+            return Cpu1WorkspaceSpec.none();
+        }
+        return Cpu1WorkspaceSpec.nativeOutput(dataType, outputElements);
     }
 }

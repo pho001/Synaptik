@@ -11,14 +11,18 @@ import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Run-scoped owned native/backend resources.
  */
 final class RuntimeResourceRegistry {
     private final List<ExecutionResource> executionResources = new ArrayList<>();
+    private final Set<ExecutionResource> registeredResources = Collections.newSetFromMap(new IdentityHashMap<>());
     private NativeCpuAllocator nativeCpuAllocator = new NativeCpuAllocator();
     private NativeCpuStorageFactory nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
 
@@ -32,7 +36,10 @@ final class RuntimeResourceRegistry {
     }
 
     void registerResource(ExecutionResource resource) {
-        executionResources.add(Objects.requireNonNull(resource, "resource cannot be null"));
+        Objects.requireNonNull(resource, "resource cannot be null");
+        if (registeredResources.add(resource)) {
+            executionResources.add(resource);
+        }
     }
 
     void closeResources() {
@@ -48,6 +55,7 @@ final class RuntimeResourceRegistry {
             }
         }
         executionResources.clear();
+        registeredResources.clear();
         nativeCpuAllocator.drainRunLocalPool();
         if (closeFailure != null) {
             throw closeFailure;

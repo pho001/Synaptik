@@ -32,6 +32,7 @@ public final class ExplicitProfileMutators {
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
                 blasThreads(List.of(0)),
+                openBlasRouteThreads(List.of(0), List.of(0)),
                 fusedExecutionPolicies(List.of(true))
         );
     }
@@ -41,6 +42,7 @@ public final class ExplicitProfileMutators {
                 cpuRuntimePolicyVariants(),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
+                openBlasRouteThreads(List.of(0), List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(List.of(true))
         );
@@ -56,6 +58,7 @@ public final class ExplicitProfileMutators {
                 )),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L)),
                 blasThreads(List.of(0)),
+                openBlasRouteThreads(List.of(0), List.of(0)),
                 vectorThresholds(
                         List.of(256, 1_024, 4_096),
                         List.of(512, 2_048, 8_192),
@@ -70,6 +73,7 @@ public final class ExplicitProfileMutators {
                 cpuRuntimePolicyVariants(),
                 matmulBlasProviders(List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM), List.of(1_000_000L, 2_000_000L, 4_000_000L)),
                 blasThreads(List.of(0)),
+                openBlasRouteThreads(List.of(0), List.of(0)),
                 matmulParallelThresholds(List.of(100_000, 500_000, 2_000_000)),
                 fusedExecutionPolicies(List.of(true))
         );
@@ -306,43 +310,102 @@ public final class ExplicitProfileMutators {
     }
 
     public static ExecutionProfileMutator blasThreads(List<Integer> threadCounts) {
+        List<Integer> safeThreadCounts = threadCounts == null ? List.of() : List.copyOf(threadCounts);
         return (baseProfile, workload) -> {
             String variantName = "blasThreads=" + formatBlasThreads(baseProfile.runtime().blas().threads());
             if (!usesMatmulRuntimePolicies(workload.kind())) {
                 return List.of(new ExecutionProfileVariant(variantName, baseProfile));
             }
-            BlasConfig cfg = new BlasConfig(
-                    baseProfile.runtime().blas().provider(),
-                    baseProfile.runtime().blas().matmulMinWork(),
-                    baseProfile.runtime().blas().f32RequireMgeK(),
-                    baseProfile.runtime().blas().f32MaxNOverK(),
-                    baseProfile.runtime().blas().f32WideRequireMgeK(),
-                    baseProfile.runtime().blas().f32WideMaxNOverK(),
-                    baseProfile.runtime().blas().storageMode(),
-                    baseProfile.runtime().blas().debug(),
-                    0
-            );
-            return List.of(new ExecutionProfileVariant(
-                    variantName,
-                    new ExecutionProfile(
-                            baseProfile.profileName(),
-                            baseProfile.candidateName(),
-                            baseProfile.dataType(),
-                            baseProfile.mode(),
-                            baseProfile.compile(),
-                            new config.runtime.RuntimeConfig(
-                                    baseProfile.runtime().kernel(),
-                                    baseProfile.runtime().approximation(),
-                                    cfg,
-                                    baseProfile.runtime().conv2d(),
-                                    baseProfile.runtime().fused(),
-                                    baseProfile.runtime().accelerator(),
-                                    baseProfile.runtime().cpuStorageProfile(),
-                                    baseProfile.runtime().nativeCpuFailurePolicy()
-                            ),
-                            baseProfile.workload()
-                    )
-            ));
+            if (safeThreadCounts.isEmpty()) {
+                return List.of(new ExecutionProfileVariant(variantName, baseProfile));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>();
+            for (Integer threadCount : safeThreadCounts) {
+                int resolvedThreadCount = threadCount == null ? baseProfile.runtime().blas().threads() : threadCount;
+                BlasConfig cfg = new BlasConfig(
+                        baseProfile.runtime().blas().provider(),
+                        baseProfile.runtime().blas().matmulMinWork(),
+                        baseProfile.runtime().blas().f32RequireMgeK(),
+                        baseProfile.runtime().blas().f32MaxNOverK(),
+                        baseProfile.runtime().blas().f32WideRequireMgeK(),
+                        baseProfile.runtime().blas().f32WideMaxNOverK(),
+                        baseProfile.runtime().blas().storageMode(),
+                        baseProfile.runtime().blas().debug(),
+                        resolvedThreadCount,
+                        baseProfile.runtime().blas().openBlasArrayCopyThreads(),
+                        baseProfile.runtime().blas().openBlasNativeSegmentThreads()
+                );
+                variants.add(new ExecutionProfileVariant(
+                        "blasThreads=" + formatBlasThreads(cfg.threads()),
+                        new ExecutionProfile(
+                                baseProfile.profileName(),
+                                baseProfile.candidateName(),
+                                baseProfile.dataType(),
+                                baseProfile.mode(),
+                                baseProfile.compile(),
+                                new config.runtime.RuntimeConfig(
+                                        baseProfile.runtime().kernel(),
+                                        baseProfile.runtime().approximation(),
+                                        cfg,
+                                        baseProfile.runtime().conv2d(),
+                                        baseProfile.runtime().fused(),
+                                        baseProfile.runtime().accelerator(),
+                                        baseProfile.runtime().cpuStorageProfile(),
+                                        baseProfile.runtime().nativeCpuFailurePolicy()
+                                ),
+                                baseProfile.workload()
+                        )
+                ));
+            }
+            return variants;
+        };
+    }
+
+    public static ExecutionProfileMutator openBlasRouteThreads(
+            List<Integer> arrayCopyThreadCounts,
+            List<Integer> nativeSegmentThreadCounts
+    ) {
+        List<Integer> safeArrayCopyThreads = arrayCopyThreadCounts == null ? List.of() : List.copyOf(arrayCopyThreadCounts);
+        List<Integer> safeNativeSegmentThreads = nativeSegmentThreadCounts == null ? List.of() : List.copyOf(nativeSegmentThreadCounts);
+        return (baseProfile, workload) -> {
+            String variantName = "openBlasRouteThreads="
+                    + formatBlasThreads(baseProfile.runtime().blas().openBlasArrayCopyThreads())
+                    + "/" + formatBlasThreads(baseProfile.runtime().blas().openBlasNativeSegmentThreads());
+            if (!usesMatmulRuntimePolicies(workload.kind())) {
+                return List.of(new ExecutionProfileVariant(variantName, baseProfile));
+            }
+            if (baseProfile.runtime().blas().provider() != BlasProvider.OPENBLAS_FFM) {
+                return List.of(new ExecutionProfileVariant("openBlasRouteThreads=provider-disabled", baseProfile));
+            }
+            if (safeArrayCopyThreads.isEmpty() || safeNativeSegmentThreads.isEmpty()) {
+                return List.of(new ExecutionProfileVariant(variantName, baseProfile));
+            }
+            List<ExecutionProfileVariant> variants = new ArrayList<>();
+            for (Integer arrayThreads : safeArrayCopyThreads) {
+                for (Integer nativeThreads : safeNativeSegmentThreads) {
+                    BlasConfig baseBlas = baseProfile.runtime().blas();
+                    BlasConfig cfg = new BlasConfig(
+                            baseBlas.provider(),
+                            baseBlas.matmulMinWork(),
+                            baseBlas.f32RequireMgeK(),
+                            baseBlas.f32MaxNOverK(),
+                            baseBlas.f32WideRequireMgeK(),
+                            baseBlas.f32WideMaxNOverK(),
+                            baseBlas.storageMode(),
+                            baseBlas.debug(),
+                            baseBlas.threads(),
+                            arrayThreads == null ? baseBlas.openBlasArrayCopyThreads() : arrayThreads,
+                            nativeThreads == null ? baseBlas.openBlasNativeSegmentThreads() : nativeThreads
+                    );
+                    variants.add(new ExecutionProfileVariant(
+                            "openBlasRouteThreads="
+                                    + formatBlasThreads(cfg.openBlasArrayCopyThreads())
+                                    + "/" + formatBlasThreads(cfg.openBlasNativeSegmentThreads()),
+                            withBlas(baseProfile, cfg)
+                    ));
+                }
+            }
+            return variants;
         };
     }
 
@@ -372,7 +435,9 @@ public final class ExplicitProfileMutators {
                             baseProfile.runtime().blas().f32WideMaxNOverK(),
                             baseProfile.runtime().blas().storageMode(),
                             baseProfile.runtime().blas().debug(),
-                            baseProfile.runtime().blas().threads()
+                            baseProfile.runtime().blas().threads(),
+                            baseProfile.runtime().blas().openBlasArrayCopyThreads(),
+                            baseProfile.runtime().blas().openBlasNativeSegmentThreads()
                     );
                     variants.add(new ExecutionProfileVariant(
                             "blasProvider=" + provider.name() + ":minWork=" + cfg.matmulMinWork(),
@@ -411,7 +476,9 @@ public final class ExplicitProfileMutators {
                             maxNOverK == null ? baseProfile.runtime().blas().f32WideMaxNOverK() : maxNOverK,
                             baseProfile.runtime().blas().storageMode(),
                             baseProfile.runtime().blas().debug(),
-                            baseProfile.runtime().blas().threads()
+                            baseProfile.runtime().blas().threads(),
+                            baseProfile.runtime().blas().openBlasArrayCopyThreads(),
+                            baseProfile.runtime().blas().openBlasNativeSegmentThreads()
                     );
                     variants.add(new ExecutionProfileVariant(
                             "blasShape=" + cfg.f32RequireMgeK() + ":" + cfg.f32MaxNOverK(),
@@ -794,7 +861,9 @@ public final class ExplicitProfileMutators {
                 safeBase.f32WideMaxNOverK(),
                 storageMode,
                 safeBase.debug(),
-                safeBase.threads()
+                safeBase.threads(),
+                safeBase.openBlasArrayCopyThreads(),
+                safeBase.openBlasNativeSegmentThreads()
         );
     }
 

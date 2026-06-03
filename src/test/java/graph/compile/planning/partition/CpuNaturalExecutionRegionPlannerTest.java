@@ -16,6 +16,7 @@ import graph.compile.planning.region.DefaultRegionOptimizer;
 import graph.compile.planning.region.ExecutionUnitKind;
 import graph.compile.planning.region.OptimizedRegion;
 import graph.compile.planning.region.RegionOptimizationContext;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -139,6 +140,41 @@ class CpuNaturalExecutionRegionPlannerTest {
         assertEquals(1, result.program().partitions().size());
         Partition partition = result.program().partitions().getFirst();
         assertEquals(List.of(3), partition.orderedNodeIds());
+    }
+
+    @Test
+    void compiledGraphCreatesExactMatmulReluRegionBeforeTrailingCpuConsumer() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, -9f, 10f, 11f, -12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor root = a.matmul(b).relu().sum();
+
+        CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
+
+        assertTrue(result.program().partitions().stream()
+                .map(partition -> partitionOps(result, partition))
+                .anyMatch(ops -> ops.equals(List.of(Operation.OpType.MATMUL, Operation.OpType.RELU))));
+    }
+
+    @Test
+    void compiledGraphCreatesExactLinearReluRegionBeforeTrailingCpuConsumer() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, -9f, 10f, 11f, -12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -4f}, new int[]{2}, null, "bias", DataType.FLOAT32);
+        Tensor root = a.matmul(b).add(bias).relu().sum();
+
+        CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
+
+        assertTrue(result.program().partitions().stream()
+                .map(partition -> partitionOps(result, partition))
+                .anyMatch(ops -> ops.equals(List.of(Operation.OpType.LINEAR, Operation.OpType.RELU))));
+    }
+
+    private static List<Operation.OpType> partitionOps(CompiledGraph graph, Partition partition) {
+        return partition.orderedNodeIds().stream()
+                .map(nodeId -> graph.program().compiledNodes().get(nodeId))
+                .map(CompiledNode::operation)
+                .map(operation -> operation == null ? Operation.OpType.UNKNOWN : operation.opType())
+                .toList();
     }
 
     private static Map<Integer, List<CompiledNode>> consumers(List<CompiledNode> graph) {

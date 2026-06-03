@@ -1015,7 +1015,7 @@ public class BenchmarkSessionTest {
                 List.of(32, 32),
                 DataType.BFLOAT16,
                 "CPU",
-                "PreparedNativeCpuRegionExecutable",
+                "CpuNativeStorageTrace",
                 40L,
                 new graph.execution.trace.StepExecutionMetadata(
                         "node",
@@ -1572,11 +1572,11 @@ public class BenchmarkSessionTest {
                                                 ExecutionMode.FORWARD,
                                                 100L,
                                                 List.of(
-                                                        nativeRegionStep(0, "native_provider_local", "PreparedNativeCpuRegionExecutable", selectedAttrs),
-                                                        nativeRegionStep(1, "native_provider_only", "PreparedNativeCpuRegionExecutable", providerOnlyAttrs),
-                                                        nativeRegionStep(2, "native_segment_scalar", "PreparedNativeCpuRegionExecutable", scalarAttrs),
-                                                        nativeRegionStep(3, "native_segment_parallel", "PreparedNativeCpuRegionExecutable", parallelAttrs),
-                                                        nativeRegionStep(4, "native_segment_fused", "PreparedNativeCpuRegionExecutable", fusedAttrs),
+                                                        nativeRegionStep(0, "native_provider_local", "CpuNativeStorageTrace", selectedAttrs),
+                                                        nativeRegionStep(1, "native_provider_only", "CpuNativeStorageTrace", providerOnlyAttrs),
+                                                        nativeRegionStep(2, "native_segment_scalar", "CpuNativeStorageTrace", scalarAttrs),
+                                                        nativeRegionStep(3, "native_segment_parallel", "CpuNativeStorageTrace", parallelAttrs),
+                                                        nativeRegionStep(4, "native_segment_fused", "CpuNativeStorageTrace", fusedAttrs),
                                                         nativeRegionStep(5, "native_provider_array_fallback", "CpuMatMulKernel", providerFallbackAttrs),
                                                         nativeRegionStep(6, "array_strided", "CpuStridedKernel", stridedRejectedAttrs),
                                                         nativeRegionStep(7, "array_dense", "CpuMatMulKernel", rejectedAttrs)

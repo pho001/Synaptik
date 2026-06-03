@@ -4,6 +4,7 @@ import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
+import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import graph.CompiledNode;
@@ -31,7 +32,8 @@ public final class Cpu1TraceContributor {
             CompiledNode node,
             Cpu1PreparedLayoutUnit preparedLayoutUnit,
             Cpu1PreparedReductionUnit preparedReductionUnit,
-            Cpu1PreparedMatmulUnit preparedMatmulUnit
+            Cpu1PreparedMatmulUnit preparedMatmulUnit,
+            Cpu1PreparedMseLossUnit preparedMseLossUnit
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
@@ -41,6 +43,9 @@ public final class Cpu1TraceContributor {
         }
         if (preparedMatmulUnit != null) {
             return matmulTrace(preparedMatmulUnit);
+        }
+        if (preparedMseLossUnit != null) {
+            return mseLossTrace(preparedMseLossUnit);
         }
         return StepTraceContribution.empty();
     }
@@ -123,6 +128,7 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1KernelId", unit.kernelId().name());
         attrs.put("cpu1MatmulKernelId", unit.kernelId().name());
         attrs.put("cpu1MatmulRoute", unit.route().name());
+        attrs.put("cpu1MatmulPostOp", unit.postOp().name());
         attrs.put("cpu1StorageKind", unit.storageKind().name());
         attrs.put("cpu1MatmulVectorizationKind", unit.vectorizationKind().name());
         attrs.put("cpu1MatmulVectorWidth", matmulVectorWidth(unit));
@@ -157,7 +163,7 @@ public final class Cpu1TraceContributor {
                 matmulCopyInBytes(unit),
                 matmulCopyOutBytes(unit),
                 matmulUsesBlas(unit) ? -1L : 0L,
-                matmulUsesBlas(unit) ? OpenBlasRuntime.threadPolicy() : "SINGLE_THREAD",
+                matmulUsesBlas(unit) ? OpenBlasRuntime.threadPolicy(unit.openBlasThreads()) : "SINGLE_THREAD",
                 "",
                 false,
                 unit.m(),
@@ -180,6 +186,36 @@ public final class Cpu1TraceContributor {
         );
     }
 
+    private static StepTraceContribution mseLossTrace(Cpu1PreparedMseLossUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1MseLossKernelId", unit.kernelId().name());
+        attrs.put("cpu1SpecializationKind", "MSE_LOSS");
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1MseLossReduction", unit.reductionOpType().name());
+        attrs.put("cpu1MseLossElementCount", unit.elementCount());
+        attrs.put("cpu1MseLossLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1MseLossLaunchChunkSize", unit.launchConfig().chunkSize());
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.reductionOpType().name(),
+                1,
+                1,
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : "F64_ACCUMULATE"
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                null,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
     private static int matmulVectorWidth(Cpu1PreparedMatmulUnit unit) {
         if (unit.vectorizationKind() == Cpu1VectorizationKind.SCALAR) {
             return 1;
@@ -190,6 +226,9 @@ public final class Cpu1TraceContributor {
     private static String matmulImplementation(Cpu1PreparedMatmulUnit unit) {
         if (unit.route() == Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING) {
             return "OPENBLAS_ARRAY_COPYING";
+        }
+        if (unit.route() == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
+            return "OPENBLAS_NATIVE_SEGMENT";
         }
         return unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR
                 ? "JAVA_VECTOR_PACKED_B"
@@ -211,11 +250,12 @@ public final class Cpu1TraceContributor {
         attrs.put("matMulCopyInBytes", matmulCopyInBytes(unit));
         attrs.put("matMulCopyOutBytes", matmulCopyOutBytes(unit));
         attrs.put("matMulNativeTempBytes", -1L);
-        attrs.put("blasThreadPolicy", OpenBlasRuntime.threadPolicy());
+        attrs.put("blasThreadPolicy", OpenBlasRuntime.threadPolicy(unit.openBlasThreads()));
     }
 
     private static boolean matmulUsesBlas(Cpu1PreparedMatmulUnit unit) {
-        return unit.route() == Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING;
+        return unit.route() == Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
+                || unit.route() == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT;
     }
 
     private static boolean matmulUsesBatchedBlas(Cpu1PreparedMatmulUnit unit) {
@@ -238,11 +278,11 @@ public final class Cpu1TraceContributor {
     }
 
     private static String matmulBlasRoute(Cpu1PreparedMatmulUnit unit) {
-        return matmulUsesBlas(unit) ? Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING.name() : "";
+        return matmulUsesBlas(unit) ? unit.route().name() : "";
     }
 
     private static long matmulCopyInBytes(Cpu1PreparedMatmulUnit unit) {
-        if (!matmulUsesBlas(unit)) {
+        if (!matmulUsesBlas(unit) || unit.route() == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
             return 0L;
         }
         long leftElements = Math.multiplyExact(Math.multiplyExact((long) unit.batchCount(), unit.m()), unit.k());
@@ -251,7 +291,7 @@ public final class Cpu1TraceContributor {
     }
 
     private static long matmulCopyOutBytes(Cpu1PreparedMatmulUnit unit) {
-        if (!matmulUsesBlas(unit)) {
+        if (!matmulUsesBlas(unit) || unit.route() == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
             return 0L;
         }
         long outputElements = Math.multiplyExact(Math.multiplyExact((long) unit.batchCount(), unit.m()), unit.n());

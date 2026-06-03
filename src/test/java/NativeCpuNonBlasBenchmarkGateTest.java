@@ -254,7 +254,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
                         BenchmarkCandidateReport.success(
                                 BenchmarkEntry.candidate(name, candidateProfile),
                                 ValidationResult.skipped(),
-                                measurement(step(0, name + "-step", "PreparedNativeCpuRegionExecutable", candidateAttrs), candidateMedianMs)
+                                measurement(step(0, name + "-step", "CpuNativeStorageTrace", candidateAttrs), candidateMedianMs)
                         )
                 )
         );
@@ -273,7 +273,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
     }
 
     private static ExecutionStepTrace step(String name, Map<String, Object> attrs) {
-        return step(0, name + "-step", "PreparedNativeCpuRegionExecutable", attrs);
+        return step(0, name + "-step", "CpuNativeStorageTrace", attrs);
     }
 
     private static ExecutionStepTrace step(int index, String name, String kernel, Map<String, Object> attrs) {

@@ -60,6 +60,8 @@ public final class PlatformRuntimeProfileIO {
                 "    \"blasProvider\": \"" + profile.matmul().blasProvider().name() + "\",\n" +
                 "    \"blasMatmulMinWork\": " + profile.matmul().blasMatmulMinWork() + ",\n" +
                 "    \"blasThreads\": " + profile.matmul().blasThreads() + ",\n" +
+                "    \"openBlasArrayCopyThreads\": " + profile.matmul().openBlasArrayCopyThreads() + ",\n" +
+                "    \"openBlasNativeSegmentThreads\": " + profile.matmul().openBlasNativeSegmentThreads() + ",\n" +
                 "    \"f32RequireMgeK\": " + profile.matmul().f32RequireMgeK() + ",\n" +
                 "    \"f32MaxNOverK\": " + profile.matmul().f32MaxNOverK() + ",\n" +
                 "    \"f32WideRequireMgeK\": " + profile.matmul().f32WideRequireMgeK() + ",\n" +
@@ -95,6 +97,8 @@ public final class PlatformRuntimeProfileIO {
                 "  },\n" +
                 "  \"elementwiseDispatch\": {\n" +
                 "    \"cheapVectorMinSize\": " + profile.elementwiseDispatch().cheapVectorMinSize() + ",\n" +
+                "    \"nativeF32CheapVectorMinSize\": " + profile.elementwiseDispatch().nativeF32CheapVectorMinSize() + ",\n" +
+                "    \"nativeF64CheapVectorMinSize\": " + profile.elementwiseDispatch().nativeF64CheapVectorMinSize() + ",\n" +
                 "    \"transcendentalVectorMinSize\": " + profile.elementwiseDispatch().transcendentalVectorMinSize() + ",\n" +
                 "    \"cheapParallelMinSize\": " + profile.elementwiseDispatch().cheapParallelMinSize() + ",\n" +
                 "    \"transcendentalParallelMinSize\": " + profile.elementwiseDispatch().transcendentalParallelMinSize() + "\n" +
@@ -201,6 +205,8 @@ public final class PlatformRuntimeProfileIO {
                     findEnum(json, "blasProvider", fallback.matmul().blasProvider(), BlasProvider.class),
                     findLong(json, "blasMatmulMinWork", fallback.matmul().blasMatmulMinWork()),
                     findInt(json, "blasThreads", fallback.matmul().blasThreads()),
+                    findInt(json, "openBlasArrayCopyThreads", fallback.matmul().openBlasArrayCopyThreads()),
+                    findInt(json, "openBlasNativeSegmentThreads", fallback.matmul().openBlasNativeSegmentThreads()),
                     findBoolean(json, "f32RequireMgeK", fallback.matmul().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", fallback.matmul().f32MaxNOverK()),
                     findBoolean(json, "f32WideRequireMgeK", fallback.matmul().f32WideRequireMgeK()),
@@ -232,6 +238,11 @@ public final class PlatformRuntimeProfileIO {
                     findBoolean(json, "conv2dBf16RequireMgeK", loadedMatmul.f32RequireMgeK()),
                     findDouble(json, "conv2dBf16MaxNOverK", loadedMatmul.f32MaxNOverK())
             );
+            int loadedCheapVectorMinSize = findInt(
+                    json,
+                    "cheapVectorMinSize",
+                    fallback.elementwiseDispatch().cheapVectorMinSize()
+            );
             return new PlatformRuntimeProfile(
                     new PlatformProfileMetadata(
                             findString(json, "platformProfileId", m.platformProfileId()),
@@ -254,7 +265,9 @@ public final class PlatformRuntimeProfileIO {
                             findInt(json, "fusedAsmVectorWidth", fallback.fused().fusedAsmVectorWidth())
                     ),
                     new ElementwiseDispatchPlatformProfile(
-                            findInt(json, "cheapVectorMinSize", fallback.elementwiseDispatch().cheapVectorMinSize()),
+                            loadedCheapVectorMinSize,
+                            findInt(json, "nativeF32CheapVectorMinSize", loadedCheapVectorMinSize),
+                            findInt(json, "nativeF64CheapVectorMinSize", loadedCheapVectorMinSize),
                             findInt(json, "transcendentalVectorMinSize", fallback.elementwiseDispatch().transcendentalVectorMinSize()),
                             findInt(json, "cheapParallelMinSize", fallback.elementwiseDispatch().cheapParallelMinSize()),
                             findInt(json, "transcendentalParallelMinSize", fallback.elementwiseDispatch().transcendentalParallelMinSize())

@@ -3,6 +3,7 @@ package backend.prepare;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
+import backend.lowering.region.CpuSpecializedPrimitivePayload;
 import backend.lowering.region.RegionExecutionPlan;
 
 import java.util.HashMap;
@@ -12,7 +13,7 @@ import java.util.Map;
 final class LoweredRegionIndex {
     private final Map<Integer, LoweredExecutionUnit> cpuUnitsByAnchor;
     private final Map<Integer, LoweredExecutionUnit> cpuFusedUnitsByStart;
-    private final Map<Integer, LoweredExecutionUnit> cpuNativeUnitsByStart;
+    private final Map<Integer, LoweredExecutionUnit> cpuSpecializedUnitsByStart;
     private final Map<Integer, LoweredRegion> metalRegionsByAnchor;
     private final Map<Integer, LoweredRegion> metalRegionsByStart;
     private final Map<Integer, LoweredRegion> cudaRegionsByAnchor;
@@ -21,7 +22,7 @@ final class LoweredRegionIndex {
     LoweredRegionIndex() {
         this.cpuUnitsByAnchor = new HashMap<>();
         this.cpuFusedUnitsByStart = new HashMap<>();
-        this.cpuNativeUnitsByStart = new HashMap<>();
+        this.cpuSpecializedUnitsByStart = new HashMap<>();
         this.metalRegionsByAnchor = new HashMap<>();
         this.metalRegionsByStart = new HashMap<>();
         this.cudaRegionsByAnchor = new HashMap<>();
@@ -31,7 +32,7 @@ final class LoweredRegionIndex {
     private LoweredRegionIndex(
             Map<Integer, LoweredExecutionUnit> cpuUnitsByAnchor,
             Map<Integer, LoweredExecutionUnit> cpuFusedUnitsByStart,
-            Map<Integer, LoweredExecutionUnit> cpuNativeUnitsByStart,
+            Map<Integer, LoweredExecutionUnit> cpuSpecializedUnitsByStart,
             Map<Integer, LoweredRegion> metalRegionsByAnchor,
             Map<Integer, LoweredRegion> metalRegionsByStart,
             Map<Integer, LoweredRegion> cudaRegionsByAnchor,
@@ -39,7 +40,7 @@ final class LoweredRegionIndex {
     ) {
         this.cpuUnitsByAnchor = new HashMap<>(cpuUnitsByAnchor);
         this.cpuFusedUnitsByStart = new HashMap<>(cpuFusedUnitsByStart);
-        this.cpuNativeUnitsByStart = new HashMap<>(cpuNativeUnitsByStart);
+        this.cpuSpecializedUnitsByStart = new HashMap<>(cpuSpecializedUnitsByStart);
         this.metalRegionsByAnchor = new HashMap<>(metalRegionsByAnchor);
         this.metalRegionsByStart = new HashMap<>(metalRegionsByStart);
         this.cudaRegionsByAnchor = new HashMap<>(cudaRegionsByAnchor);
@@ -49,7 +50,7 @@ final class LoweredRegionIndex {
     void publish(List<LoweredRegion> loweredRegions, PartitionRoleIndex roleIndex) {
         cpuUnitsByAnchor.clear();
         cpuFusedUnitsByStart.clear();
-        cpuNativeUnitsByStart.clear();
+        cpuSpecializedUnitsByStart.clear();
         metalRegionsByAnchor.clear();
         metalRegionsByStart.clear();
         cudaRegionsByAnchor.clear();
@@ -91,11 +92,11 @@ final class LoweredRegionIndex {
                 cpuFusedUnitsByStart.put(unit.orderedNodeIds().getFirst(), unit);
                 continue;
             }
+            if (isCpuSpecializedUnit(plan)) {
+                cpuSpecializedUnitsByStart.put(unit.orderedNodeIds().getFirst(), unit);
+            }
             int anchorNodeId = plan == null ? unit.orderedNodeIds().getLast() : plan.anchorNodeId();
             cpuUnitsByAnchor.put(anchorNodeId, unit);
-            if (unit.loweringFamily() == LoweringFamily.CPU_NATIVE_REGION) {
-                cpuNativeUnitsByStart.put((plan == null ? unit.orderedNodeIds() : plan.orderedNodeIds()).getFirst(), unit);
-            }
             roleIndex.publishRoles(anchorNodeId, plan == null ? unit.orderedNodeIds() : plan.orderedNodeIds());
         }
     }
@@ -160,6 +161,10 @@ final class LoweredRegionIndex {
         return unit != null && unit.artifact() instanceof RegionExecutionPlan plan ? plan : null;
     }
 
+    private boolean isCpuSpecializedUnit(RegionExecutionPlan plan) {
+        return plan != null && plan.backendPayload() instanceof CpuSpecializedPrimitivePayload;
+    }
+
     LoweredExecutionUnit cpuUnitForAnchor(int nodeId) {
         return cpuUnitsByAnchor.get(nodeId);
     }
@@ -168,8 +173,8 @@ final class LoweredRegionIndex {
         return cpuFusedUnitsByStart.get(nodeId);
     }
 
-    LoweredExecutionUnit cpuNativeUnitForStart(int nodeId) {
-        return cpuNativeUnitsByStart.get(nodeId);
+    LoweredExecutionUnit cpuSpecializedUnitForStart(int nodeId) {
+        return cpuSpecializedUnitsByStart.get(nodeId);
     }
 
     LoweredRegion metalRegionForAnchor(int nodeId) {
@@ -192,7 +197,7 @@ final class LoweredRegionIndex {
         return new LoweredRegionIndex(
                 cpuUnitsByAnchor,
                 cpuFusedUnitsByStart,
-                cpuNativeUnitsByStart,
+                cpuSpecializedUnitsByStart,
                 metalRegionsByAnchor,
                 metalRegionsByStart,
                 cudaRegionsByAnchor,

@@ -6,6 +6,7 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.prepare.CpuPlanAssembler;
+import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
@@ -29,8 +30,8 @@ public final class CpuBackend {
             CompiledNodeExecutionMetadata metadata,
             ExecutionContext executionContext
     ) {
-        if (metadata.artifact() instanceof CpuRegionExecutionArtifact regionArtifact) {
-            regionArtifact.executable().execute(executionContext);
+        if (metadata.artifact() instanceof Cpu1PreparedArtifact artifact) {
+            artifact.execute(executionContext);
             return;
         }
         CpuKernel kernel = cpuKernel(metadata);

@@ -13,6 +13,8 @@ import graph.compile.planning.value.GraphValueRef;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.region.lowering.OperationSemanticClassifier;
 import graph.compile.planning.region.lowering.OperationSemanticLevel;
+import graph.compile.planning.region.specialization.RegionSpecializationDecision;
+import graph.compile.planning.region.specialization.RegionSpecializationKind;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -56,7 +58,7 @@ class DefaultRegionOptimizerTest {
     }
 
     @Test
-    void mixedCpuPartitionFallsBackToSingleOpUnits() {
+    void cpuMatmulReluPartitionBuildsSpecializedPrimitiveByDefault() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
@@ -75,8 +77,181 @@ class DefaultRegionOptimizerTest {
         DefaultRegionOptimizer optimizer = new DefaultRegionOptimizer();
         OptimizedRegion region = optimizer.optimize(partition, new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults()));
 
-        assertEquals(2, region.executionUnits().size());
-        assertTrue(region.executionUnits().stream().allMatch(unit -> unit.kind() == ExecutionUnitKind.UNIT_KERNEL));
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MATMUL_RELU, unit.specialization().kind());
+        assertEquals(List.of(2, 3), unit.orderedNodeIds());
+        assertEquals(List.of(GraphValueRef.node(0), GraphValueRef.node(1)), unit.inputValueRefs());
+        assertEquals(List.of(GraphValueRef.node(3)), unit.outputValueRefs());
+    }
+
+    @Test
+    void cpuMatmulBiasReluPartitionBuildsSpecializedPrimitiveByDefault() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuBiasA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuBiasB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cpuBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor add = matmul.add(bias);
+        Tensor out = add.relu();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(nodes, Operation.OpType.ADD);
+        int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId, reluNodeId);
+        List<Integer> externalInputNodeIds = externalInputNodeIds(nodes, selectedNodeIds);
+        Partition partition = partition(
+                "cpu-matmul-bias-relu",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds,
+                List.of(GraphValueRef.node(reluNodeId)),
+                List.of(GraphValueRef.node(reluNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MATMUL_ADD_BIAS_RELU, unit.specialization().kind());
+        assertEquals(selectedNodeIds, unit.orderedNodeIds());
+        assertEquals(externalInputNodeIds.stream().map(GraphValueRef::node).toList(), unit.inputValueRefs());
+        assertEquals(List.of(GraphValueRef.node(reluNodeId)), unit.outputValueRefs());
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MATMUL_ADD_BIAS_RELU")));
+    }
+
+    @Test
+    void cpuMsePartitionBuildsSpecializedPrimitiveByDefault() {
+        Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "defaultMsePred", DataType.FLOAT32);
+        Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "defaultMseTarget", DataType.FLOAT32);
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor loss = square.mean();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
+        int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
+        int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
+        List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, lossNodeId);
+        Partition partition = partition(
+                "cpu-mse-default",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MSE_LOSS, unit.specialization().kind());
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-found:kind=MSE_LOSS")));
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MSE_LOSS")
+                        && event.contains("cpu1-mse-loss-executable")));
+    }
+
+    @Test
+    void acceptedMsePartitionBuildsSpecializedPrimitiveUnit() {
+        Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "msePred", DataType.FLOAT32);
+        Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "mseTarget", DataType.FLOAT32);
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor loss = square.mean();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
+        int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
+        int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
+        Partition partition = partition(
+                "cpu-mse",
+                PartitionTarget.CPU,
+                List.of(diffNodeId, squareNodeId, lossNodeId),
+                externalInputNodeIds(nodes, List.of(diffNodeId, squareNodeId, lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer((partitionTarget, candidate) ->
+                partitionTarget == PartitionTarget.CPU && candidate.kind() == RegionSpecializationKind.MSE_LOSS
+                        ? RegionSpecializationDecision.accept("test-cpu-mse-specialization")
+                        : RegionSpecializationDecision.reject("test-reject")
+        ).optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MSE_LOSS, unit.specialization().kind());
+        assertEquals(List.of(diffNodeId, squareNodeId, lossNodeId), unit.orderedNodeIds());
+        assertEquals(List.of(GraphValueRef.node(lossNodeId)), unit.outputValueRefs());
+        assertEquals(List.of(GraphValueRef.node(lossNodeId)), unit.materializedOutputs());
+        assertTrue(unit.virtualOutputs().contains(GraphValueRef.node(diffNodeId)));
+        assertTrue(unit.virtualOutputs().contains(GraphValueRef.node(squareNodeId)));
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-found:kind=MSE_LOSS")));
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MSE_LOSS")));
+        assertEquals(ValueTransportKind.VIRTUAL, region.regionValues().stream()
+                .filter(value -> value.ref().equals(GraphValueRef.node(diffNodeId)))
+                .findFirst().orElseThrow().transportKind());
+        assertEquals(ValueTransportKind.VIRTUAL, region.regionValues().stream()
+                .filter(value -> value.ref().equals(GraphValueRef.node(squareNodeId)))
+                .findFirst().orElseThrow().transportKind());
+    }
+
+    @Test
+    void gpuMsePartitionRejectsSpecializationAndFallsBackToStructuralUnits() {
+        Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "gpuMsePred", DataType.FLOAT32);
+        Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "gpuMseTarget", DataType.FLOAT32);
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor loss = square.mean();
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
+        int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
+        int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
+        List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, lossNodeId);
+        Partition partition = partition(
+                "gpu-mse",
+                PartitionTarget.GPU_METAL,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertTrue(region.executionUnits().stream()
+                .noneMatch(unit -> unit.kind() == ExecutionUnitKind.SPECIALIZED_PRIMITIVE));
+        assertEquals(selectedNodeIds, region.executionUnits().stream()
+                .flatMap(unit -> unit.orderedNodeIds().stream())
+                .toList());
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-found:kind=MSE_LOSS")));
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-rejected:kind=MSE_LOSS")
+                        && event.contains("backend-specialization-unsupported:GPU_METAL")));
     }
 
     @Test

@@ -838,13 +838,21 @@ public class CpuKernelFamilyArchitectureTest {
             assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/" + className + ".java")),
                     className + " must not exist after Wave 6.");
         }
+        List<Path> deletedNativeRegionArtifacts = List.of(
+                Path.of("src/main/java/backend/cpu/CpuRegionExecutionArtifact.java"),
+                Path.of("src/main/java/backend/cpu/region/PreparedCpuRegionExecutable.java"),
+                Path.of("src/main/java/backend/cpu/nativecpu/PreparedNativeCpuRegionExecutable.java"),
+                Path.of("src/main/java/backend/lowering/region/CpuNativeRegionPayload.java")
+        );
+        for (Path path : deletedNativeRegionArtifacts) {
+            assertTrue(!Files.exists(path), path + " must not exist after removing CPU native region execution.");
+        }
 
         List<Path> runtimeRoots = List.of(
                 Path.of("src/main/java/backend/cpu/kernels"),
                 Path.of("src/main/java/backend/cpu/lowering"),
                 Path.of("src/main/java/backend/cpu/prepare"),
-                Path.of("src/main/java/backend/cpu/CpuStepTraceContributor.java"),
-                Path.of("src/main/java/backend/cpu/nativecpu/PreparedNativeCpuRegionExecutable.java")
+                Path.of("src/main/java/backend/cpu/CpuStepTraceContributor.java")
         );
         for (Path root : runtimeRoots) {
             List<Path> offenders = javaSourceFiles(root).stream()

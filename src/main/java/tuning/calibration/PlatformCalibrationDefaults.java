@@ -184,6 +184,10 @@ public final class PlatformCalibrationDefaults {
                                         List.of(BlasProvider.NONE, BlasProvider.OPENBLAS_FFM),
                                         List.of(1_000_000L, 2_000_000L, 4_000_000L)
                                 ),
+                                PlatformRuntimeProfileMutators.openBlasRouteThreads(
+                                        supportedOpenBlasThreadCounts(preset),
+                                        supportedOpenBlasThreadCounts(preset)
+                                ),
                                 PlatformRuntimeProfileMutators.matmulShapeHeuristics(
                                         List.of(true, false),
                                         supportedMatMulBlasShapeRatios(seedProfileDataType(base))
@@ -356,6 +360,14 @@ public final class PlatformCalibrationDefaults {
             case BFLOAT16 -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
             case FLOAT32 -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
             default -> List.of(1.5, 2.0, 3.0, 4.0, 6.0);
+        };
+    }
+
+    private static List<Integer> supportedOpenBlasThreadCounts(TuningPreset preset) {
+        return switch (preset) {
+            case QUICK -> List.of(0, 1);
+            case BALANCED -> List.of(0, 1, 4);
+            case THOROUGH -> List.of(0, 1, 2, 4, 8);
         };
     }
 

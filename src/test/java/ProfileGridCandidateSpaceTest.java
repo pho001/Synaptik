@@ -45,9 +45,11 @@ public class ProfileGridCandidateSpaceTest {
                 true
         ));
 
-        assertEquals(2, candidates.size());
+        assertEquals(6, candidates.size());
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("conv2dLowering=OFF")));
-        assertTrue(candidates.stream().allMatch(c -> c.name().contains("blasThreads=AUTO")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThreads=AUTO")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThreads=1")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasThreads=2")));
     }
 
     @Test
@@ -83,7 +85,7 @@ public class ProfileGridCandidateSpaceTest {
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("attentionMatMul=FORCE_ON")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("blasProvider=OPENBLAS_FFM")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("vectorThresholds=")));
-        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("fusedFallback=")));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-native")));
     }
 
@@ -121,6 +123,44 @@ public class ProfileGridCandidateSpaceTest {
                 && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE
                 && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.OPENBLAS_FFM
                 && c.profile().runtime().blas().storageMode() == config.runtime.BlasStorageMode.CPU_NATIVE));
+    }
+
+    @Test
+    void explicitOpenBlasRouteThreadMutatorGeneratesRouteSpecificVariants() {
+        ExecutionProfile base = new ExecutionProfile(
+                "openblas-route-thread-grid",
+                "openblas-route-thread-grid",
+                tensor.DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                config.compile.CompileConfig.inference(),
+                new config.runtime.RuntimeConfig(
+                        config.backend.CpuKernelConfig.defaultsInference(),
+                        config.runtime.ApproximationConfig.defaults(),
+                        new config.runtime.BlasConfig(
+                                backend.blas.BlasProvider.OPENBLAS_FFM,
+                                1_000_000L,
+                                true,
+                                3.0d,
+                                true,
+                                3.0d,
+                                config.runtime.BlasStorageMode.AUTO,
+                                false,
+                                0,
+                                0,
+                                0
+                        )),
+                WorkloadProfile.none()
+        );
+
+        var candidates = new ProfileGridCandidateSpace(
+                base,
+                List.of(ExplicitProfileMutators.openBlasRouteThreads(List.of(0, 1), List.of(0, 4)))
+        ).generate(StandardWorkloads.matmul("matmul", 1, 64, 64, 64));
+
+        assertEquals(4, candidates.size());
+        assertTrue(candidates.stream().anyMatch(c -> c.name().contains("openBlasRouteThreads=1/4")
+                && c.profile().runtime().blas().openBlasArrayCopyThreads() == 1
+                && c.profile().runtime().blas().openBlasNativeSegmentThreads() == 4));
     }
 
     @Test
@@ -188,10 +228,10 @@ public class ProfileGridCandidateSpaceTest {
                         environment -> tensor.Tensor.scalar(1.0).add(tensor.Tensor.scalar(2.0))
                 ));
 
-        assertTrue(mlpCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
-        assertTrue(normCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
-        assertTrue(lossCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
-        assertTrue(genericCandidates.stream().anyMatch(c -> c.name().contains("fused=")));
+        assertTrue(mlpCandidates.stream().anyMatch(c -> c.name().contains("fusedFallback=")));
+        assertTrue(normCandidates.stream().anyMatch(c -> c.name().contains("fusedFallback=")));
+        assertTrue(lossCandidates.stream().anyMatch(c -> c.name().contains("fusedFallback=")));
+        assertTrue(genericCandidates.stream().anyMatch(c -> c.name().contains("fusedFallback=")));
     }
 
     @Test

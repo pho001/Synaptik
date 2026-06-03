@@ -34,6 +34,9 @@ final class OpenBlasSymbols {
     final MethodHandle dgemm;
     final MethodHandle sbgemm;
     final MethodHandle bgemm;
+    final MethodHandle getNumThreads;
+    final MethodHandle setNumThreads;
+    final MethodHandle getParallel;
 
     private OpenBlasSymbols(
             boolean available,
@@ -43,7 +46,10 @@ final class OpenBlasSymbols {
             MethodHandle sgemm,
             MethodHandle dgemm,
             MethodHandle sbgemm,
-            MethodHandle bgemm
+            MethodHandle bgemm,
+            MethodHandle getNumThreads,
+            MethodHandle setNumThreads,
+            MethodHandle getParallel
     ) {
         this.available = available;
         this.reason = reason;
@@ -53,6 +59,9 @@ final class OpenBlasSymbols {
         this.dgemm = dgemm;
         this.sbgemm = sbgemm;
         this.bgemm = bgemm;
+        this.getNumThreads = getNumThreads;
+        this.setNumThreads = setNumThreads;
+        this.getParallel = getParallel;
     }
 
     static OpenBlasSymbols get() {
@@ -94,10 +103,37 @@ final class OpenBlasSymbols {
 
             MethodHandle sbgemm = optionalSbgemm(linker, lookup);
             MethodHandle bgemm = optionalBgemm(linker, lookup);
+            MethodHandle getNumThreads = optionalIntReturn(linker, lookup, "openblas_get_num_threads");
+            MethodHandle setNumThreads = optionalSetNumThreads(linker, lookup);
+            MethodHandle getParallel = optionalIntReturn(linker, lookup, "openblas_get_parallel");
 
-            return new OpenBlasSymbols(true, null, lookupResolution.source(), arena, sgemm, dgemm, sbgemm, bgemm);
+            return new OpenBlasSymbols(
+                    true,
+                    null,
+                    lookupResolution.source(),
+                    arena,
+                    sgemm,
+                    dgemm,
+                    sbgemm,
+                    bgemm,
+                    getNumThreads,
+                    setNumThreads,
+                    getParallel
+            );
         } catch (Throwable t) {
-            return new OpenBlasSymbols(false, t.getClass().getSimpleName() + ": " + safeMessage(t), null, null, null, null, null, null);
+            return new OpenBlasSymbols(
+                    false,
+                    t.getClass().getSimpleName() + ": " + safeMessage(t),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+            );
         }
     }
 
@@ -142,6 +178,30 @@ final class OpenBlasSymbols {
                             ADDRESS, JAVA_INT
                     )
             );
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static MethodHandle optionalIntReturn(Linker linker, SymbolLookup lookup, String symbolName) {
+        try {
+            MemorySegment symbol = lookup.find(symbolName).orElse(null);
+            if (symbol == null) {
+                return null;
+            }
+            return linker.downcallHandle(symbol, FunctionDescriptor.of(JAVA_INT));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static MethodHandle optionalSetNumThreads(Linker linker, SymbolLookup lookup) {
+        try {
+            MemorySegment symbol = lookup.find("openblas_set_num_threads").orElse(null);
+            if (symbol == null) {
+                return null;
+            }
+            return linker.downcallHandle(symbol, FunctionDescriptor.ofVoid(JAVA_INT));
         } catch (Throwable ignored) {
             return null;
         }

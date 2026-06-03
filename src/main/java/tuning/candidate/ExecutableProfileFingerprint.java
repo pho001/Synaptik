@@ -120,6 +120,8 @@ public final class ExecutableProfileFingerprint {
         sb.append("blas.f32Req=").append(runtime.blas().f32RequireMgeK()).append('|');
         sb.append("blas.f32MaxNOverK=").append(fmt(runtime.blas().f32MaxNOverK())).append('|');
         sb.append("blas.threads=").append(runtime.blas().threads()).append('|');
+        sb.append("blas.openBlasArrayCopyThreads=").append(runtime.blas().openBlasArrayCopyThreads()).append('|');
+        sb.append("blas.openBlasNativeSegmentThreads=").append(runtime.blas().openBlasNativeSegmentThreads()).append('|');
         sb.append("conv2d.provider=").append(runtime.conv2d().provider()).append('|');
         sb.append("conv2d.f64MinWork=").append(runtime.conv2d().f64MinWork()).append('|');
         sb.append("conv2d.f32MinWork=").append(runtime.conv2d().f32MinWork()).append('|');

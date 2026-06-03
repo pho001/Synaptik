@@ -23,6 +23,8 @@ import graph.compile.planning.region.RegionOptimizationContext;
 import graph.compile.planning.region.RegionValue;
 import graph.compile.planning.region.ValueTransportKind;
 import graph.compile.planning.region.ValueTypeContract;
+import graph.compile.planning.region.specialization.RegionSpecializationDecision;
+import graph.compile.planning.region.specialization.RegionSpecializationKind;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -226,6 +228,52 @@ class MemoryPlannerRegionViewTest {
 
         assertNotNull(plan);
         assertEquals(1, plan.structuralView().optimizedRegionIds().size());
+    }
+
+    @Test
+    void memoryPlannerVirtualizesAcceptedMseIntermediateValues() {
+        Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "memoryMsePred", DataType.FLOAT32);
+        Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "memoryMseTarget", DataType.FLOAT32);
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor loss = square.mean();
+
+        List<Tensor> graph = loss.topologicalSort();
+        int diffNodeId = graph.indexOf(diff);
+        int squareNodeId = graph.indexOf(square);
+        int lossNodeId = graph.indexOf(loss);
+        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        Partition partition = partition(
+                "memory-cpu-mse",
+                PartitionTarget.CPU,
+                List.of(diffNodeId, squareNodeId, lossNodeId),
+                List.of(graph.indexOf(pred), graph.indexOf(target)),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+        OptimizedRegion region = new DefaultRegionOptimizer((partitionTarget, candidate) ->
+                partitionTarget == PartitionTarget.CPU && candidate.kind() == RegionSpecializationKind.MSE_LOSS
+                        ? RegionSpecializationDecision.accept("test-cpu-mse-specialization")
+                        : RegionSpecializationDecision.reject("test-reject")
+        ).optimize(
+                partition,
+                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+        );
+
+        MemoryPlan plan = planFor(graph, List.of(region), lossNodeId);
+
+        assertEquals(1, region.executionUnits().size());
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, region.executionUnits().getFirst().kind());
+        assertEquals(MaterializationDecision.VIRTUALIZE,
+                plan.materializationPlanOf(GraphValueRef.node(diffNodeId)).decision());
+        assertEquals(MaterializationDecision.VIRTUALIZE,
+                plan.materializationPlanOf(GraphValueRef.node(squareNodeId)).decision());
+        assertFalse(plan.materializationPlanOf(GraphValueRef.node(diffNodeId)).allocatesStorage());
+        assertFalse(plan.materializationPlanOf(GraphValueRef.node(squareNodeId)).allocatesStorage());
+        assertEquals(RegionMemoryBindingKind.NONE, plan.regionMemoryBindingOf(GraphValueRef.node(diffNodeId)).kind());
+        assertEquals(RegionMemoryBindingKind.NONE, plan.regionMemoryBindingOf(GraphValueRef.node(squareNodeId)).kind());
+        assertEquals(MaterializationDecision.MATERIALIZE,
+                plan.materializationPlanOf(GraphValueRef.node(lossNodeId)).decision());
     }
 
     @Test

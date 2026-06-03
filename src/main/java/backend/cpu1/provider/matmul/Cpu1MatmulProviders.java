@@ -8,6 +8,7 @@ import java.util.Objects;
 public final class Cpu1MatmulProviders {
     private static final Cpu1MatmulProvider JAVA_SCALAR = new Cpu1JavaScalarMatmulProvider();
     private static final Cpu1MatmulProvider OPENBLAS_ARRAY = new Cpu1OpenBlasArrayMatmulProvider();
+    private static final Cpu1MatmulProvider OPENBLAS_NATIVE_SEGMENT = new Cpu1OpenBlasNativeSegmentMatmulProvider();
 
     private Cpu1MatmulProviders() {
     }
@@ -17,11 +18,9 @@ public final class Cpu1MatmulProviders {
         return switch (route) {
             case JAVA_SCALAR -> JAVA_SCALAR;
             case OPENBLAS_ARRAY_COPYING -> OPENBLAS_ARRAY;
+            case OPENBLAS_NATIVE_SEGMENT -> OPENBLAS_NATIVE_SEGMENT;
             case AUTO -> throw new UnsupportedOperationException(
                     "cpu1 matmul route " + route + " must be resolved before provider selection."
-            );
-            case OPENBLAS_NATIVE_SEGMENT -> throw new UnsupportedOperationException(
-                    "cpu1 matmul route " + route + " does not have a provider implementation yet."
             );
         };
     }

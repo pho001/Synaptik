@@ -246,12 +246,17 @@ public final class ExecutionProfileIO {
             int loadedMatMulTileM = findInt(json, "cpuMatMulTileM", defaultKernel.cpu().matMulTileM());
             int loadedMatMulTileN = findInt(json, "cpuMatMulTileN", defaultKernel.cpu().matMulTileN());
             int loadedMatMulTileK = findInt(json, "cpuMatMulTileK", defaultKernel.cpu().matMulTileK());
+            int loadedCheapVectorMinSize = findInt(
+                    json,
+                    "cpuCheapVectorMinSize",
+                    defaultKernel.cpu().cheapVectorMinSize()
+            );
             CpuKernelConfig cpu = new CpuKernelConfig(
                     findInt(json, "cpuLoopUnrollFactor", defaultKernel.cpu().loopUnrollFactor()),
                     loadedMatMulTileM,
                     loadedMatMulTileN,
                     loadedMatMulTileK,
-                    findInt(json, "cpuCheapVectorMinSize", defaultKernel.cpu().cheapVectorMinSize()),
+                    loadedCheapVectorMinSize,
                     findInt(json, "cpuTranscendentalVectorMinSize", defaultKernel.cpu().transcendentalVectorMinSize()),
                     findInt(json, "cpuFusedCheapVectorMinSize", defaultKernel.cpu().fusedCheapVectorMinSize()),
                     findInt(json, "cpuFusedTranscendentalVectorMinSize", defaultKernel.cpu().fusedTranscendentalVectorMinSize()),
@@ -288,7 +293,9 @@ public final class ExecutionProfileIO {
                     ),
                     findInt(json, "cpuAttentionMatMulTileM", loadedMatMulTileM),
                     findInt(json, "cpuAttentionMatMulTileN", loadedMatMulTileN),
-                    findInt(json, "cpuAttentionMatMulTileK", loadedMatMulTileK)
+                    findInt(json, "cpuAttentionMatMulTileK", loadedMatMulTileK),
+                    findInt(json, "cpuNativeF32CheapVectorMinSize", loadedCheapVectorMinSize),
+                    findInt(json, "cpuNativeF64CheapVectorMinSize", loadedCheapVectorMinSize)
             );
             CudaKernelConfig cuda = new CudaKernelConfig(
                     findInt(json, "cudaLoopUnrollFactor", defaultKernel.cuda().loopUnrollFactor()),
@@ -320,7 +327,17 @@ public final class ExecutionProfileIO {
                     findDouble(json, "f32WideMaxNOverK", defaultProfile.runtime().blas().f32WideMaxNOverK()),
                     findEnum(json, "blasStorageMode", defaultProfile.runtime().blas().storageMode(), BlasStorageMode.class),
                     findBoolean(json, "debug", defaultProfile.runtime().blas().debug()),
-                    findInt(json, "threads", defaultProfile.runtime().blas().threads())
+                    findInt(json, "threads", defaultProfile.runtime().blas().threads()),
+                    findInt(
+                            json,
+                            "openBlasArrayCopyThreads",
+                            defaultProfile.runtime().blas().openBlasArrayCopyThreads()
+                    ),
+                    findInt(
+                            json,
+                            "openBlasNativeSegmentThreads",
+                            defaultProfile.runtime().blas().openBlasNativeSegmentThreads()
+                    )
             );
             Conv2dConfig conv2d = new Conv2dConfig(
                     BlasProvider.fromProperty(findString(
@@ -657,6 +674,8 @@ public final class ExecutionProfileIO {
                 "        \"cpuAttentionMatMulTileN\": " + cpu.attentionMatMulTileN() + ",\n" +
                 "        \"cpuAttentionMatMulTileK\": " + cpu.attentionMatMulTileK() + ",\n" +
                 "        \"cpuCheapVectorMinSize\": " + cpu.cheapVectorMinSize() + ",\n" +
+                "        \"cpuNativeF32CheapVectorMinSize\": " + cpu.nativeF32CheapVectorMinSize() + ",\n" +
+                "        \"cpuNativeF64CheapVectorMinSize\": " + cpu.nativeF64CheapVectorMinSize() + ",\n" +
                 "        \"cpuTranscendentalVectorMinSize\": " + cpu.transcendentalVectorMinSize() + ",\n" +
                 "        \"cpuFusedCheapVectorMinSize\": " + cpu.fusedCheapVectorMinSize() + ",\n" +
                 "        \"cpuFusedTranscendentalVectorMinSize\": " + cpu.fusedTranscendentalVectorMinSize() + ",\n" +
@@ -708,8 +727,10 @@ public final class ExecutionProfileIO {
               "      \"f32WideRequireMgeK\": " + blas.f32WideRequireMgeK() + ",\n" +
               "      \"f32WideMaxNOverK\": " + blas.f32WideMaxNOverK() + ",\n" +
               "      \"blasStorageMode\": \"" + blas.storageMode().name() + "\",\n" +
-              "      \"debug\": " + blas.debug() + ",\n" +
-                "      \"threads\": " + blas.threads() + "\n" +
+                "      \"debug\": " + blas.debug() + ",\n" +
+                "      \"threads\": " + blas.threads() + ",\n" +
+                "      \"openBlasArrayCopyThreads\": " + blas.openBlasArrayCopyThreads() + ",\n" +
+                "      \"openBlasNativeSegmentThreads\": " + blas.openBlasNativeSegmentThreads() + "\n" +
                 "    },\n" +
                 "    \"conv2d\": {\n" +
                 "      \"conv2dProvider\": \"" + conv2d.provider().name() + "\",\n" +

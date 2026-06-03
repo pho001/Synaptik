@@ -1,10 +1,12 @@
 package backend.cpu1.exec;
 
+import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernel;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.runtime.ExecutionContext;
 
 import java.util.Objects;
+import java.util.OptionalInt;
 
 /**
  * Runtime wrapper for a prepared cpu1 matmul node.
@@ -29,6 +31,28 @@ public final class Cpu1MatmulExecutableUnit implements Cpu1ExecutableUnit {
 
     @Override
     public void run(ExecutionContext context) {
-        kernel.run(preparedUnit, context);
+        int requestedThreads = preparedUnit.openBlasThreads();
+        if (requestedThreads <= 0) {
+            kernel.run(preparedUnit, context);
+            return;
+        }
+
+        OptionalInt previousThreads = OpenBlasRuntime.getNumThreads();
+        if (previousThreads.isEmpty()) {
+            throw new IllegalStateException("cpu1 OpenBLAS thread override requires openblas_get_num_threads.");
+        }
+        int previous = previousThreads.getAsInt();
+        if (previous == requestedThreads) {
+            kernel.run(preparedUnit, context);
+            return;
+        }
+        if (!OpenBlasRuntime.setNumThreads(requestedThreads)) {
+            throw new IllegalStateException("cpu1 OpenBLAS thread override requires openblas_set_num_threads.");
+        }
+        try {
+            kernel.run(preparedUnit, context);
+        } finally {
+            OpenBlasRuntime.setNumThreads(previous);
+        }
     }
 }

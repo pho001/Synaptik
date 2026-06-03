@@ -24,7 +24,7 @@ The goal is to make later cleanup measurable: every later wave should shrink thi
 
 | Op | Kernel entrypoint | Java array owner | Native or MemorySegment owner | Prepare-time owner | Notes |
 |---|---|---|---|---|---|
-| `ADD` | `backend.cpu.kernels.elementwise.binary.CpuAddKernel` | `ElementwiseBinaryExecutor` falls back to `ElementwiseLoops`; dense direct loops live in `AddF32`, `AddF64`, and `AddBF16`. | `NativeCpuElementwiseExecutor.tryRunBinary(...)` owns current segment/native route before array fallback. | `CpuPlanAssembler` attaches `PreparedNativeCpuPlan` through `NativeCpuPlanResolver`; `ElementwiseDispatchPlanner` owns array dispatch hints. | Current hot path has two owners: kernel-family Java loops and `backend.cpu.nativecpu` executor. Later waves should make storage-specific loops local to the elementwise family. |
+| `ADD` | `backend.cpu.kernels.elementwise.binary.CpuAddKernel` | `CpuAddKernel` owns dense direct array loops through `StorageAwareBinaryElementwiseKernel`. | `StorageAwareBinaryElementwiseKernel` owns array, `MemorySegment`, dense, broadcast/indexed, and native fallback routing for migrated numeric binary ops. | `ElementwiseDispatchPlanner` owns array dispatch hints; storage binding is passed through `CpuKernelCall`. | Numeric binary hot paths are now storage-aware family-owned loops, not the old shared binary executor path. |
 | `WHERE` | `backend.cpu.kernels.elementwise.where.CpuWhereKernel` | `WhereExecutor` validates inputs and falls back to `ElementwiseLoops.runWhere(...)`. | `NativeCpuElementwiseExecutor.tryRunWhere(...)` owns the condition-array/native-output route. | `BroadcastPlanResolver.resolveWhere(...)`, `PreparedInputPlanner`, and `NativeCpuPlanResolver`. | `WHERE` is the representative mixed-input case: condition is `BOOL`, branches/output are floating tensors. |
 | `SUM` | `backend.cpu.kernels.reduction.CpuSumKernel` | `SumLikeReductionExecutor` falls back to `SumLoops` and applies `SumLikeReduction` finalization. | `NativeCpuReductionExecutor.tryRunSumLike(...)` owns current native reduction path. | `ReductionPlanner` and `NativeCpuPlanResolver`. | Later waves should keep reduction accumulation policy explicit and avoid per-element storage accessors. |
 | `CAST` | `backend.cpu.kernels.layout.CpuCastKernel` | `CpuCastKernel.cast(...)` loops over logical flat indexes and writes typed arrays directly. | `NativeCpuCastExecutor.tryRunCast(...)` owns current native materialization route. | `CpuTypeContractResolver`, `PreparedInputPlanner`, and `NativeCpuPlanResolver`. | `CAST` is materialization/type conversion, not compute. The future storage contract should expose that distinction directly. |
@@ -70,7 +70,7 @@ The current allowlist is intentionally narrow. New imports from `backend.cpu.ker
 Map.ofEntries(
         Map.entry("CpuNodeExecutionPlan.java", Set.of("PreparedNativeCpuPlan")),
         Map.entry("plan/CpuPlanAssembler.java", Set.of("NativeCpuPlanResolver", "PreparedNativeCpuPlan")),
-        Map.entry("elementwise/binary/ElementwiseBinaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
+        Map.entry("elementwise/binary/StorageAwareBinaryElementwiseKernel.java", Set.of("CpuNativeTraceSupport")),
         Map.entry("elementwise/unary/ElementwiseUnaryExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
         Map.entry("elementwise/where/WhereExecutor.java", Set.of("NativeCpuElementwiseExecutor")),
         Map.entry("elementwise/compare/CompareExecutor.java", Set.of("NativeCpuCompareExecutor")),

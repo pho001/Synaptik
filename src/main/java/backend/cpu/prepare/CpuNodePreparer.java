@@ -5,7 +5,6 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.CpuBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
-import backend.cpu.CpuRegionExecutionArtifact;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.kernels.CpuKernelRegistry;
 import backend.cpu.nativecpu.CpuNativeStorageSupport;
@@ -15,19 +14,15 @@ import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.plan.fused.PreparedFusedDispatch;
 import backend.cpu.prepare.CpuExecutionPlanner;
-import backend.cpu.nativecpu.PreparedNativeCpuRegionExecutable;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.LoweringFamily;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
-import backend.prepare.RegionPlanValidator;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;
-import graph.execution.PreparedExecutionStep;
 import backend.cpu.fused.exec.FusedExecutablePreparer;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.plan.FusedExecutionPlan;
@@ -63,57 +58,7 @@ public final class CpuNodePreparer {
         if (role == PartitionExecutionRole.INTERIOR) {
             return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, null, List.of(), null);
         }
-        if (role == PartitionExecutionRole.ANCHOR) {
-            LoweredExecutionUnit loweredUnit = context.cpuLoweredUnitForAnchor(node.id());
-            if (loweredUnit != null && loweredUnit.loweringFamily() == LoweringFamily.CPU_NATIVE_REGION) {
-                return prepareNativeCpuRegionStep(loweredUnit, context);
-            }
-        }
         return prepareAsCpu(node, context);
-    }
-
-    public CompiledNodeExecutionMetadata prepareNativeCpuRegionStep(
-            LoweredExecutionUnit loweredUnit,
-            BackendPrepareContext context
-    ) {
-        RegionExecutionPlan regionPlan = loweredUnit.requireRegionPlan();
-        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
-        List<PreparedExecutionStep> nativeSteps = regionPlan.orderedNodeIds().stream()
-                .map(context::compiledNode)
-                .map(node -> {
-                    if (node == null) {
-                        throw new IllegalStateException("Missing compiled node for CPU native region " + regionPlan.regionId());
-                    }
-                    return new PreparedExecutionStep(node, prepareAsCpu(node, context));
-                })
-                .toList();
-
-        CpuNodePreparer fallbackPreparer = new CpuNodePreparer(
-                runtimeConfig.withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY)
-        );
-        List<PreparedExecutionStep> fallbackSteps = regionPlan.orderedNodeIds().stream()
-                .map(context::compiledNode)
-                .map(node -> {
-                    if (node == null) {
-                        throw new IllegalStateException("Missing compiled node for CPU native region fallback " + regionPlan.regionId());
-                    }
-                    return new PreparedExecutionStep(node, fallbackPreparer.prepareAsCpu(node, context));
-                })
-                .toList();
-
-        PreparedNativeCpuRegionExecutable executable = new PreparedNativeCpuRegionExecutable(
-                regionPlan,
-                nativeSteps,
-                fallbackSteps
-        );
-        return new CompiledNodeExecutionMetadata(
-                ComputeBackend.CPU,
-                null,
-                List.of(),
-                new CpuRegionExecutionArtifact(executable),
-                InputResidencyRequirement.none(),
-                OutputResidencyEffect.cpuCurrentPreserveNative()
-        );
     }
 
     public CompiledNodeExecutionMetadata prepareLoweredFusedStep(

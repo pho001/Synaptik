@@ -140,19 +140,25 @@ public class ExecutionProfileIoTest {
                         new KernelTuningConfig(
                                 new CpuKernelConfig(
                                         4, 32, 32, 32,
-                                        256, 256, 256, 256, 256,
-                                        50_000, 50_000, 50_000, 50_000, 50_000,
+                                        256, 256, 256, 256, 256, 256,
+                                        50_000, 50_000, 50_000, 50_000, 50_000, 50_000,
                                         16_384,
+                                        16_384, 16_384, 16_384, 16_384,
                                         5, 3, 2,
                                         2_048, 4_096, 8_192, 32_768,
                                         1,
                                         config.backend.SumAccuracyMode.FAST,
-                                        2_000_000, AttentionMatMulPolicy.FORCE_ON, CpuMatMulMicroKernel.F32_4X2),
+                                        2_000_000, AttentionMatMulPolicy.FORCE_ON,
+                                        CpuMatMulMicroKernel.F32_4X2,
+                                        CpuMatMulMicroKernel.F32_4X2,
+                                        32, 32, 32,
+                                        12_345, 23_456),
                                 CudaKernelConfig.defaultsInference(),
                                 OpenClKernelConfig.defaultsInference()
                         ),
                         new ApproximationConfig(ApproxMode.OFF, false),
-                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 0),
+                        new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 5)
+                                .withOpenBlasRouteThreads(4, 16),
                         new FusedExecutionPolicy(true),
                         new AcceleratorConfig(
                                 new AcceleratorBackendConfig(
@@ -192,6 +198,8 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.compile().backendPlanning(), actual.compile().backendPlanning());
         assertEquals(expected.compile().regionOptimization(), actual.compile().regionOptimization());
         assertEquals(expected.runtime().kernel().cpu().cheapVectorMinSize(), actual.runtime().kernel().cpu().cheapVectorMinSize());
+        assertEquals(expected.runtime().kernel().cpu().nativeF32CheapVectorMinSize(), actual.runtime().kernel().cpu().nativeF32CheapVectorMinSize());
+        assertEquals(expected.runtime().kernel().cpu().nativeF64CheapVectorMinSize(), actual.runtime().kernel().cpu().nativeF64CheapVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().transcendentalVectorMinSize(), actual.runtime().kernel().cpu().transcendentalVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().reductionVectorMinSize(), actual.runtime().kernel().cpu().reductionVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().contiguousMaterializeThreshold(), actual.runtime().kernel().cpu().contiguousMaterializeThreshold());
@@ -210,6 +218,8 @@ public class ExecutionProfileIoTest {
         assertEquals(expected.runtime().kernel().cpu().attentionMatMulMicroKernel(), actual.runtime().kernel().cpu().attentionMatMulMicroKernel());
         assertEquals(expected.runtime().blas().provider(), actual.runtime().blas().provider());
         assertEquals(expected.runtime().blas().threads(), actual.runtime().blas().threads());
+        assertEquals(expected.runtime().blas().openBlasArrayCopyThreads(), actual.runtime().blas().openBlasArrayCopyThreads());
+        assertEquals(expected.runtime().blas().openBlasNativeSegmentThreads(), actual.runtime().blas().openBlasNativeSegmentThreads());
         assertEquals(expected.runtime().blas().f32RequireMgeK(), actual.runtime().blas().f32RequireMgeK());
         assertEquals(expected.runtime().blas().f32MaxNOverK(), actual.runtime().blas().f32MaxNOverK());
         assertEquals(expected.runtime().blas().f32WideRequireMgeK(), actual.runtime().blas().f32WideRequireMgeK());

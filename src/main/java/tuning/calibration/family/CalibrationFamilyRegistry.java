@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class CalibrationFamilyRegistry {
-    private static final String VERSION = "calibration-family-v1";
+    private static final String VERSION = "calibration-family-v2";
     private static final Map<CalibrationFamilyId, CalibrationFamilySpec> SPECS = buildSpecs();
 
     private CalibrationFamilyRegistry() {
@@ -111,6 +111,9 @@ public final class CalibrationFamilyRegistry {
                 "runtime.blas.f32MaxNOverK",
                 "runtime.blas.f32WideRequireMgeK",
                 "runtime.blas.f32WideMaxNOverK",
+                "runtime.blas.threads",
+                "runtime.blas.openBlasArrayCopyThreads",
+                "runtime.blas.openBlasNativeSegmentThreads",
                 "cpu.matMulParallelMinSize",
                 "cpu.matMulTileM",
                 "cpu.matMulTileN",
@@ -125,6 +128,8 @@ public final class CalibrationFamilyRegistry {
         ));
         put(specs, CalibrationFamilyId.ELEMENTWISE_DISPATCH, "elementwise-dispatch", false, Set.of(
                 "cpu.cheapVectorMinSize",
+                "cpu.nativeF32CheapVectorMinSize",
+                "cpu.nativeF64CheapVectorMinSize",
                 "cpu.transcendentalVectorMinSize",
                 "cpu.cheapParallelMinSize",
                 "cpu.transcendentalParallelMinSize"

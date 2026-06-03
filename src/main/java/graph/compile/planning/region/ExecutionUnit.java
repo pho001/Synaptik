@@ -3,6 +3,7 @@ package graph.compile.planning.region;
 import graph.compile.planning.value.GraphValueRef;
 
 import graph.compile.planning.partition.PartitionTarget;
+import graph.compile.planning.region.specialization.RegionSpecializationCandidate;
 
 import java.util.List;
 
@@ -24,6 +25,7 @@ import java.util.List;
  * @param estimatedWork backend work estimate
  * @param requiredPreparedInputNodeIds external graph node ids required as prepared inputs
  * @param trace region optimization diagnostics for this unit
+ * @param specialization accepted graph-level specialization, or {@code null} for structural units
  */
 public record ExecutionUnit(
         String unitId,
@@ -36,8 +38,38 @@ public record ExecutionUnit(
         List<Integer> orderedNodeIds,
         long estimatedWork,
         List<Integer> requiredPreparedInputNodeIds,
-        RegionOptimizationTrace trace
+        RegionOptimizationTrace trace,
+        RegionSpecializationCandidate specialization
 ) {
+    public ExecutionUnit(
+            String unitId,
+            ExecutionUnitKind kind,
+            PartitionTarget target,
+            List<GraphValueRef> inputValueRefs,
+            List<GraphValueRef> outputValueRefs,
+            List<GraphValueRef> materializedOutputs,
+            List<GraphValueRef> virtualOutputs,
+            List<Integer> orderedNodeIds,
+            long estimatedWork,
+            List<Integer> requiredPreparedInputNodeIds,
+            RegionOptimizationTrace trace
+    ) {
+        this(
+                unitId,
+                kind,
+                target,
+                inputValueRefs,
+                outputValueRefs,
+                materializedOutputs,
+                virtualOutputs,
+                orderedNodeIds,
+                estimatedWork,
+                requiredPreparedInputNodeIds,
+                trace,
+                null
+        );
+    }
+
     public ExecutionUnit {
         if (unitId == null || unitId.isBlank()) {
             throw new IllegalArgumentException("unitId cannot be blank");
