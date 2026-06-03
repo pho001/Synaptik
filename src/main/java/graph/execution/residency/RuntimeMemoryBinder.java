@@ -4,21 +4,15 @@ import graph.AliasViewPolicy;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.state.ExecutionState;
+import graph.execution.state.RuntimeStorageSlotKey;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.memory.RegionMemoryBinding;
 import graph.compile.planning.memory.RegionMemoryBindingKind;
 import graph.compile.planning.value.GraphValueRef;
-import tensor.storage.BFloat16Storage;
-import tensor.storage.BoolStorage;
-import tensor.DataType;
-import tensor.storage.Int32Storage;
-import tensor.storage.Int64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public final class RuntimeMemoryBinder {
@@ -36,12 +30,6 @@ public final class RuntimeMemoryBinder {
         }
         Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         Objects.requireNonNull(executionState, "executionState cannot be null");
-        Map<Integer, double[]> regionF64Slots = new HashMap<>();
-        Map<Integer, float[]> regionF32Slots = new HashMap<>();
-        Map<Integer, short[]> regionBF16Slots = new HashMap<>();
-        Map<Integer, int[]> regionI32Slots = new HashMap<>();
-        Map<Integer, long[]> regionI64Slots = new HashMap<>();
-        Map<Integer, byte[]> regionBoolSlots = new HashMap<>();
         for (CompiledNode node : compiledNodes) {
             if (node.operation() == null) {
                 continue;
@@ -57,12 +45,7 @@ public final class RuntimeMemoryBinder {
                     runtimeTensor,
                     node.id(),
                     memoryPlan,
-                    regionF64Slots,
-                    regionF32Slots,
-                    regionBF16Slots,
-                    regionI32Slots,
-                    regionI64Slots,
-                    regionBoolSlots
+                    executionState
             );
         }
     }
@@ -90,12 +73,7 @@ public final class RuntimeMemoryBinder {
             Tensor runtimeTensor,
             int nodeId,
             MemoryPlan memoryPlan,
-            Map<Integer, double[]> f64Slots,
-            Map<Integer, float[]> f32Slots,
-            Map<Integer, short[]> bf16Slots,
-            Map<Integer, int[]> i32Slots,
-            Map<Integer, long[]> i64Slots,
-            Map<Integer, byte[]> boolSlots
+            ExecutionState executionState
     ) {
         GraphValueRef valueRef = memoryPlan.graphValueRefOfNodeId(nodeId);
         if (valueRef == null) {
@@ -109,53 +87,20 @@ public final class RuntimeMemoryBinder {
         if (slotId == null) {
             return false;
         }
-        if (memoryPlan.regionSlotUseCount(slotId) < 2) {
-            return false;
-        }
         int slotSize = memoryPlan.regionSlotSize(slotId);
         if (slotSize != runtimeTensor.getFlatDataSize()) {
             return false;
         }
-        bindTypedStorage(runtimeTensor, slotId, slotSize, f64Slots, f32Slots, bf16Slots, i32Slots, i64Slots, boolSlots);
-        return true;
-    }
-
-    private static void bindTypedStorage(
-            Tensor runtimeTensor,
-            int slotId,
-            int slotSize,
-            Map<Integer, double[]> f64Slots,
-            Map<Integer, float[]> f32Slots,
-            Map<Integer, short[]> bf16Slots,
-            Map<Integer, int[]> i32Slots,
-            Map<Integer, long[]> i64Slots,
-            Map<Integer, byte[]> boolSlots
-    ) {
-        switch (runtimeTensor.getDataType()) {
-            case FLOAT64 -> {
-                double[] buffer = f64Slots.computeIfAbsent(slotId, ignored -> new double[slotSize]);
-                runtimeTensor.setData(buffer);
-            }
-            case FLOAT32 -> {
-                float[] buffer = f32Slots.computeIfAbsent(slotId, ignored -> new float[slotSize]);
-                runtimeTensor.setFloat32Data(buffer);
-            }
-            case BFLOAT16 -> {
-                short[] buffer = bf16Slots.computeIfAbsent(slotId, ignored -> new short[slotSize]);
-                TensorInternalAccess.replaceStorage(runtimeTensor, new BFloat16Storage(buffer));
-            }
-            case INT32 -> {
-                int[] buffer = i32Slots.computeIfAbsent(slotId, ignored -> new int[slotSize]);
-                TensorInternalAccess.replaceStorage(runtimeTensor, new Int32Storage(buffer));
-            }
-            case INT64 -> {
-                long[] buffer = i64Slots.computeIfAbsent(slotId, ignored -> new long[slotSize]);
-                TensorInternalAccess.replaceStorage(runtimeTensor, new Int64Storage(buffer));
-            }
-            case BOOL -> {
-                byte[] buffer = boolSlots.computeIfAbsent(slotId, ignored -> new byte[slotSize]);
-                TensorInternalAccess.replaceStorage(runtimeTensor, new BoolStorage(buffer));
-            }
+        RuntimeStorageSlotKey slotKey = executionState.registerRegionRuntimeStorageSlot(
+                nodeId,
+                runtimeTensor.getDataType(),
+                slotId,
+                slotSize
+        );
+        if (memoryPlan.regionSlotUseCount(slotId) < 2) {
+            return false;
         }
+        executionState.bindJavaStorageSlot(nodeId, slotKey);
+        return true;
     }
 }

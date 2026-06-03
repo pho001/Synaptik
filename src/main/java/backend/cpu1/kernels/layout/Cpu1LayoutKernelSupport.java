@@ -121,7 +121,8 @@ public final class Cpu1LayoutKernelSupport {
         NativeTensorStorage nativeOutput = null;
         Cpu1TensorView output;
         if (nativeInputs) {
-            nativeOutput = context.allocateNativeStorage(
+            nativeOutput = context.requireNativeOutputStorage(
+                    unit.nodeId(),
                     unit.dataType(),
                     outputTensor.getFlatDataSize(),
                     "cpu1-layout-node-" + unit.nodeId()
@@ -314,7 +315,8 @@ public final class Cpu1LayoutKernelSupport {
                 unit.inputNodeId(),
                 CpuMaterializationReason.CPU_CONSUMER
         );
-        NativeTensorStorage outputStorage = context.allocateNativeStorage(
+        NativeTensorStorage outputStorage = context.requireNativeOutputStorage(
+                unit.nodeId(),
                 unit.dataType(),
                 outputTensor.getFlatDataSize(),
                 "cpu1-layout-node-" + unit.nodeId()

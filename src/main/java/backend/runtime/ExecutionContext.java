@@ -330,6 +330,27 @@ public final class ExecutionContext {
     }
 
     /**
+     * Returns writable native CPU output storage and reserves it without marking it current.
+     *
+     * @param nodeId compiled node id
+     * @param dataType output dtype
+     * @param elements output element count
+     * @param label diagnostic allocation label
+     * @return writable native CPU tensor storage
+     */
+    public NativeTensorStorage requireNativeOutputStorage(
+            int nodeId,
+            DataType dataType,
+            int elements,
+            String label
+    ) {
+        if (executionState == null) {
+            throw new IllegalStateException("ExecutionContext does not carry per-run ExecutionState.");
+        }
+        return executionState.requireNativeOutputStorage(nodeId, dataType, elements, label);
+    }
+
+    /**
      * Attaches a target node to the current native CPU storage of a source node for view-only aliases.
      *
      * @param targetNodeId target compiled node id

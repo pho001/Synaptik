@@ -197,7 +197,7 @@ public final class Cpu1MatmulPreparer {
                 batchOffsets(rightShape, rightStrides, outputShape, true),
                 batchOffsets(outputShape, outputStrides, outputShape, false),
                 launchConfig,
-                workspaceSpec(kernelId, outputNode.dataType(), batchCount, m, n, k),
+                workspaceSpec(kernelId, batchCount, n, k),
                 openBlasThreads(route, config.blasConfig())
         );
         return new Cpu1PreparedArtifact(unit);
@@ -570,17 +570,13 @@ public final class Cpu1MatmulPreparer {
 
     private static Cpu1WorkspaceSpec workspaceSpec(
             Cpu1MatmulKernelId kernelId,
-            DataType dataType,
             int batchCount,
-            int m,
             int n,
             int k
     ) {
         return switch (kernelId) {
             case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(packedBElements(batchCount, n, k), 0, 0);
             case MATMUL_F64_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(0, packedBElements(batchCount, n, k), 0);
-            case MATMUL_F32_OPENBLAS_NATIVE_SEGMENT, MATMUL_F64_OPENBLAS_NATIVE_SEGMENT ->
-                    Cpu1WorkspaceSpec.nativeOutput(dataType, outputElements(batchCount, m, n));
             default -> Cpu1WorkspaceSpec.none();
         };
     }
@@ -595,10 +591,6 @@ public final class Cpu1MatmulPreparer {
 
     private static int packedBElements(int batchCount, int n, int k) {
         return Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, n), k));
-    }
-
-    private static int outputElements(int batchCount, int m, int n) {
-        return Math.toIntExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n));
     }
 
     private static CpuKernelConfig requireCpuKernelConfig(Cpu1PrepareConfig config) {

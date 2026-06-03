@@ -94,7 +94,7 @@ public final class Cpu1ReductionPreparer {
                 argMaxLastIndexWins(operation),
                 cumSumExclusive(operation),
                 cumSumReverse(operation),
-                workspaceSpec(config.storageKind(), node.dataType(), node.flatDataSize())
+                Cpu1WorkspaceSpec.none()
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -413,10 +413,4 @@ public final class Cpu1ReductionPreparer {
         return product;
     }
 
-    private static Cpu1WorkspaceSpec workspaceSpec(Cpu1StorageKind storageKind, DataType dataType, int outputElements) {
-        if (storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
-            return Cpu1WorkspaceSpec.none();
-        }
-        return Cpu1WorkspaceSpec.nativeOutput(dataType, outputElements);
-    }
 }

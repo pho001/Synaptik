@@ -2,7 +2,6 @@ package backend.cpu1.kernels.matmul;
 
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
-import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
@@ -116,16 +115,10 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
     }
 
     private static NativeTensorStorage outputStorage(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL nodeId=" + unit.nodeId()
-                    + " requires prepared native output workspace.");
-        }
-        NativeTensorStorage output = workspace.requireNativeOutputStorage(
+        NativeTensorStorage output = context.requireNativeOutputStorage(
+                unit.nodeId(),
                 unit.dataType(),
                 Math.multiplyExact(Math.multiplyExact(unit.batchCount(), unit.m()), unit.n()),
-                unit.nodeId(),
-                context,
                 "cpu1-node-" + unit.nodeId() + ":openblas-native-segment"
         );
         if (output.getType() != unit.dataType()) {

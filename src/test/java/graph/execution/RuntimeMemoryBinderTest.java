@@ -13,6 +13,9 @@ import graph.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.residency.RuntimeMemoryBinder;
 import graph.execution.state.ExecutionState;
+import graph.execution.state.RuntimeStorageKind;
+import graph.execution.state.RuntimeStorageSlotKey;
+import graph.execution.state.RuntimeStorageSlotScope;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.memory.MemoryPlanSummary;
 import graph.compile.planning.memory.MemoryPlannerPolicy;
@@ -30,6 +33,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.options.Pool2dOptions;
+import tensor.storage.NativeTensorStorage;
 
 import java.util.IdentityHashMap;
 import java.util.HashMap;
@@ -37,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -141,6 +147,65 @@ class RuntimeMemoryBinderTest {
         RuntimeBindingFixture f64 = runtimeBindingFixture(DataType.FLOAT64, new TestOperation(Operation.OpType.ADD));
         RuntimeMemoryBinder.bind(f64.memoryPlan(), f64.nodes(), CompiledTensorDescriptorBuilder.build(f64.nodes()), f64.state());
         assertSame(TensorInternalAccess.float64Data(f64.runtimeTensor("first")), TensorInternalAccess.float64Data(f64.runtimeTensor("second")));
+    }
+
+    @Test
+    void registersPlannedRegionSlotAndReusesItForNativeOutputReservation() {
+        RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
+        int firstNodeId = nodeByLabel(fixture.nodes(), "first").id();
+        int secondNodeId = nodeByLabel(fixture.nodes(), "second").id();
+
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
+
+        RuntimeStorageSlotKey firstKey = fixture.state().runtimeStorageSlotKeyForNodeId(firstNodeId);
+        RuntimeStorageSlotKey secondKey = fixture.state().runtimeStorageSlotKeyForNodeId(secondNodeId);
+        assertEquals(RuntimeStorageKind.JAVA_ARRAY, firstKey.kind());
+        assertEquals(RuntimeStorageSlotScope.REGION_SLOT, firstKey.scope());
+        assertEquals(firstKey, secondKey);
+
+        NativeTensorStorage firstStorage = fixture.state().requireNativeOutputStorage(
+                firstNodeId,
+                DataType.FLOAT32,
+                4,
+                "first-native-output"
+        );
+        NativeTensorStorage secondStorage = fixture.state().requireNativeOutputStorage(
+                secondNodeId,
+                DataType.FLOAT32,
+                4,
+                "second-native-output"
+        );
+
+        assertSame(firstStorage, secondStorage);
+        assertSame(firstStorage, fixture.state().nativeStorageForNodeId(firstNodeId));
+        assertSame(secondStorage, fixture.state().nativeStorageForNodeId(secondNodeId));
+        assertFalse(fixture.state().residencyForNodeId(firstNodeId).nativeCurrent());
+        assertFalse(fixture.state().residencyForNodeId(secondNodeId).nativeCurrent());
+        fixture.state().closeResources();
+    }
+
+    @Test
+    void nativeOutputReservationFallsBackToPerNodeSlotWithoutPlanMetadata() {
+        RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
+        int firstNodeId = nodeByLabel(fixture.nodes(), "first").id();
+
+        NativeTensorStorage firstReservation = fixture.state().requireNativeOutputStorage(
+                firstNodeId,
+                DataType.FLOAT32,
+                4,
+                "first-native-output"
+        );
+        NativeTensorStorage secondReservation = fixture.state().requireNativeOutputStorage(
+                firstNodeId,
+                DataType.FLOAT32,
+                4,
+                "first-native-output-repeat"
+        );
+
+        assertSame(firstReservation, secondReservation);
+        assertSame(firstReservation, fixture.state().nativeStorageForNodeId(firstNodeId));
+        assertFalse(fixture.state().residencyForNodeId(firstNodeId).nativeCurrent());
+        fixture.state().closeResources();
     }
 
     @Test

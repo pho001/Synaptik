@@ -42,6 +42,8 @@ public final class ExecutionState {
     private final DeviceBindingRegistry deviceBindingRegistry;
     private final NativeCpuStorageRegistry nativeStorageRegistry;
     private final RuntimeResourceRegistry resourceRegistry;
+    private final RuntimeStorageSlotCache storageSlotCache;
+    private final Map<Integer, RuntimeStorageSlotKey> runtimeStorageSlotByNodeId = new HashMap<>();
     private final RuntimeMaterializationService materializationService;
     private final RuntimeNativeCpuMemoryState nativeCpuMemoryState;
     private final RuntimeDeviceMemoryState deviceMemoryState;
@@ -60,6 +62,7 @@ public final class ExecutionState {
         this.deviceBindingRegistry = Objects.requireNonNull(deviceBindingRegistry, "deviceBindingRegistry cannot be null");
         this.nativeStorageRegistry = Objects.requireNonNull(nativeStorageRegistry, "nativeStorageRegistry cannot be null");
         this.resourceRegistry = Objects.requireNonNull(resourceRegistry, "resourceRegistry cannot be null");
+        this.storageSlotCache = new RuntimeStorageSlotCache(this.resourceRegistry);
         this.materializationService = new RuntimeMaterializationService(
                 this.tensorStore,
                 this.residencyStore,
@@ -229,6 +232,93 @@ public final class ExecutionState {
     }
 
     /**
+     * Registers a planned region runtime storage slot for a node output.
+     *
+     * @param nodeId compiled node id
+     * @param dataType storage dtype
+     * @param slotId memory-plan region slot id
+     * @param elements region slot size in elements
+     * @return Java-array slot key for the registered region slot
+     */
+    public RuntimeStorageSlotKey registerRegionRuntimeStorageSlot(
+            int nodeId,
+            DataType dataType,
+            int slotId,
+            int elements
+    ) {
+        Tensor tensor = runtimeTensorForNodeId(nodeId);
+        if (tensor.getDataType() != dataType) {
+            throw new IllegalArgumentException("Runtime slot dtype mismatch for nodeId=" + nodeId
+                    + ". tensorType=" + tensor.getDataType() + ", slotType=" + dataType);
+        }
+        if (tensor.getFlatDataSize() != elements) {
+            throw new IllegalArgumentException("Runtime slot size mismatch for nodeId=" + nodeId
+                    + ". tensorElements=" + tensor.getFlatDataSize() + ", slotElements=" + elements);
+        }
+        RuntimeStorageSlotKey key = RuntimeStorageSlotKey.regionSlot(
+                RuntimeStorageKind.JAVA_ARRAY,
+                dataType,
+                slotId,
+                elements
+        );
+        runtimeStorageSlotByNodeId.put(nodeId, key);
+        return key;
+    }
+
+    /**
+     * Binds a runtime tensor to Java array storage from the slot cache.
+     *
+     * @param nodeId compiled node id
+     * @param key Java-array storage slot key
+     */
+    public void bindJavaStorageSlot(int nodeId, RuntimeStorageSlotKey key) {
+        storageSlotCache.bindJavaStorage(runtimeTensorForNodeId(nodeId), key);
+    }
+
+    /**
+     * Returns the planned runtime storage slot registered for a node.
+     *
+     * @param nodeId compiled node id
+     * @return registered Java-array region slot key, or {@code null}
+     */
+    public RuntimeStorageSlotKey runtimeStorageSlotKeyForNodeId(int nodeId) {
+        return runtimeStorageSlotByNodeId.get(nodeId);
+    }
+
+    /**
+     * Returns writable native CPU output storage for a node and reserves it without marking it current.
+     *
+     * <p>When the memory plan registered a region slot for the node, the native output reuses that slot id.
+     * Otherwise the storage is scoped to the node output.</p>
+     *
+     * @param nodeId compiled node id
+     * @param dataType tensor dtype
+     * @param elements number of logical elements
+     * @param label diagnostic allocation label
+     * @return writable native CPU tensor storage
+     */
+    public NativeTensorStorage requireNativeOutputStorage(
+            int nodeId,
+            DataType dataType,
+            int elements,
+            String label
+    ) {
+        Tensor tensor = runtimeTensorForNodeId(nodeId);
+        if (tensor.getDataType() != dataType) {
+            throw new IllegalArgumentException("Native output dtype mismatch for nodeId=" + nodeId
+                    + ". tensorType=" + tensor.getDataType() + ", requestedType=" + dataType);
+        }
+        if (tensor.getFlatDataSize() != elements) {
+            throw new IllegalArgumentException("Native output size mismatch for nodeId=" + nodeId
+                    + ". tensorElements=" + tensor.getFlatDataSize() + ", requestedElements=" + elements);
+        }
+        RuntimeStorageSlotKey key = nativeOutputSlotKey(nodeId, dataType, elements);
+        NativeTensorStorage storage = storageSlotCache.nativeCpuStorage(key, label);
+        reserveNativeOutputStorage(nodeId, storage);
+        return storage;
+    }
+
+    /**
      * Allocates run-owned native CPU tensor storage through this execution state's allocator.
      *
      * @param dataType tensor dtype
@@ -238,6 +328,18 @@ public final class ExecutionState {
      */
     public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
         return nativeCpuMemoryState.allocateNativeStorage(dataType, elements, label);
+    }
+
+    private RuntimeStorageSlotKey nativeOutputSlotKey(int nodeId, DataType dataType, int elements) {
+        RuntimeStorageSlotKey regionKey = runtimeStorageSlotByNodeId.get(nodeId);
+        if (regionKey == null) {
+            return RuntimeStorageSlotKey.nodeOutput(RuntimeStorageKind.NATIVE_CPU, dataType, nodeId, elements);
+        }
+        if (regionKey.dataType() != dataType || regionKey.elements() != elements) {
+            throw new IllegalStateException("Registered runtime slot does not match native output request for nodeId="
+                    + nodeId + ". slot=" + regionKey + ", requested=" + dataType + "[" + elements + "]");
+        }
+        return regionKey.withKind(RuntimeStorageKind.NATIVE_CPU);
     }
 
     /**

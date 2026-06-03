@@ -77,7 +77,7 @@ public final class Cpu1MseLossPreparer {
                 elementCount,
                 candidate.orderedNodeIds(),
                 launchConfig,
-                workspaceSpec(storageKind, output.dataType(), launchConfig, elementCount)
+                workspaceSpec(launchConfig, elementCount)
         );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
@@ -229,17 +229,13 @@ public final class Cpu1MseLossPreparer {
     }
 
     private static Cpu1WorkspaceSpec workspaceSpec(
-            Cpu1StorageKind storageKind,
-            DataType dataType,
             Cpu1LaunchConfig launchConfig,
             int elementCount
     ) {
         int partialSumSlots = launchConfig.workerCount() == 1
                 ? 0
                 : Cpu1RangeLauncher.slotCount(elementCount, launchConfig);
-        DataType nativeOutputDataType = storageKind == Cpu1StorageKind.MEMORY_SEGMENT ? dataType : null;
-        int nativeOutputElements = storageKind == Cpu1StorageKind.MEMORY_SEGMENT ? 1 : 0;
-        if (partialSumSlots == 0 && nativeOutputDataType == null) {
+        if (partialSumSlots == 0) {
             return Cpu1WorkspaceSpec.none();
         }
         return new Cpu1WorkspaceSpec(
@@ -247,9 +243,7 @@ public final class Cpu1MseLossPreparer {
                 partialSumSlots,
                 0,
                 0L,
-                false,
-                nativeOutputDataType,
-                nativeOutputElements
+                false
         );
     }
 

@@ -301,16 +301,10 @@ public final class Cpu1MseLossLoops {
     }
 
     private static NativeTensorStorage outputSegmentStorage(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.outputNodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 MSE_LOSS native segment nodeId=" + unit.outputNodeId()
-                    + " requires prepared native output workspace.");
-        }
-        return workspace.requireNativeOutputStorage(
+        return context.requireNativeOutputStorage(
+                unit.outputNodeId(),
                 unit.dataType(),
                 1,
-                unit.outputNodeId(),
-                context,
                 "cpu1-node-" + unit.outputNodeId() + ":mse-loss-native-segment"
         );
     }

@@ -1,18 +1,28 @@
 package backend.cpu1;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
+import backend.cpu1.exec.Cpu1ElementwiseExecutableUnit;
 import backend.cpu1.exec.Cpu1ProviderCache;
 import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.kernels.Cpu1KernelRegistry;
+import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.Cpu1VectorizationKind;
+import backend.cpu1.launch.Cpu1SingleThreadLaunch;
+import backend.cpu1.plan.Cpu1IterationPlan;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
+import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
+import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.PreparedRuntimeStateAllocator;
+import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 
 import java.lang.foreign.MemorySegment;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -66,21 +76,36 @@ class Cpu1WorkspaceTest {
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, -1, 0L, false));
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, -1L, false));
         assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, (long) Integer.MAX_VALUE + 1L, false));
-        assertThrows(IllegalArgumentException.class, () -> Cpu1WorkspaceSpec.nativeOutput(DataType.FLOAT32, -1));
-        assertThrows(IllegalArgumentException.class, () -> new Cpu1WorkspaceSpec(0, 0, 0, 0L, false, null, 1));
     }
 
     @Test
-    void nativeOutputSpecAllocatesWorkspaceWithoutArrayScratch() {
-        Cpu1WorkspaceSpec spec = Cpu1WorkspaceSpec.nativeOutput(DataType.FLOAT32, 6);
+    void memorySegmentElementwiseDoesNotAllocateWorkspaceOnlyForNativeOutput() {
+        Cpu1KernelRegistry registry = new Cpu1KernelRegistry();
+        Cpu1PreparedElementwiseUnit unit = new Cpu1PreparedElementwiseUnit(
+                42,
+                List.of(1),
+                42,
+                Operation.OpType.RELU,
+                DataType.FLOAT32,
+                Cpu1IterationPlan.contiguous(6, new int[]{6}),
+                Cpu1LayoutKind.CONTIGUOUS,
+                Cpu1StorageKind.MEMORY_SEGMENT,
+                registry.resolve(
+                        Operation.OpType.RELU,
+                        DataType.FLOAT32,
+                        Cpu1LayoutKind.CONTIGUOUS,
+                        Cpu1StorageKind.MEMORY_SEGMENT,
+                        Cpu1VectorizationKind.SCALAR
+                ),
+                new Cpu1SingleThreadLaunch()
+        );
+        Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(new Cpu1ElementwiseExecutableUnit(unit));
+        RecordingAllocator allocator = new RecordingAllocator();
 
-        Cpu1Workspace workspace = Cpu1Workspace.allocate(spec);
+        artifact.allocateRuntimeState(42, allocator);
 
-        assertSame(spec, workspace.spec());
-        assertEquals(DataType.FLOAT32, workspace.spec().nativeOutputDataType());
-        assertEquals(6, workspace.spec().nativeOutputElements());
-        assertThrows(IllegalStateException.class, workspace::requireF32Array);
-        assertThrows(IllegalStateException.class, workspace::requireSegment);
+        assertTrue(artifact.workspaceSpec().isEmpty());
+        assertFalse(allocator.workspaces.containsKey(42));
     }
 
     @Test

@@ -1,7 +1,6 @@
 package backend.cpu1.kernels.reduction;
 
 import backend.cpu1.exec.Cpu1TensorView;
-import backend.cpu1.exec.Cpu1Workspace;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.memory.CpuMaterializationReason;
@@ -182,16 +181,10 @@ public final class Cpu1SumMeanReductionLoops {
     }
 
     private static NativeTensorStorage outputSegmentStorage(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 " + unit.opType() + " native reduction nodeId=" + unit.nodeId()
-                    + " requires prepared native output workspace.");
-        }
-        return workspace.requireNativeOutputStorage(
+        return context.requireNativeOutputStorage(
+                unit.nodeId(),
                 unit.dataType(),
                 unit.outputElementCount(),
-                unit.nodeId(),
-                context,
                 "cpu1-node-" + unit.nodeId() + ":reduction-native-segment"
         );
     }

@@ -27,10 +27,7 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
 
     @Override
     public Cpu1WorkspaceSpec workspaceSpec() {
-        if (preparedUnit.storageKind() != Cpu1StorageKind.MEMORY_SEGMENT) {
-            return Cpu1WorkspaceSpec.none();
-        }
-        return Cpu1WorkspaceSpec.nativeOutput(preparedUnit.dataType(), preparedUnit.elementCount());
+        return Cpu1WorkspaceSpec.none();
     }
 
     /**
@@ -45,12 +42,10 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
         NativeTensorStorage nativeOutput = null;
         Cpu1TensorView output;
         if (preparedUnit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            Cpu1Workspace workspace = requireWorkspace(context, preparedUnit.nodeId());
-            nativeOutput = workspace.requireNativeOutputStorage(
+            nativeOutput = context.requireNativeOutputStorage(
+                    preparedUnit.outputNodeId(),
                     preparedUnit.dataType(),
                     preparedUnit.elementCount(),
-                    preparedUnit.outputNodeId(),
-                    context,
                     "cpu1-node-" + preparedUnit.outputNodeId()
             );
             output = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
@@ -83,14 +78,5 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
             nativeOutput.markModified();
             context.attachNativeStorage(preparedUnit.outputNodeId(), nativeOutput, "cpu1 wrote native CPU segment");
         }
-    }
-
-    private static Cpu1Workspace requireWorkspace(ExecutionContext context, int nodeId) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(nodeId);
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 MEMORY_SEGMENT elementwise nodeId=" + nodeId
-                    + " requires prepared native output workspace.");
-        }
-        return workspace;
     }
 }
