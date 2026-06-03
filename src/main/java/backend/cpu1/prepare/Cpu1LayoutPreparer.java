@@ -1,7 +1,7 @@
 package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -73,7 +73,7 @@ public final class Cpu1LayoutPreparer {
                 materializeThreshold(node.dataType(), config),
                 vectorizationKind,
                 launchConfig,
-                workspaceSpec(opType, kernelId, node, inputs, launchConfig)
+                scratchBufferSpec(opType, kernelId, node, inputs, launchConfig)
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -381,7 +381,7 @@ public final class Cpu1LayoutPreparer {
         return RuntimeConfig.inferenceDefaults(dataType).cpuKernelConfig().contiguousMaterializeThreshold();
     }
 
-    private static Cpu1WorkspaceSpec workspaceSpec(
+    private static Cpu1ScratchBufferSpec scratchBufferSpec(
             Operation.OpType opType,
             Cpu1LayoutKernelId kernelId,
             CompiledNode node,
@@ -392,13 +392,13 @@ public final class Cpu1LayoutPreparer {
             int inputElements = inputs.isEmpty()
                     ? node.flatDataSize()
                     : Math.toIntExact(inputs.getFirst().logicalElementCount());
-            return Cpu1WorkspaceSpec.arrays(
+            return Cpu1ScratchBufferSpec.arrays(
                     0,
                     Math.multiplyExact(node.flatDataSize(), Cpu1RangeLauncher.slotCount(inputElements, launchConfig)),
                     0
             );
         }
-        return Cpu1WorkspaceSpec.none();
+        return Cpu1ScratchBufferSpec.none();
     }
 
     private static boolean isSupportedDType(DataType dataType) {

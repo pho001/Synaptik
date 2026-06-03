@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.matmul;
 
 import backend.cpu1.exec.Cpu1TensorView;
-import backend.cpu1.exec.Cpu1Workspace;
+import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
@@ -28,7 +28,7 @@ public final class Cpu1JavaVectorMatmulLoops {
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
         Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
-        float[] packedB = packedBWorkspace(unit, context);
+        float[] packedB = packedBScratchBuffer(unit, context);
 
         packBColumns(right.float32Array(), packedB, right.storageOffset(), unit);
         runPackedB(
@@ -49,7 +49,7 @@ public final class Cpu1JavaVectorMatmulLoops {
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
         Cpu1TensorView bias = unit.hasBias() ? inputView(unit.biasNodeId(), context) : null;
         Cpu1TensorView output = outputView(unit, context);
-        double[] packedB = packedBF64Workspace(unit, context);
+        double[] packedB = packedBF64ScratchBuffer(unit, context);
 
         packBF64Columns(right.float64Array(), packedB, right.storageOffset(), unit);
         runPackedBF64(
@@ -251,25 +251,25 @@ public final class Cpu1JavaVectorMatmulLoops {
         return scalarSum;
     }
 
-    private static float[] packedBWorkspace(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F32 workspace for nodeId="
+    private static float[] packedBScratchBuffer(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
+        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        if (scratchBuffer == null) {
+            throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F32 scratch buffer for nodeId="
                     + unit.nodeId());
         }
-        return workspace.requireF32Array(Math.toIntExact(Math.multiplyExact(
+        return scratchBuffer.requireF32Array(Math.toIntExact(Math.multiplyExact(
                 Math.multiplyExact((long) unit.batchCount(), unit.n()),
                 unit.k()
         )));
     }
 
-    private static double[] packedBF64Workspace(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F64 workspace for nodeId="
+    private static double[] packedBF64ScratchBuffer(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
+        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        if (scratchBuffer == null) {
+            throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F64 scratch buffer for nodeId="
                     + unit.nodeId());
         }
-        return workspace.requireF64Array(Math.toIntExact(Math.multiplyExact(
+        return scratchBuffer.requireF64Array(Math.toIntExact(Math.multiplyExact(
                 Math.multiplyExact((long) unit.batchCount(), unit.n()),
                 unit.k()
         )));

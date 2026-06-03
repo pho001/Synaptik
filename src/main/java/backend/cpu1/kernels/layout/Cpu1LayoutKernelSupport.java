@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.layout;
 
 import backend.cpu1.exec.Cpu1TensorView;
-import backend.cpu1.exec.Cpu1Workspace;
+import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
@@ -241,12 +241,12 @@ public final class Cpu1LayoutKernelSupport {
     }
 
     public double[] foldAccumulator(int elements, int slotCount) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.nodeId());
-        if (workspace == null) {
-            throw new IllegalStateException("cpu1 FOLD2D requires prepared f64 workspace for nodeId="
+        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        if (scratchBuffer == null) {
+            throw new IllegalStateException("cpu1 FOLD2D requires prepared F64 scratch buffer for nodeId="
                     + unit.nodeId());
         }
-        return workspace.requireF64Array(Math.multiplyExact(elements, slotCount));
+        return scratchBuffer.requireF64Array(Math.multiplyExact(elements, slotCount));
     }
 
     public void launchRange(int elementCount, Cpu1RangeLauncher.RangeBody body) {

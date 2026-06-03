@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernel;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelDispatch;
@@ -45,7 +45,7 @@ public final class Cpu1PreparedMatmulUnit {
     private final int[] outputBatchOffsets;
     private final long work;
     private final Cpu1LaunchConfig launchConfig;
-    private final Cpu1WorkspaceSpec workspaceSpec;
+    private final Cpu1ScratchBufferSpec scratchBufferSpec;
     private final int openBlasThreads;
 
     public Cpu1PreparedMatmulUnit(
@@ -72,7 +72,7 @@ public final class Cpu1PreparedMatmulUnit {
             int[] rightBatchOffsets,
             int[] outputBatchOffsets,
             Cpu1LaunchConfig launchConfig,
-            Cpu1WorkspaceSpec workspaceSpec,
+            Cpu1ScratchBufferSpec scratchBufferSpec,
             int openBlasThreads
     ) {
         this(
@@ -103,7 +103,7 @@ public final class Cpu1PreparedMatmulUnit {
                 rightBatchOffsets,
                 outputBatchOffsets,
                 launchConfig,
-                workspaceSpec,
+                scratchBufferSpec,
                 openBlasThreads
         );
     }
@@ -136,7 +136,7 @@ public final class Cpu1PreparedMatmulUnit {
             int[] rightBatchOffsets,
             int[] outputBatchOffsets,
             Cpu1LaunchConfig launchConfig,
-            Cpu1WorkspaceSpec workspaceSpec,
+            Cpu1ScratchBufferSpec scratchBufferSpec,
             int openBlasThreads
     ) {
         if (nodeId < 0 || leftNodeId < 0 || rightNodeId < 0) {
@@ -186,7 +186,7 @@ public final class Cpu1PreparedMatmulUnit {
         this.outputBatchOffsets = requireOffsets(outputBatchOffsets, batchCount, "outputBatchOffsets");
         this.work = Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
         this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
+        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
         if (openBlasThreads < 0) {
             throw new IllegalArgumentException("openBlasThreads must be non-negative: " + openBlasThreads);
         }
@@ -316,8 +316,8 @@ public final class Cpu1PreparedMatmulUnit {
         return launchConfig;
     }
 
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return workspaceSpec;
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return scratchBufferSpec;
     }
 
     public int openBlasThreads() {

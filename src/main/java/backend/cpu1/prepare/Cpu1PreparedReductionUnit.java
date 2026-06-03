@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernel;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelDispatch;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelId;
@@ -30,7 +30,7 @@ public final class Cpu1PreparedReductionUnit {
     private final boolean argMaxLastIndexWins;
     private final boolean cumSumExclusive;
     private final boolean cumSumReverse;
-    private final Cpu1WorkspaceSpec workspaceSpec;
+    private final Cpu1ScratchBufferSpec scratchBufferSpec;
 
     public Cpu1PreparedReductionUnit(
             int nodeId,
@@ -48,7 +48,7 @@ public final class Cpu1PreparedReductionUnit {
             boolean argMaxLastIndexWins,
             boolean cumSumExclusive,
             boolean cumSumReverse,
-            Cpu1WorkspaceSpec workspaceSpec
+            Cpu1ScratchBufferSpec scratchBufferSpec
     ) {
         if (nodeId < 0) {
             throw new IllegalArgumentException("nodeId cannot be negative");
@@ -76,7 +76,7 @@ public final class Cpu1PreparedReductionUnit {
         this.argMaxLastIndexWins = argMaxLastIndexWins;
         this.cumSumExclusive = cumSumExclusive;
         this.cumSumReverse = cumSumReverse;
-        this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
+        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
     }
 
     public int nodeId() {
@@ -143,8 +143,8 @@ public final class Cpu1PreparedReductionUnit {
         return cumSumReverse;
     }
 
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return workspaceSpec;
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return scratchBufferSpec;
     }
 
     private static void requirePositive(int value, String name) {

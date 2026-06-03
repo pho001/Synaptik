@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelId;
 import backend.cpu1.storage.Cpu1StorageKind;
 import graph.CompiledNode;
@@ -94,7 +94,7 @@ public final class Cpu1ReductionPreparer {
                 argMaxLastIndexWins(operation),
                 cumSumExclusive(operation),
                 cumSumReverse(operation),
-                Cpu1WorkspaceSpec.none()
+                Cpu1ScratchBufferSpec.none()
         );
         return new Cpu1PreparedArtifact(unit);
     }

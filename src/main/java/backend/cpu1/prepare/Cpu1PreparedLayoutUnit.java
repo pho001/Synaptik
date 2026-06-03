@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernel;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelDispatch;
@@ -27,7 +27,7 @@ public final class Cpu1PreparedLayoutUnit {
     private final int materializeThreshold;
     private final Cpu1VectorizationKind vectorizationKind;
     private final Cpu1LaunchConfig launchConfig;
-    private final Cpu1WorkspaceSpec workspaceSpec;
+    private final Cpu1ScratchBufferSpec scratchBufferSpec;
 
     public Cpu1PreparedLayoutUnit(
             int nodeId,
@@ -39,7 +39,7 @@ public final class Cpu1PreparedLayoutUnit {
             int materializeThreshold,
             Cpu1VectorizationKind vectorizationKind,
             Cpu1LaunchConfig launchConfig,
-            Cpu1WorkspaceSpec workspaceSpec
+            Cpu1ScratchBufferSpec scratchBufferSpec
     ) {
         if (nodeId < 0) {
             throw new IllegalArgumentException("nodeId cannot be negative");
@@ -65,7 +65,7 @@ public final class Cpu1PreparedLayoutUnit {
         this.materializeThreshold = materializeThreshold;
         this.vectorizationKind = Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
         this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
+        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
     }
 
     public int nodeId() {
@@ -112,7 +112,7 @@ public final class Cpu1PreparedLayoutUnit {
         return launchConfig;
     }
 
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return workspaceSpec;
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return scratchBufferSpec;
     }
 }

@@ -1,7 +1,7 @@
 package backend.cpu1.prepare;
 
 import backend.ComputeBackend;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1RangeLauncher;
@@ -77,7 +77,7 @@ public final class Cpu1MseLossPreparer {
                 elementCount,
                 candidate.orderedNodeIds(),
                 launchConfig,
-                workspaceSpec(launchConfig, elementCount)
+                scratchBufferSpec(launchConfig, elementCount)
         );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
@@ -228,7 +228,7 @@ public final class Cpu1MseLossPreparer {
         return Math.max(Math.max(1, minChunkSize), candidate);
     }
 
-    private static Cpu1WorkspaceSpec workspaceSpec(
+    private static Cpu1ScratchBufferSpec scratchBufferSpec(
             Cpu1LaunchConfig launchConfig,
             int elementCount
     ) {
@@ -236,9 +236,9 @@ public final class Cpu1MseLossPreparer {
                 ? 0
                 : Cpu1RangeLauncher.slotCount(elementCount, launchConfig);
         if (partialSumSlots == 0) {
-            return Cpu1WorkspaceSpec.none();
+            return Cpu1ScratchBufferSpec.none();
         }
-        return new Cpu1WorkspaceSpec(
+        return new Cpu1ScratchBufferSpec(
                 0,
                 partialSumSlots,
                 0,

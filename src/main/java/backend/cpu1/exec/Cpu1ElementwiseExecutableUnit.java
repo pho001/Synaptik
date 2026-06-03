@@ -26,8 +26,8 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
     }
 
     @Override
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return Cpu1WorkspaceSpec.none();
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return Cpu1ScratchBufferSpec.none();
     }
 
     /**
@@ -68,7 +68,7 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
                 preparedUnit,
                 inputs,
                 output,
-                context.cpu1WorkspaceForNodeId(preparedUnit.nodeId())
+                context.cpu1ScratchBufferForNodeId(preparedUnit.nodeId())
         );
         preparedUnit.launchPolicy().launch(preparedUnit.kernelRunner(), args);
         if (nativeOutput == null) {

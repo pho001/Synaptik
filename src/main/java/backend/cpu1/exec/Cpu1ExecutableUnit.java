@@ -9,10 +9,10 @@ public interface Cpu1ExecutableUnit {
     /**
      * Returns exact run-scoped scratch requirements for this prepared executable.
      *
-     * @return workspace spec, or {@link Cpu1WorkspaceSpec#none()} when no workspace is needed
+     * @return scratch buffer spec, or {@link Cpu1ScratchBufferSpec#none()} when no scratch buffer is needed
      */
-    default Cpu1WorkspaceSpec workspaceSpec() {
-        return Cpu1WorkspaceSpec.none();
+    default Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return Cpu1ScratchBufferSpec.none();
     }
 
     /**

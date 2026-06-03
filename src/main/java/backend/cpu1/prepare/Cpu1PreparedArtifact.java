@@ -6,8 +6,8 @@ import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.exec.Cpu1MseLossExecutableUnit;
 import backend.cpu1.exec.Cpu1ReductionExecutableUnit;
-import backend.cpu1.exec.Cpu1Workspace;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBuffer;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.trace.Cpu1TraceContributor;
 import backend.runtime.ExecutionContext;
 import graph.CompiledNode;
@@ -122,8 +122,8 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         return executableUnit;
     }
 
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return executableUnit.workspaceSpec();
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return executableUnit.scratchBufferSpec();
     }
 
     @Override
@@ -131,11 +131,11 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         if (allocator == null) {
             return;
         }
-        Cpu1WorkspaceSpec spec = workspaceSpec();
+        Cpu1ScratchBufferSpec spec = scratchBufferSpec();
         if (spec.isEmpty()) {
             return;
         }
-        allocator.putWorkspace(nodeId, Cpu1Workspace.allocate(spec));
+        allocator.putWorkspace(nodeId, Cpu1ScratchBuffer.allocate(spec));
     }
 
     public void execute(ExecutionContext context) {

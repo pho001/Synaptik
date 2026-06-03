@@ -246,16 +246,16 @@ public final class ExecutionContext {
                 + " is not a CpuNodeWorkspace: " + workspace.getClass().getName());
     }
 
-    public backend.cpu1.exec.Cpu1Workspace cpu1WorkspaceForNodeId(int nodeId) {
-        Object workspace = workspaceForNodeId(nodeId);
-        if (workspace == null) {
+    public backend.cpu1.exec.Cpu1ScratchBuffer cpu1ScratchBufferForNodeId(int nodeId) {
+        Object scratchBuffer = workspaceForNodeId(nodeId);
+        if (scratchBuffer == null) {
             return null;
         }
-        if (workspace instanceof backend.cpu1.exec.Cpu1Workspace cpu1Workspace) {
-            return cpu1Workspace;
+        if (scratchBuffer instanceof backend.cpu1.exec.Cpu1ScratchBuffer cpu1ScratchBuffer) {
+            return cpu1ScratchBuffer;
         }
-        throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
-                + " is not a Cpu1Workspace: " + workspace.getClass().getName());
+        throw new IllegalStateException("Runtime scratch buffer for nodeId=" + nodeId
+                + " is not a Cpu1ScratchBuffer: " + scratchBuffer.getClass().getName());
     }
 
     public Object workspaceForNodeId(int nodeId) {

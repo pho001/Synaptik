@@ -6,16 +6,16 @@ import java.util.Objects;
 /**
  * Run-scoped scratch memory for a prepared cpu1 executable unit.
  */
-public final class Cpu1Workspace {
-    private final Cpu1WorkspaceSpec spec;
+public final class Cpu1ScratchBuffer {
+    private final Cpu1ScratchBufferSpec spec;
     private final float[] f32Array;
     private final double[] f64Array;
     private final int[] i32Array;
     private final MemorySegment segment;
     private final Cpu1ProviderCache providerCache;
 
-    private Cpu1Workspace(
-            Cpu1WorkspaceSpec spec,
+    private Cpu1ScratchBuffer(
+            Cpu1ScratchBufferSpec spec,
             float[] f32Array,
             double[] f64Array,
             int[] i32Array,
@@ -30,12 +30,12 @@ public final class Cpu1Workspace {
         this.providerCache = providerCache;
     }
 
-    public static Cpu1Workspace allocate(Cpu1WorkspaceSpec spec) {
+    public static Cpu1ScratchBuffer allocate(Cpu1ScratchBufferSpec spec) {
         Objects.requireNonNull(spec, "spec cannot be null");
         if (spec.isEmpty()) {
-            throw new IllegalArgumentException("Cannot allocate empty cpu1 workspace.");
+            throw new IllegalArgumentException("Cannot allocate empty cpu1 scratch buffer.");
         }
-        return new Cpu1Workspace(
+        return new Cpu1ScratchBuffer(
                 spec,
                 spec.f32ArrayElements() == 0 ? null : new float[spec.f32ArrayElements()],
                 spec.f64ArrayElements() == 0 ? null : new double[spec.f64ArrayElements()],
@@ -45,7 +45,7 @@ public final class Cpu1Workspace {
         );
     }
 
-    public Cpu1WorkspaceSpec spec() {
+    public Cpu1ScratchBufferSpec spec() {
         return spec;
     }
 
@@ -56,7 +56,7 @@ public final class Cpu1Workspace {
     public float[] requireF32Array(int requiredElements) {
         requireNonNegative(requiredElements, "requiredElements");
         if (f32Array == null || f32Array.length < requiredElements) {
-            throw new IllegalStateException("cpu1 workspace does not provide enough F32 array scratch. required="
+            throw new IllegalStateException("cpu1 scratch buffer does not provide enough F32 array scratch. required="
                     + requiredElements + ", actual=" + (f32Array == null ? 0 : f32Array.length));
         }
         return f32Array;
@@ -69,7 +69,7 @@ public final class Cpu1Workspace {
     public double[] requireF64Array(int requiredElements) {
         requireNonNegative(requiredElements, "requiredElements");
         if (f64Array == null || f64Array.length < requiredElements) {
-            throw new IllegalStateException("cpu1 workspace does not provide enough F64 array scratch. required="
+            throw new IllegalStateException("cpu1 scratch buffer does not provide enough F64 array scratch. required="
                     + requiredElements + ", actual=" + (f64Array == null ? 0 : f64Array.length));
         }
         return f64Array;
@@ -82,7 +82,7 @@ public final class Cpu1Workspace {
     public int[] requireI32Array(int requiredElements) {
         requireNonNegative(requiredElements, "requiredElements");
         if (i32Array == null || i32Array.length < requiredElements) {
-            throw new IllegalStateException("cpu1 workspace does not provide enough I32 array scratch. required="
+            throw new IllegalStateException("cpu1 scratch buffer does not provide enough I32 array scratch. required="
                     + requiredElements + ", actual=" + (i32Array == null ? 0 : i32Array.length));
         }
         return i32Array;
@@ -95,7 +95,7 @@ public final class Cpu1Workspace {
     public MemorySegment requireSegment(long requiredBytes) {
         requireNonNegative(requiredBytes, "requiredBytes");
         if (segment == null || segment.byteSize() < requiredBytes) {
-            throw new IllegalStateException("cpu1 workspace does not provide enough MemorySegment scratch. requiredBytes="
+            throw new IllegalStateException("cpu1 scratch buffer does not provide enough MemorySegment scratch. requiredBytes="
                     + requiredBytes + ", actualBytes=" + (segment == null ? 0L : segment.byteSize()));
         }
         return segment;
@@ -103,7 +103,7 @@ public final class Cpu1Workspace {
 
     public Cpu1ProviderCache providerCache() {
         if (providerCache == null) {
-            throw new IllegalStateException("cpu1 workspace does not provide provider cache.");
+            throw new IllegalStateException("cpu1 scratch buffer does not provide provider cache.");
         }
         return providerCache;
     }

@@ -5,7 +5,7 @@ import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernelDispatch;
 import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import operations.Operation;
 import tensor.DataType;
 
@@ -24,7 +24,7 @@ public final class Cpu1PreparedMseLossUnit {
     private final int elementCount;
     private final List<Integer> orderedNodeIds;
     private final Cpu1LaunchConfig launchConfig;
-    private final Cpu1WorkspaceSpec workspaceSpec;
+    private final Cpu1ScratchBufferSpec scratchBufferSpec;
 
     public Cpu1PreparedMseLossUnit(
             int outputNodeId,
@@ -37,7 +37,7 @@ public final class Cpu1PreparedMseLossUnit {
             int elementCount,
             List<Integer> orderedNodeIds,
             Cpu1LaunchConfig launchConfig,
-            Cpu1WorkspaceSpec workspaceSpec
+            Cpu1ScratchBufferSpec scratchBufferSpec
     ) {
         if (outputNodeId < 0 || predictionNodeId < 0 || targetNodeId < 0) {
             throw new IllegalArgumentException("node ids cannot be negative");
@@ -56,7 +56,7 @@ public final class Cpu1PreparedMseLossUnit {
         this.elementCount = elementCount;
         this.orderedNodeIds = List.copyOf(orderedNodeIds == null ? List.of() : orderedNodeIds);
         this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        this.workspaceSpec = Objects.requireNonNull(workspaceSpec, "workspaceSpec cannot be null");
+        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
     }
 
     public int outputNodeId() {
@@ -103,7 +103,7 @@ public final class Cpu1PreparedMseLossUnit {
         return launchConfig;
     }
 
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return workspaceSpec;
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return scratchBufferSpec;
     }
 }

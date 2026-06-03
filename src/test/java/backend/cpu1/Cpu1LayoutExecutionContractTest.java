@@ -3,7 +3,7 @@ package backend.cpu1;
 import backend.ComputeBackend;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
-import backend.cpu1.exec.Cpu1Workspace;
+import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -909,15 +909,15 @@ class Cpu1LayoutExecutionContractTest {
         Fixture fixture = fixture(input.unfold2d(Window2dOptions.of(2, 2))
                 .fold2d(new int[]{1, 1, 3, 3}, Window2dOptions.of(2, 2)));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
-        assertEquals(9, artifact.workspaceSpec().f64ArrayElements());
+        assertEquals(9, artifact.scratchBufferSpec().f64ArrayElements());
         ExecutionResult result = executeAll(fixture, Cpu1PrepareConfig.scalarSingleThread(), false);
 
         assertLayoutKernel(artifact, Cpu1LayoutKernelId.FOLD2D_COPY_SCALAR);
-        Cpu1Workspace workspace = assertInstanceOf(
-                Cpu1Workspace.class,
+        Cpu1ScratchBuffer scratchBuffer = assertInstanceOf(
+                Cpu1ScratchBuffer.class,
                 result.context().workspaceForNodeId(result.fixture().node().id())
         );
-        assertEquals(9, workspace.requireF64Array(9).length);
+        assertEquals(9, scratchBuffer.requireF64Array(9).length);
         assertArrayEquals(
                 new double[]{
                         1.0, 4.0, 3.0,
@@ -930,7 +930,7 @@ class Cpu1LayoutExecutionContractTest {
     }
 
     @Test
-    void preparedFold2dNonOverlapUsesDirectPathWithoutWorkspace() {
+    void preparedFold2dNonOverlapUsesDirectPathWithoutScratchBuffer() {
         Tensor input = new Tensor(
                 new double[]{
                         1.0, 2.0, 3.0, 4.0,
@@ -947,7 +947,7 @@ class Cpu1LayoutExecutionContractTest {
         Fixture fixture = fixture(input.unfold2d(nonOverlap).fold2d(new int[]{1, 1, 4, 4}, nonOverlap));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
         assertLayoutKernel(artifact, Cpu1LayoutKernelId.FOLD2D_NON_OVERLAP_DIRECT_SCALAR);
-        assertEquals(0, artifact.workspaceSpec().f64ArrayElements());
+        assertEquals(0, artifact.scratchBufferSpec().f64ArrayElements());
 
         ExecutionResult result = executeAll(fixture, Cpu1PrepareConfig.scalarSingleThread(), false);
 
@@ -959,7 +959,7 @@ class Cpu1LayoutExecutionContractTest {
     }
 
     @Test
-    void preparedParallelFold2dUsesWorkspaceSlotPerRangeTask() {
+    void preparedParallelFold2dUsesScratchBufferSlotPerRangeTask() {
         Tensor input = new Tensor(
                 new double[]{
                         1.0, 2.0, 3.0,
@@ -979,15 +979,15 @@ class Cpu1LayoutExecutionContractTest {
                 Cpu1StorageKind.JAVA_ARRAY
         );
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
-        assertEquals(36, artifact.workspaceSpec().f64ArrayElements());
+        assertEquals(36, artifact.scratchBufferSpec().f64ArrayElements());
 
         ExecutionResult result = executeAll(fixture, config, false);
 
-        Cpu1Workspace workspace = assertInstanceOf(
-                Cpu1Workspace.class,
+        Cpu1ScratchBuffer scratchBuffer = assertInstanceOf(
+                Cpu1ScratchBuffer.class,
                 result.context().workspaceForNodeId(result.fixture().node().id())
         );
-        assertEquals(36, workspace.requireF64Array(36).length);
+        assertEquals(36, scratchBuffer.requireF64Array(36).length);
         assertArrayEquals(
                 new double[]{
                         1.0, 4.0, 3.0,

@@ -2,7 +2,7 @@ package backend.cpu1.prepare;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -197,7 +197,7 @@ public final class Cpu1MatmulPreparer {
                 batchOffsets(rightShape, rightStrides, outputShape, true),
                 batchOffsets(outputShape, outputStrides, outputShape, false),
                 launchConfig,
-                workspaceSpec(kernelId, batchCount, n, k),
+                scratchBufferSpec(kernelId, batchCount, n, k),
                 openBlasThreads(route, config.blasConfig())
         );
         return new Cpu1PreparedArtifact(unit);
@@ -568,16 +568,16 @@ public final class Cpu1MatmulPreparer {
         return Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
     }
 
-    private static Cpu1WorkspaceSpec workspaceSpec(
+    private static Cpu1ScratchBufferSpec scratchBufferSpec(
             Cpu1MatmulKernelId kernelId,
             int batchCount,
             int n,
             int k
     ) {
         return switch (kernelId) {
-            case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(packedBElements(batchCount, n, k), 0, 0);
-            case MATMUL_F64_DENSE_PACKED_B_VECTOR -> Cpu1WorkspaceSpec.arrays(0, packedBElements(batchCount, n, k), 0);
-            default -> Cpu1WorkspaceSpec.none();
+            case MATMUL_F32_DENSE_PACKED_B_VECTOR -> Cpu1ScratchBufferSpec.arrays(packedBElements(batchCount, n, k), 0, 0);
+            case MATMUL_F64_DENSE_PACKED_B_VECTOR -> Cpu1ScratchBufferSpec.arrays(0, packedBElements(batchCount, n, k), 0);
+            default -> Cpu1ScratchBufferSpec.none();
         };
     }
 

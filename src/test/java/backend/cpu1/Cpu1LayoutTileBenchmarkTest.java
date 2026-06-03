@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.ComputeBackend;
-import backend.cpu1.exec.Cpu1WorkspaceSpec;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -91,7 +91,7 @@ class Cpu1LayoutTileBenchmarkTest {
                 RuntimeConfig.inferenceDefaults(node.dataType()).cpuKernelConfig().contiguousMaterializeThreshold(),
                 vectorizationKind,
                 Cpu1LaunchConfig.singleThread(),
-                Cpu1WorkspaceSpec.none()
+                Cpu1ScratchBufferSpec.none()
         );
         return new Cpu1PreparedArtifact(unit);
     }

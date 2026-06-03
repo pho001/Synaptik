@@ -302,8 +302,8 @@ class Cpu1MatmulExecutionContractTest {
 
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
-        assertEquals(6, artifact.workspaceSpec().f32ArrayElements());
-        assertEquals(0, artifact.workspaceSpec().f64ArrayElements());
+        assertEquals(6, artifact.scratchBufferSpec().f32ArrayElements());
+        assertEquals(0, artifact.scratchBufferSpec().f64ArrayElements());
     }
 
     @Test
@@ -314,8 +314,8 @@ class Cpu1MatmulExecutionContractTest {
 
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1VectorizationKind.VECTOR, artifact.preparedMatmulUnit().vectorizationKind());
-        assertEquals(0, artifact.workspaceSpec().f32ArrayElements());
-        assertEquals(6, artifact.workspaceSpec().f64ArrayElements());
+        assertEquals(0, artifact.scratchBufferSpec().f32ArrayElements());
+        assertEquals(6, artifact.scratchBufferSpec().f64ArrayElements());
     }
 
     @Test
@@ -1099,7 +1099,7 @@ class Cpu1MatmulExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
         assertSame(launchConfig, artifact.preparedMatmulUnit().launchConfig());
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
-        assertEquals(Math.multiplyExact(batchCount, Math.multiplyExact(n, k)), artifact.workspaceSpec().f32ArrayElements());
+        assertEquals(Math.multiplyExact(batchCount, Math.multiplyExact(n, k)), artifact.scratchBufferSpec().f32ArrayElements());
         CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 

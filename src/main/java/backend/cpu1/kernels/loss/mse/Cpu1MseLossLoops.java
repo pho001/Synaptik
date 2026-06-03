@@ -1,6 +1,6 @@
 package backend.cpu1.kernels.loss.mse;
 
-import backend.cpu1.exec.Cpu1Workspace;
+import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
@@ -310,12 +310,12 @@ public final class Cpu1MseLossLoops {
     }
 
     private static double[] partialSums(Cpu1PreparedMseLossUnit unit, ExecutionContext context, int slotCount) {
-        Cpu1Workspace workspace = context.cpu1WorkspaceForNodeId(unit.outputNodeId());
-        if (workspace == null) {
+        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.outputNodeId());
+        if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 MSE_LOSS parallel nodeId=" + unit.outputNodeId()
-                    + " requires prepared F64 partial-sum workspace.");
+                    + " requires prepared F64 partial-sum scratch buffer.");
         }
-        return workspace.requireF64Array(slotCount);
+        return scratchBuffer.requireF64Array(slotCount);
     }
 
     private static void markOutputWritten(

@@ -25,8 +25,8 @@ public final class Cpu1MatmulExecutableUnit implements Cpu1ExecutableUnit {
     }
 
     @Override
-    public Cpu1WorkspaceSpec workspaceSpec() {
-        return preparedUnit.workspaceSpec();
+    public Cpu1ScratchBufferSpec scratchBufferSpec() {
+        return preparedUnit.scratchBufferSpec();
     }
 
     @Override
