@@ -13,6 +13,7 @@ import operations.layout.concat;
 import operations.layout.fold2d;
 import operations.layout.pad;
 import operations.layout.tile;
+import operations.layout.unfold2d;
 import operations.layout.unfoldAxis;
 import operations.Operation;
 import config.backend.CpuKernelConfig;
@@ -25,7 +26,6 @@ import tensor.DataType;
 import tensor.options.Window2dOptions;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Prepares cpu1 layout/view nodes outside the elementwise dispatch path.
@@ -36,9 +36,16 @@ public final class Cpu1LayoutPreparer {
             CompiledTensorDescriptorIndex descriptorIndex,
             Cpu1PrepareConfig config
     ) {
-        Objects.requireNonNull(node, "node cannot be null");
-        Objects.requireNonNull(config, "config cannot be null");
-        Operation operation = Objects.requireNonNull(node.operation(), "node operation cannot be null");
+        if (node == null) {
+            throw new IllegalArgumentException("node cannot be null");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
+        Operation operation = node.operation();
+        if (operation == null) {
+            throw new IllegalArgumentException("node operation cannot be null");
+        }
         Operation.OpType opType = operation.opType();
         if (!isLayoutOp(opType)) {
             throw new UnsupportedOperationException("cpu1 layout preparer does not support " + opType);
@@ -63,6 +70,57 @@ public final class Cpu1LayoutPreparer {
         Cpu1LayoutKernelId kernelId = kernelId(operation, opType, node, inputs, requestedVectorizationKind);
         Cpu1VectorizationKind vectorizationKind = effectiveVectorizationKind(kernelId);
         Cpu1LaunchConfig launchConfig = resolveLayoutLaunch(workElements, vectorizationKind, node.dataType(), config);
+        int axis = -1;
+        int[] padBefore = new int[0];
+        int[] padAfter = new int[0];
+        double padConstantValue = 0.0d;
+        int unfoldAxis = -1;
+        int unfoldSize = 0;
+        int unfoldStep = 0;
+        Window2dOptions window2dOptions = null;
+        switch (opType) {
+            case CONCAT -> {
+                if (!(operation instanceof concat concatOp)) {
+                    throw new IllegalArgumentException("cpu1 CONCAT operation must be operations.layout.concat.");
+                }
+                axis = concatOp.getAxis();
+            }
+            case PAD -> {
+                if (!(operation instanceof pad padOp)) {
+                    throw new IllegalArgumentException("cpu1 PAD operation must be operations.layout.pad.");
+                }
+                padBefore = padOp.getBefore();
+                padAfter = padOp.getAfter();
+                padConstantValue = padOp.getConstantValue();
+            }
+            case TILE -> {
+                if (!(operation instanceof tile)) {
+                    throw new IllegalArgumentException("cpu1 TILE operation must be operations.layout.tile.");
+                }
+            }
+            case UNFOLD_AXIS -> {
+                if (!(operation instanceof unfoldAxis unfoldOp)) {
+                    throw new IllegalArgumentException("cpu1 UNFOLD_AXIS operation must be operations.layout.unfoldAxis.");
+                }
+                unfoldAxis = unfoldOp.getAxis();
+                unfoldSize = unfoldOp.getSize();
+                unfoldStep = unfoldOp.getStep();
+            }
+            case UNFOLD2D -> {
+                if (!(operation instanceof unfold2d unfoldOp)) {
+                    throw new IllegalArgumentException("cpu1 UNFOLD2D operation must be operations.layout.unfold2d.");
+                }
+                window2dOptions = unfoldOp.getOptions();
+            }
+            case FOLD2D -> {
+                if (!(operation instanceof fold2d foldOp)) {
+                    throw new IllegalArgumentException("cpu1 FOLD2D operation must be operations.layout.fold2d.");
+                }
+                window2dOptions = foldOp.getOptions();
+            }
+            default -> {
+            }
+        }
         Cpu1PreparedLayoutUnit unit = new Cpu1PreparedLayoutUnit(
                 node.id(),
                 node.inputIds(),
@@ -73,7 +131,15 @@ public final class Cpu1LayoutPreparer {
                 materializeThreshold(node.dataType(), config),
                 vectorizationKind,
                 launchConfig,
-                scratchBufferSpec(opType, kernelId, node, inputs, launchConfig)
+                scratchBufferSpec(opType, kernelId, node, inputs, launchConfig),
+                axis,
+                padBefore,
+                padAfter,
+                padConstantValue,
+                unfoldAxis,
+                unfoldSize,
+                unfoldStep,
+                window2dOptions
         );
         return new Cpu1PreparedArtifact(unit);
     }

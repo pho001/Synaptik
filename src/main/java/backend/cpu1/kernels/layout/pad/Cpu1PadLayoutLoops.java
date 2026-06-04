@@ -4,7 +4,6 @@ import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.runtime.ExecutionContext;
-import operations.layout.pad;
 
 public final class Cpu1PadLayoutLoops {
     private Cpu1PadLayoutLoops() {
@@ -36,16 +35,16 @@ public final class Cpu1PadLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        pad padOp = requirePad(support);
+        int[] before = unit.padBefore();
         if (vectorized) {
-            support.fillOutputVector(output, padOp.getConstantValue());
+            support.fillOutputVector(output, unit.padConstantValue());
         } else {
-            support.fillOutputScalar(output, padOp.getConstantValue());
+            support.fillOutputScalar(output, unit.padConstantValue());
         }
         if (denseInnerBlock) {
-            copyDenseInnerBlock(support, input, output, padOp.getBefore(), vectorized);
+            copyDenseInnerBlock(support, input, output, before, vectorized);
         } else {
-            copyGeneric(support, input, output, padOp.getBefore());
+            copyGeneric(support, input, output, before);
         }
         support.markOutputWritten(call);
     }
@@ -111,10 +110,4 @@ public final class Cpu1PadLayoutLoops {
         return outputOffset;
     }
 
-    private static pad requirePad(Cpu1LayoutKernelSupport support) {
-        if (support.context().runtimeTensorForNodeId(support.unit().nodeId()).getOperation() instanceof pad padOp) {
-            return padOp;
-        }
-        throw new IllegalArgumentException("cpu1 PAD requires operations.layout.pad.");
-    }
 }

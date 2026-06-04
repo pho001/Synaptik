@@ -4,9 +4,6 @@ import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.runtime.ExecutionContext;
-import operations.layout.fold2d;
-import operations.layout.unfold2d;
-import operations.layout.unfoldAxis;
 import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
@@ -20,10 +17,9 @@ public final class Cpu1UnfoldLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        unfoldAxis unfoldOp = requireUnfoldAxis(support);
-        int axis = unfoldOp.getAxis();
-        int size = unfoldOp.getSize();
-        int step = unfoldOp.getStep();
+        int axis = unit.unfoldAxis();
+        int size = unit.unfoldSize();
+        int step = unit.unfoldStep();
         int[] prefixShape = input.shape();
         prefixShape[axis] = output.shape(axis);
         int[] prefixDense = Cpu1LayoutKernelSupport.denseStrides(prefixShape);
@@ -68,9 +64,8 @@ public final class Cpu1UnfoldLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        unfoldAxis unfoldOp = requireUnfoldAxis(support);
-        int size = unfoldOp.getSize();
-        int step = unfoldOp.getStep();
+        int size = unit.unfoldSize();
+        int step = unit.unfoldStep();
         int windows = output.shape(input.rank() - 1);
         int rows = input.elementCount() / input.shape(input.rank() - 1);
         support.launchRange(rows * windows, (start, end) -> {
@@ -94,8 +89,7 @@ public final class Cpu1UnfoldLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        unfold2d unfoldOp = requireUnfold2d(support);
-        Window2dPlan plan = Window2dPlan.forUnfold(unfoldOp.getOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forUnfold(unit.window2dOptions(), input, output);
         support.launchRange(output.elementCount(), (start, end) -> {
             for (int logical = start; logical < end; logical++) {
                 Window2dPlan.UnfoldCoordinate coordinate = plan.unfoldCoordinate(logical);
@@ -122,8 +116,7 @@ public final class Cpu1UnfoldLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        fold2d foldOp = requireFold2d(support);
-        Window2dPlan plan = Window2dPlan.forFold(foldOp.getOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forFold(unit.window2dOptions(), input, output);
         int outputElements = output.elementCount();
         int slotCount = support.rangeSlotCount(input.elementCount());
         double[] acc = support.foldAccumulator(outputElements, slotCount);
@@ -167,8 +160,7 @@ public final class Cpu1UnfoldLayoutLoops {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        fold2d foldOp = requireFold2d(support);
-        Window2dPlan plan = Window2dPlan.forFold(foldOp.getOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forFold(unit.window2dOptions(), input, output);
         support.fillOutputScalar(output, 0.0d);
         support.launchRange(input.elementCount(), (start, end) -> {
             for (int logical = start; logical < end; logical++) {
@@ -192,30 +184,6 @@ public final class Cpu1UnfoldLayoutLoops {
             }
         });
         support.markOutputWritten(call);
-    }
-
-    private static unfoldAxis requireUnfoldAxis(Cpu1LayoutKernelSupport support) {
-        if (support.context().runtimeTensorForNodeId(support.unit().nodeId()).getOperation()
-                instanceof unfoldAxis unfoldOp) {
-            return unfoldOp;
-        }
-        throw new IllegalArgumentException("cpu1 UNFOLD_AXIS requires operations.layout.unfoldAxis.");
-    }
-
-    private static unfold2d requireUnfold2d(Cpu1LayoutKernelSupport support) {
-        if (support.context().runtimeTensorForNodeId(support.unit().nodeId()).getOperation()
-                instanceof unfold2d unfoldOp) {
-            return unfoldOp;
-        }
-        throw new IllegalArgumentException("cpu1 UNFOLD2D requires operations.layout.unfold2d.");
-    }
-
-    private static fold2d requireFold2d(Cpu1LayoutKernelSupport support) {
-        if (support.context().runtimeTensorForNodeId(support.unit().nodeId()).getOperation()
-                instanceof fold2d foldOp) {
-            return foldOp;
-        }
-        throw new IllegalArgumentException("cpu1 FOLD2D requires operations.layout.fold2d.");
     }
 
     private static final class Window2dPlan {

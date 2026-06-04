@@ -70,6 +70,15 @@ a nahradit nebo zahodit casti, ktere jsou svazane se starym backendem:
 - Nekomitovat lokalni benchmark/profilove artefakty.
 - Nezapinat cpu1 fused jako default bez parity testu, benchmarku a trace evidence. Plan obsahuje kompletni route knob a overeni v ramci teto migrace.
 
+## Operation Metadata Boundary
+
+- `src/main/java/backend/cpu/**` je pro tento plan legacy runtime. Jeho fused/runtime lokalni fallbacky, cheap/non-cheap helpery a canonicalizovane `OpType` rozhodovani nejsou precedent pro `backend.cpu1`, graph ani nove shared backend cesty.
+- Mimo legacy `backend.cpu` je zdroj operation metadata konkretni `Operation` instance behem prepare/lowering: `arityClass()`, `isFusable()`, `semanticFamily()`, `computationalCost()`, `controlTrait()` a `resultKind()`.
+- `Operation.OpType` zustava pouze stabilni identita. Nesmí byt znovu rozsiren na category/fusable/trait/cost/result registry.
+- Hot path a prepared runtime nesmi drzet `Operation` ani trait snapshot kvuli dispatch rozhodovani. Prepare ma z `Operation` odvodit konkretni rozhodnuti a runtime uz jen vykonava prepared plan.
+- `Cpu1FusedNodePlan` zustava canonicalizovany runtime IR uzel s `opType`, refs, dtype a `scalarParameter`. Nepridavat do nej `Operation` ani trait snapshot, pokud budouci faze neprokaze konkretni potrebu.
+- Faze 2 musi klasifikovat fused cost z puvodnich `CompiledNode.operation()` pred tim, nez lowering/canonicalizace ztrati konkretni `Operation` objekt.
+
 ## Null Validation Style
 
 V novem `cpu1` fused kodu nepouzivat `Objects` utility pro null validaci.
@@ -198,13 +207,15 @@ src/main/java/backend/cpu1/prepare/
   Cpu1FusedElementwisePreparer.java
   Cpu1PreparedFusedElementwiseUnit.java
 
+src/main/java/backend/cpu1/prepare/dispatch/
+  Cpu1FusedDispatchDecision.java
+
 src/main/java/backend/cpu1/exec/
   Cpu1FusedKernelArgs.java
   Cpu1FusedElementwiseExecutableUnit.java
 
 src/main/java/backend/cpu1/kernels/fused/
   Cpu1FusedElementwiseRangeRunner.java
-  Cpu1FusedElementwiseLoops.java
   Cpu1FusedElementwiseDispatch.java
 
 src/main/java/backend/cpu1/kernels/fused/scalar/
@@ -298,7 +309,7 @@ Evidence:
 - `FusedIrBuilder` obsahuje prenositelne ref mapovani, canonicalizaci `pow`/`mulScalar`, extrakci atributu a broadcast/effective-stride access klasifikaci.
 - `FusedExpressionPlan`, `FusedNodePlan` a `FusedExternalInputPlan` jsou male immutable plan objekty s kopirovanim listu/poli; pro cpu1 je nutne prepsat null validaci do explicitniho stylu bez `Objects`.
 - `InterpretedPreparedFusedExecutable` potvrzuje semantiku op evaluace a storage index vypoctu, ale je svazany s `TensorInternalAccess`, `Tensor`, `CpuKernelContext` a CPU_JAVA_ARRAY-only fallbackem.
-- `FusedDispatchPlanner` klasifikuje cheap/non-cheap a contiguous/strided rodiny; cpu1 navazka ma stejnou myslenku vyjadrit pres `Cpu1DispatchPolicy` a `CpuKernelConfig`.
+- `FusedDispatchPlanner` klasifikuje cheap/non-cheap a contiguous/strided rodiny uvnitr legacy CPU runtime; cpu1 navazka smi prevzit jen myslenku prepare-time dispatch rozhodnuti a musi ji vyjadrit pres `Operation` metadata, `Cpu1DispatchPolicy` a `CpuKernelConfig`.
 - `FusedNumericContractResolver` podporuje floating/BOOL cesty a odmita INT32/INT64 ve fused numeric contractu; cpu1 plan musi explicitne rozhodnout dtype/storage kontrakt.
 - Aktualni graph vrstva uz produkuje `ExecutionUnitKind.FUSED_ELEMENTWISE`; `PreparedExecutionBuilder` vola `BackendPrepareDispatcher.prepareCpuFusedStep(...)`, ktery dnes stale routuje do stareho `cpuPreparer.prepareLoweredFusedStep(...)`.
 - Aktualni cpu1 integracni body jsou `Cpu1PreparedArtifact`, `Cpu1ElementwiseExecutableUnit`, `Cpu1KernelArgs`, `Cpu1TraceContributor` a `Cpu1NodePreparer`; zatim neexistuje cpu1 fused prepared unit ani trace vetev.
@@ -908,9 +919,8 @@ import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
-import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
+import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.storage.Cpu1StorageKind;
-import operations.Operation;
 import tensor.DataType;
 
 import java.util.List;
@@ -928,7 +938,7 @@ public final class Cpu1PreparedFusedElementwiseUnit {
     private final Cpu1StorageKind storageKind;
     private final Cpu1LaunchPolicy launchPolicy;
     private final Cpu1LaunchConfig launchConfig;
-    private final Cpu1DispatchDecision dispatchDecision;
+    private final Cpu1FusedDispatchDecision dispatchDecision;
     private final boolean approximateExp;
     private final boolean approximateTanh;
 
@@ -945,7 +955,7 @@ public final class Cpu1PreparedFusedElementwiseUnit {
             Cpu1StorageKind storageKind,
             Cpu1LaunchPolicy launchPolicy,
             Cpu1LaunchConfig launchConfig,
-            Cpu1DispatchDecision dispatchDecision,
+            Cpu1FusedDispatchDecision dispatchDecision,
             boolean approximateExp,
             boolean approximateTanh
     ) {
@@ -1047,7 +1057,7 @@ public final class Cpu1PreparedFusedElementwiseUnit {
         return launchConfig;
     }
 
-    public Cpu1DispatchDecision dispatchDecision() {
+    public Cpu1FusedDispatchDecision dispatchDecision() {
         return dispatchDecision;
     }
 
@@ -1058,15 +1068,6 @@ public final class Cpu1PreparedFusedElementwiseUnit {
     public boolean approximateTanh() {
         return approximateTanh;
     }
-
-    public boolean containsOp(Operation.OpType opType) {
-        for (var node : plan.nodes()) {
-            if (node.opType() == opType) {
-                return true;
-            }
-        }
-        return false;
-    }
 }
 ```
 
@@ -1075,22 +1076,72 @@ Proc:
 - Prepared unit je immutable popis fused vypoctu.
 - Exekuce bude bindovat runtime views az v `Cpu1FusedElementwiseExecutableUnit`.
 - `launchConfig` je ulozen zvlast pro trace, protoze `Cpu1LaunchPolicy` je interface.
+- Neposkytuje `Operation` helpery ani trait snapshoty; pokud trace/test potrebuje zjistit pritomnost
+  konkretniho op typu, ma cist canonicalizovane `plan().nodes()`.
 
-### Task 2.2: Rozsirit `Cpu1DispatchPolicy` o fused rozhodnuti
+### Task 2.2: Pridat fused dispatch decision a rozsirit `Cpu1DispatchPolicy`
 
 Stav: `[ ]`
 
 Soubor:
 
 ```text
+src/main/java/backend/cpu1/prepare/dispatch/Cpu1FusedDispatchDecision.java
 src/main/java/backend/cpu1/prepare/dispatch/Cpu1DispatchPolicy.java
+```
+
+Pridat record:
+
+```java
+package backend.cpu1.prepare.dispatch;
+
+import backend.cpu1.kernels.Cpu1VectorizationKind;
+import backend.cpu1.launch.Cpu1LaunchConfig;
+import backend.cpu1.storage.Cpu1StorageKind;
+
+/**
+ * Prepare-time dispatch result for a fused elementwise unit.
+ *
+ * <p>Unlike single-op dispatch this record intentionally has no kernel
+ * {@code Operation.OpType}: a fused region has no representative operation
+ * identity. The concrete fused IR and later vector/codegen eligibility
+ * decisions describe what can run.</p>
+ */
+public record Cpu1FusedDispatchDecision(
+        Cpu1CostClass costClass,
+        Cpu1VectorizationKind requestedVectorizationKind,
+        Cpu1LaunchConfig launchConfig,
+        Cpu1StorageKind storageKind,
+        int scalarChunkSize,
+        int vectorChunkSize,
+        int plannedWorkers
+) {
+    public Cpu1FusedDispatchDecision {
+        if (costClass == null) {
+            throw new IllegalArgumentException("costClass cannot be null");
+        }
+        if (requestedVectorizationKind == null) {
+            throw new IllegalArgumentException("requestedVectorizationKind cannot be null");
+        }
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        scalarChunkSize = Math.max(1, scalarChunkSize);
+        vectorChunkSize = Math.max(1, vectorChunkSize);
+        plannedWorkers = Math.max(1, plannedWorkers);
+    }
+}
 ```
 
 Pridat public metodu:
 
 ```java
-public Cpu1DispatchDecision decideFusedElementwise(
+public Cpu1FusedDispatchDecision decideFusedElementwise(
         Cpu1FusedExpressionPlan plan,
+        List<Operation> sourceOperations,
         DataType computeType,
         long elementCount,
         Cpu1PrepareConfig config
@@ -1104,8 +1155,13 @@ public Cpu1DispatchDecision decideFusedElementwise(
     if (config == null) {
             throw new IllegalArgumentException("config cannot be null");
         }
-    Operation.OpType representativeOp = fusedRepresentativeOp(plan);
-    Cpu1CostClass costClass = classifyFusedElementwise(plan);
+    if (sourceOperations == null || sourceOperations.size() != plan.nodes().size()) {
+            throw new IllegalArgumentException("sourceOperations must match fused node count");
+        }
+    if (elementCount < 0) {
+            throw new IllegalArgumentException("elementCount must be >= 0");
+        }
+    Cpu1CostClass costClass = fusedCostClass(sourceOperations);
     int totalLength = saturatingElementCount(elementCount);
     int vectorWidth = preferredVectorWidth(computeType);
     CpuKernelConfig cpuKernelConfig = cpuKernelConfig(config);
@@ -1122,8 +1178,7 @@ public Cpu1DispatchDecision decideFusedElementwise(
     int scalarChunkSize = scalarChunkSize(config, cpuKernelConfig, costClass, totalLength, plannedWorkers);
     int vectorChunkSize = vectorChunkSize(config, cpuKernelConfig, costClass, totalLength, vectorWidth, plannedWorkers);
     Cpu1LaunchConfig launchConfig = launchConfig(config, plannedWorkers, vectorizationKind, scalarChunkSize, vectorChunkSize);
-    return new Cpu1DispatchDecision(
-            representativeOp,
+    return new Cpu1FusedDispatchDecision(
             costClass,
             vectorizationKind,
             launchConfig,
@@ -1138,44 +1193,23 @@ public Cpu1DispatchDecision decideFusedElementwise(
 Doplnit private helpery:
 
 ```java
-private static Operation.OpType fusedRepresentativeOp(Cpu1FusedExpressionPlan plan) {
-    boolean nonCheap = false;
-    for (var node : plan.nodes()) {
-        if (mapFusedNodeCost(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
-            nonCheap = true;
-            break;
-        }
-    }
-    return nonCheap ? Operation.OpType.EXP : Operation.OpType.ADD;
-}
-
-private static Cpu1CostClass classifyFusedElementwise(Cpu1FusedExpressionPlan plan) {
-    for (var input : plan.inputs()) {
-        if (input.dataType() == DataType.BOOL) {
-            return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-        }
-    }
-    for (var node : plan.nodes()) {
-        if (node.outputType() == DataType.BOOL) {
-            return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-        }
-        if (mapFusedNodeCost(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
+private static Cpu1CostClass fusedCostClass(List<Operation> sourceOperations) {
+    for (Operation operation : sourceOperations) {
+        if (operationCostClass(operation) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
             return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
         }
     }
     return Cpu1CostClass.CHEAP_ELEMENTWISE;
 }
 
-private static Cpu1CostClass mapFusedNodeCost(Operation.OpType opType) {
-    if (opType == null) {
+private static Cpu1CostClass operationCostClass(Operation operation) {
+    if (operation == null) {
         return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
     }
-    if (opType.resultKind() == Operation.OpResultKind.BOOLEAN
-            || opType.controlTrait() == Operation.OpControlTrait.SELECT_MASK
-            || opType.controlTrait() == Operation.OpControlTrait.BOOL_LOGIC) {
-        return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-    }
-    return classifyElementwise(opType);
+    return switch (operation.computationalCost()) {
+        case MEDIUM, EXPENSIVE -> Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+        case TRIVIAL, CHEAP, UNKNOWN -> Cpu1CostClass.CHEAP_ELEMENTWISE;
+    };
 }
 ```
 
@@ -1183,21 +1217,31 @@ Nutne importy:
 
 ```java
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
+import java.util.List;
 ```
 
 Proc:
 
 - Fused chain ma cost podle nejdrazsiho nodu.
-- Backend-neutral zdroj klasifikace je `Operation.OpType`: `semanticFamily()`, `computationalCost()`,
-  `controlTrait()` a `resultKind()`. cpu1 fused tyto traits jen mapuje na vlastni `Cpu1CostClass`.
-- Stejna dispatch decision se pouzije pro fused scalar, vector i codegen hot path.
-- Execute nesmi pocitat thresholdy ani znovu rozhodovat scalar/vector route.
+- Backend-neutral zdroj cost klasifikace je `Operation.computationalCost()` konkretni
+  source operace. `Operation.OpType` se nepouziva jako cheap/transcendental registry
+  ani jako representative fused op.
+- `Cpu1FusedElementwisePreparer` ma source operations sebrat z puvodnich `CompiledNode.operation()`
+  pred canonicalizaci do `Cpu1FusedNodePlan`. `Cpu1FusedNodePlan` dal nesmi uchovavat `Operation`
+  ani trait snapshot; drzi jen `opType`, refs, dtype a scalar parameter.
+- Stejna pripravena dispatch decision se pouzije pro fused scalar, vector i codegen hot path.
+- Execute nesmi drzet `Operation`, cist traits, pocitat thresholdy ani znovu rozhodovat scalar/vector route.
+- Bool/select/logical/control/layout omezeni nejsou cost. Nesmí menit fused cost class jen proto,
+  ze aktualni vector/codegen subset neumi dany vysledek nebo control trait; tyto limity patri
+  do vector/codegen eligibility a fallback reason ve Fazi 9.
 
 Poznamka:
 
 - `classifyElementwise(...)` uz nema udrzovat vlastni hard-coded transcendental list; ma mapovat
-  `Operation.OpType.computationalCost()` na cpu1 policy bucket a zachovat existujici cpu1 vyjimky.
+  `Operation.computationalCost()` na cpu1 policy bucket a zachovat existujici cpu1 vyjimky.
 - Pokud bude implementace potrebovat testovat cost separovane, pridej package-private metodu primo v teto fazi.
+- Stary CPU fused kod muze lokalne klasifikovat canonicalizovane `OpType`, pokud uz nema puvodni
+  `Operation`; tato legacy vyjimka se nesmi povysit zpet na centralni `OpType` trait registry.
 
 ### Task 2.3: Pridat `Cpu1FusedElementwisePreparer`
 
@@ -1222,8 +1266,8 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.launch.Cpu1ParallelLaunch;
 import backend.cpu1.launch.Cpu1SingleThreadLaunch;
-import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
+import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.lowering.LoweredExecutionUnit;
 import backend.prepare.BackendPrepareContext;
 import graph.CompiledNode;
@@ -1261,6 +1305,7 @@ public final class Cpu1FusedElementwisePreparer {
             throw new IllegalArgumentException("context cannot be null");
         }
         validate(outputNode, loweredUnit, context);
+        List<Operation> sourceOperations = sourceOperations(loweredUnit, context);
 
         Cpu1FusedExpressionPlan plan = Cpu1FusedIrBuilder.build(
                 loweredUnit.orderedNodeIds(),
@@ -1274,8 +1319,9 @@ public final class Cpu1FusedElementwisePreparer {
                         runtimeConfig.approximation().useFastExp(),
                         runtimeConfig.approximation().useFastTanh()
                 );
-        Cpu1DispatchDecision dispatchDecision = dispatchPolicy.decideFusedElementwise(
+        Cpu1FusedDispatchDecision dispatchDecision = dispatchPolicy.decideFusedElementwise(
                 plan,
+                sourceOperations,
                 computeType,
                 outputNode.flatDataSize(),
                 config
@@ -1318,12 +1364,19 @@ public final class Cpu1FusedElementwisePreparer {
         }
         for (int nodeId : loweredUnit.orderedNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
-            if (node == null || node.operation() == null || !node.operation().opType().isFusable()) {
+            if (node == null || node.operation() == null || !node.operation().isFusable()) {
                 throw new UnsupportedOperationException("cpu1 fused unit contains non-fusable nodeId=" + nodeId);
             }
             requireSupportedFusedOp(node.operation().opType());
             requireSupportedDType(node.dataType(), "node " + nodeId + " output");
         }
+    }
+
+    private static List<Operation> sourceOperations(LoweredExecutionUnit loweredUnit, BackendPrepareContext context) {
+        return loweredUnit.orderedNodeIds().stream()
+                .map(context::compiledNode)
+                .map(CompiledNode::operation)
+                .toList();
     }
 
     private static void requireSupportedFusedOp(Operation.OpType opType) {
@@ -1400,7 +1453,7 @@ public final class Cpu1FusedElementwisePreparer {
                 : backend.cpu1.storage.Cpu1StorageKind.JAVA_ARRAY;
     }
 
-    private static InputResidencyRequirement inputResidencyRequirement(Cpu1DispatchDecision decision) {
+    private static InputResidencyRequirement inputResidencyRequirement(Cpu1FusedDispatchDecision decision) {
         return decision.storageKind() == backend.cpu1.storage.Cpu1StorageKind.MEMORY_SEGMENT
                 ? InputResidencyRequirement.none()
                 : InputResidencyRequirement.cpuReadableAll();
@@ -1411,7 +1464,10 @@ public final class Cpu1FusedElementwisePreparer {
 Proc:
 
 - Preparer je misto, kde se fused lowered unit prelozi na cpu1 prepared unit.
-- Dela validate podporovanych fusable op.
+- Dela validate podporovanych fusable op. `requireSupportedFusedOp(...)` je pouze kernel support
+  switch pro cpu1 fused interpreter/vector subset, ne metadata registry podle `Operation.OpType`.
+- Sbira `sourceOperations` z puvodnich `CompiledNode.operation()` pred canonicalizaci, predava je
+  pouze prepare-time dispatch policy a neuklada je do prepared unit.
 - Rozhoduje storage podle runtime CPU storage profile.
 - Nepouziva stary `FusedOperationBuilder`.
 
@@ -1569,7 +1625,7 @@ Kod:
 ```java
 package backend.cpu1.exec;
 
-import backend.cpu1.kernels.fused.Cpu1FusedElementwiseLoops;
+import backend.cpu1.kernels.fused.Cpu1FusedElementwiseDispatch;
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.memory.CpuMaterializationReason;
@@ -1636,7 +1692,10 @@ public final class Cpu1FusedElementwiseExecutableUnit implements Cpu1ExecutableU
         }
 
         Cpu1FusedKernelArgs args = new Cpu1FusedKernelArgs(preparedUnit, inputs, output);
-        preparedUnit.launchPolicy().launch(Cpu1FusedElementwiseLoops::computeRange, args);
+        preparedUnit.launchPolicy().launch(
+                args.elementCount(),
+                (start, end) -> Cpu1FusedElementwiseDispatch.computeRange(args, start, end)
+        );
 
         if (nativeOutput == null) {
             output.markStorageModified();
@@ -1803,20 +1862,20 @@ Proc:
 - Konkretni fused loops maji vlastni args.
 - Interface zustava jednoduchy a inlinovatelny.
 
-### Task 4.3: Pridat `Cpu1FusedElementwiseLoops`
+### Task 4.3: Pridat scalar interpreter
 
 Stav: `[ ]`
 
 Novy soubor:
 
 ```text
-src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseLoops.java
+src/main/java/backend/cpu1/kernels/fused/scalar/Cpu1FusedScalarInterpreter.java
 ```
 
 Kod skeleton s plnou semantikou:
 
 ```java
-package backend.cpu1.kernels.fused;
+package backend.cpu1.kernels.fused.scalar;
 
 import backend.cpu1.exec.Cpu1FusedKernelArgs;
 import backend.cpu1.exec.Cpu1TensorView;
@@ -1830,13 +1889,13 @@ import utils.FastTranscendentals;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-public final class Cpu1FusedElementwiseLoops {
+public final class Cpu1FusedScalarInterpreter {
     private static final ValueLayout.OfFloat F32 = ValueLayout.JAVA_FLOAT_UNALIGNED;
     private static final ValueLayout.OfDouble F64 = ValueLayout.JAVA_DOUBLE_UNALIGNED;
     private static final ValueLayout.OfShort BF16 = ValueLayout.JAVA_SHORT_UNALIGNED;
     private static final ValueLayout.OfByte BOOL = ValueLayout.JAVA_BYTE;
 
-    private Cpu1FusedElementwiseLoops() {
+    private Cpu1FusedScalarInterpreter() {
     }
 
     public static void computeRange(Cpu1FusedKernelArgs args, int startInclusive, int endExclusive) {
@@ -2139,17 +2198,42 @@ Vykonova poznamka:
 - Faze 8 musi tyto male arrays presunout do `Cpu1ScratchBuffer`.
 - Nezapinat jako default nahradu stareho ASM fused pro vykonove kriticke benchmarky bez mereni z Faze 11.
 
-### Task 4.4: Upravit `Cpu1FusedElementwiseExecutableUnit` launch call
+### Task 4.4: Pridat fused dispatch runner a upravit executable launch call
 
 Stav: `[ ]`
 
-Po uprave launch policy z Tasku 4.1 ma kod v `run(...)` vypadat takto:
+Novy soubor:
+
+```text
+src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseDispatch.java
+```
+
+Pridat scalar-only dispatch runner, ktery Faze 9 rozsiri o vector/codegen route:
+
+```java
+package backend.cpu1.kernels.fused;
+
+import backend.cpu1.exec.Cpu1FusedKernelArgs;
+import backend.cpu1.kernels.fused.scalar.Cpu1FusedScalarInterpreter;
+
+public final class Cpu1FusedElementwiseDispatch {
+    private Cpu1FusedElementwiseDispatch() {
+    }
+
+    public static void computeRange(Cpu1FusedKernelArgs args, int startInclusive, int endExclusive) {
+        Cpu1FusedScalarInterpreter.computeRange(args, startInclusive, endExclusive);
+    }
+}
+```
+
+Po uprave launch policy z Tasku 4.1 ma kod v `Cpu1FusedElementwiseExecutableUnit.run(...)`
+volat dispatch runner, ne konkretni scalar interpreter:
 
 ```java
 Cpu1FusedKernelArgs args = new Cpu1FusedKernelArgs(preparedUnit, inputs, output);
 preparedUnit.launchPolicy().launch(
         args.elementCount(),
-        (start, end) -> Cpu1FusedElementwiseLoops.computeRange(args, start, end)
+        (start, end) -> Cpu1FusedElementwiseDispatch.computeRange(args, start, end)
 );
 ```
 
@@ -2157,6 +2241,7 @@ Proc:
 
 - Fused executable pouziva stejne chunking a worker policy jako elementwise.
 - Hot path nema execute-time registry lookup.
+- Executable zustava stabilni i po pridani vector/codegen hot path; meni se jen dispatch runner.
 
 ## Faze 5: Artifact A Trace Integrace
 
@@ -2821,14 +2906,14 @@ Proc:
 - Scratch je alokovany pri prepare/runtime state allocation stejne jako ostatni cpu1 scratch.
 - `outputNodeId` je runtime step owner.
 
-### Task 8.5: Pouzit per-worker scratch slice ve fused loops
+### Task 8.5: Pouzit per-worker scratch slice ve scalar interpreteru
 
 Stav: `[ ]`
 
 Soubor:
 
 ```text
-src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseLoops.java
+src/main/java/backend/cpu1/kernels/fused/scalar/Cpu1FusedScalarInterpreter.java
 ```
 
 Nahradit per-range alokaci:
@@ -2877,11 +2962,11 @@ Proc:
 
 ## Faze 9: Fused Vector/Codegen Hot Path
 
-### Task 9.1: Pridat fused dispatch runner
+### Task 9.1: Rozsirit fused dispatch runner o vector/codegen route
 
 Stav: `[ ]`
 
-Novy soubor:
+Soubor:
 
 ```text
 src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseDispatch.java
@@ -2897,6 +2982,7 @@ import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.fused.scalar.Cpu1FusedScalarInterpreter;
 import backend.cpu1.kernels.fused.vector.Cpu1FusedVectorDispatch;
+import backend.cpu1.kernels.fused.vector.Cpu1FusedVectorFallbackReason;
 
 public final class Cpu1FusedElementwiseDispatch {
     private Cpu1FusedElementwiseDispatch() {
@@ -2912,6 +2998,7 @@ public final class Cpu1FusedElementwiseDispatch {
 
     private static boolean canUseVector(Cpu1FusedKernelArgs args) {
         return args.preparedUnit().dispatchDecision().requestedVectorizationKind() == Cpu1VectorizationKind.VECTOR
+                && args.preparedUnit().vectorFallbackReason() == Cpu1FusedVectorFallbackReason.NONE
                 && args.preparedUnit().layoutKind() == Cpu1LayoutKind.CONTIGUOUS
                 && args.preparedUnit().plan().usesOnlyLinearInputs();
     }
@@ -2922,19 +3009,23 @@ Proc:
 
 - Execute stale vola jeden prepared runner.
 - Dispatch check je trivialni a pripraveny z prepare metadata.
+- Vector/codegen eligibility je pripravena oddelene od cost; runtime tady jen cte
+  `vectorFallbackReason()`.
 - Scalar fallback je uvnitr cpu1 fused path, ne stary backend fallback.
 
-### Task 9.2: Presunout scalar interpreter do vlastni tridy
+### Task 9.2: Overit scalar interpreter jako fallback route
 
 Stav: `[ ]`
 
-Novy soubor:
+Soubor:
 
 ```text
 src/main/java/backend/cpu1/kernels/fused/scalar/Cpu1FusedScalarInterpreter.java
 ```
 
-Presunout obsah z `Cpu1FusedElementwiseLoops.computeRange(...)` do:
+`Cpu1FusedScalarInterpreter` vznikl ve Fazi 4 a zustava fallback route pro vsechny fused cases,
+ktere nemaji vector/codegen eligibility `NONE`. V teto fazi zkontrolovat, ze jeho public kontrakt
+zustava:
 
 ```java
 public final class Cpu1FusedScalarInterpreter {
@@ -2946,8 +3037,6 @@ public final class Cpu1FusedScalarInterpreter {
     }
 }
 ```
-
-`Cpu1FusedElementwiseLoops` ponechat jako compatibility-free delegat pouze pokud jmeno pouzivaji testy; jinak ho nahradit `Cpu1FusedElementwiseDispatch`.
 
 Proc:
 
@@ -3016,14 +3105,14 @@ public final class Cpu1FusedVectorInterpreter {
     }
 
     private static void computeF32(Cpu1FusedKernelArgs args, int startInclusive, int endExclusive) {
-        // Implementovat Vector API loop pro podporovane op subsety.
-        // Pokud plan obsahuje nepodporovany vector op, spadnout na scalar interpreter pro cely range.
+        // Precondition: prepared unit has vectorFallbackReason() == NONE.
+        // Unsupported vector subsets are rejected during prepare eligibility, not here.
         Cpu1FusedScalarInterpreter.computeRange(args, startInclusive, endExclusive);
     }
 
     private static void computeF64(Cpu1FusedKernelArgs args, int startInclusive, int endExclusive) {
-        // Implementovat Vector API loop pro podporovane op subsety.
-        // Pokud plan obsahuje nepodporovany vector op, spadnout na scalar interpreter pro cely range.
+        // Precondition: prepared unit has vectorFallbackReason() == NONE.
+        // Unsupported vector subsets are rejected during prepare eligibility, not here.
         Cpu1FusedScalarInterpreter.computeRange(args, startInclusive, endExclusive);
     }
 }
@@ -3057,7 +3146,7 @@ Povinna Vector API smycka pro F32 contiguous:
 
 ```java
 private void computeF32(Cpu1FusedKernelArgs args, int startInclusive, int endExclusive) {
-    if (!supportsVector(args.preparedUnit().plan())) {
+    if (args.preparedUnit().vectorFallbackReason() != Cpu1FusedVectorFallbackReason.NONE) {
         Cpu1FusedScalarInterpreter.computeRange(args, startInclusive, endExclusive);
         return;
     }
@@ -3078,7 +3167,8 @@ Proc:
 
 - Complete migration nesmi koncit u per-element switch interpreteru.
 - Vector route je nutna pro paritu s duchem stareho ASM fused.
-- Fallback uvnitr vector interpreteru je povoleny jen pro nepodporovany vector op subset; trace musi reportovat fallback reason.
+- Fallback duvod se urci pri prepare. Vector interpreter muze mit defensivni scalar fallback,
+  ale nesmi zde znovu klasifikovat support podle `Operation` nebo menit cost rozhodnuti.
 
 ### Task 9.5: Implementovat `Cpu1FusedVectorDispatch`
 
@@ -3148,6 +3238,7 @@ Factory skeleton:
 package backend.cpu1.kernels.fused.codegen;
 
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
+import backend.cpu1.kernels.fused.vector.Cpu1FusedVectorFallbackReason;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -3233,6 +3324,8 @@ public enum Cpu1FusedVectorFallbackReason {
     BROADCAST_STRIDED,
     UNSUPPORTED_DTYPE,
     UNSUPPORTED_OP,
+    UNSUPPORTED_RESULT_KIND,
+    UNSUPPORTED_CONTROL_TRAIT,
     BOOL_OUTPUT,
     BF16_OUTPUT
 }
@@ -3242,6 +3335,46 @@ Do `Cpu1PreparedFusedElementwiseUnit` pridat field:
 
 ```java
 private final Cpu1FusedVectorFallbackReason vectorFallbackReason;
+```
+
+Do `Cpu1FusedElementwisePreparer` pridat prepare-time eligibility helper. Helper smi cist
+`Operation.resultKind()` a `Operation.controlTrait()` ze `sourceOperations`, ale vraci jen
+konkretni fallback reason a neuklada trait snapshot:
+
+```java
+private static Cpu1FusedVectorFallbackReason vectorFallbackReason(
+        Cpu1FusedExpressionPlan plan,
+        List<Operation> sourceOperations,
+        DataType computeType,
+        Cpu1LayoutKind layoutKind
+) {
+    if (layoutKind != Cpu1LayoutKind.CONTIGUOUS || !plan.usesOnlyLinearInputs()) {
+        return Cpu1FusedVectorFallbackReason.NON_CONTIGUOUS;
+    }
+    if (computeType != DataType.FLOAT32 && computeType != DataType.FLOAT64) {
+        return computeType == DataType.BFLOAT16
+                ? Cpu1FusedVectorFallbackReason.BF16_OUTPUT
+                : Cpu1FusedVectorFallbackReason.UNSUPPORTED_DTYPE;
+    }
+    for (int i = 0; i < plan.nodes().size(); i++) {
+        Operation operation = sourceOperations.get(i);
+        if (operation.resultKind() != Operation.OpResultKind.NUMERIC
+                && operation.resultKind() != Operation.OpResultKind.BOOLEAN) {
+            return Cpu1FusedVectorFallbackReason.UNSUPPORTED_RESULT_KIND;
+        }
+        if (operation.controlTrait() == Operation.OpControlTrait.SELECT_MASK
+                && plan.nodes().get(i).opType() != Operation.OpType.WHERE) {
+            return Cpu1FusedVectorFallbackReason.UNSUPPORTED_CONTROL_TRAIT;
+        }
+        if (operation.controlTrait() == Operation.OpControlTrait.BOOL_LOGIC) {
+            return Cpu1FusedVectorFallbackReason.UNSUPPORTED_CONTROL_TRAIT;
+        }
+        if (!supportsVectorOp(plan.nodes().get(i))) {
+            return Cpu1FusedVectorFallbackReason.UNSUPPORTED_OP;
+        }
+    }
+    return Cpu1FusedVectorFallbackReason.NONE;
+}
 ```
 
 Trace attrs:
@@ -3254,6 +3387,9 @@ Proc:
 
 - Stary CPU fused trace uz mel vector fallback reason.
 - cpu1 musi byt stejne vysvetlitelny.
+- Fallback reason je eligibility vysledek, ne cost. Boolean/select/logical nody zustavaji
+  levne nebo drahe podle `operation.computationalCost()`; vector/codegen nepodpora je
+  vysvetlena tady.
 
 ## Faze 10: Profile IO A Tuning Knobs
 
@@ -3522,11 +3658,11 @@ Overit:
 - [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedIrBuilder.java`
 - [ ] `src/main/java/backend/cpu1/prepare/Cpu1FusedElementwisePreparer.java`
 - [ ] `src/main/java/backend/cpu1/prepare/Cpu1PreparedFusedElementwiseUnit.java`
+- [ ] `src/main/java/backend/cpu1/prepare/dispatch/Cpu1FusedDispatchDecision.java`
 - [ ] `src/main/java/backend/cpu1/exec/Cpu1FusedKernelArgs.java`
 - [ ] `src/main/java/backend/cpu1/exec/Cpu1FusedElementwiseExecutableUnit.java`
 - [ ] `src/main/java/backend/cpu1/launch/Cpu1RangeTask.java`
 - [ ] `src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseRangeRunner.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseLoops.java`
 - [ ] `src/main/java/backend/cpu1/kernels/fused/Cpu1FusedElementwiseDispatch.java`
 - [ ] `src/main/java/backend/cpu1/kernels/fused/scalar/Cpu1FusedScalarInterpreter.java`
 - [ ] `src/main/java/backend/cpu1/kernels/fused/vector/Cpu1FusedVectorPlan.java`

@@ -4,7 +4,6 @@ import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.runtime.ExecutionContext;
-import operations.layout.concat;
 
 public final class Cpu1ConcatLayoutLoops {
     private Cpu1ConcatLayoutLoops() {
@@ -13,8 +12,7 @@ public final class Cpu1ConcatLayoutLoops {
     public static void concatScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
         Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
-        concat concatOp = requireConcat(support);
-        int axis = concatOp.getAxis();
+        int axis = unit.axis();
         int axisOffset = 0;
         for (Cpu1TensorView input : call.inputs()) {
             copyConcatInputScalar(support, input, call.output(), axis, axisOffset);
@@ -68,9 +66,8 @@ public final class Cpu1ConcatLayoutLoops {
     ) {
         Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
-        concat concatOp = requireConcat(support);
         Cpu1TensorView output = call.output();
-        int axis = concatOp.getAxis();
+        int axis = unit.axis();
         int rows = output.elementCount() / output.shape(axis);
         int outputBlock = output.shape(axis);
         int axisOffset = 0;
@@ -110,9 +107,8 @@ public final class Cpu1ConcatLayoutLoops {
     ) {
         Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
-        concat concatOp = requireConcat(support);
         Cpu1TensorView output = call.output();
-        int axis = concatOp.getAxis();
+        int axis = unit.axis();
         int inner = denseInnerSize(output, axis);
         int outputAxisBlock = output.shape(axis) * inner;
         int outerRows = output.elementCount() / outputAxisBlock;
@@ -159,13 +155,6 @@ public final class Cpu1ConcatLayoutLoops {
                 support.writeElement(output, outputOffset, support.readElement(input, inputOffset));
             }
         });
-    }
-
-    private static concat requireConcat(Cpu1LayoutKernelSupport support) {
-        if (support.context().runtimeTensorForNodeId(support.unit().nodeId()).getOperation() instanceof concat concatOp) {
-            return concatOp;
-        }
-        throw new IllegalArgumentException("cpu1 CONCAT requires operations.layout.concat.");
     }
 
     private static int denseInnerSize(Cpu1TensorView view, int axis) {

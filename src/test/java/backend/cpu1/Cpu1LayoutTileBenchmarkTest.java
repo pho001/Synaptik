@@ -91,7 +91,15 @@ class Cpu1LayoutTileBenchmarkTest {
                 RuntimeConfig.inferenceDefaults(node.dataType()).cpuKernelConfig().contiguousMaterializeThreshold(),
                 vectorizationKind,
                 Cpu1LaunchConfig.singleThread(),
-                Cpu1ScratchBufferSpec.none()
+                Cpu1ScratchBufferSpec.none(),
+                -1,
+                new int[0],
+                new int[0],
+                0.0d,
+                -1,
+                0,
+                0,
+                null
         );
         return new Cpu1PreparedArtifact(unit);
     }
