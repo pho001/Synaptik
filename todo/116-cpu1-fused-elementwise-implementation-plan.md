@@ -13,7 +13,7 @@ Tento dokument je zivy implementacni checklist. Pri implementaci se ma menit sta
 Aktualni stav:
 
 - [x] Faze 0: overeni vstupnich hranic a ochrana pracovniho stromu
-- [ ] Faze 1: cpu1 fused IR
+- [x] Faze 1: cpu1 fused IR
 - [ ] Faze 2: prepare-time fused plan a dispatch decision
 - [ ] Faze 3: cpu1 fused executable unit v `backend.cpu1.exec`
 - [ ] Faze 4: scalar/parallel fused runner pro JAVA_ARRAY a MEMORY_SEGMENT
@@ -188,10 +188,7 @@ Cilova zmena nesmi byt slepe "vzdy cpu1". Nejdriv musi existovat cpu1 fused prep
 ```text
 src/main/java/backend/cpu1/fused/ir/
   Cpu1FusedAccessKind.java
-  Cpu1FusedNodeAttributes.java
-  Cpu1NoAttributes.java
-  Cpu1ScalarAttribute.java
-  Cpu1WhereAttributes.java
+  Cpu1FusedScalarParameter.java
   Cpu1FusedInputPlan.java
   Cpu1FusedNodePlan.java
   Cpu1FusedExpressionPlan.java
@@ -310,7 +307,7 @@ Evidence:
 
 ### Task 1.1: Pridat `Cpu1FusedAccessKind`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -337,17 +334,14 @@ Proc:
 - Prepare potrebuje predem vedet, jestli jsou vsechny vstupy linearni.
 - Runner pak nemusi pri kazdem prvku analyzovat layout.
 
-### Task 1.2: Pridat atributy fused nodu
+### Task 1.2: Pridat `Cpu1FusedScalarParameter`
 
-Stav: `[ ]`
+Stav: `[x]`
 
-Nove soubory:
+Novy soubor:
 
 ```text
-src/main/java/backend/cpu1/fused/ir/Cpu1FusedNodeAttributes.java
-src/main/java/backend/cpu1/fused/ir/Cpu1NoAttributes.java
-src/main/java/backend/cpu1/fused/ir/Cpu1ScalarAttribute.java
-src/main/java/backend/cpu1/fused/ir/Cpu1WhereAttributes.java
+src/main/java/backend/cpu1/fused/ir/Cpu1FusedScalarParameter.java
 ```
 
 Kod:
@@ -355,43 +349,28 @@ Kod:
 ```java
 package backend.cpu1.fused.ir;
 
-public interface Cpu1FusedNodeAttributes {
-}
-```
+public record Cpu1FusedScalarParameter(boolean present, float f32, double f64) {
+    public static final Cpu1FusedScalarParameter NONE =
+            new Cpu1FusedScalarParameter(false, 0.0f, 0.0d);
 
-```java
-package backend.cpu1.fused.ir;
-
-public enum Cpu1NoAttributes implements Cpu1FusedNodeAttributes {
-    INSTANCE
-}
-```
-
-```java
-package backend.cpu1.fused.ir;
-
-public record Cpu1ScalarAttribute(float f32, double f64) implements Cpu1FusedNodeAttributes {
-}
-```
-
-```java
-package backend.cpu1.fused.ir;
-
-public enum Cpu1WhereAttributes implements Cpu1FusedNodeAttributes {
-    INSTANCE
+    public static Cpu1FusedScalarParameter of(float f32, double f64) {
+        return new Cpu1FusedScalarParameter(true, f32, f64);
+    }
 }
 ```
 
 Proc:
 
 - `POW`, `MUL_SCALAR`, `CLAMP_MIN`, `CLAMP_MAX` potrebuji scalar parametr.
-- Scalar atribut drzi F32 i F64 reprezentaci, aby F32/BF16 hot path nemusela opakovane castovat z double.
-- `WHERE` ma specialni aritu a bool condition, ale nepotrebuje data navic.
-- Pouzivame jednoduche typy, zadne abstraktni compatibility vrstvy.
+- Parametr se vytahne z konkretni `operations` tridy pri prepare/IR build, napriklad z `pow.getExponentF32()` a `pow.getExponent()`.
+- Fused runtime plan neobsahuje `Operation`; drzi jen snapshot hodnoty potrebne pro kernel.
+- Parametr drzi F32 i F64 reprezentaci, aby F32/BF16 hot path nemusela opakovane castovat z double.
+- Bezparametricke operace vcetne `WHERE` pouzivaji `Cpu1FusedScalarParameter.NONE`; specialni arita `WHERE` patri do `opType` a `inputRefs`, ne do atribut objektu.
+- Nezavadime obecny `attributes` interface, dokud neexistuje realny non-scalar payload.
 
 ### Task 1.3: Pridat `Cpu1FusedInputPlan`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -486,7 +465,7 @@ Proc:
 
 ### Task 1.4: Pridat `Cpu1FusedNodePlan`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -511,7 +490,7 @@ public record Cpu1FusedNodePlan(
         List<Integer> inputRefs,
         int outputRef,
         DataType outputType,
-        Cpu1FusedNodeAttributes attributes
+        Cpu1FusedScalarParameter scalarParameter
 ) {
     public Cpu1FusedNodePlan {
         if (opType == null) {
@@ -524,7 +503,7 @@ public record Cpu1FusedNodePlan(
         if (outputType == null) {
             throw new IllegalArgumentException("outputType cannot be null");
         }
-        attributes = attributes == null ? Cpu1NoAttributes.INSTANCE : attributes;
+        scalarParameter = scalarParameter == null ? Cpu1FusedScalarParameter.NONE : scalarParameter;
     }
 }
 ```
@@ -532,12 +511,13 @@ public record Cpu1FusedNodePlan(
 Proc:
 
 - Fused node neobsahuje `Tensor`.
-- Obsahuje jen op type, refs, dtype a atributy.
+- Obsahuje jen op type, refs, dtype a scalar parameter snapshot.
+- Neobsahuje puvodni `Operation`, proto kernel runtime nemusi castovat `pow`, `mulScalar`, `clampMin` nebo `clampMax`.
 - `nodeId` zustava pro trace/debug a validaci.
 
 ### Task 1.5: Pridat `Cpu1FusedExpressionPlan`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -605,7 +585,7 @@ Proc:
 
 ### Task 1.6: Pridat `Cpu1FusedIrBuilder`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -720,7 +700,7 @@ public final class Cpu1FusedIrBuilder {
                     canonical.inputRefs(),
                     outputRef,
                     descriptorIndex.byNodeId(nodeId).dataType(),
-                    canonical.attributes()
+                    canonical.scalarParameter()
             ));
         }
 
@@ -770,17 +750,17 @@ public final class Cpu1FusedIrBuilder {
                 return new CanonicalNode(
                         Operation.OpType.CONST_SCALAR,
                         List.of(),
-                        new Cpu1ScalarAttribute(1.0f, 1.0d)
+                        Cpu1FusedScalarParameter.of(1.0f, 1.0d)
                 );
             }
             if (exponent == 1.0d) {
-                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1NoAttributes.INSTANCE);
+                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
             }
             if (exponent == -1.0d) {
-                return new CanonicalNode(Operation.OpType.INV, List.of(inputRef), Cpu1NoAttributes.INSTANCE);
+                return new CanonicalNode(Operation.OpType.INV, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
             }
             if (exponent == 2.0d) {
-                return new CanonicalNode(Operation.OpType.MUL, List.of(inputRef, inputRef), Cpu1NoAttributes.INSTANCE);
+                return new CanonicalNode(Operation.OpType.MUL, List.of(inputRef, inputRef), Cpu1FusedScalarParameter.NONE);
             }
         }
         if (operation instanceof mulScalar m && inputRefs.size() == 1) {
@@ -790,36 +770,33 @@ public final class Cpu1FusedIrBuilder {
                 return new CanonicalNode(
                         Operation.OpType.CONST_SCALAR,
                         List.of(),
-                        new Cpu1ScalarAttribute(0.0f, 0.0d)
+                        Cpu1FusedScalarParameter.of(0.0f, 0.0d)
                 );
             }
             if (scalar == 1.0d) {
-                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1NoAttributes.INSTANCE);
+                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
             }
             if (scalar == -1.0d) {
-                return new CanonicalNode(Operation.OpType.NEG, List.of(inputRef), Cpu1NoAttributes.INSTANCE);
+                return new CanonicalNode(Operation.OpType.NEG, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
             }
         }
-        return new CanonicalNode(operation.opType(), List.copyOf(inputRefs), extractAttributes(operation));
+        return new CanonicalNode(operation.opType(), List.copyOf(inputRefs), scalarParameter(operation));
     }
 
-    private static Cpu1FusedNodeAttributes extractAttributes(Operation operation) {
+    private static Cpu1FusedScalarParameter scalarParameter(Operation operation) {
         if (operation instanceof pow p) {
-            return new Cpu1ScalarAttribute(p.getExponentF32(), p.getExponent());
+            return Cpu1FusedScalarParameter.of(p.getExponentF32(), p.getExponent());
         }
         if (operation instanceof mulScalar m) {
-            return new Cpu1ScalarAttribute(m.getScalarF32(), m.getScalar());
+            return Cpu1FusedScalarParameter.of(m.getScalarF32(), m.getScalar());
         }
         if (operation instanceof clampMin c) {
-            return new Cpu1ScalarAttribute(c.getMinValueF32(), c.getMinValue());
+            return Cpu1FusedScalarParameter.of(c.getMinValueF32(), c.getMinValue());
         }
         if (operation instanceof clampMax c) {
-            return new Cpu1ScalarAttribute(c.getMaxValueF32(), c.getMaxValue());
+            return Cpu1FusedScalarParameter.of(c.getMaxValueF32(), c.getMaxValue());
         }
-        if (operation.opType() == Operation.OpType.WHERE) {
-            return Cpu1WhereAttributes.INSTANCE;
-        }
-        return Cpu1NoAttributes.INSTANCE;
+        return Cpu1FusedScalarParameter.NONE;
     }
 
     private static List<Cpu1FusedInputPlan> buildInputPlans(
@@ -887,7 +864,7 @@ public final class Cpu1FusedIrBuilder {
     private record CanonicalNode(
             Operation.OpType opType,
             List<Integer> inputRefs,
-            Cpu1FusedNodeAttributes attributes
+            Cpu1FusedScalarParameter scalarParameter
     ) {
     }
 }
@@ -898,6 +875,17 @@ Proc:
 - Tohle je nejdulezitejsi cast, kterou prebirame ze stareho CPU.
 - Je stale prepare-time a backend-local.
 - Nepouziva `Tensor`.
+
+Evidence:
+
+- Pridany Phase 1 IR soubory v `src/main/java/backend/cpu1/fused/ir/`.
+- `Cpu1FusedIrBuilder` drzi jen `Operation.OpType`, input/output refs, dtype a `Cpu1FusedScalarParameter`; runtime node plan neuchovava `Operation`.
+- Scalar snapshoty se berou z konkretnich operaci `pow`, `mulScalar`, `clampMin` a `clampMax`; bezparametricke operace vcetne `WHERE` pouzivaji `Cpu1FusedScalarParameter.NONE`.
+- Novy cpu1 fused IR kod pouziva explicitni null validaci bez `Objects.requireNonNull`.
+- Overeno: `./gradlew classes`.
+- Overeno: kontrola zakazanych starych cpu1 fused atributovych nazvu v novem cpu1 fused kodu a planu bez nalezu.
+- Overeno: `rg -n "Objects\\.requireNonNull" src/main/java/backend/cpu1/fused` bez nalezu.
+- Overeno: `git diff --check -- src/main/java/backend/cpu1/fused todo/116-cpu1-fused-elementwise-implementation-plan.md`.
 
 ## Faze 2: Prepared Fused Unit A Dispatch
 
@@ -1151,14 +1139,14 @@ Doplnit private helpery:
 
 ```java
 private static Operation.OpType fusedRepresentativeOp(Cpu1FusedExpressionPlan plan) {
-    boolean expensive = false;
+    boolean nonCheap = false;
     for (var node : plan.nodes()) {
-        if (classifyElementwise(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
-            expensive = true;
+        if (mapFusedNodeCost(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
+            nonCheap = true;
             break;
         }
     }
-    return expensive ? Operation.OpType.EXP : Operation.OpType.ADD;
+    return nonCheap ? Operation.OpType.EXP : Operation.OpType.ADD;
 }
 
 private static Cpu1CostClass classifyFusedElementwise(Cpu1FusedExpressionPlan plan) {
@@ -1171,23 +1159,23 @@ private static Cpu1CostClass classifyFusedElementwise(Cpu1FusedExpressionPlan pl
         if (node.outputType() == DataType.BOOL) {
             return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
         }
-        if (classifyElementwise(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
-            return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-        }
-        if (node.opType() == Operation.OpType.WHERE
-                || node.opType() == Operation.OpType.GT
-                || node.opType() == Operation.OpType.GE
-                || node.opType() == Operation.OpType.LT
-                || node.opType() == Operation.OpType.LE
-                || node.opType() == Operation.OpType.EQ
-                || node.opType() == Operation.OpType.NE
-                || node.opType() == Operation.OpType.LOGICAL_AND
-                || node.opType() == Operation.OpType.LOGICAL_OR
-                || node.opType() == Operation.OpType.LOGICAL_NOT) {
+        if (mapFusedNodeCost(node.opType()) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
             return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
         }
     }
     return Cpu1CostClass.CHEAP_ELEMENTWISE;
+}
+
+private static Cpu1CostClass mapFusedNodeCost(Operation.OpType opType) {
+    if (opType == null) {
+        return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+    }
+    if (opType.resultKind() == Operation.OpResultKind.BOOLEAN
+            || opType.controlTrait() == Operation.OpControlTrait.SELECT_MASK
+            || opType.controlTrait() == Operation.OpControlTrait.BOOL_LOGIC) {
+        return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+    }
+    return classifyElementwise(opType);
 }
 ```
 
@@ -1200,12 +1188,15 @@ import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 Proc:
 
 - Fused chain ma cost podle nejdrazsiho nodu.
+- Backend-neutral zdroj klasifikace je `Operation.OpType`: `semanticFamily()`, `computationalCost()`,
+  `controlTrait()` a `resultKind()`. cpu1 fused tyto traits jen mapuje na vlastni `Cpu1CostClass`.
 - Stejna dispatch decision se pouzije pro fused scalar, vector i codegen hot path.
 - Execute nesmi pocitat thresholdy ani znovu rozhodovat scalar/vector route.
 
 Poznamka:
 
-- Pokud `classifyElementwise(...)` zustane private, helpery ve stejne tride ho muzou pouzit.
+- `classifyElementwise(...)` uz nema udrzovat vlastni hard-coded transcendental list; ma mapovat
+  `Operation.OpType.computationalCost()` na cpu1 policy bucket a zachovat existujici cpu1 vyjimky.
 - Pokud bude implementace potrebovat testovat cost separovane, pridej package-private metodu primo v teto fazi.
 
 ### Task 2.3: Pridat `Cpu1FusedElementwisePreparer`
@@ -1831,7 +1822,6 @@ import backend.cpu1.exec.Cpu1FusedKernelArgs;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.fused.ir.Cpu1FusedInputPlan;
 import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
-import backend.cpu1.fused.ir.Cpu1ScalarAttribute;
 import operations.Operation;
 import tensor.DataType;
 import tensor.dtype.TensorDTypeOps;
@@ -1905,7 +1895,7 @@ public final class Cpu1FusedElementwiseLoops {
             case FAST_TANH -> fastTanh(args, numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index));
             case POW -> Math.pow(
                     numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index),
-                    ((Cpu1ScalarAttribute) node.attributes()).f64()
+                    node.scalarParameter().f64()
             );
             case POW_TENSOR -> Math.pow(
                     numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index),
@@ -1913,16 +1903,16 @@ public final class Cpu1FusedElementwiseLoops {
             );
             case SQRT -> Math.sqrt(numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index));
             case ABS -> Math.abs(numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index));
-            case CONST_SCALAR -> ((Cpu1ScalarAttribute) node.attributes()).f64();
+            case CONST_SCALAR -> node.scalarParameter().f64();
             case MUL_SCALAR -> numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index)
-                    * ((Cpu1ScalarAttribute) node.attributes()).f64();
+                    * node.scalarParameter().f64();
             case RELU -> Math.max(0.0d, numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index));
             case CLAMP_MIN -> Math.max(
-                    ((Cpu1ScalarAttribute) node.attributes()).f64(),
+                    node.scalarParameter().f64(),
                     numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index)
             );
             case CLAMP_MAX -> Math.min(
-                    ((Cpu1ScalarAttribute) node.attributes()).f64(),
+                    node.scalarParameter().f64(),
                     numericRef(args, node.inputRefs().get(0), numericValues, boolValues, index)
             );
             case SIGMOID -> {
@@ -3056,11 +3046,11 @@ V ramci Faze 9 musi byt doplnena realna Vector API implementace aspon pro tyto o
 - `MUL_SCALAR`
 - `WHERE` s bool maskou pro F32/F64
 
-Scalar atributy ve vector/generate hot path:
+Scalar parametry ve vector/codegen hot path:
 
-- F32 vector cesta pouziva `((Cpu1ScalarAttribute) node.attributes()).f32()`.
+- F32 vector cesta pouziva `node.scalarParameter().f32()`.
 - BF16 compute cesta pouziva take `f32()`, protoze BF16 se pocita pres F32 a materializuje se az pri store.
-- F64 vector cesta pouziva `((Cpu1ScalarAttribute) node.attributes()).f64()`.
+- F64 vector cesta pouziva `node.scalarParameter().f64()`.
 - Scalar interpreter muze zustat na `f64()`, protoze vraci `double`, ale specializovane F32/BF16 hot paths nesmi zbytecne castovat z double v kazde iteraci.
 
 Povinna Vector API smycka pro F32 contiguous:
@@ -3524,15 +3514,12 @@ Overit:
 
 ### Nove soubory
 
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedAccessKind.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedNodeAttributes.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1NoAttributes.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1ScalarAttribute.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1WhereAttributes.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedInputPlan.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedNodePlan.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedExpressionPlan.java`
-- [ ] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedIrBuilder.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedAccessKind.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedScalarParameter.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedInputPlan.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedNodePlan.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedExpressionPlan.java`
+- [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedIrBuilder.java`
 - [ ] `src/main/java/backend/cpu1/prepare/Cpu1FusedElementwisePreparer.java`
 - [ ] `src/main/java/backend/cpu1/prepare/Cpu1PreparedFusedElementwiseUnit.java`
 - [ ] `src/main/java/backend/cpu1/exec/Cpu1FusedKernelArgs.java`

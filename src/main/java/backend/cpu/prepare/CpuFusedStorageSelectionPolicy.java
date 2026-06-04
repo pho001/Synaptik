@@ -82,10 +82,14 @@ final class CpuFusedStorageSelectionPolicy {
         if (opType == null) {
             return false;
         }
-        return switch (opType) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    POW, POW_TENSOR, SQRT, ABS, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX,
-                    SIGMOID, NOOP, GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> true;
+        if (opType == Operation.OpType.CONST_SCALAR || opType == Operation.OpType.NOOP) {
+            return true;
+        }
+        if (!opType.isFusable()) {
+            return false;
+        }
+        return switch (opType.semanticFamily()) {
+            case ARITHMETIC, TRANSCENDENTAL, COMPARISON, LOGICAL, SELECTION -> true;
             default -> false;
         };
     }

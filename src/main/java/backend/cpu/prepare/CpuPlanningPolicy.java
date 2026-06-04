@@ -239,11 +239,12 @@ public final class CpuPlanningPolicy {
         if (op == null || op.opType() == null) {
             return false;
         }
-        return switch (op.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX,
-                    GT, GE, LT, LE, EQ, NE,
-                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                    NEG, INV, ABS, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX -> true;
+        Operation.OpType opType = op.opType();
+        if (!opType.isFusable() || opType == Operation.OpType.SQRT) {
+            return false;
+        }
+        return switch (opType.semanticFamily()) {
+            case ARITHMETIC, COMPARISON, LOGICAL -> opType.computationalCost() != Operation.OpComputationalCost.EXPENSIVE;
             default -> false;
         };
     }
@@ -383,10 +384,7 @@ public final class CpuPlanningPolicy {
         if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalParallelMinSize : fusedCheapParallelMinSize;
         }
-        return switch (op.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> transcendentalParallelMinSize;
-            default -> cheapParallelMinSize;
-        };
+        return usesTranscendentalThreshold(op.opType()) ? transcendentalParallelMinSize : cheapParallelMinSize;
     }
 
     private int resolveBaseVectorMinSize(Operation op) {
@@ -396,10 +394,7 @@ public final class CpuPlanningPolicy {
         if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalVectorMinSize : fusedCheapVectorMinSize;
         }
-        return switch (op.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> transcendentalVectorMinSize;
-            default -> cheapVectorMinSize;
-        };
+        return usesTranscendentalThreshold(op.opType()) ? transcendentalVectorMinSize : cheapVectorMinSize;
     }
 
     private int adjustFusedVectorMinSize(int base, FusedOperation fused) {
@@ -416,10 +411,14 @@ public final class CpuPlanningPolicy {
         if (fused == null || fused.getPlan() == null) {
             return false;
         }
-        return fused.getPlan().nodes().stream().anyMatch(node -> switch (node.opType()) {
-            case EXP, FAST_EXP, TANH, FAST_TANH, LOG, SIGMOID, POW, POW_TENSOR -> true;
-            default -> false;
-        });
+        return fused.getPlan().nodes().stream()
+                .anyMatch(node -> usesTranscendentalThreshold(node.opType()));
+    }
+
+    private boolean usesTranscendentalThreshold(Operation.OpType opType) {
+        return opType != null
+                && opType.semanticFamily() == Operation.OpSemanticFamily.TRANSCENDENTAL
+                && opType != Operation.OpType.ERF;
     }
 
     private static int saturatingMultiply(int value, int factor) {

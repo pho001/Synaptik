@@ -11,8 +11,6 @@ import jdk.incubator.vector.FloatVector;
 import operations.Operation;
 import tensor.DataType;
 
-import java.util.Objects;
-
 /**
  * Prepare-time policy for selecting cpu1 execution variants from config and node metadata.
  */
@@ -23,9 +21,15 @@ public final class Cpu1DispatchPolicy {
             long elementCount,
             Cpu1PrepareConfig config
     ) {
-        Objects.requireNonNull(opType, "opType cannot be null");
-        Objects.requireNonNull(computeType, "computeType cannot be null");
-        Objects.requireNonNull(config, "config cannot be null");
+        if (opType == null) {
+            throw new IllegalArgumentException("opType cannot be null");
+        }
+        if (computeType == null) {
+            throw new IllegalArgumentException("computeType cannot be null");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
         if (elementCount < 0) {
             throw new IllegalArgumentException("elementCount must be >= 0");
         }
@@ -63,8 +67,12 @@ public final class Cpu1DispatchPolicy {
             Cpu1DispatchDecision decision,
             Cpu1LayoutKind layoutKind
     ) {
-        Objects.requireNonNull(decision, "decision cannot be null");
-        Objects.requireNonNull(layoutKind, "layoutKind cannot be null");
+        if (decision == null) {
+            throw new IllegalArgumentException("decision cannot be null");
+        }
+        if (layoutKind == null) {
+            throw new IllegalArgumentException("layoutKind cannot be null");
+        }
         if (layoutKind != Cpu1LayoutKind.CONTIGUOUS && layoutKind != Cpu1LayoutKind.BROADCAST_INNER) {
             return Cpu1VectorizationKind.SCALAR;
         }
@@ -75,7 +83,9 @@ public final class Cpu1DispatchPolicy {
     }
 
     public boolean canUseBroadcastInnerVectorLayout(Cpu1DispatchDecision decision) {
-        Objects.requireNonNull(decision, "decision cannot be null");
+        if (decision == null) {
+            throw new IllegalArgumentException("decision cannot be null");
+        }
         return decision.requestedVectorizationKind() == Cpu1VectorizationKind.VECTOR
                 && supportsVectorKernel(decision.kernelOpType());
     }
@@ -89,10 +99,12 @@ public final class Cpu1DispatchPolicy {
     }
 
     private static Cpu1CostClass classifyElementwise(Operation.OpType kernelOpType) {
-        return switch (kernelOpType) {
-            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, POW, POW_TENSOR, ERF, SQRT ->
-                    Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-            default -> Cpu1CostClass.CHEAP_ELEMENTWISE;
+        return switch (kernelOpType.computationalCost()) {
+            case EXPENSIVE -> Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+            case MEDIUM -> kernelOpType == Operation.OpType.SQRT
+                    ? Cpu1CostClass.EXPENSIVE_ELEMENTWISE
+                    : Cpu1CostClass.CHEAP_ELEMENTWISE;
+            case TRIVIAL, CHEAP, UNKNOWN -> Cpu1CostClass.CHEAP_ELEMENTWISE;
         };
     }
 
@@ -108,7 +120,9 @@ public final class Cpu1DispatchPolicy {
         if (!config.automaticVectorization()) {
             return config.vectorizationKind();
         }
-        Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null");
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("cpuKernelConfig cannot be null");
+        }
         if (vectorWidth <= 1) {
             return Cpu1VectorizationKind.SCALAR;
         }
@@ -144,7 +158,9 @@ public final class Cpu1DispatchPolicy {
         if (!config.automaticLaunch()) {
             return config.launchConfig().workerCount();
         }
-        Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null");
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("cpuKernelConfig cannot be null");
+        }
         int maxWorkers = config.launchConfig().workerCount();
         if (maxWorkers <= 1) {
             return 1;

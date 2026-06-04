@@ -21,16 +21,6 @@ public final class OperationSemanticClassifier {
             return OperationSemanticLevel.UNKNOWN;
         }
         return switch (opType) {
-            case ADD, SUB, MUL, DIV, MIN, MAX,
-                 GT, GE, LT, LE, EQ, NE,
-                 LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE,
-                 NEG, INV, LOG, EXP, FAST_EXP, ERF, TANH, FAST_TANH,
-                 POW, POW_TENSOR, SQRT, ABS, FLOOR, CEIL, SIGN, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX,
-                 SIGMOID, MATMUL, SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY ->
-                    OperationSemanticLevel.PRIMITIVE;
-            case RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PAD, TILE, UNFOLD_AXIS, UNFOLD2D, FOLD2D,
-                 PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS, NOOP ->
-                    OperationSemanticLevel.LAYOUT;
             case LINEAR, LOG_SOFTMAX, SOFTMAX, LAYER_NORM, RMS_NORM ->
                     OperationSemanticLevel.CANONICAL_HIGH_LEVEL;
             case CONV2D, MAX_POOL2D, AVG_POOL2D, SCALED_DOT_PRODUCT_ATTENTION,
@@ -48,7 +38,19 @@ public final class OperationSemanticClassifier {
                  SCATTER_ELEMENTS, SCATTER_ND, SLICE_SCATTER_ADD ->
                     OperationSemanticLevel.BACKEND_FRIENDLY_HIGH_LEVEL;
             case FUSED -> OperationSemanticLevel.FUSED;
+            case NOOP -> OperationSemanticLevel.LAYOUT;
             case CAST, CONST_SCALAR, UNKNOWN -> OperationSemanticLevel.UNKNOWN;
+            default -> classifyByTraits(opType);
+        };
+    }
+
+    private static OperationSemanticLevel classifyByTraits(Operation.OpType opType) {
+        return switch (opType.semanticFamily()) {
+            case ARITHMETIC, TRANSCENDENTAL, COMPARISON, LOGICAL, SELECTION, REDUCTION, LINEAR_ALGEBRA ->
+                    OperationSemanticLevel.PRIMITIVE;
+            case LAYOUT -> OperationSemanticLevel.LAYOUT;
+            case FUSED -> OperationSemanticLevel.FUSED;
+            case SPECIAL, UNKNOWN -> OperationSemanticLevel.UNKNOWN;
         };
     }
 }

@@ -67,11 +67,12 @@ public final class FusedDispatchPlanner {
         if (opType == null) {
             return false;
         }
-        return switch (opType) {
-            case ADD, SUB, MUL, MIN, MAX, NEG, CONST_SCALAR, MUL_SCALAR, RELU, CLAMP_MIN, CLAMP_MAX, ABS, NOOP -> true;
-            case DIV, INV, SQRT, EXP, FAST_EXP, LOG, TANH, FAST_TANH, SIGMOID, POW, POW_TENSOR -> false;
-            case GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT, WHERE -> false;
-            default -> false;
-        };
+        if (opType == Operation.OpType.CONST_SCALAR || opType == Operation.OpType.NOOP) {
+            return true;
+        }
+        return opType.isFusable()
+                && opType.resultKind() == Operation.OpResultKind.NUMERIC
+                && opType.semanticFamily() == Operation.OpSemanticFamily.ARITHMETIC
+                && opType.computationalCost() == Operation.OpComputationalCost.CHEAP;
     }
 }
