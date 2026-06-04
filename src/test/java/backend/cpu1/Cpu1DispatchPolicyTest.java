@@ -1,10 +1,14 @@
 package backend.cpu1;
 
+import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
+import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
+import backend.cpu1.fused.ir.Cpu1FusedScalarParameter;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
+import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionMode;
@@ -13,9 +17,14 @@ import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;
 import config.backend.SumAccuracyMode;
 import config.runtime.RuntimeConfig;
+import operations.elementwise.binary.add;
+import operations.elementwise.unary.exp;
+import operations.elementwise.unary.sqrt;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,7 +36,7 @@ class Cpu1DispatchPolicyTest {
         Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
 
         Cpu1DispatchDecision decision = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 128,
                 Cpu1PrepareConfig.vectorParallel(4)
@@ -50,7 +59,7 @@ class Cpu1DispatchPolicyTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.vectorSingleThread().withApproximation(true, true);
 
         Cpu1DispatchDecision decision = policy.decideElementwise(
-                Operation.OpType.EXP,
+                new exp(),
                 DataType.FLOAT32,
                 128,
                 config
@@ -67,7 +76,7 @@ class Cpu1DispatchPolicyTest {
     void vectorRequestFallsBackToScalarForStridedLayouts() {
         Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
         Cpu1DispatchDecision decision = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 128,
                 Cpu1PrepareConfig.vectorSingleThread()
@@ -82,7 +91,7 @@ class Cpu1DispatchPolicyTest {
         Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
 
         assertThrows(IllegalArgumentException.class, () -> policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 -1,
                 Cpu1PrepareConfig.scalarSingleThread()
@@ -95,7 +104,7 @@ class Cpu1DispatchPolicyTest {
         CpuKernelConfig tuned = new CpuKernelConfig(4, 32, 32, 32, 16, 64);
 
         Cpu1DispatchDecision decision = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.cheapVectorMinSize() - 1,
                 Cpu1PrepareConfig.automatic(tuned, 4)
@@ -114,7 +123,7 @@ class Cpu1DispatchPolicyTest {
         CpuKernelConfig tuned = new CpuKernelConfig(4, 32, 32, 32, 16, 64);
 
         Cpu1DispatchDecision decision = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.cheapParallelMinSize(),
                 Cpu1PrepareConfig.automatic(tuned, 4)
@@ -137,13 +146,13 @@ class Cpu1DispatchPolicyTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
 
         Cpu1DispatchDecision belowNative = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.nativeF32CheapVectorMinSize() - 1,
                 config
         );
         Cpu1DispatchDecision atNative = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.nativeF32CheapVectorMinSize(),
                 config
@@ -160,13 +169,13 @@ class Cpu1DispatchPolicyTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
 
         Cpu1DispatchDecision belowNative = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT64,
                 tuned.nativeF64CheapVectorMinSize() - 1,
                 config
         );
         Cpu1DispatchDecision atNative = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT64,
                 tuned.nativeF64CheapVectorMinSize(),
                 config
@@ -183,13 +192,13 @@ class Cpu1DispatchPolicyTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY);
 
         Cpu1DispatchDecision belowCheap = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.cheapVectorMinSize() - 1,
                 config
         );
         Cpu1DispatchDecision atCheap = policy.decideElementwise(
-                Operation.OpType.ADD,
+                new add(),
                 DataType.FLOAT32,
                 tuned.cheapVectorMinSize(),
                 config
@@ -206,13 +215,13 @@ class Cpu1DispatchPolicyTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.MEMORY_SEGMENT);
 
         Cpu1DispatchDecision belowTranscendental = policy.decideElementwise(
-                Operation.OpType.EXP,
+                new exp(),
                 DataType.FLOAT32,
                 tuned.transcendentalVectorMinSize() - 1,
                 config
         );
         Cpu1DispatchDecision atTranscendental = policy.decideElementwise(
-                Operation.OpType.EXP,
+                new exp(),
                 DataType.FLOAT32,
                 tuned.transcendentalVectorMinSize(),
                 config
@@ -220,6 +229,63 @@ class Cpu1DispatchPolicyTest {
 
         assertEquals(Cpu1VectorizationKind.SCALAR, belowTranscendental.requestedVectorizationKind());
         assertEquals(Cpu1VectorizationKind.VECTOR, atTranscendental.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticMediumElementwiseUsesNonCheapThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1DispatchDecision belowNonCheap = policy.decideElementwise(
+                new sqrt(),
+                DataType.FLOAT32,
+                tuned.transcendentalVectorMinSize() - 1,
+                config
+        );
+        Cpu1DispatchDecision atNonCheap = policy.decideElementwise(
+                new sqrt(),
+                DataType.FLOAT32,
+                tuned.transcendentalVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, belowNonCheap.costClass());
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowNonCheap.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atNonCheap.requestedVectorizationKind());
+    }
+
+    @Test
+    void fusedDecisionUsesMostExpensiveSourceOperationCost() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = cpuKernelConfigWithNativeCheapThresholds(16, 64, 128);
+
+        Cpu1FusedDispatchDecision decision = policy.decideFusedElementwise(
+                twoNodeFusedPlan(),
+                List.of(new add(), new sqrt()),
+                DataType.FLOAT32,
+                tuned.transcendentalVectorMinSize() - 1,
+                Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY)
+        );
+
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, decision.costClass());
+        assertEquals(Cpu1VectorizationKind.SCALAR, decision.requestedVectorizationKind());
+    }
+
+    @Test
+    void fusedDecisionDoesNotUseOpTypeAsCostMetadata() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+
+        Cpu1FusedDispatchDecision decision = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.ADD),
+                List.of(new SyntheticCostOperation(Operation.OpType.ADD, Operation.OpComputationalCost.EXPENSIVE)),
+                DataType.FLOAT32,
+                128,
+                Cpu1PrepareConfig.vectorSingleThread()
+        );
+
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, decision.costClass());
+        assertEquals(Cpu1VectorizationKind.VECTOR, decision.requestedVectorizationKind());
     }
 
     @Test
@@ -259,5 +325,83 @@ class Cpu1DispatchPolicyTest {
                 nativeF32CheapVectorMinSize,
                 nativeF64CheapVectorMinSize
         );
+    }
+
+    private static Cpu1FusedExpressionPlan oneNodeFusedPlan(Operation.OpType opType) {
+        return new Cpu1FusedExpressionPlan(
+                List.of(new Cpu1FusedNodePlan(
+                        0,
+                        10,
+                        opType,
+                        List.of(),
+                        0,
+                        DataType.FLOAT32,
+                        Cpu1FusedScalarParameter.NONE
+                )),
+                List.of(),
+                0
+        );
+    }
+
+    private static Cpu1FusedExpressionPlan twoNodeFusedPlan() {
+        return new Cpu1FusedExpressionPlan(
+                List.of(
+                        new Cpu1FusedNodePlan(
+                                0,
+                                10,
+                                Operation.OpType.ADD,
+                                List.of(),
+                                0,
+                                DataType.FLOAT32,
+                                Cpu1FusedScalarParameter.NONE
+                        ),
+                        new Cpu1FusedNodePlan(
+                                1,
+                                11,
+                                Operation.OpType.SQRT,
+                                List.of(0),
+                                1,
+                                DataType.FLOAT32,
+                                Cpu1FusedScalarParameter.NONE
+                        )
+                ),
+                List.of(),
+                1
+        );
+    }
+
+    private record SyntheticCostOperation(
+            Operation.OpType opType,
+            Operation.OpComputationalCost computationalCost
+    ) implements Operation {
+        @Override
+        public OpArityClass arityClass() {
+            return OpArityClass.ELEMENT_WISE;
+        }
+
+        @Override
+        public boolean isFusable() {
+            return true;
+        }
+
+        @Override
+        public OpSemanticFamily semanticFamily() {
+            return OpSemanticFamily.ARITHMETIC;
+        }
+
+        @Override
+        public OpControlTrait controlTrait() {
+            return OpControlTrait.NONE;
+        }
+
+        @Override
+        public OpResultKind resultKind() {
+            return OpResultKind.NUMERIC;
+        }
+
+        @Override
+        public String getExpression() {
+            return "synthetic";
+        }
     }
 }

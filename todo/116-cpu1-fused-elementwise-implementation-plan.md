@@ -14,7 +14,7 @@ Aktualni stav:
 
 - [x] Faze 0: overeni vstupnich hranic a ochrana pracovniho stromu
 - [x] Faze 1: cpu1 fused IR
-- [ ] Faze 2: prepare-time fused plan a dispatch decision
+- [x] Faze 2: prepare-time fused plan a dispatch decision
 - [ ] Faze 3: cpu1 fused executable unit v `backend.cpu1.exec`
 - [ ] Faze 4: scalar/parallel fused runner pro JAVA_ARRAY a MEMORY_SEGMENT
 - [ ] Faze 5: trace a prepared artifact integrace
@@ -48,7 +48,7 @@ Cilem neni 1:1 presun stareho CPU fused runtime. Cilem je prenest uzitecne casti
 - fused IR shape
 - canonicalizaci
 - broadcast/effective-stride pripravu
-- seznam podporovanych fusable op semantik
+- prepare-time validaci pres `Operation.isFusable()` na konkretnich source operacich
 - cost classification myslenku
 
 a nahradit nebo zahodit casti, ktere jsou svazane se starym backendem:
@@ -900,9 +900,20 @@ Evidence:
 
 ## Faze 2: Prepared Fused Unit A Dispatch
 
+Implementacni evidence:
+
+- Pridan `Cpu1PreparedFusedElementwiseUnit` jako immutable prepared popis bez `Operation` objektu.
+- Pridan `Cpu1FusedDispatchDecision` a `Cpu1DispatchPolicy.decideFusedElementwise(...)`; fused cost se pocita z `Operation.computationalCost()` source operaci sebranych behem prepare.
+- Pridan `Cpu1FusedElementwisePreparer.prepareUnit(...)`, ktery validuje konkretni `node.operation().isFusable()`, buildi `Cpu1FusedExpressionPlan`, rozhoduje storage/layout/launch/dispatch a neuklada `Operation` do prepared unit.
+- Phase 2 zamerne nepridava `Cpu1PreparedArtifact` route ani `BackendPrepareDispatcher` prepnuti, protoze executable/artifact integrace jsou Faze 3/5/6. Tim nevznika docasny neexecutable artifact ani fallback facade.
+- Overeno: `./gradlew classes`.
+- Overeno: `./gradlew test --tests backend.cpu1.Cpu1DispatchPolicyTest --tests backend.cpu1.Cpu1FusedElementwisePreparerTest`.
+- Overeno: `git diff --check -- <touched Phase 2 files>`.
+- Overeno: grep zakazaneho hard-coded fused-op helperu v `src/main/java`, `src/test/java` a tomto todo souboru bez nalezu.
+
 ### Task 2.1: Pridat `Cpu1PreparedFusedElementwiseUnit`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -1081,7 +1092,7 @@ Proc:
 
 ### Task 2.2: Pridat fused dispatch decision a rozsirit `Cpu1DispatchPolicy`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubor:
 
@@ -1245,7 +1256,7 @@ Poznamka:
 
 ### Task 2.3: Pridat `Cpu1FusedElementwisePreparer`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -1367,7 +1378,6 @@ public final class Cpu1FusedElementwisePreparer {
             if (node == null || node.operation() == null || !node.operation().isFusable()) {
                 throw new UnsupportedOperationException("cpu1 fused unit contains non-fusable nodeId=" + nodeId);
             }
-            requireSupportedFusedOp(node.operation().opType());
             requireSupportedDType(node.dataType(), "node " + nodeId + " output");
         }
     }
@@ -1377,20 +1387,6 @@ public final class Cpu1FusedElementwisePreparer {
                 .map(context::compiledNode)
                 .map(CompiledNode::operation)
                 .toList();
-    }
-
-    private static void requireSupportedFusedOp(Operation.OpType opType) {
-        switch (opType) {
-            case ADD, SUB, MUL, DIV, MIN, MAX,
-                    GT, GE, LT, LE, EQ, NE,
-                    LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
-                    WHERE,
-                    NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
-                    POW, POW_TENSOR, SQRT, ABS, MUL_SCALAR,
-                    RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> {
-            }
-            default -> throw new UnsupportedOperationException("cpu1 fused does not support " + opType);
-        }
     }
 
     private static void requireSupportedDType(DataType dataType, String role) {
@@ -1464,8 +1460,11 @@ public final class Cpu1FusedElementwisePreparer {
 Proc:
 
 - Preparer je misto, kde se fused lowered unit prelozi na cpu1 prepared unit.
-- Dela validate podporovanych fusable op. `requireSupportedFusedOp(...)` je pouze kernel support
-  switch pro cpu1 fused interpreter/vector subset, ne metadata registry podle `Operation.OpType`.
+- Dela validate pres `node.operation().isFusable()` na konkretnich source operacich.
+- Neudrzuje vlastni cpu1 whitelist fusable op podle `Operation.OpType`; source of truth je
+  metadata implementovane primo v jednotlivych `Operation`.
+- Pozdejsi omezeni vector/codegen subsetu patri do vector/codegen eligibility a fallback reason,
+  ne do obecne fused validace.
 - Sbira `sourceOperations` z puvodnich `CompiledNode.operation()` pred canonicalizaci, predava je
   pouze prepare-time dispatch policy a neuklada je do prepared unit.
 - Rozhoduje storage podle runtime CPU storage profile.

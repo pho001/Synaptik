@@ -1,5 +1,6 @@
 package backend.cpu1.prepare.dispatch;
 
+import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -11,18 +12,24 @@ import jdk.incubator.vector.FloatVector;
 import operations.Operation;
 import tensor.DataType;
 
+import java.util.List;
+
 /**
  * Prepare-time policy for selecting cpu1 execution variants from config and node metadata.
  */
 public final class Cpu1DispatchPolicy {
     public Cpu1DispatchDecision decideElementwise(
-            Operation.OpType opType,
+            Operation operation,
             DataType computeType,
             long elementCount,
             Cpu1PrepareConfig config
     ) {
+        if (operation == null) {
+            throw new IllegalArgumentException("operation cannot be null");
+        }
+        Operation.OpType opType = operation.opType();
         if (opType == null) {
-            throw new IllegalArgumentException("opType cannot be null");
+            throw new IllegalArgumentException("operation opType cannot be null");
         }
         if (computeType == null) {
             throw new IllegalArgumentException("computeType cannot be null");
@@ -35,7 +42,7 @@ public final class Cpu1DispatchPolicy {
         }
         int totalLength = saturatingElementCount(elementCount);
         Operation.OpType kernelOpType = kernelOpType(opType, config);
-        Cpu1CostClass costClass = classifyElementwise(kernelOpType);
+        Cpu1CostClass costClass = classifyElementwise(operation);
         int vectorWidth = preferredVectorWidth(computeType);
         CpuKernelConfig cpuKernelConfig = cpuKernelConfig(config);
         Cpu1VectorizationKind vectorizationKind = resolveVectorizationKind(
@@ -53,6 +60,56 @@ public final class Cpu1DispatchPolicy {
         Cpu1LaunchConfig launchConfig = launchConfig(config, plannedWorkers, vectorizationKind, scalarChunkSize, vectorChunkSize);
         return new Cpu1DispatchDecision(
                 kernelOpType,
+                costClass,
+                vectorizationKind,
+                launchConfig,
+                config.storageKind(),
+                scalarChunkSize,
+                vectorChunkSize,
+                plannedWorkers
+        );
+    }
+
+    public Cpu1FusedDispatchDecision decideFusedElementwise(
+            Cpu1FusedExpressionPlan plan,
+            List<Operation> sourceOperations,
+            DataType computeType,
+            long elementCount,
+            Cpu1PrepareConfig config
+    ) {
+        if (plan == null) {
+            throw new IllegalArgumentException("plan cannot be null");
+        }
+        if (sourceOperations == null || sourceOperations.size() != plan.nodes().size()) {
+            throw new IllegalArgumentException("sourceOperations must match fused node count");
+        }
+        if (computeType == null) {
+            throw new IllegalArgumentException("computeType cannot be null");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
+        if (elementCount < 0) {
+            throw new IllegalArgumentException("elementCount must be >= 0");
+        }
+        Cpu1CostClass costClass = fusedCostClass(sourceOperations);
+        int totalLength = saturatingElementCount(elementCount);
+        int vectorWidth = preferredVectorWidth(computeType);
+        CpuKernelConfig cpuKernelConfig = cpuKernelConfig(config);
+        Cpu1VectorizationKind vectorizationKind = resolveVectorizationKind(
+                config,
+                cpuKernelConfig,
+                costClass,
+                config.storageKind(),
+                computeType,
+                totalLength,
+                vectorWidth
+        );
+        int plannedWorkers = resolvePlannedWorkers(config, cpuKernelConfig, costClass, totalLength);
+        int scalarChunkSize = scalarChunkSize(config, cpuKernelConfig, costClass, totalLength, plannedWorkers);
+        int vectorChunkSize = vectorChunkSize(config, cpuKernelConfig, costClass, totalLength, vectorWidth, plannedWorkers);
+        Cpu1LaunchConfig launchConfig = launchConfig(config, plannedWorkers, vectorizationKind, scalarChunkSize, vectorChunkSize);
+        return new Cpu1FusedDispatchDecision(
                 costClass,
                 vectorizationKind,
                 launchConfig,
@@ -98,12 +155,28 @@ public final class Cpu1DispatchPolicy {
         };
     }
 
-    private static Cpu1CostClass classifyElementwise(Operation.OpType kernelOpType) {
-        return switch (kernelOpType.computationalCost()) {
-            case EXPENSIVE -> Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
-            case MEDIUM -> kernelOpType == Operation.OpType.SQRT
-                    ? Cpu1CostClass.EXPENSIVE_ELEMENTWISE
-                    : Cpu1CostClass.CHEAP_ELEMENTWISE;
+    private static Cpu1CostClass classifyElementwise(Operation operation) {
+        return switch (operation.computationalCost()) {
+            case MEDIUM, EXPENSIVE -> Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+            case TRIVIAL, CHEAP, UNKNOWN -> Cpu1CostClass.CHEAP_ELEMENTWISE;
+        };
+    }
+
+    private static Cpu1CostClass fusedCostClass(List<Operation> sourceOperations) {
+        for (Operation operation : sourceOperations) {
+            if (operationCostClass(operation) == Cpu1CostClass.EXPENSIVE_ELEMENTWISE) {
+                return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+            }
+        }
+        return Cpu1CostClass.CHEAP_ELEMENTWISE;
+    }
+
+    private static Cpu1CostClass operationCostClass(Operation operation) {
+        if (operation == null) {
+            return Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
+        }
+        return switch (operation.computationalCost()) {
+            case MEDIUM, EXPENSIVE -> Cpu1CostClass.EXPENSIVE_ELEMENTWISE;
             case TRIVIAL, CHEAP, UNKNOWN -> Cpu1CostClass.CHEAP_ELEMENTWISE;
         };
     }
