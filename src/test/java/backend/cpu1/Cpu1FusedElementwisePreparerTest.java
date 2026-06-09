@@ -1,10 +1,14 @@
 package backend.cpu1;
 
 import backend.ApproxMode;
-import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
+import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenRejectionReason;
 import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
-import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
+import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
+import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
+import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
@@ -27,13 +31,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Cpu1FusedElementwisePreparerTest {
     @Test
-    void preparesCanonicalizedPlanButClassifiesCostFromSourceOperations() {
+    void buildsCanonicalizedPlanAndClassifiesCostFromSourceOperationsBeforeCodegen() {
         Tensor input = new Tensor(new float[]{1.0f, 2.0f, 3.0f}, new int[]{3}, null, "input", DataType.FLOAT32);
         Tensor pow2 = new Tensor(new int[]{3}, List.of(input), new pow(2.0f), "pow2", DataType.FLOAT32);
         Fixture fixture = fixture(pow2.relu());
@@ -46,26 +49,31 @@ class Cpu1FusedElementwisePreparerTest {
         );
         RuntimeConfig runtimeConfig = runtimeConfig(ApproxMode.OFF).withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY);
 
-        Cpu1PreparedFusedElementwiseUnit unit = new Cpu1FusedElementwisePreparer(runtimeConfig)
-                .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig));
+        Cpu1FusedExpressionPlan plan = Cpu1FusedIrBuilder.build(
+                loweredUnit.orderedNodeIds(),
+                fixture::compiledNode,
+                fixture.descriptorIndex()
+        );
+        Cpu1FusedDispatchDecision decision = new Cpu1DispatchPolicy().decideFusedElementwise(
+                plan,
+                operations(fixture.nodes(), loweredUnit.orderedNodeIds()),
+                DataType.FLOAT32,
+                fixture.outputNode().flatDataSize(),
+                Cpu1PrepareConfig.automatic(runtimeConfig, 1, Cpu1StorageKind.JAVA_ARRAY)
+        );
 
-        assertEquals("pow-relu", unit.unitId());
-        assertEquals(List.of(powNodeId, reluNodeId), unit.orderedNodeIds());
-        assertEquals(List.of(0), unit.inputNodeIds());
-        assertEquals(reluNodeId, unit.outputNodeId());
-        assertEquals(DataType.FLOAT32, unit.outputDataType());
-        assertEquals(3, unit.elementCount());
-        assertEquals(Cpu1LayoutKind.CONTIGUOUS, unit.layoutKind());
-        assertEquals(Cpu1StorageKind.JAVA_ARRAY, unit.storageKind());
-        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, unit.dispatchDecision().costClass());
-        assertEquals(Operation.OpType.MUL, unit.plan().nodes().getFirst().opType());
-        assertEquals(Operation.OpType.RELU, unit.plan().nodes().getLast().opType());
-        assertFalse(unit.approximateExp());
-        assertFalse(unit.approximateTanh());
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, decision.costClass());
+        assertEquals(Operation.OpType.MUL, plan.nodes().getFirst().opType());
+        assertEquals(Operation.OpType.RELU, plan.nodes().getLast().opType());
+
+        UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
+                () -> new Cpu1FusedElementwisePreparer(runtimeConfig)
+                        .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig)));
+        assertTrue(thrown.getMessage().contains(Cpu1FusedCodegenRejectionReason.MISSING_ASM_EMITTER.name()));
     }
 
     @Test
-    void preparesNativeStorageAndApproximationFlagsFromRuntimeConfig() {
+    void rejectsUnsupportedIntrinsicDuringPrepareBeforeCreatingPreparedUnit() {
         Tensor input = new Tensor(new float[]{-1.0f, 0.0f, 1.0f}, new int[]{3}, null, "input", DataType.FLOAT32);
         Fixture fixture = fixture(input.exp().tanh());
         int expNodeId = nodeId(fixture.nodes(), Operation.OpType.EXP);
@@ -78,13 +86,11 @@ class Cpu1FusedElementwisePreparerTest {
                 List.of(expNodeId, tanhNodeId)
         );
 
-        Cpu1PreparedFusedElementwiseUnit unit = new Cpu1FusedElementwisePreparer(runtimeConfig)
-                .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig));
+        UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
+                () -> new Cpu1FusedElementwisePreparer(runtimeConfig)
+                        .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig)));
 
-        assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, unit.storageKind());
-        assertTrue(unit.approximateExp());
-        assertTrue(unit.approximateTanh());
-        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, unit.dispatchDecision().costClass());
+        assertTrue(thrown.getMessage().contains(Cpu1FusedCodegenRejectionReason.UNSUPPORTED_INTRINSIC.name()));
     }
 
     @Test
@@ -120,6 +126,16 @@ class Cpu1FusedElementwisePreparerTest {
                 .id();
     }
 
+    private static List<Operation> operations(List<CompiledNode> nodes, List<Integer> nodeIds) {
+        return nodeIds.stream()
+                .map(nodeId -> nodes.stream()
+                        .filter(node -> node.id() == nodeId)
+                        .findFirst()
+                        .orElseThrow()
+                        .operation())
+                .toList();
+    }
+
     private static RuntimeConfig runtimeConfig(ApproxMode approxMode) {
         return new RuntimeConfig(
                 config.backend.CpuKernelConfig.defaultsInference(),
@@ -133,6 +149,13 @@ class Cpu1FusedElementwisePreparerTest {
             CompiledTensorDescriptorIndex descriptorIndex,
             CompiledNode outputNode
     ) {
+        CompiledNode compiledNode(int nodeId) {
+            return nodes.stream()
+                    .filter(node -> node.id() == nodeId)
+                    .findFirst()
+                    .orElseThrow();
+        }
+
         BackendPrepareContext context() {
             return context(RuntimeConfig.inferenceDefaults(outputNode.dataType()));
         }

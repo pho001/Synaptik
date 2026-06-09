@@ -2,6 +2,8 @@ package backend.cpu1.prepare;
 
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenKernel;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenRejectionReason;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
@@ -27,6 +29,8 @@ public final class Cpu1PreparedFusedElementwiseUnit {
     private final Cpu1LaunchPolicy launchPolicy;
     private final Cpu1LaunchConfig launchConfig;
     private final Cpu1FusedDispatchDecision dispatchDecision;
+    private final Cpu1FusedCodegenRejectionReason codegenRejectionReason;
+    private final Cpu1FusedCodegenKernel generatedKernel;
     private final boolean approximateExp;
     private final boolean approximateTanh;
 
@@ -44,6 +48,8 @@ public final class Cpu1PreparedFusedElementwiseUnit {
             Cpu1LaunchPolicy launchPolicy,
             Cpu1LaunchConfig launchConfig,
             Cpu1FusedDispatchDecision dispatchDecision,
+            Cpu1FusedCodegenRejectionReason codegenRejectionReason,
+            Cpu1FusedCodegenKernel generatedKernel,
             boolean approximateExp,
             boolean approximateTanh
     ) {
@@ -80,6 +86,12 @@ public final class Cpu1PreparedFusedElementwiseUnit {
         if (dispatchDecision == null) {
             throw new IllegalArgumentException("dispatchDecision cannot be null");
         }
+        if (codegenRejectionReason == null) {
+            throw new IllegalArgumentException("codegenRejectionReason cannot be null");
+        }
+        if (codegenRejectionReason == Cpu1FusedCodegenRejectionReason.NONE && generatedKernel == null) {
+            throw new IllegalArgumentException("generatedKernel cannot be null when codegenRejectionReason is NONE");
+        }
         this.unitId = unitId;
         this.orderedNodeIds = List.copyOf(orderedNodeIds);
         this.inputNodeIds = List.copyOf(inputNodeIds);
@@ -93,6 +105,8 @@ public final class Cpu1PreparedFusedElementwiseUnit {
         this.launchPolicy = launchPolicy;
         this.launchConfig = launchConfig;
         this.dispatchDecision = dispatchDecision;
+        this.codegenRejectionReason = codegenRejectionReason;
+        this.generatedKernel = generatedKernel;
         this.approximateExp = approximateExp;
         this.approximateTanh = approximateTanh;
     }
@@ -147,6 +161,14 @@ public final class Cpu1PreparedFusedElementwiseUnit {
 
     public Cpu1FusedDispatchDecision dispatchDecision() {
         return dispatchDecision;
+    }
+
+    public Cpu1FusedCodegenRejectionReason codegenRejectionReason() {
+        return codegenRejectionReason;
+    }
+
+    public Cpu1FusedCodegenKernel generatedKernel() {
+        return generatedKernel;
     }
 
     public boolean approximateExp() {

@@ -3,6 +3,11 @@ package backend.cpu1.prepare;
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenKernel;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenKernelFactory;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenLoopKind;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenPlan;
+import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenRejectionReason;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.launch.Cpu1ParallelLaunch;
@@ -62,14 +67,30 @@ public final class Cpu1FusedElementwisePreparer {
         Cpu1PrepareConfig config = Cpu1PrepareConfig
                 .automatic(runtimeConfig, Runtime.getRuntime().availableProcessors(), storageKindFromRuntime())
                 .withApproximation(useFastExp, useFastTanh);
+        DataType computeType = computeType(plan);
         Cpu1FusedDispatchDecision dispatchDecision = dispatchPolicy.decideFusedElementwise(
                 plan,
                 sourceOperations,
-                computeType(plan),
+                computeType,
                 outputNode.flatDataSize(),
                 config
         );
         Cpu1LaunchConfig launchConfig = dispatchDecision.launchConfig();
+        Cpu1LayoutKind layoutKind = layoutKind(plan, outputNode);
+        Cpu1FusedCodegenLoopKind loopKind = Cpu1FusedCodegenLoopKind.select(plan, layoutKind, dispatchDecision);
+        Cpu1FusedCodegenPlan codegenPlan = Cpu1FusedCodegenPlan.from(
+                plan,
+                computeType,
+                layoutKind,
+                dispatchDecision.storageKind(),
+                loopKind,
+                config
+        );
+        Cpu1FusedCodegenRejectionReason rejectionReason = codegenPlan.rejectionReason();
+        if (rejectionReason != Cpu1FusedCodegenRejectionReason.NONE) {
+            throw Cpu1FusedCodegenKernelFactory.rejection(codegenPlan, rejectionReason);
+        }
+        Cpu1FusedCodegenKernel generatedKernel = Cpu1FusedCodegenKernelFactory.prepareKernel(codegenPlan);
         return new Cpu1PreparedFusedElementwiseUnit(
                 loweredUnit.unitId(),
                 loweredUnit.orderedNodeIds(),
@@ -79,11 +100,13 @@ public final class Cpu1FusedElementwisePreparer {
                 outputNode.flatDataSize(),
                 outputNode.shape(),
                 plan,
-                layoutKind(plan, outputNode),
+                layoutKind,
                 dispatchDecision.storageKind(),
                 launchPolicy(launchConfig),
                 launchConfig,
                 dispatchDecision,
+                rejectionReason,
+                generatedKernel,
                 useFastExp,
                 useFastTanh
         );
@@ -110,7 +133,6 @@ public final class Cpu1FusedElementwisePreparer {
             if (operation == null || !operation.isFusable()) {
                 throw new UnsupportedOperationException("cpu1 fused unit contains non-fusable nodeId=" + nodeId);
             }
-            requireSupportedDType(node.dataType(), "node " + nodeId + " output");
         }
     }
 
@@ -124,15 +146,6 @@ public final class Cpu1FusedElementwisePreparer {
             operations.add(node == null ? null : node.operation());
         }
         return List.copyOf(operations);
-    }
-
-    private static void requireSupportedDType(DataType dataType, String role) {
-        if (dataType != DataType.FLOAT32
-                && dataType != DataType.FLOAT64
-                && dataType != DataType.BFLOAT16
-                && dataType != DataType.BOOL) {
-            throw new UnsupportedOperationException("cpu1 fused does not support " + role + " dtype " + dataType);
-        }
     }
 
     private static DataType computeType(Cpu1FusedExpressionPlan plan) {
