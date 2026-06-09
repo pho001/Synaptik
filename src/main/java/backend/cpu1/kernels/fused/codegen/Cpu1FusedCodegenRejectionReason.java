@@ -11,8 +11,7 @@ public enum Cpu1FusedCodegenRejectionReason {
     UNSUPPORTED_LAYOUT_OR_ACCESS("unsupported layout or access pattern"),
     UNSUPPORTED_STORAGE_KIND("unsupported storage kind"),
     UNSUPPORTED_LOOP_KIND("unsupported loop kind"),
-    UNSUPPORTED_SCALAR_BINDING("unsupported scalar binding"),
-    MISSING_ASM_EMITTER("ASM emitter is not implemented");
+    UNSUPPORTED_SCALAR_BINDING("unsupported scalar binding");
 
     private final String description;
 

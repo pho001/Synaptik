@@ -84,7 +84,6 @@ public final class Cpu1FusedIrBuilder {
             if (node == null || node.operation() == null) {
                 throw new IllegalArgumentException("Fused node " + nodeId + " does not have an operation");
             }
-            int outputRef = externalInputNodeIds.size() + i;
             List<Integer> inputRefs = new ArrayList<>(node.inputIds().size());
             for (int inputNodeId : node.inputIds()) {
                 Integer ref = refs.get(inputNodeId);
@@ -93,17 +92,23 @@ public final class Cpu1FusedIrBuilder {
                 }
                 inputRefs.add(ref);
             }
-            refs.put(nodeId, outputRef);
-            CanonicalNode canonical = canonicalize(node.operation(), inputRefs);
-            nodes.add(new Cpu1FusedNodePlan(
-                    i,
-                    nodeId,
-                    canonical.opType(),
-                    canonical.inputRefs(),
-                    outputRef,
-                    descriptorIndex.byNodeId(nodeId).dataType(),
-                    canonical.scalarParameter()
-            ));
+            int nextOutputRef = externalInputNodeIds.size() + nodes.size();
+            List<CanonicalNode> canonicalNodes = canonicalize(node.operation(), inputRefs, nextOutputRef);
+            int lastOutputRef = -1;
+            for (CanonicalNode canonical : canonicalNodes) {
+                int outputRef = externalInputNodeIds.size() + nodes.size();
+                nodes.add(new Cpu1FusedNodePlan(
+                        nodes.size(),
+                        nodeId,
+                        canonical.opType(),
+                        canonical.inputRefs(),
+                        outputRef,
+                        descriptorIndex.byNodeId(nodeId).dataType(),
+                        canonical.scalarParameter()
+                ));
+                lastOutputRef = outputRef;
+            }
+            refs.put(nodeId, lastOutputRef);
         }
 
         Integer outputRef = refs.get(orderedNodeIds.getLast());
@@ -144,45 +149,51 @@ public final class Cpu1FusedIrBuilder {
         return node;
     }
 
-    private static CanonicalNode canonicalize(Operation operation, List<Integer> inputRefs) {
+    private static List<CanonicalNode> canonicalize(Operation operation, List<Integer> inputRefs, int nextOutputRef) {
         if (operation instanceof pow p && inputRefs.size() == 1) {
             double exponent = p.getExponent();
             int inputRef = inputRefs.getFirst();
             if (exponent == 0.0d) {
-                return new CanonicalNode(
+                return List.of(new CanonicalNode(
                         Operation.OpType.CONST_SCALAR,
                         List.of(),
                         Cpu1FusedScalarParameter.of(1.0f, 1.0d)
-                );
+                ));
             }
             if (exponent == 1.0d) {
-                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
+                return List.of(new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE));
             }
             if (exponent == -1.0d) {
-                return new CanonicalNode(Operation.OpType.INV, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
+                return List.of(new CanonicalNode(Operation.OpType.INV, List.of(inputRef), Cpu1FusedScalarParameter.NONE));
             }
             if (exponent == 2.0d) {
-                return new CanonicalNode(Operation.OpType.MUL, List.of(inputRef, inputRef), Cpu1FusedScalarParameter.NONE);
+                return List.of(new CanonicalNode(Operation.OpType.MUL, List.of(inputRef, inputRef), Cpu1FusedScalarParameter.NONE));
+            }
+            if (exponent == -2.0d) {
+                return List.of(
+                        new CanonicalNode(Operation.OpType.MUL, List.of(inputRef, inputRef), Cpu1FusedScalarParameter.NONE),
+                        new CanonicalNode(Operation.OpType.INV, List.of(nextOutputRef), Cpu1FusedScalarParameter.NONE)
+                );
             }
         }
         if (operation instanceof mulScalar m && inputRefs.size() == 1) {
             double scalar = m.getScalar();
             int inputRef = inputRefs.getFirst();
             if (scalar == 0.0d) {
-                return new CanonicalNode(
+                return List.of(new CanonicalNode(
                         Operation.OpType.CONST_SCALAR,
                         List.of(),
                         Cpu1FusedScalarParameter.of(0.0f, 0.0d)
-                );
+                ));
             }
             if (scalar == 1.0d) {
-                return new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
+                return List.of(new CanonicalNode(Operation.OpType.NOOP, List.of(inputRef), Cpu1FusedScalarParameter.NONE));
             }
             if (scalar == -1.0d) {
-                return new CanonicalNode(Operation.OpType.NEG, List.of(inputRef), Cpu1FusedScalarParameter.NONE);
+                return List.of(new CanonicalNode(Operation.OpType.NEG, List.of(inputRef), Cpu1FusedScalarParameter.NONE));
             }
         }
-        return new CanonicalNode(operation.opType(), List.copyOf(inputRefs), scalarParameter(operation));
+        return List.of(new CanonicalNode(operation.opType(), List.copyOf(inputRefs), scalarParameter(operation)));
     }
 
     private static Cpu1FusedScalarParameter scalarParameter(Operation operation) {

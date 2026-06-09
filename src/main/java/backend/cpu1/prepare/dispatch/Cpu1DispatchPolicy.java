@@ -80,8 +80,8 @@ public final class Cpu1DispatchPolicy {
         if (plan == null) {
             throw new IllegalArgumentException("plan cannot be null");
         }
-        if (sourceOperations == null || sourceOperations.size() != plan.nodes().size()) {
-            throw new IllegalArgumentException("sourceOperations must match fused node count");
+        if (sourceOperations == null || sourceOperations.isEmpty()) {
+            throw new IllegalArgumentException("sourceOperations cannot be null or empty");
         }
         if (computeType == null) {
             throw new IllegalArgumentException("computeType cannot be null");

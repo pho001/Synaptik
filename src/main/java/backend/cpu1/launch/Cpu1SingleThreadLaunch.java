@@ -1,10 +1,5 @@
 package backend.cpu1.launch;
 
-import backend.cpu1.exec.Cpu1KernelArgs;
-import backend.cpu1.kernels.elementwise.Cpu1ElementwiseRangeRunner;
-
-import java.util.Objects;
-
 /**
  * Single-thread launch policy for initial cpu1 kernels.
  */
@@ -16,7 +11,10 @@ public final class Cpu1SingleThreadLaunch implements Cpu1LaunchPolicy {
     }
 
     public Cpu1SingleThreadLaunch(Cpu1LaunchConfig launchConfig) {
-        this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        this.launchConfig = launchConfig;
         if (launchConfig.workerCount() != 1) {
             throw new IllegalArgumentException("Cpu1SingleThreadLaunch requires workerCount=1.");
         }
@@ -27,9 +25,16 @@ public final class Cpu1SingleThreadLaunch implements Cpu1LaunchPolicy {
     }
 
     @Override
-    public void launch(Cpu1ElementwiseRangeRunner kernelRunner, Cpu1KernelArgs args) {
-        Objects.requireNonNull(kernelRunner, "kernelRunner cannot be null");
-        Objects.requireNonNull(args, "args cannot be null");
-        kernelRunner.computeRange(args, 0, args.elementCount());
+    public void launch(int elementCount, Cpu1RangeTask task) {
+        if (elementCount < 0) {
+            throw new IllegalArgumentException("elementCount must be >= 0");
+        }
+        if (task == null) {
+            throw new IllegalArgumentException("task cannot be null");
+        }
+        if (elementCount == 0) {
+            return;
+        }
+        task.run(0, elementCount);
     }
 }

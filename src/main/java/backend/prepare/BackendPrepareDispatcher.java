@@ -3,6 +3,7 @@ package backend.prepare;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
+import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1MatmulPreparer;
 import backend.cpu1.prepare.Cpu1MseLossPreparer;
@@ -30,6 +31,7 @@ import java.util.Objects;
 public final class BackendPrepareDispatcher {
     private final RuntimeConfig runtimeConfig;
     private final CpuNodePreparer cpuPreparer;
+    private final Cpu1FusedElementwisePreparer cpu1FusedElementwisePreparer;
     private final Cpu1MseLossPreparer cpu1MseLossPreparer;
     private final Cpu1MatmulPreparer cpu1MatmulPreparer;
     private MetalNodePreparer metalPreparer;
@@ -38,6 +40,7 @@ public final class BackendPrepareDispatcher {
     private BackendPrepareDispatcher(RuntimeConfig runtimeConfig) {
         this.runtimeConfig = runtimeConfig;
         this.cpuPreparer = new CpuNodePreparer(runtimeConfig);
+        this.cpu1FusedElementwisePreparer = new Cpu1FusedElementwisePreparer(runtimeConfig);
         this.cpu1MseLossPreparer = new Cpu1MseLossPreparer(runtimeConfig);
         this.cpu1MatmulPreparer = new Cpu1MatmulPreparer();
     }
@@ -66,6 +69,9 @@ public final class BackendPrepareDispatcher {
         Objects.requireNonNull(outputNode, "outputNode cannot be null");
         Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
+        if (runtimeConfig.fused().useCpu1Elementwise()) {
+            return cpu1FusedElementwisePreparer.prepare(outputNode, loweredUnit, context);
+        }
         return cpuPreparer.prepareLoweredFusedStep(outputNode, loweredUnit, context);
     }
 

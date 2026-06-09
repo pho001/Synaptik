@@ -3,12 +3,15 @@ package backend.cpu1.trace;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
+import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
+import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import graph.CompiledNode;
 import graph.execution.trace.DispatchTraceMetadata;
+import graph.execution.trace.FusedTraceMetadata;
 import graph.execution.trace.LayoutTraceMetadata;
 import graph.execution.trace.MatMulTraceMetadata;
 import graph.execution.trace.ReductionTraceMetadata;
@@ -33,7 +36,8 @@ public final class Cpu1TraceContributor {
             Cpu1PreparedLayoutUnit preparedLayoutUnit,
             Cpu1PreparedReductionUnit preparedReductionUnit,
             Cpu1PreparedMatmulUnit preparedMatmulUnit,
-            Cpu1PreparedMseLossUnit preparedMseLossUnit
+            Cpu1PreparedMseLossUnit preparedMseLossUnit,
+            Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
@@ -46,6 +50,9 @@ public final class Cpu1TraceContributor {
         }
         if (preparedMseLossUnit != null) {
             return mseLossTrace(preparedMseLossUnit);
+        }
+        if (preparedFusedElementwiseUnit != null) {
+            return fusedElementwiseTrace(preparedFusedElementwiseUnit);
         }
         return StepTraceContribution.empty();
     }
@@ -194,6 +201,8 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1StorageKind", unit.storageKind().name());
         attrs.put("cpu1MseLossReduction", unit.reductionOpType().name());
         attrs.put("cpu1MseLossElementCount", unit.elementCount());
+        attrs.put("cpu1MseLossReductionDivisor", unit.reductionDivisor());
+        attrs.put("cpu1MseLossReductionNodeCount", unit.orderedNodeIds().size() - 2);
         attrs.put("cpu1MseLossLaunchWorkers", unit.launchConfig().workerCount());
         attrs.put("cpu1MseLossLaunchChunkSize", unit.launchConfig().chunkSize());
         ReductionTraceMetadata reduction = new ReductionTraceMetadata(
@@ -213,6 +222,56 @@ public final class Cpu1TraceContributor {
                 null,
                 null,
                 null
+        );
+    }
+
+    private static StepTraceContribution fusedElementwiseTrace(Cpu1PreparedFusedElementwiseUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", "CPU1_FUSED_ELEMENTWISE");
+        attrs.put("cpu1FusedNodeCount", unit.plan().nodeCount());
+        attrs.put("cpu1FusedInputCount", unit.plan().inputCount());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1LayoutKind", unit.layoutKind().name());
+        attrs.put("cpu1FusedOutputNodeId", unit.outputNodeId());
+        attrs.put("cpu1FusedElementCount", unit.elementCount());
+        attrs.put("cpu1FusedLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1FusedLaunchChunkSize", unit.launchConfig().chunkSize());
+        attrs.put("cpu1FusedCostClass", unit.dispatchDecision().costClass().name());
+        attrs.put("cpu1FusedRequestedVectorization", unit.dispatchDecision().requestedVectorizationKind().name());
+        attrs.put("cpu1FusedApproxExp", unit.approximateExp());
+        attrs.put("cpu1FusedApproxTanh", unit.approximateTanh());
+        attrs.put("cpu1FusedCodegenRejectionReason", unit.codegenRejectionReason().name());
+        attrs.put("cpu1FusedClassSignature", unit.generatedKernel().classSignature().canonicalSignature());
+        attrs.put("cpu1FusedGeneratedClassName", unit.generatedKernel().generatedClassName());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                unit.dispatchDecision().requestedVectorizationKind().name(),
+                unit.dispatchDecision().requestedVectorizationKind() == Cpu1VectorizationKind.VECTOR
+                        ? vectorWidth(unit.outputDataType())
+                        : 1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        FusedTraceMetadata fused = new FusedTraceMetadata(
+                unit.storageKind().name() + ":" + unit.outputDataType().name(),
+                unit.dispatchDecision().costClass() == Cpu1CostClass.CHEAP_ELEMENTWISE,
+                "CPU1_FUSED_ELEMENTWISE",
+                unit.generatedKernel().classSignature().canonicalSignature(),
+                "CPU1",
+                unit.plan().nodeCount(),
+                unit.plan().inputCount(),
+                "NONE"
+        );
+        return new StepTraceContribution(
+                "CPU1_FUSED_ELEMENTWISE",
+                attrs,
+                null,
+                null,
+                dispatch,
+                null,
+                null,
+                null,
+                fused
         );
     }
 

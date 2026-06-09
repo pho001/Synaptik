@@ -5,6 +5,9 @@ import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedInputPlan;
 import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
 import backend.cpu1.kernels.Cpu1LayoutKind;
+import backend.cpu1.kernels.fused.codegen.asm.Cpu1FusedAsmCallEmitter;
+import backend.cpu1.kernels.fused.codegen.asm.Cpu1FusedAsmIntrinsicRegistry;
+import backend.cpu1.kernels.fused.codegen.support.Cpu1FusedGeneratedSupport;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
@@ -12,6 +15,7 @@ import tensor.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * Prepare-time input for cpu1 fused ASM code generation.
@@ -81,36 +85,44 @@ public record Cpu1FusedCodegenPlan(
     }
 
     public Cpu1FusedCodegenRejectionReason rejectionReason() {
-        if (!isSupportedDType(computeType)) {
+        if (!isSupportedOutputDType(computeType)) {
             return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
         }
         for (Cpu1FusedInputPlan input : expressionPlan.inputs()) {
-            if (!isSupportedDType(input.dataType())) {
+            if (!isSupportedInputDType(input.dataType())) {
                 return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
             }
-            if (!isSupportedAccess(input.accessKind())) {
+            if (input.dataType() != DataType.BOOL && input.dataType() != computeType) {
+                return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
+            }
+            if (!isSupportedAccess(input.accessKind(), loopKind)) {
                 return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LAYOUT_OR_ACCESS;
             }
         }
         for (Cpu1FusedNodePlan node : expressionPlan.nodes()) {
-            if (!isSupportedDType(node.outputType())) {
+            if (!isSupportedOutputDType(node.outputType())) {
+                return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
+            }
+            if (node.outputType() != computeType) {
                 return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
             }
             Cpu1FusedCodegenRejectionReason operationReason = operationRejectionReason(node);
             if (operationReason != Cpu1FusedCodegenRejectionReason.NONE) {
                 return operationReason;
             }
+            if (!hasSupportedInputRefs(node)) {
+                return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
+            }
         }
-        if (storageKind != Cpu1StorageKind.JAVA_ARRAY && storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
+        if (storageKind != Cpu1StorageKind.JAVA_ARRAY) {
             return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_STORAGE_KIND;
         }
-        if (layoutKind != Cpu1LayoutKind.CONTIGUOUS) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LAYOUT_OR_ACCESS;
-        }
-        if (loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR
-                && loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR
+        if (loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR
                 && loopKind != Cpu1FusedCodegenLoopKind.STRIDED_SCALAR) {
             return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LOOP_KIND;
+        }
+        if (!isSupportedLayout(layoutKind, loopKind)) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LAYOUT_OR_ACCESS;
         }
         return Cpu1FusedCodegenRejectionReason.NONE;
     }
@@ -129,7 +141,8 @@ public record Cpu1FusedCodegenPlan(
         }
         StringBuilder signature = new StringBuilder(256);
         signature.append("cpu1-fused:v1");
-        signature.append("|supportAbi=0");
+        signature.append("|supportAbi=").append(Cpu1FusedGeneratedSupport.ABI_VERSION);
+        signature.append("|helperTargets=").append(helperTargets(expressionPlan, computeType));
         signature.append("|storage=").append(storageKind);
         signature.append("|layout=").append(layoutKind);
         signature.append("|loop=").append(loopKind);
@@ -166,26 +179,90 @@ public record Cpu1FusedCodegenPlan(
         return new Cpu1FusedCodegenClassSignature(signature.toString());
     }
 
-    private static Cpu1FusedCodegenRejectionReason operationRejectionReason(Cpu1FusedNodePlan node) {
-        if (node.scalarParameter().present()) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_SCALAR_BINDING;
+    private static List<String> helperTargets(Cpu1FusedExpressionPlan expressionPlan, DataType computeType) {
+        if (computeType != DataType.FLOAT32 && computeType != DataType.FLOAT64) {
+            return List.of();
         }
-        return switch (node.opType()) {
-            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, ABS, RELU, CLAMP_MIN, CLAMP_MAX, NOOP ->
-                    Cpu1FusedCodegenRejectionReason.NONE;
-            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, POW, POW_TENSOR, SQRT, SIGMOID ->
-                    Cpu1FusedCodegenRejectionReason.UNSUPPORTED_INTRINSIC;
-            default -> Cpu1FusedCodegenRejectionReason.UNSUPPORTED_OPERATION;
-        };
+        TreeSet<String> targets = new TreeSet<>();
+        for (Cpu1FusedNodePlan node : expressionPlan.nodes()) {
+            Operation.OpType opType = node.opType();
+            switch (opType) {
+                case RELU -> targets.add(Cpu1FusedAsmCallEmitter.reluTarget(computeType));
+                case ABS -> targets.add(Cpu1FusedAsmCallEmitter.absTarget(computeType));
+                case MIN, CLAMP_MAX -> targets.add(Cpu1FusedAsmCallEmitter.minTarget(computeType));
+                case MAX, CLAMP_MIN -> targets.add(Cpu1FusedAsmCallEmitter.maxTarget(computeType));
+                default -> {
+                }
+            }
+        }
+        return List.copyOf(targets);
     }
 
-    private static boolean isSupportedAccess(Cpu1FusedAccessKind accessKind) {
+    private static Cpu1FusedCodegenRejectionReason operationRejectionReason(Cpu1FusedNodePlan node) {
+        return Cpu1FusedAsmIntrinsicRegistry.rejectionReason(node);
+    }
+
+    private boolean hasSupportedInputRefs(Cpu1FusedNodePlan node) {
+        if (node.opType() == operations.Operation.OpType.CONST_SCALAR) {
+            return node.inputRefs().isEmpty();
+        }
+        if (node.opType() == operations.Operation.OpType.WHERE) {
+            if (node.inputRefs().size() != 3) {
+                return false;
+            }
+            return refType(node.inputRefs().get(0)) == DataType.BOOL
+                    && refType(node.inputRefs().get(1)) == computeType
+                    && refType(node.inputRefs().get(2)) == computeType;
+        }
+        for (int ref : node.inputRefs()) {
+            if (refType(ref) != computeType) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private DataType refType(int ref) {
+        if (ref < 0) {
+            throw new IllegalArgumentException("ref must be >= 0");
+        }
+        if (ref < expressionPlan.inputCount()) {
+            return expressionPlan.inputs().get(ref).dataType();
+        }
+        int nodeIndex = ref - expressionPlan.inputCount();
+        if (nodeIndex < 0 || nodeIndex >= expressionPlan.nodeCount()) {
+            throw new IllegalArgumentException("Invalid fused ref " + ref);
+        }
+        return expressionPlan.nodes().get(nodeIndex).outputType();
+    }
+
+    private static boolean isSupportedAccess(Cpu1FusedAccessKind accessKind, Cpu1FusedCodegenLoopKind loopKind) {
+        if (loopKind == Cpu1FusedCodegenLoopKind.STRIDED_SCALAR) {
+            return accessKind == Cpu1FusedAccessKind.DIRECT_CONTIGUOUS
+                    || accessKind == Cpu1FusedAccessKind.OFFSET_CONTIGUOUS
+                    || accessKind == Cpu1FusedAccessKind.DIRECT_STRIDED
+                    || accessKind == Cpu1FusedAccessKind.OFFSET_STRIDED
+                    || accessKind == Cpu1FusedAccessKind.BROADCAST_STRIDED;
+        }
         return accessKind == Cpu1FusedAccessKind.DIRECT_CONTIGUOUS
                 || accessKind == Cpu1FusedAccessKind.OFFSET_CONTIGUOUS;
     }
 
-    private static boolean isSupportedDType(DataType dataType) {
+    private static boolean isSupportedInputDType(DataType dataType) {
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BOOL;
+    }
+
+    private static boolean isSupportedOutputDType(DataType dataType) {
         return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+    }
+
+    private static boolean isSupportedLayout(Cpu1LayoutKind layoutKind, Cpu1FusedCodegenLoopKind loopKind) {
+        if (loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR) {
+            return layoutKind == Cpu1LayoutKind.CONTIGUOUS;
+        }
+        return loopKind == Cpu1FusedCodegenLoopKind.STRIDED_SCALAR
+                && layoutKind != Cpu1LayoutKind.CONTIGUOUS
+                && layoutKind != Cpu1LayoutKind.BROADCAST_INNER;
     }
 
     public List<Cpu1FusedNodePlan> scalarBindingNodes() {

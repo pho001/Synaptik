@@ -382,7 +382,8 @@ public final class ExecutionProfileIO {
                     )
             );
             FusedExecutionPolicy fused = new FusedExecutionPolicy(
-                    findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback())
+                    findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback()),
+                    findBoolean(json, "fusedUseCpu1Elementwise", defaultProfile.runtime().fused().useCpu1Elementwise())
             );
             AcceleratorConfig accelerator = new AcceleratorConfig(
                     new AcceleratorBackendConfig(
@@ -743,7 +744,8 @@ public final class ExecutionProfileIO {
                 "      \"conv2dBf16MaxNOverK\": " + conv2d.bf16MaxNOverK() + "\n" +
                 "    },\n" +
                 "    \"fused\": {\n" +
-                "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + "\n" +
+                "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + ",\n" +
+                "      \"fusedUseCpu1Elementwise\": " + fused.useCpu1Elementwise() + "\n" +
                 "    },\n" +
                 "    \"accelerator\": {\n" +
                 "      \"cudaEnabled\": " + accelerator.cuda().enabled() + ",\n" +

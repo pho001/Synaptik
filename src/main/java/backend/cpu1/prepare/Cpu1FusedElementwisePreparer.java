@@ -1,5 +1,6 @@
 package backend.cpu1.prepare;
 
+import backend.ComputeBackend;
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.kernels.Cpu1LayoutKind;
@@ -20,6 +21,9 @@ import backend.prepare.BackendPrepareContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
+import graph.execution.plan.CompiledNodeExecutionMetadata;
+import graph.execution.plan.InputResidencyRequirement;
+import graph.execution.plan.OutputResidencyEffect;
 import operations.Operation;
 import tensor.DataType;
 
@@ -39,6 +43,22 @@ public final class Cpu1FusedElementwisePreparer {
         }
         this.runtimeConfig = runtimeConfig;
         this.dispatchPolicy = new Cpu1DispatchPolicy();
+    }
+
+    public CompiledNodeExecutionMetadata prepare(
+            CompiledNode outputNode,
+            LoweredExecutionUnit loweredUnit,
+            BackendPrepareContext context
+    ) {
+        Cpu1PreparedFusedElementwiseUnit preparedUnit = prepareUnit(outputNode, loweredUnit, context);
+        return new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                null,
+                preparedUnit.inputNodeIds(),
+                new Cpu1PreparedArtifact(preparedUnit),
+                InputResidencyRequirement.cpuReadableAll(),
+                OutputResidencyEffect.cpuCurrentPreserveNative()
+        );
     }
 
     public Cpu1PreparedFusedElementwiseUnit prepareUnit(

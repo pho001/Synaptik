@@ -2,6 +2,7 @@ package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
 import backend.cpu1.exec.Cpu1ElementwiseExecutableUnit;
+import backend.cpu1.exec.Cpu1FusedElementwiseExecutableUnit;
 import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.exec.Cpu1MseLossExecutableUnit;
@@ -16,8 +17,6 @@ import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;
 import graph.execution.trace.StepTraceContribution;
 
-import java.util.Objects;
-
 /**
  * Prepared execution artifact attached to cpu1 node metadata.
  */
@@ -27,60 +26,98 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
     private final Cpu1PreparedReductionUnit preparedReductionUnit;
     private final Cpu1PreparedMatmulUnit preparedMatmulUnit;
     private final Cpu1PreparedMseLossUnit preparedMseLossUnit;
+    private final Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit;
     private final Cpu1ExecutableUnit executableUnit;
 
     public Cpu1PreparedArtifact(Cpu1PreparedElementwiseUnit preparedUnit) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1ElementwiseExecutableUnit(preparedUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedLayoutUnit preparedLayoutUnit) {
+        if (preparedLayoutUnit == null) {
+            throw new IllegalArgumentException("preparedLayoutUnit cannot be null");
+        }
         this.preparedUnit = null;
-        this.preparedLayoutUnit = Objects.requireNonNull(preparedLayoutUnit, "preparedLayoutUnit cannot be null");
+        this.preparedLayoutUnit = preparedLayoutUnit;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1LayoutExecutableUnit(preparedLayoutUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedReductionUnit preparedReductionUnit) {
+        if (preparedReductionUnit == null) {
+            throw new IllegalArgumentException("preparedReductionUnit cannot be null");
+        }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
-        this.preparedReductionUnit = Objects.requireNonNull(preparedReductionUnit, "preparedReductionUnit cannot be null");
+        this.preparedReductionUnit = preparedReductionUnit;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1ReductionExecutableUnit(preparedReductionUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedMatmulUnit preparedMatmulUnit) {
+        if (preparedMatmulUnit == null) {
+            throw new IllegalArgumentException("preparedMatmulUnit cannot be null");
+        }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
-        this.preparedMatmulUnit = Objects.requireNonNull(preparedMatmulUnit, "preparedMatmulUnit cannot be null");
+        this.preparedMatmulUnit = preparedMatmulUnit;
         this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1MatmulExecutableUnit(preparedMatmulUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedMseLossUnit preparedMseLossUnit) {
+        if (preparedMseLossUnit == null) {
+            throw new IllegalArgumentException("preparedMseLossUnit cannot be null");
+        }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
-        this.preparedMseLossUnit = Objects.requireNonNull(preparedMseLossUnit, "preparedMseLossUnit cannot be null");
+        this.preparedMseLossUnit = preparedMseLossUnit;
+        this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1MseLossExecutableUnit(preparedMseLossUnit);
     }
 
-    public Cpu1PreparedArtifact(Cpu1ExecutableUnit executableUnit) {
+    public Cpu1PreparedArtifact(Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit) {
+        if (preparedFusedElementwiseUnit == null) {
+            throw new IllegalArgumentException("preparedFusedElementwiseUnit cannot be null");
+        }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
-        this.executableUnit = Objects.requireNonNull(executableUnit, "executableUnit cannot be null");
+        this.preparedFusedElementwiseUnit = preparedFusedElementwiseUnit;
+        this.executableUnit = new Cpu1FusedElementwiseExecutableUnit(preparedFusedElementwiseUnit);
+    }
+
+    public Cpu1PreparedArtifact(Cpu1ExecutableUnit executableUnit) {
+        if (executableUnit == null) {
+            throw new IllegalArgumentException("executableUnit cannot be null");
+        }
+        this.preparedUnit = null;
+        this.preparedLayoutUnit = null;
+        this.preparedReductionUnit = null;
+        this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
+        this.executableUnit = executableUnit;
     }
 
     public Cpu1PreparedElementwiseUnit preparedUnit() {
@@ -118,6 +155,13 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         return preparedMseLossUnit;
     }
 
+    public Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit() {
+        if (preparedFusedElementwiseUnit == null) {
+            throw new IllegalStateException("This cpu1 artifact does not expose a prepared fused elementwise unit");
+        }
+        return preparedFusedElementwiseUnit;
+    }
+
     public Cpu1ExecutableUnit executableUnit() {
         return executableUnit;
     }
@@ -153,7 +197,8 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
                 preparedLayoutUnit,
                 preparedReductionUnit,
                 preparedMatmulUnit,
-                preparedMseLossUnit
+                preparedMseLossUnit,
+                preparedFusedElementwiseUnit
         );
     }
 }

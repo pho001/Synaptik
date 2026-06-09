@@ -6,6 +6,7 @@ import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenRejectionReason;
 import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
+import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -66,10 +68,49 @@ class Cpu1FusedElementwisePreparerTest {
         assertEquals(Operation.OpType.MUL, plan.nodes().getFirst().opType());
         assertEquals(Operation.OpType.RELU, plan.nodes().getLast().opType());
 
-        UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
-                () -> new Cpu1FusedElementwisePreparer(runtimeConfig)
-                        .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig)));
-        assertTrue(thrown.getMessage().contains(Cpu1FusedCodegenRejectionReason.MISSING_ASM_EMITTER.name()));
+        Cpu1PreparedFusedElementwiseUnit preparedUnit = new Cpu1FusedElementwisePreparer(runtimeConfig)
+                .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig));
+        assertEquals(Cpu1FusedCodegenRejectionReason.NONE, preparedUnit.codegenRejectionReason());
+        assertNotNull(preparedUnit.generatedKernel());
+    }
+
+    @Test
+    void preparesPowMinusTwoWhenCanonicalNodeCountExceedsSourceOperationCount() {
+        Tensor input = new Tensor(new float[]{1.0f, 2.0f, 4.0f}, new int[]{3}, null, "input", DataType.FLOAT32);
+        Tensor powMinusTwo = new Tensor(new int[]{3}, List.of(input), new pow(-2.0), "powMinusTwo", DataType.FLOAT32);
+        Fixture fixture = fixture(powMinusTwo.relu());
+        int powNodeId = nodeId(fixture.nodes(), Operation.OpType.POW);
+        int reluNodeId = nodeId(fixture.nodes(), Operation.OpType.RELU);
+        LoweredExecutionUnit loweredUnit = new LoweredExecutionUnit(
+                "pow-minus-two-relu",
+                LoweringFamily.FUSED_NATIVE,
+                List.of(powNodeId, reluNodeId)
+        );
+        RuntimeConfig runtimeConfig = runtimeConfig(ApproxMode.OFF).withCpuStorageProfile(CpuStorageProfile.CPU_ARRAY);
+
+        Cpu1FusedExpressionPlan plan = Cpu1FusedIrBuilder.build(
+                loweredUnit.orderedNodeIds(),
+                fixture::compiledNode,
+                fixture.descriptorIndex()
+        );
+        Cpu1FusedDispatchDecision decision = new Cpu1DispatchPolicy().decideFusedElementwise(
+                plan,
+                operations(fixture.nodes(), loweredUnit.orderedNodeIds()),
+                DataType.FLOAT32,
+                fixture.outputNode().flatDataSize(),
+                Cpu1PrepareConfig.automatic(runtimeConfig, 1, Cpu1StorageKind.JAVA_ARRAY)
+        );
+
+        assertEquals(3, plan.nodes().size());
+        assertEquals(Operation.OpType.MUL, plan.nodes().get(0).opType());
+        assertEquals(Operation.OpType.INV, plan.nodes().get(1).opType());
+        assertEquals(Operation.OpType.RELU, plan.nodes().get(2).opType());
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, decision.costClass());
+
+        Cpu1PreparedFusedElementwiseUnit preparedUnit = new Cpu1FusedElementwisePreparer(runtimeConfig)
+                .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig));
+        assertEquals(Cpu1FusedCodegenRejectionReason.NONE, preparedUnit.codegenRejectionReason());
+        assertNotNull(preparedUnit.generatedKernel());
     }
 
     @Test

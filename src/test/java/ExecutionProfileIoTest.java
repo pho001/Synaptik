@@ -159,7 +159,7 @@ public class ExecutionProfileIoTest {
                         new ApproximationConfig(ApproxMode.OFF, false),
                         new BlasConfig(BlasProvider.NONE, 2_000_000L, true, 3.0d, false, 12.0d, false, 5)
                                 .withOpenBlasRouteThreads(4, 16),
-                        new FusedExecutionPolicy(true),
+                        new FusedExecutionPolicy(true, true),
                         new AcceleratorConfig(
                                 new AcceleratorBackendConfig(
                                         false,
@@ -324,6 +324,49 @@ public class ExecutionProfileIoTest {
 
         assertTrue(json.contains("\"partitionTransferCostPreset\""));
         assertFalse(json.contains("\"partitionMetalTransferModel\""));
+    }
+
+    @Test
+    void executionProfileIoWritesCpu1FusedRouteKey() {
+        String json = ExecutionProfileIO.toJson(defaultProfile());
+
+        assertTrue(json.contains("\"fusedUseCpu1Elementwise\""));
+    }
+
+    @Test
+    void oldProfilesDefaultCpu1FusedRouteFromFallbackProfile() {
+        ExecutionProfile fallback = new ExecutionProfile(
+                "fallback",
+                "fallback",
+                DataType.FLOAT32,
+                ExecutionMode.FORWARD,
+                CompileConfig.inference(),
+                new RuntimeConfig(
+                        CpuKernelConfig.defaultsInference(),
+                        ApproximationConfig.defaults(),
+                        BlasConfig.disabled(),
+                        FusedExecutionPolicy.defaultsInference().withUseCpu1Elementwise(true)
+                )
+        );
+        String json = """
+                {
+                  "dataType": "FLOAT32",
+                  "mode": "FORWARD",
+                  "profileName": "legacy",
+                  "candidateName": "legacy",
+                  "compile": {},
+                  "runtime": {
+                    "fused": {
+                      "fusedAllowBackendFallback": false
+                    }
+                  }
+                }
+                """;
+
+        ExecutionProfile actual = ExecutionProfileIO.fromJsonOrDefault(json, fallback);
+
+        assertFalse(actual.runtime().fused().allowBackendFallback());
+        assertTrue(actual.runtime().fused().useCpu1Elementwise());
     }
 
     @Test
