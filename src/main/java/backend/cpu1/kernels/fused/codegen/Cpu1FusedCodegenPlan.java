@@ -163,7 +163,7 @@ public record Cpu1FusedCodegenPlan(
                     .append(';');
         }
         signature.append("|outputRef=").append(expressionPlan.outputRef());
-        return new Cpu1FusedCodegenClassSignature(signature.toString(), 0, List.of());
+        return new Cpu1FusedCodegenClassSignature(signature.toString());
     }
 
     private static Cpu1FusedCodegenRejectionReason operationRejectionReason(Cpu1FusedNodePlan node) {
