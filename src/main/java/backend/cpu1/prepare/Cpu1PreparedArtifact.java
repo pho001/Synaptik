@@ -1,6 +1,7 @@
 package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
+import backend.cpu1.exec.Cpu1DTypeExecutableUnit;
 import backend.cpu1.exec.Cpu1ElementwiseExecutableUnit;
 import backend.cpu1.exec.Cpu1FusedElementwiseExecutableUnit;
 import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
@@ -23,6 +24,7 @@ import graph.execution.trace.StepTraceContribution;
 public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
     private final Cpu1PreparedElementwiseUnit preparedUnit;
     private final Cpu1PreparedLayoutUnit preparedLayoutUnit;
+    private final Cpu1PreparedDTypeUnit preparedDTypeUnit;
     private final Cpu1PreparedReductionUnit preparedReductionUnit;
     private final Cpu1PreparedMatmulUnit preparedMatmulUnit;
     private final Cpu1PreparedMseLossUnit preparedMseLossUnit;
@@ -35,6 +37,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = preparedUnit;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
@@ -48,11 +51,26 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = preparedLayoutUnit;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
         this.preparedFusedElementwiseUnit = null;
         this.executableUnit = new Cpu1LayoutExecutableUnit(preparedLayoutUnit);
+    }
+
+    public Cpu1PreparedArtifact(Cpu1PreparedDTypeUnit preparedDTypeUnit) {
+        if (preparedDTypeUnit == null) {
+            throw new IllegalArgumentException("preparedDTypeUnit cannot be null");
+        }
+        this.preparedUnit = null;
+        this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = preparedDTypeUnit;
+        this.preparedReductionUnit = null;
+        this.preparedMatmulUnit = null;
+        this.preparedMseLossUnit = null;
+        this.preparedFusedElementwiseUnit = null;
+        this.executableUnit = new Cpu1DTypeExecutableUnit(preparedDTypeUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedReductionUnit preparedReductionUnit) {
@@ -61,6 +79,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = preparedReductionUnit;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
@@ -74,6 +93,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = preparedMatmulUnit;
         this.preparedMseLossUnit = null;
@@ -87,6 +107,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = preparedMseLossUnit;
@@ -100,6 +121,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
@@ -113,6 +135,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         }
         this.preparedUnit = null;
         this.preparedLayoutUnit = null;
+        this.preparedDTypeUnit = null;
         this.preparedReductionUnit = null;
         this.preparedMatmulUnit = null;
         this.preparedMseLossUnit = null;
@@ -132,6 +155,13 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
             throw new IllegalStateException("This cpu1 artifact does not expose a prepared layout unit");
         }
         return preparedLayoutUnit;
+    }
+
+    public Cpu1PreparedDTypeUnit preparedDTypeUnit() {
+        if (preparedDTypeUnit == null) {
+            throw new IllegalStateException("This cpu1 artifact does not expose a prepared dtype unit");
+        }
+        return preparedDTypeUnit;
     }
 
     public Cpu1PreparedReductionUnit preparedReductionUnit() {
@@ -195,6 +225,7 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
         return Cpu1TraceContributor.traceContribution(
                 node,
                 preparedLayoutUnit,
+                preparedDTypeUnit,
                 preparedReductionUnit,
                 preparedMatmulUnit,
                 preparedMseLossUnit,

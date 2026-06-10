@@ -2,6 +2,7 @@ package backend.cpu1.trace;
 
 import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
+import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
@@ -34,6 +35,7 @@ public final class Cpu1TraceContributor {
     public static StepTraceContribution traceContribution(
             CompiledNode node,
             Cpu1PreparedLayoutUnit preparedLayoutUnit,
+            Cpu1PreparedDTypeUnit preparedDTypeUnit,
             Cpu1PreparedReductionUnit preparedReductionUnit,
             Cpu1PreparedMatmulUnit preparedMatmulUnit,
             Cpu1PreparedMseLossUnit preparedMseLossUnit,
@@ -41,6 +43,9 @@ public final class Cpu1TraceContributor {
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
+        }
+        if (preparedDTypeUnit != null) {
+            return dtypeTrace(preparedDTypeUnit);
         }
         if (preparedReductionUnit != null) {
             return reductionTrace(preparedReductionUnit);
@@ -97,6 +102,37 @@ public final class Cpu1TraceContributor {
             case SCALAR -> 1;
             case VECTOR -> vectorWidth(unit.dataType());
         };
+    }
+
+    private static StepTraceContribution dtypeTrace(Cpu1PreparedDTypeUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1DTypeKernelId", unit.kernelId().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1LayoutKind", unit.layoutKind().name());
+        attrs.put("cpu1InputDType", unit.inputDataType().name());
+        attrs.put("cpu1OutputDType", unit.outputDataType().name());
+        attrs.put("cpu1ElementCount", unit.elementCount());
+        attrs.put("cpu1LaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private static StepTraceContribution reductionTrace(Cpu1PreparedReductionUnit unit) {

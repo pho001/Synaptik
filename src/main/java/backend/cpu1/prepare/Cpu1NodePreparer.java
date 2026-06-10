@@ -24,7 +24,6 @@ import tensor.DataType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Prepares one compiled node for initial cpu1 execution.
@@ -38,7 +37,10 @@ public final class Cpu1NodePreparer {
     }
 
     public Cpu1NodePreparer(Cpu1KernelRegistry kernelRegistry) {
-        this.kernelRegistry = Objects.requireNonNull(kernelRegistry, "kernelRegistry cannot be null");
+        if (kernelRegistry == null) {
+            throw new IllegalArgumentException("kernelRegistry cannot be null");
+        }
+        this.kernelRegistry = kernelRegistry;
         this.dispatchPolicy = new Cpu1DispatchPolicy();
     }
 
@@ -55,9 +57,16 @@ public final class Cpu1NodePreparer {
             CompiledTensorDescriptorIndex descriptorIndex,
             Cpu1PrepareConfig config
     ) {
-        Objects.requireNonNull(node, "node cannot be null");
-        Objects.requireNonNull(config, "config cannot be null");
-        Operation operation = Objects.requireNonNull(node.operation(), "node operation cannot be null");
+        if (node == null) {
+            throw new IllegalArgumentException("node cannot be null");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
+        Operation operation = node.operation();
+        if (operation == null) {
+            throw new IllegalArgumentException("node operation cannot be null");
+        }
         Operation.OpType opType = operation.opType();
         if (Cpu1LayoutPreparer.isLayoutOp(opType)) {
             return new Cpu1LayoutPreparer().prepare(node, descriptorIndex, config);
@@ -68,11 +77,14 @@ public final class Cpu1NodePreparer {
         if (Cpu1MatmulPreparer.isMatmulOp(opType)) {
             return new Cpu1MatmulPreparer().prepare(node, descriptorIndex, config);
         }
+        if (Cpu1DTypePreparer.isDTypeOp(opType)) {
+            return new Cpu1DTypePreparer().prepare(node, descriptorIndex, config);
+        }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
         DataType kernelDataType = kernelDataType(opType, node.dataType(), inputDataTypes);
         Cpu1DispatchDecision dispatchDecision = dispatchPolicy.decideElementwise(
-                opType,
+                operation,
                 kernelDataType,
                 node.flatDataSize(),
                 config
