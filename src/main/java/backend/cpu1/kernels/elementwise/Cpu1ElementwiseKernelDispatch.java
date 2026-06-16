@@ -29,8 +29,6 @@ import backend.cpu1.kernels.elementwise.unary.sqrt.Cpu1SqrtLoops;
 import backend.cpu1.kernels.elementwise.unary.tanh.Cpu1TanhLoops;
 import backend.cpu1.kernels.elementwise.where.Cpu1WhereLoops;
 
-import java.util.Objects;
-
 /**
  * Resolves prepared kernel ids to concrete elementwise kernel functions outside the hot launch path.
  */
@@ -39,7 +37,9 @@ public final class Cpu1ElementwiseKernelDispatch {
     }
 
     public static Cpu1ElementwiseRangeRunner kernelFor(Cpu1ElementwiseKernelId kernelId) {
-        Objects.requireNonNull(kernelId, "kernelId cannot be null");
+        if (kernelId == null) {
+            throw new IllegalArgumentException("kernelId cannot be null");
+        }
         return switch (kernelId) {
             case ABS_BF16_ARRAY_BROADCAST_INNER_VECTOR -> Cpu1AbsLoops::bf16ArrayBroadcastInnerVector;
             case ABS_BF16_ARRAY_CONTIGUOUS_SCALAR -> Cpu1AbsLoops::bf16ArrayContiguousScalar;

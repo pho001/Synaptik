@@ -49,7 +49,7 @@ public final class CpuComputeContractResolver {
                     NLL_LOSS, CROSS_ENTROPY_LOSS, CROSS_ENTROPY_LOSS_INDICES ->
                     resolveReductionContract(dataType);
             case FUSED -> defaultContractFor(dataType, CpuExecutionBackend.CPU_FUSED);
-            default -> (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE)
+            default -> (op.arityClass() == Operation.OpArityClass.ELEMENT_WISE)
                     ? defaultContractFor(dataType, CpuExecutionBackend.CPU_ELEMENTWISE)
                     : defaultContractFor(dataType, CpuExecutionBackend.CPU_GENERIC);
         };

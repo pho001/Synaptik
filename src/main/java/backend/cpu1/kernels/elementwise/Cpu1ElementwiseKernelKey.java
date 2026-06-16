@@ -7,7 +7,6 @@ import operations.Operation;
 import tensor.DataType;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Prepare-time key for resolving a concrete cpu1 kernel variant.
@@ -21,12 +20,25 @@ public record Cpu1ElementwiseKernelKey(
         Cpu1VectorizationKind vectorizationKind
 ) {
     public Cpu1ElementwiseKernelKey {
-        Objects.requireNonNull(opType, "opType cannot be null");
-        Objects.requireNonNull(dataType, "dataType cannot be null");
-        inputDataTypes = List.copyOf(Objects.requireNonNull(inputDataTypes, "inputDataTypes cannot be null"));
-        Objects.requireNonNull(layoutKind, "layoutKind cannot be null");
-        Objects.requireNonNull(storageKind, "storageKind cannot be null");
-        Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
+        if (opType == null) {
+            throw new IllegalArgumentException("opType cannot be null");
+        }
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        if (inputDataTypes == null) {
+            throw new IllegalArgumentException("inputDataTypes cannot be null");
+        }
+        if (layoutKind == null) {
+            throw new IllegalArgumentException("layoutKind cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        if (vectorizationKind == null) {
+            throw new IllegalArgumentException("vectorizationKind cannot be null");
+        }
+        inputDataTypes = List.copyOf(inputDataTypes);
     }
 
     public static Cpu1ElementwiseKernelKey of(

@@ -119,7 +119,7 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
                     ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
             case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT,
                     UNFOLD_AXIS, UNFOLD2D, FOLD2D, NOOP -> 1_000;
-            case SLICE_GRAD, SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
+            case SLICE_BACKWARD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
                     SCATTER_AXIS_ADD -> 2_000;
             default -> 2_000;
         };

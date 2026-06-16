@@ -13,6 +13,7 @@ import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenKernel;
 import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenLoopKind;
 import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenPlan;
 import backend.cpu1.kernels.fused.codegen.Cpu1FusedCodegenRejectionReason;
+import backend.cpu1.kernels.fused.codegen.support.Cpu1FusedGeneratedSupport;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
@@ -128,7 +129,7 @@ class Cpu1FusedCodegenContractAlignmentTest {
         Cpu1FusedCodegenPlan plan = codegenPlan(expressionPlan());
         String signature = plan.classSignature().canonicalSignature();
 
-        assertTrue(signature.contains("|supportAbi=1|"));
+        assertTrue(signature.contains("|supportAbi=" + Cpu1FusedGeneratedSupport.ABI_VERSION + "|"));
         assertTrue(signature.contains(
                 "helperTargets=[backend/cpu1/kernels/fused/codegen/support/Cpu1FusedMathSupport.reluF32(F)F]"
         ));
@@ -139,7 +140,7 @@ class Cpu1FusedCodegenContractAlignmentTest {
         Cpu1FusedCodegenPlan plan = codegenPlan(addExpressionPlan());
         String signature = plan.classSignature().canonicalSignature();
 
-        assertTrue(signature.contains("|supportAbi=1|"));
+        assertTrue(signature.contains("|supportAbi=" + Cpu1FusedGeneratedSupport.ABI_VERSION + "|"));
         assertTrue(signature.contains("|helperTargets=[]|"));
         assertFalse(signature.contains("Cpu1FusedMathSupport."));
     }

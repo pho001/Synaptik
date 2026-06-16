@@ -24,7 +24,7 @@ It is not a code generator by itself.
 The CPU elementwise fusion frontier is driven by operation metadata:
 
 ```text
-op.opType().isFusable()
+op.isFusable()
 ```
 
 So the stage does not maintain its own separate hardcoded list of all allowed ops.
@@ -71,7 +71,8 @@ Shared expensive currently means:
 
 - total consumer count > 1
 - op exists
-- `op.isCheap() == false`
+- concrete operation metadata marks the operation as non-cheap, currently through the legacy optimizer
+  compatibility path
 
 Materialization points are the places where the fused cluster growth stops.
 

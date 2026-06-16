@@ -1,12 +1,17 @@
 package backend.cpu1.trace;
 
 import backend.blas.OpenBlasRuntime;
+import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
+import backend.cpu1.prepare.Cpu1PreparedCrossEntropyLossUnit;
+import backend.cpu1.prepare.Cpu1PreparedDenseCrossEntropyLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
+import backend.cpu1.prepare.Cpu1PreparedNllLossUnit;
+import backend.cpu1.prepare.Cpu1PreparedIndexUnit;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
@@ -39,7 +44,11 @@ public final class Cpu1TraceContributor {
             Cpu1PreparedReductionUnit preparedReductionUnit,
             Cpu1PreparedMatmulUnit preparedMatmulUnit,
             Cpu1PreparedMseLossUnit preparedMseLossUnit,
-            Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit
+            Cpu1PreparedCrossEntropyLossUnit preparedCrossEntropyLossUnit,
+            Cpu1PreparedDenseCrossEntropyLossUnit preparedDenseCrossEntropyLossUnit,
+            Cpu1PreparedNllLossUnit preparedNllLossUnit,
+            Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit,
+            Cpu1PreparedIndexUnit preparedIndexUnit
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
@@ -56,8 +65,20 @@ public final class Cpu1TraceContributor {
         if (preparedMseLossUnit != null) {
             return mseLossTrace(preparedMseLossUnit);
         }
+        if (preparedCrossEntropyLossUnit != null) {
+            return crossEntropyLossTrace(preparedCrossEntropyLossUnit);
+        }
+        if (preparedDenseCrossEntropyLossUnit != null) {
+            return denseCrossEntropyLossTrace(preparedDenseCrossEntropyLossUnit);
+        }
+        if (preparedNllLossUnit != null) {
+            return nllLossTrace(preparedNllLossUnit);
+        }
         if (preparedFusedElementwiseUnit != null) {
             return fusedElementwiseTrace(preparedFusedElementwiseUnit);
+        }
+        if (preparedIndexUnit != null) {
+            return indexTrace(preparedIndexUnit);
         }
         return StepTraceContribution.empty();
     }
@@ -140,16 +161,24 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1KernelId", unit.kernelId().name());
         attrs.put("cpu1ReductionKernelId", unit.kernelId().name());
         attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1ReductionInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1ReductionOutputAccessKind", unit.outputAccessPlan().kind().name());
         attrs.put("cpu1ReductionAxis", unit.axis());
         attrs.put("cpu1ReductionAxisSize", unit.axisSize());
         attrs.put("cpu1ReductionInnerSize", unit.innerSize());
         attrs.put("cpu1ReductionOuterSize", unit.outerSize());
         attrs.put("cpu1ReductionOutputElements", unit.outputElementCount());
         attrs.put("cpu1ReductionKeepDims", unit.keepDims());
+        attrs.put("cpu1ReductionLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1ReductionLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1ReductionScratchF32", scratch.f32ArrayElements());
+        attrs.put("cpu1ReductionScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1ReductionScratchI32", scratch.i32ArrayElements());
         ReductionTraceMetadata reduction = new ReductionTraceMetadata(
                 unit.opType().name(),
-                1,
-                unit.outputElementCount(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
                 1,
                 unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : unit.dataType().name()
         );
@@ -261,6 +290,119 @@ public final class Cpu1TraceContributor {
         );
     }
 
+    private static StepTraceContribution crossEntropyLossTrace(Cpu1PreparedCrossEntropyLossUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1CrossEntropyLossKernelId", unit.kernelId().name());
+        attrs.put("cpu1LossOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1LossLogitsDType", unit.logitsDataType().name());
+        attrs.put("cpu1LossTargetDType", unit.targetDataType().name());
+        attrs.put("cpu1LossReduction", unit.reduction().name());
+        attrs.put("cpu1LossIgnoreIndex", unit.ignoreIndex());
+        attrs.put("cpu1LossClassAxis", unit.classAxis());
+        attrs.put("cpu1LossAxisSize", unit.axisSize());
+        attrs.put("cpu1LossAxisStride", unit.axisStride());
+        attrs.put("cpu1LossGroupCount", unit.groupCount());
+        attrs.put("cpu1LossLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LossLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1LossScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1LossScratchI32", scratch.i32ArrayElements());
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.reduction().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.logitsDataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : "F64_ACCUMULATE"
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                null,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution nllLossTrace(Cpu1PreparedNllLossUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1NllLossKernelId", unit.kernelId().name());
+        attrs.put("cpu1LossOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1LossDType", unit.dataType().name());
+        attrs.put("cpu1LossReduction", "MEAN");
+        attrs.put("cpu1LossClassAxis", unit.classAxis());
+        attrs.put("cpu1LossAxisSize", unit.axisSize());
+        attrs.put("cpu1LossAxisStride", unit.axisStride());
+        attrs.put("cpu1LossGroupCount", unit.groupCount());
+        attrs.put("cpu1LossLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LossLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1LossScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1LossScratchI32", scratch.i32ArrayElements());
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : "F64_ACCUMULATE"
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                null,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution denseCrossEntropyLossTrace(Cpu1PreparedDenseCrossEntropyLossUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1DenseCrossEntropyLossKernelId", unit.kernelId().name());
+        attrs.put("cpu1LossOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1LossDType", unit.dataType().name());
+        attrs.put("cpu1LossReduction", "MEAN");
+        attrs.put("cpu1LossClassAxis", unit.classAxis());
+        attrs.put("cpu1LossAxisSize", unit.axisSize());
+        attrs.put("cpu1LossAxisStride", unit.axisStride());
+        attrs.put("cpu1LossGroupCount", unit.groupCount());
+        attrs.put("cpu1LossLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LossLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1LossScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1LossScratchI32", scratch.i32ArrayElements());
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : "F64_ACCUMULATE"
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                null,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
     private static StepTraceContribution fusedElementwiseTrace(Cpu1PreparedFusedElementwiseUnit unit) {
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("cpu1KernelId", "CPU1_FUSED_ELEMENTWISE");
@@ -308,6 +450,41 @@ public final class Cpu1TraceContributor {
                 null,
                 null,
                 fused
+        );
+    }
+
+    private static StepTraceContribution indexTrace(Cpu1PreparedIndexUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1IndexKernelId", unit.kernelId().name());
+        attrs.put("cpu1IndexOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1IndexValueDType", unit.valueDataType().name());
+        attrs.put("cpu1IndexDType", unit.indexDataType().name());
+        attrs.put("cpu1IndexDimension", unit.dimension());
+        attrs.put("cpu1IndexAxisSize", unit.axisSize());
+        attrs.put("cpu1IndexInnerSize", unit.innerSize());
+        attrs.put("cpu1IndexOuterSize", unit.outerSize());
+        attrs.put("cpu1IndexOutputElements", unit.outputElementCount());
+        attrs.put("cpu1IndexLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1IndexLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                null,
+                null,
+                null,
+                null
         );
     }
 

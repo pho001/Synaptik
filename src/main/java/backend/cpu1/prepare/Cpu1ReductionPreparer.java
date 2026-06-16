@@ -10,6 +10,7 @@ import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
+import config.backend.CpuKernelConfig;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -27,6 +28,7 @@ import operations.reduction.logSoftmax;
 import operations.reduction.softmax;
 import operations.reduction.sum;
 import tensor.DataType;
+import tensor.TensorMetadata;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -67,11 +69,16 @@ public final class Cpu1ReductionPreparer {
                     + config.storageKind() + " for input dtype " + inputDataType + ", output dtype "
                     + node.dataType() + ", op " + opType);
         }
+        Cpu1StorageAccessPlan inputAccessPlan = input == null ? null : Cpu1StorageAccessPlan.fromDescriptor(input);
         if (input != null) {
-            requireInputContract(opType, node, input);
+            requireInputContract(opType, node, input, inputAccessPlan);
         }
-        requireOutputAccess(opType, Cpu1StorageAccessPlan.fromNode(node));
+        Cpu1StorageAccessPlan outputAccessPlan = Cpu1StorageAccessPlan.fromNode(node);
+        requireOutputAccess(opType, outputAccessPlan);
         int[] inputShape = input == null ? inferInputShape(node, operation) : input.shape();
+        if (inputAccessPlan == null) {
+            inputAccessPlan = denseContiguousAccessPlan(inputShape);
+        }
         int axis = normalizedAxis(axis(operation), inputShape.length);
         boolean keepDims = keepDims(operation);
         int[] expectedOutputShape = opType == Operation.OpType.CUMSUM
@@ -86,13 +93,14 @@ public final class Cpu1ReductionPreparer {
         int axisSize = inputShape[axis];
         int innerSize = product(inputShape, axis + 1, inputShape.length);
         int outerSize = product(inputShape, 0, axis);
+        Cpu1LaunchConfig reductionLaunchConfig = reductionLaunchConfig(opType, outerSize, innerSize, config);
         Cpu1PreparedReductionUnit unit = new Cpu1PreparedReductionUnit(
                 node.id(),
                 node.inputIds().getFirst(),
                 opType,
                 node.dataType(),
                 config.storageKind(),
-                kernelId(opType, node.dataType(), inputDataType),
+                kernelId(opType, node.dataType(), inputDataType, inputAccessPlan.kind()),
                 axis,
                 axisSize,
                 innerSize,
@@ -102,9 +110,11 @@ public final class Cpu1ReductionPreparer {
                 argMaxLastIndexWins(operation),
                 cumSumExclusive(operation),
                 cumSumReverse(operation),
-                config.launchConfig(),
-                launchPolicy(config.launchConfig()),
-                scratchBufferSpec(opType, axisSize, innerSize, outerSize, config.launchConfig())
+                reductionLaunchConfig,
+                launchPolicy(reductionLaunchConfig),
+                scratchBufferSpec(opType, axisSize, innerSize, outerSize, reductionLaunchConfig, inputAccessPlan),
+                inputAccessPlan,
+                outputAccessPlan
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -126,7 +136,8 @@ public final class Cpu1ReductionPreparer {
     private static void requireInputContract(
             Operation.OpType opType,
             CompiledNode node,
-            CompiledTensorDescriptor input
+            CompiledTensorDescriptor input,
+            Cpu1StorageAccessPlan inputAccessPlan
     ) {
         if (opType == Operation.OpType.ARGMAX) {
             if (node.dataType() != DataType.INT64) {
@@ -152,11 +163,26 @@ public final class Cpu1ReductionPreparer {
             throw new UnsupportedOperationException("cpu1 " + opType + " requires matching input/output dtype. input="
                     + input.dataType() + ", output=" + node.dataType());
         }
-        requireInputAccess(opType, Cpu1StorageAccessPlan.fromDescriptor(input));
+        requireInputAccess(opType, node.dataType(), input.dataType(), inputAccessPlan);
     }
 
-    private static void requireInputAccess(Operation.OpType opType, Cpu1StorageAccessPlan accessPlan) {
-        requireDenseContiguousAccess(opType, "input", accessPlan);
+    private static void requireInputAccess(
+            Operation.OpType opType,
+            DataType outputDataType,
+            DataType inputDataType,
+            Cpu1StorageAccessPlan accessPlan
+    ) {
+        if (accessPlan.kind() == Cpu1StorageAccessKind.DENSE_CONTIGUOUS) {
+            return;
+        }
+        if (accessPlan.kind() == Cpu1StorageAccessKind.DENSE_WITH_OFFSET && !isSoftmaxLike(opType)) {
+            return;
+        }
+        if (accessPlan.kind() == Cpu1StorageAccessKind.STRIDED
+                && isStridedDirectSupported(opType, outputDataType, inputDataType)) {
+            return;
+        }
+        throw unsupportedAccess(opType, "input", accessPlan, inputAccessRejection(opType, outputDataType, inputDataType));
     }
 
     private static void requireOutputAccess(Operation.OpType opType, Cpu1StorageAccessPlan accessPlan) {
@@ -171,9 +197,31 @@ public final class Cpu1ReductionPreparer {
         if (accessPlan.kind() == Cpu1StorageAccessKind.DENSE_CONTIGUOUS) {
             return;
         }
-        throw new UnsupportedOperationException("cpu1 initial " + opType
+        throw unsupportedAccess(opType, role, accessPlan, null);
+    }
+
+    private static UnsupportedOperationException unsupportedAccess(
+            Operation.OpType opType,
+            String role,
+            Cpu1StorageAccessPlan accessPlan,
+            String detail
+    ) {
+        String detailSuffix = detail == null || detail.isBlank() ? "" : ", " + detail;
+        return new UnsupportedOperationException("cpu1 initial " + opType
                 + " supports only DENSE_CONTIGUOUS " + role + " access; actual="
-                + accessPlan.kind() + rejectionSuffix(accessPlan));
+                + accessPlan.kind() + rejectionSuffix(accessPlan) + detailSuffix);
+    }
+
+    private static String inputAccessRejection(
+            Operation.OpType opType,
+            DataType outputDataType,
+            DataType inputDataType
+    ) {
+        if (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN) {
+            return "strided direct input support is limited to matching FLOAT32/FLOAT64 SUM/MEAN, input="
+                    + inputDataType + ", output=" + outputDataType;
+        }
+        return "strided direct input support is limited to SUM/MEAN FLOAT32/FLOAT64";
     }
 
     private static String rejectionSuffix(Cpu1StorageAccessPlan accessPlan) {
@@ -296,17 +344,42 @@ public final class Cpu1ReductionPreparer {
         return outputShape;
     }
 
-    private static Cpu1ReductionKernelId kernelId(Operation.OpType opType, DataType outputDataType, DataType inputDataType) {
+    private static Cpu1StorageAccessPlan denseContiguousAccessPlan(int[] shape) {
+        int[] shapeCopy = shape.clone();
+        return new Cpu1StorageAccessPlan(
+                Cpu1StorageAccessKind.DENSE_CONTIGUOUS,
+                shapeCopy,
+                TensorMetadata.computeStrides(shapeCopy),
+                0,
+                productLong(shapeCopy),
+                null
+        );
+    }
+
+    private static Cpu1ReductionKernelId kernelId(
+            Operation.OpType opType,
+            DataType outputDataType,
+            DataType inputDataType,
+            Cpu1StorageAccessKind inputAccessKind
+    ) {
         return switch (opType) {
             case SUM -> switch (outputDataType) {
-                case FLOAT32 -> Cpu1ReductionKernelId.SUM_F32_DENSE_SCALAR;
-                case FLOAT64 -> Cpu1ReductionKernelId.SUM_F64_DENSE_SCALAR;
+                case FLOAT32 -> inputAccessKind == Cpu1StorageAccessKind.STRIDED
+                        ? Cpu1ReductionKernelId.SUM_F32_STRIDED_SCALAR
+                        : Cpu1ReductionKernelId.SUM_F32_DENSE_SCALAR;
+                case FLOAT64 -> inputAccessKind == Cpu1StorageAccessKind.STRIDED
+                        ? Cpu1ReductionKernelId.SUM_F64_STRIDED_SCALAR
+                        : Cpu1ReductionKernelId.SUM_F64_DENSE_SCALAR;
                 case BFLOAT16 -> Cpu1ReductionKernelId.SUM_BF16_DENSE_SCALAR;
                 case BOOL, INT32, INT64 -> throw unsupportedDType(opType, outputDataType);
             };
             case MEAN -> switch (outputDataType) {
-                case FLOAT32 -> Cpu1ReductionKernelId.MEAN_F32_DENSE_SCALAR;
-                case FLOAT64 -> Cpu1ReductionKernelId.MEAN_F64_DENSE_SCALAR;
+                case FLOAT32 -> inputAccessKind == Cpu1StorageAccessKind.STRIDED
+                        ? Cpu1ReductionKernelId.MEAN_F32_STRIDED_SCALAR
+                        : Cpu1ReductionKernelId.MEAN_F32_DENSE_SCALAR;
+                case FLOAT64 -> inputAccessKind == Cpu1StorageAccessKind.STRIDED
+                        ? Cpu1ReductionKernelId.MEAN_F64_STRIDED_SCALAR
+                        : Cpu1ReductionKernelId.MEAN_F64_DENSE_SCALAR;
                 case BFLOAT16 -> Cpu1ReductionKernelId.MEAN_BF16_DENSE_SCALAR;
                 case BOOL, INT32, INT64 -> throw unsupportedDType(opType, outputDataType);
             };
@@ -401,8 +474,33 @@ public final class Cpu1ReductionPreparer {
         if (storageKind == Cpu1StorageKind.JAVA_ARRAY) {
             return true;
         }
-        return storageKind == Cpu1StorageKind.MEMORY_SEGMENT
-                && (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN)
+        if (storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
+            return false;
+        }
+        return switch (opType) {
+            case SUM, MEAN, REDUCE_MIN, REDUCE_MAX, REDUCE_PROD ->
+                    inputDataType == outputDataType
+                            && (outputDataType == DataType.FLOAT32
+                            || outputDataType == DataType.FLOAT64
+                            || outputDataType == DataType.BFLOAT16);
+            case REDUCE_ALL, REDUCE_ANY -> inputDataType == DataType.BOOL && outputDataType == DataType.BOOL;
+            case ARGMAX -> outputDataType == DataType.INT64 && isArgMaxInputDType(inputDataType);
+            case CUMSUM -> inputDataType == outputDataType && isCumSumDType(inputDataType);
+            case SOFTMAX, LOG_SOFTMAX ->
+                    inputDataType == outputDataType
+                            && (outputDataType == DataType.FLOAT32
+                            || outputDataType == DataType.FLOAT64
+                            || outputDataType == DataType.BFLOAT16);
+            default -> false;
+        };
+    }
+
+    private static boolean isStridedDirectSupported(
+            Operation.OpType opType,
+            DataType outputDataType,
+            DataType inputDataType
+    ) {
+        return (opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN)
                 && inputDataType == outputDataType
                 && (outputDataType == DataType.FLOAT32 || outputDataType == DataType.FLOAT64);
     }
@@ -451,14 +549,63 @@ public final class Cpu1ReductionPreparer {
         return new Cpu1ParallelLaunch(launchConfig);
     }
 
+    private static Cpu1LaunchConfig reductionLaunchConfig(
+            Operation.OpType opType,
+            int outerSize,
+            int innerSize,
+            Cpu1PrepareConfig config
+    ) {
+        if (!isSoftmaxLike(opType) || !config.automaticLaunch()) {
+            return config.launchConfig();
+        }
+        CpuKernelConfig cpuKernelConfig = config.cpuKernelConfig();
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("Automatic cpu1 softmax reduction dispatch requires CpuKernelConfig.");
+        }
+        int maxWorkers = config.launchConfig().workerCount();
+        if (maxWorkers <= 1) {
+            return Cpu1LaunchConfig.singleThread();
+        }
+        int groupCount = Math.multiplyExact(outerSize, innerSize);
+        if (groupCount < cpuKernelConfig.reductionParallelMinSize()) {
+            return Cpu1LaunchConfig.singleThread();
+        }
+        int plannedWorkers = Math.min(maxWorkers, Math.max(1, groupCount));
+        if (plannedWorkers <= 1) {
+            return Cpu1LaunchConfig.singleThread();
+        }
+        return Cpu1LaunchConfig.parallel(
+                plannedWorkers,
+                reductionGroupChunkSize(groupCount, plannedWorkers, cpuKernelConfig)
+        );
+    }
+
+    private static boolean isSoftmaxLike(Operation.OpType opType) {
+        return opType == Operation.OpType.SOFTMAX || opType == Operation.OpType.LOG_SOFTMAX;
+    }
+
+    private static int reductionGroupChunkSize(
+            int groupCount,
+            int plannedWorkers,
+            CpuKernelConfig cpuKernelConfig
+    ) {
+        int targets = Math.max(1, plannedWorkers * cpuKernelConfig.highCostTargetChunksPerWorker());
+        int candidate = (Math.max(1, groupCount) + targets - 1) / targets;
+        return Math.max(cpuKernelConfig.minReductionChunkSize(), candidate);
+    }
+
     private static Cpu1ScratchBufferSpec scratchBufferSpec(
             Operation.OpType opType,
             int axisSize,
             int innerSize,
             int outerSize,
-            Cpu1LaunchConfig launchConfig
+            Cpu1LaunchConfig launchConfig,
+            Cpu1StorageAccessPlan inputAccessPlan
     ) {
         if (opType != Operation.OpType.SUM && opType != Operation.OpType.MEAN) {
+            return Cpu1ScratchBufferSpec.none();
+        }
+        if (inputAccessPlan.kind() == Cpu1StorageAccessKind.STRIDED) {
             return Cpu1ScratchBufferSpec.none();
         }
         if (launchConfig.workerCount() <= 1) {
@@ -472,4 +619,11 @@ public final class Cpu1ReductionPreparer {
         return Cpu1ScratchBufferSpec.arrays(0, slots, 0);
     }
 
+    private static long productLong(int[] shape) {
+        long product = 1L;
+        for (int dimension : shape) {
+            product = Math.multiplyExact(product, dimension);
+        }
+        return product;
+    }
 }

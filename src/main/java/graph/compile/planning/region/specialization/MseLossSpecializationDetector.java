@@ -86,6 +86,9 @@ final class MseLossSpecializationDetector {
         if (opType(square) != Operation.OpType.MUL || square.inputIds().size() != 2) {
             return null;
         }
+        if (!hasHomogeneousReductions(reductionsInOrder, context)) {
+            return null;
+        }
         int diffNodeId = square.inputIds().get(0);
         if (square.inputIds().get(1) != diffNodeId) {
             return null;
@@ -138,6 +141,25 @@ final class MseLossSpecializationDetector {
     private static boolean isReduction(CompiledNode node) {
         Operation.OpType opType = opType(node);
         return opType == Operation.OpType.SUM || opType == Operation.OpType.MEAN;
+    }
+
+    private static boolean hasHomogeneousReductions(
+            List<Integer> reductionsInOrder,
+            RegionOptimizationContext context
+    ) {
+        Operation.OpType first = null;
+        for (int reductionNodeId : reductionsInOrder) {
+            Operation.OpType current = opType(context.compiledNode(reductionNodeId));
+            if (current != Operation.OpType.SUM && current != Operation.OpType.MEAN) {
+                return false;
+            }
+            if (first == null) {
+                first = current;
+            } else if (first != current) {
+                return false;
+            }
+        }
+        return first != null;
     }
 
     private static Operation.OpType opType(CompiledNode node) {

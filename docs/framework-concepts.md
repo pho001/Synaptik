@@ -44,7 +44,7 @@ The graph is a DAG over object references, not a separate IR object during const
 
 ## Operation Descriptors
 
-`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `getExpression()`, and the optional `isCheap()` hint. `Operation.OpType` also classifies primitives by arity family and marks elementwise primitives as fusable. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
+`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `arityClass()`, `isFusable()`, semantic/cost/result metadata, `getExpression()`, and the legacy `isCheap()` compatibility hint. `Operation.OpType` is only the stable primitive identity. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
 Examples:
 

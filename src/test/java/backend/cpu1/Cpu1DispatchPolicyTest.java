@@ -273,6 +273,112 @@ class Cpu1DispatchPolicyTest {
     }
 
     @Test
+    void automaticFusedCheapVectorUsesFusedCheapThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = fusedThresholdConfig(256, 256, 16, 32, 512, 512, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1FusedDispatchDecision belowFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.ADD),
+                List.of(new add()),
+                DataType.FLOAT32,
+                tuned.fusedCheapVectorMinSize() - 1,
+                config
+        );
+        Cpu1FusedDispatchDecision atFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.ADD),
+                List.of(new add()),
+                DataType.FLOAT32,
+                tuned.fusedCheapVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1CostClass.CHEAP_ELEMENTWISE, atFused.costClass());
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowFused.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atFused.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticFusedExpensiveVectorUsesFusedTranscendentalThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = fusedThresholdConfig(256, 512, 16, 32, 512, 512, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 1, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1FusedDispatchDecision belowFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.SQRT),
+                List.of(new sqrt()),
+                DataType.FLOAT32,
+                tuned.fusedTranscendentalVectorMinSize() - 1,
+                config
+        );
+        Cpu1FusedDispatchDecision atFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.SQRT),
+                List.of(new sqrt()),
+                DataType.FLOAT32,
+                tuned.fusedTranscendentalVectorMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, atFused.costClass());
+        assertEquals(Cpu1VectorizationKind.SCALAR, belowFused.requestedVectorizationKind());
+        assertEquals(Cpu1VectorizationKind.VECTOR, atFused.requestedVectorizationKind());
+    }
+
+    @Test
+    void automaticFusedCheapParallelUsesFusedCheapThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = fusedThresholdConfig(256, 512, 256, 512, 512, 512, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 4, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1FusedDispatchDecision belowFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.ADD),
+                List.of(new add()),
+                DataType.FLOAT32,
+                tuned.fusedCheapParallelMinSize() - 1,
+                config
+        );
+        Cpu1FusedDispatchDecision atFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.ADD),
+                List.of(new add()),
+                DataType.FLOAT32,
+                tuned.fusedCheapParallelMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1CostClass.CHEAP_ELEMENTWISE, atFused.costClass());
+        assertEquals(1, belowFused.plannedWorkers());
+        assertEquals(4, atFused.plannedWorkers());
+        assertEquals(4, atFused.launchConfig().workerCount());
+    }
+
+    @Test
+    void automaticFusedExpensiveParallelUsesFusedTranscendentalThreshold() {
+        Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
+        CpuKernelConfig tuned = fusedThresholdConfig(256, 512, 256, 512, 512, 512, 64, 128);
+        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(tuned, 4, Cpu1StorageKind.JAVA_ARRAY);
+
+        Cpu1FusedDispatchDecision belowFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.SQRT),
+                List.of(new sqrt()),
+                DataType.FLOAT32,
+                tuned.fusedTranscendentalParallelMinSize() - 1,
+                config
+        );
+        Cpu1FusedDispatchDecision atFused = policy.decideFusedElementwise(
+                oneNodeFusedPlan(Operation.OpType.SQRT),
+                List.of(new sqrt()),
+                DataType.FLOAT32,
+                tuned.fusedTranscendentalParallelMinSize(),
+                config
+        );
+
+        assertEquals(Cpu1CostClass.EXPENSIVE_ELEMENTWISE, atFused.costClass());
+        assertEquals(1, belowFused.plannedWorkers());
+        assertEquals(4, atFused.plannedWorkers());
+        assertEquals(4, atFused.launchConfig().workerCount());
+    }
+
+    @Test
     void fusedDecisionDoesNotUseOpTypeAsCostMetadata() {
         Cpu1DispatchPolicy policy = new Cpu1DispatchPolicy();
 
@@ -300,6 +406,39 @@ class Cpu1DispatchPolicyTest {
         assertEquals(expected.transcendentalParallelMinSize(), config.cpuKernelConfig().transcendentalParallelMinSize());
         assertEquals(expected.minScalarChunkSize(), config.cpuKernelConfig().minScalarChunkSize());
         assertEquals(expected.minVectorChunkSize(), config.cpuKernelConfig().minVectorChunkSize());
+    }
+
+    private static CpuKernelConfig fusedThresholdConfig(
+            int cheapVectorMinSize,
+            int transcendentalVectorMinSize,
+            int fusedCheapVectorMinSize,
+            int fusedTranscendentalVectorMinSize,
+            int cheapParallelMinSize,
+            int transcendentalParallelMinSize,
+            int fusedCheapParallelMinSize,
+            int fusedTranscendentalParallelMinSize
+    ) {
+        return new CpuKernelConfig(
+                4, 32, 32, 32,
+                cheapVectorMinSize,
+                transcendentalVectorMinSize,
+                fusedCheapVectorMinSize,
+                fusedTranscendentalVectorMinSize,
+                1_000_000,
+                cheapParallelMinSize,
+                transcendentalParallelMinSize,
+                fusedCheapParallelMinSize,
+                fusedTranscendentalParallelMinSize,
+                1_000_000,
+                1_000_000,
+                4, 2, 1,
+                4_096, 8_192, 16_384,
+                16_384,
+                0,
+                SumAccuracyMode.FAST,
+                2_000_000,
+                AttentionMatMulPolicy.AUTO
+        );
     }
 
     private static CpuKernelConfig cpuKernelConfigWithNativeCheapThresholds(

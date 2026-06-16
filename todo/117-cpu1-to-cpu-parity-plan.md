@@ -12,20 +12,21 @@ Legenda:
 - `[ ]` neimplementovano
 - `[~]` rozpracovano
 - `[x]` hotovo a overeno
+- `[deferred]` zamerne odlozeno do samostatneho planu
 - `[!]` zamerne neprebirat 1:1, vyzaduje jiny cpu1 design
 
 Aktualni stav fazi:
 
 - [x] Faze 0: parity inventory a ochrana pracovnich hranic
 - [x] Faze 1: reduction runtime infrastruktura
-- [~] Faze 2: reduction storage/layout/native parita
-- [ ] Faze 3: loss vetev pro NLL a CrossEntropy
-- [ ] Faze 4: index/gather/scatter operace
-- [ ] Faze 5: NN a normalization kernely
-- [ ] Faze 6: linear algebra a attention parita
-- [ ] Faze 7: layout/view residualy a materializacni politika
-- [ ] Faze 8: native storage, BF16 a mixed residency policy
-- [ ] Faze 9: fused/codegen parity a benchmark evidence
+- [x] Faze 2: parallel SUM/MEAN a partial scratch buffer
+- [x] Faze 3: shared storage access plan, reduction native segment a strided/view policy
+- [x] Faze 4: softmax/logSoftmax runtime width
+- [x] Faze 5: loss vetev pro NLL a CrossEntropy; dense scope complete, strided/view deferred
+- [~] Faze 6: index/gather/scatter operace
+- [ ] Faze 7: linear, NN a normalization kernely
+- [ ] Faze 8: linear algebra a attention parita
+- [ ] Faze 9: native storage, BF16 a mixed residency policy
 - [ ] Faze 10: trace, tuning, coverage gate a default route readiness
 
 ## Cil
@@ -893,7 +894,7 @@ void reductionPrepareCarriesLaunchConfig() {
 
 ## Faze 2: Parallel SUM/MEAN A Partial Workspace
 
-Status: `[~]`
+Status: `[x]`
 
 ### Proc
 
@@ -1068,20 +1069,45 @@ pridat minimalni helper v existujicim stylu, ne obecnou novou fasadu.
 - [x] Implementovat F32/F64/BF16 partial scalar-output path
 - [x] Test: large outputWorkItems pouzije parallel launch
 - [x] Test: scalar output pouzije scratch partials
-- [ ] Benchmark: scalar large reduction single vs parallel
+- [x] Benchmark: scalar large reduction single vs parallel
+
+Benchmark harness:
+
+- `src/test/java/backend/cpu1/Cpu1ReductionBenchmarkTest.java`
+- JUnit tagged `@Tag("benchmark")`
+- Covers scalar-output large vector reductions for `SUM` and `MEAN` on F32/F64
+- Compares `Cpu1PrepareConfig.scalarSingleThread()` against explicit 4-worker scalar
+  parallel launch with partial F64 scratch
+
+Local benchmark evidence from one in-JVM run on 2026-06-16:
+
+```text
+elements=5_000_000, warmup=4, measure=12, parallelWorkers=4
+F32 SUM:  single 3.2317 ms, parallel 1.0763 ms, speedup 3.00x
+F32 MEAN: single 3.2159 ms, parallel 1.0653 ms, speedup 3.02x
+F64 SUM:  single 3.3009 ms, parallel 1.0505 ms, speedup 3.14x
+F64 MEAN: single 3.3468 ms, parallel 1.0463 ms, speedup 3.20x
+```
+
+Run command:
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1ReductionBenchmarkTest
+```
 
 ### Overeni
 
 ```bash
 ./gradlew test --tests backend.cpu1.Cpu1ReductionExecutionContractTest
 ./gradlew test --tests backend.cpu1.Cpu1ScratchBufferTest
+./gradlew test --tests backend.cpu1.Cpu1ReductionBenchmarkTest
 ```
 
 ---
 
 ## Faze 3: Reduction Native Segment A Strided/View Input Policy
 
-Status: `[~]`
+Status: `[x]`
 
 ### Proc
 
@@ -1095,7 +1121,7 @@ Stary CPU umi diky `CpuStorageView` mnohem vice kombinaci:
 
 cpu1 reductions jsou dnes dense contiguous only a segment cesta je omezena.
 
-### Rozhodnuti: Sdileny Access Plan, Potom Kernels
+### Rozhodnuti: Sdileny Access Plan, Potom Reduction Kernels
 
 Musime si rict, co se stane, kdyz reduction input neni dense contiguous.
 
@@ -1105,11 +1131,13 @@ Moznosti:
 2. Pouzit strided reduction kernel
 3. Odmitnout route s jasnou trace/reason
 
-Prvni krok je sdileny prepare-time policy typ v `backend.cpu1.storage`:
+Prvni krok je hotovy: sdileny prepare-time policy typ v
+`backend.cpu1.storage`:
 
 ```java
 Cpu1StorageAccessPlan.fromDescriptor(input)
 Cpu1StorageAccessPlan.fromNode(output)
+Cpu1StorageAccessPlan.forBroadcastedLogicalShape(input, logicalShape)
 ```
 
 `Cpu1StorageAccessPlan` klasifikuje jen compile metadata:
@@ -1124,6 +1152,30 @@ Plan uklada kind, shape, strides, storageOffset, elementCount a volitelny
 rejectionReason. Neobsahuje `Tensor`, runtime data array, `MemorySegment`,
 typed read/write gettery ani obecny runtime access framework.
 
+`fromDescriptor(...)` popisuje tensor/view tak, jak existuje v compiled
+descriptoru.
+
+`fromNode(...)` popisuje output node.
+
+`forBroadcastedLogicalShape(...)` popisuje, jak se input cte v logickem loopu
+nad cilovym shape. Typicky:
+
+```java
+input.shape = [1, 3]
+input.strides = [3, 1]
+logicalShape = [2, 3]
+
+// vysledek
+kind = BROADCAST
+shape = [2, 3]
+strides = [0, 1]
+elementCount = 6
+```
+
+Tato metoda je obecna. Neni elementwise-specific. Pouziva ji elementwise
+prepare a fused input planning, pozdeji ji muze pouzit cast/layout
+materialization policy.
+
 Proc to nekopiruje stary `CpuStorageView` 1:1:
 
 - stary `CpuStorageView` micha storage handle, layout a runtime pristup do
@@ -1133,15 +1185,38 @@ Proc to nekopiruje stary `CpuStorageView` 1:1:
 - tento krok pouze sjednocuje klasifikaci; nedela materializaci, obecne
   read/write helpery ani strided reduction kernels
 
-Aktualni reduction preparer smi dal odmitat vse mimo `DENSE_CONTIGUOUS`, ale
-chyba musi uvadet access kind/reason. Strided/broadcast/offset kernels jsou
-nasledujici krok.
+Aktualni stav po prepisu:
 
-Update: `Cpu1StorageAccessPlan` je sdileny prepare-time klasifikator pro
-reduction contract checky, elementwise layout/input planning a fused external
-input planning. Broadcastovana logical-shape klasifikace zustava metadata-only:
-nepridava `Tensor`, storage handle, typed accessors ani obecne runtime
-read/write helpery.
+- reduction contract checky pouzivaji `Cpu1StorageAccessPlan`
+- elementwise prepare si vytvari output/input access plany a z nich vybira
+  `Cpu1LayoutKind`
+- `Cpu1PreparedElementwiseUnit` drzi input/output access plany jako prepare
+  metadata pro testy/trace/policy
+- fused IR drzi base access plan i logical access plan pro kazdy external
+  input
+- `Cpu1FusedAccessKind` zustava fused/codegen-specific, ale odvozuje se z
+  common logical access planu
+- zadny kernel inner loop necita pres `Cpu1StorageAccessPlan`
+
+Aktualni stav po dokonceni Faze 3:
+
+- reduction prepared unit drzi input/output `Cpu1StorageAccessPlan`
+- dense input umi `DENSE_CONTIGUOUS` i `DENSE_WITH_OFFSET`
+- dense `MEMORY_SEGMENT` cesta pokryva `SUM/MEAN`, `MIN/MAX/PROD`,
+  `ALL/ANY`, `ARGMAX` a `CUMSUM` pro dtype kombinace uvedene v task listu
+- prvni direct strided cesta je zamerne uzka: `SUM/MEAN FLOAT32/FLOAT64`
+- `BROADCAST`, `UNSUPPORTED` a strided op/dtype mimo tento uzky vyrez se dal
+  odmita v prepare s viditelnym access kind/reason
+- zadny reduction inner loop necita pres `Cpu1StorageAccessPlan` ani obecny
+  storage accessor; plany jsou prepare/trace metadata a strided kernely si z
+  nich jednorazove berou shape/stride fakta
+
+Zamerne non-goals mimo Fazi 3:
+
+- BF16 strided `SUM/MEAN`
+- strided `MIN/MAX/PROD`, `ALL/ANY`, `ARGMAX`, `CUMSUM`
+- broadcast materialization policy pro reductions
+- softmax/logSoftmax native/strided runtime width; to patri do Faze 4
 
 ### Segment Kernel Skeleton
 
@@ -1178,30 +1253,40 @@ private static void reduceF32SegmentOutputParallel(
 
 - [x] Pridat `Cpu1StorageAccessKind`
 - [x] Pridat `Cpu1StorageAccessPlan` pro descriptor/node metadata
+- [x] Pridat `forBroadcastedLogicalShape(...)` pro logical loop access
 - [x] Pokryt dense, offset, strided, broadcast a defensive-copy pripady testy
 - [x] Zapojit access plan do `Cpu1ReductionPreparer` contract checku
-- [x] Pouzit common access plan pro elementwise a fused input planning
-- [~] Navrhnout dalsi segment/strided policy testy podle noveho access planu
-- [ ] Rozsirit segment support pro `SUM/MEAN BF16`
-- [ ] Rozsirit segment support pro `MIN/MAX/PROD F32/F64/BF16`
-- [ ] Rozsirit segment support pro `ALL/ANY BOOL`
-- [ ] Rozsirit segment support pro `ARGMAX F32/F64/BF16/I32/I64 -> I64`
-- [ ] Rozsirit segment support pro `CUMSUM F32/F64/BF16/I32/I64`
-- [ ] Pridat dense segment contract tests
-- [ ] Pridat prvni strided direct kernel jen pro `SUM/MEAN F32/F64`
+- [x] Pouzit common access plan pro elementwise layout/input planning
+- [x] Ulozit elementwise input/output access plany v prepared unit
+- [x] Pouzit common access plan pro fused external input planning
+- [x] Zachovat `Cpu1FusedAccessKind` jako codegen-specific derived metadata
+- [x] Overit, ze access plan zustava mimo hot path a bez read/write helperu
+- [x] Navrhnout dense segment policy tests podle access planu
+- [x] Rozsirit segment support pro `SUM/MEAN BF16`
+- [x] Rozsirit segment support pro `MIN/MAX/PROD F32/F64/BF16`
+- [x] Rozsirit segment support pro `ALL/ANY BOOL`
+- [x] Rozsirit segment support pro `ARGMAX F32/F64/BF16/I32/I64 -> I64`
+- [x] Rozsirit segment support pro `CUMSUM F32/F64/BF16/I32/I64`
+- [x] Pridat dense segment contract tests
+- [x] Navrhnout strided/view reduction policy tests podle access planu
+- [x] Pridat prvni strided direct kernel jen pro `SUM/MEAN F32/F64`
 
 ### Overeni
 
 ```bash
 ./gradlew test --tests backend.cpu1.Cpu1StorageAccessPlanTest
 ./gradlew test --tests backend.cpu1.Cpu1ReductionExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1ExecutionContractTest
+./gradlew test --tests backend.cpu1.fused.Cpu1FusedIrBuilderTest
+./gradlew classes
+git diff --check
 ```
 
 ---
 
 ## Faze 4: Softmax / LogSoftmax Runtime Width
 
-Status: `[ ]`
+Status: `[x]`
 
 ### Proc
 
@@ -1285,17 +1370,52 @@ private static void computeF32Parallel(
 
 ### Tasky
 
-- [ ] F32/F64/BF16 array parallel group path
-- [ ] F32/F64/BF16 segment group path
-- [ ] Threshold z config/tuningu pro kdy parallel zapnout
-- [ ] Benchmark `batch x classes`: 1k, 10k, 100k groups
-- [ ] Parity test proti starym `SoftmaxExecutionTest` a `LogSoftmaxExecutionTest`
+- [x] F32/F64/BF16 array parallel group path
+- [x] F32/F64/BF16 segment group path
+- [x] Threshold z config/tuningu pro kdy parallel zapnout
+- [x] Benchmark `batch x classes`: 1k, 10k, 100k groups
+- [x] Parity test proti starym `SoftmaxExecutionTest` a `LogSoftmaxExecutionTest`
+
+Implementace:
+
+- `Cpu1SoftmaxReductionLoops` pouziva prepared `Cpu1LaunchConfig` pro range
+  launch pres `outerSize * innerSize` nezavislych skupin.
+- Stejne concrete kernel idy obsluhuji `JAVA_ARRAY` i `MEMORY_SEGMENT` podle
+  prepared `storageKind`; execute nevybira novy kernel ani nevola stary CPU
+  fallback.
+- Segment cesta cte/zapisuje `MemorySegment` pres `ValueLayout` pro
+  `FLOAT32`, `FLOAT64` a `BFLOAT16`; BF16 akumuluje pres F32/double a zapisuje
+  BF16 bits.
+- Automatic launch pro softmax/logSoftmax pouziva
+  `CpuKernelConfig.reductionParallelMinSize()`,
+  `highCostTargetChunksPerWorker()` a `minReductionChunkSize()` uz v prepare.
+
+Benchmark harness:
+
+- `src/test/java/backend/cpu1/Cpu1ReductionSoftmaxBenchmarkTest.java`
+- JUnit tagged `@Tag("benchmark")`
+- Covers `SOFTMAX` and `LOG_SOFTMAX`, `batch x classes`, groups
+  `1_024`, `10_000`, `100_000`, array and native segment, single-thread vs
+  4-worker group-parallel launch.
+
+### Overeni
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1ReductionExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1ReductionSoftmaxBenchmarkTest
+./gradlew test --tests backend.cpu1.Cpu1StorageAccessPlanTest
+./gradlew test --tests backend.cpu1.Cpu1ExecutionContractTest
+./gradlew test --tests backend.cpu1.fused.Cpu1FusedIrBuilderTest
+./gradlew classes
+git diff --check
+```
 
 ---
 
 ## Faze 5: Loss Family - NLL A CrossEntropy
 
-Status: `[ ]`
+Status: `[x]` dense scope complete; strided/view policy `[deferred]` do
+[todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md)
 
 ### Proc
 
@@ -1452,42 +1572,60 @@ output[0] = reduction == SUM ? total : total / valid;
 
 ### Tasky
 
-- [ ] Vytvorit `Cpu1LossPreparer`
-- [ ] Vytvorit `Cpu1PreparedCrossEntropyLossUnit`
-- [ ] Vytvorit `Cpu1LossExecutableUnit`
-- [ ] Vytvorit `Cpu1CrossEntropyKernelId`
-- [ ] Vytvorit `Cpu1CrossEntropyKernelDispatch`
-- [ ] Implementovat `CROSS_ENTROPY_LOSS_INDICES F32 ARRAY`
-- [ ] Implementovat `CROSS_ENTROPY_LOSS_INDICES F64 ARRAY`
-- [ ] Implementovat `CROSS_ENTROPY_LOSS_INDICES BF16 ARRAY`
-- [ ] Podporovat INT32 a INT64 target indices
-- [ ] Podporovat `LossReduction.NONE`
-- [ ] Podporovat `LossReduction.SUM`
-- [ ] Podporovat `LossReduction.MEAN`
-- [ ] Podporovat `ignoreIndex`
-- [ ] Pridat trace metadata
-- [ ] Pridat tests podle `IndexTargetCrossEntropyLossExecutionTest`
+- [x] Vytvorit `Cpu1LossPreparer`
+- [x] Vytvorit `Cpu1PreparedCrossEntropyLossUnit`
+- [x] Vytvorit `Cpu1LossExecutableUnit`
+- [x] Vytvorit `Cpu1CrossEntropyKernelId`
+- [x] Vytvorit `Cpu1CrossEntropyKernelDispatch`
+- [x] Implementovat `CROSS_ENTROPY_LOSS_INDICES F32 ARRAY`
+- [x] Implementovat `CROSS_ENTROPY_LOSS_INDICES F64 ARRAY`
+- [x] Implementovat `CROSS_ENTROPY_LOSS_INDICES BF16 ARRAY`
+- [x] Implementovat `CROSS_ENTROPY_LOSS_INDICES F32/F64/BF16 MEMORY_SEGMENT`
+- [x] Podporovat INT32 a INT64 target indices
+- [x] Podporovat `LossReduction.NONE`
+- [x] Podporovat `LossReduction.SUM`
+- [x] Podporovat `LossReduction.MEAN`
+- [x] Podporovat `ignoreIndex`
+- [x] Pridat trace metadata
+- [x] Pridat tests podle `IndexTargetCrossEntropyLossExecutionTest`
 
 ### Druha Wave
 
-- [ ] `NLL_LOSS` dense target distribution
-- [ ] `CROSS_ENTROPY_LOSS` dense target distribution
-- [ ] native segment cesty
-- [ ] strided logits/targets policy
+- [x] `NLL_LOSS` dense target distribution
+- [x] `CROSS_ENTROPY_LOSS` dense target distribution
+- [x] dense contiguous native segment cesty pro `NLL_LOSS` a dense `CROSS_ENTROPY_LOSS`
+- [deferred] strided logits/targets policy; resi samostatny plan
+  [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md)
+
+Aktualni omezeni:
+
+- loss family podporuje `JAVA_ARRAY` a dense contiguous `MEMORY_SEGMENT`
+  pro FLOAT32/FLOAT64/BFLOAT16; BF16 segment je explicitni `JAVA_SHORT`
+  raw-bit cesta, ne fallback pres obecny accessor
+- `CROSS_ENTROPY_LOSS_INDICES` native cesta podporuje INT32/INT64 target segmenty
+- strided/view loss vstupy zustavaji zamerne odmítnute v prepare pres dense
+  contiguous kontrakt; cpu1 prepare/kernel nesmi skryte materializovat vstupy.
+  Graph/lowering-driven materializace je odlozena do
+  [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md)
 
 ### Overeni
 
 ```bash
-./gradlew test --tests IndexTargetCrossEntropyLossExecutionTest
-./gradlew test --tests IgnoreIndexLossExecutionTest
 ./gradlew test --tests backend.cpu1.Cpu1CrossEntropyLossExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1NllLossExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1DenseCrossEntropyLossExecutionContractTest
 ```
 
 ---
 
 ## Faze 6: Index / Gather / Scatter Family
 
-Status: `[ ]`
+Status: `[~]`
+
+Poznamka: prvni slice je hotovy pro `GATHER` dense contiguous/no-offset
+`JAVA_ARRAY` s hodnotovymi dtype `FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`,
+`INT64`, `BOOL` a index dtype `INT32`/`INT64`. `GATHER_AXIS`,
+`TAKE_ALONG_AXIS` a scatter opy zustavaji mimo tento slice.
 
 ### Proc
 
@@ -1540,7 +1678,7 @@ public final class Cpu1PreparedIndexUnit {
 
 ### Wave 1
 
-- [ ] `GATHER`
+- [x] `GATHER`
 - [ ] `GATHER_AXIS`
 - [ ] `TAKE_ALONG_AXIS`
 
@@ -1947,17 +2085,16 @@ Realisticke poradi, ktere minimalizuje prekopavani:
 Tento seznam se ma menit pri implementaci:
 
 - [ ] cpu1 nema centralni parity coverage report
-- [ ] reductions nemaji launch policy v prepared unit
-- [ ] reductions nepouzivaji scratch partial buffers
-- [ ] reductions nemaji systematickou segment paritu
-- [ ] reductions nemaji strided/view input policy
-- [ ] softmax/logSoftmax nejsou group-parallel
-- [ ] NLL/CrossEntropy loss family chybi
+- [ ] reductions maji jen uzkou strided direct podporu pro SUM/MEAN F32/F64
+- [deferred] strided/view loss input materialization policy je samostatny planning
+  item v [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md);
+  Faze 5 dense NLL/CrossEntropy scope je hotovy pro `JAVA_ARRAY` a dense
+  contiguous `MEMORY_SEGMENT`
 - [ ] index/gather/scatter family chybi
 - [ ] LINEAR direct/lowering policy neni uzavrena pro cpu1
 - [ ] SDPA/attention cpu1 parita chybi
 - [ ] Conv/pool/norm cpu1 parita chybi
-- [ ] native storage policy neni sjednocena napric rodinami
+- [ ] native storage policy neni dokoncena napric rodinami
 - [ ] benchmark matrix neni kompletni
 
 ## Definition Of Done Pro Cely Plan

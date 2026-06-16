@@ -10,7 +10,6 @@ import operations.Operation;
 import tensor.DataType;
 
 import java.util.List;
-import java.util.Objects;
 
 public final class Cpu1PreparedMseLossUnit {
     private final int outputNodeId;
@@ -22,6 +21,7 @@ public final class Cpu1PreparedMseLossUnit {
     private final Cpu1MseLossKernel kernel;
     private final Operation.OpType reductionOpType;
     private final int elementCount;
+    private final long reductionDivisor;
     private final List<Integer> orderedNodeIds;
     private final Cpu1LaunchConfig launchConfig;
     private final Cpu1ScratchBufferSpec scratchBufferSpec;
@@ -35,6 +35,7 @@ public final class Cpu1PreparedMseLossUnit {
             Cpu1MseLossKernelId kernelId,
             Operation.OpType reductionOpType,
             int elementCount,
+            long reductionDivisor,
             List<Integer> orderedNodeIds,
             Cpu1LaunchConfig launchConfig,
             Cpu1ScratchBufferSpec scratchBufferSpec
@@ -45,18 +46,40 @@ public final class Cpu1PreparedMseLossUnit {
         if (elementCount <= 0) {
             throw new IllegalArgumentException("elementCount must be positive: " + elementCount);
         }
+        if (reductionDivisor <= 0) {
+            throw new IllegalArgumentException("reductionDivisor must be positive: " + reductionDivisor);
+        }
         this.outputNodeId = outputNodeId;
         this.predictionNodeId = predictionNodeId;
         this.targetNodeId = targetNodeId;
-        this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
-        this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
-        this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        if (kernelId == null) {
+            throw new IllegalArgumentException("kernelId cannot be null");
+        }
+        if (reductionOpType == null) {
+            throw new IllegalArgumentException("reductionOpType cannot be null");
+        }
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (scratchBufferSpec == null) {
+            throw new IllegalArgumentException("scratchBufferSpec cannot be null");
+        }
+        this.dataType = dataType;
+        this.storageKind = storageKind;
+        this.kernelId = kernelId;
         this.kernel = Cpu1MseLossKernelDispatch.kernelFor(kernelId);
-        this.reductionOpType = Objects.requireNonNull(reductionOpType, "reductionOpType cannot be null");
+        this.reductionOpType = reductionOpType;
         this.elementCount = elementCount;
+        this.reductionDivisor = reductionDivisor;
         this.orderedNodeIds = List.copyOf(orderedNodeIds == null ? List.of() : orderedNodeIds);
-        this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
+        this.launchConfig = launchConfig;
+        this.scratchBufferSpec = scratchBufferSpec;
     }
 
     public int outputNodeId() {
@@ -93,6 +116,10 @@ public final class Cpu1PreparedMseLossUnit {
 
     public int elementCount() {
         return elementCount;
+    }
+
+    public long reductionDivisor() {
+        return reductionDivisor;
     }
 
     public List<Integer> orderedNodeIds() {

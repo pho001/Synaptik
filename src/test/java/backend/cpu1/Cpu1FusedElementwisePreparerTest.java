@@ -34,7 +34,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Cpu1FusedElementwisePreparerTest {
     @Test
@@ -114,7 +113,7 @@ class Cpu1FusedElementwisePreparerTest {
     }
 
     @Test
-    void rejectsUnsupportedIntrinsicDuringPrepareBeforeCreatingPreparedUnit() {
+    void preparesSupportedIntrinsicDuringPrepareWithGeneratedKernel() {
         Tensor input = new Tensor(new float[]{-1.0f, 0.0f, 1.0f}, new int[]{3}, null, "input", DataType.FLOAT32);
         Fixture fixture = fixture(input.exp().tanh());
         int expNodeId = nodeId(fixture.nodes(), Operation.OpType.EXP);
@@ -127,11 +126,11 @@ class Cpu1FusedElementwisePreparerTest {
                 List.of(expNodeId, tanhNodeId)
         );
 
-        UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
-                () -> new Cpu1FusedElementwisePreparer(runtimeConfig)
-                        .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig)));
+        Cpu1PreparedFusedElementwiseUnit preparedUnit = new Cpu1FusedElementwisePreparer(runtimeConfig)
+                .prepareUnit(fixture.outputNode(), loweredUnit, fixture.context(runtimeConfig));
 
-        assertTrue(thrown.getMessage().contains(Cpu1FusedCodegenRejectionReason.UNSUPPORTED_INTRINSIC.name()));
+        assertEquals(Cpu1FusedCodegenRejectionReason.NONE, preparedUnit.codegenRejectionReason());
+        assertNotNull(preparedUnit.generatedKernel());
     }
 
     @Test

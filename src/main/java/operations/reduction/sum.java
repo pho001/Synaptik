@@ -39,6 +39,36 @@ public final class sum implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.REDUCTION;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.REDUCTION;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.MEDIUM;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.NONE;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "sum";
     }

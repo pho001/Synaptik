@@ -36,6 +36,36 @@ public final class lessThan implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.ELEMENT_WISE;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return true;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.COMPARISON;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.CHEAP;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.BRANCHLESS;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.BOOLEAN;
+    }
+
+    @Override
     public String getExpression() {
         return "lessThan";
     }

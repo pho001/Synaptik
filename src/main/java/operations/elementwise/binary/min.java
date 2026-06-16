@@ -46,6 +46,36 @@ public final class min implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.ELEMENT_WISE;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return true;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.ARITHMETIC;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.CHEAP;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.BRANCHLESS;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "min";
     }

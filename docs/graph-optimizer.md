@@ -82,10 +82,10 @@ gather backward       -> SCATTER_ADD
 gatherAxis backward   -> SCATTER_AXIS_ADD
 gatherNd backward     -> SCATTER_ND with ADD and batch_dims
 takeAlongAxis backward -> SCATTER_ELEMENTS with ADD
-slice backward        -> PAD for unit steps, SLICE_SCATTER_ADD for stepped slices
+slice backward        -> SLICE_BACKWARD
 ```
 
-Legacy descriptors such as `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, `SLICE_GRAD`, and `CROSS_ENTROPY_LOSS_INDICES_GRAD` still exist because backend coverage tests and future CPU/backend specialization experiments may instantiate them directly. Their existence does not make them the canonical semantic form. A default graph-optimizer rule must not take a public Tensor API primitive DAG and silently replace it with a legacy gradient descriptor.
+Legacy descriptors such as `SOFTMAX_GRAD`, `LOG_SOFTMAX_GRAD`, `GATHER_GRAD`, `TAKE_ALONG_AXIS_GRAD`, and `CROSS_ENTROPY_LOSS_INDICES_GRAD` still exist because backend coverage tests and future CPU/backend specialization experiments may instantiate them directly. Their existence does not make them the canonical semantic form. A default graph-optimizer rule must not take a public Tensor API primitive DAG and silently replace it with a legacy gradient descriptor. Slice backward is already represented by the canonical `SLICE_BACKWARD` layout primitive.
 
 If a future CPU path wants those descriptors for performance, it should be an explicit specialization decision with three properties:
 

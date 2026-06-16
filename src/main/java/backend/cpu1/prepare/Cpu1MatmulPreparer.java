@@ -22,7 +22,6 @@ import operations.Operation;
 import tensor.DataType;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * Prepares the initial dense Java matmul subset for cpu1.
@@ -62,8 +61,12 @@ public final class Cpu1MatmulPreparer {
             CompiledTensorDescriptorIndex descriptorIndex,
             Cpu1PrepareConfig config
     ) {
-        Objects.requireNonNull(matmulNode, "matmulNode cannot be null");
-        Objects.requireNonNull(addNode, "addNode cannot be null");
+        if (matmulNode == null) {
+            throw new IllegalArgumentException("matmulNode cannot be null");
+        }
+        if (addNode == null) {
+            throw new IllegalArgumentException("addNode cannot be null");
+        }
         if (addNode.operation() == null || addNode.operation().opType() != Operation.OpType.ADD) {
             throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU requires an ADD node.");
         }
@@ -109,11 +112,22 @@ public final class Cpu1MatmulPreparer {
             int biasNodeId,
             CompiledNode addNode
     ) {
-        Objects.requireNonNull(matmulNode, "matmulNode cannot be null");
-        Objects.requireNonNull(outputNode, "outputNode cannot be null");
-        Objects.requireNonNull(config, "config cannot be null");
-        Objects.requireNonNull(postOp, "postOp cannot be null");
-        Operation operation = Objects.requireNonNull(matmulNode.operation(), "matmulNode operation cannot be null");
+        if (matmulNode == null) {
+            throw new IllegalArgumentException("matmulNode cannot be null");
+        }
+        if (outputNode == null) {
+            throw new IllegalArgumentException("outputNode cannot be null");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("config cannot be null");
+        }
+        if (postOp == null) {
+            throw new IllegalArgumentException("postOp cannot be null");
+        }
+        Operation operation = matmulNode.operation();
+        if (operation == null) {
+            throw new IllegalArgumentException("matmulNode operation cannot be null");
+        }
         boolean linearWithBias = operation.opType() == Operation.OpType.LINEAR;
         if (operation.opType() != Operation.OpType.MATMUL && !linearWithBias) {
             throw new UnsupportedOperationException("cpu1 matmul preparer does not support " + operation.opType());
@@ -239,8 +253,12 @@ public final class Cpu1MatmulPreparer {
             CompiledNode outputNode,
             CompiledTensorDescriptor bias
     ) {
-        Objects.requireNonNull(addNode, "addNode cannot be null");
-        Objects.requireNonNull(bias, "bias cannot be null");
+        if (addNode == null) {
+            throw new IllegalArgumentException("addNode cannot be null");
+        }
+        if (bias == null) {
+            throw new IllegalArgumentException("bias cannot be null");
+        }
         if (!Arrays.equals(addNode.shape(), outputNode.shape())) {
             throw new UnsupportedOperationException("cpu1 MATMUL ADD_BIAS_RELU ADD output shape must match RELU output. add="
                     + Arrays.toString(addNode.shape()) + ", output=" + Arrays.toString(outputNode.shape()));

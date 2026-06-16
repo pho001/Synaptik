@@ -17,7 +17,7 @@ public final class ElementwiseDispatchPlanner {
 
     public ResolvedDispatchHints resolve(Operation op, Tensor node, ResolvedCpuComputeContract contract) {
         if (op == null || node == null
-                || op.opType().category() != Operation.OpArityClass.ELEMENT_WISE) {
+                || op.arityClass() != Operation.OpArityClass.ELEMENT_WISE) {
             return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
         }
 
@@ -25,7 +25,7 @@ public final class ElementwiseDispatchPlanner {
     }
 
     public ResolvedDispatchHints resolve(Operation op, long logicalElementCount, ResolvedCpuComputeContract contract) {
-        if (op == null || op.opType().category() != Operation.OpArityClass.ELEMENT_WISE) {
+        if (op == null || op.arityClass() != Operation.OpArityClass.ELEMENT_WISE) {
             return new ResolvedDispatchHints(0, CpuExecutionMode.SCALAR, 1, 1, 1, 1, false);
         }
 

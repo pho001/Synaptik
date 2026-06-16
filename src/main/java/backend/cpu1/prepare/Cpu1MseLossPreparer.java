@@ -26,13 +26,15 @@ import tensor.DataType;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 public final class Cpu1MseLossPreparer {
     private final RuntimeConfig runtimeConfig;
 
     public Cpu1MseLossPreparer(RuntimeConfig runtimeConfig) {
-        this.runtimeConfig = Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
+        if (runtimeConfig == null) {
+            throw new IllegalArgumentException("runtimeConfig cannot be null");
+        }
+        this.runtimeConfig = runtimeConfig;
     }
 
     public CompiledNodeExecutionMetadata prepare(
@@ -40,9 +42,15 @@ public final class Cpu1MseLossPreparer {
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
     ) {
-        Objects.requireNonNull(outputNode, "outputNode cannot be null");
-        Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
-        Objects.requireNonNull(context, "context cannot be null");
+        if (outputNode == null) {
+            throw new IllegalArgumentException("outputNode cannot be null");
+        }
+        if (loweredUnit == null) {
+            throw new IllegalArgumentException("loweredUnit cannot be null");
+        }
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
 
         RegionExecutionPlan plan = loweredUnit.requireRegionPlan();
         RegionSpecializationCandidate candidate = requireMseCandidate(plan);
@@ -50,7 +58,7 @@ public final class Cpu1MseLossPreparer {
             throw new IllegalStateException("MSE specialization output node mismatch. candidate="
                     + candidate.outputValueRef().nodeId() + ", outputNode=" + outputNode.id());
         }
-        validateStructure(candidate, context);
+        MseReductionPlan reductionPlan = validateStructure(candidate, context);
 
         List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
@@ -62,7 +70,6 @@ public final class Cpu1MseLossPreparer {
         CompiledTensorDescriptor output = context.descriptor(outputNode.id());
         requireDenseScalarContract(outputNode, prediction, target, output);
 
-        Operation.OpType reductionOpType = outputNode.operation().opType();
         int elementCount = Math.toIntExact(prediction.logicalElementCount());
         Cpu1StorageKind storageKind = storageKind(output.dataType(), runtimeConfig.cpuStorageProfile());
         Cpu1LaunchConfig launchConfig = launchConfig(elementCount, runtimeConfig);
@@ -72,9 +79,10 @@ public final class Cpu1MseLossPreparer {
                 targetNodeId,
                 output.dataType(),
                 storageKind,
-                kernelId(output.dataType(), reductionOpType),
-                reductionOpType,
+                kernelId(output.dataType(), reductionPlan.reductionOpType()),
+                reductionPlan.reductionOpType(),
                 elementCount,
+                reductionPlan.divisor(),
                 candidate.orderedNodeIds(),
                 launchConfig,
                 scratchBufferSpec(launchConfig, elementCount)
@@ -104,17 +112,16 @@ public final class Cpu1MseLossPreparer {
         return candidate;
     }
 
-    private static void validateStructure(
+    private static MseReductionPlan validateStructure(
             RegionSpecializationCandidate candidate,
             BackendPrepareContext context
     ) {
-        if (candidate.orderedNodeIds().size() != 3) {
-            throw new UnsupportedOperationException("cpu1 MSE_LOSS supports SUB->MUL->single scalar SUM/MEAN only, got nodes "
+        if (candidate.orderedNodeIds().size() < 3) {
+            throw new UnsupportedOperationException("cpu1 MSE_LOSS supports SUB->MUL->SUM/MEAN reduction chains only, got nodes "
                     + candidate.orderedNodeIds());
         }
         CompiledNode diff = context.compiledNode(candidate.orderedNodeIds().get(0));
         CompiledNode square = context.compiledNode(candidate.orderedNodeIds().get(1));
-        CompiledNode reduction = context.compiledNode(candidate.orderedNodeIds().get(2));
         if (opType(diff) != Operation.OpType.SUB) {
             throw new UnsupportedOperationException("cpu1 MSE_LOSS first node must be SUB.");
         }
@@ -124,19 +131,35 @@ public final class Cpu1MseLossPreparer {
                 || square.inputIds().get(1) != diff.id()) {
             throw new UnsupportedOperationException("cpu1 MSE_LOSS second node must be MUL(diff,diff).");
         }
-        Operation.OpType reductionOpType = opType(reduction);
-        if (reductionOpType != Operation.OpType.SUM && reductionOpType != Operation.OpType.MEAN) {
-            throw new UnsupportedOperationException("cpu1 MSE_LOSS reduction must be SUM or MEAN.");
-        }
         List<Integer> expectedInputs = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
                 .toList();
         if (!diff.inputIds().equals(expectedInputs)) {
             throw new UnsupportedOperationException("cpu1 MSE_LOSS SUB inputs do not match candidate inputs.");
         }
-        if (reduction.inputIds().size() != 1 || reduction.inputIds().getFirst() != square.id()) {
-            throw new UnsupportedOperationException("cpu1 MSE_LOSS reduction must consume the squared diff.");
+        long divisor = 1L;
+        Operation.OpType reductionOpType = null;
+        int expectedInputNodeId = square.id();
+        for (int index = 2; index < candidate.orderedNodeIds().size(); index++) {
+            CompiledNode reduction = context.compiledNode(candidate.orderedNodeIds().get(index));
+            Operation.OpType currentOpType = opType(reduction);
+            if (currentOpType != Operation.OpType.SUM && currentOpType != Operation.OpType.MEAN) {
+                throw new UnsupportedOperationException("cpu1 MSE_LOSS reduction must be SUM or MEAN.");
+            }
+            if (reduction.inputIds().size() != 1 || reduction.inputIds().getFirst() != expectedInputNodeId) {
+                throw new UnsupportedOperationException("cpu1 MSE_LOSS reduction chain must consume the previous MSE node.");
+            }
+            if (reductionOpType == null) {
+                reductionOpType = currentOpType;
+            } else if (reductionOpType != currentOpType) {
+                throw new UnsupportedOperationException("cpu1 MSE_LOSS supports homogeneous SUM or MEAN reduction chains only.");
+            }
+            if (currentOpType == Operation.OpType.MEAN) {
+                divisor = Math.multiplyExact(divisor, meanDivisor(reduction, context));
+            }
+            expectedInputNodeId = reduction.id();
         }
+        return new MseReductionPlan(reductionOpType, divisor);
     }
 
     private static void requireDenseScalarContract(
@@ -255,5 +278,31 @@ public final class Cpu1MseLossPreparer {
 
     private static Operation.OpType opType(CompiledNode node) {
         return node == null || node.operation() == null ? Operation.OpType.UNKNOWN : node.operation().opType();
+    }
+
+    private static long meanDivisor(CompiledNode reduction, BackendPrepareContext context) {
+        CompiledTensorDescriptor input = context.descriptor(reduction.inputIds().getFirst());
+        CompiledTensorDescriptor output = context.descriptor(reduction.id());
+        long inputElements = input.logicalElementCount();
+        long outputElements = output.logicalElementCount();
+        if (inputElements <= 0 || outputElements <= 0 || inputElements % outputElements != 0) {
+            throw new UnsupportedOperationException("cpu1 MSE_LOSS cannot derive MEAN divisor from shapes "
+                    + Arrays.toString(input.shape()) + " -> " + Arrays.toString(output.shape()));
+        }
+        return inputElements / outputElements;
+    }
+
+    private record MseReductionPlan(Operation.OpType reductionOpType, long divisor) {
+        private MseReductionPlan {
+            if (reductionOpType == null) {
+                throw new IllegalArgumentException("reductionOpType cannot be null");
+            }
+            if (reductionOpType != Operation.OpType.SUM && reductionOpType != Operation.OpType.MEAN) {
+                throw new IllegalArgumentException("reductionOpType must be SUM or MEAN: " + reductionOpType);
+            }
+            if (divisor <= 0) {
+                throw new IllegalArgumentException("divisor must be positive: " + divisor);
+            }
+        }
     }
 }

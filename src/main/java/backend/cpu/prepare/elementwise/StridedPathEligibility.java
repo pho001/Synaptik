@@ -40,7 +40,7 @@ public final class StridedPathEligibility {
         if (op.opType() == Operation.OpType.CONTIGUOUS) {
             return StridedLayoutDecision.NONE;
         }
-        if (op.opType().category() != Operation.OpArityClass.ELEMENT_WISE || !supportsStridedPath(op)) {
+        if (op.arityClass() != Operation.OpArityClass.ELEMENT_WISE || !supportsStridedPath(op)) {
             return StridedLayoutDecision.NONE;
         }
         boolean hasOffsetInput = false;

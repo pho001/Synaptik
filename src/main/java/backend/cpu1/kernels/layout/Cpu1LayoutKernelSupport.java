@@ -16,7 +16,6 @@ import tensor.storage.NativeTensorStorage;
 import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
@@ -31,8 +30,14 @@ public final class Cpu1LayoutKernelSupport {
     private final ExecutionContext context;
 
     public Cpu1LayoutKernelSupport(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        this.unit = Objects.requireNonNull(unit, "unit cannot be null");
-        this.context = Objects.requireNonNull(context, "context cannot be null");
+        if (unit == null) {
+            throw new IllegalArgumentException("unit cannot be null");
+        }
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        this.unit = unit;
+        this.context = context;
     }
 
     public Cpu1PreparedLayoutUnit unit() {

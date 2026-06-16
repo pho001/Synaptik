@@ -33,7 +33,6 @@ class MetalOperationParityMatrixTest {
         MetalOperationParityMatrix.Row row = row(Operation.OpType.CAST);
 
         assertTrue(row.cpuKernelAvailable());
-        assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());
@@ -45,11 +44,10 @@ class MetalOperationParityMatrixTest {
     }
 
     @Test
-    void matrixMarksSliceGradAsScopedPadBasedBackwardLayoutOp() {
-        MetalOperationParityMatrix.Row row = row(Operation.OpType.SLICE_GRAD);
+    void matrixMarksSliceBackwardAsScopedPadBasedBackwardLayoutOp() {
+        MetalOperationParityMatrix.Row row = row(Operation.OpType.SLICE_BACKWARD);
 
-        assertFalse(row.cpuKernelAvailable());
-        assertFalse(row.cpuFusable());
+        assertTrue(row.cpuKernelAvailable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());
@@ -66,7 +64,6 @@ class MetalOperationParityMatrixTest {
             MetalOperationParityMatrix.Row row = row(opType);
 
             assertTrue(row.cpuKernelAvailable(), opType.name());
-            assertFalse(row.cpuFusable(), opType.name());
             assertEquals("SUPPORTED", row.metalCoverageStatus(), opType.name());
             assertEquals("SUPPORTED", row.metalReason(), opType.name());
             assertTrue(row.plannerSupported(), opType.name());
@@ -105,7 +102,6 @@ class MetalOperationParityMatrixTest {
         MetalOperationParityMatrix.Row row = row(Operation.OpType.GATHER_ND);
 
         assertTrue(row.cpuKernelAvailable());
-        assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());
@@ -177,25 +173,25 @@ class MetalOperationParityMatrixTest {
     void markdownRendererPublishesStableMatrixColumnsAndGapClosureRows() {
         String markdown = MetalOperationParityMatrix.renderMarkdown();
 
-        assertTrue(markdown.contains("| Operation | CPU kernel | CPU fusable | Metal coverage |"));
-        assertTrue(markdown.contains("| MIN | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| MAX | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| POW | yes | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| ERF | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| FLOOR | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| CEIL | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SIGN | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| EXPAND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SELECT | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| CAST | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SLICE_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SCATTER_ADD | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SCATTER_ELEMENTS | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| SCATTER_ND | yes | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| GATHER_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| TAKE_ALONG_AXIS_GRAD | no | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
-        assertTrue(markdown.contains("| CONST_SCALAR | no | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION |"));
+        assertTrue(markdown.contains("| Operation | CPU kernel | Metal coverage |"));
+        assertTrue(markdown.contains("| MIN | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| MAX | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| POW | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| ERF | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| FLOOR | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| CEIL | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SIGN | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| EXPAND | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SELECT | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| CAST | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SLICE_BACKWARD | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCATTER_ADD | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCATTER_ELEMENTS | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| SCATTER_ND | yes | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| GATHER_GRAD | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| TAKE_ALONG_AXIS_GRAD | no | supported | yes | yes | yes | yes | no | no | SUPPORTED |"));
+        assertTrue(markdown.contains("| CONST_SCALAR | no | unsupported | no | no | no | no | no | yes | UNSUPPORTED_OPERATION |"));
         assertTrue(markdown.contains("| FUSED |"));
         assertTrue(markdown.contains("CPU_FUSED_OPERATION_UNSUPPORTED"));
     }
@@ -209,7 +205,6 @@ class MetalOperationParityMatrixTest {
         MetalOperationParityMatrix.Row row = row(opType);
 
         assertTrue(row.cpuKernelAvailable());
-        assertTrue(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());
@@ -225,7 +220,6 @@ class MetalOperationParityMatrixTest {
         MetalOperationParityMatrix.Row row = row(opType);
 
         assertTrue(row.cpuKernelAvailable());
-        assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());
@@ -245,7 +239,6 @@ class MetalOperationParityMatrixTest {
         } else {
             assertTrue(row.cpuKernelAvailable());
         }
-        assertFalse(row.cpuFusable());
         assertEquals("SUPPORTED", row.metalCoverageStatus());
         assertEquals("SUPPORTED", row.metalReason());
         assertTrue(row.plannerSupported());

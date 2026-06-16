@@ -1,7 +1,5 @@
 package backend.cpu1.plan;
 
-import java.util.Objects;
-
 /**
  * Prepare-time logical iteration metadata for one cpu1 unit.
  */
@@ -14,7 +12,10 @@ public record Cpu1IterationPlan(
         if (elementCount < 0) {
             throw new IllegalArgumentException("elementCount cannot be negative");
         }
-        shape = Objects.requireNonNull(shape, "shape cannot be null").clone();
+        if (shape == null) {
+            throw new IllegalArgumentException("shape cannot be null");
+        }
+        shape = shape.clone();
     }
 
     public int[] shape() {

@@ -240,11 +240,11 @@ public final class CpuPlanningPolicy {
             return false;
         }
         Operation.OpType opType = op.opType();
-        if (!opType.isFusable() || opType == Operation.OpType.SQRT) {
+        if (!op.isFusable() || opType == Operation.OpType.SQRT) {
             return false;
         }
-        return switch (opType.semanticFamily()) {
-            case ARITHMETIC, COMPARISON, LOGICAL -> opType.computationalCost() != Operation.OpComputationalCost.EXPENSIVE;
+        return switch (op.semanticFamily()) {
+            case ARITHMETIC, COMPARISON, LOGICAL -> op.computationalCost() != Operation.OpComputationalCost.EXPENSIVE;
             default -> false;
         };
     }
@@ -384,7 +384,7 @@ public final class CpuPlanningPolicy {
         if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalParallelMinSize : fusedCheapParallelMinSize;
         }
-        return usesTranscendentalThreshold(op.opType()) ? transcendentalParallelMinSize : cheapParallelMinSize;
+        return usesTranscendentalThreshold(op) ? transcendentalParallelMinSize : cheapParallelMinSize;
     }
 
     private int resolveBaseVectorMinSize(Operation op) {
@@ -394,7 +394,7 @@ public final class CpuPlanningPolicy {
         if (op.opType() == Operation.OpType.FUSED && op instanceof FusedOperation fused) {
             return fusedContainsTranscendental(fused) ? fusedTranscendentalVectorMinSize : fusedCheapVectorMinSize;
         }
-        return usesTranscendentalThreshold(op.opType()) ? transcendentalVectorMinSize : cheapVectorMinSize;
+        return usesTranscendentalThreshold(op) ? transcendentalVectorMinSize : cheapVectorMinSize;
     }
 
     private int adjustFusedVectorMinSize(int base, FusedOperation fused) {
@@ -415,10 +415,20 @@ public final class CpuPlanningPolicy {
                 .anyMatch(node -> usesTranscendentalThreshold(node.opType()));
     }
 
+    private boolean usesTranscendentalThreshold(Operation op) {
+        return op != null
+                && op.semanticFamily() == Operation.OpSemanticFamily.TRANSCENDENTAL
+                && op.opType() != Operation.OpType.ERF;
+    }
+
     private boolean usesTranscendentalThreshold(Operation.OpType opType) {
-        return opType != null
-                && opType.semanticFamily() == Operation.OpSemanticFamily.TRANSCENDENTAL
-                && opType != Operation.OpType.ERF;
+        if (opType == null) {
+            return false;
+        }
+        return switch (opType) {
+            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, POW, POW_TENSOR, SIGMOID -> true;
+            default -> false;
+        };
     }
 
     private static int saturatingMultiply(int value, int factor) {

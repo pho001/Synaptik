@@ -1,7 +1,5 @@
 package backend.cpu1.offset;
 
-import java.util.Objects;
-
 final class Cpu1OffsetPlanValidation {
     private Cpu1OffsetPlanValidation() {
     }
@@ -13,8 +11,12 @@ final class Cpu1OffsetPlanValidation {
     }
 
     static void requireMatchingRank(int[] shape, int[] strides) {
-        Objects.requireNonNull(shape, "shape cannot be null");
-        Objects.requireNonNull(strides, "strides cannot be null");
+        if (shape == null) {
+            throw new IllegalArgumentException("shape cannot be null");
+        }
+        if (strides == null) {
+            throw new IllegalArgumentException("strides cannot be null");
+        }
         if (shape.length != strides.length) {
             throw new IllegalArgumentException("shape and strides must have matching rank");
         }

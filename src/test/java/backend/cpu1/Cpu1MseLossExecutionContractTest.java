@@ -112,6 +112,40 @@ class Cpu1MseLossExecutionContractTest {
     }
 
     @Test
+    void preparedGraphExecutesNestedF32MeanMseAsSingleCpu1SpecializedStep() {
+        Tensor prediction = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f},
+                new int[]{2, 3},
+                null,
+                "mseNestedF32Prediction",
+                DataType.FLOAT32
+        );
+        Tensor target = new Tensor(
+                new float[]{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f},
+                new int[]{2, 3},
+                null,
+                "mseNestedF32Target",
+                DataType.FLOAT32
+        );
+        Tensor diff = prediction.sub(target);
+        Tensor loss = diff.mul(diff).mean(1).mean(0, true);
+        PreparedExecution execution = prepare(loss, DataType.FLOAT32);
+
+        Cpu1PreparedArtifact artifact = assertSingleMseStep(
+                execution,
+                Cpu1MseLossKernelId.MSE_MEAN_F32_DENSE_SCALAR,
+                4,
+                6
+        );
+        assertEquals(4, artifact.preparedMseLossUnit().orderedNodeIds().size());
+        RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1.0f}, loss.toFloat32ArrayCopy(), 1.0e-6f);
+        assertMseTrace(trace, Cpu1MseLossKernelId.MSE_MEAN_F32_DENSE_SCALAR, "MEAN", 6,
+                Cpu1StorageKind.JAVA_ARRAY, 6, 2);
+    }
+
+    @Test
     void preparedGraphExecutesF32MeanMseOnNativeSegmentWhenCpuNativeIsRequested() {
         Tensor prediction = new Tensor(
                 new float[]{1.0f, 2.0f, 3.0f, 4.0f},
@@ -140,6 +174,43 @@ class Cpu1MseLossExecutionContractTest {
 
         assertArrayEquals(new float[]{0.625f}, loss.toFloat32ArrayCopy(), 1.0e-6f);
         assertMseTrace(trace, Cpu1MseLossKernelId.MSE_MEAN_F32_DENSE_SCALAR, "MEAN", 4, Cpu1StorageKind.MEMORY_SEGMENT);
+    }
+
+    @Test
+    void preparedGraphExecutesNestedF32MeanMseOnNativeSegmentAsSingleStep() {
+        Tensor prediction = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f},
+                new int[]{2, 3},
+                null,
+                "mseNestedF32NativePrediction",
+                DataType.FLOAT32
+        );
+        Tensor target = new Tensor(
+                new float[]{0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f},
+                new int[]{2, 3},
+                null,
+                "mseNestedF32NativeTarget",
+                DataType.FLOAT32
+        );
+        Tensor diff = prediction.sub(target);
+        Tensor loss = diff.mul(diff).mean(1).mean(0, true);
+        PreparedExecution execution = prepare(
+                loss,
+                RuntimeConfig.inferenceDefaults(DataType.FLOAT32).withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE)
+        );
+
+        Cpu1PreparedArtifact artifact = assertSingleMseStep(
+                execution,
+                Cpu1MseLossKernelId.MSE_MEAN_F32_DENSE_SCALAR,
+                4,
+                6
+        );
+        assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMseLossUnit().storageKind());
+        RunTrace trace = execution.executeTraced(ExecutionMode.FORWARD);
+
+        assertArrayEquals(new float[]{1.0f}, loss.toFloat32ArrayCopy(), 1.0e-6f);
+        assertMseTrace(trace, Cpu1MseLossKernelId.MSE_MEAN_F32_DENSE_SCALAR, "MEAN", 6,
+                Cpu1StorageKind.MEMORY_SEGMENT, 6, 2);
     }
 
     @Test
@@ -243,6 +314,15 @@ class Cpu1MseLossExecutionContractTest {
             PreparedExecution execution,
             Cpu1MseLossKernelId expectedKernelId
     ) {
+        return assertSingleMseStep(execution, expectedKernelId, 3, -1);
+    }
+
+    private static Cpu1PreparedArtifact assertSingleMseStep(
+            PreparedExecution execution,
+            Cpu1MseLossKernelId expectedKernelId,
+            int expectedMseNodeCount,
+            long expectedReductionDivisor
+    ) {
         assertEquals(2, execution.forwardSteps().size());
         PreparedExecutionStep step = execution.forwardSteps().stream()
                 .filter(candidate -> candidate.metadata().artifact() instanceof Cpu1PreparedArtifact)
@@ -250,7 +330,10 @@ class Cpu1MseLossExecutionContractTest {
                 .orElseThrow();
         Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().artifact());
         assertEquals(expectedKernelId, artifact.preparedMseLossUnit().kernelId());
-        assertEquals(3, step.orderedNodeIds().size());
+        assertEquals(expectedMseNodeCount, step.orderedNodeIds().size());
+        if (expectedReductionDivisor > 0) {
+            assertEquals(expectedReductionDivisor, artifact.preparedMseLossUnit().reductionDivisor());
+        }
         return artifact;
     }
 
@@ -270,6 +353,20 @@ class Cpu1MseLossExecutionContractTest {
             int expectedElementCount,
             Cpu1StorageKind expectedStorageKind
     ) {
+        long expectedDivisor = expectedReduction.equals("MEAN") ? expectedElementCount : 1L;
+        assertMseTrace(trace, expectedKernelId, expectedReduction, expectedElementCount, expectedStorageKind,
+                expectedDivisor, 1);
+    }
+
+    private static void assertMseTrace(
+            RunTrace trace,
+            Cpu1MseLossKernelId expectedKernelId,
+            String expectedReduction,
+            int expectedElementCount,
+            Cpu1StorageKind expectedStorageKind,
+            long expectedReductionDivisor,
+            int expectedReductionNodeCount
+    ) {
         assertEquals(2, trace.steps().size());
         ExecutionStepTrace step = trace.steps().stream()
                 .filter(candidate -> candidate.metadata().attributes().containsKey("cpu1MseLossKernelId"))
@@ -281,6 +378,8 @@ class Cpu1MseLossExecutionContractTest {
         assertEquals(expectedStorageKind.name(), attrs.get("cpu1StorageKind"));
         assertEquals(expectedReduction, attrs.get("cpu1MseLossReduction"));
         assertEquals(expectedElementCount, attrs.get("cpu1MseLossElementCount"));
+        assertEquals(expectedReductionDivisor, attrs.get("cpu1MseLossReductionDivisor"));
+        assertEquals(expectedReductionNodeCount, attrs.get("cpu1MseLossReductionNodeCount"));
     }
 
     private static void assertMseLaunchWorkers(RunTrace trace, int expectedWorkers) {

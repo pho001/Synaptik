@@ -27,8 +27,15 @@ Base interface:
 The key surface is:
 
 - `opType()`
+- `semanticFamily()`
+- `computationalCost()`
+- `controlTrait()`
+- `resultKind()`
 - `getExpression()`
-- optional cheap/non-cheap hint through `isCheap()`
+
+New graph/backend planning code should use the concrete `Operation` metadata methods above.
+The remaining `isCheap()` surface exists only for legacy `backend.cpu` policy compatibility and is
+derived from `computationalCost()` rather than being the metadata source for cpu1 or shared backend planning.
 
 The descriptor should carry only immutable semantic parameters such as:
 
@@ -48,18 +55,12 @@ It should not carry:
 - kernel loops
 - backend dispatch hints
 
-## `OpType` Taxonomy
+## `OpType` Identity
 
-`Operation.OpType` currently divides primitives by broad category:
+`Operation.OpType` is a stable primitive identity only. It does not own arity,
+fusability, cost, result-kind, or control-flow metadata.
 
-- elementwise
-- reduction
-- layout
-- linear algebra
-- special
-- fused
-
-Some examples:
+Some identity examples:
 
 - elementwise numeric:
   - `ADD`, `SUB`, `MUL`, `DIV`, `NEG`, `EXP`, `TANH`, `POW`
@@ -74,7 +75,9 @@ Some examples:
 - fused:
   - `FUSED`
 
-The `isFusable()` bit on `OpType` is what region optimization uses as the primary fusable/non-fusable gate.
+Each concrete `Operation` descriptor owns its arity metadata and generic fusion flag through
+`arityClass()` and `isFusable()`. Region optimization uses `operation.isFusable()` as the
+primary fusable/non-fusable gate.
 
 ## Package Layout
 

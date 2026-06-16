@@ -34,7 +34,7 @@ import operations.layout.pad;
 import operations.layout.permute;
 import operations.layout.select;
 import operations.layout.slice;
-import operations.layout.sliceGrad;
+import operations.layout.sliceBackward;
 import operations.layout.squeeze;
 import operations.layout.tile;
 import operations.layout.unfold2d;
@@ -1570,7 +1570,7 @@ public final class AcceleratorSubgraphLowerer {
 
     private boolean isAttributeEncodedLayout(AcceleratorDagNodeType type) {
         return type == AcceleratorDagNodeType.SLICE
-                || type == AcceleratorDagNodeType.SLICE_GRAD
+                || type == AcceleratorDagNodeType.SLICE_BACKWARD
                 || type == AcceleratorDagNodeType.PAD
                 || type == AcceleratorDagNodeType.TILE;
     }
@@ -2373,7 +2373,7 @@ public final class AcceleratorSubgraphLowerer {
             case EXPAND_DIMS -> AcceleratorDagNodeType.EXPAND_DIMS;
             case SQUEEZE -> AcceleratorDagNodeType.SQUEEZE;
             case SLICE -> AcceleratorDagNodeType.SLICE;
-            case SLICE_GRAD -> AcceleratorDagNodeType.SLICE_GRAD;
+            case SLICE_BACKWARD -> AcceleratorDagNodeType.SLICE_BACKWARD;
             case CONCAT -> AcceleratorDagNodeType.CONCAT;
             case PAD -> AcceleratorDagNodeType.PAD;
             case TILE -> AcceleratorDagNodeType.TILE;
@@ -2525,8 +2525,8 @@ public final class AcceleratorSubgraphLowerer {
                 out[0] = op.getReduction().ordinal();
                 return out;
             }
-            case SLICE_GRAD -> {
-                if (!(node.operation() instanceof sliceGrad op) || context == null || node.inputIds().size() != 1) {
+            case SLICE_BACKWARD -> {
+                if (!(node.operation() instanceof sliceBackward op) || context == null || node.inputIds().size() != 1) {
                     return null;
                 }
                 CompiledNode input = context.compiledNode(node.inputIds().getFirst());

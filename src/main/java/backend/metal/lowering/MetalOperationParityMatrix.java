@@ -103,7 +103,7 @@ public final class MetalOperationParityMatrix {
             Operation.OpType.EXPAND,
             Operation.OpType.SELECT,
             Operation.OpType.SLICE,
-            Operation.OpType.SLICE_GRAD,
+            Operation.OpType.SLICE_BACKWARD,
             Operation.OpType.CONCAT,
             Operation.OpType.PAD,
             Operation.OpType.TILE,
@@ -136,7 +136,6 @@ public final class MetalOperationParityMatrix {
             rows.add(new Row(
                     opType,
                     cpuKernel,
-                    opType.isFusable(),
                     coverage.status().name(),
                     coverage.reason().name(),
                     coverageSupported,
@@ -155,15 +154,13 @@ public final class MetalOperationParityMatrix {
         StringBuilder out = new StringBuilder();
         out.append("# Metal Operation Parity Matrix\n\n");
         out.append("Generated from `MetalOperationParityMatrix`; do not hand-edit status rows.\n\n");
-        out.append("| Operation | CPU kernel | CPU fusable | Metal coverage | Planner supported | DAG lowerable | Native MPSGraph mapped | Buffer executable | Custom route eligible | CPU fallback only | Reason | Note |\n");
-        out.append("|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---|---|\n");
+        out.append("| Operation | CPU kernel | Metal coverage | Planner supported | DAG lowerable | Native MPSGraph mapped | Buffer executable | Custom route eligible | CPU fallback only | Reason | Note |\n");
+        out.append("|---|---:|---|---:|---:|---:|---:|---:|---:|---|---|\n");
         for (Row row : rows()) {
             out.append("| ")
                     .append(row.opType().name())
                     .append(" | ")
                     .append(mark(row.cpuKernelAvailable()))
-                    .append(" | ")
-                    .append(mark(row.cpuFusable()))
                     .append(" | ")
                     .append(row.metalCoverageStatus().toLowerCase(Locale.ROOT))
                     .append(" | ")
@@ -231,7 +228,6 @@ public final class MetalOperationParityMatrix {
     public record Row(
             Operation.OpType opType,
             boolean cpuKernelAvailable,
-            boolean cpuFusable,
             String metalCoverageStatus,
             String metalReason,
             boolean plannerSupported,

@@ -27,7 +27,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
-import operations.layout.sliceGrad;
+import operations.layout.sliceBackward;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -842,18 +842,18 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
-    void explicitShimExecuteBuffersSupportsSliceGradAsZeroPad() {
-        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72NativeSliceGradOutGrad", DataType.FLOAT32);
-        Tensor sliceGrad = TensorPrimitiveBuilder.unaryNoGrad(
+    void explicitShimExecuteBuffersSupportsSliceBackwardAsZeroPad() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72NativeSliceBackwardOutGrad", DataType.FLOAT32);
+        Tensor sliceBackward = TensorPrimitiveBuilder.unaryNoGrad(
                 outGrad,
                 new int[]{2, 4},
-                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
-                "metal72NativeSliceGrad",
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72NativeSliceBackward",
                 DataType.FLOAT32
         );
         Tensor destination = executeF32LoweredNode(
-                sliceGrad,
-                Operation.OpType.SLICE_GRAD,
+                sliceBackward,
+                Operation.OpType.SLICE_BACKWARD,
                 List.of(outGrad),
                 new int[]{2, 4}
         );
@@ -865,18 +865,18 @@ class MetalMpsFfmBridgeTest {
     }
 
     @Test
-    void explicitShimExecuteBuffersSupportsBfloat16SliceGradAsZeroPad() {
-        Tensor outGrad = bf16Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, "metal72NativeBf16SliceGradOutGrad");
-        Tensor sliceGrad = TensorPrimitiveBuilder.unaryNoGrad(
+    void explicitShimExecuteBuffersSupportsBfloat16SliceBackwardAsZeroPad() {
+        Tensor outGrad = bf16Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, "metal72NativeBf16SliceBackwardOutGrad");
+        Tensor sliceBackward = TensorPrimitiveBuilder.unaryNoGrad(
                 outGrad,
                 new int[]{2, 4},
-                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
-                "metal72NativeBf16SliceGrad",
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72NativeBf16SliceBackward",
                 DataType.BFLOAT16
         );
         Tensor destination = executeBf16LoweredNode(
-                sliceGrad,
-                Operation.OpType.SLICE_GRAD,
+                sliceBackward,
+                Operation.OpType.SLICE_BACKWARD,
                 List.of(outGrad),
                 new int[]{2, 4}
         );

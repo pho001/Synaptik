@@ -2,7 +2,7 @@
 
 ## Stav Implementace
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_AND_VERIFIED`
 
 Tento dokument je zivy implementacni checklist. Pri implementaci se ma menit stav jednotlivych tasku:
 
@@ -15,16 +15,16 @@ Aktualni stav:
 - [x] Faze 0: overeni vstupnich hranic a ochrana pracovniho stromu
 - [x] Faze 1: cpu1 fused IR
 - [x] Faze 2: prepare-time fused plan a dispatch decision
-- [ ] Faze 2.5: ASM prepare contract alignment
+- [x] Faze 2.5: ASM prepare contract alignment
 - [x] Faze 3: cpu1 fused executable unit v `backend.cpu1.exec`
 - [x] Faze 4: codegen-first fused runner kontrakt pro JAVA_ARRAY a MEMORY_SEGMENT
 - [x] Faze 5: trace a prepared artifact integrace
 - [x] Faze 6: prepare dispatcher integrace a runtime config route
-- [~] Faze 7: test coverage
-- [~] Faze 8: ASM/codegen emitter hot path
-- [ ] Faze 9: profile IO a tuning knobs
-- [ ] Faze 10: parity benchmarky proti staremu CPU fused
-- [ ] Faze 11: finalni overeni a odstraneni mezistavu
+- [x] Faze 7: test coverage
+- [x] Faze 8: ASM/codegen emitter hot path
+- [x] Faze 9: profile IO a tuning knobs
+- [x] Faze 10: parity benchmarky proti staremu CPU fused
+- [x] Faze 11: finalni overeni a odstraneni mezistavu
 
 ## Cil
 
@@ -119,8 +119,14 @@ for each node:
 
 cpu1 fused runtime route existuje jen pro ASM-generovane concrete kernels. Aktualni prvni
 implementace ma concrete generated kernel pro podporovane `CONTIGUOUS_SCALAR` a
-`STRIDED_SCALAR` loop kinds nad `JAVA_ARRAY` F32/F64 subsetem. `CONTIGUOUS_VECTOR`
-a `MEMORY_SEGMENT` jsou zatim prepare-time rejected bez fallbacku. Nepodporovane vyrazy musi
+`STRIDED_SCALAR` loop kinds nad `JAVA_ARRAY` F32/F64/BF16 scalar subsetem. `CONTIGUOUS_VECTOR`
+je podporovane pro contiguous `JAVA_ARRAY` F32/F64 generated Vector API subset:
+`ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `NEG`, `ABS`, `RELU`, `CLAMP_MIN`,
+`CLAMP_MAX`, `MUL_SCALAR`, `INV`, `NOOP` a generated scalar tail. `MEMORY_SEGMENT`
+je podporovany pro F32/F64 `CONTIGUOUS_SCALAR` a `STRIDED_SCALAR` generated ASM
+scalar loop pres direct `MemorySegment.get/set`; `MEMORY_SEGMENT + CONTIGUOUS_VECTOR`
+zustava explicitne prepare-time rejected bez fallbacku. BF16 vector a BF16 MemorySegment
+zustavaji explicitne prepare-time rejected. Nepodporovane vyrazy musi
 prepare/codegen eligibility odmitnout s jasnym rejection reason; execute nesmi mit codegen,
 cache lookup, eligibility rozhodovani, scalar interpreter, vector fallback, backend fallback ani
 runtime evaluator.
@@ -203,34 +209,24 @@ Support class skeleton:
 ```java
 package backend.cpu1.kernels.fused.codegen.support;
 
+import tensor.dtype.TensorDTypeOps;
+
 public final class Cpu1FusedGeneratedSupport {
-    public static final int ABI_VERSION = 1;
+    public static final int ABI_VERSION = 3;
 
     private Cpu1FusedGeneratedSupport() {
     }
 
-    public static float bf16ToFloat(short bits) {
-        return Float.intBitsToFloat((bits & 0xFFFF) << 16);
-    }
-
-    public static short floatToBf16(float value) {
-        return (short) (Float.floatToRawIntBits(value) >>> 16);
-    }
-
-    public static boolean boolFromByte(byte value) {
+    public static boolean bool(byte value) {
         return value != 0;
     }
 
-    public static byte boolToByte(boolean value) {
-        return (byte) (value ? 1 : 0);
+    public static float bf16ToFloat(short bits) {
+        return TensorDTypeOps.fromBFloat16Bits(bits);
     }
 
-    public static float f64ToF32(double value) {
-        return (float) value;
-    }
-
-    public static double f32ToF64(float value) {
-        return value;
+    public static short floatToBf16(float value) {
+        return TensorDTypeOps.toBFloat16Bits(value);
     }
 }
 ```
@@ -260,6 +256,10 @@ public final class Cpu1FusedMathSupport {
 
     public static float powF32(float left, float right) {
         return (float) Math.pow(left, right);
+    }
+
+    public static double powF64(double left, double right) {
+        return Math.pow(left, right);
     }
 }
 ```
@@ -402,7 +402,7 @@ if (fusedUnit != null) {
 
 Tady neni potreba menit logiku region step. Zmena patri do `BackendPrepareDispatcher.prepareCpuFusedStep(...)`.
 
-### Dnesni fused prepare jde do stareho CPU
+### Soucasny fused prepare route je runtime policy gate
 
 Soubor:
 
@@ -418,20 +418,22 @@ public CompiledNodeExecutionMetadata prepareCpuFusedStep(
         LoweredExecutionUnit loweredUnit,
         BackendPrepareContext context
 ) {
-    if (outputNode == null) {
-            throw new IllegalArgumentException("outputNode cannot be null");
-        }
-    if (loweredUnit == null) {
-            throw new IllegalArgumentException("loweredUnit cannot be null");
-        }
-    if (context == null) {
-            throw new IllegalArgumentException("context cannot be null");
-        }
+    Objects.requireNonNull(outputNode, "outputNode cannot be null");
+    Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
+    Objects.requireNonNull(context, "context cannot be null");
+    if (runtimeConfig.fused().useCpu1Elementwise()) {
+        return cpu1FusedElementwisePreparer.prepare(outputNode, loweredUnit, context);
+    }
     return cpuPreparer.prepareLoweredFusedStep(outputNode, loweredUnit, context);
 }
 ```
 
-Cilova zmena nesmi byt slepe "vzdy cpu1". Nejdriv musi existovat cpu1 fused preparer a testy. Pak lze prepnout trasu nebo pridat jasny policy gate.
+Aktualni stav:
+
+- Default `FusedExecutionPolicy.useCpu1Elementwise=false` zustava na stare CPU fused route.
+- Explicitni `useCpu1Elementwise=true` routuje do `Cpu1FusedElementwisePreparer`.
+- Dispatcher nema `try/catch` fallback ze cpu1 fused zpet na stary CPU fused.
+- Nepodporovany cpu1 fused plan selze pres prepare/codegen rejection reason.
 
 ## Navrzena Cilova Struktura
 
@@ -1782,22 +1784,23 @@ Poznamka k `runtimeConfig.approximation().useFastExp()`:
 
 ## Faze 2.5: ASM Prepare Contract Alignment
 
-Stav: `[ ]`
+Stav: `[x]`
 
-Phase 1-2 uz implementovaly cpu1 fused IR, prepare-time fused plan a dispatch rozhodnuti.
-Pred Fazi 3 ale musi probehnout cleanup/alignment, protoze finalni smer planu je
-ASM-only prepare-time generated kernel handle. Executable unit nema dostat mezistupen, ktery by
-za behu volal factory/cache, eligibility helper, fallback, interpreter nebo runtime evaluator.
+Phase 2.5 je v aktualnim kodu hotova. Finalni smer je ASM-only prepare-time generated kernel
+handle: prepare sestavi `Cpu1FusedCodegenPlan`, ověří `Cpu1FusedCodegenRejectionReason`,
+zavola `Cpu1FusedCodegenKernelFactory.prepareKernel(...)` a ulozi vznikly
+`Cpu1FusedCodegenKernel` do `Cpu1PreparedFusedElementwiseUnit`.
 
-Tato faze neni compatibility layer, facade, fallback ani docasny interpreter. Je to finalni
-prepare-time kontrakt, ktery musi existovat pred implementaci executable unit. Faze 3 na tuto
-fazi zavisi. Faze 8 pozdeji vyplni realne telo ASM emitteru a hot path pro podporovany subset,
-ale Faze 2.5 definuje finalni contract typy, prepared generated kernel handle a prepare-time
-chovani pri nepodporovanem codegen subsetu.
+Executable unit nedela factory/cache lookup, eligibility rozhodovani, fallback, interpreter ani
+runtime evaluator. Hot path zustava:
+
+```java
+preparedUnit.generatedKernel().computeRange(args, startInclusive, endExclusive)
+```
 
 ### Task 2.5.1: Pridat minimalni finalni codegen contract typy
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Nove soubory:
 
@@ -1824,9 +1827,9 @@ Pozadavky:
   nepodporovany intrinsic/op, dtype, layout/access, storage kind, loop kind, scalar binding nebo
   chybejici ASM emitter implementaci.
 
-### Task 2.5.2: Pridat finalni prepare-time factory/cache API skeleton
+### Task 2.5.2: Pridat finalni prepare-time factory/cache API
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy soubor:
 
@@ -1838,15 +1841,16 @@ Pozadavky:
 
 - Public API je `Cpu1FusedCodegenKernelFactory.prepareKernel(Cpu1FusedCodegenPlan plan)`.
 - Factory/cache se vola jen v prepare, nikdy v execute.
-- Pokud ASM emitter jeste nema realnou implementaci pro dany supported-looking plan, prepare musi
-  jasne odmitnout pres `Cpu1FusedCodegenRejectionReason`, ne spustit fallback, interpreter ani
-  runtime evaluator.
-- Skeleton smi docasne produkovat prepared handle jen pro minimalni testovaci supported subset,
-  pokud to neobchazi ASM-only kontrakt. Nesmí pridat zadnou execute-time lookup cestu.
+- Accepted plan kompiluje ASM template pres `Cpu1FusedAsmClassEmitter` a cacheuje ji podle
+  `Cpu1FusedCodegenClassSignature`.
+- Scalar hodnoty se binduji do prepared kernel instance; nejsou soucasti structural class
+  signature.
+- Nepodporovany plan se odmitne pres `Cpu1FusedCodegenRejectionReason`, bez fallbacku,
+  interpreteru nebo runtime evaluatoru.
 
 ### Task 2.5.3: Pridat generated kernel handle do prepared unit
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubor:
 
@@ -1867,7 +1871,7 @@ Pozadavky:
 
 ### Task 2.5.4: Aktualizovat preparer na finalni prepare-time codegen route
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubor:
 
@@ -1886,7 +1890,7 @@ Pozadavky:
 
 ### Task 2.5.5: Srovnat zavadejici dispatch komentare a nazvoslovi
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubory:
 
@@ -1906,7 +1910,7 @@ Pozadavky:
 
 ### Task 2.5.6: Pridat focused alignment testy
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Testy:
 
@@ -1926,13 +1930,16 @@ Pokryt:
 - Constructor `Cpu1PreparedFusedElementwiseUnit` odmitne `NONE` rejection reason s null
   `generatedKernel`.
 
-Evidence po implementaci:
+Evidence v aktualnim kodu/testech:
 
-- `./gradlew classes`
-- `./gradlew test --tests backend.cpu1.Cpu1FusedCodegenContractAlignmentTest --tests backend.cpu1.Cpu1FusedElementwisePreparerTest`
-- `rg -n "vector/codegen" src/main/java/backend/cpu1 src/test/java/backend/cpu1 todo/116-cpu1-fused-elementwise-implementation-plan.md`
-- `rg -n "fallback|interpreter|evaluator" src/main/java/backend/cpu1 src/test/java/backend/cpu1 todo/116-cpu1-fused-elementwise-implementation-plan.md`
-- `git diff --check -- todo/116-cpu1-fused-elementwise-implementation-plan.md`
+- `Cpu1FusedCodegenContractAlignmentTest` overuje, ze executable vola pouze prepared
+  generated kernel, factory je mimo execute cestu a accepted prepared unit vyzaduje non-null
+  `generatedKernel`.
+- `Cpu1FusedElementwisePreparerTest` overuje prepare-time codegen route a `generatedKernel`
+  pro podporovane plany.
+- `Cpu1FusedCodegenPlan.rejectionReason()` drzi explicitni rejection reasons pro dtype,
+  storage, loop kind, scalar binding, vector-only nepodporovane operace, BF16 vector,
+  BF16 MemorySegment a MemorySegment vector.
 
 ## Faze 3: Executable Unit V `backend.cpu1.exec`
 
@@ -2409,6 +2416,11 @@ Implementovano:
 - `Cpu1FusedCodegenKernelFactory` je v produkcnim `backend.cpu1` pouzivan pouze ve fused prepareru.
 - `Cpu1FusedCodegenContractAlignmentTest` chrani, ze factory zustava mimo runtime executable
   cestu a ze accepted prepared unit nemuze existovat bez generated kernel handle.
+- `Cpu1FusedGeneratedExecutionTest.generatedF32ContiguousVectorRunsThroughParallelLaunchPolicy`
+  pripravuje realny generated ASM fused kernel, realny `Cpu1PreparedFusedElementwiseUnit`
+  s `Cpu1ParallelLaunch` a `Cpu1LaunchConfig.parallel(workerCount > 1, resolvedChunkSize)`,
+  spousti kernel pres stejnou launch policy a overuje vysledek i to, ze launch pouzil vice
+  navazujicich chunk rozsahu. Test nepridava zadne produkcni test hooks.
 
 ## Faze 5: Artifact A Trace Integrace
 
@@ -2821,35 +2833,29 @@ Proc:
 
 ### Task 7.2: Pridat cpu1 fused execution contract test
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni stav:
 
-- Plna execution parity sada je blokovana na realnem ASM emitteru z Faze 8.
-- V teto fazi se nesmi pridat fake fallback, scalar interpreter ani runtime evaluator jen kvuli testum.
-- Aktualni kontrakt bez ASM emitteru je pokryty testy:
-  - `src/test/java/backend/cpu1/Cpu1FusedElementwisePreparerTest.java`
-  - `src/test/java/backend/cpu1/Cpu1FusedCodegenContractAlignmentTest.java`
-  - `src/test/java/backend/cpu1/BackendPrepareDispatcherCpu1FusedRouteTest.java`
-
-Blokovany cilovy soubor po Fazi 8:
-
-```text
-src/test/java/backend/cpu1/Cpu1FusedElementwiseExecutionContractTest.java
-```
-
-Po ASM emitteru pridat parity testy:
-
-- `fusedReluMulAddMatchesUnfusedF32Array`
-- `fusedReluMulAddMatchesUnfusedF64Array`
-- `fusedBroadcastWhereMatchesUnfusedF32Array`
-- `fusedBf16MatchesWithinTolerance`
-- `fusedNativeSegmentMatchesArrayPath`
+- Realny ASM emitter uz existuje a execution coverage je v
+  `src/test/java/backend/cpu1/Cpu1FusedGeneratedExecutionTest.java`.
+- Testy spousti skutecny generated kernel handle pres `Cpu1FusedCodegenKernelFactory.prepareKernel(...)`
+  a/nebo pres `preparedUnit.generatedKernel().computeRange(...)`.
+- Pokryte jsou F32/F64 contiguous scalar, F32/F64 contiguous vector se scalar tail,
+  strided/broadcast scalar, BF16 `JAVA_ARRAY` scalar, F32/F64 `MEMORY_SEGMENT` scalar,
+  scalar intrinsics, fast approximations, scalar binding/cache reuse a `WHERE` s BOOL maskou
+  pro F32 scalar output.
+- Explicitni prepare-time rejection testy pokryvaji MemorySegment vector, BF16 vector,
+  BF16 MemorySegment, vector `WHERE`, vector intrinsics a chybejici scalar binding.
+- Route-on/route-off compiled graph parity pro podporovane F32/F64/BF16 numeric outputy je v
+  `BackendPrepareDispatcherCpu1FusedRouteTest`.
+- BOOL output v cpu1 fused je zamerne explicitne unsupported a testovany jako route-on
+  `UNSUPPORTED_DTYPE`, ne jako skryty fallback.
 
 Proc:
 
-- Tyto testy musi overit skutecne execution pres generated ASM kernel.
-- Bez ASM emitteru by slo testy napsat jen pres fake fallback/interpreter, coz je zakazane.
+- Testy overuji skutecnou execution pres generated ASM kernel.
+- Testy nesmi zavest fake fallback, scalar interpreter ani runtime evaluator.
 
 ### Task 7.3: Pridat route test pro config knob
 
@@ -2871,17 +2877,20 @@ Pokryto:
 Proc:
 
 - Route test je povinna cast kompletni migrace.
-- Aktualni no-ASM stav musi byt viditelny jako explicitni rejection, ne jako tichy fallback.
+- Nepodporovany cpu1 fused plan musi byt viditelny jako explicitni prepare/codegen rejection,
+  ne jako tichy fallback. Aktualni BOOL-output route-on test overuje `UNSUPPORTED_DTYPE`.
 
 ### Task 7.4: Pridat nezavisle testy codegen support helperu
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni stav:
 
-- `Cpu1FusedGeneratedSupport` a `Cpu1FusedMathSupport` zatim nejsou ve zdrojich implementovane.
-- Testy helperu se proto nepridavaji v teto fazi.
-- Jakmile Faze 8 zavede support helper tridy pro ASM emitter, musi se pridat nezavisle testy nize.
+- `Cpu1FusedGeneratedSupport` a `Cpu1FusedMathSupport` jsou implementovane jako stabilni
+  primitive static helpery volane generated ASM kodem.
+- Nezavisle helper testy existuji a nevyzaduji generated ASM execution path.
+- Testy helperu overuji BF16 konverze proti `TensorDTypeOps`, bool reprezentaci, zakladni
+  F32/F64 helpery, nove scalar intrinsics a `pow` rychle pripady.
 
 Novy soubor:
 
@@ -2893,12 +2902,12 @@ Pokryt:
 
 - `Cpu1FusedGeneratedSupport.bf16ToFloat(...)` a `floatToBf16(...)` proti existujicimu BF16
   kontraktu v tensor/storage kodu.
-- `boolFromByte(...)` a `boolToByte(...)` pro canonical bool reprezentaci.
-- F32/F64 dtype konverze a NaN/Infinity chovani, pokud konverze muze byt emitovana jako helper call.
-- `Cpu1FusedMathSupport` exact helpers `exp`, `log`, `tanh`, `pow` proti `Math.*` s toleranci
-  podle dtype.
-- Fast approximation helpers, pokud budou zapojene, proti dokumentovane toleranci a monotonicite
-  tam, kde ji aproximace slibuje.
+- `bool(...)` canonical non-zero reprezentaci.
+- `Cpu1FusedMathSupport` basic helpers `relu`, `min`, `max`, `abs`.
+- `Cpu1FusedMathSupport` exact scalar helpers `exp`, `log`, `tanh`, `erf`, `sqrt`,
+  `sigmoid`, `floor`, `ceil`, `sign`, `pow`.
+- Fast approximation helpers `fastExp` a `fastTanh` proti `FastTranscendentals`.
+- `pow` rychle pripady `0`, `1`, `2`, `0.5`, `-1` a obecny exponent.
 
 Proc:
 
@@ -2963,7 +2972,7 @@ Proc:
 
 ### Task 8.2: Napojit emitter na ASM/codegen plan kontrakt
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni implementacni stav:
 
@@ -2971,11 +2980,18 @@ Aktualni implementacni stav:
   tridu a vraci callable `Cpu1FusedCodegenKernel`.
 - Emitter pouziva existujici `Cpu1FusedCodegenPlan`, `Cpu1FusedCodegenLoopKind` a
   `Cpu1FusedCodegenClassSignature`.
-- Podporovane jsou `JAVA_ARRAY + FLOAT32/FLOAT64 + CONTIGUOUS_SCALAR/STRIDED_SCALAR`.
-- `CONTIGUOUS_VECTOR` je v teto prvni implementaci explicitne prepare-time rejected pres
-  `UNSUPPORTED_LOOP_KIND`.
-- `MEMORY_SEGMENT` je v teto prvni implementaci explicitne prepare-time rejected pres
-  `UNSUPPORTED_STORAGE_KIND`.
+- Podporovane jsou `JAVA_ARRAY + FLOAT32/FLOAT64/BFLOAT16 + CONTIGUOUS_SCALAR/STRIDED_SCALAR` a
+  `JAVA_ARRAY + FLOAT32/FLOAT64 + CONTIGUOUS_VECTOR` pro direct Vector API arithmetic/min/max/unary/scalar-param subset.
+- BF16 scalar generated ASM nacita `short` BF16 bits, prevadi je pres stabilni scalar helper na F32,
+  pocita fused expression ve F32 locals a materializuje vystup zpet jako BF16 `short` bits.
+- Podporovane jsou `MEMORY_SEGMENT + FLOAT32/FLOAT64 + CONTIGUOUS_SCALAR/STRIDED_SCALAR`
+  pres generated scalar ASM loop s direct `MemorySegment.get/set(ValueLayout.JAVA_FLOAT/JAVA_DOUBLE, byteOffset)`.
+- `CONTIGUOUS_VECTOR` odmita vector-only nepodporovane operace, napriklad `WHERE` s bool maskou,
+  prepare-time pres `UNSUPPORTED_VECTOR_OPERATION`.
+- `MEMORY_SEGMENT + CONTIGUOUS_VECTOR` zustava explicitne prepare-time rejected pres
+  `UNSUPPORTED_SEGMENT_VECTOR`.
+- `BFLOAT16 + CONTIGUOUS_VECTOR` zustava explicitne prepare-time rejected pres `UNSUPPORTED_BF16_VECTOR`.
+- `BFLOAT16 + MEMORY_SEGMENT` zustava explicitne prepare-time rejected pres `UNSUPPORTED_BF16_SEGMENT`.
 
 Existujici soubory z Faze 2.5:
 
@@ -2994,8 +3010,8 @@ Proc:
 - Faze 8 nesmi znovu definovat prepare-time kontrakt; ma vyplnit realny ASM emitter body,
   class loading/cache implementaci a supported subset nad existujicimi typy.
 - Plan slouzi jako ASM emitter vstup a obsahuje structural class signature pro class/template reuse.
-- `CONTIGUOUS_VECTOR` ma v cilovem stavu generovat vector hlavni smycku a generated scalar tail
-  ve stejne tride. Aktualne je prepare-time rejected bez runtime fallbacku.
+- `CONTIGUOUS_VECTOR` generuje vector hlavni smycku a generated scalar tail ve stejne tride
+  pro podporovany contiguous `JAVA_ARRAY` F32/F64 subset.
 - `CONTIGUOUS_SCALAR` generuje scalar ASM loop pro contiguous data bez Vector API.
 - `STRIDED_SCALAR` generuje scalar ASM loop s offset math pro strided/broadcast access.
 - Strided vectorization muze zustat nepodporovana v prvni iteraci; strided data jako cele se
@@ -3008,7 +3024,7 @@ Proc:
 
 ### Task 8.3: Pridat helper/intrinsic support vrstvu pro ASM emitovani
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni implementacni stav:
 
@@ -3018,7 +3034,9 @@ Aktualni implementacni stav:
 - Support metody jsou primitive static Java methods bez `Operation`, node id nebo plan dispatch
   parametru.
 - Support ABI a serazeny helper target list jsou serializovane do canonical class signature pro
-  aktualne emitovane math helper calls (`relu`, `abs`, `min`, `max` pro F32/F64).
+  aktualne emitovane math helper calls (`relu`, `abs`, `min`, `max`, `exp`, `fastExp`,
+  `log`, `tanh`, `fastTanh`, `erf`, `sqrt`, `sigmoid`, `floor`, `ceil`, `sign`, `pow`
+  pro F32/F64 a BF16-as-F32 scalar compute).
 
 Nove soubory:
 
@@ -3053,12 +3071,29 @@ Direct emit povinne pokryva:
 
 Static helper call povinne pokryva nebo explicitne rejectuje:
 
-- `exp`, `log`, `tanh`, `erf`, obecny `pow`;
-- fast approximations pro `exp`/`tanh` nebo dalsi pozdeji pridane approximations;
-- BF16 load/store conversion a rounding policy;
+- `exp`, `log`, `tanh`, `erf`, `sqrt`, `sigmoid`, `floor`, `ceil`, `sign`, obecny
+  scalar `pow` s explicitnim scalar bindingem a `powTensor`;
+- fast approximations pro `exp`/`tanh`;
+- BF16 load/store conversion a rounding policy pro `JAVA_ARRAY` scalar path;
 - boolean load/store conversion;
 - dtype conversion mezi podporovanymi generated dtype;
 - offset helper pouze mimo hot inner loop, pokud je potreba pro setup.
+
+Dokonceny stav:
+
+- Scalar ASM expression emitter vola nove intrinsics pouze pres stabilni primitive static helpery v
+  `Cpu1FusedMathSupport`.
+- `EXP` a `TANH` respektuji `Cpu1PrepareConfig.useFastExpApprox/useFastTanhApprox`; pri zapnute
+  aproximaci generated bytecode vola stejne `fastExp/fastTanh` helpery jako explicitni
+  `FAST_EXP/FAST_TANH` op.
+- `POW` je podporovan jen pokud fused IR nese `Cpu1FusedScalarParameter`; chybejici scalar binding
+  je prepare-time rejection `UNSUPPORTED_SCALAR_BINDING`.
+- `POW_TENSOR` je podporovan jako binarni helper call.
+- F32/F64 scalar paths funguji pro `JAVA_ARRAY` i `MEMORY_SEGMENT`, protoze load/store je
+  storage-specific, ale expression helper call je storage-independent.
+- BF16 `JAVA_ARRAY` scalar path pocita pres F32 locals a materializuje vystup zpet do BF16.
+- Vector-only nepodporovane operace, napriklad vector `WHERE` a vector math intrinsics, zustavaji
+  explicitne rejected pres `UNSUPPORTED_VECTOR_OPERATION`.
 
 Proc:
 
@@ -3070,7 +3105,7 @@ Proc:
 
 ### Task 8.4: Implementovat cpu1 ASM emitter pro contiguous a strided scalar subset
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni implementacni stav:
 
@@ -3079,12 +3114,16 @@ Aktualni implementacni stav:
 - Generated trida implementuje `Cpu1FusedElementwiseRangeRunner`.
 - Constructor binduje scalar hodnoty do instancnich fields; scalar values nejsou soucasti
   structural class signature.
-- `CONTIGUOUS_SCALAR` generuje scalar loop pro `JAVA_ARRAY` F32/F64.
+- `CONTIGUOUS_SCALAR` generuje scalar loop pro `JAVA_ARRAY` F32/F64/BF16.
 - `STRIDED_SCALAR` generuje rank-specific offset math primo v loopu podle runtime
   `Cpu1TensorView` base/stride locals, vcetne zero-stride broadcast vstupu.
+- `CONTIGUOUS_VECTOR` generuje Vector API hlavni smycku pro contiguous `JAVA_ARRAY` F32/F64
+  subset a ve stejne generated tride scalar tail pres existujici scalar expression path.
+- `MEMORY_SEGMENT` generuje F32/F64 scalar load/store pres `MemorySegment.get/set` a pocita
+  byte offset z generated element offsetu primo v ASM.
 - Neni zavedena zadna skryta contiguous materializace.
-- `CONTIGUOUS_VECTOR`, BF16, MEMORY_SEGMENT a transcendental intrinsics zustavaji prepare-time
-  rejected.
+- BF16 vector, BF16 MemorySegment, MEMORY_SEGMENT vector a vector `WHERE` zustavaji prepare-time
+  rejected. Scalar transcendental/math intrinsics jsou podporovane pres ASM static helper calls.
 
 Nove soubory:
 
@@ -3095,8 +3134,7 @@ src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmLoopEmitter.jav
 src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedGeneratedClassLoader.java
 ```
 
-V ramci Faze 8 musi byt doplnena realna ASM generated implementace aspon pro tyto op pro
-podporovane dtype/storage/access kombinace:
+Realna ASM generated implementace pokryva pro podporovane dtype/storage/access kombinace:
 
 - `ADD`
 - `SUB`
@@ -3116,7 +3154,9 @@ podporovane dtype/storage/access kombinace:
 Loop kinds:
 
 - `CONTIGUOUS_VECTOR`: contiguous inputs/output, Vector API bytecode pro hlavni smycku a generated scalar tail.
-  Aktualne jeste neni implementovane a je prepare-time rejected.
+  Podporuje F32/F64 `JAVA_ARRAY` subset `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `NEG`, `ABS`,
+  `RELU`, `CLAMP_MIN`, `CLAMP_MAX`, `MUL_SCALAR`, `INV`, `NOOP` a scalar-param constants; vector
+  `WHERE` s bool maskou zustava prepare-time rejected.
 - `CONTIGUOUS_SCALAR`: contiguous inputs/output, scalar ASM loop bez Vector API.
 - `STRIDED_SCALAR`: strided nebo broadcast input/output access, scalar ASM loop s generated offset math.
 
@@ -3286,74 +3326,30 @@ Proc:
 
 ### Task 8.6: Pridat codegen rejection reason do prepared unit a trace
 
-Stav: `[~]`
+Stav: `[x]`
 
 Aktualni implementacni stav:
 
 - `Cpu1FusedCodegenRejectionReason` existuje a obsahuje konkretni prepare-time duvody:
   `NONE`, `UNSUPPORTED_DTYPE`, `UNSUPPORTED_OPERATION`, `UNSUPPORTED_INTRINSIC`,
-  `UNSUPPORTED_LAYOUT_OR_ACCESS`, `UNSUPPORTED_STORAGE_KIND`, `UNSUPPORTED_LOOP_KIND` a
-  `UNSUPPORTED_SCALAR_BINDING`.
+  `UNSUPPORTED_LAYOUT_OR_ACCESS`, `UNSUPPORTED_STORAGE_KIND`, `UNSUPPORTED_SEGMENT_VECTOR`,
+  `UNSUPPORTED_BF16_VECTOR`, `UNSUPPORTED_BF16_SEGMENT`, `UNSUPPORTED_BF16_OPERATION`,
+  `UNSUPPORTED_LOOP_KIND`, `UNSUPPORTED_VECTOR_OPERATION` a `UNSUPPORTED_SCALAR_BINDING`.
 - `MISSING_ASM_EMITTER` byl po zavedeni scalar ASM emitteru odstranen jako neplatny mezistav.
 - Accepted prepared fused unit smi vzniknout jen s `NONE`.
 - Rejected plan konci v prepare pres `Cpu1FusedCodegenKernelFactory.rejection(...)`; execute podle
   rejection reason nerozhoduje.
 
-Do `Cpu1PreparedFusedElementwiseUnit` mit prepare-time trace field:
+Aktualni rozhodovani:
 
-```java
-private final Cpu1FusedCodegenRejectionReason codegenRejectionReason;
-```
-
-Poznamka: prepared executable fused unit smi vzniknout jen s `NONE`. Nenulovy rejection reason je
-duvod, proc prepare cpu1 fused region odmitne; execute podle tohoto fieldu nic nerozhoduje.
-
-Do `Cpu1FusedElementwisePreparer` pridat prepare-time eligibility helper. Helper smi cist
-`Operation.resultKind()` a `Operation.controlTrait()` ze `sourceOperations`, ale vraci jen
-konkretni rejection reason a neuklada trait snapshot:
-
-```java
-private static Cpu1FusedCodegenRejectionReason codegenRejectionReason(
-        Cpu1FusedCodegenPlan codegenPlan,
-        List<Operation> sourceOperations,
-        DataType computeType
-) {
-    if (codegenPlan.loopKind() != Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR
-            && codegenPlan.loopKind() != Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR
-            && codegenPlan.loopKind() != Cpu1FusedCodegenLoopKind.STRIDED_SCALAR) {
-        return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LOOP_KIND;
-    }
-    if (codegenPlan.loopKind() == Cpu1FusedCodegenLoopKind.STRIDED_SCALAR
-            && !supportsGeneratedOffsetMath(codegenPlan.expressionPlan())) {
-        return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LAYOUT;
-    }
-    if (!supportsGeneratedDType(computeType)) {
-        return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
-    }
-    for (int i = 0; i < codegenPlan.expressionPlan().nodes().size(); i++) {
-        Operation operation = sourceOperations.get(i);
-        if (operation.resultKind() != Operation.OpResultKind.NUMERIC
-                && operation.resultKind() != Operation.OpResultKind.BOOLEAN) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_RESULT_KIND;
-        }
-        if (operation.controlTrait() == Operation.OpControlTrait.SELECT_MASK
-                && codegenPlan.expressionPlan().nodes().get(i).opType() != Operation.OpType.WHERE) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_CONTROL_TRAIT;
-        }
-        if (operation.controlTrait() == Operation.OpControlTrait.BOOL_LOGIC
-                && !supportsGeneratedBoolLogic(codegenPlan.expressionPlan().nodes().get(i))) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_CONTROL_TRAIT;
-        }
-        if (!supportsCodegenOp(codegenPlan.expressionPlan().nodes().get(i))) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_OP;
-        }
-        if (!supportsCodegenIntrinsic(codegenPlan.expressionPlan().nodes().get(i), computeType)) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_INTRINSIC;
-        }
-    }
-    return Cpu1FusedCodegenRejectionReason.NONE;
-}
-```
+- `Cpu1FusedCodegenPlan.rejectionReason()` je jedine prepare-time misto pro codegen eligibility
+  podle canonical expression planu, dtype, storage, layout/access a loop kind.
+- `Cpu1FusedElementwisePreparer` prevezme rejection reason z planu; pri non-`NONE` vyhodi
+  `Cpu1FusedCodegenKernelFactory.rejection(...)` a nevytvori executable artifact.
+- `Cpu1PreparedFusedElementwiseUnit` smi vzniknout jen s `NONE` rejection reason a non-null
+  generated kernel handle.
+- Execute podle rejection reason nerozhoduje a necte zadne `Operation` metadata.
+- BOOL output je explicitni `UNSUPPORTED_DTYPE`; to je prepare-time rejection, ne fallback.
 
 Trace attrs:
 
@@ -3377,7 +3373,7 @@ Proc:
 
 ### Task 9.1: Pouzit existujici fused thresholdy z `CpuKernelConfig`
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubor:
 
@@ -3407,7 +3403,15 @@ private static int fusedParallelMinSize(
 }
 ```
 
-`decideFusedElementwise(...)` musi pouzit tyto hodnoty.
+`decideFusedElementwise(...)` pouziva tyto hodnoty.
+
+Evidence po implementaci:
+
+- `Cpu1DispatchPolicy.decideFusedElementwise(...)` pouziva fused-specific vector a parallel
+  thresholdy z `CpuKernelConfig`.
+- `Cpu1DispatchPolicyTest` overuje cheap i expensive fused vector thresholdy a cheap i expensive
+  fused parallel thresholdy proti odlisnym obecnym elementwise hodnotam.
+- Overeno: `./gradlew test --tests backend.cpu1.Cpu1DispatchPolicyTest`.
 
 Proc:
 
@@ -3416,7 +3420,7 @@ Proc:
 
 ### Task 9.2: Pridat fused cpu1 route do profile JSON
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Soubor:
 
@@ -3431,55 +3435,45 @@ Viz Task 6.4. Tento task je zde duplicitne uvedeny jako checkpoint pro profile/t
 - chybejici pole pouzije fallback profile value; standardni runtime defaults maji hodnotu `false`;
 - existuje test pro backward compatible nacitani stareho profilu.
 
+Aktualni evidence:
+
+- `ExecutionProfileIO` cte i zapisuje `fusedUseCpu1Elementwise`.
+- `ExecutionProfileIoTest.executionProfileIoWritesCpu1FusedRouteKey` overuje zapis.
+- `ExecutionProfileIoTest.oldProfilesDefaultCpu1FusedRouteFromFallbackProfile` overuje zpetne
+  kompatibilni nacitani profilu bez noveho pole.
+
 ### Task 9.3: Pridat profile IO test
 
-Stav: `[ ]`
+Stav: `[x]`
 
-Upravit existujici profile IO testy nebo pridat:
+Pokryto v existujicim:
 
 ```text
-src/test/java/config/profile/FusedExecutionPolicyProfileIOTest.java
+src/test/java/ExecutionProfileIoTest.java
 ```
 
-Testy:
+Relevantni testy:
 
-```java
-@Test
-void profileRoundTripsCpu1FusedRouteFlag() {
-    RuntimeConfig base = RuntimeConfig.inferenceDefaults(DataType.FLOAT32);
-    RuntimeConfig runtime = new RuntimeConfig(
-            base.kernel(),
-            base.approximation(),
-            base.blas(),
-            base.conv2d(),
-            base.fused().withUseCpu1Elementwise(true),
-            base.accelerator(),
-            base.cpuStorageProfile(),
-            base.nativeCpuFailurePolicy(),
-            base.deviceTransferPolicy(),
-            base.nativeCpuMemory(),
-            base.bfloat16TrainingPolicy()
-    );
-    // write profile, read profile, assert loaded.runtime().fused().useCpu1Elementwise()
-}
-
-@Test
-void missingCpu1FusedRouteFlagDefaultsToFalse() {
-    // load minimal/stary profil JSON bez fusedUseCpu1Elementwise
-    // assert false
-}
-```
+- `executionProfileIoWritesCpu1FusedRouteKey`
+- `oldProfilesDefaultCpu1FusedRouteFromFallbackProfile`
 
 Proc:
 
 - Route musi byt reprodukovatelna z profilu.
 - Stare profily se nesmi rozbit.
 
+Aktualni stav:
+
+- Samostatny `FusedExecutionPolicyProfileIOTest` nevznikl; pokryti je v existujicim
+  `src/test/java/ExecutionProfileIoTest.java`.
+- To odpovida realite kodu a neni otevreny debt, pokud zustane coverage u centralniho
+  profile IO testu.
+
 ## Faze 10: Parity Benchmarky Proti Staremu CPU Fused
 
 ### Task 10.1: Pridat benchmark/test harness pro old CPU fused vs cpu1 fused
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Novy nebo existujici debug benchmark test:
 
@@ -3507,7 +3501,7 @@ Benchmark musi porovnat:
 Reportovat:
 
 ```text
-case,dtype,storage,elements,oldCpuMedianMs,cpu1MedianMs,ratio,cpu1CodegenRejectionReason
+case,dtype,storage,elements,oldCpuMedianMs,cpu1JavaMedianMs,cpu1JavaRatio,javaToNativeMedianMs,nativeResidentMedianMs,nativeToJavaMedianMs,nativeEndToEndMedianMs,nativeResidentVsOldCpuRatio,nativeEndToEndVsOldCpuRatio,cpu1CodegenRejectionReason
 ```
 
 Proc:
@@ -3515,48 +3509,110 @@ Proc:
 - Complete migration musi mit vykonovou evidenci.
 - Pokud cpu1 route neni rychlejsi, trace musi rict proc.
 
+Aktualni stav:
+
+- `src/test/java/debug/Cpu1FusedParityBenchmarkTest.java` existuje jako guardnuty debug
+  benchmark.
+- Default beh bez opt-in se preskoci pres JUnit assumption.
+- Realny benchmark se spousti pres:
+
+```bash
+SYNAPTIK_BENCHMARK_CPU1_FUSED_PARITY=true ./gradlew test --rerun-tasks --tests debug.Cpu1FusedParityBenchmarkTest
+```
+
+- Harness meri compiled graph route-on/route-off pro F32, F64, BF16, broadcast, where,
+  transcendental a strided view scenare.
+- Native MemorySegment F32/F64 scenare meri stejnou cheap contiguous fused expression
+  `relu(a.mul(b).add(c))` pro `8192` prvku pres realny generated ASM scalar MemorySegment
+  kernel. Benchmark oddeluje Java array -> native copy, resident native hot path
+  `computeRange(...)`, native -> Java output read a jejich end-to-end soucet. Native resident
+  cast nejde pres standardni `CompiledGraph`, aby do hot path nevstupoval context harness,
+  alokace, codegen ani publikace zpet do Java pole.
+
 ### Task 10.2: Pridat correctness parity pro route on/off
 
-Stav: `[ ]`
+Stav: `[x]`
 
-Test:
+Implementovano:
 
-```java
-@Test
-void cpu1FusedRouteMatchesOldCpuFusedRoute() {
-    Tensor yOld = graph.compile().prepare(runtimeWithCpu1Fused(config, false)).execute();
-    Tensor yCpu1 = graph.compile().prepare(runtimeWithCpu1Fused(config, true)).execute();
-    assertClose(yOld, yCpu1);
-}
-```
+- `BackendPrepareDispatcherCpu1FusedRouteTest.compiledGraphCpu1FusedRouteMatchesOldCpuFusedRoute`
+  spousti stejny F32 fused elementwise chain pres normalni
+  `CompiledGraph.compile(...).prepare(...).execute(FORWARD)` cestu dvakrat:
+  jednou s `FusedExecutionPolicy.useCpu1Elementwise=false` a jednou s
+  `FusedExecutionPolicy.useCpu1Elementwise=true`.
+- `BackendPrepareDispatcherCpu1FusedRouteTest.compiledGraphCpu1FusedRouteMatchesOldCpuFusedRouteForF64`
+  spousti stejnou route-on/route-off compiled cestu pro F64 a porovnava vystup s F64 toleranci.
+- `BackendPrepareDispatcherCpu1FusedRouteTest.compiledGraphCpu1FusedRouteMatchesOldCpuFusedRouteForBF16`
+  spousti stejnou route-on/route-off compiled cestu pro BF16 a porovnava vystup s BF16 roundtrip toleranci.
+- `BackendPrepareDispatcherCpu1FusedRouteTest.compiledGraphCpu1FusedRouteRejectsBoolOutputWithoutFallback`
+  overuje, ze BOOL-output fused chain pres route-off bezi pres stary `CpuFusedExecutionArtifact`,
+  zatimco route-on konci cistym `UnsupportedOperationException` s `UNSUPPORTED_DTYPE`.
+- Route-off test overuje pripraveny `CpuFusedExecutionArtifact`, route-on test overuje
+  `Cpu1PreparedArtifact.preparedFusedElementwiseUnit()` a generated class name obsahujici
+  `Cpu1GeneratedFusedKernel`.
+- Vystupni numericka pole se porovnavaji dtype-specific toleranci:
+  F32 `1.0e-5`, F64 `1.0e-12`, BF16 `6.0e-3`.
+- BOOL output parity neni cil tohoto kroku, protoze cpu1 fused generated codegen dnes
+  BOOL output dtype explicitne nepodporuje. Stav je pokryty route-on rejection testem,
+  ne fallbackem ani vynucenou fake route.
 
 Pokryt:
 
-- F32 exact/tolerance
-- F64 tolerance
-- BF16 tolerance
-- BOOL output exact
+- F32 exact/tolerance `[x]`
+- F64 tolerance `[x]`
+- BF16 tolerance `[x]`
+- BOOL output exact `[n/a]` cpu1 fused BOOL output je explicitne unsupported
+- BOOL route-on explicit unsupported rejection `[x]`
 
 Proc:
 
 - Stary CPU fused je pro migraci baseline.
 - cpu1 route musi byt semanticky zamenitelna.
+- Nepodporovane BOOL output fused kernels musi selhat viditelne pri prepare, aby route-on
+  nikdy tise nespadla zpet na stary CPU fused runtime.
 
 ### Task 10.3: Aktualizovat dokument podle benchmark vysledku
 
-Stav: `[ ]`
+Stav: `[x]`
 
-Do tohoto dokumentu doplnit kratkou sekci:
-
-```text
 ## Benchmark Evidence
 
-Datum:
-Platform:
-Commit:
+Datum: 2026-06-10 12:45 CEST
+Platform: Darwin arm64
+Commit: `60bdebae` + local working tree changes
 Konfigurace:
-Souhrn:
+
+```bash
+SYNAPTIK_BENCHMARK_CPU1_FUSED_PARITY=true ./gradlew test --rerun-tasks --tests debug.Cpu1FusedParityBenchmarkTest
 ```
+
+CSV vystup:
+
+```text
+case,dtype,storage,elements,oldCpuMedianMs,cpu1JavaMedianMs,cpu1JavaRatio,javaToNativeMedianMs,nativeResidentMedianMs,nativeToJavaMedianMs,nativeEndToEndMedianMs,nativeResidentVsOldCpuRatio,nativeEndToEndVsOldCpuRatio,cpu1CodegenRejectionReason
+cheap-contiguous-f32,F32,JAVA_ARRAY,8192,0.453871,0.365602,0.805520,NA,NA,NA,NA,NA,NA,NONE
+cheap-contiguous-f64,F64,JAVA_ARRAY,8192,0.095469,0.104058,1.089973,NA,NA,NA,NA,NA,NA,NONE
+bf16-chain,BF16,JAVA_ARRAY,512,0.071150,0.059154,0.831401,NA,NA,NA,NA,NA,NA,NONE
+broadcast-bias-f32,F32,JAVA_ARRAY,8192,0.100804,0.050310,0.499091,NA,NA,NA,NA,NA,NA,NONE
+transcendental-f32,F32,JAVA_ARRAY,512,0.046623,0.044896,0.962957,NA,NA,NA,NA,NA,NA,NONE
+strided-input-view-f32,F32,JAVA_ARRAY,8192,0.613594,0.119723,0.195118,NA,NA,NA,NA,NA,NA,NONE
+where-mask-f32,F32,JAVA_ARRAY,512,0.029142,0.026650,0.914499,NA,NA,NA,NA,NA,NA,NONE
+native-memory-segment-f32,F32,MEMORY_SEGMENT,8192,0.015490,0.016712,1.078950,0.003712,0.009315,0.032690,0.045717,0.601342,2.951442,NONE
+native-memory-segment-f64,F64,MEMORY_SEGMENT,8192,0.030704,0.023592,0.768354,0.005108,0.009029,0.021442,0.035579,0.294069,1.158773,NONE
+```
+
+Souhrn:
+
+- cpu1 fused route je rychlejsi nez stara CPU fused route u cheap F32, BF16,
+  broadcast bias, transcendental F32, strided input view a where mask scenaru; cheap F64
+  v tomto kratkem debug behu vysel mirne pomalejsi (`cpu1JavaRatio=1.089973`).
+- Transcendental F32 chain je v aktualnim behu rychlejsi nez stara CPU fused route
+  (`cpu1JavaRatio=0.962957`).
+- Native MemorySegment F32/F64 jsou pokryte realnym generated ASM native fused kernelem.
+  Resident native hot path je rychlejsi nez old CPU baseline (`0.601342` pro F32,
+  `0.294069` pro F64), ale end-to-end soucet s Java->native a native->Java kopirovanim
+  je pomalejsi nez old CPU baseline (`2.951442` pro F32, `1.158773` pro F64). Evidence tim
+  explicitne oddeluje cenu residency od ceny publikace/kontroly vysledku.
 
 Proc:
 
@@ -3567,7 +3623,7 @@ Proc:
 
 ### Task 11.1: Kompilace
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit:
 
@@ -3575,19 +3631,27 @@ Spustit:
 ./gradlew classes
 ```
 
+Evidence 2026-06-10:
+
+- PASS, `BUILD SUCCESSFUL in 490ms`.
+
 ### Task 11.2: Cilene testy cpu1 fused
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit:
 
 ```bash
-./gradlew test --tests backend.cpu1.Cpu1FusedElementwiseExecutionContractTest --tests backend.cpu1.fused.Cpu1FusedIrBuilderTest --tests backend.cpu1.fused.Cpu1FusedGeneratedSupportTest
+./gradlew test --tests backend.cpu1.Cpu1FusedGeneratedExecutionTest --tests backend.cpu1.Cpu1FusedElementwisePreparerTest --tests backend.cpu1.Cpu1FusedCodegenContractAlignmentTest --tests backend.cpu1.BackendPrepareDispatcherCpu1FusedRouteTest --tests backend.cpu1.fused.Cpu1FusedIrBuilderTest --tests backend.cpu1.fused.Cpu1FusedGeneratedSupportTest --tests backend.cpu1.Cpu1DispatchPolicyTest
 ```
+
+Evidence 2026-06-10:
+
+- PASS, `BUILD SUCCESSFUL in 1s`.
 
 ### Task 11.3: Regression testy dotcenych oblasti
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit:
 
@@ -3595,9 +3659,13 @@ Spustit:
 ./gradlew test --tests backend.cpu1.Cpu1ExecutionContractTest --tests backend.cpu1.Cpu1MseLossExecutionContractTest --tests graph.compile.planning.region.DefaultRegionOptimizerTest --tests graph.compile.planning.partition.CpuNaturalExecutionRegionPlannerTest
 ```
 
+Evidence 2026-06-10:
+
+- PASS, `BUILD SUCCESSFUL in 1s`.
+
 ### Task 11.4: Stare fused regression testy
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit stare fused testy:
 
@@ -3610,21 +3678,26 @@ Proc:
 - Route knob je soucast kompletni migrace, proto jsou stare fused regression testy povinne.
 - Testy musi projit pro default starou route i pro explicitni cpu1 route, kde dava smysl.
 
+Evidence 2026-06-10:
+
+- PASS po oprave CPU natural exact matmul epilogue planovani, `BUILD SUCCESSFUL in 4s`.
+- Overeno, ze `OptimizerFuseTest > matmulRemainsFusionBarrier()` znovu vytvari stary CPU fused artifact pro `RELU -> EXP` za materializovanym `MATMUL` barrier vstupem.
+
 ### Task 11.5: Benchmark/test evidence
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit nebo dolozit:
 
 ```bash
-./gradlew test --tests debug.Cpu1FusedParityBenchmarkTest
+SYNAPTIK_BENCHMARK_CPU1_FUSED_PARITY=true ./gradlew test --tests debug.Cpu1FusedParityBenchmarkTest
 ```
 
 Pokud debug benchmark neni vhodny pro CI, vysledky ulozit pouze do dokumentu nebo konzole, ne do `profiles/platform/*`, pokud uzivatel explicitne nechce aktualizovat kanonicke profily.
 
 ### Task 11.6: Diff hygiene
 
-Stav: `[ ]`
+Stav: `[x]`
 
 Spustit:
 
@@ -3640,6 +3713,11 @@ Overit:
 - zadne scratch `.class` staged;
 - dokument aktualizuje checkboxy podle skutecneho stavu.
 
+Evidence 2026-06-10:
+
+- PASS, `git diff --check -- src/main/java src/test/java todo` probehl bez vystupu.
+- `git status --short` ukazuje existujici rozsahle local changes vcetne `.idea/*`, `profiles/platform/*`, source/test zmen a tohoto dokumentu; zadny commit ani staging nebyl proveden.
+
 ## Kodove Zmeny - Souhrn Po Souborech
 
 ### Nove soubory
@@ -3650,9 +3728,9 @@ Overit:
 - [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedNodePlan.java`
 - [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedExpressionPlan.java`
 - [x] `src/main/java/backend/cpu1/fused/ir/Cpu1FusedIrBuilder.java`
-- [ ] `src/main/java/backend/cpu1/prepare/Cpu1FusedElementwisePreparer.java`
-- [ ] `src/main/java/backend/cpu1/prepare/Cpu1PreparedFusedElementwiseUnit.java`
-- [ ] `src/main/java/backend/cpu1/prepare/dispatch/Cpu1FusedDispatchDecision.java`
+- [x] `src/main/java/backend/cpu1/prepare/Cpu1FusedElementwisePreparer.java`
+- [x] `src/main/java/backend/cpu1/prepare/Cpu1PreparedFusedElementwiseUnit.java`
+- [x] `src/main/java/backend/cpu1/prepare/dispatch/Cpu1FusedDispatchDecision.java`
 - [x] `src/main/java/backend/cpu1/exec/Cpu1FusedKernelArgs.java`
 - [x] `src/main/java/backend/cpu1/exec/Cpu1FusedElementwiseExecutableUnit.java`
 - [x] `src/main/java/backend/cpu1/launch/Cpu1RangeTask.java`
@@ -3660,48 +3738,50 @@ Overit:
 
 Faze 2.5 codegen contract soubory:
 
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenKernel.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenKernelFactory.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenClassSignature.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenLoopKind.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenPlan.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenRejectionReason.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/support/Cpu1FusedGeneratedSupport.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/support/Cpu1FusedMathSupport.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmClassEmitter.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmMethodEmitter.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmCallEmitter.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmIntrinsicRegistry.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmExpressionEmitter.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmLoopEmitter.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedGeneratedClassLoader.java`
-- [ ] `src/main/java/backend/cpu1/kernels/fused/tuning/Cpu1FusedTuningClassifier.java`
-- [ ] `src/test/java/backend/cpu1/fused/Cpu1FusedIrBuilderTest.java`
-- [ ] `src/test/java/backend/cpu1/fused/Cpu1FusedGeneratedSupportTest.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenKernel.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenKernelFactory.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenClassSignature.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenLoopKind.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenPlan.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/Cpu1FusedCodegenRejectionReason.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/support/Cpu1FusedGeneratedSupport.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/support/Cpu1FusedMathSupport.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmClassEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmMethodEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmCallEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmIntrinsicRegistry.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmExpressionEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmVectorExpressionEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedAsmLoopEmitter.java`
+- [x] `src/main/java/backend/cpu1/kernels/fused/codegen/asm/Cpu1FusedGeneratedClassLoader.java`
+- [n/a] `src/main/java/backend/cpu1/kernels/fused/tuning/Cpu1FusedTuningClassifier.java` nebyl vytvoren; aktualni implementace pouziva `Cpu1DispatchPolicy`
+- [x] `src/test/java/backend/cpu1/fused/Cpu1FusedIrBuilderTest.java`
+- [x] `src/test/java/backend/cpu1/fused/Cpu1FusedGeneratedSupportTest.java`
 - [x] `src/test/java/backend/cpu1/Cpu1FusedCodegenContractAlignmentTest.java`
-- [ ] `src/test/java/backend/cpu1/Cpu1FusedElementwisePreparerTest.java`
-- [ ] `src/test/java/backend/cpu1/Cpu1FusedElementwiseExecutionContractTest.java`
-- [ ] `src/test/java/backend/prepare/Cpu1FusedPrepareRoutingTest.java`
-- [ ] `src/test/java/config/profile/FusedExecutionPolicyProfileIOTest.java`
-- [ ] `src/test/java/debug/Cpu1FusedParityBenchmarkTest.java`
+- [x] `src/test/java/backend/cpu1/Cpu1FusedElementwisePreparerTest.java`
+- [x] `src/test/java/backend/cpu1/Cpu1FusedGeneratedExecutionTest.java`
+- [n/a] `src/test/java/backend/cpu1/Cpu1FusedElementwiseExecutionContractTest.java` nebyl vytvoren; execution coverage je v `Cpu1FusedGeneratedExecutionTest`
+- [n/a] `src/test/java/backend/prepare/Cpu1FusedPrepareRoutingTest.java` nebyl vytvoren; route coverage je v `BackendPrepareDispatcherCpu1FusedRouteTest`
+- [n/a] `src/test/java/config/profile/FusedExecutionPolicyProfileIOTest.java` nebyl vytvoren; profile coverage je v `ExecutionProfileIoTest`
+- [x] `src/test/java/debug/Cpu1FusedParityBenchmarkTest.java`
 
 ### Upravy existujicich souboru
 
-- [ ] `src/main/java/backend/cpu1/exec/Cpu1ScratchBuffer.java`
-- [ ] `src/main/java/backend/cpu1/exec/Cpu1ScratchBufferSpec.java`
+- [n/a] `src/main/java/backend/cpu1/exec/Cpu1ScratchBuffer.java` fused ASM cesta nepridava scratch storage
+- [x] `src/main/java/backend/cpu1/exec/Cpu1ScratchBufferSpec.java` fused executable vraci `none()`
 - [x] `src/main/java/backend/cpu1/launch/Cpu1LaunchPolicy.java`
 - [x] `src/main/java/backend/cpu1/launch/Cpu1SingleThreadLaunch.java`
 - [x] `src/main/java/backend/cpu1/launch/Cpu1ParallelLaunch.java`
-- [ ] `src/main/java/backend/cpu1/launch/Cpu1RangeLauncher.java`
+- [x] `src/main/java/backend/cpu1/launch/Cpu1RangeLauncher.java`
 - [x] `src/main/java/backend/cpu1/exec/Cpu1ElementwiseExecutableUnit.java`
-- [ ] `src/main/java/backend/cpu1/prepare/Cpu1PreparedElementwiseUnit.java`
-- [ ] `src/main/java/backend/cpu1/prepare/dispatch/Cpu1DispatchPolicy.java`
+- [x] `src/main/java/backend/cpu1/prepare/Cpu1PreparedElementwiseUnit.java`
+- [x] `src/main/java/backend/cpu1/prepare/dispatch/Cpu1DispatchPolicy.java` fused dispatch pouziva fused-specific thresholdy z `CpuKernelConfig`
 - [x] `src/main/java/backend/cpu1/prepare/Cpu1PreparedArtifact.java`
 - [x] `src/main/java/backend/cpu1/trace/Cpu1TraceContributor.java`
-- [ ] `src/main/java/backend/prepare/BackendPrepareDispatcher.java`
-- [ ] `src/main/java/config/runtime/FusedExecutionPolicy.java`
-- [ ] `src/main/java/config/profile/ExecutionProfileIO.java`
-- [ ] profile/config testy podle kompilatoru
+- [x] `src/main/java/backend/prepare/BackendPrepareDispatcher.java`
+- [x] `src/main/java/config/runtime/FusedExecutionPolicy.java`
+- [x] `src/main/java/config/profile/ExecutionProfileIO.java`
+- [x] profile/config testy v `ExecutionProfileIoTest`
 
 ## Co Zamerne Neprenest Ze Stareho CPU
 
@@ -3759,45 +3839,46 @@ Pokud implementace narazi na novou prekazku, dokument se ma aktualizovat jako no
 
 Implementace je hotova, kdyz plati:
 
-- [ ] cpu1 ma vlastni fused IR, neimportuje `backend.cpu.fused.*`
-- [ ] cpu1 fused preparer pripravuje `Cpu1PreparedFusedElementwiseUnit`
-- [ ] Faze 2.5 definuje finalni ASM-only prepare-time codegen kontrakt a prepared
+- [x] cpu1 ma vlastni fused IR, neimportuje `backend.cpu.fused.*`
+- [x] cpu1 fused preparer pripravuje `Cpu1PreparedFusedElementwiseUnit`
+- [x] Faze 2.5 definuje finalni ASM-only prepare-time codegen kontrakt a prepared
   `generatedKernel` handle pred executable unit
 - [x] runtime executable je `backend.cpu1.exec.Cpu1FusedElementwiseExecutableUnit`
-- [ ] fused execution pouziva `Cpu1TensorView`, ne `TensorInternalAccess` jako primarni runtime kontrakt
+- [x] fused execution pouziva `Cpu1TensorView`, ne `TensorInternalAccess` jako primarni runtime kontrakt
 - [x] prepare generuje nebo z cache ziska ASM class/template a uklada prepared generated kernel handle
   do `Cpu1PreparedFusedElementwiseUnit`
-- [~] generated ASM smi volat jen stabilni static support helpers pres `INVOKESTATIC`; helpery jsou
+- [x] generated ASM smi volat jen stabilni static support helpers pres `INVOKESTATIC`; helpery jsou
   hand-written Java a testovane nezavisle
 - [x] class/template canonical signature string zahrnuje support ABI/helper targety, pokud generated
   bytecode vola support metody
 - [x] execute neprovadi codegen, cache lookup, eligibility, scalar interpreter, vector fallback,
   backend fallback ani runtime evaluator
-- [x] JAVA_ARRAY podporovany F32/F64 scalar subset bezi pres ASM-generated concrete kernels
-- [ ] MEMORY_SEGMENT podporovany subset bezi pres ASM-generated concrete kernels
-- [~] podporovane loop kinds zahrnuji `CONTIGUOUS_SCALAR` a `STRIDED_SCALAR`; `CONTIGUOUS_VECTOR`
-  zustava prepare-time rejected do vector emitter faze
+- [x] JAVA_ARRAY podporovany F32/F64/BF16 scalar subset bezi pres ASM-generated concrete kernels
+- [x] MEMORY_SEGMENT podporovany F32/F64 scalar subset bezi pres ASM-generated concrete kernels
+- [x] podporovane loop kinds zahrnuji `CONTIGUOUS_SCALAR`, `STRIDED_SCALAR` a podporovany
+  `CONTIGUOUS_VECTOR` F32/F64 `JAVA_ARRAY` subset s generated scalar tail
 - [x] broadcast/strided access je reprezentovan generated offset math, ne skrytou contiguous materializaci
-- [ ] BF16, bool/logical, broadcast a strided cases jsou odmitnute jen pokud konkretni dtype/op/control/layout
-  neni podporovan generated ASM codegenem
-- [ ] parallel launch funguje pres stejnou cpu1 launch policy
+- [x] BF16, bool/logical, broadcast a strided cases jsou odmitnute jen pokud konkretni dtype/op/control/layout
+  neni podporovan generated ASM codegenem; BOOL output je explicitne unsupported
+- [x] parallel launch funguje pres stejnou cpu1 launch policy
 - [x] fused temporaries nepouzivaji per-range alokace ani scratch arrays; generated ASM je drzi v locals
 - [x] IR builder testy pokryvaji pow canonicalizaci, broadcast effective strides a scalar parametry
-- [~] ASM/codegen fused hot path existuje pro podporovany contiguous scalar a strided scalar subset;
-  contiguous vector zustava follow-up
+- [x] ASM/codegen fused hot path existuje pro podporovany contiguous scalar, strided scalar a
+  contiguous vector `JAVA_ARRAY` F32/F64 subset
 - [x] nepodporovane codegen cases maji explicitni `Cpu1FusedCodegenRejectionReason`
 - [x] cpu1 fused ma pouze ASM-generated concrete kernels a zadnou jinou runtime cestu
 - [x] `FusedExecutionPolicy.useCpu1Elementwise` existuje a defaultuje na `false`
 - [x] `ExecutionProfileIO` umi route flag nacist i zapsat
-- [x] route-on/route-off no-ASM kontrakt je otestovany bez ticheho fallbacku
-- [ ] route-on/route-off correctness parity proti staremu CPU fused je otestovana
-- [ ] plne cpu1 fused execution parity testy jsou doplnene po realnem ASM emitteru
-- [ ] codegen support helper tridy existuji a maji nezavisle testy
-- [ ] benchmark parity evidence je doplnena v dokumentu
+- [x] route-on/route-off ASM-only kontrakt je otestovany bez ticheho fallbacku
+- [x] route-on/route-off correctness parity proti staremu CPU fused je otestovana pro F32/F64/BF16
+  fused chain; BOOL output je pokryty explicitnim route-on unsupported rejection testem
+- [x] cpu1 fused generated execution testy jsou doplnene pro podporovany ASM subset
+- [x] codegen support helper tridy existuji a maji nezavisle testy
+- [x] benchmark parity evidence je doplnena v dokumentu
 - [x] trace ukazuje `CPU1_FUSED_ELEMENTWISE`
 - [x] trace ukazuje storage, node count, launch workers, vectorization a codegen rejection reason
-- [ ] zadne lokalni profily/IDE soubory nejsou soucasti commitu
+- [x] zadne lokalni profily/IDE soubory nejsou soucasti commitu
 - [x] `./gradlew classes` projde
 - [x] cilene cpu1 fused testy projdou
-- [ ] stare fused regression testy projdou
-- [ ] dokument neobsahuje zadne migracni kroky mimo tento plan
+- [x] stare fused regression testy projdou
+- [x] dokument neobsahuje zadne migracni kroky mimo tento plan

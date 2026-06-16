@@ -1,7 +1,5 @@
 package backend.cpu1.kernels.reduction;
 
-import java.util.Objects;
-
 /**
  * Resolves prepared reduction kernel ids to concrete reduction kernels.
  */
@@ -10,14 +8,20 @@ public final class Cpu1ReductionKernelDispatch {
     }
 
     public static Cpu1ReductionKernel kernelFor(Cpu1ReductionKernelId kernelId) {
-        Objects.requireNonNull(kernelId, "kernelId cannot be null");
+        if (kernelId == null) {
+            throw new IllegalArgumentException("kernelId cannot be null");
+        }
         return switch (kernelId) {
             case SUM_F32_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::sumF32DenseScalar;
             case SUM_F64_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::sumF64DenseScalar;
             case SUM_BF16_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::sumBf16DenseScalar;
+            case SUM_F32_STRIDED_SCALAR -> Cpu1SumMeanReductionLoops::sumF32StridedScalar;
+            case SUM_F64_STRIDED_SCALAR -> Cpu1SumMeanReductionLoops::sumF64StridedScalar;
             case MEAN_F32_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::meanF32DenseScalar;
             case MEAN_F64_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::meanF64DenseScalar;
             case MEAN_BF16_DENSE_SCALAR -> Cpu1SumMeanReductionLoops::meanBf16DenseScalar;
+            case MEAN_F32_STRIDED_SCALAR -> Cpu1SumMeanReductionLoops::meanF32StridedScalar;
+            case MEAN_F64_STRIDED_SCALAR -> Cpu1SumMeanReductionLoops::meanF64StridedScalar;
             case MIN_F32_DENSE_SCALAR -> Cpu1MinMaxProdReductionLoops::minF32DenseScalar;
             case MIN_F64_DENSE_SCALAR -> Cpu1MinMaxProdReductionLoops::minF64DenseScalar;
             case MIN_BF16_DENSE_SCALAR -> Cpu1MinMaxProdReductionLoops::minBf16DenseScalar;

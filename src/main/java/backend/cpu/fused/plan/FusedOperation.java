@@ -64,6 +64,36 @@ public final class FusedOperation implements Operation {
         return OpType.FUSED;
     }
 
+    @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.FUSED;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.FUSED;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.UNKNOWN;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.UNKNOWN;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.UNKNOWN;
+    }
+
     /**
      * Returns a compact expression label for diagnostics.
      */

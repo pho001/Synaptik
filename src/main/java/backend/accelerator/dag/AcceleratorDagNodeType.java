@@ -81,7 +81,7 @@ public enum AcceleratorDagNodeType {
     ARGMAX(79),
     CUMSUM(80),
     CAST(81),
-    SLICE_GRAD(82),
+    SLICE_BACKWARD(82),
     ERF(83),
     FLOOR(84),
     CEIL(85),

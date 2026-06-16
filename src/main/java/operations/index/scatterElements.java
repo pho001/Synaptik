@@ -20,6 +20,36 @@ public final class scatterElements implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.SPECIAL;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.SPECIAL;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.MEDIUM;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.NONE;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "scatterElements(axis=" + axis + ",reduction=" + reduction + ")";
     }

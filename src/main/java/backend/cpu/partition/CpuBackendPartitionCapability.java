@@ -77,7 +77,7 @@ public final class CpuBackendPartitionCapability implements BackendPartitionCapa
             case ADD, SUB, MUL, DIV, MIN, MAX, RELU, TANH, FAST_TANH, SIGMOID, EXP, FAST_EXP,
                     ERF, LOG, SQRT, NEG, ABS, FLOOR, CEIL, SIGN, INV, POW, MUL_SCALAR -> 4_000;
             case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE, CONCAT, UNFOLD_AXIS, NOOP -> 1_000;
-            case SLICE_SCATTER_ADD, GATHER_AXIS, GATHER_ND, SCATTER_AXIS_ADD -> 2_000;
+            case SLICE_BACKWARD, GATHER_AXIS, GATHER_ND, SCATTER_AXIS_ADD -> 2_000;
             default -> 2_000;
         };
     }
@@ -255,7 +255,7 @@ public final class CpuBackendPartitionCapability implements BackendPartitionCapa
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
                     SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
                     GATHER_GRAD, GATHER_AXIS_GRAD, GATHER_ND_GRAD, TAKE_ALONG_AXIS_GRAD,
-                    SLICE_GRAD, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     SCALED_DOT_PRODUCT_ATTENTION_BACKWARD -> true;
 
             default -> false;

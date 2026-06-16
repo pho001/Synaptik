@@ -7,7 +7,6 @@ import tensor.storage.TensorStorage;
 import tensor.storage.NativeTensorStorage;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * Runtime tensor view used by cpu1 kernels.
@@ -30,8 +29,14 @@ public final class Cpu1TensorView {
             int elementCount,
             boolean contiguous
     ) {
-        this.tensor = Objects.requireNonNull(tensor, "tensor cannot be null");
-        this.buffer = Objects.requireNonNull(buffer, "buffer cannot be null");
+        if (tensor == null) {
+            throw new IllegalArgumentException("tensor cannot be null");
+        }
+        if (buffer == null) {
+            throw new IllegalArgumentException("buffer cannot be null");
+        }
+        this.tensor = tensor;
+        this.buffer = buffer;
         this.shape = shape == null ? new int[0] : shape.clone();
         this.strides = strides == null ? new int[0] : strides.clone();
         this.storageOffset = storageOffset;
@@ -40,7 +45,9 @@ public final class Cpu1TensorView {
     }
 
     public static Cpu1TensorView fromTensor(Tensor tensor) {
-        Objects.requireNonNull(tensor, "tensor cannot be null");
+        if (tensor == null) {
+            throw new IllegalArgumentException("tensor cannot be null");
+        }
         DataType dataType = tensor.getDataType();
         Cpu1BufferView buffer = bufferView(tensor, dataType);
         return new Cpu1TensorView(
@@ -55,8 +62,12 @@ public final class Cpu1TensorView {
     }
 
     public static Cpu1TensorView fromNativeStorage(Tensor tensor, NativeTensorStorage nativeStorage) {
-        Objects.requireNonNull(tensor, "tensor cannot be null");
-        Objects.requireNonNull(nativeStorage, "nativeStorage cannot be null");
+        if (tensor == null) {
+            throw new IllegalArgumentException("tensor cannot be null");
+        }
+        if (nativeStorage == null) {
+            throw new IllegalArgumentException("nativeStorage cannot be null");
+        }
         DataType dataType = tensor.getDataType();
         if (nativeStorage.getType() != dataType) {
             throw new IllegalArgumentException("Native storage dtype does not match tensor dtype. native="
@@ -86,7 +97,9 @@ public final class Cpu1TensorView {
     }
 
     public Cpu1TensorView broadcastToShape(int[] targetShape) {
-        Objects.requireNonNull(targetShape, "targetShape cannot be null");
+        if (targetShape == null) {
+            throw new IllegalArgumentException("targetShape cannot be null");
+        }
         if (Arrays.equals(shape, targetShape)) {
             return this;
         }

@@ -99,7 +99,11 @@ class Cpu1LayoutTileBenchmarkTest {
                 -1,
                 0,
                 0,
-                null
+                null,
+                new int[0],
+                new int[0],
+                new int[0],
+                new int[0]
         );
         return new Cpu1PreparedArtifact(unit);
     }

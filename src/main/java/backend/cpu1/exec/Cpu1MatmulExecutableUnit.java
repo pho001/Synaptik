@@ -5,7 +5,6 @@ import backend.cpu1.kernels.matmul.Cpu1MatmulKernel;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.runtime.ExecutionContext;
 
-import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
@@ -16,7 +15,10 @@ public final class Cpu1MatmulExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1MatmulKernel kernel;
 
     public Cpu1MatmulExecutableUnit(Cpu1PreparedMatmulUnit preparedUnit) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
         this.kernel = preparedUnit.kernel();
     }
 

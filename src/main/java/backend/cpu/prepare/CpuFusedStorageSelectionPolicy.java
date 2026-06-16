@@ -85,11 +85,18 @@ final class CpuFusedStorageSelectionPolicy {
         if (opType == Operation.OpType.CONST_SCALAR || opType == Operation.OpType.NOOP) {
             return true;
         }
-        if (!opType.isFusable()) {
-            return false;
-        }
-        return switch (opType.semanticFamily()) {
-            case ARITHMETIC, TRANSCENDENTAL, COMPARISON, LOGICAL, SELECTION -> true;
+        return isLegacySupportedSegmentScalarOp(opType);
+    }
+
+    private static boolean isLegacySupportedSegmentScalarOp(Operation.OpType opType) {
+        // Old CPU fused plans retain only canonical opType identity here.
+        return switch (opType) {
+            case ADD, SUB, MUL, DIV, MIN, MAX,
+                 GT, GE, LT, LE, EQ, NE,
+                 LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT,
+                 WHERE, NEG, INV, LOG, EXP, FAST_EXP, TANH, FAST_TANH,
+                 POW, POW_TENSOR, SQRT, ABS, MUL_SCALAR,
+                 RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID -> true;
             default -> false;
         };
     }

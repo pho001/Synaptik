@@ -12,6 +12,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.layout.concat;
 import operations.layout.fold2d;
 import operations.layout.pad;
+import operations.layout.sliceBackward;
 import operations.layout.tile;
 import operations.layout.unfold2d;
 import operations.layout.unfoldAxis;
@@ -78,6 +79,10 @@ public final class Cpu1LayoutPreparer {
         int unfoldSize = 0;
         int unfoldStep = 0;
         Window2dOptions window2dOptions = null;
+        int[] sliceStarts = new int[0];
+        int[] sliceAxes = new int[0];
+        int[] sliceSteps = new int[0];
+        int[] sliceInputShape = new int[0];
         switch (opType) {
             case CONCAT -> {
                 if (!(operation instanceof concat concatOp)) {
@@ -118,6 +123,15 @@ public final class Cpu1LayoutPreparer {
                 }
                 window2dOptions = foldOp.getOptions();
             }
+            case SLICE_BACKWARD -> {
+                if (!(operation instanceof sliceBackward sliceOp)) {
+                    throw new IllegalArgumentException("cpu1 SLICE_BACKWARD operation must be operations.layout.sliceBackward.");
+                }
+                sliceStarts = sliceOp.getStarts();
+                sliceAxes = sliceOp.getAxes();
+                sliceSteps = sliceOp.getSteps();
+                sliceInputShape = sliceOp.getInputShape();
+            }
             default -> {
             }
         }
@@ -139,7 +153,11 @@ public final class Cpu1LayoutPreparer {
                 unfoldAxis,
                 unfoldSize,
                 unfoldStep,
-                window2dOptions
+                window2dOptions,
+                sliceStarts,
+                sliceAxes,
+                sliceSteps,
+                sliceInputShape
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -147,7 +165,7 @@ public final class Cpu1LayoutPreparer {
     public static boolean isLayoutOp(Operation.OpType opType) {
         return switch (opType) {
             case NOOP, RESHAPE, EXPAND, SELECT, SLICE, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS,
-                    CONCAT, PAD, TILE, UNFOLD_AXIS, UNFOLD2D, FOLD2D -> true;
+                    CONCAT, PAD, TILE, UNFOLD_AXIS, UNFOLD2D, FOLD2D, SLICE_BACKWARD -> true;
             default -> false;
         };
     }
@@ -186,6 +204,9 @@ public final class Cpu1LayoutPreparer {
         if (opType == Operation.OpType.CONCAT) {
             requireConcatContract(operation, node, inputs);
         }
+        if (opType == Operation.OpType.SLICE_BACKWARD) {
+            requireSliceBackwardContract(operation, node, input);
+        }
     }
 
     private static Cpu1LayoutKernelId kernelId(
@@ -203,6 +224,7 @@ public final class Cpu1LayoutPreparer {
             case EXPAND -> Cpu1LayoutKernelId.EXPAND_ALIAS;
             case SELECT -> Cpu1LayoutKernelId.SELECT_ALIAS;
             case SLICE -> Cpu1LayoutKernelId.SLICE_ALIAS;
+            case SLICE_BACKWARD -> Cpu1LayoutKernelId.SLICE_BACKWARD_SCALAR;
             case PERMUTE -> Cpu1LayoutKernelId.PERMUTE_ALIAS;
             case EXPAND_DIMS -> Cpu1LayoutKernelId.EXPAND_DIMS_ALIAS;
             case SQUEEZE -> Cpu1LayoutKernelId.SQUEEZE_ALIAS;
@@ -486,6 +508,11 @@ public final class Cpu1LayoutPreparer {
                     || dataType == DataType.BFLOAT16
                     || dataType == DataType.BOOL;
         }
+        if (opType == Operation.OpType.SLICE_BACKWARD) {
+            return dataType == DataType.FLOAT32
+                    || dataType == DataType.FLOAT64
+                    || dataType == DataType.BFLOAT16;
+        }
         return isSupportedDType(dataType);
     }
 
@@ -495,6 +522,9 @@ public final class Cpu1LayoutPreparer {
             List<CompiledTensorDescriptor> inputs
     ) {
         if (opType == Operation.OpType.FOLD2D && !inputs.isEmpty()) {
+            return Math.toIntExact(inputs.getFirst().logicalElementCount());
+        }
+        if (opType == Operation.OpType.SLICE_BACKWARD && !inputs.isEmpty()) {
             return Math.toIntExact(inputs.getFirst().logicalElementCount());
         }
         return node.flatDataSize();
@@ -610,6 +640,29 @@ public final class Cpu1LayoutPreparer {
         if (axisSize != outputShape[axis]) {
             throw new UnsupportedOperationException("cpu1 CONCAT output axis size mismatch. inputs="
                     + axisSize + ", output=" + outputShape[axis]);
+        }
+    }
+
+    private static void requireSliceBackwardContract(
+            Operation operation,
+            CompiledNode node,
+            CompiledTensorDescriptor input
+    ) {
+        if (!(operation instanceof sliceBackward sliceOp)) {
+            throw new IllegalArgumentException("cpu1 SLICE_BACKWARD operation must be operations.layout.sliceBackward.");
+        }
+        int[] inputShape = sliceOp.getInputShape();
+        int[] outputShape = node.shape();
+        if (inputShape.length != outputShape.length) {
+            throw new UnsupportedOperationException("cpu1 SLICE_BACKWARD inputShape/output rank mismatch.");
+        }
+        for (int dim = 0; dim < outputShape.length; dim++) {
+            if (inputShape[dim] != outputShape[dim]) {
+                throw new UnsupportedOperationException("cpu1 SLICE_BACKWARD output shape must match inputShape metadata.");
+            }
+        }
+        if (input.rank() != outputShape.length) {
+            throw new UnsupportedOperationException("cpu1 SLICE_BACKWARD update/output ranks must match.");
         }
     }
 }

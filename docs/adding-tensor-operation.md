@@ -112,8 +112,8 @@ This composition-first path keeps the semantic graph clean. It avoids creating a
 Use this checklist for any new operation:
 
 1. Define the semantic operation id in `Operation.OpType`.
-2. Choose the correct `OpArityClass`.
-3. Set the `fusable` flag only when the operation is safe for generic elementwise fusion.
+2. Choose the correct descriptor-level `OpArityClass`.
+3. Return `true` from the descriptor's `isFusable()` only when the operation is safe for generic elementwise fusion.
 4. Add an immutable operation descriptor class under `src/main/java/operations/<family>/`.
 5. Store only semantic parameters in the descriptor, not tensors, arrays that can be mutated externally, runtime config, or backend state.
 6. Add a builder method in the correct `src/main/java/tensor/ops/<family>/` class.
@@ -171,10 +171,10 @@ For this operation:
 Add an operation id in [`Operation.java`](../src/main/java/operations/Operation.java):
 
 ```java
-SQUARE(OpArityClass.ELEMENT_WISE, true),
+SQUARE,
 ```
 
-The second argument is the generic fusion flag. Set it to `true` only if the operation is safe inside the current elementwise fusion system. If you are adding a descriptor before fusion support exists, use `false` first; it is better to miss a fusion than to generate a wrong fused kernel.
+The enum is identity-only. Put arity and fusion metadata on the concrete descriptor. Return `true` from `isFusable()` only if the operation is safe inside the current elementwise fusion system. If you are adding a descriptor before fusion support exists, use `false` first; it is better to miss a fusion than to generate a wrong fused kernel.
 
 Add the descriptor class under the matching family:
 
@@ -190,6 +190,16 @@ public final class square implements Operation {
     @Override
     public OpType opType() {
         return OpType.SQUARE;
+    }
+
+    @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.ELEMENT_WISE;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return true;
     }
 
     @Override

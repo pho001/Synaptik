@@ -136,7 +136,7 @@ Scope:
 Work:
 
 - Migrate materialization operations: `CAST`, `CONTIGUOUS`, `CONCAT`, `PAD`, `TILE`, `PERMUTE`.
-- Migrate layout carriers needed by Tensor-level backward, especially `PAD` and `SLICE_SCATTER_ADD`.
+- Migrate layout carriers needed by Tensor-level backward, especially `PAD` and `SLICE_BACKWARD`.
 - Preserve view-only alias behavior for `RESHAPE`, `EXPAND`, `SELECT`, `SLICE`, `EXPAND_DIMS`, and `SQUEEZE`.
 - Replace array-only copy assumptions such as `TensorRemap` or `copyDataFrom` only where runtime storage can be native.
 

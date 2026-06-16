@@ -24,10 +24,12 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.trace.contrib.StepExecutionTracer;
 import org.junit.jupiter.api.Test;
+import operations.layout.sliceBackward;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.dtype.TensorDTypeOps;
+import tensor.internal.TensorPrimitiveBuilder;
 import tensor.options.Window2dOptions;
 import tensor.storage.NativeTensorStorage;
 
@@ -36,7 +38,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -241,6 +245,100 @@ class Cpu1LayoutExecutionContractTest {
         Tensor output = context.runtimeTensorForNodeId(fixture.node().id());
         assertSame(TensorInternalAccess.storage(input), TensorInternalAccess.storage(output));
         assertArrayEquals(new float[]{2.0f, 3.0f, 5.0f, 6.0f}, output.toFloat32ArrayCopy(), 1.0e-6f);
+    }
+
+    @Test
+    void preparedSliceBackwardScattersF32ArrayUpdates() {
+        Tensor updates = new Tensor(
+                new float[]{10.0f, 20.0f, 30.0f, 40.0f},
+                new int[]{2, 2},
+                null,
+                "updates",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(sliceBackward(updates, new int[]{2, 4}));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.SLICE_BACKWARD_SCALAR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new float[]{0.0f, 10.0f, 0.0f, 20.0f, 0.0f, 30.0f, 0.0f, 40.0f},
+                context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
+                1.0e-6f
+        );
+    }
+
+    @Test
+    void preparedSliceBackwardScattersBfloat16ArrayUpdates() {
+        Tensor updates = new Tensor(
+                new double[]{1.0, 2.0, 3.0, 4.0},
+                new int[]{2, 2},
+                null,
+                "updates",
+                DataType.BFLOAT16
+        );
+        Fixture fixture = fixture(sliceBackward(updates, new int[]{2, 4}));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.SLICE_BACKWARD_SCALAR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new float[]{0.0f, 1.0f, 0.0f, 2.0f, 0.0f, 3.0f, 0.0f, 4.0f},
+                bf16ToF32(context.runtimeTensorForNodeId(fixture.node().id())),
+                1.0e-3f
+        );
+    }
+
+    @Test
+    void preparedMemorySegmentSliceBackwardScattersF32Updates() {
+        Tensor updates = new Tensor(
+                new float[]{10.0f, 20.0f, 30.0f, 40.0f},
+                new int[]{2, 2},
+                null,
+                "updates",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(sliceBackward(updates, new int[]{2, 4}));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.SLICE_BACKWARD_SCALAR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+        attachNativeLeaves(context, fixture);
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new float[]{0.0f, 10.0f, 0.0f, 20.0f, 0.0f, 30.0f, 0.0f, 40.0f},
+                readNativeF32(context.nativeStorageForNodeId(fixture.node().id()), 8),
+                1.0e-6f
+        );
+    }
+
+    @Test
+    void preparedMemorySegmentSliceBackwardScattersF64Updates() {
+        Tensor updates = new Tensor(
+                new double[]{10.0, 20.0, 30.0, 40.0},
+                new int[]{2, 2},
+                null,
+                "updates",
+                DataType.FLOAT64
+        );
+        Fixture fixture = fixture(sliceBackward(updates, new int[]{2, 4}));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.SLICE_BACKWARD_SCALAR);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+        attachNativeLeaves(context, fixture);
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new double[]{0.0, 10.0, 0.0, 20.0, 0.0, 30.0, 0.0, 40.0},
+                readNativeF64(context.nativeStorageForNodeId(fixture.node().id()), 8),
+                1.0e-12
+        );
     }
 
     @Test
@@ -1220,16 +1318,34 @@ class Cpu1LayoutExecutionContractTest {
                     tensor.getFlatDataSize(),
                     "cpu1-layout-test-input-" + node.id()
             );
-            copyF32ToNative(tensor, storage);
+            copyToNative(tensor, storage);
             context.attachNativeStorage(node.id(), storage, "cpu1 layout test native leaf");
         }
     }
 
-    private static void copyF32ToNative(Tensor tensor, NativeTensorStorage storage) {
-        float[] source = TensorInternalAccess.float32Data(tensor);
+    private static void copyToNative(Tensor tensor, NativeTensorStorage storage) {
         MemorySegment segment = storage.segment();
-        for (int i = 0; i < source.length; i++) {
-            segment.set(JAVA_FLOAT, (long) i * Float.BYTES, source[i]);
+        switch (tensor.getDataType()) {
+            case FLOAT32 -> {
+                float[] source = TensorInternalAccess.float32Data(tensor);
+                for (int i = 0; i < source.length; i++) {
+                    segment.set(JAVA_FLOAT, (long) i * Float.BYTES, source[i]);
+                }
+            }
+            case FLOAT64 -> {
+                double[] source = TensorInternalAccess.float64Data(tensor);
+                for (int i = 0; i < source.length; i++) {
+                    segment.set(JAVA_DOUBLE, (long) i * Double.BYTES, source[i]);
+                }
+            }
+            case BFLOAT16 -> {
+                short[] source = TensorInternalAccess.bfloat16Data(tensor);
+                for (int i = 0; i < source.length; i++) {
+                    segment.set(JAVA_SHORT, (long) i * Short.BYTES, source[i]);
+                }
+            }
+            case BOOL, INT32, INT64 -> throw new UnsupportedOperationException("cpu1 layout test native dtype "
+                    + tensor.getDataType());
         }
         storage.markModified();
     }
@@ -1243,6 +1359,15 @@ class Cpu1LayoutExecutionContractTest {
         return out;
     }
 
+    private static double[] readNativeF64(NativeTensorStorage storage, int length) {
+        double[] out = new double[length];
+        MemorySegment segment = storage.segment();
+        for (int i = 0; i < out.length; i++) {
+            out[i] = segment.get(JAVA_DOUBLE, (long) i * Double.BYTES);
+        }
+        return out;
+    }
+
     private static float[] bf16ToF32(Tensor tensor) {
         short[] source = TensorInternalAccess.bfloat16Data(tensor);
         float[] out = new float[source.length];
@@ -1250,6 +1375,16 @@ class Cpu1LayoutExecutionContractTest {
             out[i] = TensorDTypeOps.fromBFloat16Bits(source[i]);
         }
         return out;
+    }
+
+    private static Tensor sliceBackward(Tensor updates, int[] inputShape) {
+        return TensorPrimitiveBuilder.unaryNoGrad(
+                updates,
+                inputShape,
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 2}, inputShape),
+                "slice_backward",
+                updates.getDataType()
+        );
     }
 
     private record Fixture(

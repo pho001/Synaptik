@@ -21,32 +21,32 @@ public final class Cpu1MseLossLoops {
     }
 
     public static void sumF32DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF32(unit, context, false);
+        runF32(unit, context);
     }
 
     public static void meanF32DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF32(unit, context, true);
+        runF32(unit, context);
     }
 
     public static void sumF64DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF64(unit, context, false);
+        runF64(unit, context);
     }
 
     public static void meanF64DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF64(unit, context, true);
+        runF64(unit, context);
     }
 
     public static void sumBf16DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runBf16(unit, context, false);
+        runBf16(unit, context);
     }
 
     public static void meanBf16DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runBf16(unit, context, true);
+        runBf16(unit, context);
     }
 
-    private static void runF32(Cpu1PreparedMseLossUnit unit, ExecutionContext context, boolean mean) {
+    private static void runF32(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            runF32Segment(unit, context, mean);
+            runF32Segment(unit, context);
             return;
         }
         Cpu1TensorView prediction = inputArrayView(unit.predictionNodeId(), context);
@@ -56,14 +56,13 @@ public final class Cpu1MseLossLoops {
         float[] targetArray = target.float32Array();
         float[] outputArray = output.float32Array();
         double sum = sumF32Array(unit, context, predictionArray, targetArray, prediction.storageOffset(), target.storageOffset());
-        double value = mean ? sum / unit.elementCount() : sum;
-        outputArray[output.storageOffset()] = (float) value;
+        outputArray[output.storageOffset()] = (float) normalizedSum(unit, sum);
         markOutputWritten(unit, output, context);
     }
 
-    private static void runF64(Cpu1PreparedMseLossUnit unit, ExecutionContext context, boolean mean) {
+    private static void runF64(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            runF64Segment(unit, context, mean);
+            runF64Segment(unit, context);
             return;
         }
         Cpu1TensorView prediction = inputArrayView(unit.predictionNodeId(), context);
@@ -73,11 +72,11 @@ public final class Cpu1MseLossLoops {
         double[] targetArray = target.float64Array();
         double[] outputArray = output.float64Array();
         double sum = sumF64Array(unit, context, predictionArray, targetArray, prediction.storageOffset(), target.storageOffset());
-        outputArray[output.storageOffset()] = mean ? sum / unit.elementCount() : sum;
+        outputArray[output.storageOffset()] = normalizedSum(unit, sum);
         markOutputWritten(unit, output, context);
     }
 
-    private static void runBf16(Cpu1PreparedMseLossUnit unit, ExecutionContext context, boolean mean) {
+    private static void runBf16(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         if (unit.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
             throw new UnsupportedOperationException("cpu1 MSE_LOSS BFLOAT16 supports JAVA_ARRAY storage only.");
         }
@@ -96,12 +95,11 @@ public final class Cpu1MseLossLoops {
             double diff = left - right;
             sum += diff * diff;
         }
-        double value = mean ? sum / unit.elementCount() : sum;
-        outputArray[output.storageOffset()] = TensorDTypeOps.toBFloat16Bits((float) value);
+        outputArray[output.storageOffset()] = TensorDTypeOps.toBFloat16Bits((float) normalizedSum(unit, sum));
         markOutputWritten(unit, output, context);
     }
 
-    private static void runF32Segment(Cpu1PreparedMseLossUnit unit, ExecutionContext context, boolean mean) {
+    private static void runF32Segment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         Cpu1TensorView prediction = inputSegmentView(unit.predictionNodeId(), context);
         Cpu1TensorView target = inputSegmentView(unit.targetNodeId(), context);
         NativeTensorStorage nativeOutput = outputSegmentStorage(unit, context);
@@ -114,12 +112,11 @@ public final class Cpu1MseLossLoops {
                 prediction.storageOffset(),
                 target.storageOffset()
         );
-        double value = mean ? sum / unit.elementCount() : sum;
-        output.segment().set(JAVA_FLOAT, (long) output.storageOffset() * Float.BYTES, (float) value);
+        output.segment().set(JAVA_FLOAT, (long) output.storageOffset() * Float.BYTES, (float) normalizedSum(unit, sum));
         markNativeOutputWritten(unit, nativeOutput, context);
     }
 
-    private static void runF64Segment(Cpu1PreparedMseLossUnit unit, ExecutionContext context, boolean mean) {
+    private static void runF64Segment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         Cpu1TensorView prediction = inputSegmentView(unit.predictionNodeId(), context);
         Cpu1TensorView target = inputSegmentView(unit.targetNodeId(), context);
         NativeTensorStorage nativeOutput = outputSegmentStorage(unit, context);
@@ -132,7 +129,7 @@ public final class Cpu1MseLossLoops {
                 prediction.storageOffset(),
                 target.storageOffset()
         );
-        output.segment().set(JAVA_DOUBLE, (long) output.storageOffset() * Double.BYTES, mean ? sum / unit.elementCount() : sum);
+        output.segment().set(JAVA_DOUBLE, (long) output.storageOffset() * Double.BYTES, normalizedSum(unit, sum));
         markNativeOutputWritten(unit, nativeOutput, context);
     }
 
@@ -281,6 +278,10 @@ public final class Cpu1MseLossLoops {
             sum += partialSums[slot];
         }
         return sum;
+    }
+
+    private static double normalizedSum(Cpu1PreparedMseLossUnit unit, double sum) {
+        return sum / unit.reductionDivisor();
     }
 
     private static Cpu1TensorView inputArrayView(int inputNodeId, ExecutionContext context) {

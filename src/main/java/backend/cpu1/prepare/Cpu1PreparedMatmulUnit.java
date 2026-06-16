@@ -10,8 +10,6 @@ import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import tensor.DataType;
 
-import java.util.Objects;
-
 /**
  * Immutable prepare-time contract for one cpu1 matmul node.
  */
@@ -149,10 +147,22 @@ public final class Cpu1PreparedMatmulUnit {
         this.nodeId = nodeId;
         this.leftNodeId = leftNodeId;
         this.rightNodeId = rightNodeId;
-        this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
-        this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
-        this.route = Objects.requireNonNull(route, "route cannot be null");
-        this.postOp = Objects.requireNonNull(postOp, "postOp cannot be null");
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        if (route == null) {
+            throw new IllegalArgumentException("route cannot be null");
+        }
+        if (postOp == null) {
+            throw new IllegalArgumentException("postOp cannot be null");
+        }
+        this.dataType = dataType;
+        this.storageKind = storageKind;
+        this.route = route;
+        this.postOp = postOp;
         if (!postOp.supportedBy(route)) {
             throw new UnsupportedOperationException("cpu1 " + route + " MATMUL does not support post-op " + postOp);
         }
@@ -168,8 +178,14 @@ public final class Cpu1PreparedMatmulUnit {
         this.biasBatchOffsets = postOp.requiresBias()
                 ? requireOffsets(biasBatchOffsets, batchCount, "biasBatchOffsets")
                 : new int[batchCount];
-        this.vectorizationKind = Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
-        this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
+        if (vectorizationKind == null) {
+            throw new IllegalArgumentException("vectorizationKind cannot be null");
+        }
+        if (kernelId == null) {
+            throw new IllegalArgumentException("kernelId cannot be null");
+        }
+        this.vectorizationKind = vectorizationKind;
+        this.kernelId = kernelId;
         this.kernel = Cpu1MatmulKernelDispatch.kernelFor(kernelId);
         this.batchCount = batchCount;
         this.m = m;
@@ -185,8 +201,14 @@ public final class Cpu1PreparedMatmulUnit {
         this.rightBatchOffsets = requireOffsets(rightBatchOffsets, batchCount, "rightBatchOffsets");
         this.outputBatchOffsets = requireOffsets(outputBatchOffsets, batchCount, "outputBatchOffsets");
         this.work = Math.multiplyExact(Math.multiplyExact(Math.multiplyExact((long) batchCount, m), n), k);
-        this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (scratchBufferSpec == null) {
+            throw new IllegalArgumentException("scratchBufferSpec cannot be null");
+        }
+        this.launchConfig = launchConfig;
+        this.scratchBufferSpec = scratchBufferSpec;
         if (openBlasThreads < 0) {
             throw new IllegalArgumentException("openBlasThreads must be non-negative: " + openBlasThreads);
         }
@@ -325,7 +347,9 @@ public final class Cpu1PreparedMatmulUnit {
     }
 
     private static int[] requireOffsets(int[] offsets, int batchCount, String name) {
-        Objects.requireNonNull(offsets, name + " cannot be null");
+        if (offsets == null) {
+            throw new IllegalArgumentException(name + " cannot be null");
+        }
         if (offsets.length != batchCount) {
             throw new IllegalArgumentException(name + " length " + offsets.length
                     + " does not match batchCount " + batchCount);

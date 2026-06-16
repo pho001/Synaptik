@@ -132,7 +132,7 @@ public record GpuTargetSemanticsContract(
         addIndex(out, Operation.OpType.SCATTER_AXIS_ADD, "rank-changing gatherAxis inverse writes and duplicate-index accumulation must match CPU scatter-axis-add");
         addIndex(out, Operation.OpType.SCATTER_ELEMENTS, "rank-preserving write, reduction, and duplicate-index policy must match CPU scatter-elements");
         addIndex(out, Operation.OpType.SCATTER_ND, "tuple-index write, slice updates, reduction, and duplicate-index policy must match CPU scatter-nd");
-        addLayout(out, Operation.OpType.SLICE_SCATTER_ADD, "stepped slice sparse writes must match CPU slice-scatter-add");
+        addLayout(out, Operation.OpType.SLICE_BACKWARD, "stepped slice sparse writes must match CPU slice backward");
         addCompare(out, Operation.OpType.GT);
         addCompare(out, Operation.OpType.GE);
         addCompare(out, Operation.OpType.LT);

@@ -1,7 +1,6 @@
 package backend.cpu1.exec;
 
 import java.lang.foreign.MemorySegment;
-import java.util.Objects;
 
 /**
  * Run-scoped scratch memory for a prepared cpu1 executable unit.
@@ -22,7 +21,10 @@ public final class Cpu1ScratchBuffer {
             MemorySegment segment,
             Cpu1ProviderCache providerCache
     ) {
-        this.spec = Objects.requireNonNull(spec, "spec cannot be null");
+        if (spec == null) {
+            throw new IllegalArgumentException("spec cannot be null");
+        }
+        this.spec = spec;
         this.f32Array = f32Array;
         this.f64Array = f64Array;
         this.i32Array = i32Array;
@@ -31,7 +33,9 @@ public final class Cpu1ScratchBuffer {
     }
 
     public static Cpu1ScratchBuffer allocate(Cpu1ScratchBufferSpec spec) {
-        Objects.requireNonNull(spec, "spec cannot be null");
+        if (spec == null) {
+            throw new IllegalArgumentException("spec cannot be null");
+        }
         if (spec.isEmpty()) {
             throw new IllegalArgumentException("Cannot allocate empty cpu1 scratch buffer.");
         }

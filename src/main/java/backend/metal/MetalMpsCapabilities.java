@@ -591,7 +591,7 @@ public final class MetalMpsCapabilities {
                  PERMUTE,
                  EXPAND,
                  SLICE,
-                 SLICE_GRAD,
+                 SLICE_BACKWARD,
                  CONCAT,
                  PAD,
                  TILE,

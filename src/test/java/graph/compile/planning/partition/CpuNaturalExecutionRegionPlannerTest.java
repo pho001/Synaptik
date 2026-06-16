@@ -16,6 +16,7 @@ import graph.compile.planning.region.DefaultRegionOptimizer;
 import graph.compile.planning.region.ExecutionUnitKind;
 import graph.compile.planning.region.OptimizedRegion;
 import graph.compile.planning.region.RegionOptimizationContext;
+import graph.compile.planning.region.specialization.RegionSpecializationKind;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -82,6 +83,34 @@ class CpuNaturalExecutionRegionPlannerTest {
         assertEquals(ExecutionRegionKind.CPU_EXECUTION, partition.regionKind());
         assertEquals(PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION, partition.plannerStrategy());
         assertTrue(partition.orderedNodeIds().size() >= 3);
+    }
+
+    @Test
+    void compiledGraphSpecializesNestedMeanMseRegion() {
+        Tensor prediction = new Tensor(
+                new float[]{1f, 2f, 3f, 4f, 5f, 6f},
+                new int[]{2, 3},
+                null,
+                "plannerNestedMsePrediction",
+                DataType.FLOAT32
+        );
+        Tensor target = new Tensor(
+                new float[]{0f, 1f, 2f, 3f, 4f, 5f},
+                new int[]{2, 3},
+                null,
+                "plannerNestedMseTarget",
+                DataType.FLOAT32
+        );
+        Tensor diff = prediction.sub(target);
+        Tensor root = diff.mul(diff).mean(1).mean(0, true);
+
+        CompiledGraph compiled = CompiledGraph.compile(root, CompileConfig.inference());
+
+        assertTrue(compiled.program().optimizedRegions().stream()
+                .flatMap(region -> region.executionUnits().stream())
+                .anyMatch(unit -> unit.kind() == ExecutionUnitKind.SPECIALIZED_PRIMITIVE
+                        && unit.specialization().kind() == RegionSpecializationKind.MSE_LOSS
+                        && unit.orderedNodeIds().size() == 4));
     }
 
     @Test

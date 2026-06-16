@@ -5,7 +5,7 @@ import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.storage.CpuStorageView;
 import operations.Operation;
-import operations.layout.sliceScatterAdd;
+import operations.layout.sliceBackward;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorMetadata;
@@ -17,50 +17,50 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
-public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
+public final class CpuSliceBackwardKernel implements CpuStorageAwareKernel {
     @Override
     public CpuKernelResult execute(CpuKernelCall call) {
-        sliceScatterAdd sliceOp = requireOp(call.operation());
+        sliceBackward sliceOp = requireOp(call.operation());
         Tensor updates = requireSingleInput(call.inputTensors());
         if (call.inputs().size() != 1) {
-            throw new IllegalArgumentException("sliceScatterAdd expects exactly one input storage view.");
+            throw new IllegalArgumentException("sliceBackward expects exactly one input storage view.");
         }
         Tensor node = call.outputTensor();
         CpuStorageView updatesView = call.inputs().getFirst();
         CpuStorageView outView = call.output();
         validateStorageViews(updates, node, updatesView, outView, node.getDataType());
         switch (node.getDataType()) {
-            case FLOAT64 -> sliceScatterAddF64(sliceOp, updates, node, updatesView, outView);
-            case FLOAT32 -> sliceScatterAddF32(sliceOp, updates, node, updatesView, outView);
-            case BFLOAT16 -> sliceScatterAddBF16(sliceOp, updates, node, updatesView, outView);
+            case FLOAT64 -> sliceBackwardF64(sliceOp, updates, node, updatesView, outView);
+            case FLOAT32 -> sliceBackwardF32(sliceOp, updates, node, updatesView, outView);
+            case BFLOAT16 -> sliceBackwardBF16(sliceOp, updates, node, updatesView, outView);
             case BOOL, INT32, INT64 -> throw new UnsupportedOperationException(
-                    "CpuSliceScatterAddKernel does not support " + node.getDataType());
+                    "CpuSliceBackwardKernel does not support " + node.getDataType());
         }
         return CpuKernelResult.completed();
     }
 
-    private static sliceScatterAdd requireOp(Operation op) {
-        if (!(op instanceof sliceScatterAdd sliceOp)) {
-            throw new IllegalArgumentException("CpuSliceScatterAddKernel requires sliceScatterAdd operation.");
+    private static sliceBackward requireOp(Operation op) {
+        if (!(op instanceof sliceBackward sliceOp)) {
+            throw new IllegalArgumentException("CpuSliceBackwardKernel requires sliceBackward operation.");
         }
         return sliceOp;
     }
 
     private static Tensor requireSingleInput(List<Tensor> inputs) {
         if (inputs == null || inputs.size() != 1) {
-            throw new IllegalArgumentException("sliceScatterAdd expects exactly one input.");
+            throw new IllegalArgumentException("sliceBackward expects exactly one input.");
         }
         return inputs.getFirst();
     }
 
-    private static void sliceScatterAddF64(
-            sliceScatterAdd op,
+    private static void sliceBackwardF64(
+            sliceBackward op,
             Tensor updates,
             Tensor node,
             CpuStorageView updatesView,
             CpuStorageView outView
     ) {
-        SliceScatterPlan plan = validateAndCreatePlan(op, updates, node);
+        SliceBackwardPlan plan = validateAndCreatePlan(op, updates, node);
         zeroF64(node, outView);
         if (updatesView.isArray() && outView.isArray()) {
             double[] updateData = updatesView.requireF64Array();
@@ -78,14 +78,14 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
         }
     }
 
-    private static void sliceScatterAddF32(
-            sliceScatterAdd op,
+    private static void sliceBackwardF32(
+            sliceBackward op,
             Tensor updates,
             Tensor node,
             CpuStorageView updatesView,
             CpuStorageView outView
     ) {
-        SliceScatterPlan plan = validateAndCreatePlan(op, updates, node);
+        SliceBackwardPlan plan = validateAndCreatePlan(op, updates, node);
         zeroF32(node, outView);
         if (updatesView.isArray() && outView.isArray()) {
             float[] updateData = updatesView.requireF32Array();
@@ -103,14 +103,14 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
         }
     }
 
-    private static void sliceScatterAddBF16(
-            sliceScatterAdd op,
+    private static void sliceBackwardBF16(
+            sliceBackward op,
             Tensor updates,
             Tensor node,
             CpuStorageView updatesView,
             CpuStorageView outView
     ) {
-        SliceScatterPlan plan = validateAndCreatePlan(op, updates, node);
+        SliceBackwardPlan plan = validateAndCreatePlan(op, updates, node);
         zeroBF16(node, outView);
         if (updatesView.isArray() && outView.isArray()) {
             short[] updateData = updatesView.requireBF16Array();
@@ -131,14 +131,14 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
         }
     }
 
-    private static SliceScatterPlan validateAndCreatePlan(sliceScatterAdd op, Tensor updates, Tensor node) {
+    private static SliceBackwardPlan validateAndCreatePlan(sliceBackward op, Tensor updates, Tensor node) {
         int[] inputShape = op.getInputShape();
-        validateShape(node.getShapeUnsafe(), inputShape, "sliceScatterAdd output shape must match target input shape.");
-        validateFloating(node.getDataType(), "sliceScatterAdd");
+        validateShape(node.getShapeUnsafe(), inputShape, "sliceBackward output shape must match target input shape.");
+        validateFloating(node.getDataType(), "sliceBackward");
         if (updates.getDataType() != node.getDataType()) {
-            throw new IllegalArgumentException("sliceScatterAdd requires matching input and output dtypes.");
+            throw new IllegalArgumentException("sliceBackward requires matching input and output dtypes.");
         }
-        return SliceScatterPlan.create(op, updates, node);
+        return SliceBackwardPlan.create(op, updates, node);
     }
 
     private static void validateStorageViews(
@@ -297,7 +297,7 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
         view.requireSegment().set(JAVA_SHORT, (long) offset * Short.BYTES, bits);
     }
 
-    private static final class SliceScatterPlan {
+    private static final class SliceBackwardPlan {
         private final int[] starts;
         private final int[] axes;
         private final int[] steps;
@@ -312,7 +312,7 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
         private int updateOffset;
         private int targetOffset;
 
-        private SliceScatterPlan(
+        private SliceBackwardPlan(
                 int[] starts,
                 int[] axes,
                 int[] steps,
@@ -336,9 +336,9 @@ public final class CpuSliceScatterAddKernel implements CpuStorageAwareKernel {
             this.total = total;
         }
 
-        static SliceScatterPlan create(sliceScatterAdd op, Tensor updates, Tensor node) {
+        static SliceBackwardPlan create(sliceBackward op, Tensor updates, Tensor node) {
             int[] updateShape = updates.getShapeUnsafe();
-            return new SliceScatterPlan(
+            return new SliceBackwardPlan(
                     op.getStarts(),
                     op.getAxes(),
                     op.getSteps(),

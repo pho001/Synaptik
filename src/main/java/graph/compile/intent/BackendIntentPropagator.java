@@ -101,7 +101,7 @@ public final class BackendIntentPropagator {
         switch (op.opType()) {
             case RELU, TANH, FAST_TANH, SIGMOID, ABS, EXP, FAST_EXP, ERF, LOG, NEG, INV, POW, SQRT, FLOOR, CEIL, SIGN,
                     CLAMP_MIN, CLAMP_MAX, SUM, MEAN, REDUCE_MIN, REDUCE_MAX,
-                    RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE_SCATTER_ADD, NOOP -> {
+                    RESHAPE, CONTIGUOUS, PERMUTE, EXPAND, EXPAND_DIMS, SQUEEZE, SELECT, SLICE_BACKWARD, NOOP -> {
                 if (inputs.size() == 1) {
                     propagateBackwardIntent(inputs.getFirst(), backend, intents, seen);
                 }

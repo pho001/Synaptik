@@ -10,8 +10,6 @@ import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;
 
-import java.util.Objects;
-
 /**
  * Prepare-time variant selection for experimental cpu1 units.
  */
@@ -64,10 +62,18 @@ public record Cpu1PrepareConfig(
     }
 
     public Cpu1PrepareConfig {
-        Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null");
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        Objects.requireNonNull(storageKind, "storageKind cannot be null");
-        Objects.requireNonNull(matmulRoute, "matmulRoute cannot be null");
+        if (vectorizationKind == null) {
+            throw new IllegalArgumentException("vectorizationKind cannot be null");
+        }
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        if (matmulRoute == null) {
+            throw new IllegalArgumentException("matmulRoute cannot be null");
+        }
         blasConfig = blasConfig == null ? BlasConfig.disabled() : blasConfig;
     }
 
@@ -119,7 +125,9 @@ public record Cpu1PrepareConfig(
             int maxWorkerCount,
             Cpu1StorageKind storageKind
     ) {
-        Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
+        if (runtimeConfig == null) {
+            throw new IllegalArgumentException("runtimeConfig cannot be null");
+        }
         return automatic(runtimeConfig.cpuKernelConfig(), maxWorkerCount, storageKind)
                 .withBlasConfig(runtimeConfig.blas());
     }
@@ -129,6 +137,9 @@ public record Cpu1PrepareConfig(
     }
 
     public static Cpu1PrepareConfig automatic(CpuKernelConfig cpuKernelConfig, int maxWorkerCount, Cpu1StorageKind storageKind) {
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("cpuKernelConfig cannot be null");
+        }
         return new Cpu1PrepareConfig(
                 Cpu1VectorizationKind.VECTOR,
                 Cpu1LaunchConfig.parallel(maxWorkerCount),
@@ -137,7 +148,7 @@ public record Cpu1PrepareConfig(
                 false,
                 true,
                 true,
-                Objects.requireNonNull(cpuKernelConfig, "cpuKernelConfig cannot be null"),
+                cpuKernelConfig,
                 Cpu1MatmulRoute.JAVA_SCALAR,
                 BlasConfig.disabled()
         );
@@ -159,6 +170,9 @@ public record Cpu1PrepareConfig(
     }
 
     public Cpu1PrepareConfig withMatmulRoute(Cpu1MatmulRoute route) {
+        if (route == null) {
+            throw new IllegalArgumentException("route cannot be null");
+        }
         return new Cpu1PrepareConfig(
                 vectorizationKind,
                 launchConfig,
@@ -168,7 +182,7 @@ public record Cpu1PrepareConfig(
                 automaticVectorization,
                 automaticLaunch,
                 cpuKernelConfig,
-                Objects.requireNonNull(route, "route cannot be null"),
+                route,
                 blasConfig
         );
     }

@@ -135,11 +135,13 @@ Every descriptor implements `Operation`:
 
 ```java
 Operation.OpType opType();
+Operation.OpArityClass arityClass();
+boolean isFusable();
 String getExpression();
 default boolean isCheap() { return false; }
 ```
 
-`Operation.OpArityClass` defines broad primitive categories, and each concrete `Operation.OpType` carries one of those categories plus a fusable flag:
+`Operation.OpArityClass` defines broad primitive categories. Each concrete `Operation` descriptor returns its category and fusable flag directly:
 
 - `ELEMENT_WISE`
 - `REDUCTION`

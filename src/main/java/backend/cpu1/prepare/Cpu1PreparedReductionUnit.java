@@ -4,6 +4,9 @@ import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernel;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelDispatch;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelId;
+import backend.cpu1.launch.Cpu1LaunchConfig;
+import backend.cpu1.launch.Cpu1LaunchPolicy;
+import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
 import tensor.DataType;
@@ -30,7 +33,11 @@ public final class Cpu1PreparedReductionUnit {
     private final boolean argMaxLastIndexWins;
     private final boolean cumSumExclusive;
     private final boolean cumSumReverse;
+    private final Cpu1LaunchConfig launchConfig;
+    private final Cpu1LaunchPolicy launchPolicy;
     private final Cpu1ScratchBufferSpec scratchBufferSpec;
+    private final Cpu1StorageAccessPlan inputAccessPlan;
+    private final Cpu1StorageAccessPlan outputAccessPlan;
 
     public Cpu1PreparedReductionUnit(
             int nodeId,
@@ -48,7 +55,11 @@ public final class Cpu1PreparedReductionUnit {
             boolean argMaxLastIndexWins,
             boolean cumSumExclusive,
             boolean cumSumReverse,
-            Cpu1ScratchBufferSpec scratchBufferSpec
+            Cpu1LaunchConfig launchConfig,
+            Cpu1LaunchPolicy launchPolicy,
+            Cpu1ScratchBufferSpec scratchBufferSpec,
+            Cpu1StorageAccessPlan inputAccessPlan,
+            Cpu1StorageAccessPlan outputAccessPlan
     ) {
         if (nodeId < 0) {
             throw new IllegalArgumentException("nodeId cannot be negative");
@@ -76,7 +87,11 @@ public final class Cpu1PreparedReductionUnit {
         this.argMaxLastIndexWins = argMaxLastIndexWins;
         this.cumSumExclusive = cumSumExclusive;
         this.cumSumReverse = cumSumReverse;
+        this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
+        this.launchPolicy = Objects.requireNonNull(launchPolicy, "launchPolicy cannot be null");
         this.scratchBufferSpec = Objects.requireNonNull(scratchBufferSpec, "scratchBufferSpec cannot be null");
+        this.inputAccessPlan = Objects.requireNonNull(inputAccessPlan, "inputAccessPlan cannot be null");
+        this.outputAccessPlan = Objects.requireNonNull(outputAccessPlan, "outputAccessPlan cannot be null");
     }
 
     public int nodeId() {
@@ -143,8 +158,24 @@ public final class Cpu1PreparedReductionUnit {
         return cumSumReverse;
     }
 
+    public Cpu1LaunchConfig launchConfig() {
+        return launchConfig;
+    }
+
+    public Cpu1LaunchPolicy launchPolicy() {
+        return launchPolicy;
+    }
+
     public Cpu1ScratchBufferSpec scratchBufferSpec() {
         return scratchBufferSpec;
+    }
+
+    public Cpu1StorageAccessPlan inputAccessPlan() {
+        return inputAccessPlan;
+    }
+
+    public Cpu1StorageAccessPlan outputAccessPlan() {
+        return outputAccessPlan;
     }
 
     private static void requirePositive(int value, String name) {

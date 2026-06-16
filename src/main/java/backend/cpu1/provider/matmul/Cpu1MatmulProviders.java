@@ -1,7 +1,5 @@
 package backend.cpu1.provider.matmul;
 
-import java.util.Objects;
-
 /**
  * Explicit provider selector for cpu1 matmul routes.
  */
@@ -14,7 +12,9 @@ public final class Cpu1MatmulProviders {
     }
 
     public static Cpu1MatmulProvider forRoute(Cpu1MatmulRoute route) {
-        Objects.requireNonNull(route, "route cannot be null");
+        if (route == null) {
+            throw new IllegalArgumentException("route cannot be null");
+        }
         return switch (route) {
             case JAVA_SCALAR -> JAVA_SCALAR;
             case OPENBLAS_ARRAY_COPYING -> OPENBLAS_ARRAY;

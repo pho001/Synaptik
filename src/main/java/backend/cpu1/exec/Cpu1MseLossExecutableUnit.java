@@ -4,14 +4,15 @@ import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernel;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
 import backend.runtime.ExecutionContext;
 
-import java.util.Objects;
-
 public final class Cpu1MseLossExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedMseLossUnit preparedUnit;
     private final Cpu1MseLossKernel kernel;
 
     public Cpu1MseLossExecutableUnit(Cpu1PreparedMseLossUnit preparedUnit) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
         this.kernel = preparedUnit.kernel();
     }
 

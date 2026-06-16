@@ -106,7 +106,7 @@ public record Cpu1FusedCodegenPlan(
             if (node.outputType() != computeType) {
                 return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
             }
-            Cpu1FusedCodegenRejectionReason operationReason = operationRejectionReason(node);
+            Cpu1FusedCodegenRejectionReason operationReason = operationRejectionReason(node, loopKind, computeType);
             if (operationReason != Cpu1FusedCodegenRejectionReason.NONE) {
                 return operationReason;
             }
@@ -114,12 +114,24 @@ public record Cpu1FusedCodegenPlan(
                 return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_DTYPE;
             }
         }
-        if (storageKind != Cpu1StorageKind.JAVA_ARRAY) {
-            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_STORAGE_KIND;
-        }
-        if (loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR
+        if (loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR
+                && loopKind != Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR
                 && loopKind != Cpu1FusedCodegenLoopKind.STRIDED_SCALAR) {
             return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LOOP_KIND;
+        }
+        if (storageKind != Cpu1StorageKind.JAVA_ARRAY
+                && storageKind != Cpu1StorageKind.MEMORY_SEGMENT) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_STORAGE_KIND;
+        }
+        if (storageKind == Cpu1StorageKind.MEMORY_SEGMENT
+                && loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_SEGMENT_VECTOR;
+        }
+        if (computeType == DataType.BFLOAT16 && loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_BF16_VECTOR;
+        }
+        if (computeType == DataType.BFLOAT16 && storageKind == Cpu1StorageKind.MEMORY_SEGMENT) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_BF16_SEGMENT;
         }
         if (!isSupportedLayout(layoutKind, loopKind)) {
             return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_LAYOUT_OR_ACCESS;
@@ -142,7 +154,13 @@ public record Cpu1FusedCodegenPlan(
         StringBuilder signature = new StringBuilder(256);
         signature.append("cpu1-fused:v1");
         signature.append("|supportAbi=").append(Cpu1FusedGeneratedSupport.ABI_VERSION);
-        signature.append("|helperTargets=").append(helperTargets(expressionPlan, computeType));
+        signature.append("|helperTargets=").append(helperTargets(
+                expressionPlan,
+                computeType,
+                loopKind,
+                useFastExpApprox,
+                useFastTanhApprox
+        ));
         signature.append("|storage=").append(storageKind);
         signature.append("|layout=").append(layoutKind);
         signature.append("|loop=").append(loopKind);
@@ -179,8 +197,15 @@ public record Cpu1FusedCodegenPlan(
         return new Cpu1FusedCodegenClassSignature(signature.toString());
     }
 
-    private static List<String> helperTargets(Cpu1FusedExpressionPlan expressionPlan, DataType computeType) {
-        if (computeType != DataType.FLOAT32 && computeType != DataType.FLOAT64) {
+    private static List<String> helperTargets(
+            Cpu1FusedExpressionPlan expressionPlan,
+            DataType computeType,
+            Cpu1FusedCodegenLoopKind loopKind,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        if (computeType != DataType.FLOAT32 && computeType != DataType.FLOAT64 && computeType != DataType.BFLOAT16
+                || loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR) {
             return List.of();
         }
         TreeSet<String> targets = new TreeSet<>();
@@ -191,6 +216,12 @@ public record Cpu1FusedCodegenPlan(
                 case ABS -> targets.add(Cpu1FusedAsmCallEmitter.absTarget(computeType));
                 case MIN, CLAMP_MAX -> targets.add(Cpu1FusedAsmCallEmitter.minTarget(computeType));
                 case MAX, CLAMP_MIN -> targets.add(Cpu1FusedAsmCallEmitter.maxTarget(computeType));
+                case EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, SQRT, SIGMOID, FLOOR, CEIL, SIGN ->
+                        targets.add(Cpu1FusedAsmCallEmitter.unaryIntrinsicTarget(
+                                effectiveUnaryIntrinsic(opType, useFastExpApprox, useFastTanhApprox),
+                                computeType
+                        ));
+                case POW, POW_TENSOR -> targets.add(Cpu1FusedAsmCallEmitter.powTarget(computeType));
                 default -> {
                 }
             }
@@ -198,8 +229,52 @@ public record Cpu1FusedCodegenPlan(
         return List.copyOf(targets);
     }
 
-    private static Cpu1FusedCodegenRejectionReason operationRejectionReason(Cpu1FusedNodePlan node) {
-        return Cpu1FusedAsmIntrinsicRegistry.rejectionReason(node);
+    private static Operation.OpType effectiveUnaryIntrinsic(
+            Operation.OpType opType,
+            boolean useFastExpApprox,
+            boolean useFastTanhApprox
+    ) {
+        return switch (opType) {
+            case EXP -> useFastExpApprox ? Operation.OpType.FAST_EXP : Operation.OpType.EXP;
+            case TANH -> useFastTanhApprox ? Operation.OpType.FAST_TANH : Operation.OpType.TANH;
+            default -> opType;
+        };
+    }
+
+    private static Cpu1FusedCodegenRejectionReason operationRejectionReason(
+            Cpu1FusedNodePlan node,
+            Cpu1FusedCodegenLoopKind loopKind,
+            DataType computeType
+    ) {
+        Cpu1FusedCodegenRejectionReason scalarReason = Cpu1FusedAsmIntrinsicRegistry.rejectionReason(node);
+        if (scalarReason != Cpu1FusedCodegenRejectionReason.NONE) {
+            return scalarReason;
+        }
+        if (computeType == DataType.BFLOAT16 && !isSupportedBFloat16Operation(node.opType())) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_BF16_OPERATION;
+        }
+        if (loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR && !isSupportedVectorOperation(node.opType())) {
+            return Cpu1FusedCodegenRejectionReason.UNSUPPORTED_VECTOR_OPERATION;
+        }
+        return Cpu1FusedCodegenRejectionReason.NONE;
+    }
+
+    private static boolean isSupportedBFloat16Operation(Operation.OpType opType) {
+        return switch (opType) {
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, ABS, RELU,
+                 CLAMP_MIN, CLAMP_MAX, MUL_SCALAR, CONST_SCALAR, NOOP,
+                 EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, POW, POW_TENSOR,
+                 SQRT, SIGMOID, FLOOR, CEIL, SIGN -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isSupportedVectorOperation(Operation.OpType opType) {
+        return switch (opType) {
+            case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, ABS, RELU,
+                 CLAMP_MIN, CLAMP_MAX, MUL_SCALAR, CONST_SCALAR, NOOP -> true;
+            default -> false;
+        };
     }
 
     private boolean hasSupportedInputRefs(Cpu1FusedNodePlan node) {
@@ -249,15 +324,19 @@ public record Cpu1FusedCodegenPlan(
     }
 
     private static boolean isSupportedInputDType(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BOOL;
+        return dataType == DataType.FLOAT32
+                || dataType == DataType.FLOAT64
+                || dataType == DataType.BFLOAT16
+                || dataType == DataType.BOOL;
     }
 
     private static boolean isSupportedOutputDType(DataType dataType) {
-        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64;
+        return dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64 || dataType == DataType.BFLOAT16;
     }
 
     private static boolean isSupportedLayout(Cpu1LayoutKind layoutKind, Cpu1FusedCodegenLoopKind loopKind) {
-        if (loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR) {
+        if (loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_VECTOR
+                || loopKind == Cpu1FusedCodegenLoopKind.CONTIGUOUS_SCALAR) {
             return layoutKind == Cpu1LayoutKind.CONTIGUOUS;
         }
         return loopKind == Cpu1FusedCodegenLoopKind.STRIDED_SCALAR

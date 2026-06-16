@@ -96,16 +96,14 @@ public final class Cpu1DispatchPolicy {
         int totalLength = saturatingElementCount(elementCount);
         int vectorWidth = preferredVectorWidth(computeType);
         CpuKernelConfig cpuKernelConfig = cpuKernelConfig(config);
-        Cpu1VectorizationKind vectorizationKind = resolveVectorizationKind(
+        Cpu1VectorizationKind vectorizationKind = resolveFusedVectorizationKind(
                 config,
                 cpuKernelConfig,
                 costClass,
-                config.storageKind(),
-                computeType,
                 totalLength,
                 vectorWidth
         );
-        int plannedWorkers = resolvePlannedWorkers(config, cpuKernelConfig, costClass, totalLength);
+        int plannedWorkers = resolveFusedPlannedWorkers(config, cpuKernelConfig, costClass, totalLength);
         int scalarChunkSize = scalarChunkSize(config, cpuKernelConfig, costClass, totalLength, plannedWorkers);
         int vectorChunkSize = vectorChunkSize(config, cpuKernelConfig, costClass, totalLength, vectorWidth, plannedWorkers);
         Cpu1LaunchConfig launchConfig = launchConfig(config, plannedWorkers, vectorizationKind, scalarChunkSize, vectorChunkSize);
@@ -222,6 +220,35 @@ public final class Cpu1DispatchPolicy {
         return cpuKernelConfig.cheapVectorMinSize();
     }
 
+    private static Cpu1VectorizationKind resolveFusedVectorizationKind(
+            Cpu1PrepareConfig config,
+            CpuKernelConfig cpuKernelConfig,
+            Cpu1CostClass costClass,
+            int totalLength,
+            int vectorWidth
+    ) {
+        if (!config.automaticVectorization()) {
+            return config.vectorizationKind();
+        }
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("cpuKernelConfig cannot be null");
+        }
+        if (vectorWidth <= 1) {
+            return Cpu1VectorizationKind.SCALAR;
+        }
+        int minSize = fusedVectorMinSize(cpuKernelConfig, costClass);
+        return totalLength >= minSize ? Cpu1VectorizationKind.VECTOR : Cpu1VectorizationKind.SCALAR;
+    }
+
+    private static int fusedVectorMinSize(
+            CpuKernelConfig cpuKernelConfig,
+            Cpu1CostClass costClass
+    ) {
+        return costClass == Cpu1CostClass.EXPENSIVE_ELEMENTWISE
+                ? cpuKernelConfig.fusedTranscendentalVectorMinSize()
+                : cpuKernelConfig.fusedCheapVectorMinSize();
+    }
+
     private static int resolvePlannedWorkers(
             Cpu1PrepareConfig config,
             CpuKernelConfig cpuKernelConfig,
@@ -246,6 +273,38 @@ public final class Cpu1DispatchPolicy {
             return 1;
         }
         return Math.min(maxWorkers, Math.max(1, totalLength));
+    }
+
+    private static int resolveFusedPlannedWorkers(
+            Cpu1PrepareConfig config,
+            CpuKernelConfig cpuKernelConfig,
+            Cpu1CostClass costClass,
+            int totalLength
+    ) {
+        if (!config.automaticLaunch()) {
+            return config.launchConfig().workerCount();
+        }
+        if (cpuKernelConfig == null) {
+            throw new IllegalArgumentException("cpuKernelConfig cannot be null");
+        }
+        int maxWorkers = config.launchConfig().workerCount();
+        if (maxWorkers <= 1) {
+            return 1;
+        }
+        int minSize = fusedParallelMinSize(cpuKernelConfig, costClass);
+        if (totalLength < minSize) {
+            return 1;
+        }
+        return Math.min(maxWorkers, Math.max(1, totalLength));
+    }
+
+    private static int fusedParallelMinSize(
+            CpuKernelConfig cpuKernelConfig,
+            Cpu1CostClass costClass
+    ) {
+        return costClass == Cpu1CostClass.EXPENSIVE_ELEMENTWISE
+                ? cpuKernelConfig.fusedTranscendentalParallelMinSize()
+                : cpuKernelConfig.fusedCheapParallelMinSize();
     }
 
     private static int scalarChunkSize(

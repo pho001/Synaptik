@@ -1,7 +1,7 @@
 package tensor.ops.layout;
 
 import operations.layout.slice;
-import operations.layout.sliceScatterAdd;
+import operations.layout.sliceBackward;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
@@ -57,8 +57,8 @@ public final class SliceOp {
                 grad = TensorPrimitiveBuilder.unaryNoGrad(
                         outGrad,
                         input.getShape(),
-                        new sliceScatterAdd(spec.starts(), spec.axes(), spec.steps(), input.getShape()),
-                        "slice_scatter_add",
+                        new sliceBackward(spec.starts(), spec.axes(), spec.steps(), input.getShape()),
+                        "slice_backward",
                         input.getDataType()
                 );
             }

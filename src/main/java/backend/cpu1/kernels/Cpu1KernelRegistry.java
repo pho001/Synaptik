@@ -9,7 +9,6 @@ import tensor.DataType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Registry of concrete cpu1 kernel ids.
@@ -67,13 +66,31 @@ public final class Cpu1KernelRegistry {
             Cpu1StorageKind storageKind,
             Cpu1VectorizationKind vectorizationKind
     ) {
+        if (opType == null) {
+            throw new IllegalArgumentException("opType cannot be null");
+        }
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        if (inputDataTypes == null) {
+            throw new IllegalArgumentException("inputDataTypes cannot be null");
+        }
+        if (layoutKind == null) {
+            throw new IllegalArgumentException("layoutKind cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        if (vectorizationKind == null) {
+            throw new IllegalArgumentException("vectorizationKind cannot be null");
+        }
         Cpu1ElementwiseKernelKey key = Cpu1ElementwiseKernelKey.of(
-                Objects.requireNonNull(opType, "opType cannot be null"),
-                Objects.requireNonNull(dataType, "dataType cannot be null"),
-                Objects.requireNonNull(inputDataTypes, "inputDataTypes cannot be null"),
-                Objects.requireNonNull(layoutKind, "layoutKind cannot be null"),
-                Objects.requireNonNull(storageKind, "storageKind cannot be null"),
-                Objects.requireNonNull(vectorizationKind, "vectorizationKind cannot be null")
+                opType,
+                dataType,
+                inputDataTypes,
+                layoutKind,
+                storageKind,
+                vectorizationKind
         );
         Cpu1ElementwiseKernelId kernelId = kernels.get(key);
         if (kernelId == null) {

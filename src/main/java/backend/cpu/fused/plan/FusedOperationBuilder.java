@@ -60,8 +60,12 @@ public final class FusedOperationBuilder {
                 descriptorIndex
         );
         FusedNumericContract numericContract = FusedNumericContractResolver.resolve(plan);
-        boolean lowCostHint = FusedDispatchPlanner.resolveLowCostHint(plan);
-        FusedDispatchFamily dispatchFamily = FusedDispatchPlanner.resolveDispatchFamily(plan);
+        boolean lowCostHint = FusedDispatchPlanner.resolveLowCostHint(plan, safeOrderedNodeIds, compiledNodeResolver);
+        FusedDispatchFamily dispatchFamily = FusedDispatchPlanner.resolveDispatchFamily(
+                plan,
+                safeOrderedNodeIds,
+                compiledNodeResolver
+        );
 
         FusedOperation operation = new FusedOperation(
                 "fused(" + safeOrderedNodeIds.size() + ")",

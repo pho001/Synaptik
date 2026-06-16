@@ -10,6 +10,8 @@ import tensor.storage.NativeBFloat16Storage;
 import tensor.storage.NativeBoolStorage;
 import tensor.storage.NativeFloat32Storage;
 import tensor.storage.NativeFloat64Storage;
+import tensor.storage.NativeInt32Storage;
+import tensor.storage.NativeInt64Storage;
 import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
@@ -21,6 +23,8 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 /**
  * Copies tensor data between Java array storage and native CPU storage.
@@ -39,7 +43,8 @@ public final class NativeCpuMaterializer {
             case FLOAT64 -> copyF64ArrayToNative(source, target);
             case BFLOAT16 -> copyBF16ArrayToNative(source, target);
             case BOOL -> copyBoolArrayToNative(source, target);
-            case INT32, INT64 -> throw new UnsupportedOperationException("array -> native MVP supports only FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + source.getDataType());
+            case INT32 -> copyI32ArrayToNative(source, target);
+            case INT64 -> copyI64ArrayToNative(source, target);
         }
         target.markModified();
     }
@@ -54,7 +59,8 @@ public final class NativeCpuMaterializer {
             case FLOAT64 -> copyF64NativeToArray(source, target);
             case BFLOAT16 -> copyBF16NativeToArray(source, target);
             case BOOL -> copyBoolNativeToArray(source, target);
-            case INT32, INT64 -> throw new UnsupportedOperationException("native -> array MVP supports only FLOAT32, FLOAT64, BFLOAT16, and BOOL masks. dtype=" + target.getDataType());
+            case INT32 -> copyI32NativeToArray(source, target);
+            case INT64 -> copyI64NativeToArray(source, target);
         }
         TensorInternalAccess.markStorageModified(target);
     }
@@ -106,6 +112,28 @@ public final class NativeCpuMaterializer {
         }
     }
 
+    private static void copyI32ArrayToNative(Tensor source, NativeTensorStorage target) {
+        if (!(target instanceof NativeInt32Storage)) {
+            throw typeMismatch(source.getDataType(), target.getType());
+        }
+        int[] data = TensorInternalAccess.int32Data(source);
+        if (data == null) {
+            throw new IllegalStateException("INT32 source does not expose CPU array storage.");
+        }
+        MemorySegment.copy(data, 0, target.segment(), JAVA_INT, 0L, source.getFlatDataSize());
+    }
+
+    private static void copyI64ArrayToNative(Tensor source, NativeTensorStorage target) {
+        if (!(target instanceof NativeInt64Storage)) {
+            throw typeMismatch(source.getDataType(), target.getType());
+        }
+        long[] data = TensorInternalAccess.int64Data(source);
+        if (data == null) {
+            throw new IllegalStateException("INT64 source does not expose CPU array storage.");
+        }
+        MemorySegment.copy(data, 0, target.segment(), JAVA_LONG, 0L, source.getFlatDataSize());
+    }
+
     private static void copyF32NativeToArray(NativeTensorStorage source, Tensor target) {
         if (!(source instanceof NativeFloat32Storage)) {
             throw typeMismatch(target.getDataType(), source.getType());
@@ -151,6 +179,28 @@ public final class NativeCpuMaterializer {
         for (int i = 0; i < target.getFlatDataSize(); i++) {
             data[i] = segment.get(JAVA_BYTE, i) == 0 ? (byte) 0 : (byte) 1;
         }
+    }
+
+    private static void copyI32NativeToArray(NativeTensorStorage source, Tensor target) {
+        if (!(source instanceof NativeInt32Storage)) {
+            throw typeMismatch(target.getDataType(), source.getType());
+        }
+        int[] data = TensorInternalAccess.int32Data(target);
+        if (data == null) {
+            throw new IllegalStateException("INT32 target does not expose CPU array storage.");
+        }
+        MemorySegment.copy(source.segment(), JAVA_INT, 0L, data, 0, target.getFlatDataSize());
+    }
+
+    private static void copyI64NativeToArray(NativeTensorStorage source, Tensor target) {
+        if (!(source instanceof NativeInt64Storage)) {
+            throw typeMismatch(target.getDataType(), source.getType());
+        }
+        long[] data = TensorInternalAccess.int64Data(target);
+        if (data == null) {
+            throw new IllegalStateException("INT64 target does not expose CPU array storage.");
+        }
+        MemorySegment.copy(source.segment(), JAVA_LONG, 0L, data, 0, target.getFlatDataSize());
     }
 
     private static void validateShapeAndType(Tensor tensor, NativeTensorStorage storage) {

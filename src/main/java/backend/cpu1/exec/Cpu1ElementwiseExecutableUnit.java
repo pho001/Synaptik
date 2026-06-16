@@ -9,7 +9,6 @@ import tensor.storage.NativeTensorStorage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Executable unit for prepared elementwise kernels.
@@ -18,7 +17,10 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedElementwiseUnit preparedUnit;
 
     public Cpu1ElementwiseExecutableUnit(Cpu1PreparedElementwiseUnit preparedUnit) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
     }
 
     public Cpu1PreparedElementwiseUnit preparedUnit() {
@@ -37,7 +39,9 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
      */
     @Override
     public void run(ExecutionContext context) {
-        Objects.requireNonNull(context, "context cannot be null");
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
         Tensor outputTensor = context.runtimeTensorForNodeId(preparedUnit.outputNodeId());
         NativeTensorStorage nativeOutput = null;
         Cpu1TensorView output;
@@ -70,7 +74,11 @@ public final class Cpu1ElementwiseExecutableUnit implements Cpu1ExecutableUnit {
                 output,
                 context.cpu1ScratchBufferForNodeId(preparedUnit.nodeId())
         );
-        preparedUnit.launchPolicy().launch(preparedUnit.kernelRunner(), args);
+        preparedUnit.launchPolicy().launch(
+                args.elementCount(),
+                (startInclusive, endExclusive) ->
+                        preparedUnit.kernelRunner().computeRange(args, startInclusive, endExclusive)
+        );
         if (nativeOutput == null) {
             output.markStorageModified();
             context.markCpuCurrent(preparedUnit.outputNodeId(), "cpu1 wrote CPU array");

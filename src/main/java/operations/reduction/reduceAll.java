@@ -38,6 +38,36 @@ public final class reduceAll implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.REDUCTION;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.REDUCTION;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.MEDIUM;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.BOOL_LOGIC;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.BOOLEAN;
+    }
+
+    @Override
     public String getExpression() {
         return "reduceAll";
     }

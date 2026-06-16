@@ -135,7 +135,7 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
         }
         if (request.cpuRegionConfig().policy() == CpuRegionPolicy.ELEMENTWISE_ISLANDS
                 || request.cpuRegionConfig().boundaryPolicy() == CpuRegionBoundaryPolicy.ELEMENTWISE_ONLY) {
-            return node.operation().opType().isFusable();
+            return node.operation().isFusable();
         }
         return true;
     }
@@ -151,7 +151,9 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
             return List.of();
         }
         if (startOp == Operation.OpType.LINEAR) {
-            if (opType(firstConsumer) == Operation.OpType.RELU && reluConsumes(firstConsumer, start.id())) {
+            if (opType(firstConsumer) == Operation.OpType.RELU
+                    && reluConsumes(firstConsumer, start.id())
+                    && !hasFusableCpuContinuation(firstConsumer, request)) {
                 return List.of(start.id(), firstConsumer.id());
             }
             return List.of();
@@ -159,7 +161,9 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
         if (opType(firstConsumer) == Operation.OpType.ADD) {
             return exactMatmulAddReluNodeIds(start, firstConsumer, request);
         }
-        if (opType(firstConsumer) == Operation.OpType.RELU && reluConsumes(firstConsumer, start.id())) {
+        if (opType(firstConsumer) == Operation.OpType.RELU
+                && reluConsumes(firstConsumer, start.id())
+                && !hasFusableCpuContinuation(firstConsumer, request)) {
             return List.of(start.id(), firstConsumer.id());
         }
         return List.of();
@@ -180,7 +184,26 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
                 || !reluConsumes(relu, add.id())) {
             return List.of();
         }
+        if (hasFusableCpuContinuation(relu, request)) {
+            return List.of();
+        }
         return List.of(matmul.id(), add.id(), relu.id());
+    }
+
+    private boolean hasFusableCpuContinuation(CompiledNode node, PartitionPlanningRequest request) {
+        if (node == null) {
+            return false;
+        }
+        for (CompiledNode consumer : request.context().consumersFor(node.id())) {
+            if (consumer != null
+                    && consumer.inputIds().contains(node.id())
+                    && isSupportedCpuNode(consumer, request)
+                    && consumer.operation() != null
+                    && consumer.operation().isFusable()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean addConsumesMatmulWithExternalBias(CompiledNode add, int matmulNodeId) {

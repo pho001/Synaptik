@@ -1,6 +1,5 @@
 package backend.cpu1.exec;
 
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
@@ -12,19 +11,35 @@ public final class Cpu1ProviderCache {
     private final ConcurrentMap<Object, Object> values = new ConcurrentHashMap<>();
 
     public Object get(Object key) {
-        return values.get(Objects.requireNonNull(key, "key cannot be null"));
+        if (key == null) {
+            throw new IllegalArgumentException("key cannot be null");
+        }
+        return values.get(key);
     }
 
     public void put(Object key, Object value) {
-        values.put(
-                Objects.requireNonNull(key, "key cannot be null"),
-                Objects.requireNonNull(value, "value cannot be null")
-        );
+        if (key == null) {
+            throw new IllegalArgumentException("key cannot be null");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("value cannot be null");
+        }
+        values.put(key, value);
     }
 
     public Object computeIfAbsent(Object key, Supplier<?> supplier) {
-        Objects.requireNonNull(key, "key cannot be null");
-        Objects.requireNonNull(supplier, "supplier cannot be null");
-        return values.computeIfAbsent(key, ignored -> Objects.requireNonNull(supplier.get(), "cached value cannot be null"));
+        if (key == null) {
+            throw new IllegalArgumentException("key cannot be null");
+        }
+        if (supplier == null) {
+            throw new IllegalArgumentException("supplier cannot be null");
+        }
+        return values.computeIfAbsent(key, ignored -> {
+            Object value = supplier.get();
+            if (value == null) {
+                throw new IllegalArgumentException("cached value cannot be null");
+            }
+            return value;
+        });
     }
 }

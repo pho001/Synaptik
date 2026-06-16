@@ -83,6 +83,12 @@ public final class Cpu1NodePreparer {
         if (Cpu1DTypePreparer.isDTypeOp(opType)) {
             return new Cpu1DTypePreparer().prepare(node, descriptorIndex, config);
         }
+        if (Cpu1LossPreparer.isLossOp(opType)) {
+            return new Cpu1LossPreparer().prepare(node, descriptorIndex, config);
+        }
+        if (Cpu1IndexPreparer.isIndexOp(opType)) {
+            return new Cpu1IndexPreparer().prepare(node, descriptorIndex, config);
+        }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
         Cpu1StorageAccessPlan outputAccessPlan = Cpu1StorageAccessPlan.fromNode(node);

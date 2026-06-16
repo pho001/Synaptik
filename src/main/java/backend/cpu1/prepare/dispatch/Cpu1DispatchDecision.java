@@ -5,8 +5,6 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
 
-import java.util.Objects;
-
 /**
  * Prepare-time cpu1 dispatch result for one executable unit.
  */
@@ -21,11 +19,21 @@ public record Cpu1DispatchDecision(
         int plannedWorkers
 ) {
     public Cpu1DispatchDecision {
-        Objects.requireNonNull(kernelOpType, "kernelOpType cannot be null");
-        Objects.requireNonNull(costClass, "costClass cannot be null");
-        Objects.requireNonNull(requestedVectorizationKind, "requestedVectorizationKind cannot be null");
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        Objects.requireNonNull(storageKind, "storageKind cannot be null");
+        if (kernelOpType == null) {
+            throw new IllegalArgumentException("kernelOpType cannot be null");
+        }
+        if (costClass == null) {
+            throw new IllegalArgumentException("costClass cannot be null");
+        }
+        if (requestedVectorizationKind == null) {
+            throw new IllegalArgumentException("requestedVectorizationKind cannot be null");
+        }
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
         scalarChunkSize = Math.max(1, scalarChunkSize);
         vectorChunkSize = Math.max(1, vectorChunkSize);
         plannedWorkers = Math.max(1, plannedWorkers);

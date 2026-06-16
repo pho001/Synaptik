@@ -1,6 +1,7 @@
 package backend.cpu1.kernels.fused.codegen.asm;
 
 import backend.cpu1.kernels.fused.codegen.support.Cpu1FusedMathSupport;
+import operations.Operation;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import tensor.DataType;
@@ -32,6 +33,14 @@ public final class Cpu1FusedAsmCallEmitter {
         emit(mv, binaryMethod(computeType, "max"), binaryDescriptor(computeType));
     }
 
+    public static void emitUnaryIntrinsic(MethodVisitor mv, Operation.OpType opType, DataType computeType) {
+        emit(mv, unaryMethod(computeType, unaryIntrinsicPrefix(opType)), unaryDescriptor(computeType));
+    }
+
+    public static void emitPow(MethodVisitor mv, DataType computeType) {
+        emit(mv, binaryMethod(computeType, "pow"), binaryDescriptor(computeType));
+    }
+
     public static String reluTarget(DataType computeType) {
         return unaryTarget(computeType, "relu");
     }
@@ -48,6 +57,31 @@ public final class Cpu1FusedAsmCallEmitter {
         return binaryTarget(computeType, "max");
     }
 
+    public static String unaryIntrinsicTarget(Operation.OpType opType, DataType computeType) {
+        return unaryTarget(computeType, unaryIntrinsicPrefix(opType));
+    }
+
+    public static String powTarget(DataType computeType) {
+        return binaryTarget(computeType, "pow");
+    }
+
+    private static String unaryIntrinsicPrefix(Operation.OpType opType) {
+        return switch (opType) {
+            case EXP -> "exp";
+            case FAST_EXP -> "fastExp";
+            case LOG -> "log";
+            case TANH -> "tanh";
+            case FAST_TANH -> "fastTanh";
+            case ERF -> "erf";
+            case SQRT -> "sqrt";
+            case SIGMOID -> "sigmoid";
+            case FLOOR -> "floor";
+            case CEIL -> "ceil";
+            case SIGN -> "sign";
+            default -> throw new IllegalArgumentException("Unsupported unary intrinsic " + opType);
+        };
+    }
+
     private static void emit(MethodVisitor mv, String method, String descriptor) {
         mv.visitMethodInsn(INVOKESTATIC, MATH_SUPPORT, method, descriptor, false);
     }
@@ -61,7 +95,7 @@ public final class Cpu1FusedAsmCallEmitter {
     }
 
     private static String unaryMethod(DataType computeType, String namePrefix) {
-        if (computeType == DataType.FLOAT32) {
+        if (computeType == DataType.FLOAT32 || computeType == DataType.BFLOAT16) {
             return namePrefix + "F32";
         }
         if (computeType == DataType.FLOAT64) {
@@ -75,7 +109,7 @@ public final class Cpu1FusedAsmCallEmitter {
     }
 
     private static String unaryDescriptor(DataType computeType) {
-        if (computeType == DataType.FLOAT32) {
+        if (computeType == DataType.FLOAT32 || computeType == DataType.BFLOAT16) {
             return "(F)F";
         }
         if (computeType == DataType.FLOAT64) {
@@ -85,7 +119,7 @@ public final class Cpu1FusedAsmCallEmitter {
     }
 
     private static String binaryDescriptor(DataType computeType) {
-        if (computeType == DataType.FLOAT32) {
+        if (computeType == DataType.FLOAT32 || computeType == DataType.BFLOAT16) {
             return "(FF)F";
         }
         if (computeType == DataType.FLOAT64) {

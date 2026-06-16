@@ -203,10 +203,10 @@ public final class GpuLoweringCoverageMatrix {
                     Operation.OpType.CONCAT,
                     Operation.OpType.PAD,
                     Operation.OpType.TILE);
-            add(entries, backend, Operation.OpType.SLICE_GRAD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+            add(entries, backend, Operation.OpType.SLICE_BACKWARD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
                     GpuLoweringCoverageStatus.SUPPORTED,
                     GpuLoweringUnsupportedReason.SUPPORTED,
-                    "Metal SLICE_GRAD supports static dense FLOAT32/BFLOAT16 step=1 backward layout writes by lowering to zero-fill pad with explicit before/after attributes");
+                    "Metal SLICE_BACKWARD supports static dense FLOAT32/BFLOAT16 step=1 backward layout writes by lowering to zero-fill pad with explicit before/after attributes");
         }
         if (backend == ComputeBackend.GPU_METAL) {
             add(entries, backend, Operation.OpType.CAST, GpuLoweringOperationFamily.DTYPE_CONVERSION,
@@ -453,10 +453,12 @@ public final class GpuLoweringCoverageMatrix {
                     GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
                     "scatter-nd remains CPU-owned until tuple-index write, slice update, reduction, and duplicate-index policies are proven for CUDA");
         }
-        add(entries, backend, Operation.OpType.SLICE_SCATTER_ADD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
-                GpuLoweringCoverageStatus.UNSUPPORTED,
-                GpuLoweringUnsupportedReason.UNSUPPORTED_INDEX_SEMANTICS,
-                "slice-scatter-add remains CPU-owned until stepped slice sparse writes are proven for accelerator lowering");
+        if (backend == ComputeBackend.GPU_CUDA) {
+            add(entries, backend, Operation.OpType.SLICE_BACKWARD, GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT,
+                    GpuLoweringCoverageStatus.UNSUPPORTED,
+                    GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,
+                    "slice backward remains CPU-owned until stepped slice sparse writes are proven for CUDA lowering");
+        }
         addBoolOutputRows(entries, backend);
         addSupported(entries, backend, GpuLoweringOperationFamily.BACKWARD_ADJACENT,
                 "native accelerator DAG backward-adjacent path",
@@ -610,23 +612,20 @@ public final class GpuLoweringCoverageMatrix {
         if (opType == null) {
             return GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         }
-        return switch (opType.category()) {
-            case LINEAR_ALGEBRA -> GpuLoweringOperationFamily.MATMUL_LINEAR;
-            case ELEMENT_WISE -> opType == Operation.OpType.GT
-                    || opType == Operation.OpType.GE
-                    || opType == Operation.OpType.LT
-                    || opType == Operation.OpType.LE
-                    || opType == Operation.OpType.EQ
-                    || opType == Operation.OpType.NE
-                    || opType == Operation.OpType.LOGICAL_AND
-                    || opType == Operation.OpType.LOGICAL_OR
-                    || opType == Operation.OpType.LOGICAL_NOT
-                    ? GpuLoweringOperationFamily.COMPARE_BOOL
-                    : GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
-            case LAYOUT -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
-            case REDUCTION -> GpuLoweringOperationFamily.REDUCTION;
-            case FUSED -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
-            case SPECIAL -> specialFamilyFor(opType);
+        return switch (opType) {
+            case MATMUL -> GpuLoweringOperationFamily.MATMUL_LINEAR;
+            case GT, GE, LT, LE, EQ, NE, LOGICAL_AND, LOGICAL_OR, LOGICAL_NOT ->
+                    GpuLoweringOperationFamily.COMPARE_BOOL;
+            case ADD, SUB, MUL, DIV, MIN, MAX, WHERE, NEG, INV, LOG, EXP, FAST_EXP, ERF,
+                 TANH, FAST_TANH, POW, POW_TENSOR, SQRT, ABS, FLOOR, CEIL, SIGN, MUL_SCALAR,
+                 RELU, CLAMP_MIN, CLAMP_MAX, SIGMOID, FUSED ->
+                    GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
+            case CONTIGUOUS, RESHAPE, EXPAND, SELECT, SLICE, CONCAT, PAD, TILE, UNFOLD_AXIS,
+                 UNFOLD2D, FOLD2D, PERMUTE, EXPAND_DIMS, SQUEEZE ->
+                    GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
+            case REDUCE_MIN, REDUCE_MAX, REDUCE_PROD, CUMSUM, ARGMAX, REDUCE_ALL, REDUCE_ANY, SUM, MEAN ->
+                    GpuLoweringOperationFamily.REDUCTION;
+            default -> specialFamilyFor(opType);
         };
     }
 
@@ -640,7 +639,7 @@ public final class GpuLoweringCoverageMatrix {
             case GATHER, GATHER_GRAD, GATHER_AXIS, GATHER_AXIS_GRAD, GATHER_ND, GATHER_ND_GRAD,
                  TAKE_ALONG_AXIS, TAKE_ALONG_AXIS_GRAD, SCATTER_ADD, SCATTER_AXIS_ADD,
                  SCATTER_ELEMENTS, SCATTER_ND -> GpuLoweringOperationFamily.INDEX_SCATTER_GATHER;
-            case SLICE_GRAD, SLICE_SCATTER_ADD -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
+            case SLICE_BACKWARD -> GpuLoweringOperationFamily.LAYOUT_VIEW_ADJACENT;
             case REDUCE_MIN_GRAD, REDUCE_MAX_GRAD, MIN_GRAD, MAX_GRAD -> GpuLoweringOperationFamily.BACKWARD_ADJACENT;
             default -> GpuLoweringOperationFamily.ELEMENTWISE_CHAIN;
         };

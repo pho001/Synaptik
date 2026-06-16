@@ -57,8 +57,7 @@ import operations.linalg.linear;
 import operations.normalization.rmsNorm;
 import operations.layout.select;
 import operations.layout.slice;
-import operations.layout.sliceGrad;
-import operations.layout.sliceScatterAdd;
+import operations.layout.sliceBackward;
 import operations.layout.squeeze;
 import operations.reduction.sum;
 import operations.layout.tile;
@@ -290,8 +289,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
             case EXPAND -> IntArrayValue.copyOf(((expand) op).getTargetShape());
             case SELECT -> IntArrayValue.copyOf(new int[]{((select) op).getDimension(), ((select) op).getIndex()});
             case SLICE -> IntArrayValue.copyOf(sliceSignature((slice) op));
-            case SLICE_GRAD -> IntArrayValue.copyOf(sliceGradSignature((sliceGrad) op));
-            case SLICE_SCATTER_ADD -> IntArrayValue.copyOf(sliceScatterAddSignature((sliceScatterAdd) op));
+            case SLICE_BACKWARD -> IntArrayValue.copyOf(sliceBackwardSignature((sliceBackward) op));
             case CONCAT -> new AxisSignature(((concat) op).getAxis());
             case PAD -> IntArrayValue.copyOf(padSignature((pad) op));
             case TILE -> IntArrayValue.copyOf(((tile) op).getRepeats());
@@ -370,25 +368,7 @@ public class CommonSubexpressionEliminationRule implements OptimizationRule {
         return out;
     }
 
-    private int[] sliceGradSignature(sliceGrad op) {
-        int[] starts = op.getStarts();
-        int[] axes = op.getAxes();
-        int[] steps = op.getSteps();
-        int[] inputShape = op.getInputShape();
-        int[] out = new int[starts.length + axes.length + steps.length + inputShape.length + 4];
-        int p = 0;
-        out[p++] = starts.length;
-        for (int value : starts) out[p++] = value;
-        out[p++] = axes.length;
-        for (int value : axes) out[p++] = value;
-        out[p++] = steps.length;
-        for (int value : steps) out[p++] = value;
-        out[p++] = inputShape.length;
-        for (int value : inputShape) out[p++] = value;
-        return out;
-    }
-
-    private int[] sliceScatterAddSignature(sliceScatterAdd op) {
+    private int[] sliceBackwardSignature(sliceBackward op) {
         int[] starts = op.getStarts();
         int[] axes = op.getAxes();
         int[] steps = op.getSteps();

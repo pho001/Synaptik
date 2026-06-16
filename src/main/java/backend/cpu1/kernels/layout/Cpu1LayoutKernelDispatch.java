@@ -3,10 +3,9 @@ package backend.cpu1.kernels.layout;
 import backend.cpu1.kernels.layout.concat.Cpu1ConcatLayoutLoops;
 import backend.cpu1.kernels.layout.copy.Cpu1CopyLayoutLoops;
 import backend.cpu1.kernels.layout.pad.Cpu1PadLayoutLoops;
+import backend.cpu1.kernels.layout.slice.Cpu1SliceBackwardLayoutLoops;
 import backend.cpu1.kernels.layout.tile.Cpu1TileLayoutLoops;
 import backend.cpu1.kernels.layout.unfold.Cpu1UnfoldLayoutLoops;
-
-import java.util.Objects;
 
 /**
  * Resolves prepared layout kernel ids to concrete layout kernels outside the hot path.
@@ -16,10 +15,13 @@ public final class Cpu1LayoutKernelDispatch {
     }
 
     public static Cpu1LayoutKernel kernelFor(Cpu1LayoutKernelId kernelId) {
-        Objects.requireNonNull(kernelId, "kernelId cannot be null");
+        if (kernelId == null) {
+            throw new IllegalArgumentException("kernelId cannot be null");
+        }
         return switch (kernelId) {
             case NOOP_ALIAS, RESHAPE_ALIAS, EXPAND_ALIAS, SELECT_ALIAS, SLICE_ALIAS, PERMUTE_ALIAS,
                     EXPAND_DIMS_ALIAS, SQUEEZE_ALIAS -> Cpu1AliasLayoutKernel::runAlias;
+            case SLICE_BACKWARD_SCALAR -> Cpu1SliceBackwardLayoutLoops::sliceBackwardScalar;
             case RESHAPE_COPY_LINEARIZED_SCALAR -> Cpu1CopyLayoutLoops::reshapeCopyLinearizedScalar;
             case CONTIGUOUS_COPY_SCALAR -> Cpu1CopyLayoutLoops::contiguousCopyScalar;
             case CONTIGUOUS_COPY_VECTOR -> Cpu1CopyLayoutLoops::contiguousCopyVector;

@@ -216,6 +216,110 @@ class DefaultRegionOptimizerTest {
     }
 
     @Test
+    void acceptedNestedMeanMsePartitionBuildsSingleSpecializedPrimitiveUnit() {
+        Tensor pred = new Tensor(
+                new float[]{1f, 2f, 3f, 4f, 5f, 6f},
+                new int[]{2, 3},
+                null,
+                "nestedMsePred",
+                DataType.FLOAT32
+        );
+        Tensor target = new Tensor(
+                new float[]{0f, 1f, 2f, 3f, 4f, 5f},
+                new int[]{2, 3},
+                null,
+                "nestedMseTarget",
+                DataType.FLOAT32
+        );
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor rowMean = square.mean(1);
+        Tensor loss = rowMean.mean(0, true);
+
+        List<Tensor> graph = loss.topologicalSort();
+        int diffNodeId = graph.indexOf(diff);
+        int squareNodeId = graph.indexOf(square);
+        int rowMeanNodeId = graph.indexOf(rowMean);
+        int lossNodeId = graph.indexOf(loss);
+        List<CompiledNode> nodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, rowMeanNodeId, lossNodeId);
+        Partition partition = partition(
+                "cpu-nested-mean-mse",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MSE_LOSS, unit.specialization().kind());
+        assertEquals(selectedNodeIds, unit.orderedNodeIds());
+        assertTrue(unit.virtualOutputs().contains(GraphValueRef.node(diffNodeId)));
+        assertTrue(unit.virtualOutputs().contains(GraphValueRef.node(squareNodeId)));
+        assertTrue(unit.virtualOutputs().contains(GraphValueRef.node(rowMeanNodeId)));
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MSE_LOSS")));
+    }
+
+    @Test
+    void mixedReductionMsePartitionFallsBackToStructuralUnits() {
+        Tensor pred = new Tensor(
+                new float[]{1f, 2f, 3f, 4f, 5f, 6f},
+                new int[]{2, 3},
+                null,
+                "mixedMsePred",
+                DataType.FLOAT32
+        );
+        Tensor target = new Tensor(
+                new float[]{0f, 1f, 2f, 3f, 4f, 5f},
+                new int[]{2, 3},
+                null,
+                "mixedMseTarget",
+                DataType.FLOAT32
+        );
+        Tensor diff = pred.sub(target);
+        Tensor square = diff.mul(diff);
+        Tensor rowMean = square.mean(1);
+        Tensor loss = rowMean.sum(0, true);
+
+        List<Tensor> graph = loss.topologicalSort();
+        int diffNodeId = graph.indexOf(diff);
+        int squareNodeId = graph.indexOf(square);
+        int rowMeanNodeId = graph.indexOf(rowMean);
+        int lossNodeId = graph.indexOf(loss);
+        List<CompiledNode> nodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, rowMeanNodeId, lossNodeId);
+        Partition partition = partition(
+                "cpu-mixed-reduction-mse",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(GraphValueRef.node(lossNodeId)),
+                List.of(GraphValueRef.node(lossNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertTrue(region.executionUnits().stream()
+                .noneMatch(unit -> unit.kind() == ExecutionUnitKind.SPECIALIZED_PRIMITIVE
+                        && unit.specialization().kind() == RegionSpecializationKind.MSE_LOSS));
+        assertEquals(selectedNodeIds, region.executionUnits().stream()
+                .flatMap(unit -> unit.orderedNodeIds().stream())
+                .toList());
+    }
+
+    @Test
     void gpuMsePartitionRejectsSpecializationAndFallsBackToStructuralUnits() {
         Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "gpuMsePred", DataType.FLOAT32);
         Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "gpuMseTarget", DataType.FLOAT32);

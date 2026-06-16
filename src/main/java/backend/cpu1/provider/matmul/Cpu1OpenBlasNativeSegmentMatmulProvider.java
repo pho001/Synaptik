@@ -3,8 +3,6 @@ package backend.cpu1.provider.matmul;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
 import tensor.DataType;
 
-import java.util.Objects;
-
 /**
  * Provider for the OpenBLAS native MemorySegment matmul route.
  */
@@ -16,7 +14,9 @@ public final class Cpu1OpenBlasNativeSegmentMatmulProvider implements Cpu1Matmul
 
     @Override
     public Cpu1MatmulKernelId kernelId(DataType dataType) {
-        Objects.requireNonNull(dataType, "dataType cannot be null");
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
         return switch (dataType) {
             case FLOAT32 -> Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_NATIVE_SEGMENT;
             case FLOAT64 -> Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_NATIVE_SEGMENT;

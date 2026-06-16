@@ -163,7 +163,7 @@ public final class CpuNodePreparer {
 
         ResolvedDispatchHints dispatchHintsOverride = null;
         PreparedFusedDispatch preparedFusedDispatch = null;
-        if (operation.opType().category() == Operation.OpArityClass.ELEMENT_WISE) {
+        if (operation.arityClass() == Operation.OpArityClass.ELEMENT_WISE) {
             ResolvedCpuComputeContract elementwiseContract = planner.resolveComputeContract(
                     operation,
                     context.descriptor(node.id()),

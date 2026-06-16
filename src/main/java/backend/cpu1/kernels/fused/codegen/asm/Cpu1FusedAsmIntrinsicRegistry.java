@@ -27,8 +27,9 @@ public final class Cpu1FusedAsmIntrinsicRegistry {
         return switch (opType) {
             case ADD, SUB, MUL, DIV, MIN, MAX, NEG, INV, ABS, RELU, NOOP, WHERE, CONST_SCALAR ->
                     Cpu1FusedCodegenRejectionReason.NONE;
-            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, POW, POW_TENSOR, SQRT, SIGMOID ->
-                    Cpu1FusedCodegenRejectionReason.UNSUPPORTED_INTRINSIC;
+            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, POW_TENSOR, SQRT, SIGMOID,
+                 FLOOR, CEIL, SIGN ->
+                    Cpu1FusedCodegenRejectionReason.NONE;
             default -> Cpu1FusedCodegenRejectionReason.UNSUPPORTED_OPERATION;
         };
     }
@@ -36,6 +37,7 @@ public final class Cpu1FusedAsmIntrinsicRegistry {
     public static boolean requiresScalar(Operation.OpType opType) {
         return opType == Operation.OpType.MUL_SCALAR
                 || opType == Operation.OpType.CLAMP_MIN
-                || opType == Operation.OpType.CLAMP_MAX;
+                || opType == Operation.OpType.CLAMP_MAX
+                || opType == Operation.OpType.POW;
     }
 }

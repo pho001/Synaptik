@@ -131,7 +131,7 @@ Broadcasting should use the existing planners. Binary ops call `TensorBroadcastO
 Two extra rules are easy to miss:
 
 - If the operation descriptor has semantic parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`.
-- If `Operation.OpType(..., true)` marks the op fusable, the interpreted and ASM fused paths must support it before the flag is safe.
+- If the concrete `Operation` descriptor returns `true` from `isFusable()`, the interpreted and ASM fused paths must support it before the flag is safe.
 
 Not every public API addition needs a new primitive descriptor. If the requested behavior is an ergonomic composition of existing primitives, prefer a composition-first helper under the relevant `tensor.ops.*` family.
 

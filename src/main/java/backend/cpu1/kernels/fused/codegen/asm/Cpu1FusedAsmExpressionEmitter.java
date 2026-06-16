@@ -4,11 +4,8 @@ import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
 import operations.Operation;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
-import tensor.DataType;
 
 import static org.objectweb.asm.Opcodes.ALOAD;
-import static org.objectweb.asm.Opcodes.BALOAD;
-import static org.objectweb.asm.Opcodes.DALOAD;
 import static org.objectweb.asm.Opcodes.DADD;
 import static org.objectweb.asm.Opcodes.DCONST_1;
 import static org.objectweb.asm.Opcodes.DDIV;
@@ -17,7 +14,6 @@ import static org.objectweb.asm.Opcodes.DMUL;
 import static org.objectweb.asm.Opcodes.DNEG;
 import static org.objectweb.asm.Opcodes.DSTORE;
 import static org.objectweb.asm.Opcodes.DSUB;
-import static org.objectweb.asm.Opcodes.FALOAD;
 import static org.objectweb.asm.Opcodes.FADD;
 import static org.objectweb.asm.Opcodes.FCONST_1;
 import static org.objectweb.asm.Opcodes.FDIV;
@@ -62,6 +58,14 @@ public final class Cpu1FusedAsmExpressionEmitter {
             case INV -> emitInv(mv, context);
             case ABS -> Cpu1FusedAsmCallEmitter.emitAbs(mv, context.computeType());
             case RELU -> Cpu1FusedAsmCallEmitter.emitRelu(mv, context.computeType());
+            case EXP, FAST_EXP, LOG, TANH, FAST_TANH, ERF, SQRT, SIGMOID, FLOOR, CEIL, SIGN ->
+                    Cpu1FusedAsmCallEmitter.emitUnaryIntrinsic(mv, effectiveUnaryIntrinsic(opType, context),
+                            context.computeType());
+            case POW -> {
+                emitLoadScalarField(mv, context, node);
+                Cpu1FusedAsmCallEmitter.emitPow(mv, context.computeType());
+            }
+            case POW_TENSOR -> Cpu1FusedAsmCallEmitter.emitPow(mv, context.computeType());
             case CLAMP_MIN -> {
                 emitLoadScalarField(mv, context, node);
                 Cpu1FusedAsmCallEmitter.emitMax(mv, context.computeType());
@@ -101,6 +105,17 @@ public final class Cpu1FusedAsmExpressionEmitter {
         mv.visitLabel(done);
     }
 
+    private static Operation.OpType effectiveUnaryIntrinsic(
+            Operation.OpType opType,
+            Cpu1FusedAsmLoopEmitter.LoopContext context
+    ) {
+        return switch (opType) {
+            case EXP -> context.useFastExpApprox() ? Operation.OpType.FAST_EXP : Operation.OpType.EXP;
+            case TANH -> context.useFastTanhApprox() ? Operation.OpType.FAST_TANH : Operation.OpType.TANH;
+            default -> opType;
+        };
+    }
+
     private static void emitInv(MethodVisitor mv, Cpu1FusedAsmLoopEmitter.LoopContext context) {
         if (context.usesFloatCompute()) {
             mv.visitVarInsn(FSTORE, context.tempScalarLocal());
@@ -122,17 +137,7 @@ public final class Cpu1FusedAsmExpressionEmitter {
     ) {
         if (ref < context.inputCount()) {
             Cpu1FusedAsmLoopEmitter.TensorBinding binding = context.inputBinding(ref);
-            mv.visitVarInsn(ALOAD, binding.arrayLocal());
-            mv.visitVarInsn(org.objectweb.asm.Opcodes.ILOAD, binding.offsetLocal());
-            if (binding.dataType() == DataType.BOOL) {
-                mv.visitInsn(BALOAD);
-            } else if (binding.dataType() == DataType.FLOAT32) {
-                mv.visitInsn(FALOAD);
-            } else if (binding.dataType() == DataType.FLOAT64) {
-                mv.visitInsn(DALOAD);
-            } else {
-                throw new UnsupportedOperationException("Unsupported fused input dtype " + binding.dataType());
-            }
+            Cpu1FusedAsmLoopEmitter.emitLoadStorageValue(mv, binding);
             return;
         }
         int nodeIndex = ref - context.inputCount();

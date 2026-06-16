@@ -138,9 +138,12 @@ public class CpuKernelFamilyArchitectureTest {
 
     @Test
     void stridedElementwisePlanningOpsResolveToStorageAwareKernels() {
-        for (Operation.OpType opType : stridedPathEligibleElementwiseOpTypes()) {
-            assertEquals(Operation.OpArityClass.ELEMENT_WISE, opType.category(),
+        for (Operation operation : stridedPathEligibleElementwiseOperations()) {
+            Operation.OpType opType = operation.opType();
+            assertEquals(Operation.OpArityClass.ELEMENT_WISE, operation.arityClass(),
                     opType + " must stay within the general elementwise planning surface.");
+            assertTrue(operation.isFusable(),
+                    opType + " must be eligible for generic elementwise fusion.");
             CpuKernel kernel = CpuKernelRegistry.resolve(opType);
             assertTrue(kernel instanceof CpuStorageAwareKernel,
                     opType + " cannot use strided planning unless its registered kernel consumes CpuStorageView.");
@@ -259,7 +262,6 @@ public class CpuKernelFamilyArchitectureTest {
                 "index/CpuGatherAxisGradKernel.java",
                 "index/CpuGatherNdGradKernel.java",
                 "index/CpuTakeAlongAxisGradKernel.java",
-                "layout/CpuSliceGradKernel.java",
                 "linalg/CpuScaledDotProductAttentionBackwardKernel.java"
         )) {
             assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels", relativePath)),
@@ -948,7 +950,7 @@ public class CpuKernelFamilyArchitectureTest {
                 Operation.OpType.SCATTER_AXIS_ADD,
                 Operation.OpType.SCATTER_ELEMENTS,
                 Operation.OpType.SCATTER_ND,
-                Operation.OpType.SLICE_SCATTER_ADD
+                Operation.OpType.SLICE_BACKWARD
         )) {
             CpuKernel kernel = CpuKernelRegistry.resolve(opType);
             assertTrue(kernel instanceof CpuStorageAwareKernel,
@@ -1051,45 +1053,44 @@ public class CpuKernelFamilyArchitectureTest {
                 Operation.OpType.GATHER_AXIS_GRAD,
                 Operation.OpType.GATHER_ND_GRAD,
                 Operation.OpType.TAKE_ALONG_AXIS_GRAD,
-                Operation.OpType.SLICE_GRAD,
                 Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD,
                 Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD
         );
     }
 
-    private static List<Operation.OpType> stridedPathEligibleElementwiseOpTypes() {
+    private static List<Operation> stridedPathEligibleElementwiseOperations() {
         return List.of(
-                Operation.OpType.ADD,
-                Operation.OpType.SUB,
-                Operation.OpType.MUL,
-                Operation.OpType.DIV,
-                Operation.OpType.MIN,
-                Operation.OpType.MAX,
-                Operation.OpType.GT,
-                Operation.OpType.GE,
-                Operation.OpType.LT,
-                Operation.OpType.LE,
-                Operation.OpType.EQ,
-                Operation.OpType.NE,
-                Operation.OpType.WHERE,
-                Operation.OpType.LOGICAL_AND,
-                Operation.OpType.LOGICAL_OR,
-                Operation.OpType.LOGICAL_NOT,
-                Operation.OpType.NEG,
-                Operation.OpType.INV,
-                Operation.OpType.LOG,
-                Operation.OpType.EXP,
-                Operation.OpType.FAST_EXP,
-                Operation.OpType.TANH,
-                Operation.OpType.FAST_TANH,
-                Operation.OpType.POW,
-                Operation.OpType.SQRT,
-                Operation.OpType.ABS,
-                Operation.OpType.MUL_SCALAR,
-                Operation.OpType.RELU,
-                Operation.OpType.CLAMP_MIN,
-                Operation.OpType.CLAMP_MAX,
-                Operation.OpType.SIGMOID
+                new operations.elementwise.binary.add(),
+                new operations.elementwise.binary.sub(),
+                new operations.elementwise.binary.mul(),
+                new operations.elementwise.binary.div(),
+                new operations.elementwise.binary.min(),
+                new operations.elementwise.binary.max(),
+                new operations.elementwise.compare.greaterThan(null),
+                new operations.elementwise.compare.greaterOrEqual(null),
+                new operations.elementwise.compare.lessThan(null),
+                new operations.elementwise.compare.lessOrEqual(null),
+                new operations.elementwise.compare.equalTo(null),
+                new operations.elementwise.compare.notEqualTo(null),
+                new operations.elementwise.where.where(),
+                new operations.elementwise.logical.logicalAnd(null),
+                new operations.elementwise.logical.logicalOr(null),
+                new operations.elementwise.logical.logicalNot(),
+                new operations.elementwise.unary.neg(),
+                new operations.elementwise.unary.inv(),
+                new operations.elementwise.unary.log(),
+                new operations.elementwise.unary.exp(),
+                new operations.elementwise.unary.fastExp(),
+                new operations.elementwise.unary.tanh(),
+                new operations.elementwise.unary.fastTanh(),
+                new operations.elementwise.unary.pow(2.0),
+                new operations.elementwise.unary.sqrt(),
+                new operations.elementwise.unary.abs(),
+                new operations.elementwise.unary.mulScalar(2.0),
+                new operations.elementwise.unary.relu(),
+                new operations.elementwise.unary.clampMin(0.0),
+                new operations.elementwise.unary.clampMax(1.0),
+                new operations.elementwise.unary.sigmoid()
         );
     }
 

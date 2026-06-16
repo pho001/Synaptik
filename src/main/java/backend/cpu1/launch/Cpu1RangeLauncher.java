@@ -2,7 +2,6 @@ package backend.cpu1.launch;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
@@ -18,8 +17,12 @@ public final class Cpu1RangeLauncher {
     }
 
     public static void launch(int elementCount, Cpu1LaunchConfig launchConfig, RangeBody body) {
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        Objects.requireNonNull(body, "body cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (body == null) {
+            throw new IllegalArgumentException("body cannot be null");
+        }
         if (elementCount <= 0) {
             return;
         }
@@ -45,8 +48,12 @@ public final class Cpu1RangeLauncher {
     }
 
     public static void launchIndexed(int elementCount, Cpu1LaunchConfig launchConfig, IndexedRangeBody body) {
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
-        Objects.requireNonNull(body, "body cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
+        if (body == null) {
+            throw new IllegalArgumentException("body cannot be null");
+        }
         if (elementCount <= 0) {
             return;
         }
@@ -73,7 +80,9 @@ public final class Cpu1RangeLauncher {
     }
 
     public static int slotCount(int elementCount, Cpu1LaunchConfig launchConfig) {
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
         if (elementCount <= 1 || launchConfig.workerCount() == 1) {
             return 1;
         }
@@ -82,7 +91,9 @@ public final class Cpu1RangeLauncher {
     }
 
     public static int chunkSize(int elementCount, Cpu1LaunchConfig launchConfig) {
-        Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
+        if (launchConfig == null) {
+            throw new IllegalArgumentException("launchConfig cannot be null");
+        }
         if (launchConfig.hasResolvedChunkSize()) {
             return launchConfig.chunkSize();
         }

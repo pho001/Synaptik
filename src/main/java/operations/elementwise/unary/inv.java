@@ -15,6 +15,36 @@ public final class inv implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.ELEMENT_WISE;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return true;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.ARITHMETIC;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.MEDIUM;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.NONE;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "inv";
     }

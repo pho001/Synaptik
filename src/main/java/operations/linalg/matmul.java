@@ -17,6 +17,36 @@ public final class matmul implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.LINEAR_ALGEBRA;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.LINEAR_ALGEBRA;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.EXPENSIVE;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.NONE;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "matmul";
     }

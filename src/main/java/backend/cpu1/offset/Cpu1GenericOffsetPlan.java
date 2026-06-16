@@ -2,8 +2,6 @@ package backend.cpu1.offset;
 
 import backend.cpu1.exec.Cpu1TensorView;
 
-import java.util.Objects;
-
 /**
  * Generic rank-N strided offset plan.
  */
@@ -18,8 +16,8 @@ public final class Cpu1GenericOffsetPlan {
         Cpu1OffsetPlanValidation.requireMatchingRank(shape, strides);
         Cpu1OffsetPlanValidation.requireNonNegative(elementCount, "elementCount");
         this.baseOffset = baseOffset;
-        this.shape = Objects.requireNonNull(shape, "shape cannot be null").clone();
-        this.strides = Objects.requireNonNull(strides, "strides cannot be null").clone();
+        this.shape = shape.clone();
+        this.strides = strides.clone();
         this.elementCount = elementCount;
         int expectedCount = 1;
         for (int dim = 0; dim < this.shape.length; dim++) {
@@ -29,7 +27,9 @@ public final class Cpu1GenericOffsetPlan {
     }
 
     public static Cpu1GenericOffsetPlan forView(Cpu1TensorView view) {
-        Objects.requireNonNull(view, "view cannot be null");
+        if (view == null) {
+            throw new IllegalArgumentException("view cannot be null");
+        }
         return new Cpu1GenericOffsetPlan(
                 view.storageOffset(),
                 view.shape(),

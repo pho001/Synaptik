@@ -36,6 +36,10 @@ public final class Cpu1PreparedLayoutUnit {
     private final int unfoldSize;
     private final int unfoldStep;
     private final Window2dOptions window2dOptions;
+    private final int[] sliceStarts;
+    private final int[] sliceAxes;
+    private final int[] sliceSteps;
+    private final int[] sliceInputShape;
 
     public Cpu1PreparedLayoutUnit(
             int nodeId,
@@ -55,7 +59,11 @@ public final class Cpu1PreparedLayoutUnit {
             int unfoldAxis,
             int unfoldSize,
             int unfoldStep,
-            Window2dOptions window2dOptions
+            Window2dOptions window2dOptions,
+            int[] sliceStarts,
+            int[] sliceAxes,
+            int[] sliceSteps,
+            int[] sliceInputShape
     ) {
         if (nodeId < 0) {
             throw new IllegalArgumentException("nodeId cannot be negative");
@@ -114,6 +122,10 @@ public final class Cpu1PreparedLayoutUnit {
         this.unfoldSize = unfoldSize;
         this.unfoldStep = unfoldStep;
         this.window2dOptions = window2dOptions;
+        this.sliceStarts = sliceStarts == null ? new int[0] : sliceStarts.clone();
+        this.sliceAxes = sliceAxes == null ? new int[0] : sliceAxes.clone();
+        this.sliceSteps = sliceSteps == null ? new int[0] : sliceSteps.clone();
+        this.sliceInputShape = sliceInputShape == null ? new int[0] : sliceInputShape.clone();
     }
 
     public int nodeId() {
@@ -194,5 +206,21 @@ public final class Cpu1PreparedLayoutUnit {
 
     public Window2dOptions window2dOptions() {
         return window2dOptions;
+    }
+
+    public int[] sliceStarts() {
+        return sliceStarts.clone();
+    }
+
+    public int[] sliceAxes() {
+        return sliceAxes.clone();
+    }
+
+    public int[] sliceSteps() {
+        return sliceSteps.clone();
+    }
+
+    public int[] sliceInputShape() {
+        return sliceInputShape.clone();
     }
 }

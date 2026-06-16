@@ -20,7 +20,7 @@ import operations.layout.concat;
 import operations.layout.fold2d;
 import operations.layout.pad;
 import operations.layout.slice;
-import operations.layout.sliceGrad;
+import operations.layout.sliceBackward;
 import operations.layout.tile;
 import operations.layout.unfold2d;
 import operations.layout.unfoldAxis;
@@ -366,7 +366,7 @@ public final class MetalPartitionSupport {
             return false;
         }
         return switch (node.operation().opType()) {
-            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, SLICE_GRAD, PAD, TILE,
+            case RESHAPE, PERMUTE, CONTIGUOUS, EXPAND, EXPAND_DIMS, SQUEEZE, SLICE, SLICE_BACKWARD, PAD, TILE,
                  UNFOLD_AXIS, UNFOLD2D, FOLD2D -> true;
             default -> false;
         };
@@ -621,7 +621,7 @@ public final class MetalPartitionSupport {
 
     private static boolean isSupportedLayoutOp(Operation.OpType opType) {
         return opType == Operation.OpType.SLICE
-                || opType == Operation.OpType.SLICE_GRAD
+                || opType == Operation.OpType.SLICE_BACKWARD
                 || opType == Operation.OpType.CONCAT
                 || opType == Operation.OpType.PAD
                 || opType == Operation.OpType.TILE
@@ -645,7 +645,7 @@ public final class MetalPartitionSupport {
         }
         return switch (opType) {
             case SLICE -> sliceUnsupportedReason(node, context, dtype, outputShape);
-            case SLICE_GRAD -> sliceGradUnsupportedReason(node, context, dtype, outputShape);
+            case SLICE_BACKWARD -> sliceBackwardUnsupportedReason(node, context, dtype, outputShape);
             case CONCAT -> concatUnsupportedReason(node, context, dtype, outputShape);
             case PAD -> padUnsupportedReason(node, context, dtype, outputShape);
             case TILE -> tileUnsupportedReason(node, context, dtype, outputShape);
@@ -699,25 +699,25 @@ public final class MetalPartitionSupport {
         return "";
     }
 
-    private static String sliceGradUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
-        if (!(node.operation() instanceof sliceGrad op)) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD descriptor is unavailable";
+    private static String sliceBackwardUnsupportedReason(CompiledNode node, PartitionPlanningContext context, tensor.DataType dtype, int[] outputShape) {
+        if (!(node.operation() instanceof sliceBackward op)) {
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD descriptor is unavailable";
         }
         if (node.inputIds().size() != 1) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD requires one input gradient";
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD requires one input gradient";
         }
         if (!dense(context, node)) {
-            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_GRAD output requires dense layout";
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_BACKWARD output requires dense layout";
         }
         CompiledNode input = context.compiledNode(node.inputIds().getFirst());
         if (input == null) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD input gradient is unavailable";
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD input gradient is unavailable";
         }
         if (dataType(context, input) != dtype) {
-            return "UNSUPPORTED_DTYPE: GPU_METAL SLICE_GRAD input/output dtype must match";
+            return "UNSUPPORTED_DTYPE: GPU_METAL SLICE_BACKWARD input/output dtype must match";
         }
         if (!layoutInputSupported(context, input)) {
-            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_GRAD input requires dense layout or GPU-side layout producer";
+            return "UNSUPPORTED_LAYOUT: GPU_METAL SLICE_BACKWARD input requires dense layout or GPU-side layout producer";
         }
         int[] gradShape = shape(context, input);
         int[] inputShape = op.getInputShape();
@@ -725,40 +725,40 @@ public final class MetalPartitionSupport {
                 || outputShape.length != inputShape.length
                 || gradShape.length != inputShape.length
                 || !Arrays.equals(outputShape, inputShape)) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD inputShape/output/gradient ranks must match rank 1..4";
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD inputShape/output/gradient ranks must match rank 1..4";
         }
         int[] starts = op.getStarts();
         int[] axes = op.getAxes();
         int[] steps = op.getSteps();
         if (starts.length != axes.length || steps.length != axes.length || axes.length > 4) {
-            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD requires aligned starts/axes/steps";
+            return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD requires aligned starts/axes/steps";
         }
         boolean[] seenAxes = new boolean[inputShape.length];
         int[] before = new int[inputShape.length];
         for (int i = 0; i < axes.length; i++) {
             int axis = axes[i];
             if (axis < 0 || axis >= inputShape.length) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD axis is outside input rank";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD axis is outside input rank";
             }
             if (seenAxes[axis]) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD duplicate axes are unsupported";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD duplicate axes are unsupported";
             }
             seenAxes[axis] = true;
             if (steps[i] != 1) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD supports step=1 only";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD supports step=1 only";
             }
             if (starts[i] < 0 || starts[i] > inputShape[axis]) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD starts must be statically in bounds";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD starts must be statically in bounds";
             }
             before[axis] = starts[i];
         }
         for (int d = 0; d < inputShape.length; d++) {
             if (!seenAxes[d] && gradShape[d] != inputShape[d]) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD unsliced dimensions must match original input shape";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD unsliced dimensions must match original input shape";
             }
             int after = inputShape[d] - before[d] - gradShape[d];
             if (after < 0) {
-                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_GRAD gradient shape must fit original input shape";
+                return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SLICE_BACKWARD gradient shape must fit original input shape";
             }
         }
         return "";
@@ -1396,7 +1396,7 @@ public final class MetalPartitionSupport {
     }
 
     private static boolean hasDirectNonDenseInput(CompiledNode node, PartitionPlanningContext context) {
-        if (node == null || node.operation() == null || context == null || node.operation().opType().category() == Operation.OpArityClass.LAYOUT) {
+        if (node == null || node.operation() == null || context == null || node.operation().arityClass() == Operation.OpArityClass.LAYOUT) {
             return false;
         }
         for (int inputId : node.inputIds()) {

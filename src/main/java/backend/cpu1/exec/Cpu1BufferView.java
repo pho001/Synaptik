@@ -4,7 +4,6 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import tensor.DataType;
 
 import java.lang.foreign.MemorySegment;
-import java.util.Objects;
 
 /**
  * CPU buffer view used by cpu1 kernels.
@@ -16,19 +15,31 @@ public final class Cpu1BufferView {
     private final MemorySegment segment;
 
     private Cpu1BufferView(DataType dataType, Cpu1StorageKind storageKind, Object array, MemorySegment segment) {
-        this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
-        this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
+        if (dataType == null) {
+            throw new IllegalArgumentException("dataType cannot be null");
+        }
+        if (storageKind == null) {
+            throw new IllegalArgumentException("storageKind cannot be null");
+        }
+        this.dataType = dataType;
+        this.storageKind = storageKind;
         this.array = array;
         this.segment = segment;
         validate();
     }
 
     public static Cpu1BufferView array(DataType dataType, Object array) {
-        return new Cpu1BufferView(dataType, Cpu1StorageKind.JAVA_ARRAY, Objects.requireNonNull(array), null);
+        if (array == null) {
+            throw new IllegalArgumentException("array cannot be null");
+        }
+        return new Cpu1BufferView(dataType, Cpu1StorageKind.JAVA_ARRAY, array, null);
     }
 
     public static Cpu1BufferView segment(DataType dataType, MemorySegment segment) {
-        return new Cpu1BufferView(dataType, Cpu1StorageKind.MEMORY_SEGMENT, null, Objects.requireNonNull(segment));
+        if (segment == null) {
+            throw new IllegalArgumentException("segment cannot be null");
+        }
+        return new Cpu1BufferView(dataType, Cpu1StorageKind.MEMORY_SEGMENT, null, segment);
     }
 
     public DataType dataType() {
@@ -90,7 +101,9 @@ public final class Cpu1BufferView {
 
     private void validate() {
         if (storageKind == Cpu1StorageKind.JAVA_ARRAY) {
-            Objects.requireNonNull(array, "array cannot be null for JAVA_ARRAY storage");
+            if (array == null) {
+                throw new IllegalArgumentException("array cannot be null for JAVA_ARRAY storage");
+            }
             if (segment != null) {
                 throw new IllegalArgumentException("segment must be null for JAVA_ARRAY storage");
             }
@@ -100,7 +113,9 @@ public final class Cpu1BufferView {
             }
             return;
         }
-        Objects.requireNonNull(segment, "segment cannot be null for MEMORY_SEGMENT storage");
+        if (segment == null) {
+            throw new IllegalArgumentException("segment cannot be null for MEMORY_SEGMENT storage");
+        }
         if (array != null) {
             throw new IllegalArgumentException("array must be null for MEMORY_SEGMENT storage");
         }

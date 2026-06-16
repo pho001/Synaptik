@@ -382,6 +382,36 @@ class RuntimeMemoryBinderTest {
 
     private record TestOperation(Operation.OpType opType) implements Operation {
         @Override
+        public OpArityClass arityClass() {
+            return OpArityClass.ELEMENT_WISE;
+        }
+
+        @Override
+        public boolean isFusable() {
+            return true;
+        }
+
+        @Override
+        public OpSemanticFamily semanticFamily() {
+            return opType == Operation.OpType.LOGICAL_OR ? OpSemanticFamily.LOGICAL : OpSemanticFamily.ARITHMETIC;
+        }
+
+        @Override
+        public OpComputationalCost computationalCost() {
+            return OpComputationalCost.CHEAP;
+        }
+
+        @Override
+        public OpControlTrait controlTrait() {
+            return opType == Operation.OpType.LOGICAL_OR ? OpControlTrait.BOOL_LOGIC : OpControlTrait.NONE;
+        }
+
+        @Override
+        public OpResultKind resultKind() {
+            return opType == Operation.OpType.LOGICAL_OR ? OpResultKind.BOOLEAN : OpResultKind.NUMERIC;
+        }
+
+        @Override
         public String getExpression() {
             return opType.name();
         }

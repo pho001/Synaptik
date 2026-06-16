@@ -68,7 +68,7 @@ final class ElementwiseFusionPlanner {
         return node != null
                 && node.operation() != null
                 && node.operation().opType() != null
-                && node.operation().opType().isFusable();
+                && node.operation().isFusable();
     }
 
     static boolean consumesUnitOutput(CompiledNode candidate, List<Integer> chain) {

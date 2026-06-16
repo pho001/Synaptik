@@ -44,7 +44,7 @@ import operations.elementwise.where.where;
 import operations.index.gatherAxisGrad;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
-import operations.layout.sliceGrad;
+import operations.layout.sliceBackward;
 import operations.nn.conv.conv2d;
 import operations.nn.pool.maxPool2d;
 import org.junit.jupiter.api.Test;
@@ -933,13 +933,13 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void metalSliceGradSupportsStaticStepOnePadBasedSubset() {
-        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72SliceGradOutGrad", DataType.FLOAT32);
+    void metalSliceBackwardSupportsStaticStepOnePadBasedSubset() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "metal72SliceBackwardOutGrad", DataType.FLOAT32);
         Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
                 outGrad,
                 new int[]{2, 4},
-                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
-                "metal72SliceGrad",
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72SliceBackward",
                 DataType.FLOAT32
         );
         BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
@@ -947,11 +947,11 @@ class MetalRegionLowererTest {
         PartitionPlanningContext context = planningContext(grad, backendIntentPlan);
 
         assertEquals("", MetalPartitionSupport.plannerUnsupportedReason(
-                context.compiledNode(nodeId(context, Operation.OpType.SLICE_GRAD)),
+                context.compiledNode(nodeId(context, Operation.OpType.SLICE_BACKWARD)),
                 context
         ));
-        assertTrue(planFor(grad, Operation.OpType.SLICE_GRAD).lowering().dagSpec().nodes().stream()
-                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_GRAD
+        assertTrue(planFor(grad, Operation.OpType.SLICE_BACKWARD).lowering().dagSpec().nodes().stream()
+                .anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_BACKWARD
                         && node.attribute0() == 0
                         && node.attribute1() == 1
                         && node.attribute4() == 0
@@ -959,20 +959,20 @@ class MetalRegionLowererTest {
     }
 
     @Test
-    void metalSliceGradCanLowerAfterElementwiseProducerWithoutCpuBoundary() {
-        Tensor outGrad = new Tensor(new float[]{-1f, 20f, 30f, -4f}, new int[]{2, 2}, null, "metal72SliceGradChainOutGrad", DataType.FLOAT32);
+    void metalSliceBackwardCanLowerAfterElementwiseProducerWithoutCpuBoundary() {
+        Tensor outGrad = new Tensor(new float[]{-1f, 20f, 30f, -4f}, new int[]{2, 2}, null, "metal72SliceBackwardChainOutGrad", DataType.FLOAT32);
         Tensor relu = outGrad.relu();
         Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
                 relu,
                 new int[]{2, 4},
-                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
-                "metal72SliceGradChain",
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "metal72SliceBackwardChain",
                 DataType.FLOAT32
         );
         PartitionPlanningContext context = planningContext(grad);
         int reluNodeId = nodeId(context, Operation.OpType.RELU);
-        int sliceGradNodeId = nodeId(context, Operation.OpType.SLICE_GRAD);
-        List<Integer> selectedNodeIds = List.of(reluNodeId, sliceGradNodeId);
+        int sliceBackwardNodeId = nodeId(context, Operation.OpType.SLICE_BACKWARD);
+        List<Integer> selectedNodeIds = List.of(reluNodeId, sliceBackwardNodeId);
 
         AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
                 ComputeBackend.GPU_METAL,
@@ -981,28 +981,28 @@ class MetalRegionLowererTest {
                         selectedNodeIds,
                         List.of(
                                 new AcceleratorSubgraphOp(reluNodeId, Operation.OpType.RELU),
-                                new AcceleratorSubgraphOp(sliceGradNodeId, Operation.OpType.SLICE_GRAD)
+                                new AcceleratorSubgraphOp(sliceBackwardNodeId, Operation.OpType.SLICE_BACKWARD)
                         ),
                         externalInputNodeIds(context, selectedNodeIds),
-                        List.of(sliceGradNodeId)
+                        List.of(sliceBackwardNodeId)
                 ),
                 context
         );
 
         assertNotNull(result);
         assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.RELU));
-        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_GRAD));
-        assertEquals(List.of(sliceGradNodeId), result.dagSpec().outputNodeIds());
+        assertTrue(result.dagSpec().nodes().stream().anyMatch(node -> node.type() == AcceleratorDagNodeType.SLICE_BACKWARD));
+        assertEquals(List.of(sliceBackwardNodeId), result.dagSpec().outputNodeIds());
     }
 
     @Test
-    void metalSliceGradRejectsStridedAndUnsupportedDtypeSubsets() {
-        Tensor outGrad = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "metal72SliceGradRejectOutGrad", DataType.FLOAT32);
+    void metalSliceBackwardRejectsStridedAndUnsupportedDtypeSubsets() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f}, new int[]{2}, null, "metal72SliceBackwardRejectOutGrad", DataType.FLOAT32);
         Tensor stridedGrad = TensorPrimitiveBuilder.unaryNoGrad(
                 outGrad,
                 new int[]{5},
-                new sliceGrad(new int[]{1}, new int[]{0}, new int[]{2}, new int[]{5}),
-                "metal72SliceGradRejectStep",
+                new sliceBackward(new int[]{1}, new int[]{0}, new int[]{2}, new int[]{5}),
+                "metal72SliceBackwardRejectStep",
                 DataType.FLOAT32
         );
         BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
@@ -1010,30 +1010,30 @@ class MetalRegionLowererTest {
         PartitionPlanningContext stepContext = planningContext(stridedGrad, backendIntentPlan);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
-                        stepContext.compiledNode(nodeId(stepContext, Operation.OpType.SLICE_GRAD)),
+                        stepContext.compiledNode(nodeId(stepContext, Operation.OpType.SLICE_BACKWARD)),
                         stepContext
                 ),
                 "UNSUPPORTED_RANK_OR_SHAPE",
-                "SLICE_GRAD supports step=1 only"
+                "SLICE_BACKWARD supports step=1 only"
         );
 
-        Tensor intOutGrad = new Tensor(new int[]{1, 2}, new int[]{2}, null, "metal72SliceGradRejectIntOutGrad", DataType.INT32);
+        Tensor intOutGrad = new Tensor(new int[]{1, 2}, new int[]{2}, null, "metal72SliceBackwardRejectIntOutGrad", DataType.INT32);
         Tensor intGrad = TensorPrimitiveBuilder.unaryNoGrad(
                 intOutGrad,
                 new int[]{4},
-                new sliceGrad(new int[]{1}, new int[]{0}, new int[]{1}, new int[]{4}),
-                "metal72SliceGradRejectInt",
+                new sliceBackward(new int[]{1}, new int[]{0}, new int[]{1}, new int[]{4}),
+                "metal72SliceBackwardRejectInt",
                 DataType.INT32
         );
         backendIntentPlan = backendIntentPlan.withBackend(intGrad, ComputeBackend.GPU_METAL);
         PartitionPlanningContext dtypeContext = planningContext(intGrad, backendIntentPlan);
         assertContainsAll(
                 MetalPartitionSupport.plannerUnsupportedReason(
-                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SLICE_GRAD)),
+                        dtypeContext.compiledNode(nodeId(dtypeContext, Operation.OpType.SLICE_BACKWARD)),
                         dtypeContext
                 ),
                 "UNSUPPORTED_DTYPE",
-                "SLICE_GRAD"
+                "SLICE_BACKWARD"
         );
     }
 
@@ -2554,6 +2554,36 @@ class MetalRegionLowererTest {
         @Override
         public OpType opType() {
             return OpType.FUSED;
+        }
+
+        @Override
+        public OpArityClass arityClass() {
+            return OpArityClass.FUSED;
+        }
+
+        @Override
+        public boolean isFusable() {
+            return false;
+        }
+
+        @Override
+        public OpSemanticFamily semanticFamily() {
+            return OpSemanticFamily.FUSED;
+        }
+
+        @Override
+        public OpComputationalCost computationalCost() {
+            return OpComputationalCost.UNKNOWN;
+        }
+
+        @Override
+        public OpControlTrait controlTrait() {
+            return OpControlTrait.UNKNOWN;
+        }
+
+        @Override
+        public OpResultKind resultKind() {
+            return OpResultKind.UNKNOWN;
         }
 
         @Override

@@ -15,6 +15,36 @@ public final class where implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.ELEMENT_WISE;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return true;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.SELECTION;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.CHEAP;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.SELECT_MASK;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.NUMERIC;
+    }
+
+    @Override
     public String getExpression() {
         return "where";
     }

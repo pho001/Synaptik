@@ -4,8 +4,6 @@ import backend.cpu1.kernels.reduction.Cpu1ReductionKernel;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.runtime.ExecutionContext;
 
-import java.util.Objects;
-
 /**
  * Runtime wrapper for a prepared cpu1 reduction node.
  */
@@ -14,7 +12,10 @@ public final class Cpu1ReductionExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1ReductionKernel kernel;
 
     public Cpu1ReductionExecutableUnit(Cpu1PreparedReductionUnit preparedUnit) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
         this.kernel = preparedUnit.kernel();
     }
 

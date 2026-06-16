@@ -22,6 +22,36 @@ public final class concat implements Operation {
     }
 
     @Override
+    public OpArityClass arityClass() {
+        return OpArityClass.LAYOUT;
+    }
+
+    @Override
+    public boolean isFusable() {
+        return false;
+    }
+
+    @Override
+    public OpSemanticFamily semanticFamily() {
+        return OpSemanticFamily.LAYOUT;
+    }
+
+    @Override
+    public OpComputationalCost computationalCost() {
+        return OpComputationalCost.MEDIUM;
+    }
+
+    @Override
+    public OpControlTrait controlTrait() {
+        return OpControlTrait.NONE;
+    }
+
+    @Override
+    public OpResultKind resultKind() {
+        return OpResultKind.SHAPE_VIEW;
+    }
+
+    @Override
     public String getExpression() {
         return "concat(axis=" + axis + ")";
     }

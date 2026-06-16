@@ -6,7 +6,6 @@ import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import tensor.DataType;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Runtime kernel arguments bound from the current execution run.
@@ -29,9 +28,18 @@ public final class Cpu1KernelArgs {
             Cpu1TensorView output,
             Cpu1ScratchBuffer scratchBuffer
     ) {
-        this.preparedUnit = Objects.requireNonNull(preparedUnit, "preparedUnit cannot be null");
-        this.inputs = List.copyOf(Objects.requireNonNull(inputs, "inputs cannot be null"));
-        this.output = Objects.requireNonNull(output, "output cannot be null");
+        if (preparedUnit == null) {
+            throw new IllegalArgumentException("preparedUnit cannot be null");
+        }
+        if (inputs == null) {
+            throw new IllegalArgumentException("inputs cannot be null");
+        }
+        if (output == null) {
+            throw new IllegalArgumentException("output cannot be null");
+        }
+        this.preparedUnit = preparedUnit;
+        this.inputs = List.copyOf(inputs);
+        this.output = output;
         this.scratchBuffer = scratchBuffer;
         validate();
         this.inputGenericOffsetPlans = preparedUnit.layoutKind() == Cpu1LayoutKind.STRIDED_GENERIC

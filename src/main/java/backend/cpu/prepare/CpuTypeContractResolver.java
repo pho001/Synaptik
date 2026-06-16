@@ -38,7 +38,7 @@ public final class CpuTypeContractResolver {
             case SCATTER_AXIS_ADD -> resolveScatterAddContract(inputs);
             case SCATTER_ELEMENTS -> resolveScatterElementsContract(op, inputs);
             case SCATTER_ND -> resolveScatterNdContract(op, inputs);
-            case SLICE_SCATTER_ADD -> resolveSingleFloatingInputContract(inputs, "sliceScatterAdd");
+            case SLICE_BACKWARD -> resolveSingleFloatingInputContract(inputs, "sliceBackward");
             case CAST -> resolveCastContract(node, inputs);
             case SCALED_DOT_PRODUCT_ATTENTION -> resolveAttentionContract(inputs);
             case SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS -> resolveSingleFloatingInputContract(inputs, "scaledDotProductAttentionWeights");

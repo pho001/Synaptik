@@ -14,7 +14,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
-import operations.layout.sliceGrad;
+import operations.layout.sliceBackward;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -175,17 +175,17 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
-    void sliceGradLowersWithPadAttributes() {
-        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "sliceGradLowerInput", DataType.FLOAT32);
+    void sliceBackwardLowersWithPadAttributes() {
+        Tensor outGrad = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "sliceBackwardLowerInput", DataType.FLOAT32);
         Tensor grad = TensorPrimitiveBuilder.unaryNoGrad(
                 outGrad,
                 new int[]{2, 4},
-                new sliceGrad(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
-                "sliceGradLower",
+                new sliceBackward(new int[]{0, 1}, new int[]{0, 1}, new int[]{1, 1}, new int[]{2, 4}),
+                "sliceBackwardLower",
                 DataType.FLOAT32
         );
         PartitionPlanningContext context = planningContext(grad);
-        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.SLICE_GRAD));
+        CompiledNode node = context.compiledNode(nodeId(context, Operation.OpType.SLICE_BACKWARD));
 
         AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(
                 ComputeBackend.GPU_METAL,
@@ -194,7 +194,7 @@ class AcceleratorSubgraphLowererTest {
         );
 
         assertNotNull(result);
-        assertEquals(AcceleratorDagNodeType.SLICE_GRAD, result.dagSpec().nodes().getFirst().type());
+        assertEquals(AcceleratorDagNodeType.SLICE_BACKWARD, result.dagSpec().nodes().getFirst().type());
         assertEquals(0, result.dagSpec().nodes().getFirst().attribute0());
         assertEquals(1, result.dagSpec().nodes().getFirst().attribute1());
         assertEquals(0, result.dagSpec().nodes().getFirst().attribute4());

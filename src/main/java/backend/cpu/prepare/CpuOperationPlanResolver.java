@@ -75,7 +75,7 @@ final class CpuOperationPlanResolver {
     }
 
     private static boolean shouldResolveDispatch(Operation op) {
-        return op != null && (op.opType().category() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED);
+        return op != null && (op.arityClass() == Operation.OpArityClass.ELEMENT_WISE || op.opType() == Operation.OpType.FUSED);
     }
 
     private static boolean shouldResolveReduction(Operation op) {

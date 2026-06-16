@@ -85,7 +85,7 @@ public final class CpuKernelRegistry {
     private static final CpuReshapeLikeKernel RESHAPE = new CpuReshapeLikeKernel();
     private static final CpuExpandKernel EXPAND = new CpuExpandKernel();
     private static final CpuAliasViewKernel ALIAS_VIEW = new CpuAliasViewKernel();
-    private static final CpuSliceScatterAddKernel SLICE_SCATTER_ADD = new CpuSliceScatterAddKernel();
+    private static final CpuSliceBackwardKernel SLICE_BACKWARD = new CpuSliceBackwardKernel();
     private static final CpuConcatKernel CONCAT = new CpuConcatKernel();
     private static final CpuPadKernel PAD = new CpuPadKernel();
     private static final CpuTileKernel TILE = new CpuTileKernel();
@@ -173,7 +173,7 @@ public final class CpuKernelRegistry {
             case RESHAPE -> RESHAPE;
             case EXPAND -> EXPAND;
             case SELECT, SLICE, EXPAND_DIMS, SQUEEZE -> ALIAS_VIEW;
-            case SLICE_SCATTER_ADD -> SLICE_SCATTER_ADD;
+            case SLICE_BACKWARD -> SLICE_BACKWARD;
             case CONCAT -> CONCAT;
             case PAD -> PAD;
             case TILE -> TILE;
@@ -185,7 +185,7 @@ public final class CpuKernelRegistry {
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
                     SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,
                     GATHER_GRAD, GATHER_AXIS_GRAD, GATHER_ND_GRAD, TAKE_ALONG_AXIS_GRAD,
-                    SLICE_GRAD, CROSS_ENTROPY_LOSS_INDICES_GRAD,
+                    CROSS_ENTROPY_LOSS_INDICES_GRAD,
                     SCALED_DOT_PRODUCT_ATTENTION_BACKWARD ->
                     throw new IllegalStateException("CPU has no direct kernel for legacy backward op type " + type);
             case CONST_SCALAR -> throw new IllegalStateException("CONST_SCALAR is an internal fused-plan op and has no standalone CPU kernel");
