@@ -10,6 +10,8 @@ import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.plan.Cpu1IterationPlan;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
+import backend.cpu1.storage.Cpu1StorageAccessKind;
+import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -20,6 +22,7 @@ import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import tensor.DataType;
+import tensor.TensorMetadata;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,6 +85,9 @@ public final class Cpu1NodePreparer {
         }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
+        Cpu1StorageAccessPlan outputAccessPlan = Cpu1StorageAccessPlan.fromNode(node);
+        List<Cpu1StorageAccessPlan> inputAccessPlans = inputAccessPlans(node, descriptorIndex, outputAccessPlan);
+        requireSupportedAccessPlans(node, inputAccessPlans, outputAccessPlan);
         DataType kernelDataType = kernelDataType(opType, node.dataType(), inputDataTypes);
         Cpu1DispatchDecision dispatchDecision = dispatchPolicy.decideElementwise(
                 operation,
@@ -92,8 +98,9 @@ public final class Cpu1NodePreparer {
         Operation.OpType kernelOpType = dispatchDecision.kernelOpType();
         ScalarParameter scalarParameter = scalarParameter(operation);
         Cpu1LayoutKind layoutKind = layoutKind(
-                node,
-                descriptorIndex,
+                outputAccessPlan,
+                inputAccessPlans,
+                descriptorIndex != null,
                 dispatchDecision
         );
         Cpu1StorageKind storageKind = dispatchDecision.storageKind();
@@ -120,7 +127,9 @@ public final class Cpu1NodePreparer {
                 scalarParameter.f32(),
                 scalarParameter.f64(),
                 inputDataTypes,
-                dispatchDecision
+                dispatchDecision,
+                inputAccessPlans,
+                outputAccessPlan
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -284,6 +293,54 @@ public final class Cpu1NodePreparer {
         return List.copyOf(inputDataTypes);
     }
 
+    private static List<Cpu1StorageAccessPlan> inputAccessPlans(
+            CompiledNode node,
+            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1StorageAccessPlan outputAccessPlan
+    ) {
+        List<Cpu1StorageAccessPlan> plans = new ArrayList<>(node.inputIds().size());
+        if (descriptorIndex == null) {
+            int[] outputShape = outputAccessPlan.shape();
+            int[] denseStrides = TensorMetadata.computeStrides(outputShape);
+            for (int ignored : node.inputIds()) {
+                plans.add(new Cpu1StorageAccessPlan(
+                        Cpu1StorageAccessKind.DENSE_CONTIGUOUS,
+                        outputShape,
+                        denseStrides,
+                        0,
+                        outputAccessPlan.elementCount(),
+                        null
+                ));
+            }
+            return List.copyOf(plans);
+        }
+        int[] outputShape = outputAccessPlan.shape();
+        for (int inputNodeId : node.inputIds()) {
+            CompiledTensorDescriptor descriptor = descriptorIndex.byNodeId(inputNodeId);
+            plans.add(Cpu1StorageAccessPlan.forBroadcastedLogicalShape(descriptor, outputShape));
+        }
+        return List.copyOf(plans);
+    }
+
+    private static void requireSupportedAccessPlans(
+            CompiledNode node,
+            List<Cpu1StorageAccessPlan> inputAccessPlans,
+            Cpu1StorageAccessPlan outputAccessPlan
+    ) {
+        if (outputAccessPlan.kind() == Cpu1StorageAccessKind.UNSUPPORTED) {
+            throw new UnsupportedOperationException("cpu1 initial preparer output access is unsupported for nodeId="
+                    + node.id() + ": " + outputAccessPlan.rejectionReason());
+        }
+        for (int i = 0; i < inputAccessPlans.size(); i++) {
+            Cpu1StorageAccessPlan inputAccessPlan = inputAccessPlans.get(i);
+            if (inputAccessPlan.kind() == Cpu1StorageAccessKind.UNSUPPORTED) {
+                throw new UnsupportedOperationException("cpu1 initial preparer input " + i
+                        + " access is unsupported for nodeId=" + node.id() + ": "
+                        + inputAccessPlan.rejectionReason());
+            }
+        }
+    }
+
     private static DataType kernelDataType(Operation.OpType opType, DataType outputDataType, List<DataType> inputDataTypes) {
         return switch (opType) {
             case GT, GE, LT, LE, EQ, NE -> inputDataTypes.getFirst();
@@ -355,22 +412,20 @@ public final class Cpu1NodePreparer {
     }
 
     private Cpu1LayoutKind layoutKind(
-            CompiledNode node,
-            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1StorageAccessPlan outputAccessPlan,
+            List<Cpu1StorageAccessPlan> inputAccessPlans,
+            boolean hasDescriptorIndex,
             Cpu1DispatchDecision dispatchDecision
     ) {
-        if (canUseBroadcastInnerVectorLayout(node, descriptorIndex, dispatchDecision)) {
+        if (canUseBroadcastInnerVectorLayout(outputAccessPlan, inputAccessPlans, hasDescriptorIndex, dispatchDecision)) {
             return Cpu1LayoutKind.BROADCAST_INNER;
         }
-        boolean strided = !node.contiguous();
-        int stridedRank = strided ? node.shape().length : -1;
-        if (descriptorIndex != null) {
-            for (int inputNodeId : node.inputIds()) {
-                CompiledTensorDescriptor descriptor = descriptorIndex.byNodeId(inputNodeId);
-                if (requiresStridedInputPath(descriptor, node)) {
-                    strided = true;
-                    stridedRank = node.shape().length;
-                }
+        boolean strided = !isLinearAccess(outputAccessPlan);
+        int stridedRank = strided ? outputAccessPlan.shape().length : -1;
+        for (Cpu1StorageAccessPlan inputAccessPlan : inputAccessPlans) {
+            if (requiresStridedInputPath(inputAccessPlan)) {
+                strided = true;
+                stridedRank = outputAccessPlan.shape().length;
             }
         }
         if (!strided) {
@@ -384,31 +439,27 @@ public final class Cpu1NodePreparer {
         };
     }
 
-    private static boolean requiresStridedInputPath(CompiledTensorDescriptor descriptor, CompiledNode node) {
-        return !descriptor.contiguous()
-                || descriptor.hasZeroStride()
-                || descriptor.rank() != node.shape().length
-                || !Arrays.equals(descriptor.shape(), node.shape())
-                || descriptor.logicalElementCount() != node.flatDataSize();
+    private static boolean requiresStridedInputPath(Cpu1StorageAccessPlan accessPlan) {
+        return !isLinearAccess(accessPlan);
     }
 
     private boolean canUseBroadcastInnerVectorLayout(
-            CompiledNode node,
-            CompiledTensorDescriptorIndex descriptorIndex,
+            Cpu1StorageAccessPlan outputAccessPlan,
+            List<Cpu1StorageAccessPlan> inputAccessPlans,
+            boolean hasDescriptorIndex,
             Cpu1DispatchDecision dispatchDecision
     ) {
-        if (descriptorIndex == null
-                || !node.contiguous()
+        if (!hasDescriptorIndex
+                || !isLinearAccess(outputAccessPlan)
                 || !dispatchPolicy.canUseBroadcastInnerVectorLayout(dispatchDecision)) {
             return false;
         }
         boolean hasBroadcastInput = false;
-        for (int inputNodeId : node.inputIds()) {
-            CompiledTensorDescriptor descriptor = descriptorIndex.byNodeId(inputNodeId);
-            if (isFullContiguousInput(descriptor, node)) {
+        for (Cpu1StorageAccessPlan inputAccessPlan : inputAccessPlans) {
+            if (isLinearAccess(inputAccessPlan)) {
                 continue;
             }
-            if (isScalarBroadcastInput(descriptor, node) || isInnerBroadcastInput(descriptor, node)) {
+            if (isScalarBroadcastInput(inputAccessPlan) || isInnerBroadcastInput(inputAccessPlan)) {
                 hasBroadcastInput = true;
                 continue;
             }
@@ -417,37 +468,31 @@ public final class Cpu1NodePreparer {
         return hasBroadcastInput;
     }
 
-    private static boolean isFullContiguousInput(CompiledTensorDescriptor descriptor, CompiledNode node) {
-        return descriptor.contiguous()
-                && descriptor.rank() == node.shape().length
-                && Arrays.equals(descriptor.shape(), node.shape())
-                && descriptor.logicalElementCount() == node.flatDataSize();
+    private static boolean isLinearAccess(Cpu1StorageAccessPlan accessPlan) {
+        return accessPlan.kind() == Cpu1StorageAccessKind.DENSE_CONTIGUOUS
+                || accessPlan.kind() == Cpu1StorageAccessKind.DENSE_WITH_OFFSET;
     }
 
-    private static boolean isScalarBroadcastInput(CompiledTensorDescriptor descriptor, CompiledNode node) {
-        return descriptor.logicalElementCount() == 1
-                && isBroadcastCompatible(descriptor.shape(), node.shape());
-    }
-
-    private static boolean isInnerBroadcastInput(CompiledTensorDescriptor descriptor, CompiledNode node) {
-        int[] outputShape = node.shape();
-        if (outputShape.length == 0 || !isBroadcastCompatible(descriptor.shape(), outputShape)) {
-            return false;
-        }
-        int[] inputShape = descriptor.shape();
-        int[] inputStrides = descriptor.strides();
-        int offset = outputShape.length - inputShape.length;
-        for (int dim = 0; dim < outputShape.length - 1; dim++) {
-            int inputDim = dim < offset ? 1 : inputShape[dim - offset];
-            int inputStride = dim < offset ? 0 : inputStrides[dim - offset];
-            if (inputDim != 1 && inputStride != 0) {
+    private static boolean isScalarBroadcastInput(Cpu1StorageAccessPlan accessPlan) {
+        for (int stride : accessPlan.strides()) {
+            if (stride != 0) {
                 return false;
             }
         }
-        int lastDim = outputShape.length - 1;
-        int inputLastDim = lastDim < offset ? 1 : inputShape[lastDim - offset];
-        int inputLastStride = lastDim < offset ? 0 : inputStrides[lastDim - offset];
-        return inputLastDim == outputShape[lastDim] && inputLastStride == 1;
+        return true;
+    }
+
+    private static boolean isInnerBroadcastInput(Cpu1StorageAccessPlan accessPlan) {
+        int[] effectiveStrides = accessPlan.strides();
+        if (effectiveStrides.length == 0) {
+            return false;
+        }
+        for (int dim = 0; dim < effectiveStrides.length - 1; dim++) {
+            if (effectiveStrides[dim] != 0) {
+                return false;
+            }
+        }
+        return effectiveStrides[effectiveStrides.length - 1] == 1;
     }
 
     private record ScalarParameter(boolean present, float f32, double f64) {

@@ -3,9 +3,12 @@ package backend.cpu1;
 import backend.ComputeBackend;
 import backend.cpu1.exec.Cpu1ReductionExecutableUnit;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelId;
+import backend.cpu1.launch.Cpu1ParallelLaunch;
+import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
+import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Cpu1ReductionExecutionContractTest {
     @Test
@@ -576,6 +581,166 @@ class Cpu1ReductionExecutionContractTest {
                 trace.metadata().attributes().get("cpu1ReductionKernelId")
         );
         assertEquals("MEAN", trace.metadata().reduction().mode());
+    }
+
+    @Test
+    void reductionPrepareCarriesParallelLaunchConfigIntoTrace() {
+        Tensor input = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f},
+                new int[]{2, 2},
+                null,
+                "input",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(input.sum(1));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
+        Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
+
+        assertEquals(4, unit.launchConfig().workerCount());
+        assertInstanceOf(Cpu1ParallelLaunch.class, unit.launchPolicy());
+
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+        assertEquals(4, trace.metadata().attributes().get("cpu1ReductionLaunchWorkers"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionLaunchChunkSize"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchF32"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchF64"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchI32"));
+        assertEquals(4, trace.metadata().reduction().plannedWorkers());
+        assertEquals(0, trace.metadata().reduction().chunkSize());
+    }
+
+    @Test
+    void preparedF32MeanUsesParallelOutputWorkItems() {
+        int rows = 64;
+        int cols = 8;
+        float[] values = new float[rows * cols];
+        float[] expected = new float[rows];
+        for (int row = 0; row < rows; row++) {
+            float sum = 0.0f;
+            for (int col = 0; col < cols; col++) {
+                float value = row * 10.0f + col;
+                values[row * cols + col] = value;
+                sum += value;
+            }
+            expected[row] = sum / cols;
+        }
+        Tensor input = new Tensor(values, new int[]{rows, cols}, null, "parallelF32MeanInput", DataType.FLOAT32);
+        Fixture fixture = fixture(input.mean(1));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
+        Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
+        assertEquals(0, unit.scratchBufferSpec().f64ArrayElements());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(expected, context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(), 1.0e-6f);
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+        assertEquals(4, trace.metadata().attributes().get("cpu1ReductionLaunchWorkers"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchF64"));
+    }
+
+    @Test
+    void preparedBf16SumUsesParallelOutputWorkItemsWithDoubleAccumulator() {
+        int rows = 16;
+        int cols = 4;
+        float[] values = new float[rows * cols];
+        float[] expected = new float[rows];
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                values[row * cols + col] = col + 1.0f;
+            }
+            expected[row] = 10.0f;
+        }
+        Tensor input = new Tensor(values, new int[]{rows, cols}, null, "parallelBf16SumInput", DataType.BFLOAT16);
+        Fixture fixture = fixture(input.sum(1));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
+        Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
+        assertEquals(0, unit.scratchBufferSpec().f64ArrayElements());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(expected, bf16ToF32(context.runtimeTensorForNodeId(fixture.node().id())), 1.0e-6f);
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+        assertEquals(4, trace.metadata().attributes().get("cpu1ReductionLaunchWorkers"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchF64"));
+    }
+
+    @Test
+    void preparedF64ScalarMeanUsesF64ScratchPartials() {
+        int elements = 64;
+        double[] values = new double[elements];
+        for (int i = 0; i < elements; i++) {
+            values[i] = i + 1.0d;
+        }
+        Tensor input = new Tensor(values, new int[]{elements}, null, "partialF64MeanInput", DataType.FLOAT64);
+        Fixture fixture = fixture(input.mean(0, true));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
+        Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
+        int expectedSlots = Cpu1RangeLauncher.slotCount(unit.axisSize(), unit.launchConfig());
+        assertEquals(expectedSlots, unit.scratchBufferSpec().f64ArrayElements());
+        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
+
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(
+                new double[]{32.5d},
+                context.runtimeTensorForNodeId(fixture.node().id()).toDoubleArrayCopy(),
+                1.0e-12
+        );
+        var trace = StepExecutionTracer.toStepTrace(
+                0,
+                new PreparedExecutionStep(fixture.node(), metadata),
+                1L,
+                context
+        );
+        assertEquals(4, trace.metadata().attributes().get("cpu1ReductionLaunchWorkers"));
+        assertEquals(expectedSlots, trace.metadata().attributes().get("cpu1ReductionScratchF64"));
+    }
+
+    @Test
+    void reductionPrepareReportsStorageAccessKindForStridedInput() {
+        Tensor base = new Tensor(
+                new float[]{
+                        1.0f, 2.0f, 3.0f,
+                        4.0f, 5.0f, 6.0f
+                },
+                new int[]{2, 3},
+                null,
+                "stridedReductionBase",
+                DataType.FLOAT32
+        );
+        Fixture fixture = fixture(base.permute(1, 0).sum(0));
+
+        UnsupportedOperationException exception = assertThrows(
+                UnsupportedOperationException.class,
+                () -> prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread())
+        );
+
+        assertTrue(exception.getMessage().contains("DENSE_CONTIGUOUS input access"));
+        assertTrue(exception.getMessage().contains("actual=STRIDED"));
     }
 
     private static Cpu1PreparedArtifact prepareRoot(Fixture fixture, Cpu1PrepareConfig config) {

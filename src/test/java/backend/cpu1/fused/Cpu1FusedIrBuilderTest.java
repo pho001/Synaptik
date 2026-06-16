@@ -5,6 +5,7 @@ import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedInputPlan;
 import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
+import backend.cpu1.storage.Cpu1StorageAccessKind;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -114,6 +115,12 @@ class Cpu1FusedIrBuilderTest {
         assertArrayEquals(new int[]{3, 1}, biasPlan.logicalOutputDenseStrides());
         assertArrayEquals(new int[]{0, 1}, biasPlan.effectiveStrides());
         assertEquals(Cpu1FusedAccessKind.BROADCAST_STRIDED, biasPlan.accessKind());
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS, biasPlan.baseAccessPlan().kind());
+        assertArrayEquals(new int[]{3}, biasPlan.baseAccessPlan().shape());
+        assertArrayEquals(new int[]{1}, biasPlan.baseAccessPlan().strides());
+        assertEquals(Cpu1StorageAccessKind.BROADCAST, biasPlan.logicalAccessPlan().kind());
+        assertArrayEquals(new int[]{2, 3}, biasPlan.logicalAccessPlan().shape());
+        assertArrayEquals(new int[]{0, 1}, biasPlan.logicalAccessPlan().strides());
         assertTrue(plan.inputs().stream()
                 .filter(input -> input.nodeId() != biasNodeId)
                 .allMatch(Cpu1FusedInputPlan::isLinearAccess));

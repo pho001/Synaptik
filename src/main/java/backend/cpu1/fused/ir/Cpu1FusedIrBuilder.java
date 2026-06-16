@@ -1,5 +1,7 @@
 package backend.cpu1.fused.ir;
 
+import backend.cpu1.storage.Cpu1StorageAccessKind;
+import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -9,8 +11,6 @@ import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import tensor.TensorMetadata;
-import tensor.layout.BroadcastPlan;
-import tensor.layout.BroadcastPlanner;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -223,16 +223,14 @@ public final class Cpu1FusedIrBuilder {
         for (int i = 0; i < externalInputNodeIds.size(); i++) {
             int inputNodeId = externalInputNodeIds.get(i);
             CompiledTensorDescriptor input = descriptorIndex.byNodeId(inputNodeId);
-            BroadcastPlan plan = BroadcastPlanner.plan(
-                    input.shape(),
-                    input.strides(),
-                    outShape,
-                    outDenseStrides
-            );
-            if (!Arrays.equals(plan.outShape(), outShape)) {
-                throw new IllegalArgumentException("Fused broadcast shape mismatch for external input nodeId=" + inputNodeId);
+            Cpu1StorageAccessPlan baseAccessPlan = Cpu1StorageAccessPlan.fromDescriptor(input);
+            Cpu1StorageAccessPlan logicalAccessPlan = Cpu1StorageAccessPlan.forBroadcastedLogicalShape(input, outShape);
+            if (logicalAccessPlan.kind() == Cpu1StorageAccessKind.UNSUPPORTED) {
+                throw new IllegalArgumentException("Fused input nodeId=" + inputNodeId
+                        + " is not broadcast-compatible with output shape "
+                        + Arrays.toString(outShape) + ": " + logicalAccessPlan.rejectionReason());
             }
-            int[] effectiveStrides = plan.aEffStrides();
+            int[] effectiveStrides = logicalAccessPlan.strides();
             plans.add(new Cpu1FusedInputPlan(
                     i,
                     inputNodeId,
@@ -243,35 +241,42 @@ public final class Cpu1FusedIrBuilder {
                     outDenseStrides,
                     input.storageOffset(),
                     effectiveStrides,
-                    classifyAccessKind(effectiveStrides, outDenseStrides, input.storageOffset())
+                    classifyAccessKind(logicalAccessPlan, outDenseStrides),
+                    baseAccessPlan,
+                    logicalAccessPlan
             ));
         }
         return List.copyOf(plans);
     }
 
     private static Cpu1FusedAccessKind classifyAccessKind(
-            int[] effectiveStrides,
-            int[] denseStrides,
-            int storageOffset
+            Cpu1StorageAccessPlan logicalAccessPlan,
+            int[] denseStrides
     ) {
-        boolean broadcast = false;
-        for (int stride : effectiveStrides) {
-            if (stride == 0) {
-                broadcast = true;
-                break;
-            }
-        }
-        if (broadcast) {
-            return Cpu1FusedAccessKind.BROADCAST_STRIDED;
-        }
-        if (storageOffset != 0) {
-            return Arrays.equals(effectiveStrides, denseStrides)
-                    ? Cpu1FusedAccessKind.OFFSET_CONTIGUOUS
+        return switch (logicalAccessPlan.kind()) {
+            case DENSE_CONTIGUOUS -> requireDenseLogicalStrides(logicalAccessPlan, denseStrides,
+                    Cpu1FusedAccessKind.DIRECT_CONTIGUOUS);
+            case DENSE_WITH_OFFSET -> requireDenseLogicalStrides(logicalAccessPlan, denseStrides,
+                    Cpu1FusedAccessKind.OFFSET_CONTIGUOUS);
+            case BROADCAST -> Cpu1FusedAccessKind.BROADCAST_STRIDED;
+            case STRIDED -> logicalAccessPlan.storageOffset() == 0
+                    ? Cpu1FusedAccessKind.DIRECT_STRIDED
                     : Cpu1FusedAccessKind.OFFSET_STRIDED;
+            case UNSUPPORTED -> throw new IllegalArgumentException("Unsupported fused logical access plan: "
+                    + logicalAccessPlan.rejectionReason());
+        };
+    }
+
+    private static Cpu1FusedAccessKind requireDenseLogicalStrides(
+            Cpu1StorageAccessPlan logicalAccessPlan,
+            int[] denseStrides,
+            Cpu1FusedAccessKind accessKind
+    ) {
+        if (!Arrays.equals(logicalAccessPlan.strides(), denseStrides)) {
+            throw new IllegalArgumentException("Dense fused logical access plan has non-dense strides: "
+                    + Arrays.toString(logicalAccessPlan.strides()));
         }
-        return Arrays.equals(effectiveStrides, denseStrides)
-                ? Cpu1FusedAccessKind.DIRECT_CONTIGUOUS
-                : Cpu1FusedAccessKind.DIRECT_STRIDED;
+        return accessKind;
     }
 
     private record CanonicalNode(

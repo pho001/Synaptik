@@ -16,6 +16,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
+import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -267,6 +268,35 @@ class Cpu1ExecutionContractTest {
                 executeCpu1(fixture, Cpu1PrepareConfig.scalarSingleThread()).toFloat32ArrayCopy(),
                 1.0e-6f
         );
+    }
+
+    @Test
+    void preparedElementwiseUnitStoresInputAndOutputAccessPlans() {
+        Tensor left = new Tensor(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f},
+                new int[]{2, 3},
+                null,
+                "left",
+                DataType.FLOAT32
+        );
+        Tensor bias = new Tensor(new float[]{10.0f, 20.0f, 30.0f}, new int[]{1, 3}, null, "bias", DataType.FLOAT32);
+        Fixture fixture = fixture(left.add(bias));
+
+        Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(
+                fixture.node(),
+                fixture.descriptorIndex(),
+                Cpu1PrepareConfig.vectorSingleThread()
+        );
+        Cpu1PreparedElementwiseUnit unit = artifact.preparedUnit();
+
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS, unit.outputAccessPlan().kind());
+        assertArrayEquals(new int[]{2, 3}, unit.outputAccessPlan().shape());
+        assertArrayEquals(new int[]{3, 1}, unit.outputAccessPlan().strides());
+        assertEquals(2, unit.inputAccessPlans().size());
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS, unit.inputAccessPlan(0).kind());
+        assertArrayEquals(new int[]{3, 1}, unit.inputAccessPlan(0).strides());
+        assertEquals(Cpu1StorageAccessKind.BROADCAST, unit.inputAccessPlan(1).kind());
+        assertArrayEquals(new int[]{0, 1}, unit.inputAccessPlan(1).strides());
     }
 
     @Test

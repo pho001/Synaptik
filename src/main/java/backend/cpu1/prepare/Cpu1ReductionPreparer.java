@@ -2,6 +2,13 @@ package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernelId;
+import backend.cpu1.launch.Cpu1LaunchConfig;
+import backend.cpu1.launch.Cpu1LaunchPolicy;
+import backend.cpu1.launch.Cpu1ParallelLaunch;
+import backend.cpu1.launch.Cpu1RangeLauncher;
+import backend.cpu1.launch.Cpu1SingleThreadLaunch;
+import backend.cpu1.storage.Cpu1StorageAccessKind;
+import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
@@ -63,6 +70,7 @@ public final class Cpu1ReductionPreparer {
         if (input != null) {
             requireInputContract(opType, node, input);
         }
+        requireOutputAccess(opType, Cpu1StorageAccessPlan.fromNode(node));
         int[] inputShape = input == null ? inferInputShape(node, operation) : input.shape();
         int axis = normalizedAxis(axis(operation), inputShape.length);
         boolean keepDims = keepDims(operation);
@@ -94,7 +102,9 @@ public final class Cpu1ReductionPreparer {
                 argMaxLastIndexWins(operation),
                 cumSumExclusive(operation),
                 cumSumReverse(operation),
-                Cpu1ScratchBufferSpec.none()
+                config.launchConfig(),
+                launchPolicy(config.launchConfig()),
+                scratchBufferSpec(opType, axisSize, innerSize, outerSize, config.launchConfig())
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -142,14 +152,35 @@ public final class Cpu1ReductionPreparer {
             throw new UnsupportedOperationException("cpu1 " + opType + " requires matching input/output dtype. input="
                     + input.dataType() + ", output=" + node.dataType());
         }
-        if (!input.denseContiguousWithoutOffset()) {
-            throw new UnsupportedOperationException("cpu1 initial " + opType
-                    + " supports only dense contiguous input without storage offset.");
+        requireInputAccess(opType, Cpu1StorageAccessPlan.fromDescriptor(input));
+    }
+
+    private static void requireInputAccess(Operation.OpType opType, Cpu1StorageAccessPlan accessPlan) {
+        requireDenseContiguousAccess(opType, "input", accessPlan);
+    }
+
+    private static void requireOutputAccess(Operation.OpType opType, Cpu1StorageAccessPlan accessPlan) {
+        requireDenseContiguousAccess(opType, "output", accessPlan);
+    }
+
+    private static void requireDenseContiguousAccess(
+            Operation.OpType opType,
+            String role,
+            Cpu1StorageAccessPlan accessPlan
+    ) {
+        if (accessPlan.kind() == Cpu1StorageAccessKind.DENSE_CONTIGUOUS) {
+            return;
         }
-        if (!node.contiguous() || node.hasStorageOffset()) {
-            throw new UnsupportedOperationException("cpu1 initial " + opType
-                    + " supports only dense contiguous output without storage offset.");
+        throw new UnsupportedOperationException("cpu1 initial " + opType
+                + " supports only DENSE_CONTIGUOUS " + role + " access; actual="
+                + accessPlan.kind() + rejectionSuffix(accessPlan));
+    }
+
+    private static String rejectionSuffix(Cpu1StorageAccessPlan accessPlan) {
+        if (accessPlan.rejectionReason() == null || accessPlan.rejectionReason().isBlank()) {
+            return "";
         }
+        return ", reason=" + accessPlan.rejectionReason();
     }
 
     private static int[] inferInputShape(CompiledNode node, Operation operation) {
@@ -411,6 +442,34 @@ public final class Cpu1ReductionPreparer {
             product = Math.multiplyExact(product, shape[i]);
         }
         return product;
+    }
+
+    private static Cpu1LaunchPolicy launchPolicy(Cpu1LaunchConfig launchConfig) {
+        if (launchConfig.workerCount() == 1) {
+            return new Cpu1SingleThreadLaunch(launchConfig);
+        }
+        return new Cpu1ParallelLaunch(launchConfig);
+    }
+
+    private static Cpu1ScratchBufferSpec scratchBufferSpec(
+            Operation.OpType opType,
+            int axisSize,
+            int innerSize,
+            int outerSize,
+            Cpu1LaunchConfig launchConfig
+    ) {
+        if (opType != Operation.OpType.SUM && opType != Operation.OpType.MEAN) {
+            return Cpu1ScratchBufferSpec.none();
+        }
+        if (launchConfig.workerCount() <= 1) {
+            return Cpu1ScratchBufferSpec.none();
+        }
+        int outputWorkItems = Math.multiplyExact(outerSize, innerSize);
+        if (outputWorkItems > 1 || axisSize < launchConfig.workerCount()) {
+            return Cpu1ScratchBufferSpec.none();
+        }
+        int slots = Cpu1RangeLauncher.slotCount(axisSize, launchConfig);
+        return Cpu1ScratchBufferSpec.arrays(0, slots, 0);
     }
 
 }
