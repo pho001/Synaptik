@@ -1,4 +1,4 @@
-package backend.cpu1.kernels.index.gather;
+package backend.cpu1.kernels.index.gathernd;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedIndexUnit;
@@ -13,13 +13,13 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 
 /**
- * Dense contiguous gather loops.
+ * Dense contiguous GatherND loops.
  */
-public final class Cpu1GatherLoops {
-    private Cpu1GatherLoops() {
+public final class Cpu1GatherNdLoops {
+    private Cpu1GatherNdLoops() {
     }
 
-    public static void gatherF32I32DenseArray(
+    public static void gatherNdF32I32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -28,11 +28,12 @@ public final class Cpu1GatherLoops {
         float[] source = input.float32Array();
         int[] indexValues = indices.int32Array();
         float[] destination = output.float32Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF32I32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF32I32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF32I64DenseArray(
+    public static void gatherNdF32I64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -41,11 +42,12 @@ public final class Cpu1GatherLoops {
         float[] source = input.float32Array();
         long[] indexValues = indices.int64Array();
         float[] destination = output.float32Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF32I64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF32I64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF64I32DenseArray(
+    public static void gatherNdF64I32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -54,11 +56,12 @@ public final class Cpu1GatherLoops {
         double[] source = input.float64Array();
         int[] indexValues = indices.int32Array();
         double[] destination = output.float64Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF64I32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF64I32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF64I64DenseArray(
+    public static void gatherNdF64I64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -67,11 +70,12 @@ public final class Cpu1GatherLoops {
         double[] source = input.float64Array();
         long[] indexValues = indices.int64Array();
         double[] destination = output.float64Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF64I64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF64I64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBf16I32DenseArray(
+    public static void gatherNdBf16I32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -80,11 +84,12 @@ public final class Cpu1GatherLoops {
         short[] source = input.bfloat16Array();
         int[] indexValues = indices.int32Array();
         short[] destination = output.bfloat16Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBf16I32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBf16I32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBf16I64DenseArray(
+    public static void gatherNdBf16I64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -93,11 +98,12 @@ public final class Cpu1GatherLoops {
         short[] source = input.bfloat16Array();
         long[] indexValues = indices.int64Array();
         short[] destination = output.bfloat16Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBf16I64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBf16I64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI32I32DenseArray(
+    public static void gatherNdI32I32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -106,11 +112,12 @@ public final class Cpu1GatherLoops {
         int[] source = input.int32Array();
         int[] indexValues = indices.int32Array();
         int[] destination = output.int32Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI32I32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI32I32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI32I64DenseArray(
+    public static void gatherNdI32I64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -119,11 +126,12 @@ public final class Cpu1GatherLoops {
         int[] source = input.int32Array();
         long[] indexValues = indices.int64Array();
         int[] destination = output.int32Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI32I64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI32I64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI64I32DenseArray(
+    public static void gatherNdI64I32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -132,11 +140,12 @@ public final class Cpu1GatherLoops {
         long[] source = input.int64Array();
         int[] indexValues = indices.int32Array();
         long[] destination = output.int64Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI64I32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI64I32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI64I64DenseArray(
+    public static void gatherNdI64I64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -145,11 +154,12 @@ public final class Cpu1GatherLoops {
         long[] source = input.int64Array();
         long[] indexValues = indices.int64Array();
         long[] destination = output.int64Array();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI64I64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI64I64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBoolI32DenseArray(
+    public static void gatherNdBoolI32DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -158,11 +168,12 @@ public final class Cpu1GatherLoops {
         byte[] source = input.boolArray();
         int[] indexValues = indices.int32Array();
         byte[] destination = output.boolArray();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBoolI32Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBoolI32Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBoolI64DenseArray(
+    public static void gatherNdBoolI64DenseArray(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -171,11 +182,12 @@ public final class Cpu1GatherLoops {
         byte[] source = input.boolArray();
         long[] indexValues = indices.int64Array();
         byte[] destination = output.boolArray();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBoolI64Range(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBoolI64Range(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF32I32DenseSegment(
+    public static void gatherNdF32I32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -184,11 +196,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF32I32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF32I32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF32I64DenseSegment(
+    public static void gatherNdF32I64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -197,11 +210,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF32I64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF32I64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF64I32DenseSegment(
+    public static void gatherNdF64I32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -210,11 +224,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF64I32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF64I32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherF64I64DenseSegment(
+    public static void gatherNdF64I64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -223,11 +238,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherF64I64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdF64I64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBf16I32DenseSegment(
+    public static void gatherNdBf16I32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -236,11 +252,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBf16I32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBf16I32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBf16I64DenseSegment(
+    public static void gatherNdBf16I64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -249,11 +266,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBf16I64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBf16I64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI32I32DenseSegment(
+    public static void gatherNdI32I32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -262,11 +280,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI32I32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI32I32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI32I64DenseSegment(
+    public static void gatherNdI32I64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -275,11 +294,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI32I64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI32I64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI64I32DenseSegment(
+    public static void gatherNdI64I32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -288,11 +308,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI64I32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI64I32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherI64I64DenseSegment(
+    public static void gatherNdI64I64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -301,11 +322,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherI64I64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdI64I64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBoolI32DenseSegment(
+    public static void gatherNdBoolI32DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -314,11 +336,12 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBoolI32SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBoolI32SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    public static void gatherBoolI64DenseSegment(
+    public static void gatherNdBoolI64DenseSegment(
             Cpu1PreparedIndexUnit unit,
             Cpu1TensorView input,
             Cpu1TensorView indices,
@@ -327,215 +350,190 @@ public final class Cpu1GatherLoops {
         MemorySegment source = input.segment();
         MemorySegment indexValues = indices.segment();
         MemorySegment destination = output.segment();
+        GatherNdDensePlan plan = GatherNdDensePlan.from(unit);
         launch(unit, (startInclusive, endExclusive) ->
-                gatherBoolI64SegmentRange(source, indexValues, destination, unit, startInclusive, endExclusive));
+                gatherNdBoolI64SegmentRange(source, indexValues, destination, plan, startInclusive, endExclusive));
     }
 
-    private static void gatherF32I32Range(
+    private static void gatherNdF32I32Range(
             float[] source,
             int[] indexValues,
             float[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherF32I64Range(
+    private static void gatherNdF32I64Range(
             float[] source,
             long[] indexValues,
             float[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherF64I32Range(
+    private static void gatherNdF64I32Range(
             double[] source,
             int[] indexValues,
             double[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherF64I64Range(
+    private static void gatherNdF64I64Range(
             double[] source,
             long[] indexValues,
             double[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherBf16I32Range(
+    private static void gatherNdBf16I32Range(
             short[] source,
             int[] indexValues,
             short[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherBf16I64Range(
+    private static void gatherNdBf16I64Range(
             short[] source,
             long[] indexValues,
             short[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherI32I32Range(
+    private static void gatherNdI32I32Range(
             int[] source,
             int[] indexValues,
             int[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherI32I64Range(
+    private static void gatherNdI32I64Range(
             int[] source,
             long[] indexValues,
             int[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherI64I32Range(
+    private static void gatherNdI64I32Range(
             long[] source,
             int[] indexValues,
             long[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherI64I64Range(
+    private static void gatherNdI64I64Range(
             long[] source,
             long[] indexValues,
             long[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherBoolI32Range(
+    private static void gatherNdBoolI32Range(
             byte[] source,
             int[] indexValues,
             byte[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI32(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherBoolI64Range(
+    private static void gatherNdBoolI64Range(
             byte[] source,
             long[] indexValues,
             byte[] destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues[logical], axisSize);
-            destination[logical] = source[sourceOffset(logical, axisIndex, axisSize, innerSize)];
+            destination[logical] = source[sourceOffsetI64(indexValues, plan, logical, coords)];
         }
     }
 
-    private static void gatherF32I32SegmentRange(
+    private static void gatherNdF32I32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_FLOAT,
                     (long) logical * Float.BYTES,
@@ -544,19 +542,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherF32I64SegmentRange(
+    private static void gatherNdF32I64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_FLOAT,
                     (long) logical * Float.BYTES,
@@ -565,19 +561,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherF64I32SegmentRange(
+    private static void gatherNdF64I32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_DOUBLE,
                     (long) logical * Double.BYTES,
@@ -586,19 +580,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherF64I64SegmentRange(
+    private static void gatherNdF64I64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_DOUBLE,
                     (long) logical * Double.BYTES,
@@ -607,19 +599,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherBf16I32SegmentRange(
+    private static void gatherNdBf16I32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_SHORT,
                     (long) logical * Short.BYTES,
@@ -628,19 +618,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherBf16I64SegmentRange(
+    private static void gatherNdBf16I64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_SHORT,
                     (long) logical * Short.BYTES,
@@ -649,19 +637,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherI32I32SegmentRange(
+    private static void gatherNdI32I32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_INT,
                     (long) logical * Integer.BYTES,
@@ -670,19 +656,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherI32I64SegmentRange(
+    private static void gatherNdI32I64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_INT,
                     (long) logical * Integer.BYTES,
@@ -691,19 +675,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherI64I32SegmentRange(
+    private static void gatherNdI64I32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_LONG,
                     (long) logical * Long.BYTES,
@@ -712,19 +694,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherI64I64SegmentRange(
+    private static void gatherNdI64I64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_LONG,
                     (long) logical * Long.BYTES,
@@ -733,19 +713,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherBoolI32SegmentRange(
+    private static void gatherNdBoolI32SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_INT, (long) logical * Integer.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI32(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_BYTE,
                     (long) logical * Byte.BYTES,
@@ -754,19 +732,17 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static void gatherBoolI64SegmentRange(
+    private static void gatherNdBoolI64SegmentRange(
             MemorySegment source,
             MemorySegment indexValues,
             MemorySegment destination,
-            Cpu1PreparedIndexUnit unit,
+            GatherNdDensePlan plan,
             int startInclusive,
             int endExclusive
     ) {
-        int axisSize = unit.axisSize();
-        int innerSize = unit.innerSize();
+        int[] coords = new int[plan.outputShape.length];
         for (int logical = startInclusive; logical < endExclusive; logical++) {
-            int axisIndex = validateIndex(indexValues.get(JAVA_LONG, (long) logical * Long.BYTES), axisSize);
-            int sourceOffset = sourceOffset(logical, axisIndex, axisSize, innerSize);
+            int sourceOffset = sourceOffsetI64(indexValues, plan, logical, coords);
             destination.set(
                     JAVA_BYTE,
                     (long) logical * Byte.BYTES,
@@ -775,26 +751,157 @@ public final class Cpu1GatherLoops {
         }
     }
 
-    private static int sourceOffset(int outputLogical, int axisIndex, int axisSize, int innerSize) {
-        int outer = outputLogical / innerSize;
-        int inner = outputLogical - outer * innerSize;
-        return (outer * axisSize + axisIndex) * innerSize + inner;
-    }
-
-    private static int validateIndex(long index, int axisSize) {
-        if (index < 0L || index >= axisSize) {
-            throw new IllegalArgumentException("Gather index out of bounds: " + index
-                    + " for axis size " + axisSize);
+    private static int sourceOffsetI32(
+            int[] indexValues,
+            GatherNdDensePlan plan,
+            int outputLogical,
+            int[] coords
+    ) {
+        fillOutputCoords(outputLogical, plan, coords);
+        int indexBaseLogical = indexBaseLogical(plan, coords);
+        int source = batchSourceOffset(plan, coords);
+        for (int d = 0; d < plan.tupleRank; d++) {
+            int inputDim = plan.batchDims + d;
+            int coord = normalizeIndex(indexValues[indexBaseLogical + d * plan.tupleStride], plan.inputShape[inputDim]);
+            source += coord * plan.inputStrides[inputDim];
         }
-        return (int) index;
+        return source + suffixSourceOffset(plan, coords);
     }
 
-    private static void launch(Cpu1PreparedIndexUnit unit, GatherRangeTask task) {
+    private static int sourceOffsetI64(
+            long[] indexValues,
+            GatherNdDensePlan plan,
+            int outputLogical,
+            int[] coords
+    ) {
+        fillOutputCoords(outputLogical, plan, coords);
+        int indexBaseLogical = indexBaseLogical(plan, coords);
+        int source = batchSourceOffset(plan, coords);
+        for (int d = 0; d < plan.tupleRank; d++) {
+            int inputDim = plan.batchDims + d;
+            int coord = normalizeIndex(indexValues[indexBaseLogical + d * plan.tupleStride], plan.inputShape[inputDim]);
+            source += coord * plan.inputStrides[inputDim];
+        }
+        return source + suffixSourceOffset(plan, coords);
+    }
+
+    private static int sourceOffsetI32(
+            MemorySegment indexValues,
+            GatherNdDensePlan plan,
+            int outputLogical,
+            int[] coords
+    ) {
+        fillOutputCoords(outputLogical, plan, coords);
+        int indexBaseLogical = indexBaseLogical(plan, coords);
+        int source = batchSourceOffset(plan, coords);
+        for (int d = 0; d < plan.tupleRank; d++) {
+            int inputDim = plan.batchDims + d;
+            int indexLogical = indexBaseLogical + d * plan.tupleStride;
+            int coord = normalizeIndex(
+                    indexValues.get(JAVA_INT, (long) indexLogical * Integer.BYTES),
+                    plan.inputShape[inputDim]
+            );
+            source += coord * plan.inputStrides[inputDim];
+        }
+        return source + suffixSourceOffset(plan, coords);
+    }
+
+    private static int sourceOffsetI64(
+            MemorySegment indexValues,
+            GatherNdDensePlan plan,
+            int outputLogical,
+            int[] coords
+    ) {
+        fillOutputCoords(outputLogical, plan, coords);
+        int indexBaseLogical = indexBaseLogical(plan, coords);
+        int source = batchSourceOffset(plan, coords);
+        for (int d = 0; d < plan.tupleRank; d++) {
+            int inputDim = plan.batchDims + d;
+            int indexLogical = indexBaseLogical + d * plan.tupleStride;
+            int coord = normalizeIndex(
+                    indexValues.get(JAVA_LONG, (long) indexLogical * Long.BYTES),
+                    plan.inputShape[inputDim]
+            );
+            source += coord * plan.inputStrides[inputDim];
+        }
+        return source + suffixSourceOffset(plan, coords);
+    }
+
+    private static void fillOutputCoords(int outputLogical, GatherNdDensePlan plan, int[] coords) {
+        int rem = outputLogical;
+        for (int d = 0; d < plan.outputShape.length; d++) {
+            int coord = rem / plan.outputDenseStrides[d];
+            rem -= coord * plan.outputDenseStrides[d];
+            coords[d] = coord;
+        }
+    }
+
+    private static int indexBaseLogical(GatherNdDensePlan plan, int[] coords) {
+        int indexBaseLogical = 0;
+        for (int d = 0; d < plan.prefixRank; d++) {
+            indexBaseLogical += coords[d] * plan.indicesDenseStrides[d];
+        }
+        return indexBaseLogical;
+    }
+
+    private static int batchSourceOffset(GatherNdDensePlan plan, int[] coords) {
+        int source = 0;
+        for (int d = 0; d < plan.batchDims; d++) {
+            source += coords[d] * plan.inputStrides[d];
+        }
+        return source;
+    }
+
+    private static int suffixSourceOffset(GatherNdDensePlan plan, int[] coords) {
+        int source = 0;
+        for (int d = plan.batchDims + plan.tupleRank; d < plan.inputShape.length; d++) {
+            int suffixCoord = coords[plan.prefixRank + d - plan.batchDims - plan.tupleRank];
+            source += suffixCoord * plan.inputStrides[d];
+        }
+        return source;
+    }
+
+    private static int normalizeIndex(long index, int dimensionSize) {
+        long normalized = index < 0L ? index + dimensionSize : index;
+        if (normalized < 0L || normalized >= dimensionSize) {
+            throw new IllegalArgumentException("GatherND index out of bounds: " + index
+                    + " for dimension size " + dimensionSize);
+        }
+        return (int) normalized;
+    }
+
+    private static void launch(Cpu1PreparedIndexUnit unit, GatherNdRangeTask task) {
         unit.launchPolicy().launch(unit.outputElementCount(), task::run);
     }
 
     @FunctionalInterface
-    private interface GatherRangeTask {
+    private interface GatherNdRangeTask {
         void run(int startInclusive, int endExclusive);
+    }
+
+    private record GatherNdDensePlan(
+            int batchDims,
+            int tupleRank,
+            int prefixRank,
+            int tupleStride,
+            int[] inputShape,
+            int[] inputStrides,
+            int[] indicesDenseStrides,
+            int[] outputShape,
+            int[] outputDenseStrides
+    ) {
+        static GatherNdDensePlan from(Cpu1PreparedIndexUnit unit) {
+            return new GatherNdDensePlan(
+                    unit.batchDims(),
+                    unit.tupleRank(),
+                    unit.prefixRank(),
+                    unit.tupleStride(),
+                    unit.gatherNdInputShape(),
+                    unit.gatherNdInputStrides(),
+                    unit.gatherNdIndicesDenseStrides(),
+                    unit.gatherNdOutputShape(),
+                    unit.gatherNdOutputDenseStrides()
+            );
+        }
     }
 }

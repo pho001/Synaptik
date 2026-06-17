@@ -5,6 +5,7 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.Tensor;
+import tensor.storage.NativeTensorStorage;
 
 /**
  * Runtime wrapper for a prepared cpu1 index node.
@@ -28,33 +29,101 @@ public final class Cpu1IndexExecutableUnit implements Cpu1ExecutableUnit {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
-        if (preparedUnit.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
-            throw new UnsupportedOperationException("cpu1 GATHER executable supports only JAVA_ARRAY storage, got "
-                    + preparedUnit.storageKind());
-        }
-        context.requireCpuReadable(preparedUnit.inputNodeId(), CpuMaterializationReason.CPU_CONSUMER);
-        context.requireCpuReadable(preparedUnit.indexNodeId(), CpuMaterializationReason.CPU_CONSUMER);
         Tensor inputTensor = context.runtimeTensorForNodeId(preparedUnit.inputNodeId());
         Tensor indexTensor = context.runtimeTensorForNodeId(preparedUnit.indexNodeId());
+        Tensor updateTensor = preparedUnit.hasUpdateInput()
+                ? context.runtimeTensorForNodeId(preparedUnit.updateNodeId())
+                : null;
         Tensor outputTensor = context.runtimeTensorForNodeId(preparedUnit.nodeId());
-        Cpu1TensorView input = Cpu1TensorView.fromTensor(inputTensor);
-        Cpu1TensorView indices = Cpu1TensorView.fromTensor(indexTensor);
-        Cpu1TensorView output = Cpu1TensorView.fromTensor(outputTensor);
-        requireArrayView("input", input);
-        requireArrayView("indices", indices);
-        requireArrayView("output", output);
+        NativeTensorStorage nativeOutput = null;
+        Cpu1TensorView input;
+        Cpu1TensorView indices;
+        Cpu1TensorView updates = null;
+        Cpu1TensorView output;
+        if (preparedUnit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
+            NativeTensorStorage nativeInput = context.requireNativeReadable(
+                    preparedUnit.inputNodeId(),
+                    CpuMaterializationReason.CPU_CONSUMER
+            );
+            NativeTensorStorage nativeIndices = context.requireNativeReadable(
+                    preparedUnit.indexNodeId(),
+                    CpuMaterializationReason.CPU_CONSUMER
+            );
+            NativeTensorStorage nativeUpdates = preparedUnit.hasUpdateInput()
+                    ? context.requireNativeReadable(
+                            preparedUnit.updateNodeId(),
+                            CpuMaterializationReason.CPU_CONSUMER
+                    )
+                    : null;
+            nativeOutput = context.requireNativeOutputStorage(
+                    preparedUnit.nodeId(),
+                    preparedUnit.valueDataType(),
+                    preparedUnit.outputElementCount(),
+                    "cpu1-index-node-" + preparedUnit.nodeId()
+            );
+            input = Cpu1TensorView.fromNativeStorage(inputTensor, nativeInput);
+            indices = Cpu1TensorView.fromNativeStorage(indexTensor, nativeIndices);
+            if (nativeUpdates != null) {
+                updates = Cpu1TensorView.fromNativeStorage(updateTensor, nativeUpdates);
+            }
+            output = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
+            requireSegmentView("input", input);
+            requireSegmentView("indices", indices);
+            if (updates != null) {
+                requireSegmentView("updates", updates);
+            }
+            requireSegmentView("output", output);
+        } else if (preparedUnit.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
+            context.requireCpuReadable(preparedUnit.inputNodeId(), CpuMaterializationReason.CPU_CONSUMER);
+            context.requireCpuReadable(preparedUnit.indexNodeId(), CpuMaterializationReason.CPU_CONSUMER);
+            if (preparedUnit.hasUpdateInput()) {
+                context.requireCpuReadable(preparedUnit.updateNodeId(), CpuMaterializationReason.CPU_CONSUMER);
+            }
+            input = Cpu1TensorView.fromTensor(inputTensor);
+            indices = Cpu1TensorView.fromTensor(indexTensor);
+            if (updateTensor != null) {
+                updates = Cpu1TensorView.fromTensor(updateTensor);
+            }
+            output = Cpu1TensorView.fromTensor(outputTensor);
+            requireArrayView("input", input);
+            requireArrayView("indices", indices);
+            if (updates != null) {
+                requireArrayView("updates", updates);
+            }
+            requireArrayView("output", output);
+        } else {
+            throw new UnsupportedOperationException("cpu1 " + preparedUnit.opType()
+                    + " executable does not support storage " + preparedUnit.storageKind());
+        }
 
-        preparedUnit.kernel().run(preparedUnit, input, indices, output);
+        preparedUnit.kernel().run(preparedUnit, input, indices, updates, output);
 
-        output.markStorageModified();
-        context.markCpuCurrent(preparedUnit.nodeId(), "cpu1 GATHER wrote CPU array");
+        if (nativeOutput == null) {
+            output.markStorageModified();
+            context.markCpuCurrent(preparedUnit.nodeId(), "cpu1 " + preparedUnit.opType() + " wrote CPU array");
+        } else {
+            nativeOutput.markModified();
+            context.attachNativeStorage(
+                    preparedUnit.nodeId(),
+                    nativeOutput,
+                    "cpu1 " + preparedUnit.opType() + " wrote native CPU segment"
+            );
+        }
     }
 
     private static void requireArrayView(String role, Cpu1TensorView view) {
         if (view.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
             return;
         }
-        throw new UnsupportedOperationException("cpu1 GATHER first slice supports only JAVA_ARRAY runtime "
+        throw new UnsupportedOperationException("cpu1 index dense slice supports only JAVA_ARRAY runtime "
+                + role + " storage, got " + view.storageKind());
+    }
+
+    private static void requireSegmentView(String role, Cpu1TensorView view) {
+        if (view.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
+            return;
+        }
+        throw new UnsupportedOperationException("cpu1 index dense slice supports only MEMORY_SEGMENT runtime "
                 + role + " storage, got " + view.storageKind());
     }
 }

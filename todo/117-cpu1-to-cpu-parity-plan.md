@@ -23,7 +23,7 @@ Aktualni stav fazi:
 - [x] Faze 3: shared storage access plan, reduction native segment a strided/view policy
 - [x] Faze 4: softmax/logSoftmax runtime width
 - [x] Faze 5: loss vetev pro NLL a CrossEntropy; dense scope complete, strided/view deferred
-- [~] Faze 6: index/gather/scatter operace
+- [x] Faze 6: index/gather/scatter operace; dense direct scope complete, strided/view a parallel scatter deferred
 - [ ] Faze 7: linear, NN a normalization kernely
 - [ ] Faze 8: linear algebra a attention parita
 - [ ] Faze 9: native storage, BF16 a mixed residency policy
@@ -511,20 +511,15 @@ Stary CPU podporuje:
 
 cpu1:
 
-- nema samostatnou index family
+- ma samostatnou index family pro dense contiguous/no-offset read-only gather
+  slice (`GATHER`, `GATHER_AXIS`, `GATHER_ND`, `TAKE_ALONG_AXIS`)
 - cast backward/layout scatter semantiky se resila pres `SLICE_BACKWARD`
 - index gradients nejsou primy CPU kernel ani ve starem CPU registry
 
 Zbyvajici parity prace:
 
-- vytvorit `backend.cpu1.kernels.index`
-- vytvorit `Cpu1IndexPreparer`
-- podporovat first wave:
-  - `GATHER`
-  - `GATHER_AXIS`
-  - `TAKE_ALONG_AXIS`
-- second wave:
-  - `GATHER_ND`
+- rozsirit existujici `backend.cpu1.kernels.index` mimo dense read-only gather
+- second wave zbyva:
   - `SCATTER_ADD`
   - `SCATTER_AXIS_ADD`
 - third wave:
@@ -1620,12 +1615,24 @@ Aktualni omezeni:
 
 ## Faze 6: Index / Gather / Scatter Family
 
-Status: `[~]`
+Status: `[x]` dense direct scope complete; strided/view/offset materialization `[deferred]` do
+[todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md);
+parallel scatter `[deferred]`
 
-Poznamka: prvni slice je hotovy pro `GATHER` dense contiguous/no-offset
-`JAVA_ARRAY` s hodnotovymi dtype `FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`,
-`INT64`, `BOOL` a index dtype `INT32`/`INT64`. `GATHER_AXIS`,
-`TAKE_ALONG_AXIS` a scatter opy zustavaji mimo tento slice.
+Poznamka: Wave 1 slice je hotovy pro `GATHER`, `GATHER_AXIS` a
+`TAKE_ALONG_AXIS` dense contiguous/no-offset `JAVA_ARRAY` s hodnotovymi dtype
+`FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`, `INT64`, `BOOL` a index dtype
+`INT32`/`INT64`.
+
+Dense contiguous/no-offset `MEMORY_SEGMENT` podpora pro tyto read-only index
+opy je samostatne naplanovana jako Wave 1B. Neni to soucast strided/view
+materialization policy: ma jit o prime segment kernely bez obecneho runtime
+storage accessoru a bez fallbacku do stareho `backend.cpu`.
+
+`GATHER_ND` bylo doplneno ve Wave 2A se stejnym dense contiguous/no-offset
+kontraktem. `SCATTER_ADD` a `SCATTER_AXIS_ADD` jsou doplnene ve Wave 2B jako
+dense direct single-thread scatter-add slice. Wave 3 doplnila `SCATTER_ELEMENTS`
+a `SCATTER_ND`, takze dense direct index/scatter scope je hotovy.
 
 ### Proc
 
@@ -1650,6 +1657,8 @@ backend.cpu1.kernels.index
     Cpu1GatherLoops
   gatheraxis/
     Cpu1GatherAxisLoops
+  takealongaxis/
+    Cpu1TakeAlongAxisLoops
   gathernd/
     Cpu1GatherNdLoops
   scatter/
@@ -1679,8 +1688,8 @@ public final class Cpu1PreparedIndexUnit {
 ### Wave 1
 
 - [x] `GATHER`
-- [ ] `GATHER_AXIS`
-- [ ] `TAKE_ALONG_AXIS`
+- [x] `GATHER_AXIS`
+- [x] `TAKE_ALONG_AXIS`
 
 Proc prvni:
 
@@ -1688,16 +1697,178 @@ Proc prvni:
 - nemaji duplicate write race
 - dobre se paralelizuji pres output elements
 
+### Wave 1B
+
+Dense contiguous/no-offset `MEMORY_SEGMENT` parita pro hotove read-only index
+opy:
+
+- [x] `GATHER MEMORY_SEGMENT`
+- [x] `GATHER_AXIS MEMORY_SEGMENT`
+- [x] `TAKE_ALONG_AXIS MEMORY_SEGMENT`
+
+Proc samostatne:
+
+- algoritmus a tvarova semantika uz jsou overene na `JAVA_ARRAY`
+- segment cesta musi pridat explicitni `MemorySegment.get/set` hot path pro
+  `FLOAT32`, `FLOAT64`, `BFLOAT16`, `INT32`, `INT64`, `BOOL`
+- index segmenty musi podporovat `INT32` a `INT64`
+- BF16 musi kopirovat raw `short` bity, ne jit pres obecny accessor
+- nechceme zavest univerzalni segment reader/writer do hot path jen kvuli
+  rychlemu pokryti
+
+Rozsah:
+
+- stale pouze dense contiguous/no-offset input, indices a output
+- zadna strided/view/offset cesta
+- zadna skryta materializace v cpu1 prepare/kernel
+- zadny fallback do stareho `backend.cpu`
+- prepare vybere konkretni segment kernel id a execute jen spusti pripraveny
+  kernel
+
+Overeni:
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1GatherExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1CpuParityInventoryTest
+./gradlew classes
+git diff --check
+```
+
 ### Wave 2
 
-- [ ] `GATHER_ND`
-- [ ] `SCATTER_ADD`
-- [ ] `SCATTER_AXIS_ADD`
+- [x] `GATHER_ND`
+- [x] `SCATTER_ADD`
+- [x] `SCATTER_AXIS_ADD`
+
+#### Wave 2A: `GATHER_ND`
+
+Hotovo:
+
+- dense contiguous/no-offset `JAVA_ARRAY`
+- dense contiguous/no-offset `MEMORY_SEGMENT`
+- value dtype:
+  - `FLOAT32`
+  - `FLOAT64`
+  - `BFLOAT16`
+  - `INT32`
+  - `INT64`
+  - `BOOL`
+- index dtype:
+  - `INT32`
+  - `INT64`
+- tuple indexed elementy
+- tuple indexed slices
+- `batchDims`
+- project scalar shape `[1]`
+- negativni indexy normalizovane podle velikosti indexovane dimenze
+- BF16 raw `short` bit copy
+
+Implementacni hranice:
+
+- zadny fallback do stareho `backend.cpu`
+- zadny generic hot-path storage accessor
+- zadna skryta materializace v cpu1 prepare/kernel
+- strided/view/offset vstupy, indexy a vystupy jsou stale odmítnute pres
+  dense contiguous/no-offset kontrakt
+- `GATHER_ND_GRAD` neni novy primy cpu1 kernel; stejne jako ve verejne
+  semantice zustava backward skladany pres scatter lowering
+
+Overeni:
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1GatherExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1CpuParityInventoryTest
+./gradlew classes
+git diff --check
+```
+
+#### Wave 2B: `SCATTER_ADD` A `SCATTER_AXIS_ADD`
+
+Hotovo:
+
+- `SCATTER_ADD` dense contiguous/no-offset `JAVA_ARRAY`
+- `SCATTER_ADD` dense contiguous/no-offset `MEMORY_SEGMENT`
+- `SCATTER_AXIS_ADD` dense contiguous/no-offset `JAVA_ARRAY`
+- `SCATTER_AXIS_ADD` dense contiguous/no-offset `MEMORY_SEGMENT`
+- value dtype:
+  - `FLOAT32`
+  - `FLOAT64`
+  - `BFLOAT16`
+- index dtype:
+  - `INT32`
+  - `INT64`
+- output zacina jako kopie base/data tensoru
+- duplicate indices akumuluji deterministicky v logical order
+- `SCATTER_ADD` zachovava stare CPU chovani: negativni index je out-of-bounds
+- `SCATTER_AXIS_ADD` zachovava gather-axis chovani: negativni index se
+  normalizuje podle velikosti osy
+- BF16 pocita akumulaci pres `F32` a zapisuje `BF16` raw bity
+- prepare vynuti deterministic single-thread launch (`workerCount=1`) i pokud
+  runtime config pozaduje paralelizaci
+- trace ukazuje kernel id, storage kind, op type, update element count a
+  single-thread launch
+
+Implementacni hranice:
+
+- zadny fallback do stareho `backend.cpu`
+- zadny generic hot-path storage accessor
+- zadna skryta materializace v cpu1 prepare/kernel
+- strided/view/offset base/data, indices, updates a output jsou odmítnute pres
+  dense contiguous/no-offset kontrakt
+- paralelni scatter neni implementovany kvuli duplicate-index write race
+- `SCATTER_ELEMENTS` a `SCATTER_ND` zustavaji ve Wave 3
+
+Overeni:
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1GatherExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1CpuParityInventoryTest
+./gradlew classes
+git diff --check
+```
 
 ### Wave 3
 
-- [ ] `SCATTER_ELEMENTS`
-- [ ] `SCATTER_ND`
+- [x] `SCATTER_ELEMENTS`
+- [x] `SCATTER_ND`
+
+Hotovo:
+
+- `SCATTER_ELEMENTS` dense contiguous/no-offset `JAVA_ARRAY`
+- `SCATTER_ELEMENTS` dense contiguous/no-offset `MEMORY_SEGMENT`
+- `SCATTER_ND` dense contiguous/no-offset `JAVA_ARRAY`
+- `SCATTER_ND` dense contiguous/no-offset `MEMORY_SEGMENT`
+- value dtype:
+  - `FLOAT32`
+  - `FLOAT64`
+  - `BFLOAT16`
+  - `INT32`
+  - `INT64`
+  - `BOOL`
+- index dtype:
+  - `INT32`
+  - `INT64`
+- reduction:
+  - `NONE`
+  - `ADD`
+  - `MUL`
+  - `MAX`
+  - `MIN`
+- `BOOL` podporuje jen `NONE` a ostatni reduction mody jsou odmítnute v prepare
+- duplicate targety pri `NONE` jsou odmítnute pres explicitni seen pole
+- duplicate targety pri redukcich se zpracovavaji deterministicky v logical order
+- negativni indexy jsou normalizovane podle cilove dimenze
+- `SCATTER_ND` podporuje `batchDims` a tuple-indexed element/slice updates
+- prepare vynuti deterministic single-thread launch (`workerCount=1`)
+- trace ukazuje kernel id, storage kind, op type, reduction, update element count
+  a single-thread launch
+
+Implementacni hranice:
+
+- zadny fallback do stareho `backend.cpu`
+- zadny generic hot-path storage accessor
+- prvni implementace je dense contiguous/no-offset only
+- paralelni scatter neni implementovany kvuli duplicate-index write race
 
 ### Race Semantics
 
@@ -2090,7 +2261,11 @@ Tento seznam se ma menit pri implementaci:
   item v [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md);
   Faze 5 dense NLL/CrossEntropy scope je hotovy pro `JAVA_ARRAY` a dense
   contiguous `MEMORY_SEGMENT`
-- [ ] index/gather/scatter family chybi
+- [deferred] index family dense direct scope je hotovy pro `GATHER`,
+  `GATHER_AXIS`, `TAKE_ALONG_AXIS`, `GATHER_ND`, `SCATTER_ADD`,
+  `SCATTER_AXIS_ADD`, `SCATTER_ELEMENTS` a `SCATTER_ND`; otevrene zustavaji
+  strided/view/offset index paths v planu 118 a pripadna deterministic parallel
+  scatter cesta
 - [ ] LINEAR direct/lowering policy neni uzavrena pro cpu1
 - [ ] SDPA/attention cpu1 parita chybi
 - [ ] Conv/pool/norm cpu1 parita chybi

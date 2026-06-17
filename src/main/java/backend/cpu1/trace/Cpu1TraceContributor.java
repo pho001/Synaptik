@@ -458,6 +458,7 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1KernelId", unit.kernelId().name());
         attrs.put("cpu1IndexKernelId", unit.kernelId().name());
         attrs.put("cpu1IndexOpType", unit.opType().name());
+        attrs.put("cpu1IndexReduction", unit.reduction().name());
         attrs.put("cpu1StorageKind", unit.storageKind().name());
         attrs.put("cpu1IndexValueDType", unit.valueDataType().name());
         attrs.put("cpu1IndexDType", unit.indexDataType().name());
@@ -465,6 +466,13 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1IndexAxisSize", unit.axisSize());
         attrs.put("cpu1IndexInnerSize", unit.innerSize());
         attrs.put("cpu1IndexOuterSize", unit.outerSize());
+        attrs.put("cpu1IndexElementCount", unit.indexElementCount());
+        attrs.put("cpu1IndexAxisIndexCount", unit.indexAxisSize());
+        attrs.put("cpu1IndexBatchDims", unit.batchDims());
+        attrs.put("cpu1IndexTupleRank", unit.tupleRank());
+        attrs.put("cpu1IndexPrefixRank", unit.prefixRank());
+        attrs.put("cpu1IndexHasUpdates", unit.hasUpdateInput());
+        attrs.put("cpu1IndexUpdateElements", unit.updateElementCount());
         attrs.put("cpu1IndexOutputElements", unit.outputElementCount());
         attrs.put("cpu1IndexLaunchWorkers", unit.launchConfig().workerCount());
         attrs.put("cpu1IndexLaunchChunkSize", unit.launchConfig().chunkSize());

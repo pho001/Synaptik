@@ -19,6 +19,7 @@ Implementation tracking:
 - [ ] Phase 5: enable cpu1 loss prepare for planned materialized inputs
 - [ ] Phase 6: memory planning integration hardening
 - [ ] Phase 7: verification, parity, benchmarks, and docs
+- [ ] Phase 8: extend planned input materialization to cpu1 index/scatter units
 
 This document is intentionally detailed. It is a planning artifact only. It does
 not implement source changes.
@@ -3179,6 +3180,379 @@ Docs should explain:
 - trace fields that expose materialization
 - why this is not a synthetic graph node
 
+## Phase 8: Extend Planned Input Materialization To cpu1 Index/Scatter Units
+
+Status: `[ ] not started`
+
+Purpose: reuse the same graph/lowering -> prepare -> runtime temporary
+materialization mechanism for cpu1 index/scatter input operands that do not
+satisfy the dense contiguous no-offset cpu1 direct-kernel contract.
+
+This belongs in plan 118 because index/scatter materialization is the same
+architectural feature as loss input materialization: graph/region/lowering
+decides that a consumer input must be dense contiguous no-offset, prepare binds
+that explicit plan, and execute materializes a run-local temp before the kernel
+runs. The follow-up should not create a second index/scatter-specific policy
+path.
+
+This phase is input materialization only. It does not implement output
+materialization or copy-back for strided/offset scatter outputs.
+
+### Phase 8 invariant
+
+```text
+cpu1 index/scatter kernels must not silently materialize.
+cpu1 index/scatter preparer must not decide materialization by itself.
+graph/region/lowering decides materialization.
+prepare validates and binds explicit materialization plans.
+execute materializes temps before kernel run.
+```
+
+Dense contiguous/no-offset cpu1 kernels remain unchanged. Planned
+materialization supplies effective dense inputs to those kernels. The current
+dense direct rejection remains the guard when no explicit materialization plan
+exists.
+
+### Scope
+
+Apply planned input materialization to these cpu1 index/scatter operations:
+
+- `GATHER`
+- `GATHER_AXIS`
+- `GATHER_ND`
+- `TAKE_ALONG_AXIS`
+- `SCATTER_ADD`
+- `SCATTER_AXIS_ADD`
+- `SCATTER_ELEMENTS`
+- `SCATTER_ND`
+
+For read-only index operations, materialization may apply to:
+
+- data/input
+- indices
+
+For scatter write operations, materialization may apply to:
+
+- data/base
+- indices
+- updates
+
+The output/write target must still satisfy the direct dense contiguous no-offset
+contract in this phase.
+
+### Why output materialization is deferred
+
+Scatter output materialization is a different problem than input
+materialization:
+
+- output is a write target, not just a read input
+- strided/offset output would require copy-back or scatter-back semantics after
+  the kernel
+- aliasing and memory planner ownership become harder because output writes may
+  overlap with source/base storage
+- correctness and traceability deserve a separate plan or future phase
+
+This phase should therefore keep rejecting strided/offset outputs unless a later
+plan introduces explicit output materialization and copy-back semantics.
+
+### Data flow examples
+
+Example 1: materialize gathered data input.
+
+```text
+user graph:
+  permuted = permute(data)
+  out = gather(permuted, indices)
+
+planning:
+  consumer=GATHER input=0 source=permuted requires DENSE_CONTIGUOUS_NO_OFFSET
+  graph/region creates materialization plan for (outNodeId, inputIndex=0)
+
+execute:
+  Cpu1InputMaterializer copies permuted logical view into a dense temp
+  GATHER reads data from the materialized dense temp
+  indices remain direct if already dense
+```
+
+Example 2: materialize gathered indices.
+
+```text
+user graph:
+  stridedIndices = slice(indicesBase)
+  out = gather(data, stridedIndices)
+
+planning:
+  consumer=GATHER input=1 source=stridedIndices requires DENSE_CONTIGUOUS_NO_OFFSET
+
+execute:
+  data remains direct if dense
+  indices are materialized before GATHER binds views
+```
+
+Example 3: materialize scatter base and updates only.
+
+```text
+user graph:
+  out = scatterElements(stridedBase, indices, stridedUpdates, axis)
+
+planning:
+  materialization can be planned for base/data input and updates input
+  output materialization is not planned in Phase 8
+
+execute:
+  base/data and updates may be effective dense inputs
+  output must still be dense contiguous no-offset
+  strided/offset output is rejected by the existing direct guard
+```
+
+Example 4: materialize `SCATTER_ND` indices.
+
+```text
+user graph:
+  stridedIndices = permute(indices)
+  out = scatterNd(data, stridedIndices, updates)
+
+planning:
+  consumer=SCATTER_ND input=1 source=stridedIndices requires
+  DENSE_CONTIGUOUS_NO_OFFSET
+
+execute:
+  Cpu1InputMaterializer materializes indices
+  SCATTER_ND reads dense effective indices
+```
+
+### Expected data model extensions
+
+Generalize the planned materialization lookup by `(consumerNodeId, inputIndex)`
+so it is not loss-specific. Loss and index/scatter prepare code should use the
+same prepare-context lookup shape.
+
+Proposed planning shape:
+
+```java
+record InputMaterializationKey(int consumerNodeId, int inputIndex) {
+}
+
+Optional<RegionInputMaterializationPlan> plannedInputMaterialization(
+        int consumerNodeId,
+        int inputIndex
+) {
+    return plannedInputMaterialization(new InputMaterializationKey(
+            consumerNodeId,
+            inputIndex
+    ));
+}
+```
+
+`Cpu1PreparedIndexUnit` should receive effective input descriptors/views or
+prepared input handles analogous to loss. If Phase 5 creates a generalized
+prepared input handle, reuse it rather than creating an index-only duplicate.
+
+Proposed prepared-unit shape:
+
+```java
+record Cpu1PreparedIndexInput(
+        int inputIndex,
+        int sourceNodeId,
+        CompiledTensorDescriptor directDescriptor,
+        Optional<Cpu1PreparedInputMaterialization> materialization
+) {
+    boolean materialized() {
+        return materialization.isPresent();
+    }
+}
+```
+
+`Cpu1IndexExecutableUnit` should run materialization before binding kernel
+views, then resolve direct/materialized views per input.
+
+Proposed execution shape:
+
+```java
+void execute(ExecutionContext context) {
+    Cpu1MaterializedInputs materializedInputs =
+            Cpu1InputMaterializer.materializeAll(context, preparedInputMaterializations);
+
+    Cpu1IndexInputViews views = Cpu1IndexInputResolver.resolve(
+            context,
+            preparedInputs,
+            materializedInputs
+    );
+
+    dispatch.run(context, views);
+}
+```
+
+Trace metadata should identify index/scatter materialization separately from
+loss while sharing the same underlying input materialization trace model.
+
+Proposed trace fields:
+
+```text
+cpu1IndexMaterializedInputCount=2
+cpu1IndexMaterializedInputs=[
+  input=0,source=7,op=SCATTER_ELEMENTS,target=DENSE_CONTIGUOUS_NO_OFFSET,
+  input=2,source=9,op=SCATTER_ELEMENTS,target=DENSE_CONTIGUOUS_NO_OFFSET
+]
+cpu1IndexMaterializationReason=cpu1-index-dense-contiguous-input-contract
+```
+
+### Task 8.1: Inventory current cpu1 index/scatter dense guards
+
+Status: `[ ] not started`
+
+What: inspect `Cpu1IndexPreparer`, `Cpu1PreparedIndexUnit`,
+`Cpu1IndexExecutableUnit`, index/scatter dispatch, and dense guard helpers for
+all scoped operations.
+
+Why: identify exactly which input roles are currently required to be dense
+contiguous no-offset and where unplanned strided inputs are rejected.
+
+Expected output:
+
+- list each scoped op
+- map input index to role name
+- record current guard location
+- record whether output/write target is already guarded separately
+
+### Task 8.2: Extend materialization requirement selector to index/scatter input roles
+
+Status: `[ ] not started`
+
+What: extend the graph/region input contract from loss-only to include
+index/scatter input roles.
+
+Why: materialization must still be selected before prepare. `Cpu1IndexPreparer`
+must not infer materialization from descriptors on its own.
+
+Proposed selector shape:
+
+```java
+return switch (opType) {
+    case GATHER, GATHER_AXIS, GATHER_ND, TAKE_ALONG_AXIS ->
+            indexReadRequirements(consumer.inputIds().size());
+    case SCATTER_ADD, SCATTER_AXIS_ADD, SCATTER_ELEMENTS, SCATTER_ND ->
+            scatterInputRequirements(opType, consumer.inputIds().size());
+    default ->
+            repeated(consumer.inputIds().size(), InputLayoutRequirement.asIs());
+};
+```
+
+The selector should mark only read inputs. It must not mark the output/write
+target for materialization in Phase 8.
+
+### Task 8.3: Extend prepare context lookup usage from loss to index units
+
+Status: `[ ] not started`
+
+What: make cpu1 index prepare code ask the generalized prepare context for
+planned input materializations by `(consumerNodeId, inputIndex)`.
+
+Why: the prepare layer should validate and bind explicit lowering decisions
+without owning the materialization policy.
+
+Expected behavior:
+
+- direct dense input without a plan remains accepted
+- non-dense input with a matching plan is accepted as an effective dense input
+- non-dense input without a matching plan remains rejected
+- plan for the wrong consumer/input is ignored or rejected
+
+### Task 8.4: Introduce or reuse prepared index input handles
+
+Status: `[ ] not started`
+
+What: introduce a prepared index input handle/resolver, or reuse the generalized
+prepared input handle if Phase 5 created one.
+
+Why: the executable unit needs a single explicit way to resolve each input to
+either the direct runtime tensor view or the materialized temp view.
+
+Do not introduce an index-specific wrapper if a generalized prepared input
+handle already exists and fits the exact need.
+
+### Task 8.5: Execute materialization before `Cpu1IndexExecutableUnit` binds views
+
+Status: `[ ] not started`
+
+What: call `Cpu1InputMaterializer.materializeAll(...)` before index/scatter view
+binding and dispatch.
+
+Why: dense kernels should see effective dense input views and should not know
+whether those views came from original storage or a materialized temp.
+
+Required ordering:
+
+```text
+Cpu1IndexExecutableUnit.execute(context)
+  1. materialize all planned input temps for this unit
+  2. resolve direct/materialized views per input
+  3. validate output/write target remains direct dense contiguous no-offset
+  4. dispatch existing dense cpu1 index/scatter kernel
+```
+
+### Task 8.6: Add trace metadata for materialized index inputs
+
+Status: `[ ] not started`
+
+What: add trace attributes that count and describe index/scatter materialized
+inputs.
+
+Why: fallback and copy-in cost must be visible in traces and benchmark reports,
+matching the plan 118 rule that materialization is explicit.
+
+Suggested attributes:
+
+- `cpu1IndexMaterializedInputCount`
+- `cpu1IndexMaterializedInputs`
+- `cpu1IndexMaterializationReason`
+
+### Task 8.7: Tests for read-only index materialization
+
+Status: `[ ] not started`
+
+What: add focused tests proving read-only index operations accept planned
+materialized inputs and still reject unplanned non-dense inputs.
+
+Coverage:
+
+- `permute(data).gather(indices)` materializes data before `GATHER`
+- `data.gather(stridedIndices)` materializes indices before `GATHER`
+- `GATHER_AXIS`, `GATHER_ND`, and `TAKE_ALONG_AXIS` coverage for at least one
+  strided data/input case and one strided indices case where applicable
+- dense direct paths still use zero materialized inputs
+- unplanned strided inputs still fail the dense direct guard
+
+### Task 8.8: Tests for scatter input/update/index materialization
+
+Status: `[ ] not started`
+
+What: add focused scatter tests for planned materialization of base/data,
+indices, and updates, while explicitly still rejecting strided outputs.
+
+Coverage:
+
+- `stridedBase.scatterElements(indices, stridedUpdates, axis)` materializes
+  base/data and updates as inputs
+- `scatterNd(data, stridedIndices, updates)` materializes indices
+- `SCATTER_ADD`, `SCATTER_AXIS_ADD`, `SCATTER_ELEMENTS`, and `SCATTER_ND`
+  include representative input/update/index materialization coverage
+- strided/offset output remains rejected in this phase
+- duplicate-index behavior remains unchanged from existing dense direct kernels
+
+### Task 8.9: Benchmarks and regression checks
+
+Status: `[ ] not started`
+
+What: run focused correctness and smoke benchmark checks for dense direct and
+planned materialized index/scatter paths.
+
+Why: materialization should be visible as copy-in overhead without regressing
+the dense direct cpu1 hot path.
+
+Do not commit local benchmark/calibration artifacts unless intentionally
+promoting canonical fixtures.
+
 ## Rejected Alternatives
 
 ### Synthetic `CompiledNode` `CONTIGUOUS`
@@ -3253,6 +3627,11 @@ Required focused commands:
 ./gradlew test --tests graph.compile.planning.region.Cpu1LossInputMaterializationPlanningTest
 ./gradlew test --tests backend.cpu1.Cpu1LossMaterializationExecutionContractTest
 ./gradlew test --tests backend.cpu1.Cpu1CrossEntropyLossExecutionContractTest --tests backend.cpu1.Cpu1NllLossExecutionContractTest --tests backend.cpu1.Cpu1DenseCrossEntropyLossExecutionContractTest
+./gradlew test --tests backend.cpu1.Cpu1GatherExecutionContractTest
+./gradlew test --tests ScatterElementsExecutionTest
+./gradlew test --tests ScatterNdExecutionTest
+./gradlew test --tests GatherExecutionTest
+./gradlew test --tests GatherNdExecutionTest
 ./gradlew classes
 git diff --check
 ```
@@ -3295,5 +3674,11 @@ Known follow-up after the planned implementation:
   later cleanup could move scratch lookup behind cpu1-local helpers.
 - Strided loss kernels remain a future optimization and are intentionally not
   part of this plan.
+- Strided index/scatter output materialization and copy-back remain deferred to
+  a separate plan or future phase.
+- Parallel scatter remains deferred.
+- Uniqueness analysis for duplicate-safe parallel scatter remains deferred.
+- Hidden prepare/runtime fallback remains a non-goal.
+- A generic hot-path storage accessor remains a non-goal.
 - Benchmark calibration outputs must not be committed unless promoted to
   canonical fixtures deliberately.

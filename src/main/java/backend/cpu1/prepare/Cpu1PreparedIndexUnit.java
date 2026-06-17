@@ -8,6 +8,7 @@ import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import operations.Operation;
+import operations.index.ScatterReduction;
 import tensor.DataType;
 
 import java.util.List;
@@ -20,7 +21,9 @@ public final class Cpu1PreparedIndexUnit {
     private final int nodeId;
     private final int inputNodeId;
     private final int indexNodeId;
+    private final int updateNodeId;
     private final Operation.OpType opType;
+    private final ScatterReduction reduction;
     private final DataType valueDataType;
     private final DataType indexDataType;
     private final Cpu1StorageKind storageKind;
@@ -30,18 +33,33 @@ public final class Cpu1PreparedIndexUnit {
     private final int axisSize;
     private final int innerSize;
     private final int outerSize;
+    private final int indexElementCount;
+    private final int indexAxisSize;
+    private final int batchDims;
+    private final int tupleRank;
+    private final int prefixRank;
+    private final int tupleStride;
+    private final int updateElementCount;
+    private final int[] gatherNdInputShape;
+    private final int[] gatherNdInputStrides;
+    private final int[] gatherNdIndicesDenseStrides;
+    private final int[] gatherNdOutputShape;
+    private final int[] gatherNdOutputDenseStrides;
     private final int outputElementCount;
     private final Cpu1LaunchConfig launchConfig;
     private final Cpu1LaunchPolicy launchPolicy;
     private final Cpu1StorageAccessPlan inputAccessPlan;
     private final Cpu1StorageAccessPlan indexAccessPlan;
+    private final Cpu1StorageAccessPlan updateAccessPlan;
     private final Cpu1StorageAccessPlan outputAccessPlan;
 
     public Cpu1PreparedIndexUnit(
             int nodeId,
             int inputNodeId,
             int indexNodeId,
+            int updateNodeId,
             Operation.OpType opType,
+            ScatterReduction reduction,
             DataType valueDataType,
             DataType indexDataType,
             Cpu1StorageKind storageKind,
@@ -50,11 +68,24 @@ public final class Cpu1PreparedIndexUnit {
             int axisSize,
             int innerSize,
             int outerSize,
+            int indexElementCount,
+            int indexAxisSize,
+            int batchDims,
+            int tupleRank,
+            int prefixRank,
+            int tupleStride,
+            int updateElementCount,
+            int[] gatherNdInputShape,
+            int[] gatherNdInputStrides,
+            int[] gatherNdIndicesDenseStrides,
+            int[] gatherNdOutputShape,
+            int[] gatherNdOutputDenseStrides,
             int outputElementCount,
             Cpu1LaunchConfig launchConfig,
             Cpu1LaunchPolicy launchPolicy,
             Cpu1StorageAccessPlan inputAccessPlan,
             Cpu1StorageAccessPlan indexAccessPlan,
+            Cpu1StorageAccessPlan updateAccessPlan,
             Cpu1StorageAccessPlan outputAccessPlan
     ) {
         if (nodeId < 0) {
@@ -66,17 +97,29 @@ public final class Cpu1PreparedIndexUnit {
         if (indexNodeId < 0) {
             throw new IllegalArgumentException("indexNodeId cannot be negative");
         }
+        if (updateNodeId < -1) {
+            throw new IllegalArgumentException("updateNodeId cannot be less than -1");
+        }
         if (dimension < 0) {
             throw new IllegalArgumentException("dimension cannot be negative");
         }
         requireNonNegative(axisSize, "axisSize");
         requireNonNegative(innerSize, "innerSize");
         requireNonNegative(outerSize, "outerSize");
+        requireNonNegative(indexElementCount, "indexElementCount");
+        requireNonNegative(indexAxisSize, "indexAxisSize");
+        requireNonNegative(batchDims, "batchDims");
+        requireNonNegative(tupleRank, "tupleRank");
+        requireNonNegative(prefixRank, "prefixRank");
+        requireNonNegative(tupleStride, "tupleStride");
+        requireNonNegative(updateElementCount, "updateElementCount");
         requireNonNegative(outputElementCount, "outputElementCount");
         this.nodeId = nodeId;
         this.inputNodeId = inputNodeId;
         this.indexNodeId = indexNodeId;
+        this.updateNodeId = updateNodeId;
         this.opType = Objects.requireNonNull(opType, "opType cannot be null");
+        this.reduction = Objects.requireNonNull(reduction, "reduction cannot be null");
         this.valueDataType = Objects.requireNonNull(valueDataType, "valueDataType cannot be null");
         this.indexDataType = Objects.requireNonNull(indexDataType, "indexDataType cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
@@ -86,12 +129,31 @@ public final class Cpu1PreparedIndexUnit {
         this.axisSize = axisSize;
         this.innerSize = innerSize;
         this.outerSize = outerSize;
+        this.indexElementCount = indexElementCount;
+        this.indexAxisSize = indexAxisSize;
+        this.batchDims = batchDims;
+        this.tupleRank = tupleRank;
+        this.prefixRank = prefixRank;
+        this.tupleStride = tupleStride;
+        this.updateElementCount = updateElementCount;
+        this.gatherNdInputShape = copyShape(gatherNdInputShape, "gatherNdInputShape");
+        this.gatherNdInputStrides = copyShape(gatherNdInputStrides, "gatherNdInputStrides");
+        this.gatherNdIndicesDenseStrides = copyShape(gatherNdIndicesDenseStrides, "gatherNdIndicesDenseStrides");
+        this.gatherNdOutputShape = copyShape(gatherNdOutputShape, "gatherNdOutputShape");
+        this.gatherNdOutputDenseStrides = copyShape(gatherNdOutputDenseStrides, "gatherNdOutputDenseStrides");
         this.outputElementCount = outputElementCount;
         this.launchConfig = Objects.requireNonNull(launchConfig, "launchConfig cannot be null");
         this.launchPolicy = Objects.requireNonNull(launchPolicy, "launchPolicy cannot be null");
         this.inputAccessPlan = Objects.requireNonNull(inputAccessPlan, "inputAccessPlan cannot be null");
         this.indexAccessPlan = Objects.requireNonNull(indexAccessPlan, "indexAccessPlan cannot be null");
+        this.updateAccessPlan = updateAccessPlan;
         this.outputAccessPlan = Objects.requireNonNull(outputAccessPlan, "outputAccessPlan cannot be null");
+        if (hasUpdateInput() && this.updateAccessPlan == null) {
+            throw new IllegalArgumentException("updateAccessPlan cannot be null for " + opType);
+        }
+        if (!hasUpdateInput() && this.updateAccessPlan != null) {
+            throw new IllegalArgumentException("updateAccessPlan must be null for " + opType);
+        }
     }
 
     public int nodeId() {
@@ -106,12 +168,27 @@ public final class Cpu1PreparedIndexUnit {
         return indexNodeId;
     }
 
+    public int updateNodeId() {
+        return updateNodeId;
+    }
+
+    public boolean hasUpdateInput() {
+        return updateNodeId >= 0;
+    }
+
     public List<Integer> inputNodeIds() {
+        if (hasUpdateInput()) {
+            return List.of(inputNodeId, indexNodeId, updateNodeId);
+        }
         return List.of(inputNodeId, indexNodeId);
     }
 
     public Operation.OpType opType() {
         return opType;
+    }
+
+    public ScatterReduction reduction() {
+        return reduction;
     }
 
     public DataType valueDataType() {
@@ -150,6 +227,54 @@ public final class Cpu1PreparedIndexUnit {
         return outerSize;
     }
 
+    public int indexElementCount() {
+        return indexElementCount;
+    }
+
+    public int indexAxisSize() {
+        return indexAxisSize;
+    }
+
+    public int batchDims() {
+        return batchDims;
+    }
+
+    public int tupleRank() {
+        return tupleRank;
+    }
+
+    public int prefixRank() {
+        return prefixRank;
+    }
+
+    public int tupleStride() {
+        return tupleStride;
+    }
+
+    public int updateElementCount() {
+        return updateElementCount;
+    }
+
+    public int[] gatherNdInputShape() {
+        return gatherNdInputShape.clone();
+    }
+
+    public int[] gatherNdInputStrides() {
+        return gatherNdInputStrides.clone();
+    }
+
+    public int[] gatherNdIndicesDenseStrides() {
+        return gatherNdIndicesDenseStrides.clone();
+    }
+
+    public int[] gatherNdOutputShape() {
+        return gatherNdOutputShape.clone();
+    }
+
+    public int[] gatherNdOutputDenseStrides() {
+        return gatherNdOutputDenseStrides.clone();
+    }
+
     public int outputElementCount() {
         return outputElementCount;
     }
@@ -170,6 +295,10 @@ public final class Cpu1PreparedIndexUnit {
         return indexAccessPlan;
     }
 
+    public Cpu1StorageAccessPlan updateAccessPlan() {
+        return updateAccessPlan;
+    }
+
     public Cpu1StorageAccessPlan outputAccessPlan() {
         return outputAccessPlan;
     }
@@ -178,5 +307,12 @@ public final class Cpu1PreparedIndexUnit {
         if (value < 0) {
             throw new IllegalArgumentException(name + " cannot be negative: " + value);
         }
+    }
+
+    private static int[] copyShape(int[] values, String name) {
+        if (values == null) {
+            throw new IllegalArgumentException(name + " cannot be null");
+        }
+        return values.clone();
     }
 }

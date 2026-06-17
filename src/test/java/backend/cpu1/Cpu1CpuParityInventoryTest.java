@@ -122,6 +122,13 @@ final class Cpu1CpuParityInventoryTest {
             entry(OpType.LOGICAL_OR, "elementwise"),
             entry(OpType.LOGICAL_NOT, "elementwise"),
             entry(OpType.WHERE, "elementwise"),
+            entry(OpType.GATHER_AXIS, "index"),
+            entry(OpType.GATHER_ND, "index"),
+            entry(OpType.TAKE_ALONG_AXIS, "index"),
+            entry(OpType.SCATTER_ADD, "index"),
+            entry(OpType.SCATTER_AXIS_ADD, "index"),
+            entry(OpType.SCATTER_ELEMENTS, "index"),
+            entry(OpType.SCATTER_ND, "index"),
             entry(OpType.NEG, "elementwise"),
             entry(OpType.INV, "elementwise"),
             entry(OpType.LOG, "elementwise"),
@@ -198,13 +205,6 @@ final class Cpu1CpuParityInventoryTest {
     );
 
     private static final Map<OpType, String> KNOWN_MISSING_CPU1_PARITY_FROM_OLD_CPU_DIRECT = map(
-            entry(OpType.GATHER_AXIS, "cpu1 has no index/gather family yet"),
-            entry(OpType.GATHER_ND, "cpu1 has no index/gather family yet"),
-            entry(OpType.TAKE_ALONG_AXIS, "cpu1 has no index/gather family yet"),
-            entry(OpType.SCATTER_ADD, "cpu1 has no index/scatter family yet"),
-            entry(OpType.SCATTER_AXIS_ADD, "cpu1 has no index/scatter family yet"),
-            entry(OpType.SCATTER_ELEMENTS, "cpu1 has no index/scatter family yet"),
-            entry(OpType.SCATTER_ND, "cpu1 has no index/scatter family yet"),
             entry(OpType.SCALED_DOT_PRODUCT_ATTENTION, "cpu1 attention family is not implemented"),
             entry(OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, "cpu1 attention family is not implemented"),
             entry(OpType.LINEAR, "cpu1 has matmul post-op specializations, not general LINEAR parity"),
