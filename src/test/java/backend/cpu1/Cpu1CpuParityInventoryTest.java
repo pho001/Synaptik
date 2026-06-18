@@ -161,6 +161,7 @@ final class Cpu1CpuParityInventoryTest {
             entry(OpType.LOG_SOFTMAX, "reduction"),
             entry(OpType.GATHER, "index"),
             entry(OpType.MATMUL, "matmul"),
+            entry(OpType.LINEAR, "matmul"),
             entry(OpType.NOOP, "layout"),
             entry(OpType.RESHAPE, "layout"),
             entry(OpType.EXPAND, "layout"),
@@ -180,7 +181,12 @@ final class Cpu1CpuParityInventoryTest {
             entry(OpType.CAST, "dtype"),
             entry(OpType.NLL_LOSS, "loss"),
             entry(OpType.CROSS_ENTROPY_LOSS, "loss"),
-            entry(OpType.CROSS_ENTROPY_LOSS_INDICES, "loss")
+            entry(OpType.CROSS_ENTROPY_LOSS_INDICES, "loss"),
+            entry(OpType.LAYER_NORM, "normalization"),
+            entry(OpType.RMS_NORM, "normalization"),
+            entry(OpType.MAX_POOL2D, "pool2d"),
+            entry(OpType.AVG_POOL2D, "pool2d"),
+            entry(OpType.CONV2D, "conv2d")
     );
 
     private static final Map<OpType, String> LEGACY_BACKWARD_OR_SPECIAL_WITHOUT_OLD_CPU_DIRECT_KERNEL = map(
@@ -206,13 +212,7 @@ final class Cpu1CpuParityInventoryTest {
 
     private static final Map<OpType, String> KNOWN_MISSING_CPU1_PARITY_FROM_OLD_CPU_DIRECT = map(
             entry(OpType.SCALED_DOT_PRODUCT_ATTENTION, "cpu1 attention family is not implemented"),
-            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, "cpu1 attention family is not implemented"),
-            entry(OpType.LINEAR, "cpu1 has matmul post-op specializations, not general LINEAR parity"),
-            entry(OpType.CONV2D, "cpu1 has no direct conv/nn family yet"),
-            entry(OpType.MAX_POOL2D, "cpu1 has no direct pool/nn family yet"),
-            entry(OpType.AVG_POOL2D, "cpu1 has no direct pool/nn family yet"),
-            entry(OpType.LAYER_NORM, "cpu1 has no normalization family yet"),
-            entry(OpType.RMS_NORM, "cpu1 has no normalization family yet")
+            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, "cpu1 attention family is not implemented")
     );
 
     @Test
@@ -311,6 +311,10 @@ final class Cpu1CpuParityInventoryTest {
                 "cpu1 inventory must include the MATMUL prepared family route"
         );
         assertTrue(
+                CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.LINEAR),
+                "cpu1 inventory must include the LINEAR prepared matmul route"
+        );
+        assertTrue(
                 CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.SUM)
                         && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.REDUCE_PROD)
                         && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.ARGMAX)
@@ -326,6 +330,16 @@ final class Cpu1CpuParityInventoryTest {
                         && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.SLICE_BACKWARD)
                         && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.CAST),
                 "cpu1 inventory must include layout and dtype routes, including SLICE_BACKWARD and CAST"
+        );
+        assertTrue(
+                CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.LAYER_NORM)
+                        && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.RMS_NORM),
+                "cpu1 inventory must include normalization routes"
+        );
+        assertTrue(
+                CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.MAX_POOL2D)
+                        && CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.AVG_POOL2D),
+                "cpu1 inventory must include pool2d routes"
         );
         assertTrue(
                 CPU1_KNOWN_PREPARED_FAMILY_ROUTES.containsKey(OpType.ADD)

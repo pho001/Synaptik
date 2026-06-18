@@ -127,6 +127,80 @@ class DefaultRegionOptimizerTest {
     }
 
     @Test
+    void cpuLinearBiasPartitionBuildsMatmulAddBiasSpecializedPrimitiveByDefault() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuLinearA", DataType.FLOAT32);
+        Tensor weight = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuLinearWeight", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cpuLinearBias", DataType.FLOAT32);
+        Tensor out = a.linear(weight, bias);
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        int linearNodeId = nodeId(nodes, Operation.OpType.LINEAR);
+        List<Integer> selectedNodeIds = List.of(linearNodeId);
+        List<Integer> externalInputNodeIds = externalInputNodeIds(nodes, selectedNodeIds);
+        Partition partition = partition(
+                "cpu-linear-bias",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds,
+                List.of(GraphValueRef.node(linearNodeId)),
+                List.of(GraphValueRef.node(linearNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MATMUL_ADD_BIAS, unit.specialization().kind());
+        assertEquals(selectedNodeIds, unit.orderedNodeIds());
+        assertEquals(externalInputNodeIds.stream().map(GraphValueRef::node).toList(), unit.inputValueRefs());
+        assertEquals(List.of(GraphValueRef.node(linearNodeId)), unit.outputValueRefs());
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MATMUL_ADD_BIAS")));
+    }
+
+    @Test
+    void cpuMatmulAddBiasPartitionBuildsMatmulAddBiasSpecializedPrimitiveByDefault() {
+        Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMatmulBiasA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "cpuMatmulBiasB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cpuMatmulBias", DataType.FLOAT32);
+        Tensor matmul = a.matmul(b);
+        Tensor out = matmul.add(bias);
+
+        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
+        int addNodeId = nodeId(nodes, Operation.OpType.ADD);
+        List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId);
+        List<Integer> externalInputNodeIds = externalInputNodeIds(nodes, selectedNodeIds);
+        Partition partition = partition(
+                "cpu-matmul-add-bias",
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds,
+                List.of(GraphValueRef.node(addNodeId)),
+                List.of(GraphValueRef.node(addNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.inferenceDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.MATMUL_ADD_BIAS, unit.specialization().kind());
+        assertEquals(selectedNodeIds, unit.orderedNodeIds());
+        assertEquals(externalInputNodeIds.stream().map(GraphValueRef::node).toList(), unit.inputValueRefs());
+        assertEquals(List.of(GraphValueRef.node(addNodeId)), unit.outputValueRefs());
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MATMUL_ADD_BIAS")));
+    }
+
+    @Test
     void cpuMsePartitionBuildsSpecializedPrimitiveByDefault() {
         Tensor pred = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "defaultMsePred", DataType.FLOAT32);
         Tensor target = new Tensor(new float[]{1.5f, 1f, 2.5f, 3f}, new int[]{4}, null, "defaultMseTarget", DataType.FLOAT32);

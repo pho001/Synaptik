@@ -87,7 +87,18 @@ public final class BackendPrepareDispatcher {
         return switch (candidate.kind()) {
             case MSE_LOSS -> cpu1MseLossPreparer.prepare(outputNode, loweredUnit, context);
             case MATMUL_RELU -> prepareCpu1MatmulRelu(outputNode, candidate, context);
-            case MATMUL_ADD_BIAS_RELU -> prepareCpu1MatmulBiasRelu(outputNode, candidate, context);
+            case MATMUL_ADD_BIAS -> prepareCpu1MatmulBiasEpilogue(
+                    outputNode,
+                    candidate,
+                    context,
+                    Cpu1MatmulPostOp.ADD_BIAS
+            );
+            case MATMUL_ADD_BIAS_RELU -> prepareCpu1MatmulBiasEpilogue(
+                    outputNode,
+                    candidate,
+                    context,
+                    Cpu1MatmulPostOp.ADD_BIAS_RELU
+            );
         };
     }
 
@@ -118,35 +129,34 @@ public final class BackendPrepareDispatcher {
         );
     }
 
-    private CompiledNodeExecutionMetadata prepareCpu1MatmulBiasRelu(
+    private CompiledNodeExecutionMetadata prepareCpu1MatmulBiasEpilogue(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
-            BackendPrepareContext context
+            BackendPrepareContext context,
+            Cpu1MatmulPostOp postOp
     ) {
-        validateMatmulBiasReluCandidate(outputNode, candidate, context);
-        CompiledNode matmulNode = context.compiledNode(candidate.orderedNodeIds().get(0));
+        validateMatmulBiasEpilogueCandidate(outputNode, candidate, context, postOp);
+        CompiledNode computeNode = context.compiledNode(candidate.orderedNodeIds().getFirst());
         List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
                 .toList();
         Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(runtimeConfig, Runtime.getRuntime().availableProcessors());
-        Cpu1PreparedArtifact artifact;
-        if (opType(matmulNode) == Operation.OpType.LINEAR) {
-            artifact = cpu1MatmulPreparer.prepareLinearBiasRelu(
-                    matmulNode,
+        Cpu1PreparedArtifact artifact = opType(computeNode) == Operation.OpType.LINEAR
+                ? cpu1MatmulPreparer.prepareLinearEpilogue(
+                    computeNode,
                     outputNode,
                     context.descriptorIndex(),
-                    config
-            );
-        } else {
-            CompiledNode addNode = context.compiledNode(candidate.orderedNodeIds().get(1));
-            artifact = cpu1MatmulPreparer.prepareMatmulBiasRelu(
-                    matmulNode,
-                    addNode,
+                    config,
+                    postOp
+                )
+                : cpu1MatmulPreparer.prepareMatmulBiasEpilogue(
+                    computeNode,
+                    context.compiledNode(candidate.orderedNodeIds().get(1)),
                     outputNode,
                     context.descriptorIndex(),
-                    config
-            );
-        }
+                    config,
+                    postOp
+                );
         return new CompiledNodeExecutionMetadata(
                 ComputeBackend.CPU,
                 null,
@@ -197,40 +207,57 @@ public final class BackendPrepareDispatcher {
         }
     }
 
-    private static void validateMatmulBiasReluCandidate(
+    private static void validateMatmulBiasEpilogueCandidate(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
-            BackendPrepareContext context
+            BackendPrepareContext context,
+            Cpu1MatmulPostOp postOp
     ) {
-        if (candidate.kind() != RegionSpecializationKind.MATMUL_ADD_BIAS_RELU) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU preparer does not support "
+        RegionSpecializationKind expectedKind = switch (postOp) {
+            case ADD_BIAS -> RegionSpecializationKind.MATMUL_ADD_BIAS;
+            case ADD_BIAS_RELU -> RegionSpecializationKind.MATMUL_ADD_BIAS_RELU;
+            default -> throw new UnsupportedOperationException("cpu1 matmul bias epilogue does not support " + postOp);
+        };
+        if (candidate.kind() != expectedKind) {
+            throw new UnsupportedOperationException("cpu1 " + expectedKind + " preparer does not support "
                     + candidate.kind());
         }
         if (candidate.outputValueRef().nodeId() != outputNode.id()) {
-            throw new IllegalStateException("MATMUL_ADD_BIAS_RELU specialization output node mismatch. candidate="
+            throw new IllegalStateException(expectedKind + " specialization output node mismatch. candidate="
                     + candidate.outputValueRef().nodeId() + ", outputNode=" + outputNode.id());
         }
-        if (candidate.orderedNodeIds().size() == 2) {
-            validateLinearBiasReluCandidate(outputNode, candidate, context);
+        if (opType(context.compiledNode(candidate.orderedNodeIds().getFirst())) == Operation.OpType.LINEAR) {
+            validateLinearBiasEpilogueCandidate(outputNode, candidate, context, expectedKind, postOp);
             return;
         }
-        if (candidate.orderedNodeIds().size() != 3 || candidate.inputValueRefs().size() != 3) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU expects three nodes and three external inputs, got nodes="
+        int expectedNodes = postOp == Cpu1MatmulPostOp.ADD_BIAS ? 2 : 3;
+        if (candidate.orderedNodeIds().size() != expectedNodes || candidate.inputValueRefs().size() != 3) {
+            throw new UnsupportedOperationException("cpu1 " + expectedKind
+                    + " expects " + expectedNodes + " nodes and three external inputs, got nodes="
                     + candidate.orderedNodeIds() + ", inputs=" + candidate.inputValueRefs());
         }
         CompiledNode matmul = context.compiledNode(candidate.orderedNodeIds().get(0));
         CompiledNode add = context.compiledNode(candidate.orderedNodeIds().get(1));
-        CompiledNode relu = context.compiledNode(candidate.orderedNodeIds().get(2));
+        CompiledNode relu = postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU
+                ? context.compiledNode(candidate.orderedNodeIds().get(2))
+                : null;
         if (opType(matmul) != Operation.OpType.MATMUL
                 || opType(add) != Operation.OpType.ADD
-                || opType(relu) != Operation.OpType.RELU) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU requires MATMUL -> ADD -> RELU nodes.");
+                || (postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU && opType(relu) != Operation.OpType.RELU)) {
+            throw new UnsupportedOperationException("cpu1 " + expectedKind
+                    + " requires MATMUL -> ADD or MATMUL -> ADD -> RELU nodes.");
         }
-        if (relu.id() != outputNode.id() || relu.inputIds().size() != 1 || relu.inputIds().getFirst() != add.id()) {
+        if (postOp == Cpu1MatmulPostOp.ADD_BIAS && add.id() != outputNode.id()) {
+            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS ADD node must be the output node.");
+        }
+        if (postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU
+                && (relu.id() != outputNode.id()
+                || relu.inputIds().size() != 1
+                || relu.inputIds().getFirst() != add.id())) {
             throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU RELU node must consume the ADD output.");
         }
         if (add.inputIds().size() != 2 || !add.inputIds().contains(matmul.id())) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU ADD node must consume the MATMUL output.");
+            throw new UnsupportedOperationException("cpu1 " + expectedKind + " ADD node must consume the MATMUL output.");
         }
         int biasNodeId = add.inputIds().get(0) == matmul.id()
                 ? add.inputIds().get(1)
@@ -244,25 +271,43 @@ public final class BackendPrepareDispatcher {
                 .map(GraphValueRef::nodeId)
                 .toList();
         if (!expectedInputs.equals(actualInputs)) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU inputs do not match candidate inputs.");
+            throw new UnsupportedOperationException("cpu1 " + expectedKind + " inputs do not match candidate inputs.");
         }
     }
 
-    private static void validateLinearBiasReluCandidate(
+    private static void validateLinearBiasEpilogueCandidate(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
-            BackendPrepareContext context
+            BackendPrepareContext context,
+            RegionSpecializationKind expectedKind,
+            Cpu1MatmulPostOp postOp
     ) {
         if (candidate.inputValueRefs().size() != 3) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU LINEAR expects three external inputs, got nodes="
+            throw new UnsupportedOperationException("cpu1 " + expectedKind
+                    + " LINEAR expects three external inputs, got nodes="
                     + candidate.orderedNodeIds() + ", inputs=" + candidate.inputValueRefs());
         }
-        CompiledNode linear = context.compiledNode(candidate.orderedNodeIds().get(0));
-        CompiledNode relu = context.compiledNode(candidate.orderedNodeIds().get(1));
-        if (opType(linear) != Operation.OpType.LINEAR || opType(relu) != Operation.OpType.RELU) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU requires MATMUL -> ADD -> RELU or LINEAR -> RELU nodes.");
+        int expectedNodes = postOp == Cpu1MatmulPostOp.ADD_BIAS ? 1 : 2;
+        if (candidate.orderedNodeIds().size() != expectedNodes) {
+            throw new UnsupportedOperationException("cpu1 " + expectedKind
+                    + " LINEAR expects " + expectedNodes + " nodes, got " + candidate.orderedNodeIds());
         }
-        if (relu.id() != outputNode.id() || relu.inputIds().size() != 1 || relu.inputIds().getFirst() != linear.id()) {
+        CompiledNode linear = context.compiledNode(candidate.orderedNodeIds().get(0));
+        CompiledNode relu = postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU
+                ? context.compiledNode(candidate.orderedNodeIds().get(1))
+                : null;
+        if (opType(linear) != Operation.OpType.LINEAR
+                || (postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU && opType(relu) != Operation.OpType.RELU)) {
+            throw new UnsupportedOperationException("cpu1 " + expectedKind
+                    + " requires LINEAR or LINEAR -> RELU nodes.");
+        }
+        if (postOp == Cpu1MatmulPostOp.ADD_BIAS && linear.id() != outputNode.id()) {
+            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS LINEAR node must be the output node.");
+        }
+        if (postOp == Cpu1MatmulPostOp.ADD_BIAS_RELU
+                && (relu.id() != outputNode.id()
+                || relu.inputIds().size() != 1
+                || relu.inputIds().getFirst() != linear.id())) {
             throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU RELU node must consume the LINEAR output.");
         }
         List<Integer> expectedInputs = linear.inputIds();
@@ -270,7 +315,7 @@ public final class BackendPrepareDispatcher {
                 .map(GraphValueRef::nodeId)
                 .toList();
         if (!expectedInputs.equals(actualInputs)) {
-            throw new UnsupportedOperationException("cpu1 MATMUL_ADD_BIAS_RELU LINEAR inputs do not match candidate inputs.");
+            throw new UnsupportedOperationException("cpu1 " + expectedKind + " LINEAR inputs do not match candidate inputs.");
         }
     }
 

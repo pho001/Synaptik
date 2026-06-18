@@ -198,6 +198,34 @@ class CpuNaturalExecutionRegionPlannerTest {
                 .anyMatch(ops -> ops.equals(List.of(Operation.OpType.LINEAR, Operation.OpType.RELU))));
     }
 
+    @Test
+    void compiledGraphCreatesExactLinearBiasRegionBeforeTrailingCpuConsumer() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "linearBiasA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, -9f, 10f, 11f, -12f}, new int[]{3, 2}, null, "linearBiasB", DataType.FLOAT32);
+        Tensor bias = new Tensor(new float[]{1f, -4f}, new int[]{2}, null, "linearBias", DataType.FLOAT32);
+        Tensor root = a.linear(b, bias).sum();
+
+        CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
+
+        assertTrue(result.program().partitions().stream()
+                .map(partition -> partitionOps(result, partition))
+                .anyMatch(ops -> ops.equals(List.of(Operation.OpType.LINEAR))));
+    }
+
+    @Test
+    void compiledGraphCreatesExactMatmulAddBiasRegionBeforeTrailingCpuConsumer() {
+        Tensor a = new Tensor(new float[]{1f, -2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "matmulBiasA", DataType.FLOAT32);
+        Tensor b = new Tensor(new float[]{7f, 8f, -9f, 10f, 11f, -12f}, new int[]{3, 2}, null, "matmulBiasB", DataType.FLOAT32);
+        Tensor rowBias = new Tensor(new float[]{1f, -4f}, new int[]{1, 2}, null, "matmulRowBias", DataType.FLOAT32);
+        Tensor root = a.matmul(b).add(rowBias).sum();
+
+        CompiledGraph result = CompiledGraph.compile(root, CompileConfig.inference());
+
+        assertTrue(result.program().partitions().stream()
+                .map(partition -> partitionOps(result, partition))
+                .anyMatch(ops -> ops.equals(List.of(Operation.OpType.MATMUL, Operation.OpType.ADD))));
+    }
+
     private static List<Operation.OpType> partitionOps(CompiledGraph graph, Partition partition) {
         return partition.orderedNodeIds().stream()
                 .map(nodeId -> graph.program().compiledNodes().get(nodeId))

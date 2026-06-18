@@ -5,6 +5,7 @@ import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
+import backend.cpu1.prepare.Cpu1PreparedConv2dUnit;
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.prepare.Cpu1PreparedCrossEntropyLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedDenseCrossEntropyLossUnit;
@@ -12,7 +13,11 @@ import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedNllLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedIndexUnit;
+import backend.cpu1.prepare.Cpu1PreparedLayerNormUnit;
+import backend.cpu1.prepare.Cpu1PreparedAvgPool2dUnit;
+import backend.cpu1.prepare.Cpu1PreparedMaxPool2dUnit;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
+import backend.cpu1.prepare.Cpu1PreparedRmsNormUnit;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import graph.CompiledNode;
@@ -48,7 +53,12 @@ public final class Cpu1TraceContributor {
             Cpu1PreparedDenseCrossEntropyLossUnit preparedDenseCrossEntropyLossUnit,
             Cpu1PreparedNllLossUnit preparedNllLossUnit,
             Cpu1PreparedFusedElementwiseUnit preparedFusedElementwiseUnit,
-            Cpu1PreparedIndexUnit preparedIndexUnit
+            Cpu1PreparedIndexUnit preparedIndexUnit,
+            Cpu1PreparedLayerNormUnit preparedLayerNormUnit,
+            Cpu1PreparedRmsNormUnit preparedRmsNormUnit,
+            Cpu1PreparedMaxPool2dUnit preparedMaxPool2dUnit,
+            Cpu1PreparedAvgPool2dUnit preparedAvgPool2dUnit,
+            Cpu1PreparedConv2dUnit preparedConv2dUnit
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
@@ -79,6 +89,21 @@ public final class Cpu1TraceContributor {
         }
         if (preparedIndexUnit != null) {
             return indexTrace(preparedIndexUnit);
+        }
+        if (preparedLayerNormUnit != null) {
+            return layerNormTrace(preparedLayerNormUnit);
+        }
+        if (preparedRmsNormUnit != null) {
+            return rmsNormTrace(preparedRmsNormUnit);
+        }
+        if (preparedMaxPool2dUnit != null) {
+            return maxPool2dTrace(preparedMaxPool2dUnit);
+        }
+        if (preparedAvgPool2dUnit != null) {
+            return avgPool2dTrace(preparedAvgPool2dUnit);
+        }
+        if (preparedConv2dUnit != null) {
+            return conv2dTrace(preparedConv2dUnit);
         }
         return StepTraceContribution.empty();
     }
@@ -476,6 +501,249 @@ public final class Cpu1TraceContributor {
         attrs.put("cpu1IndexOutputElements", unit.outputElementCount());
         attrs.put("cpu1IndexLaunchWorkers", unit.launchConfig().workerCount());
         attrs.put("cpu1IndexLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution layerNormTrace(Cpu1PreparedLayerNormUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1LayerNormKernelId", unit.kernelId().name());
+        attrs.put("cpu1NormalizationOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1NormalizationDType", unit.dataType().name());
+        attrs.put("cpu1LayerNormNormalizedRank", unit.normalizedRank());
+        attrs.put("cpu1LayerNormNormalizedSize", unit.normalizedSize());
+        attrs.put("cpu1LayerNormGroupCount", unit.groupCount());
+        attrs.put("cpu1LayerNormOutputElements", unit.outputElementCount());
+        attrs.put("cpu1LayerNormEpsilon", unit.epsilon());
+        attrs.put("cpu1LayerNormInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1LayerNormGammaAccessKind", unit.gammaAccessPlan().kind().name());
+        attrs.put("cpu1LayerNormBetaAccessKind", unit.betaAccessPlan().kind().name());
+        attrs.put("cpu1LayerNormOutputAccessKind", unit.outputAccessPlan().kind().name());
+        attrs.put("cpu1LayerNormLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1LayerNormLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : unit.dataType().name()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution rmsNormTrace(Cpu1PreparedRmsNormUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1RmsNormKernelId", unit.kernelId().name());
+        attrs.put("cpu1NormalizationOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1NormalizationDType", unit.dataType().name());
+        attrs.put("cpu1RmsNormNormalizedRank", unit.normalizedRank());
+        attrs.put("cpu1RmsNormNormalizedSize", unit.normalizedSize());
+        attrs.put("cpu1RmsNormGroupCount", unit.groupCount());
+        attrs.put("cpu1RmsNormOutputElements", unit.outputElementCount());
+        attrs.put("cpu1RmsNormEpsilon", unit.epsilon());
+        attrs.put("cpu1RmsNormInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1RmsNormGammaAccessKind", unit.gammaAccessPlan().kind().name());
+        attrs.put("cpu1RmsNormOutputAccessKind", unit.outputAccessPlan().kind().name());
+        attrs.put("cpu1RmsNormLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1RmsNormLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : unit.dataType().name()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution maxPool2dTrace(Cpu1PreparedMaxPool2dUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1MaxPool2dKernelId", unit.kernelId().name());
+        attrs.put("cpu1Pool2dOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1Pool2dDType", unit.dataType().name());
+        attrs.put("cpu1Pool2dBatchCount", unit.batchCount());
+        attrs.put("cpu1Pool2dChannels", unit.channels());
+        attrs.put("cpu1Pool2dInputH", unit.inputH());
+        attrs.put("cpu1Pool2dInputW", unit.inputW());
+        attrs.put("cpu1Pool2dOutputH", unit.outputH());
+        attrs.put("cpu1Pool2dOutputW", unit.outputW());
+        attrs.put("cpu1Pool2dKernelH", unit.kernelH());
+        attrs.put("cpu1Pool2dKernelW", unit.kernelW());
+        attrs.put("cpu1Pool2dStrideH", unit.strideH());
+        attrs.put("cpu1Pool2dStrideW", unit.strideW());
+        attrs.put("cpu1Pool2dPadH", unit.padH());
+        attrs.put("cpu1Pool2dPadW", unit.padW());
+        attrs.put("cpu1Pool2dCeilMode", unit.options().ceilMode());
+        attrs.put("cpu1Pool2dOutputElements", unit.outputElementCount());
+        attrs.put("cpu1Pool2dInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1Pool2dOutputAccessKind", unit.outputAccessPlan().kind().name());
+        attrs.put("cpu1Pool2dLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1Pool2dLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution avgPool2dTrace(Cpu1PreparedAvgPool2dUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1AvgPool2dKernelId", unit.kernelId().name());
+        attrs.put("cpu1Pool2dOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1Pool2dDType", unit.dataType().name());
+        attrs.put("cpu1Pool2dBatchCount", unit.batchCount());
+        attrs.put("cpu1Pool2dChannels", unit.channels());
+        attrs.put("cpu1Pool2dInputH", unit.inputH());
+        attrs.put("cpu1Pool2dInputW", unit.inputW());
+        attrs.put("cpu1Pool2dOutputH", unit.outputH());
+        attrs.put("cpu1Pool2dOutputW", unit.outputW());
+        attrs.put("cpu1Pool2dKernelH", unit.kernelH());
+        attrs.put("cpu1Pool2dKernelW", unit.kernelW());
+        attrs.put("cpu1Pool2dStrideH", unit.strideH());
+        attrs.put("cpu1Pool2dStrideW", unit.strideW());
+        attrs.put("cpu1Pool2dPadH", unit.padH());
+        attrs.put("cpu1Pool2dPadW", unit.padW());
+        attrs.put("cpu1Pool2dCountIncludePad", unit.countIncludePad());
+        attrs.put("cpu1Pool2dCeilMode", unit.options().ceilMode());
+        attrs.put("cpu1Pool2dOutputElements", unit.outputElementCount());
+        attrs.put("cpu1Pool2dInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1Pool2dOutputAccessKind", unit.outputAccessPlan().kind().name());
+        attrs.put("cpu1Pool2dLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1Pool2dLaunchChunkSize", unit.launchConfig().chunkSize());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                Cpu1VectorizationKind.SCALAR.name(),
+                1,
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : unit.dataType().name()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution conv2dTrace(Cpu1PreparedConv2dUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1Conv2dKernelId", unit.kernelId().name());
+        attrs.put("cpu1Conv2dOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1Conv2dDType", unit.dataType().name());
+        attrs.put("cpu1Conv2dHasBias", unit.hasBias());
+        attrs.put("cpu1Conv2dBatchCount", unit.batchCount());
+        attrs.put("cpu1Conv2dInputChannels", unit.inChannels());
+        attrs.put("cpu1Conv2dOutputChannels", unit.outChannels());
+        attrs.put("cpu1Conv2dChannelsPerGroup", unit.channelsPerGroup());
+        attrs.put("cpu1Conv2dOutputChannelsPerGroup", unit.outChannelsPerGroup());
+        attrs.put("cpu1Conv2dGroups", unit.groups());
+        attrs.put("cpu1Conv2dInputH", unit.inputH());
+        attrs.put("cpu1Conv2dInputW", unit.inputW());
+        attrs.put("cpu1Conv2dOutputH", unit.outputH());
+        attrs.put("cpu1Conv2dOutputW", unit.outputW());
+        attrs.put("cpu1Conv2dKernelH", unit.kernelH());
+        attrs.put("cpu1Conv2dKernelW", unit.kernelW());
+        attrs.put("cpu1Conv2dStrideH", unit.strideH());
+        attrs.put("cpu1Conv2dStrideW", unit.strideW());
+        attrs.put("cpu1Conv2dPadH", unit.padH());
+        attrs.put("cpu1Conv2dPadW", unit.padW());
+        attrs.put("cpu1Conv2dDilationH", unit.dilationH());
+        attrs.put("cpu1Conv2dDilationW", unit.dilationW());
+        attrs.put("cpu1Conv2dWork", unit.work());
+        attrs.put("cpu1Conv2dOutputElements", unit.outputElementCount());
+        attrs.put("cpu1Conv2dInputAccessKind", unit.inputAccessPlan().kind().name());
+        attrs.put("cpu1Conv2dWeightAccessKind", unit.weightAccessPlan().kind().name());
+        attrs.put("cpu1Conv2dBiasAccessKind", unit.biasAccessPlan() == null
+                ? "NONE"
+                : unit.biasAccessPlan().kind().name());
+        attrs.put("cpu1Conv2dOutputAccessKind", unit.outputAccessPlan().kind().name());
+        attrs.put("cpu1Conv2dLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1Conv2dLaunchChunkSize", unit.launchConfig().chunkSize());
         DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
                 Cpu1VectorizationKind.SCALAR.name(),
                 1,

@@ -1,0 +1,13 @@
+package backend.cpu1.kernels.nn.pool.avgpool;
+
+/**
+ * Dense AVG_POOL2D kernels supported by cpu1.
+ */
+public enum Cpu1AvgPool2dKernelId {
+    AVG_POOL2D_F32_ARRAY_DENSE_SCALAR,
+    AVG_POOL2D_F64_ARRAY_DENSE_SCALAR,
+    AVG_POOL2D_BF16_ARRAY_DENSE_SCALAR,
+    AVG_POOL2D_F32_SEGMENT_DENSE_SCALAR,
+    AVG_POOL2D_F64_SEGMENT_DENSE_SCALAR,
+    AVG_POOL2D_BF16_SEGMENT_DENSE_SCALAR
+}

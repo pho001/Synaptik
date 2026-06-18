@@ -2,13 +2,17 @@ package backend.cpu1.kernels.matmul;
 
 import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
+import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
-import backend.memory.CpuMaterializationReason;
+import backend.memory.TensorResidencyState;
 import backend.runtime.ExecutionContext;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 
 import java.lang.foreign.MemorySegment;
+
+import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
  * OpenBLAS native MemorySegment matmul route for dense cpu1 storage.
@@ -22,10 +26,13 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
             throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT F32 MATMUL requires OpenBLAS sgemm: "
                     + OpenBlasRuntime.unavailableReason());
         }
-        NativeTensorStorage left = inputStorage(unit.leftNodeId(), DataType.FLOAT32, context);
-        NativeTensorStorage right = inputStorage(unit.rightNodeId(), DataType.FLOAT32, context);
+        NativeTensorStorage left = inputStorage("left", unit.leftNodeId(), DataType.FLOAT32, context);
+        NativeTensorStorage right = inputStorage("right", unit.rightNodeId(), DataType.FLOAT32, context);
+        NativeTensorStorage bias = unit.hasBias()
+                ? inputStorage("bias", unit.biasNodeId(), DataType.FLOAT32, context)
+                : null;
         NativeTensorStorage outputStorage = outputStorage(unit, context);
-        runF32(left, right, outputStorage, unit);
+        runF32(left, right, bias, outputStorage, unit);
         markOutputWritten(unit, outputStorage, context);
     }
 
@@ -34,16 +41,20 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
             throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT F64 MATMUL requires OpenBLAS dgemm: "
                     + OpenBlasRuntime.unavailableReason());
         }
-        NativeTensorStorage left = inputStorage(unit.leftNodeId(), DataType.FLOAT64, context);
-        NativeTensorStorage right = inputStorage(unit.rightNodeId(), DataType.FLOAT64, context);
+        NativeTensorStorage left = inputStorage("left", unit.leftNodeId(), DataType.FLOAT64, context);
+        NativeTensorStorage right = inputStorage("right", unit.rightNodeId(), DataType.FLOAT64, context);
+        NativeTensorStorage bias = unit.hasBias()
+                ? inputStorage("bias", unit.biasNodeId(), DataType.FLOAT64, context)
+                : null;
         NativeTensorStorage outputStorage = outputStorage(unit, context);
-        runF64(left, right, outputStorage, unit);
+        runF64(left, right, bias, outputStorage, unit);
         markOutputWritten(unit, outputStorage, context);
     }
 
     private static void runF32(
             NativeTensorStorage left,
             NativeTensorStorage right,
+            NativeTensorStorage bias,
             NativeTensorStorage output,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -52,8 +63,10 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
         int k = unit.k();
         MemorySegment leftSegment = left.segment();
         MemorySegment rightSegment = right.segment();
+        MemorySegment biasSegment = bias == null ? null : bias.segment();
         MemorySegment outputSegment = output.segment();
         for (int batch = 0; batch < unit.batchCount(); batch++) {
+            int outputBatchOffset = unit.outputBatchOffset(batch);
             OpenBlasSegmentGemm.sgemmRowMajorNoTransSegment(
                     m,
                     n,
@@ -67,15 +80,17 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
                     n,
                     0.0f,
                     outputSegment,
-                    byteOffset(unit.outputBatchOffset(batch), Float.BYTES),
+                    byteOffset(outputBatchOffset, Float.BYTES),
                     n
             );
+            applyF32Epilogue(outputSegment, biasSegment, outputBatchOffset, batch, unit);
         }
     }
 
     private static void runF64(
             NativeTensorStorage left,
             NativeTensorStorage right,
+            NativeTensorStorage bias,
             NativeTensorStorage output,
             Cpu1PreparedMatmulUnit unit
     ) {
@@ -84,8 +99,10 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
         int k = unit.k();
         MemorySegment leftSegment = left.segment();
         MemorySegment rightSegment = right.segment();
+        MemorySegment biasSegment = bias == null ? null : bias.segment();
         MemorySegment outputSegment = output.segment();
         for (int batch = 0; batch < unit.batchCount(); batch++) {
+            int outputBatchOffset = unit.outputBatchOffset(batch);
             OpenBlasSegmentGemm.dgemmRowMajorNoTransSegment(
                     m,
                     n,
@@ -99,19 +116,98 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
                     n,
                     0.0d,
                     outputSegment,
-                    byteOffset(unit.outputBatchOffset(batch), Double.BYTES),
+                    byteOffset(outputBatchOffset, Double.BYTES),
                     n
             );
+            applyF64Epilogue(outputSegment, biasSegment, outputBatchOffset, batch, unit);
         }
     }
 
-    private static NativeTensorStorage inputStorage(int nodeId, DataType dataType, ExecutionContext context) {
-        NativeTensorStorage nativeInput = context.requireNativeReadable(nodeId, CpuMaterializationReason.CPU_CONSUMER);
+    private static void applyF32Epilogue(
+            MemorySegment outputSegment,
+            MemorySegment biasSegment,
+            int outputBatchOffset,
+            int batch,
+            Cpu1PreparedMatmulUnit unit
+    ) {
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        if (postOp == Cpu1MatmulPostOp.NONE) {
+            return;
+        }
+        if (!unit.hasBias() || biasSegment == null) {
+            throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT " + postOp + " requires native bias storage.");
+        }
+        int biasBatchOffset = unit.biasBatchOffset(batch);
+        for (int row = 0; row < unit.m(); row++) {
+            int outputRowBase = outputBatchOffset + row * unit.outputRowStride();
+            int biasRowBase = biasBatchOffset + row * unit.biasRowStride();
+            for (int col = 0; col < unit.n(); col++) {
+                int outputIndex = outputRowBase + col * unit.outputColStride();
+                int biasIndex = biasRowBase + col * unit.biasColStride();
+                float value = outputSegment.get(JAVA_FLOAT, byteOffset(outputIndex, Float.BYTES));
+                float bias = biasSegment.get(JAVA_FLOAT, byteOffset(biasIndex, Float.BYTES));
+                outputSegment.set(JAVA_FLOAT, byteOffset(outputIndex, Float.BYTES), postOp.apply(value, bias));
+            }
+        }
+    }
+
+    private static void applyF64Epilogue(
+            MemorySegment outputSegment,
+            MemorySegment biasSegment,
+            int outputBatchOffset,
+            int batch,
+            Cpu1PreparedMatmulUnit unit
+    ) {
+        Cpu1MatmulPostOp postOp = unit.postOp();
+        if (postOp == Cpu1MatmulPostOp.NONE) {
+            return;
+        }
+        if (!unit.hasBias() || biasSegment == null) {
+            throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT " + postOp + " requires native bias storage.");
+        }
+        int biasBatchOffset = unit.biasBatchOffset(batch);
+        for (int row = 0; row < unit.m(); row++) {
+            int outputRowBase = outputBatchOffset + row * unit.outputRowStride();
+            int biasRowBase = biasBatchOffset + row * unit.biasRowStride();
+            for (int col = 0; col < unit.n(); col++) {
+                int outputIndex = outputRowBase + col * unit.outputColStride();
+                int biasIndex = biasRowBase + col * unit.biasColStride();
+                double value = outputSegment.get(JAVA_DOUBLE, byteOffset(outputIndex, Double.BYTES));
+                double bias = biasSegment.get(JAVA_DOUBLE, byteOffset(biasIndex, Double.BYTES));
+                outputSegment.set(JAVA_DOUBLE, byteOffset(outputIndex, Double.BYTES), postOp.apply(value, bias));
+            }
+        }
+    }
+
+    private static NativeTensorStorage inputStorage(
+            String role,
+            int nodeId,
+            DataType dataType,
+            ExecutionContext context
+    ) {
+        NativeTensorStorage nativeInput = requireNativeCurrent(role, nodeId, context);
         if (nativeInput.getType() != dataType) {
             throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL requires " + dataType
-                    + " native input storage, got " + nativeInput.getType());
+                    + " native " + role + " storage, got " + nativeInput.getType());
         }
         return nativeInput;
+    }
+
+    private static NativeTensorStorage requireNativeCurrent(String role, int nodeId, ExecutionContext context) {
+        TensorResidencyState residency = context.residencyForNodeId(nodeId);
+        NativeTensorStorage storage = context.nativeStorageForNodeId(nodeId);
+        if (residency != null && residency.nativeCurrent() && storage != null) {
+            storage.ensureOpen();
+            return storage;
+        }
+        throw new UnsupportedOperationException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL requires current native CPU segment "
+                + role + " storage for nodeId=" + nodeId + "; residency="
+                + (residency == null ? "unknown" : residency.residency())
+                + ", cpuCurrent=" + (residency != null && residency.cpuCurrent())
+                + ", nativeCurrent=" + (residency != null && residency.nativeCurrent())
+                + ", deviceCurrent=" + (residency != null && residency.deviceCurrent())
+                + ", nativeStorageAttached=" + (storage != null)
+                + ", reason=" + (residency == null ? "" : residency.lastTransitionReason()));
     }
 
     private static NativeTensorStorage outputStorage(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {

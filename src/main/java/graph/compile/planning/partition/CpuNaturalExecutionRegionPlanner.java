@@ -7,6 +7,7 @@ import graph.compile.planning.value.GraphValueRef;
 import graph.execution.trace.PartitionCompileTrace;
 import graph.execution.trace.PartitionDecisionTrace;
 import operations.Operation;
+import operations.linalg.linear;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -146,20 +147,15 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
                 || requiredMaterialized(request, start.id())) {
             return List.of();
         }
+        if (startOp == Operation.OpType.LINEAR) {
+            return exactLinearEpilogueNodeIds(start, request);
+        }
         CompiledNode firstConsumer = soleConsumer(start.id(), request);
         if (firstConsumer == null || !isSupportedCpuNode(firstConsumer, request)) {
             return List.of();
         }
-        if (startOp == Operation.OpType.LINEAR) {
-            if (opType(firstConsumer) == Operation.OpType.RELU
-                    && reluConsumes(firstConsumer, start.id())
-                    && !hasFusableCpuContinuation(firstConsumer, request)) {
-                return List.of(start.id(), firstConsumer.id());
-            }
-            return List.of();
-        }
         if (opType(firstConsumer) == Operation.OpType.ADD) {
-            return exactMatmulAddReluNodeIds(start, firstConsumer, request);
+            return exactMatmulAddEpilogueNodeIds(start, firstConsumer, request);
         }
         if (opType(firstConsumer) == Operation.OpType.RELU
                 && reluConsumes(firstConsumer, start.id())
@@ -169,7 +165,29 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
         return List.of();
     }
 
-    private List<Integer> exactMatmulAddReluNodeIds(
+    private List<Integer> exactLinearEpilogueNodeIds(CompiledNode linearNode, PartitionPlanningRequest request) {
+        if (!(linearNode.operation() instanceof linear linearOp) || !linearOp.hasBias()) {
+            return List.of();
+        }
+        CompiledNode firstConsumer = soleConsumer(linearNode.id(), request);
+        if (firstConsumer == null) {
+            return List.of(linearNode.id());
+        }
+        if (!isSupportedCpuNode(firstConsumer, request)) {
+            return List.of();
+        }
+        if (opType(firstConsumer) == Operation.OpType.RELU
+                && reluConsumes(firstConsumer, linearNode.id())
+                && !hasFusableCpuContinuation(firstConsumer, request)) {
+            return List.of(linearNode.id(), firstConsumer.id());
+        }
+        if (!hasFusableCpuContinuation(linearNode, request)) {
+            return List.of(linearNode.id());
+        }
+        return List.of();
+    }
+
+    private List<Integer> exactMatmulAddEpilogueNodeIds(
             CompiledNode matmul,
             CompiledNode add,
             PartitionPlanningRequest request
@@ -178,16 +196,19 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
             return List.of();
         }
         CompiledNode relu = soleConsumer(add.id(), request);
-        if (relu == null
-                || !isSupportedCpuNode(relu, request)
-                || opType(relu) != Operation.OpType.RELU
-                || !reluConsumes(relu, add.id())) {
-            return List.of();
+        if (relu != null
+                && isSupportedCpuNode(relu, request)
+                && opType(relu) == Operation.OpType.RELU
+                && reluConsumes(relu, add.id())) {
+            if (hasFusableCpuContinuation(relu, request)) {
+                return List.of();
+            }
+            return List.of(matmul.id(), add.id(), relu.id());
         }
-        if (hasFusableCpuContinuation(relu, request)) {
-            return List.of();
+        if (!hasFusableCpuContinuation(add, request)) {
+            return List.of(matmul.id(), add.id());
         }
-        return List.of(matmul.id(), add.id(), relu.id());
+        return List.of();
     }
 
     private boolean hasFusableCpuContinuation(CompiledNode node, PartitionPlanningRequest request) {

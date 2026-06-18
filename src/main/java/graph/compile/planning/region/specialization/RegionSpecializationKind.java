@@ -6,5 +6,6 @@ package graph.compile.planning.region.specialization;
 public enum RegionSpecializationKind {
     MSE_LOSS,
     MATMUL_RELU,
+    MATMUL_ADD_BIAS,
     MATMUL_ADD_BIAS_RELU
 }

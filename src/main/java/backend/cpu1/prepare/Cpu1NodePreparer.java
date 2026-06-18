@@ -80,6 +80,15 @@ public final class Cpu1NodePreparer {
         if (Cpu1MatmulPreparer.isMatmulOp(opType)) {
             return new Cpu1MatmulPreparer().prepare(node, descriptorIndex, config);
         }
+        if (Cpu1MatmulPreparer.isLinearOp(opType)) {
+            return new Cpu1MatmulPreparer().prepareLinearEpilogue(
+                    node,
+                    node,
+                    descriptorIndex,
+                    config,
+                    Cpu1MatmulPostOp.NONE
+            );
+        }
         if (Cpu1DTypePreparer.isDTypeOp(opType)) {
             return new Cpu1DTypePreparer().prepare(node, descriptorIndex, config);
         }
@@ -88,6 +97,15 @@ public final class Cpu1NodePreparer {
         }
         if (Cpu1IndexPreparer.isIndexOp(opType)) {
             return new Cpu1IndexPreparer().prepare(node, descriptorIndex, config);
+        }
+        if (Cpu1NormalizationPreparer.isNormalizationOp(opType)) {
+            return new Cpu1NormalizationPreparer().prepare(node, descriptorIndex, config);
+        }
+        if (Cpu1Pool2dPreparer.isPool2dOp(opType)) {
+            return new Cpu1Pool2dPreparer().prepare(node, descriptorIndex, config);
+        }
+        if (Cpu1Conv2dPreparer.isConv2dOp(opType)) {
+            return new Cpu1Conv2dPreparer().prepare(node, descriptorIndex, config);
         }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);

@@ -119,6 +119,7 @@ public final class RegionSpecializationPlanner {
         ArrayList<RegionSpecializationCandidate> out = new ArrayList<>();
         out.addAll(MseLossSpecializationDetector.findCandidates(partition, context));
         out.addAll(MatmulBiasReluSpecializationDetector.findCandidates(partition, context));
+        out.addAll(MatmulBiasSpecializationDetector.findCandidates(partition, context));
         out.addAll(MatmulReluSpecializationDetector.findCandidates(partition, context));
         return List.copyOf(out);
     }

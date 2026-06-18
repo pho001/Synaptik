@@ -24,7 +24,7 @@ Aktualni stav fazi:
 - [x] Faze 4: softmax/logSoftmax runtime width
 - [x] Faze 5: loss vetev pro NLL a CrossEntropy; dense scope complete, strided/view deferred
 - [x] Faze 6: index/gather/scatter operace; dense direct scope complete, strided/view a parallel scatter deferred
-- [ ] Faze 7: linear, NN a normalization kernely
+- [x] Faze 7: NN a normalization kernely; LAYER_NORM/RMS_NORM dense JAVA_ARRAY/MEMORY_SEGMENT slices, LINEAR dense matmul-backed subset, MAX_POOL2D/AVG_POOL2D dense direct routes and CONV2D dense direct correctness/fallback route complete; generic MATMUL_EPILOGUE IR deferred to follow-up plan 119 and optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
 - [ ] Faze 8: linear algebra a attention parita
 - [ ] Faze 9: native storage, BF16 a mixed residency policy
 - [ ] Faze 10: trace, tuning, coverage gate a default route readiness
@@ -478,13 +478,20 @@ cpu1:
 - OpenBLAS array route existuje
 - OpenBLAS native segment route existuje
 - matmul post-op/epilogue zacal vznikat
-- `LINEAR` neni dorovnany jako samostatny op
+- `LINEAR` cpu1 route existuje jako semantic MATMUL(input, weight)
+  plus optional last-dim bias epilogue; region specialization maps
+  standalone LINEAR+bias and exact MATMUL+ADD bias through the current concrete
+  matmul-bias specialization route
 - attention ops nejsou dorovnane
 
 Zbyvajici parity prace:
 
-- rozhodnout, zda `LINEAR` lowerovat na `MATMUL + ADD/bias`, nebo mit
-  specializovanou cpu1 linear family
+- obecne backend-neutral MATMUL epilogue IR neni soucast tohoto planu; je
+  presunute do [todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md)
+- rozsireni `LINEAR` zbyva pro strided/view inputs a pro prechod z konkretni
+  matmul-bias specialization route na obecny `MATMUL_EPILOGUE` payload;
+  aktualne dense contiguous no-offset Java-array route pokryva bias/no-bias a
+  native MemorySegment route pokryva explicitni podporovane matmul-backed route
 - attention prenest az po stabilnim workspace/native/matmul provider layeru
 - doplnit batched matmul edge cases proti staremu CPU
 - sjednotit OpenBLAS thread knobs s tuning/runtime configem
@@ -493,7 +500,8 @@ Verdikt:
 
 ```text
 MATMUL je v cpu1 velmi dulezity a relativne daleko.
-LINEAR a attention jsou chybejici parity oblasti.
+LINEAR direct dense subset je pokryty matmul-backed routou; attention zustava
+chybejici parity oblast.
 ```
 
 ### 9. Index / Gather / Scatter
@@ -546,24 +554,24 @@ Stary CPU podporuje:
 
 cpu1:
 
-- zatim nema samostatnou `nn` family
+- `LAYER_NORM` a `RMS_NORM` maji samostatnou `nn.normalization` family
+- `MAX_POOL2D` ma samostatnou `nn.pool.maxpool` dense direct family
+- `AVG_POOL2D` ma samostatnou `nn.pool.avgpool` dense direct family
+- `CONV2D` ma samostatnou `nn.conv.conv2d` dense direct family
 - nektere normalized/loss-like patterny by mohly byt casem fused/specialized
-- zadna prima conv/pool parity
 
 Zbyvajici parity prace:
 
-- nejdriv `LAYER_NORM` a `RMS_NORM`, protoze jsou blizko reduction +
-  elementwise + workspace modelu
-- potom pool2d
-- conv2d az po jasnem rozhodnuti, jestli pouzit direct Java loops, im2col +
-  matmul, nebo provider abstraction
+- zadna zbyvajici dense NN/normalization correctness prace ve fazi 7
+- strided/view/native-storage policy doplnovani podle planu 118
+- preferovana budouci optimalizovana `CONV2D -> UNFOLD2D -> MATMUL` route je
+  odlozena mimo fazi 7; aktualni `CONV2D` route je direct correctness/fallback
 
 Verdikt:
 
 ```text
-Missing op coverage.
-Implementovat po reductions/loss/index, protoze potrebuje stejny scratch,
-layout a native policy zaklad.
+Dense NN/normalization op coverage pro fazi 7 je hotova.
+Zbyvaji odlozene materialization/optimization prace mimo fazi 7.
 ```
 
 ### 11. Native CPU Storage
@@ -1899,36 +1907,221 @@ gather ops parallel output range allowed
 
 ---
 
-## Faze 7: Linear, NN A Normalization
+## Faze 7: NN A Normalization
 
-Status: `[ ]`
+Status: `[x]`
 
 ### Proc
 
-Po reductions/loss/index budou chybet hlavne higher-level numeric kernels:
+Po reductions/loss/index zbyvaly higher-level numeric kernels. Dense
+correctness scope faze 7 je hotovy pro:
 
 - `LINEAR`
+- `LAYER_NORM`
+- `RMS_NORM`
 - `CONV2D`
 - `MAX_POOL2D`
 - `AVG_POOL2D`
-- `LAYER_NORM`
-- `RMS_NORM`
 
 ### Poradi
 
-1. `LAYER_NORM`
-2. `RMS_NORM`
-3. `LINEAR`
-4. `MAX_POOL2D`
-5. `AVG_POOL2D`
-6. `CONV2D`
+1. `LAYER_NORM` - dense contiguous no-offset `JAVA_ARRAY` and `MEMORY_SEGMENT` slice implemented for FLOAT32/FLOAT64/BFLOAT16
+2. `RMS_NORM` - dense contiguous no-offset `JAVA_ARRAY` and `MEMORY_SEGMENT` slice implemented for FLOAT32/FLOAT64/BFLOAT16
+3. `LINEAR` - matmul-backed dense contiguous no-offset epilogue route implemented;
+   `JAVA_ARRAY` supports no-bias and bias for FLOAT32/FLOAT64/BFLOAT16, explicit
+   `OPENBLAS_NATIVE_SEGMENT` supports no-bias FLOAT32/FLOAT64
+4. `MAX_POOL2D` - dense contiguous no-offset `JAVA_ARRAY` and `MEMORY_SEGMENT`
+   direct forward route implemented for FLOAT32/FLOAT64/BFLOAT16; scalar loop
+   body, parallelized over output element ranges through existing cpu1 launch
+   policy/config
+5. `AVG_POOL2D` - dense contiguous no-offset `JAVA_ARRAY` and `MEMORY_SEGMENT`
+   direct forward route implemented for FLOAT32/FLOAT64/BFLOAT16; scalar loop
+   body, parallelized over output element ranges through existing cpu1 launch
+   policy/config; countIncludePad and ceilMode semantics covered
+6. `CONV2D` - dense contiguous no-offset `JAVA_ARRAY` and `MEMORY_SEGMENT`
+   direct Java correctness/fallback route implemented for
+   FLOAT32/FLOAT64/BFLOAT16; supports optional bias, stride, padding, dilation,
+   groups/depthwise-style grouped convolution, and range parallelization over
+   output elements
 
 Proc takto:
 
 - norm opy vyuziji reduction + elementwise + scratch infrastrukturu
-- linear muze byt lowering na matmul + bias, nebo specializovany provider
+- linear je aktualne matmul-backed epilogue route v `Cpu1MatmulPreparer` bez
+  extra provider vrstvy; zobecneni matmul epilogue IR je mimo fazi 7 a patri do
+  planu [119](119-general-matmul-epilogue-ir-plan.md)
 - pool2d je layout/index heavy, ale jednodussi nez conv2d
-- conv2d ma nejvic route rozhodnuti
+- conv2d ma nejvic route rozhodnuti; v teto fazi je zamerne vyreseny jen
+  direct correctness/fallback route bez `UNFOLD2D`, OpenBLAS nebo obecneho
+  matmul epilogue IR
+
+### Scope Korekce Po Plan 119
+
+Zobecneni matmul epilogue specializaci uz neni soucast faze 7 tohoto parity
+planu. Faze 7 smi jen udrzovat aktualni `LINEAR` dense subset funkcni a
+testovany. Obecna nahrada konkretni specialization enum logiky:
+
+```text
+MATMUL_RELU
+MATMUL_ADD_BIAS
+MATMUL_ADD_BIAS_RELU
+```
+
+za backend-neutral:
+
+```text
+RegionSpecializationKind.MATMUL_EPILOGUE
+  payload: MatmulEpiloguePlan
+```
+
+je samostatny follow-up v
+[todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md).
+
+To znamena:
+
+- faze 7 nepokracuje dalsim refaktorem matmul epilogue IR
+- faze 7 nepokracuje rozsirovanim `LINEAR` pres nove graph-level epilogue kindy
+- faze 7 muze pridat jen missing NN parity opy, ktere jsou nezavisle na obecnem
+  matmul epilogue IR
+- preferovana budouci optimalizovana conv route je
+  `CONV2D -> UNFOLD2D -> MATMUL`; prvni implementace v tomto planu zustava
+  direct Java correctness/fallback route a optimalizace patri az do samostatne
+  navazne prace po stabilizaci planu 118/119 a faze 8/9
+
+Prakticky stav faze 7 po CONV2D:
+
+```text
+Dense NN/normalization scope hotovy: LAYER_NORM, RMS_NORM, LINEAR dense subset,
+MAX_POOL2D, AVG_POOL2D a CONV2D direct correctness/fallback.
+```
+
+`MAX_POOL2D` bylo prvni, protoze nevyzaduje akumulacni deleni jako AVG pool a
+nevyzaduje kernel/filter semantiku jako CONV2D. Overilo indexaci NCHW,
+padding, stride, ceil-mode shape inference, dense storage kontrakt a paralelni
+output-range launch bez zasahu do matmul/epilogue architektury.
+
+### CONV2D Stav
+
+Status: `[x]`
+
+Implementovane soubory:
+
+- `src/main/java/backend/cpu1/prepare/Cpu1Conv2dPreparer.java`
+- `src/main/java/backend/cpu1/prepare/Cpu1PreparedConv2dUnit.java`
+- `src/main/java/backend/cpu1/exec/Cpu1Conv2dExecutableUnit.java`
+- `src/main/java/backend/cpu1/kernels/nn/conv/conv2d/Cpu1Conv2dKernelId.java`
+- `src/main/java/backend/cpu1/kernels/nn/conv/conv2d/Cpu1Conv2dKernel.java`
+- `src/main/java/backend/cpu1/kernels/nn/conv/conv2d/Cpu1Conv2dKernelDispatch.java`
+- `src/main/java/backend/cpu1/kernels/nn/conv/conv2d/Cpu1Conv2dLoops.java`
+- `src/test/java/backend/cpu1/Cpu1Conv2dExecutionContractTest.java`
+
+Pokryti:
+
+- Operation route: `Cpu1NodePreparer -> Cpu1Conv2dPreparer` pro
+  `Operation.OpType.CONV2D`
+- dtype: `FLOAT32`, `FLOAT64`, `BFLOAT16`
+- storage: `JAVA_ARRAY`, `MEMORY_SEGMENT`
+- layout: dense contiguous no-offset input/weight/bias/output
+- semantika: rank-4 NCHW input/output, OIHW weight,
+  stride/padding/dilation/groups podle `Conv2dOptions`
+- optional bias: treti input se cte jako `[outChannels]`
+- grouped/depthwise-style conv: podporovano pres obecny `groups` kontrakt,
+  `weightShape[1] * groups == inputChannels`
+- BF16: vstup/weight/bias se cte jako BF16, akumulace bezi ve F32 a vysledek
+  se az na konci materializuje zpet do BF16
+- launch: scalar direct kernel body, range parallelization over output elements
+  pres existujici `Cpu1LaunchPolicy`; automatic mode pouziva
+  `CpuKernelConfig.matMulParallelMinSize()` nad odhadem prace
+  `outputElements * channelsPerGroup * kernelH * kernelW` a
+  `minScalarChunkSize()`
+- trace: `cpu1Conv2dKernelId`, dtype, storage, bias, groups, stride, padding,
+  dilation, access kinds a launch workers/chunk
+
+Zamerne nepokryto v teto casti:
+
+- strided/view inputy nebo vystupy; materializaci ma rozhodnout graph/lowering
+  podle samostatneho planu 118
+- preferovana budouci optimalizovana `CONV2D -> UNFOLD2D -> MATMUL`, OpenBLAS
+  nebo provider route; direct route z faze 7 zustava correctness/fallback cesta
+- conv backward direct specializace; soucasny autograd sklada gradient pres
+  layout/matmul/reduction primitiva
+
+### MAX_POOL2D Stav
+
+Status: `[x]`
+
+Implementovane soubory:
+
+- `src/main/java/backend/cpu1/prepare/Cpu1Pool2dPreparer.java`
+- `src/main/java/backend/cpu1/prepare/Cpu1PreparedMaxPool2dUnit.java`
+- `src/main/java/backend/cpu1/exec/Cpu1MaxPool2dExecutableUnit.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/maxpool/Cpu1MaxPool2dKernelId.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/maxpool/Cpu1MaxPool2dKernel.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/maxpool/Cpu1MaxPool2dKernelDispatch.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/maxpool/Cpu1MaxPool2dLoops.java`
+- `src/test/java/backend/cpu1/Cpu1Pool2dExecutionContractTest.java`
+
+Pokryti:
+
+- Operation route: `Cpu1NodePreparer -> Cpu1Pool2dPreparer` pro
+  `Operation.OpType.MAX_POOL2D`
+- dtype: `FLOAT32`, `FLOAT64`, `BFLOAT16`
+- storage: `JAVA_ARRAY`, `MEMORY_SEGMENT`
+- layout: dense contiguous no-offset input/output
+- semantika: rank-4 NCHW, kernel/stride/padding/ceilMode podle
+  `Pool2dOptions`
+- padding: padding se nikdy nebere jako hodnota 0, maximum se inicializuje az
+  prvnim validnim vstupem; zaporne vstupy tedy zustanou korektni
+- launch: scalar kernel body, range parallelization over output elements pres
+  existujici `Cpu1LaunchPolicy`; automatic mode pouziva `CpuKernelConfig`
+  thresholdy a chunk tuning, ne hardcoded thread count
+
+Zamerne nepokryto v teto casti:
+
+- strided/view inputy nebo vystupy; materializaci ma rozhodnout graph/lowering
+  podle samostatneho planu 118
+- backward-special workspace/argmax cache; soucasny graph backward rozklada
+  pool gradient pres layout/index/reduction primitiva
+
+### AVG_POOL2D Stav
+
+Status: `[x]`
+
+Implementovane soubory:
+
+- `src/main/java/backend/cpu1/prepare/Cpu1Pool2dPreparer.java`
+- `src/main/java/backend/cpu1/prepare/Cpu1PreparedAvgPool2dUnit.java`
+- `src/main/java/backend/cpu1/exec/Cpu1AvgPool2dExecutableUnit.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/avgpool/Cpu1AvgPool2dKernelId.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/avgpool/Cpu1AvgPool2dKernel.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/avgpool/Cpu1AvgPool2dKernelDispatch.java`
+- `src/main/java/backend/cpu1/kernels/nn/pool/avgpool/Cpu1AvgPool2dLoops.java`
+- `src/test/java/backend/cpu1/Cpu1Pool2dExecutionContractTest.java`
+
+Pokryti:
+
+- Operation route: `Cpu1NodePreparer -> Cpu1Pool2dPreparer` pro
+  `Operation.OpType.AVG_POOL2D`
+- dtype: `FLOAT32`, `FLOAT64`, `BFLOAT16`
+- storage: `JAVA_ARRAY`, `MEMORY_SEGMENT`
+- layout: dense contiguous no-offset input/output
+- semantika: rank-4 NCHW, kernel/stride/padding/ceilMode podle
+  `Pool2dOptions`
+- average divisor:
+  - `countIncludePad=false`: deli se poctem validnich vstupnich prvku v okne
+  - `countIncludePad=true`: deli se plnou velikosti `kernelH * kernelW`
+- BF16: vstup se cte jako BF16, akumulace bezi ve F32 a vysledek se az na konci
+  materializuje zpet do BF16
+- launch: scalar kernel body, range parallelization over output elements pres
+  existujici `Cpu1LaunchPolicy`; automatic mode pouziva `CpuKernelConfig`
+  thresholdy a chunk tuning, ne hardcoded thread count
+
+Zamerne nepokryto v teto casti:
+
+- strided/view inputy nebo vystupy; materializaci ma rozhodnout graph/lowering
+  podle samostatneho planu 118
+- pool backward specializace; soucasny graph backward rozklada pool gradient pres
+  layout/index/reduction primitiva
 
 ### LayerNorm Prepared Unit Skeleton
 
@@ -1981,15 +2174,15 @@ unit.launchPolicy().launch(unit.groupCount(), (start, end) -> {
 Moznosti:
 
 1. direct Java loops jako stary CPU
-2. im2col + matmul
+2. `CONV2D -> UNFOLD2D -> MATMUL`
 3. provider abstraction pro native knihovny
 
-Prvni implementace:
+Rozhodnuti pro fazi 7:
 
 ```text
-direct Java scalar correctness first
-parallel over output batches/channels/spatial tiles
-native/provider route later
+direct Java scalar correctness/fallback route
+parallel over output element ranges
+preferred optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
 ```
 
 ### Overeni
@@ -2017,17 +2210,44 @@ Status: `[ ]`
 
 ### LINEAR
 
+Status: `[x]` for dense contiguous no-offset direct forward subset.
+
+Generic backend-neutral `MATMUL_EPILOGUE` IR is intentionally deferred to
+[todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md).
+This section tracks only the current dense cpu1 parity subset.
+
 Preferovane reseni:
 
 ```text
-graph/lowering:
+cpu1 prepare:
   LINEAR(input, weight, bias)
-    -> MATMUL(input, weight.T)
-    -> ADD bias epilogue nebo broadcast add
+    -> validate LinearSpec contract:
+       input [..., inFeatures], weight [inFeatures, outFeatures],
+       optional bias [outFeatures] or [1, outFeatures]
+    -> prepared matmul route over MATMUL(input, weight)
+    -> optional ADD_BIAS epilogue for Java scalar/vector routes
 ```
 
-Pokud lowering neni vzdy mozne, udelat cpu1 `linear` family jako tenkou
-specializaci nad matmul providerem.
+Implementovano jako tenka matmul-epilogue specializace nad existujicim
+`Cpu1MatmulPreparer`, `Cpu1PreparedMatmulUnit` a matmul provider selection.
+Nepridava samostatnou linear provider vrstvu.
+
+Aktualni pokryti:
+
+- dense contiguous no-offset inputs/output/bias only
+- `JAVA_ARRAY`: FLOAT32/FLOAT64/BFLOAT16 no-bias and bias
+- `OPENBLAS_NATIVE_SEGMENT`: FLOAT32/FLOAT64 no-bias and bias epilogues,
+  explicit route, native-current dense contiguous no-offset inputs/bias required
+- unsupported dtype/route/post-op combinations fail in prepare
+- region specialization maps standalone `LINEAR(input, weight, bias)` and exact
+  `MATMUL(input, weight).add(bias)` through the current concrete
+  matmul-bias specialization route until plan 119 replaces it with
+  `MATMUL_EPILOGUE`
+- existing `LINEAR -> RELU` specialization remains on the current concrete
+  bias+relu epilogue route until plan 119 replaces it with `MATMUL_EPILOGUE`
+- LINEAR stays aligned with current cpu1 MATMUL support: dense contiguous
+  inputs/output with batch broadcast offsets only; broad strided LINEAR is not
+  introduced until MATMUL has the same execution support.
 
 Skeleton:
 
@@ -2067,9 +2287,10 @@ Prvni cpu1 attention plan:
 
 ### Tasky
 
-- [ ] Zmapovat, kdy graph ponechava `LINEAR` jako op
-- [ ] Rozhodnout lowering vs direct `Cpu1LinearPreparer`
-- [ ] Pridat LINEAR contract tests
+- [x] Zmapovat, kdy graph ponechava `LINEAR` jako op
+- [x] Rozhodnout lowering vs direct route: matmul-backed epilogue route in
+  `Cpu1MatmulPreparer`
+- [x] Pridat LINEAR contract tests
 - [ ] Zmapovat SDPA current CPU semantics
 - [ ] Navrhnout cpu1 SDPA workspace layout
 - [ ] Implementovat attention az po softmax parallel group path
@@ -2179,23 +2400,7 @@ Cilovy test:
 void cpu1CoverageGateListsAllOldCpuDirectOps() {
     Cpu1CoverageReport report = Cpu1CoverageReport.current();
     assertThat(report.missingRequiredOps()).containsExactlyInAnyOrder(
-            Operation.OpType.GATHER,
-            Operation.OpType.GATHER_AXIS,
-            Operation.OpType.GATHER_ND,
-            Operation.OpType.TAKE_ALONG_AXIS,
-            Operation.OpType.SCATTER_ADD,
-            Operation.OpType.SCATTER_AXIS_ADD,
-            Operation.OpType.SCATTER_ELEMENTS,
-            Operation.OpType.SCATTER_ND,
-            Operation.OpType.NLL_LOSS,
-            Operation.OpType.CROSS_ENTROPY_LOSS,
-            Operation.OpType.CROSS_ENTROPY_LOSS_INDICES,
-            Operation.OpType.LINEAR,
             Operation.OpType.CONV2D,
-            Operation.OpType.MAX_POOL2D,
-            Operation.OpType.AVG_POOL2D,
-            Operation.OpType.LAYER_NORM,
-            Operation.OpType.RMS_NORM,
             Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION,
             Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS
     );
@@ -2247,8 +2452,8 @@ Realisticke poradi, ktere minimalizuje prekopavani:
 5. Faze 4: softmax/logSoftmax parallel group path
 6. Faze 5: loss family, nejdrive `CROSS_ENTROPY_LOSS_INDICES`
 7. Faze 6: index/gather/scatter family
-8. Faze 7: layer/rms norm, potom pool/conv
-9. Faze 8: linear/attention
+8. Faze 7: layer/rms norm, LINEAR dense subset, pool/conv direct correctness
+9. Faze 8: SDPA/attention a sirsi linear algebra
 10. Faze 9-10: native/tuning/trace hardening a default-readiness
 
 ## Aktualni Known Gaps
@@ -2266,9 +2471,16 @@ Tento seznam se ma menit pri implementaci:
   `SCATTER_AXIS_ADD`, `SCATTER_ELEMENTS` a `SCATTER_ND`; otevrene zustavaji
   strided/view/offset index paths v planu 118 a pripadna deterministic parallel
   scatter cesta
-- [ ] LINEAR direct/lowering policy neni uzavrena pro cpu1
-- [ ] SDPA/attention cpu1 parita chybi
-- [ ] Conv/pool/norm cpu1 parita chybi
+- [deferred] LINEAR dense epilogue subset je hotovy; zobecneni concrete
+  matmul-bias/relu specialization route na backend-neutral `MATMUL_EPILOGUE`
+  payload je samostatny follow-up v
+  [todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md);
+  strided/view LINEAR support zustava navazany na budouci matmul/view policy
+- [ ] SDPA/attention cpu1 parita chybi; patri do faze 8, ne do faze 7
+- [x] `CONV2D`, `LAYER_NORM`, `RMS_NORM`, `MAX_POOL2D` a `AVG_POOL2D` dense
+  contiguous no-offset `JAVA_ARRAY`/`MEMORY_SEGMENT` slices jsou hotove;
+  `CONV2D` je direct correctness/fallback route, preferovana budouci
+  `CONV2D -> UNFOLD2D -> MATMUL` optimalizace je odlozena
 - [ ] native storage policy neni dokoncena napric rodinami
 - [ ] benchmark matrix neni kompletni
 

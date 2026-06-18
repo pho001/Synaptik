@@ -646,13 +646,14 @@ class Cpu1MatmulExecutionContractTest {
         CompiledNode addNode = node(biasFixture.nodes(), Operation.OpType.ADD);
         UnsupportedOperationException biasException = assertThrows(
                 UnsupportedOperationException.class,
-                () -> new Cpu1MatmulPreparer().prepareMatmulBiasRelu(
+                () -> new Cpu1MatmulPreparer().prepareMatmulBiasEpilogue(
                         matmulNode,
                         addNode,
                         biasFixture.node(),
                         biasFixture.descriptorIndex(),
                         Cpu1PrepareConfig.scalarSingleThread()
-                                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING)
+                                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING),
+                        Cpu1MatmulPostOp.ADD_BIAS_RELU
                 )
         );
 
@@ -876,12 +877,13 @@ class Cpu1MatmulExecutionContractTest {
         Fixture fixture = fixture(relu);
         CompiledNode matmulNode = node(fixture.nodes(), Operation.OpType.MATMUL);
         CompiledNode addNode = node(fixture.nodes(), Operation.OpType.ADD);
-        Cpu1PreparedArtifact artifact = new Cpu1MatmulPreparer().prepareMatmulBiasRelu(
+        Cpu1PreparedArtifact artifact = new Cpu1MatmulPreparer().prepareMatmulBiasEpilogue(
                 matmulNode,
                 addNode,
                 fixture.node(),
                 fixture.descriptorIndex(),
-                Cpu1PrepareConfig.scalarSingleThread()
+                Cpu1PrepareConfig.scalarSingleThread(),
+                Cpu1MatmulPostOp.ADD_BIAS_RELU
         );
 
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_SCALAR);
@@ -928,12 +930,13 @@ class Cpu1MatmulExecutionContractTest {
         Fixture fixture = fixture(relu);
         CompiledNode matmulNode = node(fixture.nodes(), Operation.OpType.MATMUL);
         CompiledNode addNode = node(fixture.nodes(), Operation.OpType.ADD);
-        Cpu1PreparedArtifact artifact = new Cpu1MatmulPreparer().prepareMatmulBiasRelu(
+        Cpu1PreparedArtifact artifact = new Cpu1MatmulPreparer().prepareMatmulBiasEpilogue(
                 matmulNode,
                 addNode,
                 fixture.node(),
                 fixture.descriptorIndex(),
-                Cpu1PrepareConfig.vectorSingleThread()
+                Cpu1PrepareConfig.vectorSingleThread(),
+                Cpu1MatmulPostOp.ADD_BIAS_RELU
         );
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS_RELU, artifact.preparedMatmulUnit().postOp());
