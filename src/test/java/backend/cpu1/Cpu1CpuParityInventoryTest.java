@@ -162,6 +162,8 @@ final class Cpu1CpuParityInventoryTest {
             entry(OpType.GATHER, "index"),
             entry(OpType.MATMUL, "matmul"),
             entry(OpType.LINEAR, "matmul"),
+            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION, "attention"),
+            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, "attention"),
             entry(OpType.NOOP, "layout"),
             entry(OpType.RESHAPE, "layout"),
             entry(OpType.EXPAND, "layout"),
@@ -210,10 +212,7 @@ final class Cpu1CpuParityInventoryTest {
             entry(OpType.FUSED, "old CPU fused op is represented in cpu1 by lowered fused elementwise prepared units")
     );
 
-    private static final Map<OpType, String> KNOWN_MISSING_CPU1_PARITY_FROM_OLD_CPU_DIRECT = map(
-            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION, "cpu1 attention family is not implemented"),
-            entry(OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, "cpu1 attention family is not implemented")
-    );
+    private static final Map<OpType, String> KNOWN_MISSING_CPU1_PARITY_FROM_OLD_CPU_DIRECT = map();
 
     @Test
     void oldCpuDirectKernelInventoryMatchesRegistry() {

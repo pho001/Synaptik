@@ -120,6 +120,20 @@ public record Cpu1PrepareConfig(
         return automatic(runtimeConfig, maxWorkerCount, Cpu1StorageKind.JAVA_ARRAY);
     }
 
+    public static Cpu1PrepareConfig automaticForRuntimeStorage(RuntimeConfig runtimeConfig, int maxWorkerCount) {
+        return automatic(runtimeConfig, maxWorkerCount, storageKindFor(runtimeConfig));
+    }
+
+    public static Cpu1StorageKind storageKindFor(RuntimeConfig runtimeConfig) {
+        if (runtimeConfig == null) {
+            throw new IllegalArgumentException("runtimeConfig cannot be null");
+        }
+        return switch (runtimeConfig.cpuStorageProfile()) {
+            case CPU_NATIVE -> Cpu1StorageKind.MEMORY_SEGMENT;
+            case CPU_ARRAY, AUTO -> Cpu1StorageKind.JAVA_ARRAY;
+        };
+    }
+
     public static Cpu1PrepareConfig automatic(
             RuntimeConfig runtimeConfig,
             int maxWorkerCount,

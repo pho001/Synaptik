@@ -107,6 +107,9 @@ public final class Cpu1NodePreparer {
         if (Cpu1Conv2dPreparer.isConv2dOp(opType)) {
             return new Cpu1Conv2dPreparer().prepare(node, descriptorIndex, config);
         }
+        if (Cpu1AttentionPreparer.isAttentionOp(opType)) {
+            return new Cpu1AttentionPreparer().prepare(node, descriptorIndex, config);
+        }
         List<DataType> inputDataTypes = inputDataTypes(opType, node, descriptorIndex);
         requireSupported(opType, node, descriptorIndex, inputDataTypes);
         Cpu1StorageAccessPlan outputAccessPlan = Cpu1StorageAccessPlan.fromNode(node);

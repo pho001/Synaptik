@@ -4,6 +4,8 @@ import backend.blas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
+import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
+import backend.cpu1.prepare.Cpu1PreparedAttentionUnit;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.prepare.Cpu1PreparedConv2dUnit;
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
@@ -58,7 +60,9 @@ public final class Cpu1TraceContributor {
             Cpu1PreparedRmsNormUnit preparedRmsNormUnit,
             Cpu1PreparedMaxPool2dUnit preparedMaxPool2dUnit,
             Cpu1PreparedAvgPool2dUnit preparedAvgPool2dUnit,
-            Cpu1PreparedConv2dUnit preparedConv2dUnit
+            Cpu1PreparedConv2dUnit preparedConv2dUnit,
+            Cpu1PreparedAttentionUnit preparedAttentionUnit,
+            Cpu1PreparedAttentionBackwardUnit preparedAttentionBackwardUnit
     ) {
         if (preparedLayoutUnit != null) {
             return layoutTrace(node, preparedLayoutUnit);
@@ -104,6 +108,12 @@ public final class Cpu1TraceContributor {
         }
         if (preparedConv2dUnit != null) {
             return conv2dTrace(preparedConv2dUnit);
+        }
+        if (preparedAttentionUnit != null) {
+            return attentionTrace(preparedAttentionUnit);
+        }
+        if (preparedAttentionBackwardUnit != null) {
+            return attentionBackwardTrace(preparedAttentionBackwardUnit);
         }
         return StepTraceContribution.empty();
     }
@@ -762,6 +772,147 @@ public final class Cpu1TraceContributor {
                 null,
                 null
         );
+    }
+
+    private static StepTraceContribution attentionTrace(Cpu1PreparedAttentionUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1AttentionKernelId", unit.kernelId().name());
+        attrs.put("cpu1AttentionOpType", unit.opType().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1AttentionVectorizationKind", unit.vectorizationKind().name());
+        attrs.put("cpu1AttentionVectorWidth", attentionVectorWidth(unit));
+        attrs.put("cpu1AttentionDType", unit.dataType().name());
+        attrs.put("cpu1AttentionBatchCount", unit.batchCount());
+        attrs.put("cpu1AttentionQueryLen", unit.queryLen());
+        attrs.put("cpu1AttentionKeyLen", unit.keyLen());
+        attrs.put("cpu1AttentionDepth", unit.depth());
+        attrs.put("cpu1AttentionValueDim", unit.valueDim());
+        attrs.put("cpu1AttentionOutputElements", unit.outputElementCount());
+        attrs.put("cpu1AttentionScale", unit.scale());
+        attrs.put("cpu1AttentionHasMask", unit.hasMask());
+        attrs.put("cpu1AttentionFastExpApprox", unit.useFastExpApprox());
+        attrs.put("cpu1AttentionLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1AttentionLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1AttentionScratchF32", scratch.f32ArrayElements());
+        attrs.put("cpu1AttentionScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1AttentionQueryAccessKind", unit.queryAccessPlan() == null
+                ? "NONE"
+                : unit.queryAccessPlan().kind().name());
+        attrs.put("cpu1AttentionKeyAccessKind", unit.keyAccessPlan() == null
+                ? "NONE"
+                : unit.keyAccessPlan().kind().name());
+        attrs.put("cpu1AttentionValueAccessKind", unit.valueAccessPlan() == null
+                ? "NONE"
+                : unit.valueAccessPlan().kind().name());
+        attrs.put("cpu1AttentionMaskAccessKind", unit.maskAccessPlan() == null
+                ? "NONE"
+                : unit.maskAccessPlan().kind().name());
+        attrs.put("cpu1AttentionOutputAccessKind", unit.outputAccessPlan().kind().name());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                unit.vectorizationKind().name(),
+                attentionVectorWidth(unit),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                unit.opType().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType() == DataType.BFLOAT16 ? "F32_ACCUMULATE" : unit.dataType().name()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static StepTraceContribution attentionBackwardTrace(Cpu1PreparedAttentionBackwardUnit unit) {
+        LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("cpu1KernelId", unit.kernelId().name());
+        attrs.put("cpu1AttentionBackwardKernelId", unit.kernelId().name());
+        attrs.put("cpu1AttentionBackwardOutputKind", unit.outputKind().name());
+        attrs.put("cpu1StorageKind", unit.storageKind().name());
+        attrs.put("cpu1AttentionBackwardVectorizationKind", unit.vectorizationKind().name());
+        attrs.put("cpu1AttentionBackwardVectorWidth", attentionBackwardVectorWidth(unit));
+        attrs.put("cpu1AttentionBackwardDType", unit.dataType().name());
+        attrs.put("cpu1AttentionBackwardBatchCount", unit.batchCount());
+        attrs.put("cpu1AttentionBackwardQueryLen", unit.queryLen());
+        attrs.put("cpu1AttentionBackwardKeyLen", unit.keyLen());
+        attrs.put("cpu1AttentionBackwardDepth", unit.depth());
+        attrs.put("cpu1AttentionBackwardValueDim", unit.valueDim());
+        attrs.put("cpu1AttentionBackwardOutputElements", unit.outputElementCount());
+        attrs.put("cpu1AttentionBackwardScale", unit.scale());
+        attrs.put("cpu1AttentionBackwardHasMask", unit.hasMask());
+        attrs.put("cpu1AttentionBackwardLaunchWorkers", unit.launchConfig().workerCount());
+        attrs.put("cpu1AttentionBackwardLaunchChunkSize", unit.launchConfig().chunkSize());
+        Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
+        attrs.put("cpu1AttentionBackwardScratchF32", scratch.f32ArrayElements());
+        attrs.put("cpu1AttentionBackwardScratchF64", scratch.f64ArrayElements());
+        attrs.put("cpu1AttentionBackwardWeightsAccessKind", unit.weightsAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardOutGradAccessKind", unit.outGradAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardQueryAccessKind", unit.queryAccessPlan() == null
+                ? "NONE"
+                : unit.queryAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardKeyAccessKind", unit.keyAccessPlan() == null
+                ? "NONE"
+                : unit.keyAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardValueAccessKind", unit.valueAccessPlan() == null
+                ? "NONE"
+                : unit.valueAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardMaskAccessKind", unit.maskAccessPlan() == null
+                ? "NONE"
+                : unit.maskAccessPlan().kind().name());
+        attrs.put("cpu1AttentionBackwardOutputAccessKind", unit.outputAccessPlan().kind().name());
+        DispatchTraceMetadata dispatch = new DispatchTraceMetadata(
+                unit.vectorizationKind().name(),
+                attentionBackwardVectorWidth(unit),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                unit.launchConfig().chunkSize()
+        );
+        ReductionTraceMetadata reduction = new ReductionTraceMetadata(
+                "SDPA_BACKWARD_" + unit.outputKind().name(),
+                unit.launchConfig().workerCount(),
+                unit.launchConfig().chunkSize(),
+                1,
+                unit.dataType().name()
+        );
+        return new StepTraceContribution(
+                unit.kernelId().name(),
+                attrs,
+                null,
+                null,
+                dispatch,
+                reduction,
+                null,
+                null,
+                null
+        );
+    }
+
+    private static int attentionVectorWidth(Cpu1PreparedAttentionUnit unit) {
+        if (unit.vectorizationKind() == Cpu1VectorizationKind.SCALAR) {
+            return 1;
+        }
+        return vectorWidth(unit.dataType());
+    }
+
+    private static int attentionBackwardVectorWidth(Cpu1PreparedAttentionBackwardUnit unit) {
+        if (unit.vectorizationKind() == Cpu1VectorizationKind.SCALAR) {
+            return 1;
+        }
+        return vectorWidth(unit.dataType());
     }
 
     private static int matmulVectorWidth(Cpu1PreparedMatmulUnit unit) {

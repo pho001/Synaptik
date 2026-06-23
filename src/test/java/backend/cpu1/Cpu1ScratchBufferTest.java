@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
-import backend.cpu1.exec.Cpu1ElementwiseExecutableUnit;
+import backend.cpu1.exec.Cpu1ElementwiseMemorySegmentExecutableUnit;
 import backend.cpu1.exec.Cpu1ProviderCache;
 import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
@@ -99,11 +99,16 @@ class Cpu1ScratchBufferTest {
                 ),
                 new Cpu1SingleThreadLaunch()
         );
-        Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(new Cpu1ElementwiseExecutableUnit(unit));
+        Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(unit);
         RecordingAllocator allocator = new RecordingAllocator();
 
         artifact.allocateRuntimeState(42, allocator);
 
+        Cpu1ElementwiseMemorySegmentExecutableUnit executable = assertInstanceOf(
+                Cpu1ElementwiseMemorySegmentExecutableUnit.class,
+                artifact.executableUnit()
+        );
+        assertSame(unit, executable.preparedUnit());
         assertTrue(artifact.scratchBufferSpec().isEmpty());
         assertFalse(allocator.workspaces.containsKey(42));
     }

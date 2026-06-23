@@ -1,7 +1,9 @@
 package graph.compile.planning.region;
 
 import config.optimizer.FuseConfig;
+import config.compile.CompileConfig;
 import graph.CompiledNode;
+import graph.CompiledGraph;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
@@ -15,11 +17,14 @@ import graph.compile.planning.region.lowering.OperationSemanticClassifier;
 import graph.compile.planning.region.lowering.OperationSemanticLevel;
 import graph.compile.planning.region.specialization.RegionSpecializationDecision;
 import graph.compile.planning.region.specialization.RegionSpecializationKind;
+import graph.compile.planning.region.specialization.SdpaBackwardOutputKind;
+import graph.compile.planning.region.specialization.SdpaBackwardSpecializationPayload;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import graph.compile.intent.BackendIntentPlan;
+import tensor.options.AttentionOptions;
 
 import java.util.List;
 
@@ -236,6 +241,13 @@ class DefaultRegionOptimizerTest {
         assertTrue(region.trace().events().stream()
                 .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=MSE_LOSS")
                         && event.contains("cpu1-mse-loss-executable")));
+    }
+
+    @Test
+    void cpuSdpaBackwardIsolatedPartitionsBuildSpecializedPrimitiveByDefault() {
+        assertSdpaBackwardSpecializationForSingleGradient(SdpaBackwardOutputKind.QUERY, new int[]{1, 2, 2});
+        assertSdpaBackwardSpecializationForSingleGradient(SdpaBackwardOutputKind.KEY, new int[]{1, 2, 2});
+        assertSdpaBackwardSpecializationForSingleGradient(SdpaBackwardOutputKind.VALUE, new int[]{1, 2, 2});
     }
 
     @Test
@@ -703,5 +715,137 @@ class DefaultRegionOptimizerTest {
             node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).forEach(out::add);
         }
         return List.copyOf(out);
+    }
+
+    private static void assertSdpaBackwardSpecializationForSingleGradient(
+            SdpaBackwardOutputKind outputKind,
+            int[] expectedOutputShape
+    ) {
+        Tensor q = new Tensor(new float[]{
+                1.0f, 0.5f,
+                -0.25f, 0.75f
+        }, new int[]{1, 2, 2}, null, "sdpaSpecializeQ", DataType.FLOAT32);
+        Tensor k = new Tensor(new float[]{
+                0.25f, 1.0f,
+                1.5f, -0.5f
+        }, new int[]{1, 2, 2}, null, "sdpaSpecializeK", DataType.FLOAT32);
+        Tensor v = new Tensor(new float[]{
+                2.0f, -1.0f,
+                0.5f, 3.0f
+        }, new int[]{1, 2, 2}, null, "sdpaSpecializeV", DataType.FLOAT32);
+        switch (outputKind) {
+            case QUERY -> q.setRequiresGrad(true);
+            case KEY -> k.setRequiresGrad(true);
+            case VALUE -> v.setRequiresGrad(true);
+        }
+        Tensor loss = q.scaledDotProductAttention(k, v, AttentionOptions.defaults().withScale(0.5d)).sum();
+        CompiledGraph compiled = CompiledGraph.compile(loss, CompileConfig.noGraphOptimizationBaseline());
+        List<CompiledNode> nodes = compiled.program().compiledNodes();
+        int terminalNodeId = backwardMatmulTargetByShape(nodes, expectedOutputShape);
+        List<Integer> selectedNodeIds = backwardOpClosure(nodes, terminalNodeId);
+        Partition partition = partition(
+                "cpu-sdpa-backward-" + outputKind.name().toLowerCase(java.util.Locale.ROOT),
+                PartitionTarget.CPU,
+                selectedNodeIds,
+                externalInputNodeIds(nodes, selectedNodeIds),
+                List.of(GraphValueRef.node(terminalNodeId)),
+                List.of(GraphValueRef.node(terminalNodeId))
+        );
+
+        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+                partition,
+                new RegionOptimizationContext(nodes, FuseConfig.trainingDefaults())
+        );
+
+        assertEquals(1, region.executionUnits().size());
+        ExecutionUnit unit = region.executionUnits().getFirst();
+        assertEquals(ExecutionUnitKind.SPECIALIZED_PRIMITIVE, unit.kind());
+        assertEquals(RegionSpecializationKind.SDPA_BACKWARD, unit.specialization().kind());
+        assertEquals(selectedNodeIds, unit.orderedNodeIds());
+        SdpaBackwardSpecializationPayload payload =
+                (SdpaBackwardSpecializationPayload) unit.specialization().payload();
+        assertEquals(expectedSdpaBackwardInputRefs(payload), unit.inputValueRefs());
+        assertEquals(outputKind, payload.outputKind());
+        assertEquals(0.5d, payload.scale(), 0.0d);
+        assertFalse(payload.hasMask());
+        assertTrue(payload.weightsNodeId() >= 0);
+        assertTrue(payload.outGradNodeId() >= 0);
+        if (outputKind == SdpaBackwardOutputKind.QUERY) {
+            assertTrue(payload.keyNodeId() >= 0);
+            assertTrue(payload.valueNodeId() >= 0);
+        } else if (outputKind == SdpaBackwardOutputKind.KEY) {
+            assertTrue(payload.queryNodeId() >= 0);
+            assertTrue(payload.valueNodeId() >= 0);
+        }
+        assertTrue(region.trace().events().stream()
+                .anyMatch(event -> event.contains("specialization-candidate-accepted:kind=SDPA_BACKWARD")));
+        assertFalse(nodes.stream()
+                .map(CompiledNode::operation)
+                .filter(java.util.Objects::nonNull)
+                .map(Operation::opType)
+                .anyMatch(opType -> opType == Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_BACKWARD));
+    }
+
+    private static int backwardMatmulTargetByShape(List<CompiledNode> nodes, int[] shape) {
+        return nodes.stream()
+                .filter(CompiledNode::backwardNode)
+                .filter(CompiledNode::gradientTarget)
+                .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.MATMUL)
+                .filter(node -> java.util.Arrays.equals(node.shape(), shape))
+                .map(CompiledNode::id)
+                .reduce((first, second) -> second)
+                .orElseThrow();
+    }
+
+    private static List<Integer> backwardOpClosure(List<CompiledNode> nodes, int terminalNodeId) {
+        java.util.LinkedHashSet<Integer> out = new java.util.LinkedHashSet<>();
+        collectBackwardOpClosure(nodes, terminalNodeId, terminalNodeId, out);
+        return nodes.stream()
+                .map(CompiledNode::id)
+                .filter(out::contains)
+                .toList();
+    }
+
+    private static List<GraphValueRef> expectedSdpaBackwardInputRefs(SdpaBackwardSpecializationPayload payload) {
+        java.util.LinkedHashSet<GraphValueRef> out = new java.util.LinkedHashSet<>();
+        out.add(GraphValueRef.node(payload.weightsNodeId()));
+        out.add(GraphValueRef.node(payload.outGradNodeId()));
+        switch (payload.outputKind()) {
+            case QUERY -> {
+                out.add(GraphValueRef.node(payload.keyNodeId()));
+                out.add(GraphValueRef.node(payload.valueNodeId()));
+            }
+            case KEY -> {
+                out.add(GraphValueRef.node(payload.queryNodeId()));
+                out.add(GraphValueRef.node(payload.valueNodeId()));
+            }
+            case VALUE -> {
+            }
+        }
+        if (payload.hasMask() && payload.outputKind() != SdpaBackwardOutputKind.VALUE) {
+            out.add(GraphValueRef.node(payload.maskNodeId()));
+        }
+        return List.copyOf(out);
+    }
+
+    private static void collectBackwardOpClosure(
+            List<CompiledNode> nodes,
+            int nodeId,
+            int terminalNodeId,
+            java.util.Set<Integer> out
+    ) {
+        CompiledNode node = nodes.get(nodeId);
+        if (node.operation() == null || !node.backwardNode()) {
+            return;
+        }
+        if (node.id() != terminalNodeId && node.gradientTarget()) {
+            return;
+        }
+        if (!out.add(nodeId)) {
+            return;
+        }
+        for (int inputId : node.inputIds()) {
+            collectBackwardOpClosure(nodes, inputId, terminalNodeId, out);
+        }
     }
 }

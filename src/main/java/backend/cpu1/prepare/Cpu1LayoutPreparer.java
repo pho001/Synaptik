@@ -1,6 +1,5 @@
 package backend.cpu1.prepare;
 
-import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;

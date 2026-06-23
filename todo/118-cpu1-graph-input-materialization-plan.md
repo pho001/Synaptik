@@ -20,6 +20,7 @@ Implementation tracking:
 - [ ] Phase 6: memory planning integration hardening
 - [ ] Phase 7: verification, parity, benchmarks, and docs
 - [ ] Phase 8: extend planned input materialization to cpu1 index/scatter units
+- [ ] Phase 9: extend planned input materialization to cpu1 attention units
 
 This document is intentionally detailed. It is a planning artifact only. It does
 not implement source changes.
@@ -27,40 +28,53 @@ not implement source changes.
 ## Goal
 
 Introduce graph/lowering-driven contiguous materialization of inputs for cpu1
-loss operations:
+operations whose direct kernels intentionally require dense contiguous no-offset
+inputs.
+
+The first implementation slice targets cpu1 loss operations:
 
 - `CROSS_ENTROPY_LOSS_INDICES`
 - dense `NLL_LOSS`
 - dense `CROSS_ENTROPY_LOSS`
 
+The same explicit materialization mechanism is also the planned home for later
+cpu1 consumer families that currently reject unsupported views instead of
+silently copying:
+
+- index/scatter input operands, tracked in Phase 8
+- attention `q/k/v/mask` input operands, tracked in Phase 9
+
 The target behavior is:
 
-1. Graph/region optimization identifies when a cpu1 loss input violates the
-   dense contiguous no-offset contract.
+1. Graph/region optimization identifies when a cpu1 consumer input violates the
+   selected dense contiguous no-offset contract.
 2. Lowering carries that decision in `RegionExecutionPlan`.
 3. Prepare turns the lowered decision into explicit prepared input
    materialization metadata.
-4. Runtime executes the prepared materialization before the loss kernel.
-5. The loss kernel consumes the materialized dense contiguous input through an
+4. Runtime executes the prepared materialization before the cpu1 kernel.
+5. The cpu1 kernel consumes the materialized dense contiguous input through an
    explicit prepared handle.
 6. Trace metadata exposes that materialization happened and why.
 
 The important architectural invariant:
 
 ```text
-cpu1 loss kernel does not silently decide to materialize.
-cpu1 loss preparer does not silently decide to materialize.
+cpu1 kernel does not silently decide to materialize.
+cpu1 preparer does not silently decide to materialize.
 graph/region/lowering decides materialization and prepare/runtime only execute it.
 ```
 
 ## Non-Goals
 
 - Do not add strided/view loss kernels in this work.
+- Do not add arbitrary strided/view attention kernels in this work.
 - Do not insert synthetic `CompiledNode` objects as a first implementation.
-- Do not create a transitional compatibility layer that routes cpu1 loss back
-  through the old `backend.cpu` loss kernels.
+- Do not create a transitional compatibility layer that routes cpu1 consumers
+  back through the old `backend.cpu` kernels.
 - Do not hide input materialization behind `Cpu1LossPreparer` fallback logic.
-- Do not introduce a generic storage accessor framework just for loss input
+- Do not hide input materialization behind `Cpu1AttentionPreparer` fallback
+  logic.
+- Do not introduce a generic storage accessor framework just for planned input
   materialization.
 - Do not change the public `Tensor` API.
 - Do not make backend residency part of the public `Tensor` API.
@@ -111,6 +125,58 @@ This is correct as a safety guard. The change must not remove the guard and
 replace it with hidden runtime behavior. Instead, the guard must be taught to
 accept an explicit prepared effective input descriptor only when lowering
 already requested materialization.
+
+### Current cpu1 attention support
+
+Current local code has cpu1 direct attention preparer and kernels for:
+
+- `SCALED_DOT_PRODUCT_ATTENTION`
+  - dense contiguous no-offset `q`
+  - dense contiguous no-offset `k`
+  - dense contiguous no-offset `v`
+  - optional dense contiguous no-offset `BOOL` mask
+  - dense contiguous no-offset output
+  - `JAVA_ARRAY`
+  - `MEMORY_SEGMENT`
+  - `FLOAT32`, `FLOAT64`, `BFLOAT16`
+- `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS`
+  - dense contiguous no-offset output
+  - requires the input compiled descriptor to be an actual
+    `SCALED_DOT_PRODUCT_ATTENTION` node
+  - reads the attention forward weights cache from runtime state
+  - `JAVA_ARRAY`
+  - `MEMORY_SEGMENT`
+  - `FLOAT32`, `FLOAT64`, `BFLOAT16`
+
+The dense-contiguous contract is enforced in
+`src/main/java/backend/cpu1/prepare/Cpu1AttentionPreparer.java` and rechecked at
+runtime in `src/main/java/backend/cpu1/kernels/linalg/attention/Cpu1AttentionLoops.java`.
+
+This is correct as a safety guard. The change must not replace it with hidden
+runtime behavior. Instead, attention should receive explicit effective dense
+input descriptors only when graph/region/lowering already requested
+materialization.
+
+Attention is intentionally stricter than simple elementwise kernels. Arbitrary
+strided inner dimensions usually make SDPA slower than explicit copy-then-dense:
+
+```text
+bad generic strided SDPA:
+  every dot-product load has non-unit stride
+  K/V access loses locality
+  vectorization is weak or impossible
+  the hot loop pays offset math per element
+
+preferred first policy:
+  materialize unsupported q/k/v/mask views to dense contiguous temps
+  execute the existing dense attention kernel
+  expose copy cost and reason in trace
+```
+
+A future optimized attention phase may add narrower "view-aware dense" kernels
+where only batch/head base offsets differ but each inner `depth` / `valueDim`
+row remains contiguous. That is not the generic materialization policy and does
+not belong inside `Cpu1AttentionPreparer`.
 
 ### Relevant existing graph/region/lowering types
 
@@ -208,17 +274,18 @@ Synthetic nodes may become useful later if graph-level layout canonicalization
 is implemented broadly. This plan keeps the first implementation narrower and
 more explicit.
 
-### Why not hidden `Cpu1LossPreparer` materialization
+### Why not hidden cpu1 preparer materialization
 
-Hidden materialization in `Cpu1LossPreparer` would make tests pass quickly, but
-it would violate the runtime boundary:
+Hidden materialization in a family preparer such as `Cpu1LossPreparer` or
+`Cpu1AttentionPreparer` would make tests pass quickly, but it would violate the
+runtime boundary:
 
 - graph/lowering trace would not explain why the copy exists
 - benchmark reports would not distinguish loss compute from planned copy-in
 - cpu1 kernels would gain policy behavior
 - future accelerator/backends would need to rediscover the same decision
 
-`Cpu1LossPreparer` may validate and bind an already planned materialization. It
+A cpu1 preparer may validate and bind an already planned materialization. It
 must not decide to create one from scratch.
 
 ### Why no generic storage accessor framework now
@@ -249,6 +316,34 @@ Strided loss kernels would multiply kernel variants for:
 This is premature. Current dense kernels are simple and validated. The first
 correct architecture is to make the materialization decision explicit and
 visible. Strided kernels can be added later as an alternate lowering decision.
+
+### Why not immediate arbitrary strided attention kernels
+
+Generic strided attention is even more likely to be a poor default hot path than
+generic strided loss:
+
+- `Q @ K^T` performs a dot product for every `(query, key)` pair
+- softmax needs a scratch row over keys
+- `weights @ V` reads every value row for every query row
+- mask handling and all-masked rows add control flow
+- vectorized dot products require contiguous inner `depth` loads
+- vectorized value accumulation requires contiguous `valueDim` loads
+
+For arbitrary view layouts, the kernel would pay offset math inside the hottest
+loops and would often lose vectorization. The first policy should therefore be:
+
+```text
+if q/k/v/mask are dense contiguous no-offset:
+  use cpu1 dense attention directly
+else:
+  graph/lowering may plan explicit input materialization
+  cpu1 attention consumes the materialized dense effective input
+```
+
+Later, lowering may choose a specialized view-aware attention kernel for the
+restricted case where the inner compute rows stay contiguous and only batch/head
+base offsets differ. That is an optimization decision, not the baseline
+materialization policy.
 
 ## Proposed Data Flow Example
 
@@ -3553,6 +3648,299 @@ the dense direct cpu1 hot path.
 Do not commit local benchmark/calibration artifacts unless intentionally
 promoting canonical fixtures.
 
+## Phase 9: Extend Planned Input Materialization To cpu1 Attention Units
+
+Status: `[ ] not started`
+
+Purpose: reuse the same graph/lowering -> prepare -> runtime temporary
+materialization mechanism for cpu1 attention input operands that do not satisfy
+the dense contiguous no-offset direct attention contract.
+
+This belongs in plan 118 because attention materialization is a policy decision:
+graph/region/lowering decides whether the copy is worth it, prepare binds the
+explicit plan, and execute materializes run-local temps before the dense
+attention kernel runs. `Cpu1AttentionPreparer` and
+`Cpu1AttentionLoops` must not silently decide to copy unsupported views.
+
+This phase is input materialization only. It does not implement output
+materialization/copy-back for strided attention outputs, arbitrary strided inner
+dimension attention kernels, or vectorized attention kernels.
+
+### Phase 9 invariant
+
+```text
+cpu1 attention kernels must not silently materialize.
+cpu1 attention preparer must not decide materialization by itself.
+graph/region/lowering decides materialization.
+prepare validates and binds explicit materialization plans.
+execute materializes q/k/v/mask temps before the dense attention kernel runs.
+```
+
+Dense contiguous/no-offset cpu1 attention kernels remain unchanged. Planned
+materialization supplies effective dense inputs to those kernels. The current
+dense direct rejection remains the guard when no explicit materialization plan
+exists.
+
+### Scope
+
+Apply planned input materialization to:
+
+- `SCALED_DOT_PRODUCT_ATTENTION`
+
+Materializable input roles:
+
+- input 0: query `q`
+- input 1: key `k`
+- input 2: value `v`
+- input 3: optional bool mask
+
+Do not apply input materialization directly to
+`SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS`. That op reads the runtime forward
+weights cache attached to the attention output. Its output must remain dense
+contiguous no-offset in this phase.
+
+The attention output/write target must still satisfy the direct dense
+contiguous no-offset contract in this phase.
+
+### Why output materialization is deferred
+
+Attention output materialization is a write-target problem, not an input-copy
+problem:
+
+- output copy-back would need explicit post-kernel writeback semantics
+- aliasing with source views must be handled by memory planning
+- trace must distinguish input copy-in from output copy-back
+- strided output may require a different operation family than dense SDPA
+
+This phase therefore keeps rejecting strided/offset attention outputs unless a
+later plan introduces explicit output materialization and copy-back semantics.
+
+### Data flow examples
+
+Example 1: materialize a transposed query view.
+
+```text
+user graph:
+  qView = permute(qBase, ...)
+  out = scaledDotProductAttention(qView, k, v)
+
+planning:
+  consumer=SDPA input=0 source=qView requires DENSE_CONTIGUOUS_NO_OFFSET
+  graph/region creates materialization plan for (outNodeId, inputIndex=0)
+
+execute:
+  Cpu1InputMaterializer copies qView logical order into a dense temp
+  SDPA reads q from the materialized dense temp
+  k/v remain direct if already dense
+```
+
+Example 2: materialize an attention mask.
+
+```text
+user graph:
+  maskView = slice(maskBase, ...)
+  out = scaledDotProductAttention(q, k, v, maskView)
+
+planning:
+  consumer=SDPA input=3 source=maskView requires DENSE_CONTIGUOUS_NO_OFFSET
+
+execute:
+  maskView is copied as BOOL raw bytes into a dense temp
+  SDPA uses the existing dense mask path
+```
+
+Example 3: reject strided output.
+
+```text
+user graph:
+  outView = attention result written into a strided target
+
+planning:
+  Phase 9 does not create output materialization/copy-back plans
+
+execute:
+  prepare rejects because SDPA output is not dense contiguous no-offset
+```
+
+### Task 9.1: Inventory current cpu1 attention dense guards
+
+Status: `[ ] not started`
+
+What: inspect `Cpu1AttentionPreparer`, `Cpu1PreparedAttentionUnit`,
+`Cpu1AttentionExecutableUnit`, and `Cpu1AttentionLoops`.
+
+Why: map exactly which descriptor/runtime guards must start accepting explicit
+effective dense materialized inputs while preserving unplanned rejection.
+
+Expected output:
+
+- map input indexes to role names: q/k/v/mask
+- record prepare guard location for each input role
+- record runtime guard location for each input role
+- record output guard location and confirm output materialization remains out
+  of scope
+
+### Task 9.2: Extend materialization requirement selector to attention input roles
+
+Status: `[ ] not started`
+
+What: extend the graph/region input contract selector to include
+`SCALED_DOT_PRODUCT_ATTENTION`.
+
+Why: attention materialization must be selected before prepare.
+`Cpu1AttentionPreparer` must not infer materialization from descriptors on its
+own.
+
+Proposed selector shape:
+
+```java
+return switch (opType) {
+    case SCALED_DOT_PRODUCT_ATTENTION ->
+            attentionInputRequirements(consumer.inputIds().size());
+    default ->
+            existingRequirements(opType, consumer);
+};
+```
+
+Rules:
+
+- mark q/k/v as `DENSE_CONTIGUOUS_NO_OFFSET`
+- mark mask as `DENSE_CONTIGUOUS_NO_OFFSET` only when present
+- do not mark attention output
+- do not mark `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` input, because that op
+  consumes a cache relationship, not the logical attention output data
+
+### Task 9.3: Bind planned attention inputs in prepare
+
+Status: `[ ] not started`
+
+What: make cpu1 attention prepare ask the generalized prepare context for
+planned input materializations by `(consumerNodeId, inputIndex)`.
+
+Why: prepare should validate and bind explicit lowering decisions without
+owning materialization policy.
+
+Expected behavior:
+
+- direct dense q/k/v/mask without a plan remains accepted
+- non-dense q/k/v/mask with a matching plan is accepted as an effective dense
+  input
+- non-dense q/k/v/mask without a matching plan remains rejected
+- plan for the wrong consumer/input is ignored or rejected
+- output remains direct dense contiguous no-offset
+
+### Task 9.4: Reuse generalized prepared input handles for attention
+
+Status: `[ ] not started`
+
+What: use the same prepared input handle/resolver created for loss/index instead
+of introducing an attention-specific materialization wrapper.
+
+Why: attention should share the explicit input materialization mechanism. The
+only attention-specific part is the role mapping and shape/dtype validation.
+
+Proposed prepared-unit shape:
+
+```java
+record Cpu1PreparedAttentionInput(
+        int inputIndex,
+        String role,
+        int sourceNodeId,
+        CompiledTensorDescriptor directDescriptor,
+        Optional<Cpu1PreparedInputMaterialization> materialization
+) {
+    boolean materialized() {
+        return materialization.isPresent();
+    }
+}
+```
+
+Do not introduce this record if the generalized prepared input handle already
+contains the same information with clear naming.
+
+### Task 9.5: Execute materialization before attention binds views
+
+Status: `[ ] not started`
+
+What: call `Cpu1InputMaterializer.materializeAll(...)` before attention runtime
+binds q/k/v/mask views.
+
+Why: dense attention loops should see effective dense input views and should
+not know whether those views came from original storage or materialized temps.
+
+Required ordering:
+
+```text
+Cpu1AttentionExecutableUnit.execute(context)
+  1. materialize all planned input temps for this attention unit
+  2. resolve direct/materialized q/k/v/mask views
+  3. validate output remains direct dense contiguous no-offset
+  4. dispatch existing dense cpu1 attention kernel
+```
+
+### Task 9.6: Add trace metadata for materialized attention inputs
+
+Status: `[ ] not started`
+
+What: add trace attributes that count and describe materialized attention
+inputs.
+
+Why: copy-in cost must be visible in traces and benchmark reports.
+
+Suggested attributes:
+
+- `cpu1AttentionMaterializedInputCount`
+- `cpu1AttentionMaterializedInputs`
+- `cpu1AttentionMaterializationReason`
+
+Example:
+
+```text
+cpu1AttentionMaterializedInputCount=2
+cpu1AttentionMaterializedInputs=[
+  input=0,role=q,source=12,target=DENSE_CONTIGUOUS_NO_OFFSET,
+  input=3,role=mask,source=15,target=DENSE_CONTIGUOUS_NO_OFFSET
+]
+cpu1AttentionMaterializationReason=cpu1-attention-dense-contiguous-input-contract
+```
+
+### Task 9.7: Attention materialization tests
+
+Status: `[ ] not started`
+
+What: add focused tests proving attention accepts planned materialized inputs
+and still rejects unplanned non-dense inputs.
+
+Coverage:
+
+- strided/permuted q materialized before SDPA
+- strided/permuted k materialized before SDPA
+- strided/sliced v materialized before SDPA
+- strided/sliced mask materialized before masked SDPA
+- multiple materialized attention inputs in one SDPA node
+- dense direct attention path still uses zero materialized inputs
+- unplanned strided q/k/v/mask still fails the dense direct guard
+- strided/offset attention output remains rejected
+- `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` continues to require a cached forward
+  attention output and is not treated as an input-materialization consumer
+
+### Task 9.8: Attention materialization benchmarks
+
+Status: `[ ] not started`
+
+What: add benchmark smoke coverage after correctness passes.
+
+Suggested scenarios:
+
+- dense direct SDPA baseline
+- q materialization + dense SDPA
+- k/v materialization + dense SDPA
+- mask materialization + dense masked SDPA
+- compare copy-then-dense against any future view-aware dense attention kernel
+
+Do not commit local benchmark/calibration artifacts unless intentionally
+promoting canonical fixtures.
+
 ## Rejected Alternatives
 
 ### Synthetic `CompiledNode` `CONTIGUOUS`
@@ -3571,7 +3959,7 @@ When reconsidered:
 - if graph-level layout canonicalization becomes a general optimizer feature
 - if multiple backends consume the same synthetic layout node semantics
 
-### Direct hidden `Cpu1LossPreparer` materialization
+### Direct hidden cpu1 preparer materialization
 
 Rejected.
 
@@ -3584,9 +3972,11 @@ Why:
 
 Allowed behavior:
 
-- `Cpu1LossPreparer` may bind materialization plans passed from lowering
-- it may validate effective descriptors
-- it may reject unplanned non-contiguous inputs
+- cpu1 family preparers may bind materialization plans passed from lowering
+- they may validate effective descriptors
+- they may reject unplanned non-contiguous inputs
+- they must not create materialization plans from source descriptors on their
+  own
 
 ### Generic storage accessor framework
 

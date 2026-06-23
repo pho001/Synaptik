@@ -247,40 +247,46 @@ class Cpu1RmsNormExecutionContractTest {
     }
 
     @Test
-    void rejectsRuntimeNativeCurrentInputWithoutMaterialization() {
+    void javaArrayRuntimeMaterializesNativeCurrentInput() {
         float[] inputValues = new float[]{1.0f, 2.0f};
+        float[] gammaValues = new float[]{1.0f, 1.0f};
         Tensor input = new Tensor(inputValues, new int[]{1, 2}, null, "runtimeNativeRmsInput", DataType.FLOAT32);
-        Tensor gamma = new Tensor(new float[]{1.0f, 1.0f}, new int[]{2}, null, "runtimeNativeRmsGamma", DataType.FLOAT32);
+        Tensor gamma = new Tensor(gammaValues, new int[]{2}, null, "runtimeNativeRmsGamma", DataType.FLOAT32);
         Fixture fixture = fixture(input.rmsNorm(gamma, 1.0e-5));
         Cpu1PreparedArtifact artifact = prepare(fixture, Cpu1PrepareConfig.scalarSingleThread());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeF32Input(context, fixture.node().inputIds().getFirst(), inputValues);
 
-        UnsupportedOperationException exception = assertThrows(
-                UnsupportedOperationException.class,
-                () -> new Cpu1Backend().execute(fixture.node(), metadata, context)
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(
+                expectedF32(inputValues, gammaValues, 2, 1.0e-5f),
+                context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
+                1.0e-6f
         );
-        assertTrue(exception.getMessage().contains("requires current CPU array input storage"));
-        assertEquals(0, context.cpuMaterializationTraceCount());
+        assertEquals(1, context.cpuMaterializationTraceCount());
     }
 
     @Test
-    void rejectsMemorySegmentRuntimeCpuArrayInputWithoutMaterialization() {
+    void memorySegmentRuntimeMaterializesCpuArrayInputs() {
         float[] inputValues = new float[]{1.0f, 2.0f};
+        float[] gammaValues = new float[]{1.0f, 1.0f};
         Tensor input = new Tensor(inputValues, new int[]{1, 2}, null, "segmentRuntimeRmsArrayInput", DataType.FLOAT32);
-        Tensor gamma = new Tensor(new float[]{1.0f, 1.0f}, new int[]{2}, null, "segmentRuntimeRmsArrayGamma", DataType.FLOAT32);
+        Tensor gamma = new Tensor(gammaValues, new int[]{2}, null, "segmentRuntimeRmsArrayGamma", DataType.FLOAT32);
         Fixture fixture = fixture(input.rmsNorm(gamma, 1.0e-5));
         Cpu1PreparedArtifact artifact = prepare(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
-        UnsupportedOperationException exception = assertThrows(
-                UnsupportedOperationException.class,
-                () -> new Cpu1Backend().execute(fixture.node(), metadata, context)
+        new Cpu1Backend().execute(fixture.node(), metadata, context);
+
+        assertArrayEquals(
+                expectedF32(inputValues, gammaValues, 2, 1.0e-5f),
+                nativeF32Values(context.nativeStorageForNodeId(fixture.node().id())),
+                1.0e-6f
         );
-        assertTrue(exception.getMessage().contains("MEMORY_SEGMENT requires current native CPU segment input"));
-        assertEquals(0, context.cpuMaterializationTraceCount());
+        assertEquals(2, context.cpuMaterializationTraceCount());
     }
 
     @Test

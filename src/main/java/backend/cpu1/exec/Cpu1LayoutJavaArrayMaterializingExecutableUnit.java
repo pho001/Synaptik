@@ -1,22 +1,20 @@
 package backend.cpu1.exec;
 
-import backend.cpu1.kernels.layout.Cpu1LayoutKernel;
+import backend.cpu1.kernels.layout.Cpu1LayoutJavaArrayKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.runtime.ExecutionContext;
 
 /**
- * Runtime wrapper for a prepared cpu1 layout/view node.
+ * Executable unit for prepared materializing layout kernels using Java array storage.
  */
-public final class Cpu1LayoutExecutableUnit implements Cpu1ExecutableUnit {
+public final class Cpu1LayoutJavaArrayMaterializingExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedLayoutUnit preparedUnit;
-    private final Cpu1LayoutKernel kernel;
 
-    public Cpu1LayoutExecutableUnit(Cpu1PreparedLayoutUnit preparedUnit) {
+    public Cpu1LayoutJavaArrayMaterializingExecutableUnit(Cpu1PreparedLayoutUnit preparedUnit) {
         if (preparedUnit == null) {
             throw new IllegalArgumentException("preparedUnit cannot be null");
         }
         this.preparedUnit = preparedUnit;
-        this.kernel = preparedUnit.kernel();
     }
 
     public Cpu1PreparedLayoutUnit preparedUnit() {
@@ -30,6 +28,9 @@ public final class Cpu1LayoutExecutableUnit implements Cpu1ExecutableUnit {
 
     @Override
     public void run(ExecutionContext context) {
-        kernel.run(preparedUnit, context);
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        preparedUnit.kernel().run(new Cpu1LayoutJavaArrayKernelSupport(preparedUnit, context));
     }
 }

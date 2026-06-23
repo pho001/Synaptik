@@ -4,7 +4,7 @@ import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
-import backend.memory.TensorResidencyState;
+import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
@@ -185,29 +185,15 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
             DataType dataType,
             ExecutionContext context
     ) {
-        NativeTensorStorage nativeInput = requireNativeCurrent(role, nodeId, context);
+        NativeTensorStorage nativeInput = context.requireNativeReadable(
+                nodeId,
+                CpuMaterializationReason.CPU_CONSUMER
+        );
         if (nativeInput.getType() != dataType) {
             throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL requires " + dataType
                     + " native " + role + " storage, got " + nativeInput.getType());
         }
         return nativeInput;
-    }
-
-    private static NativeTensorStorage requireNativeCurrent(String role, int nodeId, ExecutionContext context) {
-        TensorResidencyState residency = context.residencyForNodeId(nodeId);
-        NativeTensorStorage storage = context.nativeStorageForNodeId(nodeId);
-        if (residency != null && residency.nativeCurrent() && storage != null) {
-            storage.ensureOpen();
-            return storage;
-        }
-        throw new UnsupportedOperationException("cpu1 OPENBLAS_NATIVE_SEGMENT MATMUL requires current native CPU segment "
-                + role + " storage for nodeId=" + nodeId + "; residency="
-                + (residency == null ? "unknown" : residency.residency())
-                + ", cpuCurrent=" + (residency != null && residency.cpuCurrent())
-                + ", nativeCurrent=" + (residency != null && residency.nativeCurrent())
-                + ", deviceCurrent=" + (residency != null && residency.deviceCurrent())
-                + ", nativeStorageAttached=" + (storage != null)
-                + ", reason=" + (residency == null ? "" : residency.lastTransitionReason()));
     }
 
     private static NativeTensorStorage outputStorage(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {

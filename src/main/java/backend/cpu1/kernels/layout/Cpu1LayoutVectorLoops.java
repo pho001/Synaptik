@@ -1,7 +1,6 @@
 package backend.cpu1.kernels.layout;
 
 import backend.cpu1.exec.Cpu1TensorView;
-import backend.cpu1.storage.Cpu1StorageKind;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
@@ -30,7 +29,7 @@ public final class Cpu1LayoutVectorLoops {
     private Cpu1LayoutVectorLoops() {
     }
 
-    public static void copyDense(
+    public static void copyDenseArray(
             Cpu1TensorView input,
             int inputOffset,
             Cpu1TensorView output,
@@ -41,37 +40,6 @@ public final class Cpu1LayoutVectorLoops {
         if (elements <= 0) {
             return;
         }
-        if (input.storageKind() == Cpu1StorageKind.JAVA_ARRAY && output.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
-            copyArray(input, inputOffset, output, outputOffset, elements, dataType);
-            return;
-        }
-        if (input.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT
-                && output.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            copySegment(input.segment(), inputOffset, output.segment(), outputOffset, elements, dataType);
-            return;
-        }
-        throw new IllegalArgumentException("cpu1 vector layout copy requires matching storage kinds.");
-    }
-
-    public static void fillDense(Cpu1TensorView output, int outputOffset, int elements, double value, DataType dataType) {
-        if (elements <= 0) {
-            return;
-        }
-        if (output.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
-            fillArray(output, outputOffset, elements, value, dataType);
-            return;
-        }
-        fillSegment(output.segment(), outputOffset, elements, value, dataType);
-    }
-
-    private static void copyArray(
-            Cpu1TensorView input,
-            int inputOffset,
-            Cpu1TensorView output,
-            int outputOffset,
-            int elements,
-            DataType dataType
-    ) {
         switch (dataType) {
             case FLOAT32 -> copyF32Array(input.float32Array(), inputOffset, output.float32Array(), outputOffset, elements);
             case FLOAT64 -> copyF64Array(input.float64Array(), inputOffset, output.float64Array(), outputOffset, elements);
@@ -81,24 +49,30 @@ public final class Cpu1LayoutVectorLoops {
         }
     }
 
-    private static void copySegment(
-            MemorySegment input,
+    public static void copyDenseSegment(
+            Cpu1TensorView input,
             int inputOffset,
-            MemorySegment output,
+            Cpu1TensorView output,
             int outputOffset,
             int elements,
             DataType dataType
     ) {
+        if (elements <= 0) {
+            return;
+        }
         switch (dataType) {
-            case FLOAT32 -> copyF32Segment(input, inputOffset, output, outputOffset, elements);
-            case FLOAT64 -> copyF64Segment(input, inputOffset, output, outputOffset, elements);
-            case BFLOAT16 -> copyBF16Segment(input, inputOffset, output, outputOffset, elements);
-            case BOOL -> copyBoolSegment(input, inputOffset, output, outputOffset, elements);
+            case FLOAT32 -> copyF32Segment(input.segment(), inputOffset, output.segment(), outputOffset, elements);
+            case FLOAT64 -> copyF64Segment(input.segment(), inputOffset, output.segment(), outputOffset, elements);
+            case BFLOAT16 -> copyBF16Segment(input.segment(), inputOffset, output.segment(), outputOffset, elements);
+            case BOOL -> copyBoolSegment(input.segment(), inputOffset, output.segment(), outputOffset, elements);
             case INT32, INT64 -> throw new UnsupportedOperationException("cpu1 layout vector dtype=" + dataType);
         }
     }
 
-    private static void fillArray(Cpu1TensorView output, int outputOffset, int elements, double value, DataType dataType) {
+    public static void fillDenseArray(Cpu1TensorView output, int outputOffset, int elements, double value, DataType dataType) {
+        if (elements <= 0) {
+            return;
+        }
         switch (dataType) {
             case FLOAT32 -> fillF32Array(output.float32Array(), outputOffset, elements, (float) value);
             case FLOAT64 -> fillF64Array(output.float64Array(), outputOffset, elements, value);
@@ -113,17 +87,26 @@ public final class Cpu1LayoutVectorLoops {
         }
     }
 
-    private static void fillSegment(MemorySegment output, int outputOffset, int elements, double value, DataType dataType) {
+    public static void fillDenseSegment(
+            Cpu1TensorView output,
+            int outputOffset,
+            int elements,
+            double value,
+            DataType dataType
+    ) {
+        if (elements <= 0) {
+            return;
+        }
         switch (dataType) {
-            case FLOAT32 -> fillF32Segment(output, outputOffset, elements, (float) value);
-            case FLOAT64 -> fillF64Segment(output, outputOffset, elements, value);
+            case FLOAT32 -> fillF32Segment(output.segment(), outputOffset, elements, (float) value);
+            case FLOAT64 -> fillF64Segment(output.segment(), outputOffset, elements, value);
             case BFLOAT16 -> fillBF16Segment(
-                    output,
+                    output.segment(),
                     outputOffset,
                     elements,
                     tensor.dtype.TensorDTypeOps.toBFloat16Bits((float) value)
             );
-            case BOOL -> fillBoolSegment(output, outputOffset, elements, value == 0.0d ? (byte) 0 : (byte) 1);
+            case BOOL -> fillBoolSegment(output.segment(), outputOffset, elements, value == 0.0d ? (byte) 0 : (byte) 1);
             case INT32, INT64 -> throw new UnsupportedOperationException("cpu1 layout vector dtype=" + dataType);
         }
     }

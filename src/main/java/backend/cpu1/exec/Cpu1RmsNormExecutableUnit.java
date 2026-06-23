@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.prepare.Cpu1PreparedRmsNormUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.memory.TensorResidencyState;
+import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;
@@ -45,8 +45,8 @@ public final class Cpu1RmsNormExecutableUnit implements Cpu1ExecutableUnit {
         Cpu1TensorView gamma;
         Cpu1TensorView output;
         if (preparedUnit.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
-            requireCpuArrayCurrent("input", preparedUnit.inputNodeId(), context);
-            requireCpuArrayCurrent("gamma", preparedUnit.gammaNodeId(), context);
+            context.requireCpuReadable(preparedUnit.inputNodeId(), CpuMaterializationReason.CPU_CONSUMER);
+            context.requireCpuReadable(preparedUnit.gammaNodeId(), CpuMaterializationReason.CPU_CONSUMER);
             input = Cpu1TensorView.fromTensor(inputTensor);
             gamma = Cpu1TensorView.fromTensor(gammaTensor);
             output = Cpu1TensorView.fromTensor(outputTensor);
@@ -54,8 +54,14 @@ public final class Cpu1RmsNormExecutableUnit implements Cpu1ExecutableUnit {
             requireDenseNoOffset("gamma", gamma, Cpu1StorageKind.JAVA_ARRAY);
             requireDenseNoOffset("output", output, Cpu1StorageKind.JAVA_ARRAY);
         } else if (preparedUnit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            NativeTensorStorage nativeInput = requireNativeCurrent("input", preparedUnit.inputNodeId(), context);
-            NativeTensorStorage nativeGamma = requireNativeCurrent("gamma", preparedUnit.gammaNodeId(), context);
+            NativeTensorStorage nativeInput = context.requireNativeReadable(
+                    preparedUnit.inputNodeId(),
+                    CpuMaterializationReason.CPU_CONSUMER
+            );
+            NativeTensorStorage nativeGamma = context.requireNativeReadable(
+                    preparedUnit.gammaNodeId(),
+                    CpuMaterializationReason.CPU_CONSUMER
+            );
             nativeOutput = context.requireNativeOutputStorage(
                     preparedUnit.nodeId(),
                     preparedUnit.dataType(),
@@ -92,35 +98,6 @@ public final class Cpu1RmsNormExecutableUnit implements Cpu1ExecutableUnit {
                     "cpu1 RMS_NORM wrote native CPU segment"
             );
         }
-    }
-
-    private static void requireCpuArrayCurrent(String role, int nodeId, ExecutionContext context) {
-        TensorResidencyState residency = context.residencyForNodeId(nodeId);
-        if (residency == null || residency.cpuCurrent()) {
-            return;
-        }
-        throw new UnsupportedOperationException("cpu1 RMS_NORM JAVA_ARRAY requires current CPU array "
-                + role + " storage for nodeId=" + nodeId + "; residency=" + residency.residency()
-                + ", nativeCurrent=" + residency.nativeCurrent()
-                + ", deviceCurrent=" + residency.deviceCurrent()
-                + ", reason=" + residency.lastTransitionReason());
-    }
-
-    private static NativeTensorStorage requireNativeCurrent(String role, int nodeId, ExecutionContext context) {
-        TensorResidencyState residency = context.residencyForNodeId(nodeId);
-        NativeTensorStorage storage = context.nativeStorageForNodeId(nodeId);
-        if (residency != null && residency.nativeCurrent() && storage != null) {
-            storage.ensureOpen();
-            return storage;
-        }
-        throw new UnsupportedOperationException("cpu1 RMS_NORM MEMORY_SEGMENT requires current native CPU segment "
-                + role + " storage for nodeId=" + nodeId + "; residency="
-                + (residency == null ? "unknown" : residency.residency())
-                + ", cpuCurrent=" + (residency != null && residency.cpuCurrent())
-                + ", nativeCurrent=" + (residency != null && residency.nativeCurrent())
-                + ", deviceCurrent=" + (residency != null && residency.deviceCurrent())
-                + ", nativeStorageAttached=" + (storage != null)
-                + ", reason=" + (residency == null ? "" : residency.lastTransitionReason()));
     }
 
     private static void requireDenseNoOffset(

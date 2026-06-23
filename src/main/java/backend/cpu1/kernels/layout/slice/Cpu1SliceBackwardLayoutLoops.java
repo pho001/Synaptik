@@ -3,7 +3,6 @@ package backend.cpu1.kernels.layout.slice;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
 
 import java.util.Arrays;
 
@@ -11,12 +10,11 @@ public final class Cpu1SliceBackwardLayoutLoops {
     private Cpu1SliceBackwardLayoutLoops() {
     }
 
-    public static void sliceBackwardScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void sliceBackwardScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView updates = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        SliceBackwardPlan plan = SliceBackwardPlan.create(unit, updates, output);
+        SliceBackwardPlan plan = SliceBackwardPlan.create(support.unit(), updates, output);
 
         support.fillOutputScalar(output, 0.0d);
         support.launchRange(updates.elementCount(), (start, end) -> {

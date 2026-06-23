@@ -2,6 +2,8 @@ package backend.cpu1;
 
 import backend.ComputeBackend;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import backend.cpu1.exec.Cpu1ElementwiseJavaArrayExecutableUnit;
+import backend.cpu1.exec.Cpu1ElementwiseMemorySegmentExecutableUnit;
 import backend.cpu1.exec.Cpu1KernelArgs;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.elementwise.Cpu1ElementwiseKernelId;
@@ -66,6 +68,11 @@ class Cpu1ExecutionContractTest {
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
 
+        Cpu1ElementwiseJavaArrayExecutableUnit executable = assertInstanceOf(
+                Cpu1ElementwiseJavaArrayExecutableUnit.class,
+                artifact.executableUnit()
+        );
+        assertSame(artifact.preparedUnit(), executable.preparedUnit());
         assertArrayEquals(
                 new float[]{11.0f, 22.0f, 33.0f},
                 context.runtimeTensorForNodeId(fixture.node().id()).toFloat32ArrayCopy(),
@@ -1051,6 +1058,11 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
+        Cpu1ElementwiseMemorySegmentExecutableUnit executable = assertInstanceOf(
+                Cpu1ElementwiseMemorySegmentExecutableUnit.class,
+                artifact.executableUnit()
+        );
+        assertSame(artifact.preparedUnit(), executable.preparedUnit());
         CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);

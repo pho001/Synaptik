@@ -25,8 +25,9 @@ Aktualni stav fazi:
 - [x] Faze 5: loss vetev pro NLL a CrossEntropy; dense scope complete, strided/view deferred
 - [x] Faze 6: index/gather/scatter operace; dense direct scope complete, strided/view a parallel scatter deferred
 - [x] Faze 7: NN a normalization kernely; LAYER_NORM/RMS_NORM dense JAVA_ARRAY/MEMORY_SEGMENT slices, LINEAR dense matmul-backed subset, MAX_POOL2D/AVG_POOL2D dense direct routes and CONV2D dense direct correctness/fallback route complete; generic MATMUL_EPILOGUE IR deferred to follow-up plan 119 and optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
-- [ ] Faze 8: linear algebra a attention parita
-- [ ] Faze 9: native storage, BF16 a mixed residency policy
+- [~] Faze 8: linear algebra a attention parita
+- [x] Faze 9: cpu1 storage mode contract; execute boundary binding sjednocen,
+  ad-hoc residency rozhodovani v cpu1 hot paths odstraneno
 - [ ] Faze 10: trace, tuning, coverage gate a default route readiness
 
 ## Cil
@@ -482,7 +483,8 @@ cpu1:
   plus optional last-dim bias epilogue; region specialization maps
   standalone LINEAR+bias and exact MATMUL+ADD bias through the current concrete
   matmul-bias specialization route
-- attention ops nejsou dorovnane
+- dense direct attention ops jsou dorovnane pro `JAVA_ARRAY` a
+  `MEMORY_SEGMENT`
 
 Zbyvajici parity prace:
 
@@ -492,7 +494,8 @@ Zbyvajici parity prace:
   matmul-bias specialization route na obecny `MATMUL_EPILOGUE` payload;
   aktualne dense contiguous no-offset Java-array route pokryva bias/no-bias a
   native MemorySegment route pokryva explicitni podporovane matmul-backed route
-- attention prenest az po stabilnim workspace/native/matmul provider layeru
+- attention view/native/vector backward parity a broader optimized-attention
+  navazat na budouci materialization a optimized-attention faze
 - doplnit batched matmul edge cases proti staremu CPU
 - sjednotit OpenBLAS thread knobs s tuning/runtime configem
 
@@ -500,8 +503,11 @@ Verdikt:
 
 ```text
 MATMUL je v cpu1 velmi dulezity a relativne daleko.
-LINEAR direct dense subset je pokryty matmul-backed routou; attention zustava
-chybejici parity oblast.
+LINEAR direct dense subset je pokryty matmul-backed routou; attention ma dense
+direct cpu1 route vcetne F32/F64 Vector API cesty a graph-lowered SDPA
+backward specialized primitive route pro dense `JAVA_ARRAY` i
+`MEMORY_SEGMENT` F32/F64 scalar/vector dQ/dK/dV. Strided/view, BF16 backward a
+broader-optimized oblasti zustavaji chybejici parity oblast.
 ```
 
 ### 9. Index / Gather / Scatter
@@ -2198,7 +2204,9 @@ preferred optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
 
 ## Faze 8: Linear Algebra A Attention
 
-Status: `[ ]`
+Status: `[~]` dense direct `SCALED_DOT_PRODUCT_ATTENTION` /
+`SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` implemented; optimized/broader
+attention parity remains scoped below.
 
 ### Proc
 
@@ -2279,11 +2287,29 @@ cpu1 by nemelo hned delat obrovsky monolit, dokud neni stabilni:
 - workspace/reuse
 - native storage route
 
-Prvni cpu1 attention plan:
+Aktualni cpu1 attention stav:
 
-1. lowering na existujici primitives
-2. potom specializovany attention weights kernel
-3. potom full SDPA kernel s workspace
+- dense contiguous no-offset direct forward route implemented for
+  `SCALED_DOT_PRODUCT_ATTENTION`
+- dense contiguous no-offset direct cached-weights publication implemented for
+  `SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS`
+- `JAVA_ARRAY`: FLOAT32/FLOAT64/BFLOAT16 direct execution
+- `MEMORY_SEGMENT`: FLOAT32/FLOAT64/BFLOAT16 direct execution when all runtime
+  inputs already have current native CPU storage
+- FLOAT32/FLOAT64 dense direct route supports scalar and Vector API execution
+  for both `JAVA_ARRAY` and `MEMORY_SEGMENT`; prepare selects vector only when
+  runtime config requests it
+- FLOAT32/FLOAT64 SDPA backward specialized route supports dense Java Vector
+  API execution for `JAVA_ARRAY` and `MEMORY_SEGMENT`; native segment inputs
+  remain native CPU segments and are not materialized into array storage
+- BFLOAT16 remains scalar with FLOAT32 accumulation; it intentionally does not
+  pretend to have a vector kernel while Java has no BF16 primitive/vector lane
+- mask handling matches old CPU direct semantics, including all-masked rows
+  becoming a uniform average over value rows
+- weights publication requires the input compiled descriptor to be an actual
+  `SCALED_DOT_PRODUCT_ATTENTION` node and requires the attention output to have
+  `requiresGrad=true`
+- no old `backend.cpu` attention implementation is imported by cpu1
 
 ### Tasky
 
@@ -2291,74 +2317,988 @@ Prvni cpu1 attention plan:
 - [x] Rozhodnout lowering vs direct route: matmul-backed epilogue route in
   `Cpu1MatmulPreparer`
 - [x] Pridat LINEAR contract tests
-- [ ] Zmapovat SDPA current CPU semantics
-- [ ] Navrhnout cpu1 SDPA workspace layout
-- [ ] Implementovat attention az po softmax parallel group path
+- [x] Zmapovat SDPA current CPU semantics
+- [x] Implementovat dense direct SDPA forward route
+- [x] Implementovat dense direct SDPA weights publication route
+- [x] Pridat targeted cpu1 attention contract tests
+- [deferred] Strided/view attention inputs and outputs; current route
+  intentionally rejects STRIDED and DENSE_WITH_OFFSET descriptors instead of
+  materializing. Input materialization policy belongs to
+  [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md).
+- [x] Vectorized dense direct attention forward kernels for FLOAT32/FLOAT64
+  `JAVA_ARRAY` and `MEMORY_SEGMENT`; dot products and weighted value
+  accumulation use Vector API, while softmax row normalization remains scalar
+- [deferred] Broader blocked/tiled optimized attention kernels; this is a
+  separate performance phase after materialization policy and benchmark coverage
+  are stable
+- [deferred] Broader attention materialization policy; current route requires
+  runtime storage to already match the prepared JAVA_ARRAY/MEMORY_SEGMENT route.
+  Unsupported views must be made explicit by graph/lowering through plan 118,
+  not silently copied by `Cpu1AttentionPreparer` or the attention kernel.
+- [x] Graph-lowered SDPA backward specialized primitive route for dQ/dK/dV:
+  region specialization recognizes the canonical primitive backward DAG and
+  cpu1 prepares dense `JAVA_ARRAY` and dense `MEMORY_SEGMENT` FLOAT32/FLOAT64
+  scalar kernels; `outGrad` may be dense or explicit no-offset broadcast,
+  which covers the common `attention.sum()` gradient path without hidden
+  materialization
+- [x] Vectorized dense direct SDPA backward kernels for FLOAT32/FLOAT64
+  `JAVA_ARRAY` and `MEMORY_SEGMENT`; dQ/dK accumulate over depth with Vector
+  API, dV accumulates over valueDim for dense outGrad, and dScore row dot
+  products use Vector API where the prepared access is contiguous. BF16,
+  strided/view inputs, BLAS routing, and blocked/tiled multi-output backward
+  remain outside this scope.
+- [deferred] Legacy direct `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` op ownership,
+  BF16 backward kernels, strided/view backward inputs, and multi-output
+  blocked/tiled optimized backward attention kernels
 
 ---
 
-## Faze 9: Native Storage A BF16 Policy
+## Faze 8.1: SDPA Backward Performance
 
-Status: `[ ]`
+Status: `[x]`
 
 ### Proc
 
-cpu1 ma podporu pro `Cpu1StorageKind.MEMORY_SEGMENT`, ale neni vsude
-systematicka. Pri dorovnani stareho CPU je dulezite, aby native cesta nebyla
-jen "funguje", ale aby neztracela na per-execute alokacich nebo zbytecnych
-prevodech.
+Faze 8 zavedla dense scalar cpu1 SDPA backward specializaci pro dQ/dK/dV.
+Funkcne je to spravna prvni route, ale benchmark ukazal, ze vykonnostni
+problem neni primarne `MEMORY_SEGMENT`. Hlavni bottleneck je dK algoritmus a
+spatne planovani paralelizace.
+
+Do teto faze patri performance opravy pro existujici dense F32/F64
+`JAVA_ARRAY` a `MEMORY_SEGMENT` route a Java Vector API backward cesta pro
+dense F32/F64 `JAVA_ARRAY` i `MEMORY_SEGMENT`. Nepatri sem strided/view
+materializace, BF16, BLAS route ani obecny blocked/tiled attention provider.
+
+### Benchmark Evidence
+
+Docasny runner mimo repo:
+
+```text
+/private/tmp/SdpaBackwardCpu1Benchmark.java
+```
+
+Runner meril samotny prepared cpu1 SDPA backward step pres:
+
+```java
+new Cpu1Backend().execute(step.compiledNode(), step.metadata(), context);
+```
+
+Tedy ne compile, ne prepare a ne cely forward/backward graf.
+
+Default runtime:
+
+```text
+shape = large-b4-h8-t64-d32
+warmup = 3
+iters = 7
+workers = 16
+```
+
+Namereno:
+
+```text
+large b4 h8 t64 d32, F32
+dQ array     11.631 ms
+dQ segment   10.378 ms
+dK array    486.422 ms
+dK segment  531.499 ms
+dV array      8.670 ms
+dV segment    8.817 ms
+
+large b4 h8 t64 d32, F64
+dQ array      9.554 ms
+dQ segment   10.107 ms
+dK array    492.545 ms
+dK segment  530.938 ms
+dV array      8.653 ms
+dV segment    8.949 ms
+```
+
+Forced chunk experiment:
+
+```text
+shape = large-b4-h8-t64-d32
+dtype = F32
+grad = dK
+forceAttentionChunk = 64
+warmup = 1
+iters = 3
+```
+
+Namereno:
+
+```text
+dK array    52.597 ms
+dK segment  52.152 ms
+```
+
+Zaver:
+
+```text
+1. dK je o rad az dva rady pomalejsi nez dQ/dV.
+2. Default launch config ukazuje workers=16, ale chunk=16384 pri rows=2048,
+   takze se vytvori jen jeden task a realne se neparalelizuje.
+3. Po forced chunk=64 spadne dK z ~486-531 ms na ~52 ms.
+4. MEMORY_SEGMENT neni hlavni bottleneck; po spravnem chunkingu je segment dK
+   prakticky stejne rychly jako array dK.
+```
+
+### Cilovy Stav
+
+Po fazi 8.1 ma cpu1 SDPA backward:
+
+- rozhodovat paralelizaci podle odhadovane prace, ne podle samotneho
+  `rowCount`
+- pro dK nepocitat stejne `dScores` opakovane pro kazdy key
+- pouzivat scratch velikost podle `outputKind`
+- zachovat explicitni dense/no-offset kontrakt
+- zachovat explicitni `JAVA_ARRAY` vs `MEMORY_SEGMENT` runtime storage route
+- nezavadet skrytou materializaci
+- nezavadet fallback do stareho `backend.cpu`
+
+### Target Files
+
+```text
+src/main/java/backend/cpu1/prepare/Cpu1AttentionBackwardPreparer.java
+src/main/java/backend/cpu1/prepare/Cpu1PreparedAttentionBackwardUnit.java
+src/main/java/backend/cpu1/kernels/linalg/attention/backward/Cpu1AttentionBackwardLoops.java
+src/test/java/backend/cpu1/Cpu1AttentionBackwardExecutionContractTest.java
+src/test/java/backend/cpu1/Cpu1AttentionBackwardBenchmarkTest.java
+todo/117-cpu1-to-cpu-parity-plan.md
+```
+
+`Cpu1AttentionBackwardBenchmarkTest` bude canonical benchmark test
+`@Tag("benchmark")`. Docasny `/private/tmp` runner se do repa necommituje.
+
+### Oprava 1: Launch Policy Podle Prace
+
+Problem dnes:
+
+```java
+private static Cpu1LaunchConfig launchConfig(int rowCount, Cpu1PrepareConfig config) {
+    CpuKernelConfig cpuKernelConfig = config.cpuKernelConfig();
+    int maxWorkers = config.launchConfig().workerCount();
+    if (maxWorkers <= 1 || rowCount <= 1 || rowCount < cpuKernelConfig.attentionParallelMinSize()) {
+        return Cpu1LaunchConfig.singleThread();
+    }
+    int plannedWorkers = Math.min(maxWorkers, rowCount);
+    int targets = Math.max(1, plannedWorkers * cpuKernelConfig.highCostTargetChunksPerWorker());
+    int candidate = (Math.max(1, rowCount) + targets - 1) / targets;
+    return Cpu1LaunchConfig.parallel(
+            plannedWorkers,
+            Math.max(cpuKernelConfig.minReductionChunkSize(), candidate)
+    );
+}
+```
+
+Proc je to spatne:
+
+```text
+rowCount = 2048
+minReductionChunkSize = 16384
+chunk = 16384
+taskCount = ceil(2048 / 16384) = 1
+```
+
+Takze `workers=16` v prepare metadata neznamena skutecnou paralelizaci.
+
+Cilovy kod:
+
+```java
+private static Cpu1LaunchConfig launchConfig(
+        SdpaBackwardOutputKind outputKind,
+        ShapeContract shape,
+        Cpu1PrepareConfig config
+) {
+    if (!config.automaticLaunch()) {
+        return config.launchConfig();
+    }
+    CpuKernelConfig cpuKernelConfig = config.cpuKernelConfig();
+    if (cpuKernelConfig == null) {
+        throw new IllegalArgumentException("Automatic cpu1 SDPA_BACKWARD dispatch requires CpuKernelConfig.");
+    }
+
+    int itemCount = launchItemCount(outputKind, shape);
+    long workPerItem = estimatedWorkPerItem(outputKind, shape);
+    long totalWork = Math.multiplyExact((long) itemCount, workPerItem);
+    int maxWorkers = config.launchConfig().workerCount();
+
+    if (maxWorkers <= 1 || itemCount <= 1 || totalWork < cpuKernelConfig.attentionParallelMinSize()) {
+        return Cpu1LaunchConfig.singleThread();
+    }
+
+    int plannedWorkers = Math.min(maxWorkers, itemCount);
+    int targetTasks = Math.max(1, plannedWorkers * cpuKernelConfig.highCostTargetChunksPerWorker());
+    int candidateItemsPerChunk = (itemCount + targetTasks - 1) / targetTasks;
+    int minItemsPerChunk = Math.max(
+            1,
+            (int) Math.max(1L, cpuKernelConfig.minReductionChunkSize() / Math.max(1L, workPerItem))
+    );
+    return Cpu1LaunchConfig.parallel(
+            plannedWorkers,
+            Math.max(minItemsPerChunk, candidateItemsPerChunk)
+    );
+}
+
+private static int launchItemCount(SdpaBackwardOutputKind outputKind, ShapeContract shape) {
+    return switch (outputKind) {
+        case QUERY -> Math.multiplyExact(shape.batchCount(), shape.queryLen());
+        case KEY -> Math.multiplyExact(shape.batchCount(), shape.keyLen());
+        case VALUE -> Math.multiplyExact(shape.batchCount(), shape.keyLen());
+    };
+}
+
+private static long estimatedWorkPerItem(SdpaBackwardOutputKind outputKind, ShapeContract shape) {
+    return switch (outputKind) {
+        case QUERY -> Math.addExact(
+                Math.multiplyExact((long) shape.keyLen(), shape.valueDim()),
+                Math.multiplyExact((long) shape.keyLen(), shape.depth())
+        );
+        case KEY -> Math.addExact(
+                Math.multiplyExact((long) shape.queryLen(), Math.multiplyExact(shape.keyLen(), shape.valueDim())),
+                Math.multiplyExact((long) shape.queryLen(), shape.depth())
+        );
+        case VALUE -> Math.multiplyExact((long) shape.queryLen(), shape.valueDim());
+    };
+}
+```
+
+Poznamka:
+
+`launchItemCount(KEY)` zustava `batchCount * keyLen`, aby prvni oprava menila
+jen chunking a zachovala existujici paralelni rozdeleni podle key row.
+Algoritmicka oprava dK nize muze internim loopem pouzit jinou praci na chunk,
+ale verejny launch contract zustane kompatibilni.
+
+Tasky:
+
+- [x] Nahradit stary `launchConfig(int rowCount, ...)`
+- [x] Volat novou metodu jako
+  `launchConfig(outputKind, shape, config)`
+- [x] Pridat prepare test, ktery pro velky dK overi `chunkSize < rowCount`
+- [x] Pridat prepare test, ktery pro maly dQ/dV zustane single-thread podle
+  thresholdu
+
+### Oprava 2: Scratch Sizing Podle Output Kind
+
+Problem:
+
+dQ a dK dnes pouzivaji scratch:
+
+```text
+dWeights[keyLen]
+dScores[keyLen]
+```
+
+To staci pro jeden `computeScoreRow(...)`, ale optimalizovany dK potrebuje
+ulozit `dScores` pro vice query rows, aby je nepocital znovu pro kazdy key.
+
+Cilovy kod v:
+
+```text
+src/main/java/backend/cpu1/prepare/Cpu1PreparedAttentionBackwardUnit.java
+```
+
+```java
+public int scratchElementsPerSlot() {
+    return switch (outputKind) {
+        case VALUE -> 0;
+        case QUERY -> Math.multiplyExact(keyLen, 2);
+        case KEY -> Math.addExact(
+                Math.multiplyExact(keyLen, 2),
+                Math.multiplyExact(queryLen, keyLen)
+        );
+    };
+}
+
+public int dScoresScratchOffset(int slotIndex) {
+    if (outputKind != SdpaBackwardOutputKind.KEY) {
+        throw new IllegalStateException("dScores matrix scratch is used only by SDPA dK.");
+    }
+    return Math.addExact(
+            Math.multiplyExact(slotIndex, scratchElementsPerSlot()),
+            Math.multiplyExact(keyLen, 2)
+    );
+}
+
+public Cpu1ScratchBufferSpec scratchBufferSpec() {
+    if (outputKind == SdpaBackwardOutputKind.VALUE) {
+        return Cpu1ScratchBufferSpec.none();
+    }
+    int elements = Math.multiplyExact(scratchSlotCount, scratchElementsPerSlot());
+    return dataType == DataType.FLOAT64
+            ? Cpu1ScratchBufferSpec.arrays(0, elements, 0)
+            : Cpu1ScratchBufferSpec.arrays(elements, 0, 0);
+}
+```
+
+Proc:
+
+```text
+KEY scratch =
+  temporary row dWeights[keyLen]
+  temporary row dScores[keyLen]
+  reusable dScoresMatrix[queryLen * keyLen]
+```
+
+Tahle pamet je per slot, tedy per parallel task. Pro typicky shape
+`queryLen=64`, `keyLen=64` je to:
+
+```text
+2 * 64 + 64 * 64 = 4224 float/double prvku na slot
+```
+
+To je levne proti opakovanemu prepocitavani cele softmax-backward row pro kazdy
+key.
+
+Tasky:
+
+- [x] Pridat `scratchElementsPerSlot()`
+- [x] Pridat `dScoresScratchOffset(int slotIndex)`
+- [x] Prepsat `scratchBufferSpec()`
+- [x] Pridat test pro dQ scratch size
+- [x] Pridat test pro dK scratch size
+- [x] Pridat test pro dV no scratch
+
+### Oprava 3: Prepsat dK Algoritmus
+
+Problem dnes:
+
+Aktualni dK loop dela zjednodusene:
+
+```java
+for (int keyIndex = 0; keyIndex < unit.keyLen(); keyIndex++) {
+    for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+        computeF32ScoreRow(unit, inputs, batch, queryIndex, scratch, dWeightsBase, dScoresBase);
+        float dScore = scratch[dScoresBase + keyIndex];
+        output[outputBase + depthIndex] += dScore * query[queryRowBase + depthIndex];
+    }
+}
+```
+
+`computeScoreRow(query)` vypocita `dScores` pro vsechny keys. Kdyz ho volame
+uvnitr smycky pres keys, pocitame stejnou query row znovu a znovu.
+
+Spravne:
+
+```text
+for each batch/head:
+  for each query:
+    compute dScores(query, all keys)
+    uloz do dScoresMatrix[query, key]
+
+  for each key:
+    for each depth:
+      dK[key, depth] = sum_query dScoresMatrix[query, key] * Q[query, depth]
+```
+
+#### F32 Array Cilovy Kod
+
+Soubor:
+
+```text
+src/main/java/backend/cpu1/kernels/linalg/attention/backward/Cpu1AttentionBackwardLoops.java
+```
+
+```java
+private static void runF32Key(
+        Cpu1PreparedAttentionBackwardUnit unit,
+        F32Inputs inputs,
+        float[] output,
+        float[] scratch
+) {
+    Cpu1RangeLauncher.launchIndexed(unit.batchCount(), unit.launchConfig(), (slot, start, end) -> {
+        int slotBase = slot * unit.scratchElementsPerSlot();
+        int dWeightsBase = slotBase;
+        int dScoresBase = slotBase + unit.keyLen();
+        int dScoresMatrixBase = unit.dScoresScratchOffset(slot);
+        for (int batch = start; batch < end; batch++) {
+            for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                computeF32ScoreRow(unit, inputs, batch, queryIndex, scratch, dWeightsBase, dScoresBase);
+                int matrixBase = dScoresMatrixBase + queryIndex * unit.keyLen();
+                System.arraycopy(scratch, dScoresBase, scratch, matrixBase, unit.keyLen());
+            }
+
+            int outputBatchBase = batch * unit.keyLen() * unit.depth();
+            int queryBatchBase = batch * unit.queryLen() * unit.depth();
+            for (int keyIndex = 0; keyIndex < unit.keyLen(); keyIndex++) {
+                int outputBase = outputBatchBase + keyIndex * unit.depth();
+                for (int depthIndex = 0; depthIndex < unit.depth(); depthIndex++) {
+                    float sum = 0.0f;
+                    for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                        float dScore = scratch[dScoresMatrixBase + queryIndex * unit.keyLen() + keyIndex];
+                        sum += dScore * inputs.query[queryBatchBase + queryIndex * unit.depth() + depthIndex];
+                    }
+                    output[outputBase + depthIndex] = sum;
+                }
+            }
+        }
+    });
+}
+```
+
+#### F64 Array Cilovy Kod
+
+```java
+private static void runF64Key(
+        Cpu1PreparedAttentionBackwardUnit unit,
+        F64Inputs inputs,
+        double[] output,
+        double[] scratch
+) {
+    Cpu1RangeLauncher.launchIndexed(unit.batchCount(), unit.launchConfig(), (slot, start, end) -> {
+        int slotBase = slot * unit.scratchElementsPerSlot();
+        int dWeightsBase = slotBase;
+        int dScoresBase = slotBase + unit.keyLen();
+        int dScoresMatrixBase = unit.dScoresScratchOffset(slot);
+        for (int batch = start; batch < end; batch++) {
+            for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                computeF64ScoreRow(unit, inputs, batch, queryIndex, scratch, dWeightsBase, dScoresBase);
+                int matrixBase = dScoresMatrixBase + queryIndex * unit.keyLen();
+                System.arraycopy(scratch, dScoresBase, scratch, matrixBase, unit.keyLen());
+            }
+
+            int outputBatchBase = batch * unit.keyLen() * unit.depth();
+            int queryBatchBase = batch * unit.queryLen() * unit.depth();
+            for (int keyIndex = 0; keyIndex < unit.keyLen(); keyIndex++) {
+                int outputBase = outputBatchBase + keyIndex * unit.depth();
+                for (int depthIndex = 0; depthIndex < unit.depth(); depthIndex++) {
+                    double sum = 0.0d;
+                    for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                        double dScore = scratch[dScoresMatrixBase + queryIndex * unit.keyLen() + keyIndex];
+                        sum += dScore * inputs.query[queryBatchBase + queryIndex * unit.depth() + depthIndex];
+                    }
+                    output[outputBase + depthIndex] = sum;
+                }
+            }
+        }
+    });
+}
+```
+
+#### F32 Segment Cilovy Kod
+
+```java
+private static void runF32KeySegment(
+        Cpu1PreparedAttentionBackwardUnit unit,
+        F32SegmentInputs inputs,
+        MemorySegment output,
+        float[] scratch
+) {
+    Cpu1RangeLauncher.launchIndexed(unit.batchCount(), unit.launchConfig(), (slot, start, end) -> {
+        int slotBase = slot * unit.scratchElementsPerSlot();
+        int dWeightsBase = slotBase;
+        int dScoresBase = slotBase + unit.keyLen();
+        int dScoresMatrixBase = unit.dScoresScratchOffset(slot);
+        for (int batch = start; batch < end; batch++) {
+            for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                computeF32ScoreRowSegment(unit, inputs, batch, queryIndex, scratch, dWeightsBase, dScoresBase);
+                int matrixBase = dScoresMatrixBase + queryIndex * unit.keyLen();
+                System.arraycopy(scratch, dScoresBase, scratch, matrixBase, unit.keyLen());
+            }
+
+            int outputBatchBase = batch * unit.keyLen() * unit.depth();
+            int queryBatchBase = batch * unit.queryLen() * unit.depth();
+            for (int keyIndex = 0; keyIndex < unit.keyLen(); keyIndex++) {
+                int outputBase = outputBatchBase + keyIndex * unit.depth();
+                for (int depthIndex = 0; depthIndex < unit.depth(); depthIndex++) {
+                    float sum = 0.0f;
+                    for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                        float dScore = scratch[dScoresMatrixBase + queryIndex * unit.keyLen() + keyIndex];
+                        sum += dScore * f32(inputs.query, queryBatchBase + queryIndex * unit.depth() + depthIndex);
+                    }
+                    setF32(output, outputBase + depthIndex, sum);
+                }
+            }
+        }
+    });
+}
+```
+
+#### F64 Segment Cilovy Kod
+
+```java
+private static void runF64KeySegment(
+        Cpu1PreparedAttentionBackwardUnit unit,
+        F64SegmentInputs inputs,
+        MemorySegment output,
+        double[] scratch
+) {
+    Cpu1RangeLauncher.launchIndexed(unit.batchCount(), unit.launchConfig(), (slot, start, end) -> {
+        int slotBase = slot * unit.scratchElementsPerSlot();
+        int dWeightsBase = slotBase;
+        int dScoresBase = slotBase + unit.keyLen();
+        int dScoresMatrixBase = unit.dScoresScratchOffset(slot);
+        for (int batch = start; batch < end; batch++) {
+            for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                computeF64ScoreRowSegment(unit, inputs, batch, queryIndex, scratch, dWeightsBase, dScoresBase);
+                int matrixBase = dScoresMatrixBase + queryIndex * unit.keyLen();
+                System.arraycopy(scratch, dScoresBase, scratch, matrixBase, unit.keyLen());
+            }
+
+            int outputBatchBase = batch * unit.keyLen() * unit.depth();
+            int queryBatchBase = batch * unit.queryLen() * unit.depth();
+            for (int keyIndex = 0; keyIndex < unit.keyLen(); keyIndex++) {
+                int outputBase = outputBatchBase + keyIndex * unit.depth();
+                for (int depthIndex = 0; depthIndex < unit.depth(); depthIndex++) {
+                    double sum = 0.0d;
+                    for (int queryIndex = 0; queryIndex < unit.queryLen(); queryIndex++) {
+                        double dScore = scratch[dScoresMatrixBase + queryIndex * unit.keyLen() + keyIndex];
+                        sum += dScore * f64(inputs.query, queryBatchBase + queryIndex * unit.depth() + depthIndex);
+                    }
+                    setF64(output, outputBase + depthIndex, sum);
+                }
+            }
+        }
+    });
+}
+```
+
+Proc je to lepsi:
+
+```text
+Predtim:
+  pro kazdy key znovu pocitej dScores pro kazdy query
+
+Potom:
+  pro kazdy query pocitej dScores jednou
+  potom jen dScoresMatrix^T @ Q
+```
+
+Segment specific win:
+
+Stara segment dK cesta delala read-modify-write:
+
+```java
+setF32(output, outputIndex, f32(output, outputIndex) + delta);
+```
+
+Nova cesta drzi `sum` v lokalni promene a do segmentu zapise az finalni
+hodnotu:
+
+```java
+setF32(output, outputBase + depthIndex, sum);
+```
+
+To je pro `MemorySegment` vyrazne vhodnejsi hot-path chovani.
+
+Tasky:
+
+- [x] Prepsat `runF32Key`
+- [x] Prepsat `runF64Key`
+- [x] Prepsat `runF32KeySegment`
+- [x] Prepsat `runF64KeySegment`
+- [x] Zachovat `runF32Query`, `runF64Query`, `runF32Value`, `runF64Value`
+  beze zmen mimo pripadneho `slotBase` vypoctu
+- [x] Pridat numerickou paritu proti baseline pro dK F32/F64 array
+- [x] Pridat numerickou paritu proti baseline pro dK F32/F64 segment
+
+### Oprava 4: Canonical Benchmark Test
+
+Do repa pridat benchmark test:
+
+```text
+src/test/java/backend/cpu1/Cpu1AttentionBackwardBenchmarkTest.java
+```
+
+Skeleton:
+
+```java
+package backend.cpu1;
+
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+@Tag("benchmark")
+final class Cpu1AttentionBackwardBenchmarkTest {
+    private static final int WARMUP_ITERATIONS = 3;
+    private static final int MEASURE_ITERATIONS = 7;
+
+    @Test
+    void benchmarkDenseSdpaBackwardArrayVsSegment() {
+        // cases:
+        // - medium b2 h4 t64 d32
+        // - large b4 h8 t64 d32
+        // - FLOAT32/FLOAT64
+        // - QUERY/KEY/VALUE
+        // - JAVA_ARRAY/MEMORY_SEGMENT
+        //
+        // Measure only Cpu1Backend.execute(step.compiledNode(), step.metadata(), context).
+        // Print median/p90/min/max and prepared launch workers/chunk.
+    }
+}
+```
+
+Report musi obsahovat:
+
+```text
+shape
+dtype
+outputKind
+storageKind
+kernelId
+workers
+chunkSize
+rowCount
+medianMs
+p90Ms
+segment/array ratio
+```
+
+Benchmark test se nepousti v defaultnim overeni, jen rucne:
+
+```bash
+./gradlew test --tests backend.cpu1.Cpu1AttentionBackwardBenchmarkTest
+```
+
+Tasky:
+
+- [x] Pridat benchmark test
+- [x] V reportu tisknout launch config
+- [x] V reportu tisknout array vs segment ratio
+- [x] Pridat do teto faze nove benchmark evidence po implementaci
+
+Historical scalar-only local benchmark evidence from
+`./gradlew test --tests backend.cpu1.Cpu1AttentionBackwardBenchmarkTest` on
+2026-06-22:
+
+```text
+shape,dtype,outputKind,storageKind,kernelId,workers,chunkSize,rowCount,itemCount,medianMs,p90Ms,minMs,maxMs,segmentArrayRatio
+medium-b2-h4-t64-d32,FLOAT32,QUERY,JAVA_ARRAY,SDPA_BACKWARD_DQ_F32_ARRAY_DENSE_SCALAR,16,32,512,512,0.424458,6.122384,0.374667,14.600584,1.0000
+medium-b2-h4-t64-d32,FLOAT32,QUERY,MEMORY_SEGMENT,SDPA_BACKWARD_DQ_F32_SEGMENT_DENSE_SCALAR,16,32,512,512,0.435709,0.477867,0.416917,0.481292,1.0265
+medium-b2-h4-t64-d32,FLOAT32,KEY,JAVA_ARRAY,SDPA_BACKWARD_DK_F32_ARRAY_DENSE_SCALAR,16,32,512,512,2.179541,3.319758,0.492250,3.657708,1.0000
+medium-b2-h4-t64-d32,FLOAT32,KEY,MEMORY_SEGMENT,SDPA_BACKWARD_DK_F32_SEGMENT_DENSE_SCALAR,16,32,512,512,0.523375,2.351458,0.501167,4.930083,0.2401
+medium-b2-h4-t64-d32,FLOAT32,VALUE,JAVA_ARRAY,SDPA_BACKWARD_DV_F32_ARRAY_DENSE_SCALAR,16,32,512,512,0.347542,0.367350,0.325250,0.377625,1.0000
+medium-b2-h4-t64-d32,FLOAT32,VALUE,MEMORY_SEGMENT,SDPA_BACKWARD_DV_F32_SEGMENT_DENSE_SCALAR,16,32,512,512,0.321209,0.365217,0.298000,0.369292,0.9242
+medium-b2-h4-t64-d32,FLOAT64,QUERY,JAVA_ARRAY,SDPA_BACKWARD_DQ_F64_ARRAY_DENSE_SCALAR,16,32,512,512,2.074041,2.907991,1.478875,3.147416,1.0000
+medium-b2-h4-t64-d32,FLOAT64,QUERY,MEMORY_SEGMENT,SDPA_BACKWARD_DQ_F64_SEGMENT_DENSE_SCALAR,16,32,512,512,0.400000,0.447325,0.387875,0.493375,0.1929
+medium-b2-h4-t64-d32,FLOAT64,KEY,JAVA_ARRAY,SDPA_BACKWARD_DK_F64_ARRAY_DENSE_SCALAR,16,32,512,512,2.259708,2.667325,0.529959,3.025625,1.0000
+medium-b2-h4-t64-d32,FLOAT64,KEY,MEMORY_SEGMENT,SDPA_BACKWARD_DK_F64_SEGMENT_DENSE_SCALAR,16,32,512,512,2.591041,3.611642,0.583708,3.690917,1.1466
+medium-b2-h4-t64-d32,FLOAT64,VALUE,JAVA_ARRAY,SDPA_BACKWARD_DV_F64_ARRAY_DENSE_SCALAR,16,32,512,512,0.318791,0.356025,0.313791,0.358125,1.0000
+medium-b2-h4-t64-d32,FLOAT64,VALUE,MEMORY_SEGMENT,SDPA_BACKWARD_DV_F64_SEGMENT_DENSE_SCALAR,16,32,512,512,0.349458,0.376267,0.315042,0.393292,1.0962
+large-b4-h8-t64-d32,FLOAT32,QUERY,JAVA_ARRAY,SDPA_BACKWARD_DQ_F32_ARRAY_DENSE_SCALAR,16,128,2048,2048,1.077916,1.120308,1.048667,1.125709,1.0000
+large-b4-h8-t64-d32,FLOAT32,QUERY,MEMORY_SEGMENT,SDPA_BACKWARD_DQ_F32_SEGMENT_DENSE_SCALAR,16,128,2048,2048,1.156125,1.168941,1.136166,1.176667,1.0726
+large-b4-h8-t64-d32,FLOAT32,KEY,JAVA_ARRAY,SDPA_BACKWARD_DK_F32_ARRAY_DENSE_SCALAR,16,128,2048,2048,1.024500,1.104341,0.981625,1.105291,1.0000
+large-b4-h8-t64-d32,FLOAT32,KEY,MEMORY_SEGMENT,SDPA_BACKWARD_DK_F32_SEGMENT_DENSE_SCALAR,16,128,2048,2048,1.165667,1.244300,1.107584,1.273500,1.1378
+large-b4-h8-t64-d32,FLOAT32,VALUE,JAVA_ARRAY,SDPA_BACKWARD_DV_F32_ARRAY_DENSE_SCALAR,16,128,2048,2048,0.909375,0.962075,0.878083,0.985875,1.0000
+large-b4-h8-t64-d32,FLOAT32,VALUE,MEMORY_SEGMENT,SDPA_BACKWARD_DV_F32_SEGMENT_DENSE_SCALAR,16,128,2048,2048,0.907750,0.930459,0.853125,0.949459,0.9982
+large-b4-h8-t64-d32,FLOAT64,QUERY,JAVA_ARRAY,SDPA_BACKWARD_DQ_F64_ARRAY_DENSE_SCALAR,16,128,2048,2048,1.024375,1.090100,0.948583,1.129125,1.0000
+large-b4-h8-t64-d32,FLOAT64,QUERY,MEMORY_SEGMENT,SDPA_BACKWARD_DQ_F64_SEGMENT_DENSE_SCALAR,16,128,2048,2048,1.154584,1.197500,1.044583,1.224500,1.1271
+large-b4-h8-t64-d32,FLOAT64,KEY,JAVA_ARRAY,SDPA_BACKWARD_DK_F64_ARRAY_DENSE_SCALAR,16,128,2048,2048,1.118583,1.128450,1.103584,1.134750,1.0000
+large-b4-h8-t64-d32,FLOAT64,KEY,MEMORY_SEGMENT,SDPA_BACKWARD_DK_F64_SEGMENT_DENSE_SCALAR,16,128,2048,2048,1.125667,1.216583,1.063500,1.217333,1.0063
+large-b4-h8-t64-d32,FLOAT64,VALUE,JAVA_ARRAY,SDPA_BACKWARD_DV_F64_ARRAY_DENSE_SCALAR,16,128,2048,2048,0.934500,0.954267,0.852708,0.969167,1.0000
+large-b4-h8-t64-d32,FLOAT64,VALUE,MEMORY_SEGMENT,SDPA_BACKWARD_DV_F64_SEGMENT_DENSE_SCALAR,16,128,2048,2048,0.936292,0.958067,0.921917,0.961542,1.0019
+```
+
+Current benchmark coverage now prints separate Java-array scalar,
+Java-array Vector API, MemorySegment scalar, and MemorySegment Vector API rows
+via
+`storageKind,vectorizationKind,kernelId,...,medianVsArrayScalar,medianVsSegmentScalar`,
+so future runs can compare SDPA backward vector support directly against the
+scalar array and scalar segment baselines.
+
+### Deferred Follow-Up: SDPA Backward Segment-Specific Vector Calibration
+
+Status: `[deferred]`
+
+Soucasny stav:
+
+- cpu1 ma samostatne native elementwise thresholdy:
+  - `cpu.nativeF32CheapVectorMinSize`
+  - `cpu.nativeF64CheapVectorMinSize`
+- attention/SDPA ma jen hrube obecne thresholdy:
+  - `cpu.attentionVectorMinSize`
+  - `cpu.attentionParallelMinSize`
+- SDPA backward prepare dnes vybira Vector API binarne podle
+  `Cpu1PrepareConfig.vectorizationKind()`, `storageKind` a `dtype`; nepouziva
+  route-specific kalibrovany threshold pro `JAVA_ARRAY` vs `MEMORY_SEGMENT`
+  ani pro `QUERY`/`KEY`/`VALUE`.
+
+Proc to nechavame jako follow-up:
+
+Benchmark po zavedeni `MEMORY_SEGMENT` Vector API ukazal, ze prinos neni
+homogenni. Nektere kombinace se zrychli, jine jsou neutralni a nektere se muzou
+zpomalit. Proto nechceme hardcodovat pravidla typu "segment dK vector vzdy
+zapni/vypni" primo do kernel prepareru.
+
+Cilovy follow-up:
+
+```text
+storageKind: JAVA_ARRAY | MEMORY_SEGMENT
+dtype:       FLOAT32 | FLOAT64
+outputKind:  QUERY | KEY | VALUE
+mode:        SCALAR | VECTOR
+```
+
+Kalibrace ma pro kazdou route zmerit scalar/vector a nastavit threshold podle
+odhadovane prace, ne jen podle poctu vystupnich prvku.
+
+Priklad ciloveho prepare pravidla:
+
+```java
+private static Cpu1VectorizationKind attentionBackwardVectorizationKind(
+        SdpaBackwardOutputKind outputKind,
+        ShapeContract shape,
+        DataType dataType,
+        Cpu1StorageKind storageKind,
+        Cpu1PrepareConfig config
+) {
+    if (!config.automaticVectorization()) {
+        return config.vectorizationKind();
+    }
+    if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64) {
+        return Cpu1VectorizationKind.SCALAR;
+    }
+    long work = estimatedVectorWork(outputKind, shape);
+    long threshold = config.cpuKernelConfig()
+            .attentionBackwardVectorMinWork(storageKind, dataType, outputKind);
+    return work >= threshold ? Cpu1VectorizationKind.VECTOR : Cpu1VectorizationKind.SCALAR;
+}
+```
+
+Poznamka:
+
+Metoda `attentionBackwardVectorMinWork(...)` zatim neexistuje. Follow-up musi
+nejdriv navrhnout profilovy/konfiguracni tvar tak, aby nezanesl dalsi
+hardcoded vyjimky do cpu1. Pokud route vychazi opakovane pomaleji ve vector
+rezimu, kalibrace muze nastavit velmi vysoky threshold a tim vector pro danou
+kombinaci prakticky vypnout.
+
+Tasky follow-upu:
+
+- [ ] Navrhnout konfiguracni tvar pro SDPA backward vector thresholdy
+      rozliseny podle `storageKind`, `dtype` a `outputKind`
+- [ ] Rozsirit runtime/profile IO o nove thresholdy bez rozbiti starych
+      profilu
+- [ ] Prepsat `Cpu1AttentionBackwardPreparer` tak, aby pri
+      `automaticVectorization()` pouzival kalibrovany threshold
+- [ ] Rozsirit attention calibration step o SDPA backward route matrix
+- [ ] Pridat prepare tests: pod threshold scalar, nad threshold vector pro
+      `JAVA_ARRAY` i `MEMORY_SEGMENT`
+- [ ] Nechat benchmark reportovat scalar/vector ratio tak, aby bylo videt,
+      ktere route kalibrace vypnula
+
+### Non-Goals Pro Fazi 8.1
+
+Do teto faze nepatri:
+
+- BF16 SDPA backward
+- strided/view SDPA backward inputs
+- hidden contiguous materialization
+- OpenBLAS/BLAS route pro attention backward
+- obecny blocked/tiled multi-output attention backward provider
+- zmena graph lowering ownership mimo nutne testy
+
+Tyto oblasti zustavaji samostatne:
+
+```text
+strided/view materialization -> todo/118-cpu1-graph-input-materialization-plan.md
+general matmul epilogue      -> todo/119-general-matmul-epilogue-ir-plan.md
+blocked/tiled attention      -> future optimized attention provider plan
+```
+
+### Overeni
+
+Po implementaci faze 8.1 spustit:
+
+```bash
+./gradlew classes
+./gradlew test --tests backend.cpu1.Cpu1AttentionBackwardExecutionContractTest
+./gradlew test --tests graph.compile.planning.region.DefaultRegionOptimizerTest
+./gradlew test --tests backend.cpu1.Cpu1AttentionBackwardBenchmarkTest
+git diff --check
+```
+
+Ak `./gradlew test --tests ...` selze pred spustenim cilenych testu kvuli
+globalnimu `compileTestJava` problemu, zaznamenat to ve finalnim reportu a
+minimalne zachovat:
+
+```bash
+./gradlew classes
+```
+
+### Definition Of Done
+
+Faze 8.1 je hotova az kdyz:
+
+- [x] dK default prepared launch config vytvari vice nez jeden task pro velke
+  attention shapes
+- [x] dK F32/F64 array numericky sedi proti baseline
+- [x] dK F32/F64 segment numericky sedi proti baseline
+- [x] dK large F32 default benchmark uz neni radove pomalejsi kvuli
+  `chunkSize > rowCount`
+- [x] segment dK zustava blizko array dK po opravach
+- [x] dQ/dV benchmark neukaze regresi proti stavu pred fazi
+- [x] zadna nova hidden materialization/fallback cesta nebyla pridana
+
+---
+
+## Faze 9: cpu1 Storage Mode Contract
+
+Status: `[x]`
+
+### Proc
+
+Faze 9 se prepisuje z puvodniho per-op native binding navrhu na jednotny
+`cpu1 Storage Mode Contract`. `Tensor` nema byt druhy zdroj pravdy pro
+execution storage mode a nezavadime `Tensor.toNative()`.
+
+Execution storage mode je runtime/prepare contract:
+
+```text
+RuntimeConfig / CpuStorageProfile / Cpu1PrepareConfig
+  CPU_ARRAY  -> Cpu1StorageKind.JAVA_ARRAY
+  CPU_NATIVE -> Cpu1StorageKind.MEMORY_SEGMENT
+```
+
+Prepared cpu1 run nema nahodne michat array/native storage. Materializace je
+boundary/runtime vec, musi byt traceovana a v strict/no-materialization rezimu
+se ridi runtime/config policy, ne ad-hoc kontrolami uvnitr family kernelu.
 
 ### Cile
 
-- native input/output binding pravidla na jednom miste
-- output storage reuse pres runtime memory plan
-- zadne skryte array materialization bez trace
+- sjednotit cpu1 execute binding podle `preparedUnit.storageKind()`
+- `JAVA_ARRAY`: `requireCpuReadable(...)` a `Cpu1TensorView.fromTensor(...)`
+- `MEMORY_SEGMENT`: `requireNativeReadable(...)` a
+  `Cpu1TensorView.fromNativeStorage(...)`
+- vystupy pres existujici runtime boundary:
+  - array vystup: `Cpu1TensorView.fromTensor(...)` + `markCpuCurrent(...)`
+  - native vystup: `requireNativeOutputStorage(...)` +
+    `attachNativeStorage(...)`
+- zadne skryte array/native michani uvnitr prepared runu
+- materializace pouze pres runtime/boundary API a s trace informaci
+- strict/no-materialization jako runtime/config policy
 - BF16 compute policy:
   - akumulace ve F32/F64 podle op
   - vystup do BF16 az na konci
   - zadna snaha predstirat nativni BF16 arithmetic v Java hot path
 
-### Navrzeny Helper
+### Non-Goals
 
-Pokud se opakuje bindovani native vstupu/vystupu, zavadet jen maly cpu1-local
-helper, ne obecnou compatibility vrstvu:
+- zadny `Tensor.toNative()`
+- zadny cpu1 memory planner
+- zadne per-op skryte michani `JAVA_ARRAY`/`MEMORY_SEGMENT`
+- zadna residency logika v kernel hot path
+- zadna prima zavislost `backend.cpu1` na `graph.compile.planning.memory`
 
-```java
-final class Cpu1NativeBindingSupport {
-    private Cpu1NativeBindingSupport() {
-    }
+### Audit Aktualniho cpu1 Storage Bindingu
 
-    static Cpu1TensorView requireNativeInput(
-            ExecutionContext context,
-            int nodeId,
-            Tensor tensor,
-            CpuMaterializationReason reason
-    ) {
-        NativeTensorStorage storage = context.requireNativeReadable(nodeId, reason);
-        return Cpu1TensorView.fromNativeStorage(tensor, storage);
-    }
+Audit scope:
 
-    static NativeTensorStorage requireNativeOutput(
-            ExecutionContext context,
-            int nodeId,
-            DataType dataType,
-            int elementCount,
-            String label
-    ) {
-        return context.requireNativeOutputStorage(nodeId, dataType, elementCount, label);
-    }
-}
+```bash
+rg -n "requireCpuReadable|requireNativeReadable|requireNativeOutputStorage|attachNativeStorage|residencyForNodeId|nativeStorageForNodeId|requireNativeCurrent|graph\\.compile\\.planning\\.memory" src/main/java/backend/cpu1
 ```
 
-Zavadet az ve chvili, kdy mame aspon tri rodiny se stejnym opakovanim.
-Jinak preferovat explicitni kod v executable unit.
+Zisteny stav:
+
+- Primy binding podle `preparedUnit.storageKind()` uz maji zejmena:
+  - `exec/Cpu1DTypeExecutableUnit.java`: `MEMORY_SEGMENT` pouziva
+    `requireNativeReadable` + `requireNativeOutputStorage`, `JAVA_ARRAY`
+    pouziva `requireCpuReadable`.
+  - `exec/Cpu1IndexExecutableUnit.java`: vetvi `MEMORY_SEGMENT` a
+    `JAVA_ARRAY` explicitne a vytvari odpovidajici `Cpu1TensorView`.
+  - `exec/Cpu1Conv2dExecutableUnit.java`,
+    `exec/Cpu1MaxPool2dExecutableUnit.java`,
+    `exec/Cpu1AvgPool2dExecutableUnit.java`: vstupy/vystupy binduji podle
+    storage kindu a validuji dense/no-offset runtime view.
+  - `exec/Cpu1ElementwiseExecutableUnit.java` a
+    `exec/Cpu1FusedElementwiseExecutableUnit.java`: native vetev pouziva
+    `requireNativeReadable` + `requireNativeOutputStorage`, array vetev
+    zatim jde rovnou pres `Cpu1TensorView.fromTensor(...)` bez explicitniho
+    `requireCpuReadable(...)`.
+- Kernel-level input binding podle storage kindu je stale rozptyleny v
+  rodinach:
+  - reductions: `Cpu1SumMeanReductionLoops`, `Cpu1CumSumReductionLoops`,
+    `Cpu1SoftmaxReductionLoops`, `Cpu1ArgMaxReductionLoops`,
+    `Cpu1BoolReductionLoops`, `Cpu1MinMaxProdReductionLoops`
+  - loss: `Cpu1MseLossLoops`, `Cpu1NllLossLoops`,
+    `Cpu1DenseCrossEntropyLossLoops`, `Cpu1CrossEntropyLossIndicesLoops`
+  - matmul array cesty: `Cpu1JavaScalarMatmulLoops`,
+    `Cpu1JavaVectorMatmulLoops`, `Cpu1OpenBlasArrayMatmulLoops`
+  - layout materialization: `Cpu1LayoutKernelSupport`
+- Native output allocation/publish se uz deje pres
+  `requireNativeOutputStorage(...)` a `attachNativeStorage(...)` v:
+  - executable wrappers: elementwise, fused elementwise, dtype, index,
+    conv2d, maxpool2d, avgpool2d, layernorm, rmsnorm
+  - kernel families: reductions, loss, layout, OpenBLAS native matmul,
+    attention forward a attention backward
+- Ad-hoc residency/native-current kontroly zustavaji v:
+  - `exec/Cpu1LayerNormExecutableUnit.java`: `requireCpuArrayCurrent`,
+    `requireNativeCurrent`, `residencyForNodeId`, `nativeStorageForNodeId`
+  - `exec/Cpu1RmsNormExecutableUnit.java`: stejne ad-hoc helpery
+  - `kernels/matmul/Cpu1OpenBlasNativeSegmentMatmulLoops.java`:
+    `requireNativeCurrent`
+  - `kernels/linalg/attention/Cpu1AttentionLoops.java`: array/native current
+    helpery
+  - `kernels/linalg/attention/backward/Cpu1AttentionBackwardLoops.java`:
+    array/native current helpery
+  - `kernels/layout/Cpu1LayoutKernelSupport.java`: `canReadNative` /
+    `canReadAllNative` sahaji primo na `residencyForNodeId` a
+    `nativeStorageForNodeId`
+- Prima zavislost z `src/main/java/backend/cpu1` na
+  `graph.compile.planning.memory` nebyla nalezena (`rg` bez matchu).
+
+Audit zaver:
+
+```text
+cpu1 uz ma cast pozadovaneho contractu v executable wrappers a ve
+family helper metodach. Nedokonceny kus je sjednoceni boundary bindingu
+a odstraneni ad-hoc residency rozhodovani z family/kernel hot path.
+```
+
+Implementacni vysledek:
+
+- `Cpu1OpenBlasNativeSegmentMatmulLoops`, `Cpu1AttentionLoops`,
+  `Cpu1AttentionBackwardLoops` a `Cpu1LayoutKernelSupport` uz nebrouzdaji
+  primo v `residencyForNodeId` / `nativeStorageForNodeId` ani v lokalnich
+  `requireNativeCurrent` / `requireCpuArrayCurrent` helperech.
+- Kontrolni grep:
+
+  ```bash
+  rg -n "residencyForNodeId|nativeStorageForNodeId|requireNativeCurrent|requireCpuArrayCurrent|canReadNative|canReadAllNative|graph\\.compile\\.planning\\.memory" src/main/java/backend/cpu1
+  ```
+
+  nema zadny match.
+- Materializace vstupu pro `JAVA_ARRAY` / `MEMORY_SEGMENT` jde pres
+  `requireCpuReadable(...)` / `requireNativeReadable(...)`; actual
+  materialization zustava v `CpuMaterializationTrace`.
+- Native output publish zustava pres `requireNativeOutputStorage(...)` a
+  `attachNativeStorage(...)`.
 
 ### Tasky
 
-- [ ] Audit per-execute native output allocation v cpu1
-- [ ] Trace atributy: native input reused/copy-in/output reused/copy-out
-- [ ] BF16 policy testy pro reduction/loss/matmul
-- [ ] Native segment parity benchmark matrix
+- [x] 1. Aktualizovat fazi 9 v planu 117 na `cpu1 Storage Mode Contract`.
+- [x] 2. Auditovat aktualni cpu1 storage binding pres `rg` nad
+  `src/main/java/backend/cpu1` a zapsat vysledek sem.
+- [x] 3. Sjednotit prepare-time mapping `CPU_ARRAY`/`CPU_NATIVE` ->
+  `Cpu1StorageKind.JAVA_ARRAY`/`Cpu1StorageKind.MEMORY_SEGMENT` jako jediny
+  zdroj pravdy pro cpu1 execution storage mode.
+- [x] 4. Sjednotit execute boundary binding tak, aby prepared run pro
+  `JAVA_ARRAY` volal `requireCpuReadable(...)` a pro `MEMORY_SEGMENT` volal
+  `requireNativeReadable(...)` pred vytvorenim `Cpu1TensorView`.
+- [x] 5. Odstranit ad-hoc `requireNativeCurrent` /
+  `requireCpuArrayCurrent` / `residencyForNodeId` rozhodovani z family kernelu
+  a nahradit ho runtime/config policy pro materializaci nebo strict fail.
+- [x] 6. Zachovat native output publish pres `requireNativeOutputStorage(...)`
+  a `attachNativeStorage(...)`; staticke trace atributy pro materializacni
+  pocty nebyly doplneny, protoze skutecne copy-in/copy-out/alloc/reuse stavy
+  patri do runtime trace (`CpuMaterializationTrace`) a Phase 10 tracingu.
+- [x] 7. Overit BF16 policy v dotcenych rodinach: compute/accumulate ve
+  F32/F64, final BF16 store.
+- [x] 8. Doplnit native segment parity benchmark/coverage evidence az po
+  implementaci contractu.
+
+### Phase 9 Follow-Up
+
+- Runtime array -> native materialization MVP podporuje jen dense contiguous
+  CPU-array tensors bez `storageOffset`. Broadcast/strided CPU views pro
+  `MEMORY_SEGMENT` prepared inputy ted failuji na runtime boundary s explicitni
+  chybou misto skryteho per-kernel fallbacku. Rozsireni materializeru pro
+  broadcast/strided view materializaci patri do samostatneho runtime/storage
+  planu.
+- Detailni staticke trace atributy pro allocation/reuse/copy-out nebyly
+  pridany, protoze aktualni skutecne udalosti materializace se meri runtime
+  tracem a Phase 10 ma samostatny trace/tuning gate.
 
 ---
 
@@ -2476,7 +3416,13 @@ Tento seznam se ma menit pri implementaci:
   payload je samostatny follow-up v
   [todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md);
   strided/view LINEAR support zustava navazany na budouci matmul/view policy
-- [ ] SDPA/attention cpu1 parita chybi; patri do faze 8, ne do faze 7
+- [~] SDPA/attention dense direct cpu1 parita je hotova vcetne F32/F64 Vector
+  API forward routes pro `JAVA_ARRAY` i `MEMORY_SEGMENT` a F32/F64 SDPA
+  backward specialized routes pro dense `JAVA_ARRAY`/`MEMORY_SEGMENT`,
+  vcetne Java Vector API backward cesty pro `JAVA_ARRAY` i `MEMORY_SEGMENT`;
+  strided/view, broader blocked/tiled optimization, BF16 backward casti a
+  route-specific SDPA backward vector calibration pro `MEMORY_SEGMENT`
+  zustavaji otevrene ve fazi 8/follow-up
 - [x] `CONV2D`, `LAYER_NORM`, `RMS_NORM`, `MAX_POOL2D` a `AVG_POOL2D` dense
   contiguous no-offset `JAVA_ARRAY`/`MEMORY_SEGMENT` slices jsou hotove;
   `CONV2D` je direct correctness/fallback route, preferovana budouci

@@ -3,12 +3,14 @@ package backend.prepare;
 import backend.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
+import backend.cpu1.prepare.Cpu1AttentionBackwardPreparer;
 import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1MatmulPreparer;
 import backend.cpu1.prepare.Cpu1MseLossPreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
+import backend.cpu1.storage.Cpu1StorageKind;
 import backend.cuda.prepare.CudaGpuNodePreparer;
 import backend.metal.prepare.MetalNodePreparer;
 import backend.lowering.LoweredExecutionUnit;
@@ -34,6 +36,7 @@ public final class BackendPrepareDispatcher {
     private final Cpu1FusedElementwisePreparer cpu1FusedElementwisePreparer;
     private final Cpu1MseLossPreparer cpu1MseLossPreparer;
     private final Cpu1MatmulPreparer cpu1MatmulPreparer;
+    private final Cpu1AttentionBackwardPreparer cpu1AttentionBackwardPreparer;
     private MetalNodePreparer metalPreparer;
     private CudaGpuNodePreparer cudaGpuPreparer;
 
@@ -43,6 +46,7 @@ public final class BackendPrepareDispatcher {
         this.cpu1FusedElementwisePreparer = new Cpu1FusedElementwisePreparer(runtimeConfig);
         this.cpu1MseLossPreparer = new Cpu1MseLossPreparer(runtimeConfig);
         this.cpu1MatmulPreparer = new Cpu1MatmulPreparer();
+        this.cpu1AttentionBackwardPreparer = new Cpu1AttentionBackwardPreparer();
     }
 
     public static BackendPrepareDispatcher from(RuntimeConfig runtimeConfig) {
@@ -86,6 +90,7 @@ public final class BackendPrepareDispatcher {
         RegionSpecializationCandidate candidate = requireSpecializationCandidate(loweredUnit);
         return switch (candidate.kind()) {
             case MSE_LOSS -> cpu1MseLossPreparer.prepare(outputNode, loweredUnit, context);
+            case SDPA_BACKWARD -> prepareCpu1SdpaBackward(outputNode, candidate, context);
             case MATMUL_RELU -> prepareCpu1MatmulRelu(outputNode, candidate, context);
             case MATMUL_ADD_BIAS -> prepareCpu1MatmulBiasEpilogue(
                     outputNode,
@@ -102,6 +107,31 @@ public final class BackendPrepareDispatcher {
         };
     }
 
+    private CompiledNodeExecutionMetadata prepareCpu1SdpaBackward(
+            CompiledNode outputNode,
+            RegionSpecializationCandidate candidate,
+            BackendPrepareContext context
+    ) {
+        Cpu1PrepareConfig config = automaticCpu1PrepareConfig();
+        Cpu1PreparedArtifact artifact = cpu1AttentionBackwardPreparer.prepare(
+                outputNode,
+                candidate,
+                context.descriptorIndex(),
+                config
+        );
+        List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
+                .map(GraphValueRef::nodeId)
+                .toList();
+        return new CompiledNodeExecutionMetadata(
+                ComputeBackend.CPU,
+                null,
+                inputNodeIds,
+                artifact,
+                inputResidencyRequirement(artifact.preparedAttentionBackwardUnit().storageKind()),
+                outputResidencyEffect(artifact.preparedAttentionBackwardUnit().storageKind())
+        );
+    }
+
     private CompiledNodeExecutionMetadata prepareCpu1MatmulRelu(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
@@ -116,7 +146,7 @@ public final class BackendPrepareDispatcher {
                 matmulNode,
                 outputNode,
                 context.descriptorIndex(),
-                Cpu1PrepareConfig.automatic(runtimeConfig, Runtime.getRuntime().availableProcessors()),
+                automaticCpu1MatmulPrepareConfig(),
                 Cpu1MatmulPostOp.RELU
         );
         return new CompiledNodeExecutionMetadata(
@@ -124,8 +154,8 @@ public final class BackendPrepareDispatcher {
                 null,
                 inputNodeIds,
                 artifact,
-                InputResidencyRequirement.cpuReadableAll(),
-                OutputResidencyEffect.cpuCurrentPreserveNative()
+                inputResidencyRequirement(artifact.preparedMatmulUnit().storageKind()),
+                outputResidencyEffect(artifact.preparedMatmulUnit().storageKind())
         );
     }
 
@@ -140,7 +170,7 @@ public final class BackendPrepareDispatcher {
         List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
                 .toList();
-        Cpu1PrepareConfig config = Cpu1PrepareConfig.automatic(runtimeConfig, Runtime.getRuntime().availableProcessors());
+        Cpu1PrepareConfig config = automaticCpu1MatmulPrepareConfig();
         Cpu1PreparedArtifact artifact = opType(computeNode) == Operation.OpType.LINEAR
                 ? cpu1MatmulPreparer.prepareLinearEpilogue(
                     computeNode,
@@ -162,9 +192,35 @@ public final class BackendPrepareDispatcher {
                 null,
                 inputNodeIds,
                 artifact,
-                InputResidencyRequirement.cpuReadableAll(),
-                OutputResidencyEffect.cpuCurrentPreserveNative()
+                inputResidencyRequirement(artifact.preparedMatmulUnit().storageKind()),
+                outputResidencyEffect(artifact.preparedMatmulUnit().storageKind())
         );
+    }
+
+    private Cpu1PrepareConfig automaticCpu1MatmulPrepareConfig() {
+        return Cpu1PrepareConfig.automatic(
+                runtimeConfig,
+                Runtime.getRuntime().availableProcessors()
+        );
+    }
+
+    private Cpu1PrepareConfig automaticCpu1PrepareConfig() {
+        return Cpu1PrepareConfig.automaticForRuntimeStorage(
+                runtimeConfig,
+                Runtime.getRuntime().availableProcessors()
+        );
+    }
+
+    private static InputResidencyRequirement inputResidencyRequirement(Cpu1StorageKind storageKind) {
+        return storageKind == Cpu1StorageKind.MEMORY_SEGMENT
+                ? InputResidencyRequirement.none()
+                : InputResidencyRequirement.cpuReadableAll();
+    }
+
+    private static OutputResidencyEffect outputResidencyEffect(Cpu1StorageKind storageKind) {
+        return storageKind == Cpu1StorageKind.MEMORY_SEGMENT
+                ? OutputResidencyEffect.none()
+                : OutputResidencyEffect.cpuCurrentPreserveNative();
     }
 
     private static RegionSpecializationCandidate requireSpecializationCandidate(LoweredExecutionUnit loweredUnit) {

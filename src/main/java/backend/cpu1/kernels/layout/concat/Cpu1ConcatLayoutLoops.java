@@ -2,17 +2,14 @@ package backend.cpu1.kernels.layout.concat;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
-import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
 
 public final class Cpu1ConcatLayoutLoops {
     private Cpu1ConcatLayoutLoops() {
     }
 
-    public static void concatScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void concatScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
-        int axis = unit.axis();
+        int axis = support.unit().axis();
         int axisOffset = 0;
         for (Cpu1TensorView input : call.inputs()) {
             copyConcatInputScalar(support, input, call.output(), axis, axisOffset);
@@ -21,8 +18,7 @@ public final class Cpu1ConcatLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void concatAxis0BlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void concatAxis0BlockScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         int outputOffset = 0;
         for (Cpu1TensorView input : call.inputs()) {
@@ -32,8 +28,7 @@ public final class Cpu1ConcatLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void concatAxis0BlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void concatAxis0BlockVector(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         int outputOffset = 0;
         for (Cpu1TensorView input : call.inputs()) {
@@ -43,31 +38,29 @@ public final class Cpu1ConcatLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void concatInnerAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyInnerAxisBlock(unit, context, false);
+    public static void concatInnerAxisBlockScalar(Cpu1LayoutKernelSupport support) {
+        copyInnerAxisBlock(support, false);
     }
 
-    public static void concatInnerAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyInnerAxisBlock(unit, context, true);
+    public static void concatInnerAxisBlockVector(Cpu1LayoutKernelSupport support) {
+        copyInnerAxisBlock(support, true);
     }
 
-    public static void concatMiddleAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyMiddleAxisBlock(unit, context, false);
+    public static void concatMiddleAxisBlockScalar(Cpu1LayoutKernelSupport support) {
+        copyMiddleAxisBlock(support, false);
     }
 
-    public static void concatMiddleAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyMiddleAxisBlock(unit, context, true);
+    public static void concatMiddleAxisBlockVector(Cpu1LayoutKernelSupport support) {
+        copyMiddleAxisBlock(support, true);
     }
 
     private static void copyInnerAxisBlock(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView output = call.output();
-        int axis = unit.axis();
+        int axis = support.unit().axis();
         int rows = output.elementCount() / output.shape(axis);
         int outputBlock = output.shape(axis);
         int axisOffset = 0;
@@ -101,14 +94,12 @@ public final class Cpu1ConcatLayoutLoops {
     }
 
     private static void copyMiddleAxisBlock(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView output = call.output();
-        int axis = unit.axis();
+        int axis = support.unit().axis();
         int inner = denseInnerSize(output, axis);
         int outputAxisBlock = output.shape(axis) * inner;
         int outerRows = output.elementCount() / outputAxisBlock;

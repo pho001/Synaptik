@@ -2,8 +2,6 @@ package backend.cpu1.kernels.layout.unfold;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
-import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
 import tensor.options.Window2dOptions;
 
 import java.util.Arrays;
@@ -12,14 +10,13 @@ public final class Cpu1UnfoldLayoutLoops {
     private Cpu1UnfoldLayoutLoops() {
     }
 
-    public static void unfoldAxisScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void unfoldAxisScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        int axis = unit.unfoldAxis();
-        int size = unit.unfoldSize();
-        int step = unit.unfoldStep();
+        int axis = support.unit().unfoldAxis();
+        int size = support.unit().unfoldSize();
+        int step = support.unit().unfoldStep();
         int[] prefixShape = input.shape();
         prefixShape[axis] = output.shape(axis);
         int[] prefixDense = Cpu1LayoutKernelSupport.denseStrides(prefixShape);
@@ -47,25 +44,23 @@ public final class Cpu1UnfoldLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void unfoldAxisLastAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        unfoldAxisLastAxisBlock(unit, context, false);
+    public static void unfoldAxisLastAxisBlockScalar(Cpu1LayoutKernelSupport support) {
+        unfoldAxisLastAxisBlock(support, false);
     }
 
-    public static void unfoldAxisLastAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        unfoldAxisLastAxisBlock(unit, context, true);
+    public static void unfoldAxisLastAxisBlockVector(Cpu1LayoutKernelSupport support) {
+        unfoldAxisLastAxisBlock(support, true);
     }
 
     private static void unfoldAxisLastAxisBlock(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        int size = unit.unfoldSize();
-        int step = unit.unfoldStep();
+        int size = support.unit().unfoldSize();
+        int step = support.unit().unfoldStep();
         int windows = output.shape(input.rank() - 1);
         int rows = input.elementCount() / input.shape(input.rank() - 1);
         support.launchRange(rows * windows, (start, end) -> {
@@ -84,12 +79,11 @@ public final class Cpu1UnfoldLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void unfold2dScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void unfold2dScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        Window2dPlan plan = Window2dPlan.forUnfold(unit.window2dOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forUnfold(support.unit().window2dOptions(), input, output);
         support.launchRange(output.elementCount(), (start, end) -> {
             for (int logical = start; logical < end; logical++) {
                 Window2dPlan.UnfoldCoordinate coordinate = plan.unfoldCoordinate(logical);
@@ -111,12 +105,11 @@ public final class Cpu1UnfoldLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void fold2dScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void fold2dScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        Window2dPlan plan = Window2dPlan.forFold(unit.window2dOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forFold(support.unit().window2dOptions(), input, output);
         int outputElements = output.elementCount();
         int slotCount = support.rangeSlotCount(input.elementCount());
         double[] acc = support.foldAccumulator(outputElements, slotCount);
@@ -155,12 +148,11 @@ public final class Cpu1UnfoldLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void fold2dNonOverlapDirectScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void fold2dNonOverlapDirectScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        Window2dPlan plan = Window2dPlan.forFold(unit.window2dOptions(), input, output);
+        Window2dPlan plan = Window2dPlan.forFold(support.unit().window2dOptions(), input, output);
         support.fillOutputScalar(output, 0.0d);
         support.launchRange(input.elementCount(), (start, end) -> {
             for (int logical = start; logical < end; logical++) {

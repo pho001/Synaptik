@@ -2,7 +2,11 @@ package backend.cpu1;
 
 import backend.ComputeBackend;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.cpu1.exec.Cpu1LayoutExecutableUnit;
+import backend.cpu1.exec.Cpu1ExecutableUnit;
+import backend.cpu1.exec.Cpu1LayoutJavaArrayAliasExecutableUnit;
+import backend.cpu1.exec.Cpu1LayoutJavaArrayMaterializingExecutableUnit;
+import backend.cpu1.exec.Cpu1LayoutMemorySegmentAliasExecutableUnit;
+import backend.cpu1.exec.Cpu1LayoutMemorySegmentMaterializingExecutableUnit;
 import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
@@ -10,6 +14,7 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
+import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
@@ -34,6 +39,8 @@ import tensor.options.Window2dOptions;
 import tensor.storage.NativeTensorStorage;
 
 import java.lang.foreign.MemorySegment;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +50,11 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Cpu1LayoutExecutionContractTest {
     @Test
@@ -60,6 +69,7 @@ class Cpu1LayoutExecutionContractTest {
         Fixture fixture = fixture(base.permute(1, 0));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
         assertLayoutKernel(artifact, Cpu1LayoutKernelId.PERMUTE_ALIAS);
+        assertLayoutRoute(artifact, Cpu1LayoutJavaArrayAliasExecutableUnit.class);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
 
         new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
@@ -104,6 +114,7 @@ class Cpu1LayoutExecutionContractTest {
         Fixture fixture = fixture(base.permute(1, 0).reshape(2, 3));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
         assertLayoutKernel(artifact, Cpu1LayoutKernelId.RESHAPE_COPY_LINEARIZED_SCALAR);
+        assertLayoutRoute(artifact, Cpu1LayoutJavaArrayMaterializingExecutableUnit.class);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
 
         new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
@@ -370,6 +381,8 @@ class Cpu1LayoutExecutionContractTest {
         );
         Fixture fixture = fixture(base.permute(1, 0));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertLayoutKernel(artifact, Cpu1LayoutKernelId.PERMUTE_ALIAS);
+        assertLayoutRoute(artifact, Cpu1LayoutMemorySegmentAliasExecutableUnit.class);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
         attachNativeLeaves(context, fixture);
 
@@ -947,6 +960,7 @@ class Cpu1LayoutExecutionContractTest {
         Tensor right = new Tensor(new float[]{3.0f, 4.0f}, new int[]{1, 2}, null, "right", DataType.FLOAT32);
         Fixture fixture = fixture(Tensor.concat(0, left, right));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        assertLayoutRoute(artifact, Cpu1LayoutMemorySegmentMaterializingExecutableUnit.class);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
         attachNativeLeaves(context, fixture);
 
@@ -957,6 +971,24 @@ class Cpu1LayoutExecutionContractTest {
                 readNativeF32(context.nativeStorageForNodeId(fixture.node().id()), 4),
                 1.0e-6f
         );
+    }
+
+    @Test
+    void preparedMemorySegmentConcatMaterializesArrayInputsThroughRuntimeBoundary() {
+        Tensor left = new Tensor(new float[]{1.0f, 2.0f}, new int[]{1, 2}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{3.0f, 4.0f}, new int[]{1, 2}, null, "right", DataType.FLOAT32);
+        Fixture fixture = fixture(Tensor.concat(0, left, right));
+        Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
+        ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata(fixture.node(), artifact)));
+
+        new Cpu1Backend().execute(fixture.node(), metadata(fixture.node(), artifact), context);
+
+        assertArrayEquals(
+                new float[]{1.0f, 2.0f, 3.0f, 4.0f},
+                readNativeF32(context.nativeStorageForNodeId(fixture.node().id()), 4),
+                1.0e-6f
+        );
+        assertEquals(2, context.cpuMaterializationTraceCount());
     }
 
     @Test
@@ -1103,10 +1135,8 @@ class Cpu1LayoutExecutionContractTest {
         Tensor right = new Tensor(new float[]{10.0f, 20.0f, 30.0f, 40.0f}, new int[]{2, 2}, null, "right", DataType.FLOAT32);
         Fixture concatFixture = fixture(Tensor.concat(1, left, right));
         Cpu1PreparedArtifact concatArtifact = prepareRoot(concatFixture, Cpu1PrepareConfig.vectorParallel(3));
-        Cpu1LayoutExecutableUnit concatExecutable = assertInstanceOf(
-                Cpu1LayoutExecutableUnit.class,
-                concatArtifact.executableUnit()
-        );
+        Cpu1LayoutJavaArrayMaterializingExecutableUnit concatExecutable =
+                assertLayoutRoute(concatArtifact, Cpu1LayoutJavaArrayMaterializingExecutableUnit.class);
         assertEquals(3, concatExecutable.preparedUnit().launchConfig().workerCount());
         assertEquals(
                 Cpu1LayoutKernelId.CONCAT_INNER_AXIS_BLOCK_COPY_VECTOR,
@@ -1140,10 +1170,8 @@ class Cpu1LayoutExecutionContractTest {
         Tensor input = new Tensor(data, new int[]{length}, null, "input", DataType.FLOAT32);
         Fixture fixture = fixture(input.contiguous());
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.automatic(tuned, 4));
-        Cpu1LayoutExecutableUnit executable = assertInstanceOf(
-                Cpu1LayoutExecutableUnit.class,
-                artifact.executableUnit()
-        );
+        Cpu1LayoutJavaArrayMaterializingExecutableUnit executable =
+                assertLayoutRoute(artifact, Cpu1LayoutJavaArrayMaterializingExecutableUnit.class);
         assertEquals(Cpu1VectorizationKind.VECTOR, executable.preparedUnit().vectorizationKind());
         assertEquals(Cpu1LayoutKernelId.CONTIGUOUS_COPY_VECTOR, executable.preparedUnit().kernelId());
         assertEquals(4, executable.preparedUnit().launchConfig().workerCount());
@@ -1238,14 +1266,53 @@ class Cpu1LayoutExecutionContractTest {
         );
     }
 
+    @Test
+    void materializingExecutableRoutesConstructStorageSpecificLayoutSupport() throws Exception {
+        String javaArraySource = Files.readString(Path.of(
+                "src/main/java/backend/cpu1/exec/Cpu1LayoutJavaArrayMaterializingExecutableUnit.java"
+        ));
+        String memorySegmentSource = Files.readString(Path.of(
+                "src/main/java/backend/cpu1/exec/Cpu1LayoutMemorySegmentMaterializingExecutableUnit.java"
+        ));
+
+        assertTrue(javaArraySource.contains("new Cpu1LayoutJavaArrayKernelSupport(preparedUnit, context)"));
+        assertTrue(memorySegmentSource.contains("new Cpu1LayoutMemorySegmentKernelSupport(preparedUnit, context)"));
+        assertFalse(javaArraySource.contains("kernel().run(preparedUnit, context)"));
+        assertFalse(memorySegmentSource.contains("kernel().run(preparedUnit, context)"));
+    }
+
     private static Cpu1PreparedArtifact prepareRoot(Fixture fixture, Cpu1PrepareConfig config) {
         return new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
     }
 
     private static void assertLayoutKernel(Cpu1PreparedArtifact artifact, Cpu1LayoutKernelId expected) {
-        Cpu1LayoutExecutableUnit executable = assertInstanceOf(Cpu1LayoutExecutableUnit.class, artifact.executableUnit());
         assertEquals(expected, artifact.preparedLayoutUnit().kernelId());
-        assertSame(artifact.preparedLayoutUnit(), executable.preparedUnit());
+        assertSame(artifact.preparedLayoutUnit(), preparedLayoutUnit(artifact.executableUnit()));
+    }
+
+    private static <T extends Cpu1ExecutableUnit> T assertLayoutRoute(
+            Cpu1PreparedArtifact artifact,
+            Class<T> expectedClass
+    ) {
+        T executable = assertInstanceOf(expectedClass, artifact.executableUnit());
+        assertSame(artifact.preparedLayoutUnit(), preparedLayoutUnit(executable));
+        return executable;
+    }
+
+    private static Cpu1PreparedLayoutUnit preparedLayoutUnit(Cpu1ExecutableUnit executable) {
+        if (executable instanceof Cpu1LayoutJavaArrayAliasExecutableUnit typed) {
+            return typed.preparedUnit();
+        }
+        if (executable instanceof Cpu1LayoutMemorySegmentAliasExecutableUnit typed) {
+            return typed.preparedUnit();
+        }
+        if (executable instanceof Cpu1LayoutJavaArrayMaterializingExecutableUnit typed) {
+            return typed.preparedUnit();
+        }
+        if (executable instanceof Cpu1LayoutMemorySegmentMaterializingExecutableUnit typed) {
+            return typed.preparedUnit();
+        }
+        throw new AssertionError("Expected cpu1 layout executable route but was " + executable.getClass().getName());
     }
 
     private static ExecutionResult executeAll(Fixture fixture, Cpu1PrepareConfig config, boolean attachNativeLeaves) {

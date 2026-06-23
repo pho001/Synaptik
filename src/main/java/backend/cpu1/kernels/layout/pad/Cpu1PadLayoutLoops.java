@@ -2,44 +2,40 @@ package backend.cpu1.kernels.layout.pad;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
-import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
 
 public final class Cpu1PadLayoutLoops {
     private Cpu1PadLayoutLoops() {
     }
 
-    public static void padScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyPad(unit, context, false, false);
+    public static void padScalar(Cpu1LayoutKernelSupport support) {
+        copyPad(support, false, false);
     }
 
-    public static void padVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyPad(unit, context, true, false);
+    public static void padVector(Cpu1LayoutKernelSupport support) {
+        copyPad(support, true, false);
     }
 
-    public static void padDenseInnerBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyPad(unit, context, false, true);
+    public static void padDenseInnerBlockScalar(Cpu1LayoutKernelSupport support) {
+        copyPad(support, false, true);
     }
 
-    public static void padDenseInnerBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyPad(unit, context, true, true);
+    public static void padDenseInnerBlockVector(Cpu1LayoutKernelSupport support) {
+        copyPad(support, true, true);
     }
 
     private static void copyPad(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized,
             boolean denseInnerBlock
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
-        int[] before = unit.padBefore();
+        int[] before = support.unit().padBefore();
         if (vectorized) {
-            support.fillOutputVector(output, unit.padConstantValue());
+            support.fillOutputVector(output, support.unit().padConstantValue());
         } else {
-            support.fillOutputScalar(output, unit.padConstantValue());
+            support.fillOutputScalar(output, support.unit().padConstantValue());
         }
         if (denseInnerBlock) {
             copyDenseInnerBlock(support, input, output, before, vectorized);

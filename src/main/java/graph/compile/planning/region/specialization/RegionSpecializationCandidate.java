@@ -13,6 +13,7 @@ import java.util.List;
  * @param outputValueRef candidate output value
  * @param anchorNodeId node that anchors the specialized unit
  * @param summary short diagnostic summary
+ * @param payload structured specialization metadata
  */
 public record RegionSpecializationCandidate(
         RegionSpecializationKind kind,
@@ -20,8 +21,28 @@ public record RegionSpecializationCandidate(
         List<GraphValueRef> inputValueRefs,
         GraphValueRef outputValueRef,
         int anchorNodeId,
-        String summary
+        String summary,
+        RegionSpecializationPayload payload
 ) {
+    public RegionSpecializationCandidate(
+            RegionSpecializationKind kind,
+            List<Integer> orderedNodeIds,
+            List<GraphValueRef> inputValueRefs,
+            GraphValueRef outputValueRef,
+            int anchorNodeId,
+            String summary
+    ) {
+        this(
+                kind,
+                orderedNodeIds,
+                inputValueRefs,
+                outputValueRef,
+                anchorNodeId,
+                summary,
+                RegionSpecializationPayload.empty()
+        );
+    }
+
     public RegionSpecializationCandidate {
         if (kind == null) {
             throw new IllegalArgumentException("kind cannot be null");
@@ -35,5 +56,6 @@ public record RegionSpecializationCandidate(
             throw new IllegalArgumentException("anchorNodeId must be >= 0");
         }
         summary = summary == null ? "" : summary;
+        payload = payload == null ? RegionSpecializationPayload.empty() : payload;
     }
 }

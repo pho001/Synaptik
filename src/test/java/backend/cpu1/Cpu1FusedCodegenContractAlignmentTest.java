@@ -1,6 +1,7 @@
 package backend.cpu1;
 
-import backend.cpu1.exec.Cpu1FusedElementwiseExecutableUnit;
+import backend.cpu1.exec.Cpu1FusedJavaArrayExecutableUnit;
+import backend.cpu1.exec.Cpu1FusedMemorySegmentExecutableUnit;
 import backend.cpu1.fused.ir.Cpu1FusedAccessKind;
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedInputPlan;
@@ -42,24 +43,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Cpu1FusedCodegenContractAlignmentTest {
     @Test
-    void fusedExecutableOnlyCallsPreparedGeneratedKernel() throws IOException {
-        String source = Files.readString(Path.of(
-                "src/main/java/backend/cpu1/exec/Cpu1FusedElementwiseExecutableUnit.java"
-        ));
+    void fusedExecutablesOnlyCallPreparedGeneratedKernel() throws IOException {
+        for (String sourceFile : List.of(
+                "src/main/java/backend/cpu1/exec/Cpu1FusedJavaArrayExecutableUnit.java",
+                "src/main/java/backend/cpu1/exec/Cpu1FusedMemorySegmentExecutableUnit.java"
+        )) {
+            String source = Files.readString(Path.of(sourceFile));
 
-        assertTrue(source.contains(
-                "preparedUnit.generatedKernel().computeRange(args, startInclusive, endExclusive)"
-        ));
-        assertFalse(source.contains("Cpu1FusedCodegenKernelFactory"));
-        assertFalse(source.contains("prepareKernel("));
-        assertFalse(source.contains("rejectionReason"));
-        assertFalse(source.contains(".nodes()"));
-        assertFalse(source.contains("sourceOperations"));
-        assertFalse(source.contains("operation()"));
-        assertFalse(source.contains("switch"));
-        assertFalse(source.contains("fallback"));
-        assertFalse(source.contains("interpreter"));
-        assertFalse(source.contains("evaluator"));
+            assertTrue(source.contains(
+                    "preparedUnit.generatedKernel().computeRange(args, startInclusive, endExclusive)"
+            ));
+            assertFalse(source.contains("Cpu1FusedCodegenKernelFactory"));
+            assertFalse(source.contains("prepareKernel("));
+            assertFalse(source.contains("rejectionReason"));
+            assertFalse(source.contains(".nodes()"));
+            assertFalse(source.contains("sourceOperations"));
+            assertFalse(source.contains("operation()"));
+            assertFalse(source.contains("storageKind()"));
+            assertFalse(source.contains("switch"));
+            assertFalse(source.contains("fallback"));
+            assertFalse(source.contains("interpreter"));
+            assertFalse(source.contains("evaluator"));
+        }
     }
 
     @Test
@@ -151,13 +156,25 @@ class Cpu1FusedCodegenContractAlignmentTest {
         Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(preparedUnit);
 
         assertSame(preparedUnit, artifact.preparedFusedElementwiseUnit());
-        Cpu1FusedElementwiseExecutableUnit executable = assertInstanceOf(
-                Cpu1FusedElementwiseExecutableUnit.class,
+        Cpu1FusedJavaArrayExecutableUnit executable = assertInstanceOf(
+                Cpu1FusedJavaArrayExecutableUnit.class,
                 artifact.executableUnit()
         );
         assertSame(preparedUnit, executable.preparedUnit());
         assertTrue(artifact.scratchBufferSpec().isEmpty());
         assertThrows(IllegalStateException.class, artifact::preparedUnit);
+    }
+
+    @Test
+    void preparedArtifactSelectsMemorySegmentFusedExecutableAtConstruction() {
+        Cpu1PreparedFusedElementwiseUnit preparedUnit = acceptedPreparedFusedUnit(Cpu1StorageKind.MEMORY_SEGMENT);
+        Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(preparedUnit);
+
+        Cpu1FusedMemorySegmentExecutableUnit executable = assertInstanceOf(
+                Cpu1FusedMemorySegmentExecutableUnit.class,
+                artifact.executableUnit()
+        );
+        assertSame(preparedUnit, executable.preparedUnit());
     }
 
     @Test
@@ -283,6 +300,10 @@ class Cpu1FusedCodegenContractAlignmentTest {
     }
 
     private static Cpu1PreparedFusedElementwiseUnit acceptedPreparedFusedUnit() {
+        return acceptedPreparedFusedUnit(Cpu1StorageKind.JAVA_ARRAY);
+    }
+
+    private static Cpu1PreparedFusedElementwiseUnit acceptedPreparedFusedUnit(Cpu1StorageKind storageKind) {
         return new Cpu1PreparedFusedElementwiseUnit(
                 "fused",
                 List.of(1),
@@ -293,10 +314,10 @@ class Cpu1FusedCodegenContractAlignmentTest {
                 new int[]{3},
                 expressionPlan(),
                 Cpu1LayoutKind.CONTIGUOUS,
-                Cpu1StorageKind.JAVA_ARRAY,
+                storageKind,
                 new Cpu1SingleThreadLaunch(),
                 Cpu1LaunchConfig.singleThread(),
-                dispatchDecision(),
+                dispatchDecision(storageKind),
                 Cpu1FusedCodegenRejectionReason.NONE,
                 new Cpu1FusedCodegenKernel(
                         new Cpu1FusedCodegenClassSignature("test-signature"),
@@ -310,11 +331,15 @@ class Cpu1FusedCodegenContractAlignmentTest {
     }
 
     private static Cpu1FusedDispatchDecision dispatchDecision() {
+        return dispatchDecision(Cpu1StorageKind.JAVA_ARRAY);
+    }
+
+    private static Cpu1FusedDispatchDecision dispatchDecision(Cpu1StorageKind storageKind) {
         return new Cpu1FusedDispatchDecision(
                 Cpu1CostClass.CHEAP_ELEMENTWISE,
                 Cpu1VectorizationKind.SCALAR,
                 Cpu1LaunchConfig.singleThread(),
-                Cpu1StorageKind.JAVA_ARRAY,
+                storageKind,
                 1024,
                 1024,
                 1

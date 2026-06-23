@@ -2,15 +2,12 @@ package backend.cpu1.kernels.layout.tile;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelSupport;
-import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
 
 public final class Cpu1TileLayoutLoops {
     private Cpu1TileLayoutLoops() {
     }
 
-    public static void tileScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void tileScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
@@ -33,24 +30,23 @@ public final class Cpu1TileLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void tileLastAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyLastAxisBlock(unit, context, false);
+    public static void tileLastAxisBlockScalar(Cpu1LayoutKernelSupport support) {
+        copyLastAxisBlock(support, false);
     }
 
-    public static void tileLastAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyLastAxisBlock(unit, context, true);
+    public static void tileLastAxisBlockVector(Cpu1LayoutKernelSupport support) {
+        copyLastAxisBlock(support, true);
     }
 
-    public static void tileAxis0BlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyAxis0Block(unit, context, false);
+    public static void tileAxis0BlockScalar(Cpu1LayoutKernelSupport support) {
+        copyAxis0Block(support, false);
     }
 
-    public static void tileAxis0BlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyAxis0Block(unit, context, true);
+    public static void tileAxis0BlockVector(Cpu1LayoutKernelSupport support) {
+        copyAxis0Block(support, true);
     }
 
-    public static void tileDenseBlockRepeatScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void tileDenseBlockRepeatScalar(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
@@ -77,8 +73,7 @@ public final class Cpu1TileLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void tileDenseBlockRepeatVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
+    public static void tileDenseBlockRepeatVector(Cpu1LayoutKernelSupport support) {
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
@@ -105,20 +100,18 @@ public final class Cpu1TileLayoutLoops {
         support.markOutputWritten(call);
     }
 
-    public static void tileDenseMultiAxisBlockScalar(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyDenseMultiAxisBlock(unit, context, false);
+    public static void tileDenseMultiAxisBlockScalar(Cpu1LayoutKernelSupport support) {
+        copyDenseMultiAxisBlock(support, false);
     }
 
-    public static void tileDenseMultiAxisBlockVector(Cpu1PreparedLayoutUnit unit, ExecutionContext context) {
-        copyDenseMultiAxisBlock(unit, context, true);
+    public static void tileDenseMultiAxisBlockVector(Cpu1LayoutKernelSupport support) {
+        copyDenseMultiAxisBlock(support, true);
     }
 
     private static void copyAxis0Block(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
@@ -138,11 +131,9 @@ public final class Cpu1TileLayoutLoops {
     }
 
     private static void copyLastAxisBlock(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
@@ -168,11 +159,9 @@ public final class Cpu1TileLayoutLoops {
     }
 
     private static void copyDenseMultiAxisBlock(
-            Cpu1PreparedLayoutUnit unit,
-            ExecutionContext context,
+            Cpu1LayoutKernelSupport support,
             boolean vectorized
     ) {
-        Cpu1LayoutKernelSupport support = new Cpu1LayoutKernelSupport(unit, context);
         Cpu1LayoutKernelSupport.LayoutCall call = support.bindMaterializingCall();
         Cpu1TensorView input = call.inputs().getFirst();
         Cpu1TensorView output = call.output();
