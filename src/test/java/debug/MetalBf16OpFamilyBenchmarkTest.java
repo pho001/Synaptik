@@ -8,7 +8,7 @@ import config.optimizer.CpuRegionConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.loss.LossReduction;

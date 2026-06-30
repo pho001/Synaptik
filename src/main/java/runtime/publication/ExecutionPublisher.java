@@ -1,11 +1,11 @@
-package graph.execution.publication;
+package runtime.publication;
 
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.ExecutionMode;
 import graph.model.AliasViewPolicy;
 import graph.model.CompiledGradientBinding;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import runtime.execution.ExecutionState;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;

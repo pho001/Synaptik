@@ -1,4 +1,4 @@
-package graph.execution.state;
+package runtime.state;
 
 import runtime.memory.nativecpu.NativeCpuAllocator;
 import runtime.memory.nativecpu.NativeCpuMemoryPool;

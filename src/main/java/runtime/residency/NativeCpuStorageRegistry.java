@@ -1,4 +1,4 @@
-package graph.execution.residency;
+package runtime.residency;
 
 import tensor.storage.NativeTensorStorage;
 

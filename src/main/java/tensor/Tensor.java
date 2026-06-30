@@ -3,7 +3,7 @@ package tensor;
 import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import operations.Operation;
 import operations.index.ScatterReduction;
 import operations.layout.noop;

@@ -1,4 +1,4 @@
-package graph.execution.state;
+package runtime.state;
 
 import runtime.memory.nativecpu.NativeCpuMaterializer;
 import runtime.contract.CpuMaterializationReason;
@@ -9,9 +9,9 @@ import runtime.memory.DeviceToNativeMaterializer;
 import runtime.contract.StorageResidency;
 import runtime.residency.TensorResidencyState;
 import config.runtime.DeviceTransferPolicy;
-import graph.execution.residency.DeviceBindingRegistry;
-import graph.execution.residency.NativeCpuStorageRegistry;
-import graph.execution.residency.RuntimeResidencyStore;
+import runtime.residency.DeviceBindingRegistry;
+import runtime.residency.NativeCpuStorageRegistry;
+import runtime.residency.RuntimeResidencyStore;
 import trace.execution.CpuMaterializationTrace;
 import runtime.contract.HostDeviceTransferKind;
 import trace.execution.HostDeviceTransferTrace;

@@ -4,7 +4,7 @@ import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import operations.elementwise.binary.mul;
 import tensor.DataType;

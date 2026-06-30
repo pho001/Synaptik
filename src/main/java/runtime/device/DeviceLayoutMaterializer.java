@@ -1,4 +1,4 @@
-package graph.execution.device;
+package runtime.device;
 
 import runtime.device.buffer.AcceleratorLayoutTransformDecision;
 import runtime.device.buffer.DeviceBufferBinding;

@@ -16,14 +16,14 @@ import config.compile.GraphOptimizationConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
-import graph.execution.PreparedExecutionStep;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PreparedExecution;
+import runtime.execution.PreparedExecutionStep;
+import runtime.execution.PublicationPolicy;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
-import graph.execution.residency.RuntimeMemoryBinder;
-import graph.execution.runner.PreparedExecutionRunner;
+import runtime.residency.RuntimeMemoryBinder;
+import runtime.runner.PreparedExecutionRunner;
 import runtime.execution.ExecutionState;
 import trace.execution.RunTrace;
 import org.junit.jupiter.api.Test;
@@ -936,7 +936,7 @@ public class CpuFusedMemorySegmentExecutionTest {
                         + trace.cpuMaterializations());
     }
 
-    private static graph.execution.PreparedExecutionStep fusedStep(PreparedExecution prepared) {
+    private static runtime.execution.PreparedExecutionStep fusedStep(PreparedExecution prepared) {
         return prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
                 .findFirst()

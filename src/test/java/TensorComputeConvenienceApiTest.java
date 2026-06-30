@@ -1,6 +1,6 @@
 import runtime.contract.ExecutionMode;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import tensor.CompileMode;
 import tensor.ComputeOptions;

@@ -7,7 +7,7 @@ import tensor.Tensor;
 import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import tuning.tensor.TensorComputeProfileResolver;
 
 import java.util.Objects;

@@ -27,7 +27,7 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;
 import runtime.contract.HostDeviceTransferKind;
 import trace.execution.HostDeviceTransferTrace;
-import graph.execution.device.DeviceLayoutMaterializer;
+import runtime.device.DeviceLayoutMaterializer;
 import operations.Operation;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;

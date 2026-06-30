@@ -17,7 +17,7 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import graph.model.CompiledGradientBinding;
 import graph.model.CompiledNode;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import trace.execution.NativeOptimizerTrace;
 import tensor.DataType;
 import tensor.Tensor;

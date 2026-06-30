@@ -7,7 +7,7 @@ import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import trace.execution.CpuMaterializationTrace;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;

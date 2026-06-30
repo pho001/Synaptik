@@ -1,7 +1,7 @@
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import operations.Operation;
 import tensor.Tensor;
 import org.junit.jupiter.api.Test;

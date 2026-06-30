@@ -9,7 +9,7 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

@@ -19,7 +19,7 @@ import graph.CompiledGraph;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

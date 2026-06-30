@@ -1,12 +1,12 @@
-package graph.execution.state;
+package runtime.state;
 
 import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import runtime.contract.CpuMaterializationReason;
 import runtime.residency.TensorResidencyState;
 import config.runtime.NativeCpuMemoryConfig;
-import graph.execution.residency.DeviceBindingRegistry;
-import graph.execution.residency.NativeCpuStorageRegistry;
-import graph.execution.residency.RuntimeResidencyStore;
+import runtime.residency.DeviceBindingRegistry;
+import runtime.residency.NativeCpuStorageRegistry;
+import runtime.residency.RuntimeResidencyStore;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;

@@ -2,7 +2,7 @@ import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

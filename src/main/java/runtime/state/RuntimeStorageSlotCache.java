@@ -1,4 +1,4 @@
-package graph.execution.state;
+package runtime.state;
 
 import tensor.DataType;
 import tensor.Tensor;

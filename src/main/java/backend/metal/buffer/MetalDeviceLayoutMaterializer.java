@@ -8,7 +8,7 @@ import runtime.device.buffer.DeviceBufferBinding;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsGraphBridge;
 import runtime.execution.ExecutionContext;
-import graph.execution.device.DeviceLayoutMaterializer;
+import runtime.device.DeviceLayoutMaterializer;
 import tensor.DataType;
 
 import java.util.Objects;

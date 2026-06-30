@@ -18,7 +18,7 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.PreparedExecutionStep;
+import runtime.execution.PreparedExecutionStep;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.ExecutionState;
 import runtime.runner.StepExecutionTracer;

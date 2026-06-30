@@ -1,11 +1,11 @@
-package graph.execution.residency;
+package runtime.residency;
 
 import planning.memory.MemoryPlan;
 import planning.memory.RegionMemoryBinding;
 import planning.memory.RegionMemoryBindingKind;
 import planning.value.GraphValueRef;
 import runtime.execution.ExecutionState;
-import graph.execution.state.RuntimeStorageSlotKey;
+import runtime.state.RuntimeStorageSlotKey;
 import graph.model.CompiledNode;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;

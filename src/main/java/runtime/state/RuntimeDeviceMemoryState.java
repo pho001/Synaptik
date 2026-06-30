@@ -1,10 +1,10 @@
-package graph.execution.state;
+package runtime.state;
 
 import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
-import graph.execution.residency.DeviceBindingRegistry;
-import graph.execution.residency.NativeCpuStorageRegistry;
-import graph.execution.residency.RuntimeResidencyStore;
+import runtime.residency.DeviceBindingRegistry;
+import runtime.residency.NativeCpuStorageRegistry;
+import runtime.residency.RuntimeResidencyStore;
 
 import java.util.Objects;
 

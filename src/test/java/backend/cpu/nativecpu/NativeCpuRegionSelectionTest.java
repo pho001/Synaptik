@@ -6,7 +6,7 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

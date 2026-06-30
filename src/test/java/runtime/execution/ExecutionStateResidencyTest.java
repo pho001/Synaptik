@@ -1,4 +1,4 @@
-package graph.execution;
+package runtime.execution;
 
 import runtime.device.buffer.AcceleratorBufferAccessMode;
 import runtime.device.buffer.AcceleratorBufferLayout;

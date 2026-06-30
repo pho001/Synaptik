@@ -1,14 +1,12 @@
-package graph.execution.runner;
+package runtime.runner;
 
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
-import graph.execution.PreparedExecutionStep;
-import graph.execution.device.DeviceLayoutViewPropagator;
+import runtime.execution.PreparedExecutionStep;
+import runtime.device.DeviceLayoutViewPropagator;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
 import trace.execution.ExecutionStepTrace;
-import runtime.runner.StepExecutionTracer;
-
 import java.util.List;
 
 /**

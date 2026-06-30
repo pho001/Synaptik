@@ -9,7 +9,7 @@ import graph.compile.GraphCompiler;
 import graph.compile.canonical.SemanticForwardCanonicalizer;
 import planning.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import trace.compile.CompileTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
@@ -29,7 +29,7 @@ import java.util.List;
  *     <li>{@link #prepare(config.runtime.RuntimeConfig)} lowers those compile artifacts into runtime execution steps
  *     for a specific runtime configuration.</li>
  *     <li>{@link PreparedExecution#execute(ExecutionMode)} runs the prepared steps and publishes values according to
- *     the selected {@link graph.execution.PublicationPolicy}.</li>
+ *     the selected {@link runtime.execution.PublicationPolicy}.</li>
  * </ol>
  *
  * <p>Compilation and preparation allocate new artifact objects, while execution mutates tensor data, gradient buffers,

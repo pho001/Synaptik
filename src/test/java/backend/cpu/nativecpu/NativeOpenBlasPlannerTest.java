@@ -141,7 +141,7 @@ class NativeOpenBlasPlannerTest {
         assertEquals("AUTO_UNCONTROLLED", matmul.metadata().attributes().get("blasThreadPolicy"));
     }
 
-    private static graph.execution.PreparedExecutionStep matmulStep(DataType dataType, RuntimeConfig runtime) {
+    private static runtime.execution.PreparedExecutionStep matmulStep(DataType dataType, RuntimeConfig runtime) {
         Tensor a = tensor(dataType, 64, 64, "a");
         Tensor b = tensor(dataType, 64, 64, "b");
         Tensor out = a.matmul(b);

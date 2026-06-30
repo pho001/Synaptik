@@ -1,4 +1,4 @@
-package graph.execution;
+package runtime.execution;
 
 import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import runtime.execution.ExecutionContext;
@@ -10,9 +10,9 @@ import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.memory.MemoryPlan;
 import graph.compile.publication.PublicationPlan;
 import runtime.execution.PreparedStepMetadata;
-import graph.execution.publication.ExecutionPublisher;
-import graph.execution.residency.RuntimeMemoryBinder;
-import graph.execution.runner.PreparedExecutionRunner;
+import runtime.publication.ExecutionPublisher;
+import runtime.residency.RuntimeMemoryBinder;
+import runtime.runner.PreparedExecutionRunner;
 import runtime.execution.ExecutionState;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;

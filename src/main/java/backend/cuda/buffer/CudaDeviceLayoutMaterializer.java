@@ -9,7 +9,7 @@ import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaGraphBridge;
 import runtime.device.buffer.DeviceBufferBinding;
 import runtime.execution.ExecutionContext;
-import graph.execution.device.DeviceLayoutMaterializer;
+import runtime.device.DeviceLayoutMaterializer;
 import tensor.DataType;
 
 import java.util.Objects;

@@ -1,4 +1,4 @@
-package graph.execution.state;
+package runtime.state;
 
 import runtime.residency.TensorResidencyState;
 import planning.descriptor.CompiledTensorDescriptor;

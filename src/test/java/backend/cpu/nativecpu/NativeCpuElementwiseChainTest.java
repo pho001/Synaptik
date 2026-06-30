@@ -17,7 +17,7 @@ import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;

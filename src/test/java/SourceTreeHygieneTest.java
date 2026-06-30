@@ -121,7 +121,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void runtimeMemoryBinderDoesNotUseGlobalMigrationGuards() throws IOException {
-        Path binder = Path.of("src/main/java/graph/execution/residency/RuntimeMemoryBinder.java");
+        Path binder = Path.of("src/main/java/runtime/residency/RuntimeMemoryBinder.java");
         String source = Files.readString(binder);
         assertTrue(!source.contains("containsPhase12BinderExcludedFamily"), "RuntimeMemoryBinder must not disable binding for a whole graph.");
         assertTrue(!source.contains("skipRuntimeBinding"), "RuntimeMemoryBinder skip policy must be explicit and named.");
@@ -1041,7 +1041,7 @@ public class SourceTreeHygieneTest {
     void partitionExecutionRoleDoesNotLeakIntoGraphRuntimeContract() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(
-                        Path.of("src/main/java/graph/execution/plan/PreparedStepMetadata.java"),
+                        Path.of("src/main/java/runtime/execution/PreparedStepMetadata.java"),
                         Path.of("src/main/java/backend/ComputeEngine.java"),
                         Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java"),
                         Path.of("src/test/java/testsupport/MetadataArtifacts.java")
@@ -1207,7 +1207,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void preparedExecutionDelegatesPerRunStateToExecutionRun() throws IOException {
-        String source = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
+        String source = Files.readString(Path.of("src/main/java/runtime/execution/PreparedExecution.java"));
         assertTrue(source.contains("new ExecutionRun("), "PreparedExecution should delegate one-run state ownership.");
         assertTrue(!source.contains("ExecutionState.create("), "ExecutionRun must own per-run execution state creation.");
         assertTrue(!source.contains("ExecutionPublisher."), "ExecutionRun must own runtime publication orchestration.");
@@ -1216,7 +1216,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
-        String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
+        String preparedExecution = Files.readString(Path.of("src/main/java/runtime/execution/PreparedExecution.java"));
         String stepTracer = Files.readString(Path.of("src/main/java/runtime/runner/StepExecutionTracer.java"));
         assertTrue(stepTracer.contains("traceContribution("),
                 "StepExecutionTracer should consume backend-owned trace contribution from prepared artifacts.");
@@ -1258,12 +1258,12 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void graphExecutionDoesNotImportConcreteAcceleratorBackends() throws IOException {
+    void runtimeExecutionDoesNotImportConcreteAcceleratorBackends() throws IOException {
         List<String> offenders = linesContainingAny(
-                Path.of("src/main/java/graph/execution"),
+                Path.of("src/main/java/runtime/execution"),
                 List.of("import backend.metal.", "import backend.cuda.")
         );
-        assertTrue(offenders.isEmpty(), () -> "graph.execution must consume backend-neutral accelerator contracts: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "runtime.execution must consume backend-neutral accelerator contracts: " + offenders);
     }
 
     @Test

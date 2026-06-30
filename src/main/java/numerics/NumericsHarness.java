@@ -6,7 +6,7 @@ import config.compile.GraphOptimizationConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.factory.TensorDataFactory;

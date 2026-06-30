@@ -45,7 +45,7 @@ import tuning.workload.StandardWorkloads;
 import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import trace.execution.NativeCpuMemoryTrace;
 import tuning.measure.MeasurementExecutionMode;
 import tuning.measure.MeasurementPolicy;

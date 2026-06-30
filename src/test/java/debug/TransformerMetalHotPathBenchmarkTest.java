@@ -10,7 +10,7 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.WorkloadProfile;
 import config.runtime.AcceleratorConfig;
 import config.runtime.RuntimeConfig;
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.calibration.store.CalibrationArtifactLayout;

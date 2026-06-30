@@ -1,4 +1,4 @@
-package graph.execution.device;
+package runtime.device;
 
 import backend.contract.ComputeBackend;
 import runtime.device.buffer.AcceleratorBufferAccessMode;
@@ -14,7 +14,7 @@ import runtime.execution.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
-import graph.execution.PreparedExecutionStep;
+import runtime.execution.PreparedExecutionStep;
 import operations.Operation;
 import tensor.Tensor;
 

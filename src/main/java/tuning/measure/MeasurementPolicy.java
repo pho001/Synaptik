@@ -1,6 +1,6 @@
 package tuning.measure;
 
-import graph.execution.PublicationPolicy;
+import runtime.execution.PublicationPolicy;
 
 /**
  * Controls how a candidate workload is measured.

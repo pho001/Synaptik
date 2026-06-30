@@ -16,7 +16,7 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;
 import operations.elementwise.unary.relu;

@@ -1,4 +1,4 @@
-package graph.execution.residency;
+package runtime.residency;
 
 import runtime.device.buffer.DeviceBufferBinding;
 

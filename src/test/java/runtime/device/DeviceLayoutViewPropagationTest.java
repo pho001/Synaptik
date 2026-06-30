@@ -1,4 +1,4 @@
-package graph.execution;
+package runtime.device;
 
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
@@ -18,14 +18,15 @@ import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.metal.buffer.MetalBufferHandle;
 import runtime.execution.ExecutionContext;
+import runtime.execution.PreparedExecutionStep;
 import runtime.contract.ExecutionMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.device.DeviceLayoutMaterializer;
-import graph.execution.device.DeviceLayoutViewPropagator;
+import runtime.device.DeviceLayoutMaterializer;
+import runtime.device.DeviceLayoutViewPropagator;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.ExecutionState;
 import operations.Operation;

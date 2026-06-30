@@ -1,4 +1,4 @@
-package graph.execution;
+package runtime.residency;
 
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
@@ -12,11 +12,13 @@ import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
-import graph.execution.residency.RuntimeMemoryBinder;
+import runtime.execution.PreparedExecution;
+import runtime.execution.PreparedExecutionStep;
+import runtime.residency.RuntimeMemoryBinder;
 import runtime.execution.ExecutionState;
-import graph.execution.state.RuntimeStorageKind;
-import graph.execution.state.RuntimeStorageSlotKey;
-import graph.execution.state.RuntimeStorageSlotScope;
+import runtime.state.RuntimeStorageKind;
+import runtime.state.RuntimeStorageSlotKey;
+import runtime.state.RuntimeStorageSlotScope;
 import planning.memory.MemoryPlan;
 import planning.memory.MemoryPlanSummary;
 import planning.memory.MemoryPlannerPolicy;

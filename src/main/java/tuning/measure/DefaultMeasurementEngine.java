@@ -1,7 +1,7 @@
 package tuning.measure;
 
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import trace.ExecutionTrace;
 import trace.compile.CompileTrace;
 import trace.prepare.PrepareTrace;

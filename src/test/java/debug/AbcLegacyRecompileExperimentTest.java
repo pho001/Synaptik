@@ -4,7 +4,7 @@ import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.OptimizerFactory;
 import operations.Operation;
