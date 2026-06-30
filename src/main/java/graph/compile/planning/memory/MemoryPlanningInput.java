@@ -1,6 +1,6 @@
 package graph.compile.planning.memory;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.region.OptimizedRegion;

@@ -1,12 +1,11 @@
 package tuning.benchmark.report;
 
 import backend.contract.ComputeBackend;
-import graph.execution.trace.BackendSelectionDecisionTrace;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.ExecutionTrace;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.accelerator.lowering.GpuLoweredRegionRejection;
+import trace.prepare.BackendSelectionDecisionTrace;
+import trace.execution.CpuMaterializationTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.ExecutionTrace;
+import trace.prepare.GpuLoweredRegionTrace;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,14 +74,14 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         }
         for (BackendSelectionDecisionTrace decision : trace.prepare().backendSelection().decisions()) {
             if (decision.selected() && decision.selectedBackend() != null) {
-                String backend = decision.selectedBackend().name();
+                String backend = decision.selectedBackend();
                 if (isAcceleratorBackend(backend)) {
                     out.computeIfAbsent(backend, ignored -> new MutableBackendCoverage());
                 }
             }
-            for (ComputeBackend compatible : decision.compatibleBackends()) {
-                if (compatible != null && isAcceleratorBackend(compatible.name())) {
-                    out.computeIfAbsent(compatible.name(), ignored -> new MutableBackendCoverage());
+            for (String compatible : decision.compatibleBackends()) {
+                if (compatible != null && isAcceleratorBackend(compatible)) {
+                    out.computeIfAbsent(compatible, ignored -> new MutableBackendCoverage());
                 }
             }
         }
@@ -149,12 +148,12 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     ) {
         int selectedTotalLength = 0;
         for (BackendSelectionDecisionTrace decision : decisions) {
-            if (decision.selected() && decision.selectedBackend() != null && backend.equals(decision.selectedBackend().name())) {
+            if (decision.selected() && backend.equals(decision.selectedBackend())) {
                 int length = decision.nodeIds().size();
                 coverage.selectedRegionCount++;
                 selectedTotalLength += length;
                 coverage.maxSelectedRegionLength = Math.max(coverage.maxSelectedRegionLength, length);
-                GpuLoweredRegionManifest manifest = decision.gpuLoweredRegionManifest();
+                GpuLoweredRegionTrace manifest = decision.gpuLoweredRegionManifest();
                 if (length > 1 || (manifest != null && manifest.selectedRegionLength() > 1)) {
                     coverage.multiOpGpuRegionCount++;
                 }
@@ -192,7 +191,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     }
 
     private static void addDTypeResidencyCoverage(
-            GpuLoweredRegionManifest manifest,
+            GpuLoweredRegionTrace manifest,
             MutableBackendCoverage coverage
     ) {
         if (manifest == null) {
@@ -203,9 +202,9 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 addDTypeResidencyReason(coverage, "dtypeResidency " + value);
             }
         });
-        for (GpuLoweredRegionRejection rejection : manifest.rejections()) {
+        for (GpuLoweredRegionTrace.Rejection rejection : manifest.rejections()) {
             if (rejection.detail().contains("dtypeResidency")) {
-                addDTypeResidencyReason(coverage, rejection.reason().name() + " " + rejection.detail());
+                addDTypeResidencyReason(coverage, rejection.reason() + " " + rejection.detail());
             }
         }
     }
@@ -218,7 +217,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     }
 
     private static void addFusedSubpatternCoverage(
-            GpuLoweredRegionManifest manifest,
+            GpuLoweredRegionTrace manifest,
             MutableBackendCoverage coverage
     ) {
         if (manifest == null || manifest.fusedSubpatterns().isEmpty()) {
@@ -226,10 +225,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         }
         for (var subpattern : manifest.fusedSubpatterns()) {
             coverage.gpuFusedSubpatternCount++;
-            addNonBlank(coverage.gpuFusedSubpatternTypes, subpattern.patternType().name());
+            addNonBlank(coverage.gpuFusedSubpatternTypes, subpattern.patternType());
             addNonBlank(coverage.gpuFusedSubpatternOriginalNodeIds, subpattern.originalOperationNodeIds().toString());
             coverage.gpuFusedSubpatternLoweredPrimitiveCount += subpattern.loweredPrimitiveCount();
-            addNonBlank(coverage.gpuFusedSubpatternReasons, subpattern.reason().name());
+            addNonBlank(coverage.gpuFusedSubpatternReasons, subpattern.reason());
         }
     }
 
@@ -246,12 +245,11 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     }
 
     private static boolean compatibleWith(String backend, BackendSelectionDecisionTrace decision) {
-        if (decision.selectedBackend() != null && backend.equals(decision.selectedBackend().name())) {
+        if (backend.equals(decision.selectedBackend())) {
             return true;
         }
         return decision.compatibleBackends().stream()
                 .filter(candidate -> candidate != null)
-                .map(Enum::name)
                 .anyMatch(backend::equals);
     }
 

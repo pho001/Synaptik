@@ -40,7 +40,7 @@ public final class MatMulWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
         Tensor left;
@@ -70,8 +70,8 @@ public final class MatMulWorkloadSpec implements WorkloadSpec {
         );
     }
 
-    private static Tensor finalizeRoot(Tensor out, backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
+    private static Tensor finalizeRoot(Tensor out, runtime.contract.ExecutionMode mode) {
+        return mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
     }
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {

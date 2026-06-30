@@ -10,7 +10,7 @@ import backend.cpu.nativecpu.layout.NativeCpuStorageFamily;
 import backend.cpu.nativecpu.layout.NativeSegmentStridedKernels;
 import backend.cpu.nativecpu.layout.NativeSegmentView;
 import backend.cpu.nativecpu.layout.TensorPhysicalView;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;

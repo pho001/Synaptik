@@ -10,15 +10,15 @@ import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.metal.buffer.MetalBufferHandle;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
@@ -74,7 +74,7 @@ class DeviceLayoutViewPropagationTest {
 
         fixture.context().requireCpuReadable(
                 fixture.targetNode().id(),
-                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
+                runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
         );
         assertEquals(0, fixture.state().cpuMaterializationTraces().size());
     }
@@ -173,13 +173,13 @@ class DeviceLayoutViewPropagationTest {
 
         IllegalStateException failure = assertThrows(IllegalStateException.class, () -> fixture.context().requireCpuReadable(
                 fixture.sourceNode().id(),
-                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
+                runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT
         ));
 
         assertTrue(failure.getMessage().contains("accelerator_prepared_input"));
         assertEquals(1, fixture.state().cpuMaterializationTraces().size());
         assertEquals(
-                backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT,
+                runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT,
                 fixture.state().cpuMaterializationTraces().getFirst().reason()
         );
     }

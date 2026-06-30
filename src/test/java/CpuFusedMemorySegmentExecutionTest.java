@@ -6,10 +6,10 @@ import backend.cpu.fused.exec.FusedNativeSegmentBindings;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.numeric.FusedStorageKind;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
 import config.backend.CpuKernelConfig;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.runtime.ExecutionContext;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
@@ -25,7 +25,7 @@ import graph.execution.plan.OutputResidencyEffect;
 import graph.execution.residency.RuntimeMemoryBinder;
 import graph.execution.runner.PreparedExecutionRunner;
 import graph.execution.state.ExecutionState;
-import graph.execution.trace.RunTrace;
+import trace.execution.RunTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -943,7 +943,7 @@ public class CpuFusedMemorySegmentExecutionTest {
                 .orElseThrow();
     }
 
-    private static graph.execution.trace.ExecutionStepTrace fusedTrace(RunTrace trace) {
+    private static trace.execution.ExecutionStepTrace fusedTrace(RunTrace trace) {
         return trace.steps().stream()
                 .filter(step -> step.metadata().fused() != null)
                 .findFirst()
@@ -995,7 +995,7 @@ public class CpuFusedMemorySegmentExecutionTest {
         assertFalse(fusedTrace.metadata().attributes().containsKey("fusedNativeOutputWritten"));
     }
 
-    private static void assertNativeOutputWriteTrace(graph.execution.trace.ExecutionStepTrace fusedTrace) {
+    private static void assertNativeOutputWriteTrace(trace.execution.ExecutionStepTrace fusedTrace) {
         assertEquals(true, fusedTrace.metadata().attributes().get("fusedNativeOutputWritten"));
         assertEquals("CPU_NATIVE", fusedTrace.metadata().attributes().get("fusedNativeOutputResidency"));
         assertEquals("CPU fused MemorySegment wrote output",

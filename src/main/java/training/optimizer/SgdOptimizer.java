@@ -5,7 +5,7 @@ import tensor.TensorInternalAccess;
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;

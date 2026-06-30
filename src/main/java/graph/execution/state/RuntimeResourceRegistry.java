@@ -6,7 +6,7 @@ import backend.cpu.nativecpu.NativeCpuMemoryStats;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.ExecutionResource;
 import config.runtime.NativeCpuMemoryConfig;
-import graph.execution.trace.NativeCpuMemoryTrace;
+import trace.execution.NativeCpuMemoryTrace;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 

@@ -7,7 +7,7 @@ import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedAttentionUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;

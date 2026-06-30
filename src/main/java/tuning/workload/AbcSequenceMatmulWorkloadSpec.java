@@ -36,7 +36,7 @@ public final class AbcSequenceMatmulWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
         Tensor A = tensor("A", 801, dataType, requiresGrad, batch, features, 1.5, 0.9);

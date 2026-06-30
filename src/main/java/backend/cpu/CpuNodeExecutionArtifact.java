@@ -9,7 +9,7 @@ import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;
-import graph.execution.trace.StepTraceContribution;
+import trace.backend.StepTraceContribution;
 import tensor.Tensor;
 
 public record CpuNodeExecutionArtifact(

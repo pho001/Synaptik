@@ -1,5 +1,7 @@
 package backend.memory;
 
+import runtime.contract.StorageResidency;
+
 import java.util.Objects;
 
 /**

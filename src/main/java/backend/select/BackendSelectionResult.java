@@ -1,6 +1,6 @@
 package backend.select;
 
-import graph.execution.trace.BackendSelectionTrace;
+import trace.prepare.BackendSelectionTrace;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
 

@@ -2,7 +2,7 @@ package graph.compile.planning.partition;
 
 import backend.contract.ComputeBackend;
 import backend.metal.lowering.MetalPartitionSupport;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;

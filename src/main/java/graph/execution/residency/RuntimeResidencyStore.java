@@ -3,8 +3,8 @@ package graph.execution.residency;
 import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.DeviceToNativeMaterializer;
 import backend.memory.TensorResidencyState;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.HostDeviceTransferTrace;
+import trace.execution.CpuMaterializationTrace;
+import trace.execution.HostDeviceTransferTrace;
 
 import java.util.ArrayList;
 import java.util.HashMap;

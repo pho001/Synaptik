@@ -1,7 +1,7 @@
 package graph.execution.publication;
 
-import backend.memory.CpuMaterializationReason;
-import backend.runtime.ExecutionMode;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.ExecutionMode;
 import graph.model.AliasViewPolicy;
 import graph.model.CompiledGradientBinding;
 import graph.compile.publication.PublicationPlan;

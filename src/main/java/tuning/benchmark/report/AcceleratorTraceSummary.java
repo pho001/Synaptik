@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;

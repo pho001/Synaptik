@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.plan.FusedVectorFallbackReason;

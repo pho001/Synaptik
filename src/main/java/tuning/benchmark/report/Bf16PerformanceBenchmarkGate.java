@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import graph.execution.trace.MatMulTraceMetadata;
+import trace.backend.MatMulTraceMetadata;
 import tensor.DataType;
 
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public final class Bf16PerformanceBenchmarkGate {
                 evaluateMatMul(candidate.entry().name(), step.metadata().matMul(), failures);
             }
             for (var optimizer : trace.run().nativeOptimizers()) {
-                if (optimizer == null || optimizer.dataType() != DataType.BFLOAT16) {
+                if (optimizer == null || !"BFLOAT16".equals(optimizer.dataType())) {
                     continue;
                 }
                 if (optimizer.bf16TrainingPolicy().isBlank()) {

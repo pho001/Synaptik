@@ -3,19 +3,19 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
-import backend.runtime.ExecutionMode;
-import graph.execution.trace.BackendSelectionDecisionTrace;
-import graph.execution.trace.BackendSelectionTrace;
-import graph.execution.trace.CompileTrace;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.ExecutionTrace;
-import graph.execution.trace.PartitionCompileTrace;
-import graph.execution.trace.PrepareTrace;
-import graph.execution.trace.RunTrace;
-import graph.execution.trace.StepExecutionMetadata;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
+import runtime.contract.ExecutionMode;
+import trace.prepare.BackendSelectionDecisionTrace;
+import trace.prepare.BackendSelectionTrace;
+import trace.compile.CompileTrace;
+import trace.execution.CpuMaterializationTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.ExecutionTrace;
+import trace.compile.PartitionCompileTrace;
+import trace.prepare.PrepareTrace;
+import trace.execution.RunTrace;
+import trace.execution.StepExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.benchmark.BenchmarkEntry;
@@ -252,7 +252,7 @@ public class CrossBackendRouterEvidenceTest {
                 backendName.toLowerCase() + "_router_step",
                 "LINEAR",
                 List.of(2, 2),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 backendName,
                 "PreparedAcceleratorExecutable",
                 1L,
@@ -272,19 +272,19 @@ public class CrossBackendRouterEvidenceTest {
                 ? new BackendSelectionDecisionTrace(
                         1,
                         List.of(1, 2),
-                        List.of(backend),
+                        List.of(backend.name()),
                         true,
-                        backend,
+                        backend.name(),
                         "selected",
                         256L,
                         null,
                         List.of(),
-                        manifest(backend)
+                        testsupport.TraceSnapshotTestSupport.traceManifest(manifest(backend))
                 )
                 : new BackendSelectionDecisionTrace(
                         1,
                         List.of(1),
-                        List.of(backend),
+                        List.of(backend.name()),
                         false,
                         null,
                         String.valueOf(attrs.getOrDefault("acceleratorBufferReason", "explicit fallback")),

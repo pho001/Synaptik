@@ -7,9 +7,9 @@ import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
-import backend.runtime.ExecutionMode;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
+import runtime.contract.ExecutionMode;
 import config.compile.BackendPlanningFailurePolicy;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
@@ -46,7 +46,7 @@ import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
 import graph.execution.PublicationPolicy;
-import graph.execution.trace.NativeCpuMemoryTrace;
+import trace.execution.NativeCpuMemoryTrace;
 import tuning.measure.MeasurementExecutionMode;
 import tuning.measure.MeasurementPolicy;
 
@@ -159,15 +159,15 @@ public class BenchmarkSessionTest {
                 List.of(
                         nativeDeviceBridgeCandidate(
                                 NativeDeviceBridgeBenchmark.CPU_ARRAY_METAL,
-                                graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+                                runtime.contract.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
                         ),
                         nativeDeviceBridgeCandidate(
                                 NativeDeviceBridgeBenchmark.CPU_NATIVE_ARRAY_BRIDGE_METAL,
-                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+                                runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
                         ),
                         nativeDeviceBridgeCandidate(
                                 NativeDeviceBridgeBenchmark.CPU_NATIVE_DIRECT_METAL,
-                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+                                runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
                         )
                 )
         );
@@ -585,10 +585,10 @@ public class BenchmarkSessionTest {
                                 tuning.validate.ValidationResult.skipped(),
                                 new tuning.measure.MeasurementResult(
                                         tuning.measure.MeasurementPolicy.defaults(),
-                                                new graph.execution.trace.ExecutionTrace(
-                                                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                                                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
-                                                graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
+                                                new trace.ExecutionTrace(
+                                                new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                                                new trace.prepare.PrepareTrace(true, 1L, 0, 0, trace.prepare.BackendSelectionTrace.empty()),
+                                                trace.execution.RunTrace.empty(ExecutionMode.FORWARD)
                                         ),
                                         new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                                 )
@@ -619,19 +619,19 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD_BACKWARD,
                                                 1L,
                                                 List.of(),
                                                 List.of(),
-                                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
-                                                List.of(new graph.execution.trace.NativeOptimizerTrace(
+                                                trace.execution.NativeCpuMemoryTrace.empty(),
+                                                List.of(new trace.execution.NativeOptimizerTrace(
                                                         "SgdOptimizer",
                                                         "CPU_NATIVE",
-                                                        DataType.FLOAT32,
+                                                        DataType.FLOAT32.name(),
                                                         7,
                                                         9,
                                                         128,
@@ -682,7 +682,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var summary = new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+        var summary = new trace.compile.MaterializationCostTrace(
                 "CONSERVATIVE",
                 2,
                 3072L,
@@ -696,7 +696,7 @@ public class BenchmarkSessionTest {
                 "DENSE_PHYSICAL"
         );
         var finalists = List.of(
-                new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                new trace.compile.PartitionDecisionTrace.CandidateCostTrace(
                         List.of(7, 8),
                         "rejected-materialization-cost",
                         -12.5d,
@@ -706,7 +706,7 @@ public class BenchmarkSessionTest {
                         256L,
                         "CONSERVATIVE"
                 ),
-                new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+                new trace.compile.PartitionDecisionTrace.CandidateCostTrace(
                         List.of(9),
                         "not-selected-lower-score",
                         120.0d,
@@ -717,30 +717,30 @@ public class BenchmarkSessionTest {
                         "MEASURED"
                 )
         );
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 3,
                 1,
                 2,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                                 4,
                                 List.of(4, 5, 6),
-                                List.of(ComputeBackend.GPU_METAL),
+                                List.of(ComputeBackend.GPU_METAL.name()),
                                 true,
-                                ComputeBackend.GPU_METAL,
+                                ComputeBackend.GPU_METAL.name(),
                                 "selected",
                                 8192L,
                                 summary,
                                 finalists
                         ),
-                        new graph.execution.trace.BackendSelectionDecisionTrace(
+                        new trace.prepare.BackendSelectionDecisionTrace(
                                 12,
                                 List.of(12),
-                                List.of(ComputeBackend.GPU_METAL),
+                                List.of(ComputeBackend.GPU_METAL.name()),
                                 false,
                                 null,
                                 "estimated-work-below-minimum",
                                 64L,
-                                new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+                                new trace.compile.MaterializationCostTrace(
                                         "CONSERVATIVE",
                                         1,
                                         512L,
@@ -756,17 +756,22 @@ public class BenchmarkSessionTest {
                                 List.of()
                         ))
         );
-        var optimizerTrace = new graph.optimizer.state.OptimizerTrace(
+        var optimizerTrace = new trace.compile.OptimizerTrace(
                 List.of("simplification-cost iteration=1 reason=simplification-improved"),
-                List.of(graph.optimizer.cost.CostScore.of(
+                List.of(new trace.compile.CostExplanationTrace(
                         "GraphSimplificationCostModel",
                         "optimizer-simplification-graph",
-                        List.of(graph.optimizer.cost.CostComponent.lowerIsBetter(
-                                "weightedOperationCost",
-                                12.0d,
+                        "IMPROVED",
+                        "simplification-improved",
+                        List.of(new trace.compile.CostExplanationTrace.Component(
+                                "weightedOperationCost", 12.0d, "LOWER_IS_BETTER",
+                                "lexicographic simplification priority"
+                        )),
+                        List.of(new trace.compile.CostExplanationTrace.Component(
+                                "weightedOperationCost", 12.0d, "LOWER_IS_BETTER",
                                 "lexicographic simplification priority"
                         ))
-                ).explain("simplification-improved", graph.optimizer.cost.CostComparison.IMPROVED))
+                ))
         );
 
         BenchmarkReport report = BenchmarkReport.of(
@@ -776,18 +781,18 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        new graph.execution.trace.CompileTrace(
+                                new trace.ExecutionTrace(
+                                        new trace.compile.CompileTrace(
                                                 true,
                                                 1L,
                                                 0,
                                                 0,
                                                 false,
-                                                graph.execution.trace.PartitionCompileTrace.empty(),
+                                                trace.compile.PartitionCompileTrace.empty(),
                                                 optimizerTrace
                                         ),
-                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
-                                        graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
+                                        new trace.prepare.PrepareTrace(true, 1L, 0, 0, selection),
+                                        trace.execution.RunTrace.empty(ExecutionMode.FORWARD)
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -873,16 +878,16 @@ public class BenchmarkSessionTest {
                 Map.entry("metalRouteCostTopContributors", List.of("estimatedRouteCost=20.000000 LOWER_IS_BETTER")),
                 Map.entry("metalRouteCostComponents", List.of("estimatedRouteCost=20.000000 LOWER_IS_BETTER"))
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "metal-step",
                 "MATMUL",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "GPU_METAL",
                 "PreparedMetalExecutable",
                 20L,
-                new graph.execution.trace.StepExecutionMetadata("node", attrs, null, null, null, null, null, null, null)
+                new trace.execution.StepExecutionMetadata("node", attrs, null, null, null, null, null, null, null)
         );
         BenchmarkReport report = BenchmarkReport.of(
                 "metal_route_cost_report",
@@ -891,10 +896,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 20L, List.of(step))
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(ExecutionMode.FORWARD, 20L, List.of(step))
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -925,7 +930,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+        var matMul = new trace.backend.MatMulTraceMetadata(
                 true,
                 false,
                 "OPENBLAS_FFM",
@@ -958,16 +963,16 @@ public class BenchmarkSessionTest {
                 8192L,
                 "F32_4X2"
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "bf16_matmul",
                 "MATMUL",
                 List.of(32, 32),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "BF16BlasMatMulExecutable",
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(),
                         null,
@@ -979,16 +984,16 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
-        var promotedNonBlasStep = new graph.execution.trace.ExecutionStepTrace(
+        var promotedNonBlasStep = new trace.execution.ExecutionStepTrace(
                 1,
                 "bf16_relu",
                 "RELU",
                 List.of(32, 32),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "StorageAwareUnaryElementwiseKernel",
                 20L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(
                                 "cpuStorageProfile", "CPU_NATIVE",
@@ -1008,16 +1013,16 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
-        var promotedRegionStep = new graph.execution.trace.ExecutionStepTrace(
+        var promotedRegionStep = new trace.execution.ExecutionStepTrace(
                 2,
                 "bf16_native_region",
                 "MATMUL",
                 List.of(32, 32),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "CpuNativeStorageTrace",
                 40L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(
                                 "nativeCpuRegionDecision", "SELECTED",
@@ -1044,21 +1049,21 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
                                                 List.of(step, promotedNonBlasStep, promotedRegionStep),
                                                 List.of(),
                                                 List.of(),
-                                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                                trace.execution.NativeCpuMemoryTrace.empty(),
                                                 List.of(
-                                                        new graph.execution.trace.NativeOptimizerTrace(
+                                                        new trace.execution.NativeOptimizerTrace(
                                                                 "SgdOptimizer",
                                                                 "CPU_ARRAY",
-                                                                DataType.BFLOAT16,
+                                                                DataType.BFLOAT16.name(),
                                                                 10,
                                                                 11,
                                                                 1024,
@@ -1074,10 +1079,10 @@ public class BenchmarkSessionTest {
                                                                 "CPU_ARRAY",
                                                                 "publication-policy-output-only"
                                                         ),
-                                                        new graph.execution.trace.NativeOptimizerTrace(
+                                                        new trace.execution.NativeOptimizerTrace(
                                                                 "SgdOptimizer",
                                                                 "CPU_ARRAY",
-                                                                DataType.BFLOAT16,
+                                                                DataType.BFLOAT16.name(),
                                                                 10,
                                                                 11,
                                                                 1024,
@@ -1169,7 +1174,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+        var matMul = new trace.backend.MatMulTraceMetadata(
                 true,
                 false,
                 "OPENBLAS_FFM",
@@ -1202,16 +1207,16 @@ public class BenchmarkSessionTest {
                 8192L,
                 "F32_4X2"
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "bf16_overclaim",
                 "MATMUL",
                 List.of(32, 32),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "BF16BlasMatMulExecutable",
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(),
                         null,
@@ -1230,10 +1235,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -1258,16 +1263,16 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "bf16_bad_relu",
                 "RELU",
                 List.of(2, 2),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "StorageAwareUnaryElementwiseKernel",
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(
                                 "actualCpuStorage", "CPU_NATIVE",
@@ -1291,10 +1296,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step))
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -1331,16 +1336,16 @@ public class BenchmarkSessionTest {
                 "storagePrecision", "BF16",
                 "computePrecision", "F32_PROMOTED"
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "bf16_promoted_add",
                 "ADD",
                 List.of(2, 2),
-                DataType.BFLOAT16,
+                DataType.BFLOAT16.name(),
                 "CPU",
                 "CpuAddKernel",
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         attrs,
                         null,
@@ -1361,16 +1366,16 @@ public class BenchmarkSessionTest {
                 "nativeCpuKernelFamily", "ARRAY_ONLY",
                 "nativeCpuFallbackReason", "native-kernel-unsupported:erf"
         );
-        var fallbackStep = new graph.execution.trace.ExecutionStepTrace(
+        var fallbackStep = new trace.execution.ExecutionStepTrace(
                 1,
                 "unsupported_erf",
                 "ERF",
                 List.of(2, 2),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "CPU",
                 "CpuErfKernel",
                 200L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         fallbackAttrs,
                         null,
@@ -1389,10 +1394,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step, fallbackStep))
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(ExecutionMode.FORWARD, 100L, List.of(step, fallbackStep))
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -1565,10 +1570,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
                                                 List.of(
@@ -1651,7 +1656,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var matMul = new graph.execution.trace.MatMulTraceMetadata(
+        var matMul = new trace.backend.MatMulTraceMetadata(
                 true,
                 false,
                 "OPENBLAS_FFM",
@@ -1684,16 +1689,16 @@ public class BenchmarkSessionTest {
                 131_072L,
                 "F32_8X4"
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "runtime_copy_matmul",
                 "MATMUL",
                 List.of(32, 32),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "CPU",
                 "F32BlasMatMulExecutable",
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(),
                         null,
@@ -1705,7 +1710,7 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
-        var materialization = new graph.execution.trace.CpuMaterializationTrace(
+        var materialization = new trace.execution.CpuMaterializationTrace(
                 42,
                 CpuMaterializationReason.GRAPH_OUTPUT,
                 "GPU_METAL",
@@ -1722,22 +1727,22 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        graph.execution.trace.CompileTrace.skipped(),
-                                        graph.execution.trace.PrepareTrace.skipped(),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        trace.compile.CompileTrace.skipped(),
+                                        trace.prepare.PrepareTrace.skipped(),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
                                                 List.of(step),
                                                 List.of(materialization),
                                                 List.of(
-                                                        new graph.execution.trace.HostDeviceTransferTrace(
+                                                        new trace.execution.HostDeviceTransferTrace(
                                                                 42,
                                                                 "GPU_METAL",
-                                                                DataType.FLOAT32,
+                                                                DataType.FLOAT32.name(),
                                                                 StorageResidency.CPU_NATIVE,
                                                                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                                                                graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
+                                                                runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE,
                                                                 4096L,
                                                                 4096L,
                                                                 4096L,
@@ -1749,13 +1754,13 @@ public class BenchmarkSessionTest {
                                                                 "native-device-direct-transfer-unavailable",
                                                                 "metal shared input buffer upload"
                                                         ),
-                                                        new graph.execution.trace.HostDeviceTransferTrace(
+                                                        new trace.execution.HostDeviceTransferTrace(
                                                                 43,
                                                                 "GPU_METAL",
-                                                                DataType.FLOAT32,
+                                                                DataType.FLOAT32.name(),
                                                                 StorageResidency.CPU_NATIVE,
                                                                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
-                                                                graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY,
+                                                                runtime.contract.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY,
                                                                 2048L,
                                                                 0L,
                                                                 2048L,
@@ -1768,7 +1773,7 @@ public class BenchmarkSessionTest {
                                                                 "metal native segment input buffer upload"
                                                         )
                                                 ),
-                                                new graph.execution.trace.NativeCpuMemoryTrace(
+                                                new trace.execution.NativeCpuMemoryTrace(
                                                         3L,
                                                         0L,
                                                         0L,
@@ -1920,16 +1925,16 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "metal_linear",
                 "LINEAR",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "GPU_METAL",
                 "PreparedMetalExecutable",
                 2_000_000L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.ofEntries(
                                 Map.entry("acceleratorBufferBackend", "GPU_METAL"),
@@ -1966,10 +1971,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                                        new trace.prepare.PrepareTrace(true, 1L, 0, 0, trace.prepare.BackendSelectionTrace.empty()),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 2_000_000L,
                                                 List.of(step)
@@ -2031,16 +2036,16 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "cuda_linear",
                 "LINEAR",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "GPU_CUDA",
                 "PreparedCudaExecutable",
                 2_000_000L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.ofEntries(
                                 Map.entry("acceleratorBufferBackend", "GPU_CUDA"),
@@ -2075,10 +2080,10 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                                        new trace.prepare.PrepareTrace(true, 1L, 0, 0, trace.prepare.BackendSelectionTrace.empty()),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 2_000_000L,
                                                 List.of(step)
@@ -2121,27 +2126,27 @@ public class BenchmarkSessionTest {
             String candidateName,
             MeasurementPolicy policy
     ) {
-        graph.execution.trace.HostDeviceTransferKind kind = switch (candidateName) {
+        runtime.contract.HostDeviceTransferKind kind = switch (candidateName) {
             case NativeDeviceBridgeBenchmark.CPU_ARRAY_METAL ->
-                    graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY;
+                    runtime.contract.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY;
             case NativeDeviceBridgeBenchmark.CPU_NATIVE_ARRAY_BRIDGE_METAL ->
-                    graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
+                    runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
             case NativeDeviceBridgeBenchmark.CPU_NATIVE_DIRECT_METAL ->
-                    graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY;
+                    runtime.contract.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY;
             default -> throw new IllegalArgumentException("unexpected native device bridge candidate " + candidateName);
         };
         return new tuning.measure.MeasurementResult(
                 policy,
-                new graph.execution.trace.ExecutionTrace(
-                        graph.execution.trace.CompileTrace.skipped(),
-                        graph.execution.trace.PrepareTrace.skipped(),
-                        new graph.execution.trace.RunTrace(
+                new trace.ExecutionTrace(
+                        trace.compile.CompileTrace.skipped(),
+                        trace.prepare.PrepareTrace.skipped(),
+                        new trace.execution.RunTrace(
                                 ExecutionMode.FORWARD,
                                 100_000L,
                                 List.of(),
                                 List.of(),
                                 List.of(nativeDeviceBridgeTransfer(kind)),
-                                graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                trace.execution.NativeCpuMemoryTrace.empty(),
                                 List.of()
                         )
                 ),
@@ -2151,7 +2156,7 @@ public class BenchmarkSessionTest {
 
     private static BenchmarkCandidateReport nativeDeviceBridgeCandidate(
             String name,
-            graph.execution.trace.HostDeviceTransferKind kind
+            runtime.contract.HostDeviceTransferKind kind
     ) {
         return BenchmarkCandidateReport.success(
                 BenchmarkEntry.candidate(name, NativeDeviceBridgeBenchmark.entries().stream()
@@ -2162,16 +2167,16 @@ public class BenchmarkSessionTest {
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(
                         NativeDeviceBridgeBenchmark.measurementPolicy(),
-                        new graph.execution.trace.ExecutionTrace(
-                                graph.execution.trace.CompileTrace.skipped(),
-                                graph.execution.trace.PrepareTrace.skipped(),
-                                new graph.execution.trace.RunTrace(
+                        new trace.ExecutionTrace(
+                                trace.compile.CompileTrace.skipped(),
+                                trace.prepare.PrepareTrace.skipped(),
+                                new trace.execution.RunTrace(
                                         ExecutionMode.FORWARD,
                                         100_000L,
                                         List.of(),
                                         List.of(),
                                         List.of(nativeDeviceBridgeTransfer(kind)),
-                                        graph.execution.trace.NativeCpuMemoryTrace.empty(),
+                                        trace.execution.NativeCpuMemoryTrace.empty(),
                                         List.of()
                                 )
                         ),
@@ -2180,27 +2185,27 @@ public class BenchmarkSessionTest {
         );
     }
 
-    private static graph.execution.trace.HostDeviceTransferTrace nativeDeviceBridgeTransfer(
-            graph.execution.trace.HostDeviceTransferKind kind
+    private static trace.execution.HostDeviceTransferTrace nativeDeviceBridgeTransfer(
+            runtime.contract.HostDeviceTransferKind kind
     ) {
         long bytes = 4096L;
-        StorageResidency source = kind == graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+        StorageResidency source = kind == runtime.contract.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
                 ? StorageResidency.CPU_ARRAY
                 : StorageResidency.CPU_NATIVE;
-        long javaArrayBytes = kind == graph.execution.trace.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY
+        long javaArrayBytes = kind == runtime.contract.HostDeviceTransferKind.NATIVE_SEGMENT_TO_DEVICE_COPY
                 ? 0L
                 : bytes;
-        long nativeBytes = kind == graph.execution.trace.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
+        long nativeBytes = kind == runtime.contract.HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY
                 ? 0L
                 : bytes;
-        boolean directSupported = kind != graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
-        String fallbackReason = kind == graph.execution.trace.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
+        boolean directSupported = kind != runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE;
+        String fallbackReason = kind == runtime.contract.HostDeviceTransferKind.NATIVE_TO_ARRAY_TO_DEVICE_BRIDGE
                 ? "native-device-direct-transfer-unavailable"
                 : "";
-        return new graph.execution.trace.HostDeviceTransferTrace(
+        return new trace.execution.HostDeviceTransferTrace(
                 101,
                 ComputeBackend.GPU_METAL.name(),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 source,
                 StorageResidency.HOST_SHARED_DEVICE_BUFFER,
                 kind,
@@ -2257,16 +2262,16 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var step = new graph.execution.trace.ExecutionStepTrace(
+        var step = new trace.execution.ExecutionStepTrace(
                 0,
                 "metal_linear",
                 "LINEAR",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "GPU_METAL",
                 "PreparedMetalExecutable",
                 2_000_000L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(
                                 "metalBridgeAvailable", true,
@@ -2296,14 +2301,14 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, graph.execution.trace.BackendSelectionTrace.empty()),
-                                        new graph.execution.trace.RunTrace(
+                                new trace.ExecutionTrace(
+                                        new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                                        new trace.prepare.PrepareTrace(true, 1L, 0, 0, trace.prepare.BackendSelectionTrace.empty()),
+                                        new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 2_000_000L,
                                                 List.of(step),
-                                                List.of(new graph.execution.trace.CpuMaterializationTrace(
+                                                List.of(new trace.execution.CpuMaterializationTrace(
                                                         42,
                                                         CpuMaterializationReason.GRAPH_OUTPUT,
                                                         "GPU_METAL",
@@ -2620,7 +2625,7 @@ public class BenchmarkSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.none()
         );
-        var summary = new AcceleratorPartitionScoreModel.MaterializationCostSummary(
+        var summary = new trace.compile.MaterializationCostTrace(
                 "CONSERVATIVE",
                 1,
                 1024L,
@@ -2633,21 +2638,21 @@ public class BenchmarkSessionTest {
                 "BUFFER_BINDING",
                 "DENSE_PHYSICAL"
         );
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 1,
                 1,
                 0,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                         4,
                         List.of(4, 5, 6),
-                        List.of(ComputeBackend.GPU_METAL),
+                        List.of(ComputeBackend.GPU_METAL.name()),
                         true,
-                        ComputeBackend.GPU_METAL,
+                        ComputeBackend.GPU_METAL.name(),
                         "selected",
                         4096L,
                         summary,
                         List.of(),
-                        sampleGpuManifest()
+                        testsupport.TraceSnapshotTestSupport.traceManifest(sampleGpuManifest())
                 ))
         );
 
@@ -2658,17 +2663,17 @@ public class BenchmarkSessionTest {
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
-                                new graph.execution.trace.ExecutionTrace(
-                                        new graph.execution.trace.CompileTrace(
+                                new trace.ExecutionTrace(
+                                        new trace.compile.CompileTrace(
                                                 true,
                                                 1L,
                                                 0,
                                                 0,
                                                 false,
-                                                graph.execution.trace.PartitionCompileTrace.empty()
+                                                trace.compile.PartitionCompileTrace.empty()
                                         ),
-                                        new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
-                                        graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)
+                                        new trace.prepare.PrepareTrace(true, 1L, 0, 0, selection),
+                                        trace.execution.RunTrace.empty(ExecutionMode.FORWARD)
                                 ),
                                 new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                         )
@@ -2794,22 +2799,22 @@ public class BenchmarkSessionTest {
                 .orElseThrow();
     }
 
-    private static graph.execution.trace.ExecutionStepTrace nativeRegionStep(
+    private static trace.execution.ExecutionStepTrace nativeRegionStep(
             int index,
             String name,
             String kernel,
             Map<String, Object> attrs
     ) {
-        return new graph.execution.trace.ExecutionStepTrace(
+        return new trace.execution.ExecutionStepTrace(
                 index,
                 name,
                 "MATMUL",
                 List.of(2, 2),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "CPU",
                 kernel,
                 100L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         attrs,
                         null,

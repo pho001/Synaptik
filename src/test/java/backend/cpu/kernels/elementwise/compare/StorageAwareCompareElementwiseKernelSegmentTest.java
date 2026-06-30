@@ -1,6 +1,6 @@
 package backend.cpu.kernels.elementwise.compare;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
 import config.compile.RegionOptimizationConfig;
@@ -9,7 +9,7 @@ import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

@@ -1,6 +1,6 @@
 package synaptik.app;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;

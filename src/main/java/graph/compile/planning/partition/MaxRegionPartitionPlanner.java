@@ -2,8 +2,8 @@ package graph.compile.planning.partition;
 
 import graph.model.CompiledNode;
 import graph.compile.planning.value.GraphValueRef;
-import graph.execution.trace.PartitionCompileTrace;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionCompileTrace;
+import trace.compile.PartitionDecisionTrace;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -70,8 +70,8 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
             }
             if (covered[seedNodeId]) {
                 decisions.add(PartitionDecisionTrace.coveredByEarlierPartition(
-                        request.strategy(),
-                        request.target(),
+                        request.strategy().name(),
+                        request.target().name(),
                         seedNodeId,
                         PartitionAssembly.opNames(List.of(seedNodeId), context)
                 ));
@@ -96,7 +96,7 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
         return new PartitionPlanningResult(
                 partitions,
                 plansByPartitionId,
-                PartitionCompileTrace.forJob(request.strategy(), request.target(), decisions)
+                PartitionCompileTrace.forJob(request.strategy().name(), request.target().name(), decisions)
         );
     }
 
@@ -237,8 +237,8 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
                 ),
                 bestPlan,
                 new PartitionDecisionTrace(
-                        request.strategy(),
-                        request.target(),
+                        request.strategy().name(),
+                        request.target().name(),
                         startNodeId,
                         true,
                         reason,
@@ -286,8 +286,8 @@ public final class MaxRegionPartitionPlanner implements PartitionPlanner {
                 null,
                 null,
                 new PartitionDecisionTrace(
-                        request.strategy(),
-                        request.target(),
+                        request.strategy().name(),
+                        request.target().name(),
                         startNodeId,
                         false,
                         reason,

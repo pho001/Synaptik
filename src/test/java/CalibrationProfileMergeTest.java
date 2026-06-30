@@ -1,8 +1,8 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
-import graph.execution.trace.ExecutionTrace;
+import trace.ExecutionTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.calibration.PlatformCalibrationRequest;

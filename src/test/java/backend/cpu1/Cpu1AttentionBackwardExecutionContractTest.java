@@ -11,7 +11,7 @@ import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
 import config.runtime.ApproximationConfig;

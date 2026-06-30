@@ -9,7 +9,7 @@ import backend.cpu.kernels.linalg.matmul.f32.F32MatMulJavaBackend;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.storage.NativeFloat32Storage;
 import tensor.storage.NativeTensorStorage;

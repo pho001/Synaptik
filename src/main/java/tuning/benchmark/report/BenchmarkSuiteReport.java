@@ -105,7 +105,7 @@ public record BenchmarkSuiteReport(
                 if (candidateReport.measurement() == null) {
                     continue;
                 }
-                for (graph.execution.trace.ExecutionStepTrace step : candidateReport.measurement().trace().run().steps()) {
+                for (trace.execution.ExecutionStepTrace step : candidateReport.measurement().trace().run().steps()) {
                     hotspots.add(new BenchmarkSuiteHotspot(
                             workloadReport.workloadName(),
                             candidateReport.entry().name(),

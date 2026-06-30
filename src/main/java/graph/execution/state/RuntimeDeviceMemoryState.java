@@ -1,7 +1,7 @@
 package graph.execution.state;
 
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import graph.execution.residency.DeviceBindingRegistry;
 import graph.execution.residency.NativeCpuStorageRegistry;
 import graph.execution.residency.RuntimeResidencyStore;

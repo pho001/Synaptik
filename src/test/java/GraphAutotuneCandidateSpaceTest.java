@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import org.junit.jupiter.api.Test;

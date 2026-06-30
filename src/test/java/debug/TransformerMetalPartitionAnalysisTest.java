@@ -2,7 +2,7 @@ package debug;
 
 import backend.contract.ComputeBackend;
 import backend.metal.lowering.MetalPartitionPlan;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuRegionConfig;
 import config.compile.CompileConfig;
@@ -68,7 +68,7 @@ final class TransformerMetalPartitionAnalysisTest {
 
         System.out.println("SELECTED");
         prepared.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .forEach(decision -> System.out.println("anchor=" + decision.anchorNodeId()
                         + " nodes=" + decision.nodeIds()
                         + " reason=" + decision.reason()
@@ -121,7 +121,7 @@ final class TransformerMetalPartitionAnalysisTest {
         var trace = prepared.executeTraced(profile.mode());
 
         long gpuSelected = prepared.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .count();
         long gpuSteps = trace.steps().stream()
                 .filter(step -> "GPU_METAL".equals(step.backend()))

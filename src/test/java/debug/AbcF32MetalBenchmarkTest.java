@@ -1,7 +1,7 @@
 package debug;
 
 import backend.contract.ComputeBackend;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

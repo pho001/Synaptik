@@ -1,6 +1,6 @@
 package config.profile;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import tensor.DataType;

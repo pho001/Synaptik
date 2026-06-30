@@ -2,7 +2,7 @@ package onnx;
 
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import org.junit.jupiter.api.Test;
 
 import java.net.URL;

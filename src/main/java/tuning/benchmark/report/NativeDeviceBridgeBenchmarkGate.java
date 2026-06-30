@@ -1,7 +1,7 @@
 package tuning.benchmark.report;
 
-import graph.execution.trace.HostDeviceTransferKind;
-import graph.execution.trace.HostDeviceTransferTrace;
+import runtime.contract.HostDeviceTransferKind;
+import trace.execution.HostDeviceTransferTrace;
 import tuning.benchmark.NativeDeviceBridgeBenchmark;
 
 import java.util.ArrayList;

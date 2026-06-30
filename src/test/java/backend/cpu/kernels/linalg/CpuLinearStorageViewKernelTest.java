@@ -14,7 +14,7 @@ import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.linalg.linear;
 import org.junit.jupiter.api.Test;

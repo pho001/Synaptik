@@ -3,7 +3,10 @@ package graph.optimizer.simplify;
 import graph.optimizer.OptimizationRule;
 import graph.optimizer.cost.CostComparison;
 import graph.optimizer.state.OptimizerState;
-import graph.optimizer.state.OptimizerTrace;
+import trace.compile.OptimizerTrace;
+import trace.compile.CostExplanationTrace;
+import graph.optimizer.cost.CostComponent;
+import graph.optimizer.cost.CostExplanation;
 
 import java.util.List;
 import java.util.Objects;
@@ -89,7 +92,21 @@ public final class SimplificationFixpointRule implements OptimizationRule {
                         + " weightedOperationCost=" + score.weightedOperationCost()
                         + " nodeCount=" + score.nodeCount()
                         + " edgeCount=" + score.edgeCount())
-                .withCostExplanation(score.toCostScore().explain(reasonCode, comparison));
+                .withCostExplanation(traceExplanation(score.toCostScore().explain(reasonCode, comparison)));
         return state.withTrace(trace);
+    }
+
+    private static CostExplanationTrace traceExplanation(CostExplanation source) {
+        return new CostExplanationTrace(
+                source.modelName(), source.inputKind(), source.comparison().name(), source.reasonCode(),
+                source.topContributors().stream().map(SimplificationFixpointRule::traceComponent).toList(),
+                source.rawComponents().stream().map(SimplificationFixpointRule::traceComponent).toList()
+        );
+    }
+
+    private static CostExplanationTrace.Component traceComponent(CostComponent source) {
+        return new CostExplanationTrace.Component(
+                source.name(), source.value(), source.direction().name(), source.reason()
+        );
     }
 }

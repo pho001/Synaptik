@@ -4,7 +4,7 @@ import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;

@@ -1,7 +1,7 @@
 package backend.metal.buffer;
 
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceToCpuMaterializer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

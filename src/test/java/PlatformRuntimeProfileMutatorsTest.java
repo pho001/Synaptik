@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.blas.BlasProvider;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;

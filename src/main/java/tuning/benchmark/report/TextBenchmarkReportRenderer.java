@@ -1,7 +1,5 @@
 package tuning.benchmark.report;
 
-import backend.accelerator.lowering.GpuLoweredRegionManifestRenderer;
-
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
@@ -228,7 +226,7 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendNativeCpuMemorySummary(
             StringBuilder sb,
-            graph.execution.trace.NativeCpuMemoryTrace trace
+            trace.execution.NativeCpuMemoryTrace trace
     ) {
         if (trace == null || !trace.present()) {
             return;
@@ -256,7 +254,7 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendNativeOptimizerSummary(
             StringBuilder sb,
-            java.util.List<graph.execution.trace.NativeOptimizerTrace> traces
+            java.util.List<trace.execution.NativeOptimizerTrace> traces
     ) {
         if (traces == null || traces.isEmpty()) {
             return;
@@ -264,7 +262,7 @@ public final class TextBenchmarkReportRenderer {
         long nativeCount = traces.stream().filter(trace -> "CPU_NATIVE".equals(trace.route())).count();
         long arrayCount = traces.stream().filter(trace -> "CPU_ARRAY".equals(trace.route())).count();
         long metalCount = traces.stream().filter(trace -> "GPU_METAL".equals(trace.route())).count();
-        long elements = traces.stream().mapToLong(graph.execution.trace.NativeOptimizerTrace::elementCount).sum();
+        long elements = traces.stream().mapToLong(trace.execution.NativeOptimizerTrace::elementCount).sum();
         sb.append("  nativeOptimizerSummary=")
                 .append("updateCount=").append(traces.size())
                 .append(" nativeCount=").append(nativeCount)
@@ -272,7 +270,7 @@ public final class TextBenchmarkReportRenderer {
                 .append(" metalCount=").append(metalCount)
                 .append(" elementCount=").append(elements)
                 .append('\n');
-        for (graph.execution.trace.NativeOptimizerTrace trace : traces) {
+        for (trace.execution.NativeOptimizerTrace trace : traces) {
             sb.append("  optimizerUpdate=")
                     .append("optimizer=").append(trace.optimizer())
                     .append(" route=").append(trace.route())
@@ -309,7 +307,7 @@ public final class TextBenchmarkReportRenderer {
             int fallbackCount,
             boolean present
     ) {
-        static NativeCpuTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+        static NativeCpuTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
             if (steps == null || steps.isEmpty()) {
                 return new NativeCpuTraceSummary(0, 0, 0, false);
             }
@@ -366,7 +364,7 @@ public final class TextBenchmarkReportRenderer {
             java.util.List<String> rejectionReasons,
             boolean present
     ) {
-        static NativeCpuRegionTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+        static NativeCpuRegionTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
             if (steps == null || steps.isEmpty()) {
                 return empty(false);
             }
@@ -475,7 +473,7 @@ public final class TextBenchmarkReportRenderer {
             long matMulNativeTempBytes,
             boolean present
     ) {
-        static RuntimeCopyTraceSummary fromRun(graph.execution.trace.RunTrace run) {
+        static RuntimeCopyTraceSummary fromRun(trace.execution.RunTrace run) {
             if (run == null) {
                 return new RuntimeCopyTraceSummary(0L, 0L, 0L, 0L, 0L, false);
             }
@@ -532,7 +530,7 @@ public final class TextBenchmarkReportRenderer {
             int fallbackCount,
             boolean present
     ) {
-        static HostDeviceTransferSummary fromRun(graph.execution.trace.RunTrace run) {
+        static HostDeviceTransferSummary fromRun(trace.execution.RunTrace run) {
             if (run == null || run.hostDeviceTransfers().isEmpty()) {
                 return new HostDeviceTransferSummary(0, 0L, 0L, 0L, 0L, 0, false);
             }
@@ -567,7 +565,7 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendCpuMaterializations(
             StringBuilder sb,
-            java.util.List<graph.execution.trace.CpuMaterializationTrace> materializations
+            java.util.List<trace.execution.CpuMaterializationTrace> materializations
     ) {
         if (materializations == null || materializations.isEmpty()) {
             return;
@@ -592,7 +590,7 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendHostDeviceTransfers(
             StringBuilder sb,
-            java.util.List<graph.execution.trace.HostDeviceTransferTrace> transfers
+            java.util.List<trace.execution.HostDeviceTransferTrace> transfers
     ) {
         if (transfers == null || transfers.isEmpty()) {
             return;
@@ -785,15 +783,15 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendBackendSelectionCost(
             StringBuilder sb,
-            graph.execution.trace.BackendSelectionTrace trace
+            trace.prepare.BackendSelectionTrace trace
     ) {
         if (trace == null || trace.decisions().isEmpty()) {
             return;
         }
-        java.util.List<graph.execution.trace.BackendSelectionDecisionTrace> selected = trace.decisions().stream()
+        java.util.List<trace.prepare.BackendSelectionDecisionTrace> selected = trace.decisions().stream()
                 .filter(decision -> decision.selected() && decision.costSummary() != null)
                 .toList();
-        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> finalists =
+        java.util.List<trace.compile.PartitionDecisionTrace.CandidateCostTrace> finalists =
                 rejectedFinalists(trace);
         if (selected.isEmpty() && finalists.isEmpty()) {
             return;
@@ -812,12 +810,12 @@ public final class TextBenchmarkReportRenderer {
                     .append(" reason=").append(decision.reason())
                     .append('\n');
             sb.append("      ")
-                    .append(CostExplanationTextRenderer.renderCompact(summary.toCostScore().explain(summary.reasonCode())))
+                    .append(CostExplanationTextRenderer.renderCompact(TraceCostScoreAdapter.toCostScore(summary).explain(summary.reasonCode())))
                     .append('\n');
             if (decision.gpuLoweredRegionManifest() != null) {
                 appendIndentedBlock(
                         sb,
-                        GpuLoweredRegionManifestRenderer.renderCompact(decision.gpuLoweredRegionManifest()),
+                        GpuLoweredRegionTraceRenderer.renderCompact(decision.gpuLoweredRegionManifest()),
                         "      "
                 );
             }
@@ -835,7 +833,7 @@ public final class TextBenchmarkReportRenderer {
                         .append(" reason=").append(finalist.reason())
                         .append('\n');
                 sb.append("        ")
-                        .append(CostExplanationTextRenderer.renderCompact(finalist.toCostScore().explain(finalist.reason())))
+                        .append(CostExplanationTextRenderer.renderCompact(TraceCostScoreAdapter.toCostScore(finalist).explain(finalist.reason())))
                         .append('\n');
             }
         }
@@ -843,7 +841,7 @@ public final class TextBenchmarkReportRenderer {
 
     private static void appendOptimizerCost(
             StringBuilder sb,
-            graph.optimizer.state.OptimizerTrace trace
+            trace.compile.OptimizerTrace trace
     ) {
         if (trace == null || trace.costExplanations().isEmpty()) {
             return;
@@ -851,7 +849,9 @@ public final class TextBenchmarkReportRenderer {
         sb.append("  optimizerCost:\n");
         for (var explanation : trace.costExplanations()) {
             sb.append("    ")
-                    .append(CostExplanationTextRenderer.renderCompact(explanation))
+                    .append(CostExplanationTextRenderer.renderCompact(
+                            TraceCostExplanationAdapter.toCostExplanation(explanation)
+                    ))
                     .append('\n');
         }
     }
@@ -867,10 +867,10 @@ public final class TextBenchmarkReportRenderer {
         }
     }
 
-    private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
-            graph.execution.trace.BackendSelectionTrace trace
+    private static java.util.List<trace.compile.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
+            trace.prepare.BackendSelectionTrace trace
     ) {
-        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
+        java.util.List<trace.compile.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
         trace.decisions().stream()
                 .flatMap(decision -> decision.finalists().stream())
                 .forEach(out::add);
@@ -879,7 +879,7 @@ public final class TextBenchmarkReportRenderer {
                 continue;
             }
             var summary = decision.costSummary();
-            out.add(new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+            out.add(new trace.compile.PartitionDecisionTrace.CandidateCostTrace(
                     decision.nodeIds(),
                     decision.reason(),
                     summary.finalScore(),
@@ -893,13 +893,13 @@ public final class TextBenchmarkReportRenderer {
         return out.stream().limit(3).toList();
     }
 
-    private static void appendHotSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps, int limit) {
+    private static void appendHotSteps(StringBuilder sb, java.util.List<trace.execution.ExecutionStepTrace> steps, int limit) {
         if (steps == null || steps.isEmpty() || limit <= 0) {
             return;
         }
         sb.append("  hotSteps:\n");
         steps.stream()
-                .sorted(java.util.Comparator.comparingLong(graph.execution.trace.ExecutionStepTrace::durationNs).reversed())
+                .sorted(java.util.Comparator.comparingLong(trace.execution.ExecutionStepTrace::durationNs).reversed())
                 .limit(limit)
                 .forEach(step -> {
                     sb.append("    ")
@@ -922,7 +922,7 @@ public final class TextBenchmarkReportRenderer {
                 });
     }
 
-    private static void appendAllSteps(StringBuilder sb, java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+    private static void appendAllSteps(StringBuilder sb, java.util.List<trace.execution.ExecutionStepTrace> steps) {
         if (steps == null || steps.isEmpty()) {
             return;
         }
@@ -1092,7 +1092,7 @@ public final class TextBenchmarkReportRenderer {
         return stages;
     }
 
-    private static boolean usesParallel(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+    private static boolean usesParallel(java.util.List<trace.execution.ExecutionStepTrace> steps) {
         if (steps == null || steps.isEmpty()) {
             return false;
         }
@@ -1117,7 +1117,7 @@ public final class TextBenchmarkReportRenderer {
         return false;
     }
 
-    private static boolean usesVector(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+    private static boolean usesVector(java.util.List<trace.execution.ExecutionStepTrace> steps) {
         if (steps == null || steps.isEmpty()) {
             return false;
         }
@@ -1353,7 +1353,7 @@ public final class TextBenchmarkReportRenderer {
         return false;
     }
 
-    private static void appendMetalRouteCostSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {
+    private static void appendMetalRouteCostSummary(StringBuilder sb, trace.execution.ExecutionStepTrace step) {
         if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
             return;
         }
@@ -1388,7 +1388,7 @@ public final class TextBenchmarkReportRenderer {
                 .append('\n');
     }
 
-    private static void appendMetalHotStepSummary(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step) {
+    private static void appendMetalHotStepSummary(StringBuilder sb, trace.execution.ExecutionStepTrace step) {
         if (step == null || step.metadata() == null || step.metadata().attributes() == null) {
             return;
         }

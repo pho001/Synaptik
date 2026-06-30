@@ -1,6 +1,6 @@
 package tuning.candidate.graph;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.ExecutionProfileAssembler;
 import config.profile.GraphExecutionPolicy;

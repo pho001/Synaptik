@@ -9,7 +9,7 @@ import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
 import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;

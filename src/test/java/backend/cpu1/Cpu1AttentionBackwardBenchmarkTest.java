@@ -9,7 +9,7 @@ import backend.cpu1.prepare.Cpu1AttentionBackwardPreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
 import config.runtime.ApproximationConfig;

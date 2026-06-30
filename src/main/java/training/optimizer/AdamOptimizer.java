@@ -6,7 +6,7 @@ import tensor.dtype.TensorDTypeOps;
 import backend.cpu.nativecpu.NativeCpuAllocator;
 import backend.cpu.nativecpu.NativeCpuMaterializer;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
@@ -261,8 +261,8 @@ public final class AdamOptimizer extends AbstractTrainableOptimizer {
         }
         Tensor m = new Tensor(ref.parameterNode().shape(), null, "adam_m_sync", DataType.FLOAT32);
         Tensor v = new Tensor(ref.parameterNode().shape(), null, "adam_v_sync", DataType.FLOAT32);
-        metal.allocator().readToCpu(metal.firstMoment(), m, backend.memory.CpuMaterializationReason.OPTIMIZER_STEP);
-        metal.allocator().readToCpu(metal.secondMoment(), v, backend.memory.CpuMaterializationReason.OPTIMIZER_STEP);
+        metal.allocator().readToCpu(metal.firstMoment(), m, runtime.contract.CpuMaterializationReason.OPTIMIZER_STEP);
+        metal.allocator().readToCpu(metal.secondMoment(), v, runtime.contract.CpuMaterializationReason.OPTIMIZER_STEP);
         cpuStates.put(source, CpuAdamState.fromFloat32(TensorInternalAccess.float32Data(m), TensorInternalAccess.float32Data(v)));
         metal.allocator().destroy(metal.firstMoment().handle());
         metal.allocator().destroy(metal.secondMoment().handle());

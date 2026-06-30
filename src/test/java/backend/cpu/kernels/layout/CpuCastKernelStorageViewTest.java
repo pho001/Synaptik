@@ -10,7 +10,7 @@ import backend.cpu.storage.CpuStorageBindings;
 import backend.cpu.storage.CpuStorageResolver;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;

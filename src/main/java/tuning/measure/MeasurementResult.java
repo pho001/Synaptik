@@ -1,6 +1,6 @@
 package tuning.measure;
 
-import graph.execution.trace.ExecutionTrace;
+import trace.ExecutionTrace;
 
 /**
  * Measurement output for one candidate workload execution.

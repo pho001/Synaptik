@@ -1,7 +1,7 @@
 package backend.cpu1.exec;
 
 import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.Tensor;
 

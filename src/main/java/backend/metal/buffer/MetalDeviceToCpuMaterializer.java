@@ -2,7 +2,7 @@ package backend.metal.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;

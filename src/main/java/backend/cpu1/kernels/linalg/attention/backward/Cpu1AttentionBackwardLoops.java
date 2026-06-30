@@ -7,7 +7,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import graph.compile.planning.region.specialization.SdpaBackwardOutputKind;
 import jdk.incubator.vector.DoubleVector;

@@ -15,9 +15,9 @@ import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
 import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsGraphBridge;
@@ -25,8 +25,8 @@ import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;
-import graph.execution.trace.HostDeviceTransferKind;
-import graph.execution.trace.HostDeviceTransferTrace;
+import runtime.contract.HostDeviceTransferKind;
+import trace.execution.HostDeviceTransferTrace;
 import graph.execution.device.DeviceLayoutMaterializer;
 import operations.Operation;
 import tensor.DataType;
@@ -598,7 +598,7 @@ public final class MetalAcceleratorBufferBinder {
         context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
                 nodeId,
                 ComputeBackend.GPU_METAL.name(),
-                dataType,
+                dataType.name(),
                 route.sourceResidency(),
                 targetResidency,
                 route.kind(),
@@ -630,7 +630,7 @@ public final class MetalAcceleratorBufferBinder {
         context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
                 nodeId,
                 ComputeBackend.GPU_METAL.name(),
-                dataType,
+                dataType.name(),
                 StorageResidency.CPU_ARRAY,
                 targetResidency,
                 HostDeviceTransferKind.CPU_ARRAY_TO_DEVICE_COPY,

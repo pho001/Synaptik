@@ -104,8 +104,8 @@ public record CompileConfig(
         return new CompileConfig(semanticCanonicalization, graphOptimization, backendPlanning, regionOptimization, newConfig);
     }
 
-    public static CompileConfig defaultsForMode(backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD ? training() : inference();
+    public static CompileConfig defaultsForMode(runtime.contract.ExecutionMode mode) {
+        return mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD ? training() : inference();
     }
 
     public static CompileConfig defaultsForCompileMode(tensor.CompileMode mode, boolean hasTrainableLeafInputs) {

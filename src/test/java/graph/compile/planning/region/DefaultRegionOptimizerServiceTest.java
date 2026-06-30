@@ -3,7 +3,7 @@ package graph.compile.planning.region;
 import config.optimizer.FuseConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
 import graph.compile.planning.partition.PartitionEdge;
@@ -48,8 +48,8 @@ class DefaultRegionOptimizerServiceTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(2, 1, 2, 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        PartitionTarget.CPU,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionTarget.CPU.name(),
                         2,
                         true,
                         "test",
@@ -100,8 +100,8 @@ class DefaultRegionOptimizerServiceTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(2, 1, 2, 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        PartitionTarget.GPU_METAL,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionTarget.GPU_METAL.name(),
                         2,
                         true,
                         "test",

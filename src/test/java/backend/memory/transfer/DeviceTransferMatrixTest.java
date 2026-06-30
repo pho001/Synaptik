@@ -1,7 +1,7 @@
 package backend.memory.transfer;
 
-import backend.memory.StorageResidency;
-import graph.execution.trace.HostDeviceTransferKind;
+import runtime.contract.StorageResidency;
+import runtime.contract.HostDeviceTransferKind;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

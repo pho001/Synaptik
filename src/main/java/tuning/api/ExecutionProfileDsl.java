@@ -1,6 +1,6 @@
 package tuning.api;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;

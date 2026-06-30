@@ -11,7 +11,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;

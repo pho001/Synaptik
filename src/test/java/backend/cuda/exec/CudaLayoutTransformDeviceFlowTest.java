@@ -13,10 +13,10 @@ import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
@@ -26,7 +26,7 @@ import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -146,7 +146,7 @@ class CudaLayoutTransformDeviceFlowTest {
                 .anyMatch(entry -> entry.reason() == CpuMaterializationReason.CPU_CONSUMER));
         assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_CUDA
+                        && ComputeBackend.GPU_CUDA.name().equals(decision.selectedBackend())
                         && decision.nodeIds().contains(logSoftmaxNodeId)));
         assertTrue(compiled.program().compiledNodes().stream()
                 .anyMatch(node -> node.operation() != null && node.operation().opType() == Operation.OpType.LOG_SOFTMAX));
@@ -171,7 +171,7 @@ class CudaLayoutTransformDeviceFlowTest {
                 testsupport.PublicationPlans.forRoot(rootTensor, nodes, forwardOutputNode.id()),
                 forwardOutputNode,
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
     }
 

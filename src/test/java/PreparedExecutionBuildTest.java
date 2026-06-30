@@ -22,7 +22,7 @@ import backend.metal.lowering.MetalBackendPartitionCapability;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -178,7 +178,7 @@ public class PreparedExecutionBuildTest {
         assertFalse(execution.prepareTrace().backendDiagnostics().isEmpty());
         var selectedDecision = execution.prepareTrace().backendSelection().decisions().stream()
                 .filter(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                        && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .findFirst()
                 .orElseThrow();
         assertNotNull(selectedDecision.costSummary());
@@ -203,7 +203,7 @@ public class PreparedExecutionBuildTest {
 
         var decision = execution.prepareTrace().backendSelection().decisions().stream()
                 .filter(candidate -> candidate.selected()
-                        && candidate.selectedBackend() == ComputeBackend.GPU_METAL)
+                        && ComputeBackend.GPU_METAL.name().equals(candidate.selectedBackend()))
                 .findFirst()
                 .orElseThrow();
 
@@ -229,7 +229,7 @@ public class PreparedExecutionBuildTest {
         int logSoftmaxNodeId = nodeId(compiled, "logSoftmax");
 
         var selected = execution.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(matmulNodeId) || decision.nodeIds().contains(logSoftmaxNodeId))
                 .findFirst()
                 .orElseThrow();
@@ -252,7 +252,7 @@ public class PreparedExecutionBuildTest {
         int logSoftmaxNodeId = nodeId(compiled, "logSoftmax");
 
         var selected = execution.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_CUDA)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_CUDA.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(matmulNodeId) || decision.nodeIds().contains(logSoftmaxNodeId))
                 .findFirst()
                 .orElseThrow();
@@ -294,7 +294,7 @@ public class PreparedExecutionBuildTest {
         assertFalse(resolved.anyPreparedInputUsed());
         assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, AcceleratorBufferExecutionPath.BUFFER_BINDING);
         assertTrue(state.cpuMaterializationTraces().stream()
-                .noneMatch(trace -> trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+                .noneMatch(trace -> trace.reason() == runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
     }
 
     @Test
@@ -359,7 +359,7 @@ public class PreparedExecutionBuildTest {
         assertEquals(List.of(externalNodeId), resolved.externalInputNodeIds());
         assertTrue(state.cpuMaterializationTraces().stream()
                 .noneMatch(trace -> trace.nodeId() == internalNodeId
-                        && trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+                        && trace.reason() == runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
     }
 
     @Test
@@ -625,13 +625,13 @@ public class PreparedExecutionBuildTest {
         int logSoftmaxNodeId = nodeId(compiled, "logSoftmax");
 
         var manifest = execution.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
-                .map(graph.execution.trace.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
                 .filter(candidate -> candidate != null)
                 .findFirst()
                 .orElseThrow();
-        String manifestText = backend.accelerator.lowering.GpuLoweredRegionManifestRenderer.renderCompact(manifest);
+        String manifestText = tuning.benchmark.report.GpuLoweredRegionTraceRenderer.renderCompact(manifest);
 
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
         assertFalse(manifestText.isBlank());
@@ -689,7 +689,7 @@ public class PreparedExecutionBuildTest {
                 "TAKE_ALONG_AXIS should stay selected once native INT32 index execution exists");
         assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
                         .anyMatch(decision -> decision.selected()
-                                && decision.selectedBackend() == ComputeBackend.GPU_METAL
+                                && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend())
                                 && decision.nodeIds().containsAll(List.of(logSoftmaxNodeId, takeNodeId))),
                 "LOG_SOFTMAX producer and TAKE_ALONG_AXIS should be admitted into one Metal-owned region");
         assertEquals("", takeReason);
@@ -937,7 +937,7 @@ public class PreparedExecutionBuildTest {
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(entry -> (entry.nodeId() == linearNodeId || entry.nodeId() == reluNodeId)
-                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && entry.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -983,7 +983,7 @@ public class PreparedExecutionBuildTest {
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(entry -> (entry.nodeId() == linearNodeId || entry.nodeId() == reluNodeId)
-                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && entry.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -1152,7 +1152,7 @@ public class PreparedExecutionBuildTest {
 
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(entry -> (entry.nodeId() == reluNodeId || entry.nodeId() == expNodeId)
-                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && entry.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
         PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_METAL));
         assertTrue(required.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_METAL
@@ -1192,7 +1192,7 @@ public class PreparedExecutionBuildTest {
 
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(entry -> (entry.nodeId() == reluNodeId || entry.nodeId() == expNodeId)
-                        && entry.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && entry.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
         PreparedExecution required = compiled.prepare(runtimeWithRequiredAcceleratorBuffer(ComputeBackend.GPU_CUDA));
         assertTrue(required.forwardSteps().stream()
                 .anyMatch(step -> step.metadata().backend() == ComputeBackend.GPU_CUDA
@@ -1910,9 +1910,9 @@ public class PreparedExecutionBuildTest {
                 .anyMatch(step -> step.backend().equals("GPU_METAL") && step.opType().equals("CROSS_ENTROPY_LOSS")));
         assertFalse(trace.cpuMaterializations().stream()
                 .anyMatch(materialization -> materialization.nodeId() == lossNodeId
-                        && materialization.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && materialization.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
         assertFalse(trace.cpuMaterializations().stream()
-                .anyMatch(materialization -> materialization.reason() == backend.memory.CpuMaterializationReason.CPU_FALLBACK));
+                .anyMatch(materialization -> materialization.reason() == runtime.contract.CpuMaterializationReason.CPU_FALLBACK));
     }
 
     @Test
@@ -3379,7 +3379,7 @@ public class PreparedExecutionBuildTest {
 
         var selectedDecision = execution.prepareTrace().backendSelection().decisions().stream()
                 .filter(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                        && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .findFirst()
                 .orElseThrow();
 
@@ -4674,7 +4674,7 @@ public class PreparedExecutionBuildTest {
     private static boolean hasSelectedAcceleratorDecisionFor(PreparedExecution execution, ComputeBackend backend, int nodeId) {
         return execution.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == backend
+                        && backend.name().equals(decision.selectedBackend())
                         && decision.nodeIds().contains(nodeId));
     }
 

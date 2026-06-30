@@ -59,6 +59,16 @@ public class PackageOwnershipBoundaryTest {
     }
 
     @Test
+    void traceContainsOnlySnapshotsAndRuntimeContracts() throws IOException {
+        List<String> allowedPackages = List.of("runtime.contract.", "trace.");
+        assertNoImports(
+                "trace",
+                importedType -> !isJdkImport(importedType) && !startsWithAny(importedType, allowedPackages),
+                "trace DTOs may import only JDK, trace-owned DTOs, and runtime contracts"
+        );
+    }
+
+    @Test
     void tensorDoesNotDependOnRuntimeResidencyImplementations() throws IOException {
         assertNoImports(
                 "tensor",

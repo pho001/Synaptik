@@ -2,7 +2,7 @@ package graph.compile.planning.partition;
 
 import graph.compile.planning.value.GraphValueRef;
 
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionDecisionTrace;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.List;

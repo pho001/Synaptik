@@ -1,7 +1,7 @@
 package graph.execution;
 
 import backend.cpu.nativecpu.NativeCpuMemoryPool;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
@@ -10,8 +10,8 @@ import graph.compile.GraphStructureContract;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.trace.PrepareTrace;
-import graph.execution.trace.RunTrace;
+import trace.prepare.PrepareTrace;
+import trace.execution.RunTrace;
 import graph.compile.planning.memory.MemoryPlan;
 import tensor.Tensor;
 import training.optimizer.TrainingOptimizer;

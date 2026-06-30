@@ -50,7 +50,7 @@ final class FusedParallelVectorDumpTest {
                 "fused-dump-" + dataType.name().toLowerCase(),
                 "fused-dump-" + dataType.name().toLowerCase(),
                 dataType,
-                backend.runtime.ExecutionMode.FORWARD,
+                runtime.contract.ExecutionMode.FORWARD,
                 CompileConfig.inference().withGraphOptimization(config.compile.GraphOptimizationConfig.noGraphOptimization()),
                 runtimeForDump(),
                 WorkloadProfile.none()

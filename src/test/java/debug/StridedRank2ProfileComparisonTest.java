@@ -1,6 +1,6 @@
 package debug;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;

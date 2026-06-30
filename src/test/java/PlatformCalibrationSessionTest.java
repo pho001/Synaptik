@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfile;

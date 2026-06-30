@@ -1,7 +1,7 @@
 package tuning.benchmark.report;
 
-import graph.execution.trace.ExecutionTrace;
-import graph.execution.trace.MatMulTraceMetadata;
+import trace.ExecutionTrace;
+import trace.backend.MatMulTraceMetadata;
 import tensor.DataType;
 
 import java.util.ArrayList;
@@ -74,7 +74,7 @@ public record Bf16PerformanceSummary(
         return trace == null ? empty() : fromRun(trace.run());
     }
 
-    public static Bf16PerformanceSummary fromRun(graph.execution.trace.RunTrace run) {
+    public static Bf16PerformanceSummary fromRun(trace.execution.RunTrace run) {
         if (run == null) {
             return empty();
         }
@@ -160,7 +160,7 @@ public record Bf16PerformanceSummary(
         int f32Master = 0;
         int experimental = 0;
         for (var optimizer : run.nativeOptimizers()) {
-            if (optimizer == null || optimizer.dataType() != DataType.BFLOAT16) {
+            if (optimizer == null || !"BFLOAT16".equals(optimizer.dataType())) {
                 continue;
             }
             optimizerCount++;

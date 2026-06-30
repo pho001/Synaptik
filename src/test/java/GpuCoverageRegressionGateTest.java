@@ -556,7 +556,7 @@ public class GpuCoverageRegressionGateTest {
                 "phase28-gate-profile",
                 "phase28-gate-profile",
                 tensor.DataType.FLOAT32,
-                backend.runtime.ExecutionMode.FORWARD,
+                runtime.contract.ExecutionMode.FORWARD,
                 config.compile.CompileConfig.noGraphOptimizationBaseline(),
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 config.profile.WorkloadProfile.transformerHotPathDefaults()
@@ -607,7 +607,7 @@ public class GpuCoverageRegressionGateTest {
         );
     }
 
-    private static graph.execution.trace.ExecutionTrace traceWithCoverage(GpuCoverageSummary.BackendCoverage coverage) {
+    private static trace.ExecutionTrace traceWithCoverage(GpuCoverageSummary.BackendCoverage coverage) {
         tensor.DataType evidenceDType = evidenceDType(coverage);
         var manifest = new backend.accelerator.lowering.GpuLoweredRegionManifest(
                 "dtype-region",
@@ -664,16 +664,16 @@ public class GpuCoverageRegressionGateTest {
             attrs.put("gpuLayoutTransformKind", coverage.gpuLayoutTransformKindCounts().keySet().iterator().next());
             attrs.put("gpuLayoutTransformTargetLayoutClass", coverage.gpuLayoutTargetLayoutClassCounts().keySet().iterator().next());
         }
-        var gpuStep = new graph.execution.trace.ExecutionStepTrace(
+        var gpuStep = new trace.execution.ExecutionStepTrace(
                 0,
                 "gpu_metal_dtype",
                 evidenceDType + "_TEST",
                 List.of(2),
-                evidenceDType,
+                evidenceDType.name(),
                 "GPU_METAL",
                 "PreparedAcceleratorExecutable",
                 1L,
-                new graph.execution.trace.StepExecutionMetadata(
+                new trace.execution.StepExecutionMetadata(
                         "node",
                         attrs,
                         null,
@@ -685,66 +685,66 @@ public class GpuCoverageRegressionGateTest {
                         null
                 )
         );
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 1,
                 1,
                 0,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                         1,
                         manifest.orderedNodeIds(),
-                        List.of(backend.contract.ComputeBackend.GPU_METAL),
+                        List.of(backend.contract.ComputeBackend.GPU_METAL.name()),
                         true,
-                        backend.contract.ComputeBackend.GPU_METAL,
+                        backend.contract.ComputeBackend.GPU_METAL.name(),
                         "selected",
                         128L,
                         null,
                         List.of(),
-                        manifest
+                        testsupport.TraceSnapshotTestSupport.traceManifest(manifest)
                 ))
         );
-        List<graph.execution.trace.CpuMaterializationTrace> materializations =
+        List<trace.execution.CpuMaterializationTrace> materializations =
                 coverage.cpuMaterializationReasonCounts().containsKey("CPU_CONSUMER")
-                        ? List.of(new graph.execution.trace.CpuMaterializationTrace(
+                        ? List.of(new trace.execution.CpuMaterializationTrace(
                                 1,
-                                backend.memory.CpuMaterializationReason.CPU_CONSUMER,
+                                runtime.contract.CpuMaterializationReason.CPU_CONSUMER,
                                 "GPU_METAL",
-                                backend.memory.StorageResidency.DEVICE_OWNED,
+                                runtime.contract.StorageResidency.DEVICE_OWNED,
                                 4096L,
                                 1L,
                                 true,
                                 "synthetic CPU_CONSUMER"
                         ))
                         : List.of();
-        return new graph.execution.trace.ExecutionTrace(
-                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
-                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(gpuStep), materializations)
+        return new trace.ExecutionTrace(
+                new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                new trace.prepare.PrepareTrace(true, 1L, 0, 0, selection),
+                new trace.execution.RunTrace(runtime.contract.ExecutionMode.FORWARD, 1L, List.of(gpuStep), materializations)
         );
     }
 
-    private static graph.execution.trace.ExecutionTrace traceWithRejectedReason(
+    private static trace.ExecutionTrace traceWithRejectedReason(
             String backendName,
             backend.contract.ComputeBackend computeBackend,
             String reason
     ) {
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 1,
                 0,
                 1,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                         1,
                         List.of(1),
-                        List.of(computeBackend),
+                        List.of(computeBackend.name()),
                         false,
                         null,
                         reason,
                         128L
                 ))
         );
-        return new graph.execution.trace.ExecutionTrace(
-                new graph.execution.trace.CompileTrace(true, 1L, 0, 0, false, graph.execution.trace.PartitionCompileTrace.empty()),
-                new graph.execution.trace.PrepareTrace(true, 1L, 0, 0, selection),
-                new graph.execution.trace.RunTrace(backend.runtime.ExecutionMode.FORWARD, 1L, List.of(), List.of())
+        return new trace.ExecutionTrace(
+                new trace.compile.CompileTrace(true, 1L, 0, 0, false, trace.compile.PartitionCompileTrace.empty()),
+                new trace.prepare.PrepareTrace(true, 1L, 0, 0, selection),
+                new trace.execution.RunTrace(runtime.contract.ExecutionMode.FORWARD, 1L, List.of(), List.of())
         );
     }
 

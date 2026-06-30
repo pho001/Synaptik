@@ -1,5 +1,5 @@
 import backend.blas.OpenBlasRuntime;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;

@@ -9,7 +9,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.accelerator.lowering.GpuLoweredRegionManifestRenderer;
+import tuning.benchmark.report.GpuLoweredRegionTraceRenderer;
 import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
@@ -23,8 +23,8 @@ import backend.lowering.region.RegionExecutionGroup;
 import backend.lowering.region.RegionExecutionKind;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.lowering.region.RegionStorageContract;
-import backend.memory.CpuMaterializationReason;
-import backend.runtime.ExecutionMode;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.ExecutionMode;
 import backend.contract.ComputeBackend;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -66,7 +66,7 @@ public class CompiledGraphTraceTest {
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
 
         var selected = prepared.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(matmulNodeId) && decision.nodeIds().contains(logSoftmaxNodeId))
                 .findFirst()
                 .orElseThrow();
@@ -90,17 +90,17 @@ public class CompiledGraphTraceTest {
         int logSoftmaxNodeId = nodeId(compiled, operations.Operation.OpType.LOG_SOFTMAX);
 
         var manifest = prepared.prepareTrace().backendSelection().decisions().stream()
-                .filter(decision -> decision.selected() && decision.selectedBackend() == ComputeBackend.GPU_METAL)
+                .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
-                .map(graph.execution.trace.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
                 .filter(candidate -> candidate != null)
                 .findFirst()
                 .orElseThrow();
 
-        assertEquals(ComputeBackend.GPU_METAL, manifest.backend());
+        assertEquals("GPU_METAL", manifest.backend());
         assertTrue(manifest.selectedRegionLength() >= 1);
-        assertTrue(manifest.originalOps().stream().anyMatch(op -> op.nodeId() == logSoftmaxNodeId));
-        assertTrue(manifest.originalOps().stream().anyMatch(op -> "LOG_SOFTMAX".equals(op.opType())));
+        assertTrue(manifest.originalOperations().stream().anyMatch(op -> op.nodeId() == logSoftmaxNodeId));
+        assertTrue(manifest.originalOperations().stream().anyMatch(op -> "LOG_SOFTMAX".equals(op.opType())));
         assertTrue(manifest.loweredPrimitives().stream().anyMatch(primitive -> "SOFTMAX".equals(primitive.primitiveType())));
         assertTrue(manifest.loweredPrimitives().stream().anyMatch(primitive -> "LOG".equals(primitive.primitiveType())));
         assertTrue(manifest.inputAssumptions().stream().anyMatch(assumption -> !assumption.layout().isBlank()));
@@ -121,7 +121,7 @@ public class CompiledGraphTraceTest {
         assertEquals("", reason);
         assertTrue(prepared.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_CUDA
+                        && ComputeBackend.GPU_CUDA.name().equals(decision.selectedBackend())
                         && decision.nodeIds().contains(sumNodeId)));
     }
 
@@ -143,7 +143,7 @@ public class CompiledGraphTraceTest {
 
         assertTrue(prepared.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_CUDA
+                        && ComputeBackend.GPU_CUDA.name().equals(decision.selectedBackend())
                         && decision.nodeIds().contains(layerNormNodeId)));
         assertEquals("", reason);
     }
@@ -274,9 +274,9 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(
-                List.of(PartitionTarget.CPU),
+                List.of("CPU"),
                 compiled.compileTrace().partitionPlanning().jobs().stream()
-                        .map(graph.execution.trace.PartitionCompileTrace.JobTrace::target)
+                        .map(trace.compile.PartitionCompileTrace.JobTrace::target)
                         .toList()
         );
         assertTrue(compiled.compileTrace().partitionPlanning().decisions().size() > 0);
@@ -296,9 +296,9 @@ public class CompiledGraphTraceTest {
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.inference(), backendIntentPlan);
 
         assertEquals(
-                List.of(PartitionTarget.GPU_METAL, PartitionTarget.CPU),
+                List.of("GPU_METAL", "CPU"),
                 compiled.compileTrace().partitionPlanning().jobs().stream()
-                        .map(graph.execution.trace.PartitionCompileTrace.JobTrace::target)
+                        .map(trace.compile.PartitionCompileTrace.JobTrace::target)
                         .toList()
         );
     }
@@ -324,7 +324,7 @@ public class CompiledGraphTraceTest {
                 compiled.publication(),
                 outputNode,
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         var trace = prepared.executeTraced(ExecutionMode.FORWARD);
@@ -356,7 +356,7 @@ public class CompiledGraphTraceTest {
                 compiled.publication(),
                 outputNode,
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         var attrs = prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
@@ -537,7 +537,7 @@ public class CompiledGraphTraceTest {
                 compiled.publication(),
                 outputNode,
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         var attrs = prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
@@ -607,25 +607,25 @@ public class CompiledGraphTraceTest {
                 GpuLoweredRegionCandidateSpan.none(List.of(70, 71)),
                 Map.of("dtypeResidency.input.60", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true")
         );
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 1,
                 1,
                 0,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                         70,
                         List.of(70, 71),
-                        List.of(ComputeBackend.GPU_CUDA),
+                        List.of(ComputeBackend.GPU_CUDA.name()),
                         true,
-                        ComputeBackend.GPU_CUDA,
+                        ComputeBackend.GPU_CUDA.name(),
                         "selected",
                         128L,
                         null,
                         List.of(),
-                        manifest
+                        testsupport.TraceSnapshotTestSupport.traceManifest(manifest)
                 ))
         );
 
-        String rendered = GpuLoweredRegionManifestRenderer.renderCompact(
+        String rendered = GpuLoweredRegionTraceRenderer.renderCompact(
                 selection.decisions().getFirst().gpuLoweredRegionManifest()
         );
 
@@ -704,25 +704,25 @@ public class CompiledGraphTraceTest {
                 GpuLoweredRegionCandidateSpan.none(List.of(80, 81)),
                 Map.of("phase17Target", "target=transformer_block_hot_path")
         );
-        var selection = new graph.execution.trace.BackendSelectionTrace(
+        var selection = new trace.prepare.BackendSelectionTrace(
                 1,
                 1,
                 0,
-                List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
+                List.of(new trace.prepare.BackendSelectionDecisionTrace(
                         81,
                         List.of(80, 81),
-                        List.of(ComputeBackend.GPU_METAL),
+                        List.of(ComputeBackend.GPU_METAL.name()),
                         true,
-                        ComputeBackend.GPU_METAL,
+                        ComputeBackend.GPU_METAL.name(),
                         "selected",
                         256L,
                         null,
                         List.of(),
-                        manifest
+                        testsupport.TraceSnapshotTestSupport.traceManifest(manifest)
                 ))
         );
 
-        String rendered = GpuLoweredRegionManifestRenderer.renderCompact(
+        String rendered = GpuLoweredRegionTraceRenderer.renderCompact(
                 selection.decisions().getFirst().gpuLoweredRegionManifest()
         );
 
@@ -755,7 +755,7 @@ public class CompiledGraphTraceTest {
                 compiled.publication(),
                 outputNode,
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
         return prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
     }

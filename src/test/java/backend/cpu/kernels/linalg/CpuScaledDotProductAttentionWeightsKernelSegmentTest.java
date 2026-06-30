@@ -8,7 +8,7 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.linalg.scaledDotProductAttentionWeights;

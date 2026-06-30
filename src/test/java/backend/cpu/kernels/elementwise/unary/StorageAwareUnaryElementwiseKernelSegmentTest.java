@@ -1,7 +1,7 @@
 package backend.cpu.kernels.elementwise.unary;
 
 import backend.ApproxMode;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.compile.RegionOptimizationConfig;
 import config.compile.SemanticCanonicalizationConfig;
@@ -11,7 +11,7 @@ import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import backend.cpu.storage.CpuStorageView;
 import graph.CompiledGraph;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

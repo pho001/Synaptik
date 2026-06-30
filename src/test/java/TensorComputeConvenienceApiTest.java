@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;

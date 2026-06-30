@@ -8,7 +8,7 @@ import backend.cpu.nativecpu.CpuNativeTraceSupport;
 import backend.cpu.storage.CpuStorageBindings;
 import backend.cpu.storage.CpuStorageResolver;
 import backend.cpu.storage.CpuStorageView;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;

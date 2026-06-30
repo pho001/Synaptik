@@ -45,9 +45,9 @@ public class CrossEntropyLossFromIndicesLoweringTest {
         Tensor direct = directLogits.crossEntropyLossFromIndices(targetIndices, 1);
 
         graph.CompiledGraph.compile(canonical, CompileConfig.inference())
-                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
         graph.CompiledGraph.compile(direct, CompileConfig.noGraphOptimizationBaseline())
-                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+                .prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(direct.toDoubleArrayCopy(), canonical.toDoubleArrayCopy(), 1e-9);
     }

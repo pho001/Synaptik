@@ -20,7 +20,7 @@ public class AlgebraicRewritingPowTest {
         Tensor powNeg1 = new Tensor(new int[]{2}, List.of(input), new pow(-1.0), "powNeg1", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(powNeg1, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.5, 0.25}, powNeg1.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
@@ -41,7 +41,7 @@ public class AlgebraicRewritingPowTest {
         Tensor powNeg2 = new Tensor(new int[]{2}, List.of(input), new pow(-2.0), "powNeg2", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(powNeg2, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.25, 0.0625}, powNeg2.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()

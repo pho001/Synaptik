@@ -1,7 +1,7 @@
 package backend.cpu.fused.exec;
 
 import backend.cpu.execution.CpuKernelContext;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;
 

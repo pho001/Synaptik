@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.contract.ComputeBackend;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;

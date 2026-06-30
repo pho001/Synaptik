@@ -1,6 +1,6 @@
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.BackendPlanningConfig;
 import config.compile.CompileConfig;
@@ -12,7 +12,7 @@ import config.runtime.AcceleratorConfig;
 import config.runtime.BlasConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

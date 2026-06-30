@@ -11,7 +11,7 @@ import backend.cpu.plan.linalg.attention.ResolvedAttentionHints;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.linalg.scaledDotProductAttention;

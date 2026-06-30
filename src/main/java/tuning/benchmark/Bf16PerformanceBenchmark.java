@@ -1,7 +1,7 @@
 package tuning.benchmark;
 
 import backend.blas.BlasProvider;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;

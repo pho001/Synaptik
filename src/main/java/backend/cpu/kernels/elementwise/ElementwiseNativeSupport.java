@@ -2,7 +2,7 @@ package backend.cpu.kernels.elementwise;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.storage.CpuStorageView;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.DataType;

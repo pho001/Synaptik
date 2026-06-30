@@ -11,7 +11,7 @@ import backend.cpu1.prepare.dispatch.Cpu1DispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;

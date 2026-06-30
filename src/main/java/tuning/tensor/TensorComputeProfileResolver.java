@@ -7,7 +7,7 @@ import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import tensor.AutotunePolicy;
 import tensor.CompileMode;
 import tensor.ComputeOptions;

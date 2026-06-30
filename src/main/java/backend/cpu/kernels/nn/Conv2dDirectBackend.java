@@ -2,7 +2,7 @@ package backend.cpu.kernels.nn;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.storage.CpuStorageView;
-import graph.execution.trace.ConvTraceMetadata;
+import trace.backend.ConvTraceMetadata;
 import operations.nn.conv.conv2d;
 import tensor.DataType;
 import tensor.Tensor;

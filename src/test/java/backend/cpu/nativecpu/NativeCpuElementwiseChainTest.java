@@ -3,7 +3,7 @@ package backend.cpu.nativecpu;
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
 import tensor.dtype.TensorDTypeOps;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.compile.RegionOptimizationConfig;
@@ -18,7 +18,7 @@ import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PublicationPolicy;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -686,7 +686,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
         assertNativeCast(trace.steps().stream()
-                .filter(step -> "CAST".equals(step.opType()) && step.dataType() == DataType.FLOAT32)
+                .filter(step -> "CAST".equals(step.opType()) && "FLOAT32".equals(step.dataType()))
                 .findFirst()
                 .orElseThrow());
     }
@@ -887,7 +887,7 @@ class NativeCpuElementwiseChainTest {
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "RELU"));
         assertNativeBf16Promoted(firstNativeStep(trace.steps(), "MUL_SCALAR"));
         assertNativeCast(trace.steps().stream()
-                .filter(step -> "CAST".equals(step.opType()) && step.dataType() == DataType.FLOAT32)
+                .filter(step -> "CAST".equals(step.opType()) && "FLOAT32".equals(step.dataType()))
                 .findFirst()
                 .orElseThrow());
     }

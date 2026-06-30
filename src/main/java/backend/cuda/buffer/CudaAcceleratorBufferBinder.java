@@ -17,15 +17,15 @@ import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeCapabilities;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.cuda.bridge.CudaGraphBridge;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;
-import graph.execution.trace.HostDeviceTransferKind;
-import graph.execution.trace.HostDeviceTransferTrace;
+import runtime.contract.HostDeviceTransferKind;
+import trace.execution.HostDeviceTransferTrace;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -462,7 +462,7 @@ public final class CudaAcceleratorBufferBinder {
         context.recordHostDeviceTransfer(new HostDeviceTransferTrace(
                 nodeId,
                 ComputeBackend.GPU_CUDA.name(),
-                dataType,
+                dataType.name(),
                 route.sourceResidency(),
                 targetResidency,
                 route.kind(),

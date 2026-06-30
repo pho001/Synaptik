@@ -7,19 +7,19 @@ import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
 import backend.accelerator.lowering.GpuLoweredRegionRejection;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
-import backend.memory.CpuMaterializationReason;
-import backend.memory.StorageResidency;
-import backend.runtime.ExecutionMode;
-import graph.execution.trace.BackendSelectionDecisionTrace;
-import graph.execution.trace.BackendSelectionTrace;
-import graph.execution.trace.CompileTrace;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.ExecutionTrace;
-import graph.execution.trace.PartitionCompileTrace;
-import graph.execution.trace.PrepareTrace;
-import graph.execution.trace.RunTrace;
-import graph.execution.trace.StepExecutionMetadata;
+import runtime.contract.CpuMaterializationReason;
+import runtime.contract.StorageResidency;
+import runtime.contract.ExecutionMode;
+import trace.prepare.BackendSelectionDecisionTrace;
+import trace.prepare.BackendSelectionTrace;
+import trace.compile.CompileTrace;
+import trace.execution.CpuMaterializationTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.ExecutionTrace;
+import trace.compile.PartitionCompileTrace;
+import trace.prepare.PrepareTrace;
+import trace.execution.RunTrace;
+import trace.execution.StepExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.benchmark.report.GpuCoverageBaseline;
@@ -640,7 +640,7 @@ public class GpuCoverageSummaryTest {
                 backendName.toLowerCase() + "_linear",
                 "LINEAR",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 backendName,
                 "PreparedAcceleratorExecutable",
                 2_000_000L,
@@ -675,7 +675,7 @@ public class GpuCoverageSummaryTest {
                 "cpu_consumer",
                 "ADD",
                 List.of(16, 16),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "CPU",
                 "CpuElementWiseKernel",
                 1_000_000L,
@@ -689,16 +689,16 @@ public class GpuCoverageSummaryTest {
                         new BackendSelectionDecisionTrace(
                                 10,
                                 List.of(10, 11, 12),
-                                List.of(backend),
+                                List.of(backend.name()),
                                 true,
-                                backend,
+                                backend.name(),
                                 "selected",
                                 4096L
                         ),
                         new BackendSelectionDecisionTrace(
                                 20,
                                 List.of(20),
-                                List.of(backend),
+                                List.of(backend.name()),
                                 false,
                                 null,
                                 "unsupported-layout",
@@ -784,19 +784,19 @@ public class GpuCoverageSummaryTest {
                         new BackendSelectionDecisionTrace(
                                 40,
                                 List.of(40, 41),
-                                List.of(backend),
+                                List.of(backend.name()),
                                 true,
-                                backend,
+                                backend.name(),
                                 "selected",
                                 4096L,
                                 null,
                                 List.of(),
-                                manifest
-                        ),
+                                testsupport.TraceSnapshotTestSupport.traceManifest(manifest)
+                ),
                         new BackendSelectionDecisionTrace(
                                 90,
                                 List.of(90),
-                                List.of(backend),
+                                List.of(backend.name()),
                                 false,
                                 null,
                                 normReason,
@@ -805,7 +805,7 @@ public class GpuCoverageSummaryTest {
                         new BackendSelectionDecisionTrace(
                                 91,
                                 List.of(91),
-                                List.of(backend),
+                                List.of(backend.name()),
                                 false,
                                 null,
                                 lossReason,
@@ -833,14 +833,14 @@ public class GpuCoverageSummaryTest {
                 List.of(new BackendSelectionDecisionTrace(
                         10,
                         List.of(10, 11, 12),
-                        List.of(backend),
+                        List.of(backend.name()),
                         true,
-                        backend,
+                        backend.name(),
                         "selected",
                         4096L,
                         null,
                         List.of(),
-                        manifest
+                        testsupport.TraceSnapshotTestSupport.traceManifest(manifest)
                 ))
         );
         return new ExecutionTrace(

@@ -24,7 +24,7 @@ import config.optimizer.FuseConfig;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionDecisionTrace;
 import graph.compile.planning.memory.MemoryPlanner;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
@@ -127,8 +127,8 @@ class MetalRegionLowererTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        PartitionTarget.GPU_METAL,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionTarget.GPU_METAL.name(),
                         candidate.anchorNodeId(),
                         true,
                         "test",
@@ -1824,8 +1824,8 @@ class MetalRegionLowererTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        PartitionTarget.GPU_METAL,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionTarget.GPU_METAL.name(),
                         candidate.anchorNodeId(),
                         true,
                         "test",
@@ -1899,8 +1899,8 @@ class MetalRegionLowererTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 2, candidate.externalInputIds().size(), 0, 2),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        PartitionTarget.GPU_METAL,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionTarget.GPU_METAL.name(),
                         candidate.anchorNodeId(),
                         true,
                         "test",
@@ -2422,8 +2422,8 @@ class MetalRegionLowererTest {
                 new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        target,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        target.name(),
                         orderedNodeIds.getLast(),
                         true,
                         "test",

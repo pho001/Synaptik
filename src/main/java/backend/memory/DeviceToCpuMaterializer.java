@@ -1,5 +1,7 @@
 package backend.memory;
 
+import runtime.contract.CpuMaterializationReason;
+
 import tensor.Tensor;
 
 /**

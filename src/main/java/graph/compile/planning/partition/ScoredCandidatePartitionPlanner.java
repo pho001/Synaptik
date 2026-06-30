@@ -3,8 +3,9 @@ package graph.compile.planning.partition;
 import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.LayoutClass;
-import graph.execution.trace.PartitionCompileTrace;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionCompileTrace;
+import trace.compile.PartitionDecisionTrace;
+import trace.compile.MaterializationCostTrace;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.ArrayList;
@@ -69,8 +70,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
             }
             if (covered[i]) {
                 decisions.add(PartitionDecisionTrace.coveredByEarlierPartition(
-                        request.strategy(),
-                        request.target(),
+                        request.strategy().name(),
+                        request.target().name(),
                         i,
                         PartitionAssembly.opNames(List.of(i), context)
                 ));
@@ -92,7 +93,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
         return new PartitionPlanningResult(
                 partitions,
                 plansByPartitionId,
-                PartitionCompileTrace.forJob(request.strategy(), request.target(), decisions)
+                PartitionCompileTrace.forJob(request.strategy().name(), request.target().name(), decisions)
         );
     }
 
@@ -104,8 +105,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     null,
                     null,
                     new PartitionDecisionTrace(
-                            request.strategy(),
-                            request.target(),
+                            request.strategy().name(),
+                            request.target().name(),
                             startIndex,
                             false,
                             "unsupported-start-node",
@@ -129,8 +130,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     null,
                     null,
                     new PartitionDecisionTrace(
-                            request.strategy(),
-                            request.target(),
+                            request.strategy().name(),
+                            request.target().name(),
                             startIndex,
                             false,
                             "missing-structural-candidate",
@@ -153,8 +154,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     null,
                     null,
                     new PartitionDecisionTrace(
-                            request.strategy(),
-                            request.target(),
+                            request.strategy().name(),
+                            request.target().name(),
                             startIndex,
                             false,
                             "lowerer-rejected",
@@ -178,8 +179,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                     null,
                     null,
                     new PartitionDecisionTrace(
-                            request.strategy(),
-                            request.target(),
+                            request.strategy().name(),
+                            request.target().name(),
                             startIndex,
                             false,
                             "lowerer-rejected",
@@ -209,8 +210,8 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                 ),
                 plan,
                 new PartitionDecisionTrace(
-                        request.strategy(),
-                        request.target(),
+                        request.strategy().name(),
+                        request.target().name(),
                         startIndex,
                         true,
                         "lowered",
@@ -223,9 +224,23 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
                         search.exploredCandidates(),
                         search.searchBudgetHit(),
                         -1,
-                        search.bestAcceptedCostSummary(),
+                        traceCost(search.bestAcceptedCostSummary()),
                         search.topRejectedFinalists()
                 )
+        );
+    }
+
+    private static MaterializationCostTrace traceCost(
+            AcceleratorPartitionScoreModel.MaterializationCostSummary source
+    ) {
+        if (source == null) {
+            return null;
+        }
+        return new MaterializationCostTrace(
+                source.preset(), source.boundaryCount(), source.estimatedTransferBytes(),
+                source.layoutFallbackBytes(), source.estimatedComputeWork(),
+                source.avoidedIntermediateBytes(), source.dispatchCost(), source.finalScore(),
+                source.reasonCode(), source.fallbackMode(), source.layoutClass()
         );
     }
 

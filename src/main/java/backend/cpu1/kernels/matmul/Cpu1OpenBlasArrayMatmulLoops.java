@@ -4,7 +4,7 @@ import backend.blas.OpenBlasArrayGemm;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.Tensor;
 

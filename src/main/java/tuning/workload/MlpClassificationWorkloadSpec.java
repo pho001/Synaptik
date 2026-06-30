@@ -53,7 +53,7 @@ public final class MlpClassificationWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
         Tensor encoded = tensor("MLP_ENCODED", 701, dataType, requiresGrad, batch, inputFeatures);

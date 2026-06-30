@@ -19,7 +19,7 @@ public class AlgebraicRewritingClampTest {
         Tensor nested = input.clampMin(1.0).clampMin(3.0);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(nested, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{3.0, 3.0, 7.0}, nested.toDoubleArrayCopy(), 1e-9);
         long clampMinCount = compiledGraph.program().compiledNodes().stream()
@@ -35,7 +35,7 @@ public class AlgebraicRewritingClampTest {
         Tensor nested = input.clampMax(6.0).clampMax(4.0);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(nested, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{-5.0, 2.0, 4.0}, nested.toDoubleArrayCopy(), 1e-9);
         long clampMaxCount = compiledGraph.program().compiledNodes().stream()

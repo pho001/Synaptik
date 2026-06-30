@@ -2,7 +2,7 @@ package tuning.workload;
 
 import backend.contract.ComputeBackend;
 import tensor.dtype.TensorDTypeOps;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
@@ -89,7 +89,7 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 101), requiresGrad, environment.profile().dataType(), size);
                     tensor.Tensor b = tensor.factory.TensorDataFactory.shapedTensor("B", random(size, 102), requiresGrad, environment.profile().dataType(), size);
                     return a.add(b).mul(a).sub(b).relu().sum();
@@ -104,7 +104,7 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 103), requiresGrad, environment.profile().dataType(), size);
                     return a.exp().tanh().log().sigmoid().sum();
                 },
@@ -119,7 +119,7 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 109), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor b = tensor.factory.TensorDataFactory.shapedTensor("B", random(size, 110), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor aT = a.transpose();
@@ -137,7 +137,7 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 111), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor aT = a.transpose();
                     return aT.exp().tanh().log().sigmoid().sum();
@@ -153,7 +153,7 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor stridedBase = tensor.factory.TensorDataFactory.shapedTensor(
                             "STRIDED_BASE",
                             random(size, 311),
@@ -186,7 +186,7 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     return tensor.factory.TensorDataFactory.shapedTensor("REDUCE", random(size, 104), requiresGrad, environment.profile().dataType(), size).sum();
                 },
                 environment -> ValidationReference.none(),
@@ -227,7 +227,7 @@ public final class CalibrationWorkloads {
                 name,
                 WorkloadKind.GENERIC,
                 environment -> {
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 105), requiresGrad, environment.profile().dataType(), size);
                     tensor.Tensor b = tensor.factory.TensorDataFactory.shapedTensor("B", random(size, 106), requiresGrad, environment.profile().dataType(), size);
                     return a.add(b).mul(a).add(b).sum();
@@ -243,7 +243,7 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 107), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor b = tensor.factory.TensorDataFactory.shapedTensor("B", random(size, 108), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor aT = a.transpose();
@@ -261,7 +261,7 @@ public final class CalibrationWorkloads {
                 WorkloadKind.GENERIC,
                 environment -> {
                     int size = rows * cols;
-                    boolean requiresGrad = environment.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+                    boolean requiresGrad = environment.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
                     tensor.Tensor a = tensor.factory.TensorDataFactory.shapedTensor("A", random(size, 211), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor b = tensor.factory.TensorDataFactory.shapedTensor("B", random(size, 212), requiresGrad, environment.profile().dataType(), rows, cols);
                     tensor.Tensor maskBase = new Tensor(maskPattern(size), new int[]{rows, cols}, null, "MASK", DataType.BOOL);

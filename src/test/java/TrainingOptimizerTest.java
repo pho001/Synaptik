@@ -1,5 +1,5 @@
 import tensor.dtype.TensorDTypeOps;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
@@ -85,7 +85,7 @@ class TrainingOptimizerTest {
         assertNull(nativeX.getGradient());
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
-        assertEquals(DataType.FLOAT32, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("FLOAT32", trace.nativeOptimizers().getFirst().dataType());
         assertEquals("OUTPUT_ONLY", trace.nativeOptimizers().getFirst().publicationPolicy());
         assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
         assertEquals("NONE", trace.nativeOptimizers().getFirst().optimizerStateStorage());
@@ -208,7 +208,7 @@ class TrainingOptimizerTest {
 
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
-        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("BFLOAT16", trace.nativeOptimizers().getFirst().dataType());
         assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
         assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
         assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-policy-ACTIVATIONS_ONLY"));
@@ -231,7 +231,7 @@ class TrainingOptimizerTest {
         var trace = prepared.executeOptimizerStepTraced(optimizer, PublicationPolicy.OUTPUT_ONLY);
 
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
-        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("BFLOAT16", trace.nativeOptimizers().getFirst().dataType());
         assertEquals("PARAMS_BF16_EXPERIMENTAL", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().parameterResidencyAfter());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().gradientResidencyAfter());
@@ -313,7 +313,7 @@ class TrainingOptimizerTest {
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().route());
-        assertEquals(DataType.FLOAT32, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("FLOAT32", trace.nativeOptimizers().getFirst().dataType());
         assertEquals("OUTPUT_ONLY", trace.nativeOptimizers().getFirst().publicationPolicy());
         assertEquals("SKIPPED", trace.nativeOptimizers().getFirst().gradientPublication());
         assertEquals("CPU_NATIVE", trace.nativeOptimizers().getFirst().optimizerStateStorage());
@@ -447,7 +447,7 @@ class TrainingOptimizerTest {
         assertEquals(1, trace.nativeOptimizers().size());
         assertEquals("AdamOptimizer", trace.nativeOptimizers().getFirst().optimizer());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().route());
-        assertEquals(DataType.BFLOAT16, trace.nativeOptimizers().getFirst().dataType());
+        assertEquals("BFLOAT16", trace.nativeOptimizers().getFirst().dataType());
         assertEquals("CPU_ARRAY", trace.nativeOptimizers().getFirst().optimizerStateStorage());
         assertEquals("ACTIVATIONS_ONLY", trace.nativeOptimizers().getFirst().bf16TrainingPolicy());
         assertTrue(trace.nativeOptimizers().getFirst().fallbackReason().contains("bf16-policy-ACTIVATIONS_ONLY"));

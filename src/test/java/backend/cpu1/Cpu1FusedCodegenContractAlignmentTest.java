@@ -23,7 +23,7 @@ import backend.cpu1.prepare.Cpu1PreparedFusedElementwiseUnit;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.storage.Cpu1StorageKind;
-import graph.execution.trace.StepTraceContribution;
+import trace.backend.StepTraceContribution;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

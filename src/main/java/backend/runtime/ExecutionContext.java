@@ -1,18 +1,20 @@
 package backend.runtime;
 
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.ExecutionMode;
+
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.DeviceToNativeMaterializer;
 import backend.memory.ExecutionResource;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.memory.TensorResidencyState;
 import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
 import config.runtime.RuntimeConfig;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
-import graph.execution.trace.ConvTraceMetadata;
-import graph.execution.trace.HostDeviceTransferTrace;
+import trace.backend.ConvTraceMetadata;
+import trace.execution.HostDeviceTransferTrace;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;

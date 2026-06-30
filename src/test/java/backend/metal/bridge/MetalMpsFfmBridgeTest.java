@@ -17,7 +17,7 @@ import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import tensor.dtype.TensorDTypeOps;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;

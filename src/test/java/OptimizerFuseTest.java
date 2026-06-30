@@ -36,7 +36,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(e, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{9.0, 12.0}, e.toDoubleArrayCopy(), 1e-9);
 
@@ -52,7 +52,7 @@ public class OptimizerFuseTest {
                         .anyMatch(fused -> fused.getPlan().nodeCount() > 1),
                 "Expected prepared fused execution metadata to carry a multi-node fused plan");
 
-        compiledGraph.prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(backend.runtime.ExecutionMode.FORWARD_BACKWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.trainingDefaults()).execute(runtime.contract.ExecutionMode.FORWARD_BACKWARD);
 
         assertArrayEquals(new double[]{1.0, 1.0}, a.getGradient().toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(new double[]{1.0, 1.0}, b.getGradient().toDoubleArrayCopy(), 1e-9);
@@ -67,7 +67,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -90,7 +90,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         long fusedPreparedSteps = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -112,7 +112,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -133,7 +133,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -155,7 +155,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -175,7 +175,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)
@@ -196,7 +196,7 @@ public class OptimizerFuseTest {
 
         CompiledGraph compiledGraph = CompiledGraph.compile(out, fuseOnlyInferenceConfig());
         PreparedExecution prepared = compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults());
-        prepared.execute(backend.runtime.ExecutionMode.FORWARD);
+        prepared.execute(runtime.contract.ExecutionMode.FORWARD);
 
         var fusedStep = prepared.forwardSteps().stream()
                 .filter(step -> testsupport.MetadataArtifacts.fusedExecutable(step.metadata()) != null)

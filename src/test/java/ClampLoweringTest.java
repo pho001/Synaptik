@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.optimizer.PiecewiseLoweringConfig;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;

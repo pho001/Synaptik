@@ -5,20 +5,20 @@ import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
 import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalBufferHandle;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.RunTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.execution.RunTrace;
 import operations.elementwise.unary.relu;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -207,7 +207,7 @@ class MetalLayoutAwareDeviceFlowTest {
                 .anyMatch(entry -> entry.reason() == CpuMaterializationReason.CPU_CONSUMER));
         assertTrue(execution.prepareTrace().backendSelection().decisions().stream()
                 .anyMatch(decision -> decision.selected()
-                        && decision.selectedBackend() == ComputeBackend.GPU_METAL
+                        && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend())
                         && decision.nodeIds().contains(logSoftmaxNodeId)));
         assertTrue(compiled.program().compiledNodes().stream()
                 .anyMatch(node -> node.operation() != null && node.operation().opType() == operations.Operation.OpType.LOG_SOFTMAX));

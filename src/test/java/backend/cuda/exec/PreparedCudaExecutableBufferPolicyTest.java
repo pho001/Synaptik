@@ -23,11 +23,11 @@ import backend.cuda.buffer.CudaBufferAllocator;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import backend.lowering.LoweringFamily;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -39,8 +39,8 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.trace.RunTrace;
-import graph.execution.trace.CpuMaterializationTrace;
+import trace.execution.RunTrace;
+import trace.execution.CpuMaterializationTrace;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -356,7 +356,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 testsupport.PublicationPlans.forRoot(fixture.rootTensor(), fixture.nodes(), fixture.outputNode().id()),
                 fixture.outputNode(),
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         RunTrace trace = prepared.executeTraced(ExecutionMode.FORWARD);

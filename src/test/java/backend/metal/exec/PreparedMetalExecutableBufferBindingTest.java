@@ -29,7 +29,7 @@ import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsBridgeExecutionPath;
@@ -47,14 +47,14 @@ import backend.metal.kernel.MetalCustomKernelCapabilities;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
-import graph.execution.trace.HostDeviceTransferKind;
+import runtime.contract.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
@@ -342,7 +342,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 ),
                 fixture.outputNode(),
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         var trace = prepared.executeTraced(ExecutionMode.FORWARD);
@@ -390,7 +390,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 ),
                 fixture.outputNode(),
                 null,
-                graph.execution.trace.PrepareTrace.skipped()
+                trace.prepare.PrepareTrace.skipped()
         );
 
         var trace = prepared.executeTraced(ExecutionMode.FORWARD);
@@ -455,7 +455,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
         assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
                 (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
-                        && trace.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && trace.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -471,10 +471,10 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(AcceleratorBufferExecutionPath.BUFFER_BINDING, executable.lastAcceleratorBufferDecision().path());
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.expNode().id()).residency());
         assertTrue(fixture.state().cpuMaterializationTraces().stream()
-                .noneMatch(trace -> trace.reason() == backend.memory.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
+                .noneMatch(trace -> trace.reason() == runtime.contract.CpuMaterializationReason.ACCELERATOR_PREPARED_INPUT));
         assertTrue(fixture.state().cpuMaterializationTraces().stream().noneMatch(trace ->
                 (trace.nodeId() == fixture.addNode().id() || trace.nodeId() == fixture.reluNode().id())
-                        && trace.reason() == backend.memory.CpuMaterializationReason.CPU_CONSUMER));
+                        && trace.reason() == runtime.contract.CpuMaterializationReason.CPU_CONSUMER));
     }
 
     @Test
@@ -659,7 +659,7 @@ class PreparedMetalExecutableBufferBindingTest {
         executable.execute(fixture.context());
         var storage = fixture.context().requireNativeReadable(
                 fixture.outputNode().id(),
-                backend.memory.CpuMaterializationReason.CPU_CONSUMER
+                runtime.contract.CpuMaterializationReason.CPU_CONSUMER
         );
 
         assertTrue(storage instanceof NativeFloat32Storage);
@@ -1186,8 +1186,8 @@ class PreparedMetalExecutableBufferBindingTest {
         assertTrue(fixture.state().residencyForNodeId(fixture.middleNode().id()).cpuCurrent());
         assertEquals(StorageResidency.CPU_ARRAY, fixture.state().residencyForNodeId(fixture.outputNode().id()).residency());
         assertTrue(fixture.state().residencyForNodeId(fixture.outputNode().id()).cpuCurrent());
-        fixture.context().requireCpuReadable(fixture.middleNode().id(), backend.memory.CpuMaterializationReason.CPU_CONSUMER);
-        fixture.context().requireCpuReadable(fixture.outputNode().id(), backend.memory.CpuMaterializationReason.CPU_CONSUMER);
+        fixture.context().requireCpuReadable(fixture.middleNode().id(), runtime.contract.CpuMaterializationReason.CPU_CONSUMER);
+        fixture.context().requireCpuReadable(fixture.outputNode().id(), runtime.contract.CpuMaterializationReason.CPU_CONSUMER);
     }
 
     private static PreparedMetalExecutable executable(Fixture fixture, MetalMpsGraphBridge bridge) {

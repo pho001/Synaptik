@@ -4,7 +4,7 @@ import backend.contract.ComputeBackend;
 import backend.ComputeEngine;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;

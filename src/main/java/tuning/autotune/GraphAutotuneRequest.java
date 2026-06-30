@@ -1,6 +1,6 @@
 package tuning.autotune;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.GraphExecutionPolicy;
 import config.profile.PlatformRuntimeProfile;
 import tensor.DataType;

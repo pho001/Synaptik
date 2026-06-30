@@ -1,6 +1,6 @@
 package graph;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
@@ -10,7 +10,7 @@ import graph.compile.canonical.SemanticForwardCanonicalizer;
 import graph.compile.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PreparedExecution;
-import graph.execution.trace.CompileTrace;
+import trace.compile.CompileTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
 import tensor.Tensor;
@@ -229,7 +229,7 @@ public final class CompiledGraph {
      * Prepares runtime execution steps for a runtime configuration.
      *
      * <p>Preparation chooses execution operations and kernels, builds per-node runtime metadata, and records
-     * {@link graph.execution.trace.PrepareTrace}. The returned object is reusable for repeated executions with the same
+     * {@link trace.prepare.PrepareTrace}. The returned object is reusable for repeated executions with the same
      * runtime configuration, but each execution mutates tensor storage and gradients.
      *
      * @param runtimeConfig runtime settings, or {@code null} to choose training or inference defaults

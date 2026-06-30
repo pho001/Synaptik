@@ -2,7 +2,7 @@ package graph.execution.plan;
 
 import backend.runtime.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.trace.StepTraceContribution;
+import trace.backend.StepTraceContribution;
 
 /**
  * Backend-owned payload attached to prepared node metadata.

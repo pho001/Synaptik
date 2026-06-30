@@ -17,7 +17,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.buffer.MetalAcceleratorBufferBinder;
 import backend.metal.buffer.MetalBufferAccess;
@@ -310,7 +310,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
 
     private void ensureTensorArrayInputsCpuReadable(ExecutionContext context) {
         for (int nodeId : bridgeExecutable.externalInputNodeIds()) {
-            context.requireCpuReadable(nodeId, backend.memory.CpuMaterializationReason.CPU_CONSUMER);
+            context.requireCpuReadable(nodeId, runtime.contract.CpuMaterializationReason.CPU_CONSUMER);
         }
     }
 

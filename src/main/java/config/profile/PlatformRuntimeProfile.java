@@ -413,7 +413,7 @@ public record PlatformRuntimeProfile(
                         conv2d.bf16RequireMgeK(),
                         conv2d.bf16MaxNOverK()
                 ),
-                metadata.executionMode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+                metadata.executionMode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD
                         ? FusedExecutionPolicy.defaultsTraining()
                         : FusedExecutionPolicy.defaultsInference(),
                 accelerator.toRuntimeConfig(),

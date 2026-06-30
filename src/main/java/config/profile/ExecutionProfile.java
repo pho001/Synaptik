@@ -5,7 +5,7 @@ import config.runtime.AcceleratorConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import tensor.DataType;
 
 import java.util.Objects;

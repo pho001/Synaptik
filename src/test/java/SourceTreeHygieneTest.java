@@ -1217,7 +1217,7 @@ public class SourceTreeHygieneTest {
     @Test
     void preparedExecutionDoesNotOwnBackendTraceAttributeDetails() throws IOException {
         String preparedExecution = Files.readString(Path.of("src/main/java/graph/execution/PreparedExecution.java"));
-        String stepTracer = Files.readString(Path.of("src/main/java/graph/execution/trace/contrib/StepExecutionTracer.java"));
+        String stepTracer = Files.readString(Path.of("src/main/java/runtime/runner/StepExecutionTracer.java"));
         assertTrue(stepTracer.contains("traceContribution("),
                 "StepExecutionTracer should consume backend-owned trace contribution from prepared artifacts.");
         assertTrue(!stepTracer.contains("BackendRunTraceContributors"),
@@ -1231,12 +1231,12 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void graphExecutionTraceDoesNotImportConcreteBackendDetails() throws IOException {
+    void topLevelTraceDoesNotImportConcreteBackendDetails() throws IOException {
         List<String> offenders = linesContainingAny(
-                Path.of("src/main/java/graph/execution/trace"),
+                Path.of("src/main/java/trace"),
                 List.of("import backend.cpu.", "import backend.blas.", "import backend.metal.", "import backend.cuda.")
         );
-        assertTrue(offenders.isEmpty(), () -> "graph.execution.trace must consume backend-owned trace contributions: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "top-level trace must consume backend-owned trace contributions: " + offenders);
     }
 
     @Test

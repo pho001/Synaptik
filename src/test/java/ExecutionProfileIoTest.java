@@ -1,6 +1,6 @@
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;
 import config.backend.KernelTuningConfig;

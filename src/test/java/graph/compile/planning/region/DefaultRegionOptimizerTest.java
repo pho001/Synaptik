@@ -5,7 +5,7 @@ import config.compile.CompileConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import graph.CompiledGraph;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
 import graph.compile.planning.partition.PartitionEdge;
@@ -682,8 +682,8 @@ class DefaultRegionOptimizerTest {
                 new AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION,
-                        target,
+                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        target.name(),
                         orderedNodeIds.getFirst(),
                         true,
                         "test",

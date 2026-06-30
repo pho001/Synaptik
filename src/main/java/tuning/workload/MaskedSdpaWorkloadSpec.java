@@ -44,7 +44,7 @@ public final class MaskedSdpaWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
         Tensor q = tensor("MASKED_SDPA_Q", 1101, dataType, requiresGrad, batch, heads, tokens, headDim);
@@ -52,7 +52,7 @@ public final class MaskedSdpaWorkloadSpec implements WorkloadSpec {
         Tensor v = tensor("MASKED_SDPA_V", 1103, dataType, requiresGrad, batch, heads, tokens, valueDim);
         Tensor mask = new Tensor(maskData(), new int[]{batch, heads, tokens, tokens}, null, "MASKED_SDPA_MASK", DataType.BOOL);
         Tensor attention = q.scaledDotProductAttention(k, v, mask, AttentionOptions.defaults());
-        Tensor root = profile.mode() == backend.runtime.ExecutionMode.FORWARD ? attention : attention.sum();
+        Tensor root = profile.mode() == runtime.contract.ExecutionMode.FORWARD ? attention : attention.sum();
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("batch", batch);

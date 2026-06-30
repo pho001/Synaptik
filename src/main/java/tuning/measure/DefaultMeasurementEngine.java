@@ -2,8 +2,10 @@ package tuning.measure;
 
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.execution.trace.ExecutionTrace;
-import graph.execution.trace.RunTrace;
+import trace.ExecutionTrace;
+import trace.compile.CompileTrace;
+import trace.prepare.PrepareTrace;
+import trace.execution.RunTrace;
 import tuning.candidate.Candidate;
 import tuning.workload.WorkloadInstance;
 import training.optimizer.AdamOptimizer;
@@ -81,8 +83,8 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
             }
 
             ExecutionTrace trace = new ExecutionTrace(
-                    policy.measureCompile() ? compiled.compileTrace() : graph.execution.trace.CompileTrace.skipped(),
-                    policy.measurePrepare() ? prepared.prepareTrace() : graph.execution.trace.PrepareTrace.skipped(),
+                    policy.measureCompile() ? compiled.compileTrace() : CompileTrace.skipped(),
+                    policy.measurePrepare() ? prepared.prepareTrace() : PrepareTrace.skipped(),
                     reportRunTrace
             );
             return new MeasurementResult(policy, trace, stats);
@@ -130,7 +132,7 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
     }
 
     private static void requireTrainingProfile(Candidate candidate, MeasurementPolicy policy) {
-        if (candidate.profile().mode() != backend.runtime.ExecutionMode.FORWARD_BACKWARD) {
+        if (candidate.profile().mode() != runtime.contract.ExecutionMode.FORWARD_BACKWARD) {
             throw new IllegalArgumentException(policy.executionMode()
                     + " measurement requires an execution profile with FORWARD_BACKWARD mode.");
         }
@@ -149,10 +151,10 @@ public final class DefaultMeasurementEngine implements MeasurementEngine {
     }
 
     private static tensor.CompileMode compileModeFor(
-            backend.runtime.ExecutionMode mode,
+            runtime.contract.ExecutionMode mode,
             MeasurementExecutionMode measurementMode
     ) {
-        return measurementMode.optimizerStep() || mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+        return measurementMode.optimizerStep() || mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD
                 ? tensor.CompileMode.TRAINING
                 : tensor.CompileMode.INFERENCE_ONLY;
     }

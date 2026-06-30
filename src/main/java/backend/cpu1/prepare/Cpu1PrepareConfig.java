@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;

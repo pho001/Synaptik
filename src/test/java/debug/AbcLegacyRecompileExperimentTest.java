@@ -1,6 +1,6 @@
 package debug;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;

@@ -10,7 +10,7 @@ import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.SumAccuracyMode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;

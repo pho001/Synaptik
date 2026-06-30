@@ -1,11 +1,7 @@
 package tuning.benchmark.report;
 
-import backend.accelerator.lowering.GpuFusionSubpatternSummary;
-import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
-import backend.accelerator.lowering.GpuLoweredRegionRejection;
-import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+import trace.prepare.GpuLoweredRegionTrace;
+import trace.execution.ExecutionStepTrace;
 
 import java.util.Locale;
 import java.util.Map;
@@ -130,8 +126,8 @@ public final class JsonBenchmarkReportRenderer {
                 }
                 sb.append("\n        ],\n");
                 sb.append("        \"hotSteps\": [\n");
-                java.util.List<graph.execution.trace.ExecutionStepTrace> hotSteps = trace.run().steps().stream()
-                        .sorted(java.util.Comparator.comparingLong(graph.execution.trace.ExecutionStepTrace::durationNs).reversed())
+                java.util.List<ExecutionStepTrace> hotSteps = trace.run().steps().stream()
+                        .sorted(java.util.Comparator.comparingLong(ExecutionStepTrace::durationNs).reversed())
                         .limit(5)
                         .toList();
                 for (int j = 0; j < hotSteps.size(); j++) {
@@ -264,7 +260,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String nativeCpuMemoryTraceJson(graph.execution.trace.NativeCpuMemoryTrace trace) {
+    private static String nativeCpuMemoryTraceJson(trace.execution.NativeCpuMemoryTrace trace) {
         if (trace == null || !trace.present()) {
             return "null";
         }
@@ -289,7 +285,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String nativeOptimizerTracesJson(java.util.List<graph.execution.trace.NativeOptimizerTrace> traces) {
+    private static String nativeOptimizerTracesJson(java.util.List<trace.execution.NativeOptimizerTrace> traces) {
         if (traces == null || traces.isEmpty()) {
             return "[]";
         }
@@ -298,11 +294,11 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            graph.execution.trace.NativeOptimizerTrace trace = traces.get(i);
+            trace.execution.NativeOptimizerTrace trace = traces.get(i);
             sb.append("{")
                     .append("\"optimizer\": \"").append(escape(trace.optimizer())).append("\", ")
                     .append("\"route\": \"").append(escape(trace.route())).append("\", ")
-                    .append("\"dataType\": \"").append(trace.dataType() == null ? "" : escape(trace.dataType().name())).append("\", ")
+                    .append("\"dataType\": \"").append(trace.dataType() == null ? "" : escape(trace.dataType())).append("\", ")
                     .append("\"parameterNodeId\": ").append(trace.parameterNodeId()).append(", ")
                     .append("\"gradientNodeId\": ").append(trace.gradientNodeId()).append(", ")
                     .append("\"elementCount\": ").append(trace.elementCount()).append(", ")
@@ -329,7 +325,7 @@ public final class JsonBenchmarkReportRenderer {
             int fallbackCount,
             boolean present
     ) {
-        static NativeCpuTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+        static NativeCpuTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
             if (steps == null || steps.isEmpty()) {
                 return new NativeCpuTraceSummary(0, 0, 0, false);
             }
@@ -386,7 +382,7 @@ public final class JsonBenchmarkReportRenderer {
             java.util.List<String> rejectionReasons,
             boolean present
     ) {
-        static NativeCpuRegionTraceSummary fromSteps(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+        static NativeCpuRegionTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
             if (steps == null || steps.isEmpty()) {
                 return empty(false);
             }
@@ -495,7 +491,7 @@ public final class JsonBenchmarkReportRenderer {
             long matMulNativeTempBytes,
             boolean present
     ) {
-        static RuntimeCopyTraceSummary fromRun(graph.execution.trace.RunTrace run) {
+        static RuntimeCopyTraceSummary fromRun(trace.execution.RunTrace run) {
             if (run == null) {
                 return new RuntimeCopyTraceSummary(0L, 0L, 0L, 0L, 0L, false);
             }
@@ -552,7 +548,7 @@ public final class JsonBenchmarkReportRenderer {
             int fallbackCount,
             boolean present
     ) {
-        static HostDeviceTransferSummary fromRun(graph.execution.trace.RunTrace run) {
+        static HostDeviceTransferSummary fromRun(trace.execution.RunTrace run) {
             if (run == null || run.hostDeviceTransfers().isEmpty()) {
                 return new HostDeviceTransferSummary(0, 0L, 0L, 0L, 0L, 0, false);
             }
@@ -837,7 +833,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String backendSelectionCostJson(graph.execution.trace.BackendSelectionTrace trace) {
+    private static String backendSelectionCostJson(trace.prepare.BackendSelectionTrace trace) {
         if (trace == null || trace.decisions().isEmpty()) {
             return "{}";
         }
@@ -867,7 +863,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String selectedDecisionJson(graph.execution.trace.BackendSelectionDecisionTrace decision) {
+    private static String selectedDecisionJson(trace.prepare.BackendSelectionDecisionTrace decision) {
         var summary = decision.costSummary();
         return "{"
                 + "\"nodeIds\": " + intListJson(decision.nodeIds()) + ", "
@@ -879,24 +875,24 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"layoutFallbackBytes\": " + summary.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(summary.preset()) + "\", "
-                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(summary.toCostScore().explain(summary.reasonCode()))
+                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(TraceCostScoreAdapter.toCostScore(summary).explain(summary.reasonCode()))
                 + manifestJsonSuffix(decision.gpuLoweredRegionManifest())
                 + "}";
     }
 
-    private static String manifestJsonSuffix(GpuLoweredRegionManifest manifest) {
+    private static String manifestJsonSuffix(GpuLoweredRegionTrace manifest) {
         if (manifest == null) {
             return "";
         }
         return ", \"gpuLoweredRegionManifest\": " + manifestJson(manifest);
     }
 
-    private static String manifestJson(GpuLoweredRegionManifest manifest) {
+    private static String manifestJson(GpuLoweredRegionTrace manifest) {
         return "{"
                 + "\"regionId\": \"" + escape(manifest.regionId()) + "\", "
                 + "\"backend\": \"" + escape(String.valueOf(manifest.backend())) + "\", "
                 + "\"selectedRegionLength\": " + manifest.selectedRegionLength() + ", "
-                + "\"originalOps\": " + originalOpsJson(manifest.originalOps()) + ", "
+                + "\"originalOps\": " + originalOpsJson(manifest.originalOperations()) + ", "
                 + "\"loweredPrimitives\": " + loweredPrimitivesJson(manifest.loweredPrimitives()) + ", "
                 + "\"valueAssumptions\": " + valueAssumptionsJson(manifest) + ", "
                 + "\"dtypeResidencyEvidence\": " + stringMapJson(dtypeResidencyEvidence(manifest)) + ", "
@@ -906,7 +902,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static Map<String, String> dtypeResidencyEvidence(GpuLoweredRegionManifest manifest) {
+    private static Map<String, String> dtypeResidencyEvidence(GpuLoweredRegionTrace manifest) {
         if (manifest == null || manifest.backendExtensions().isEmpty()) {
             return Map.of();
         }
@@ -919,7 +915,7 @@ public final class JsonBenchmarkReportRenderer {
         return out;
     }
 
-    private static String originalOpsJson(java.util.List<GpuLoweredRegionOriginalOp> ops) {
+    private static String originalOpsJson(java.util.List<GpuLoweredRegionTrace.OriginalOperation> ops) {
         if (ops == null || ops.isEmpty()) {
             return "[]";
         }
@@ -928,23 +924,23 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionOriginalOp op = ops.get(i);
+            GpuLoweredRegionTrace.OriginalOperation op = ops.get(i);
             sb.append("{")
                     .append("\"nodeId\": ").append(op.nodeId()).append(", ")
                     .append("\"opType\": \"").append(escape(op.opType())).append("\", ")
                     .append("\"inputNodeIds\": ").append(intListJson(op.inputNodeIds())).append(", ")
                     .append("\"outputNodeIds\": ").append(intListJson(op.outputNodeIds())).append(", ")
-                    .append("\"dataType\": \"").append(op.dataType().name()).append("\", ")
+                    .append("\"dataType\": \"").append(op.dataType()).append("\", ")
                     .append("\"shape\": ").append(intListJson(op.shape())).append(", ")
                     .append("\"loweredPrimitiveIds\": ").append(stringListJson(op.loweredPrimitiveIds())).append(", ")
-                    .append("\"aggregatedReasons\": ").append(reasonListJson(op.aggregatedReasons()))
+                    .append("\"aggregatedReasons\": ").append(stringListJson(op.reasons()))
                     .append("}");
         }
         sb.append(']');
         return sb.toString();
     }
 
-    private static String loweredPrimitivesJson(java.util.List<GpuLoweredPrimitiveManifest> primitives) {
+    private static String loweredPrimitivesJson(java.util.List<GpuLoweredRegionTrace.LoweredPrimitive> primitives) {
         if (primitives == null || primitives.isEmpty()) {
             return "[]";
         }
@@ -953,39 +949,39 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredPrimitiveManifest primitive = primitives.get(i);
+            GpuLoweredRegionTrace.LoweredPrimitive primitive = primitives.get(i);
             sb.append("{")
                     .append("\"primitiveId\": \"").append(escape(primitive.primitiveId())).append("\", ")
                     .append("\"primitiveType\": \"").append(escape(primitive.primitiveType())).append("\", ")
                     .append("\"sourceOriginalNodeIds\": ").append(intListJson(primitive.sourceOriginalNodeIds())).append(", ")
                     .append("\"inputRefs\": ").append(stringListJson(primitive.inputRefs())).append(", ")
                     .append("\"outputRef\": \"").append(escape(primitive.outputRef())).append("\", ")
-                    .append("\"dataType\": \"").append(primitive.dataType().name()).append("\", ")
+                    .append("\"dataType\": \"").append(primitive.dataType()).append("\", ")
                     .append("\"shape\": ").append(intListJson(primitive.shape())).append(", ")
-                    .append("\"reasons\": ").append(reasonListJson(primitive.reasons()))
+                    .append("\"reasons\": ").append(stringListJson(primitive.reasons()))
                     .append("}");
         }
         sb.append(']');
         return sb.toString();
     }
 
-    private static String valueAssumptionsJson(GpuLoweredRegionManifest manifest) {
+    private static String valueAssumptionsJson(GpuLoweredRegionTrace manifest) {
         java.util.List<String> items = new java.util.ArrayList<>();
-        for (GpuLoweredRegionValueAssumption assumption : manifest.inputAssumptions()) {
+        for (GpuLoweredRegionTrace.ValueAssumption assumption : manifest.inputAssumptions()) {
             items.add(valueAssumptionJson("input", assumption));
         }
-        for (GpuLoweredRegionValueAssumption assumption : manifest.outputAssumptions()) {
+        for (GpuLoweredRegionTrace.ValueAssumption assumption : manifest.outputAssumptions()) {
             items.add(valueAssumptionJson("output", assumption));
         }
         return "[" + String.join(", ", items) + "]";
     }
 
-    private static String valueAssumptionJson(String scope, GpuLoweredRegionValueAssumption assumption) {
+    private static String valueAssumptionJson(String scope, GpuLoweredRegionTrace.ValueAssumption assumption) {
         return "{"
                 + "\"scope\": \"" + escape(scope) + "\", "
                 + "\"nodeId\": " + assumption.nodeId() + ", "
                 + "\"role\": \"" + escape(assumption.role()) + "\", "
-                + "\"dataType\": \"" + assumption.dataType().name() + "\", "
+                + "\"dataType\": \"" + assumption.dataType() + "\", "
                 + "\"rank\": " + assumption.rank() + ", "
                 + "\"shape\": " + intListJson(assumption.shape()) + ", "
                 + "\"layout\": \"" + escape(assumption.layout()) + "\", "
@@ -995,7 +991,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String fusedSubpatternsJson(java.util.List<GpuFusionSubpatternSummary> subpatterns) {
+    private static String fusedSubpatternsJson(java.util.List<GpuLoweredRegionTrace.FusedSubpattern> subpatterns) {
         if (subpatterns == null || subpatterns.isEmpty()) {
             return "[]";
         }
@@ -1004,11 +1000,11 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuFusionSubpatternSummary subpattern = subpatterns.get(i);
+            GpuLoweredRegionTrace.FusedSubpattern subpattern = subpatterns.get(i);
             sb.append("{")
-                    .append("\"patternType\": \"").append(subpattern.patternType().name()).append("\", ")
+                    .append("\"patternType\": \"").append(subpattern.patternType()).append("\", ")
                     .append("\"supported\": ").append(subpattern.supported()).append(", ")
-                    .append("\"reason\": \"").append(subpattern.reason().name()).append("\", ")
+                    .append("\"reason\": \"").append(subpattern.reason()).append("\", ")
                     .append("\"originalOperationNodeIds\": ").append(intListJson(subpattern.originalOperationNodeIds())).append(", ")
                     .append("\"loweredPrimitiveIds\": ").append(stringListJson(subpattern.loweredPrimitiveIds())).append(", ")
                     .append("\"loweredPrimitiveCount\": ").append(subpattern.loweredPrimitiveCount()).append(", ")
@@ -1019,7 +1015,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String rejectionsJson(java.util.List<GpuLoweredRegionRejection> rejections) {
+    private static String rejectionsJson(java.util.List<GpuLoweredRegionTrace.Rejection> rejections) {
         if (rejections == null || rejections.isEmpty()) {
             return "[]";
         }
@@ -1028,13 +1024,13 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionRejection rejection = rejections.get(i);
+            GpuLoweredRegionTrace.Rejection rejection = rejections.get(i);
             sb.append("{")
                     .append("\"level\": \"").append(escape(rejection.level())).append("\", ")
                     .append("\"originalNodeId\": ").append(rejection.originalNodeId()).append(", ")
                     .append("\"primitiveId\": \"").append(escape(rejection.primitiveId())).append("\", ")
                     .append("\"fusedPatternType\": \"").append(escape(rejection.fusedPatternType())).append("\", ")
-                    .append("\"reason\": \"").append(rejection.reason().name()).append("\", ")
+                    .append("\"reason\": \"").append(rejection.reason()).append("\", ")
                     .append("\"detail\": \"").append(escape(rejection.detail())).append("\"")
                     .append("}");
         }
@@ -1042,7 +1038,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String candidateSpanJson(backend.accelerator.lowering.GpuLoweredRegionCandidateSpan span) {
+    private static String candidateSpanJson(GpuLoweredRegionTrace.CandidateSpan span) {
         if (span == null) {
             return "{}";
         }
@@ -1051,7 +1047,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"acceptedNodeIds\": " + intListJson(span.acceptedNodeIds()) + ", "
                 + "\"rejectedOriginalNodeId\": " + span.rejectedOriginalNodeId() + ", "
                 + "\"rejectedPrimitiveId\": \"" + escape(span.rejectedPrimitiveId()) + "\", "
-                + "\"reason\": \"" + span.reason().name() + "\""
+                + "\"reason\": \"" + span.reason() + "\""
                 + "}";
     }
 
@@ -1062,10 +1058,10 @@ public final class JsonBenchmarkReportRenderer {
         return stringListJson(reasons.stream().map(Enum::name).toList());
     }
 
-    private static java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
-            graph.execution.trace.BackendSelectionTrace trace
+    private static java.util.List<trace.compile.PartitionDecisionTrace.CandidateCostTrace> rejectedFinalists(
+            trace.prepare.BackendSelectionTrace trace
     ) {
-        java.util.List<graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
+        java.util.List<trace.compile.PartitionDecisionTrace.CandidateCostTrace> out = new java.util.ArrayList<>();
         trace.decisions().stream()
                 .flatMap(decision -> decision.finalists().stream())
                 .forEach(out::add);
@@ -1074,7 +1070,7 @@ public final class JsonBenchmarkReportRenderer {
                 continue;
             }
             var summary = decision.costSummary();
-            out.add(new graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace(
+            out.add(new trace.compile.PartitionDecisionTrace.CandidateCostTrace(
                     decision.nodeIds(),
                     decision.reason(),
                     summary.finalScore(),
@@ -1088,7 +1084,7 @@ public final class JsonBenchmarkReportRenderer {
         return out.stream().limit(3).toList();
     }
 
-    private static String finalistJson(graph.execution.trace.PartitionDecisionTrace.CandidateCostTrace finalist) {
+    private static String finalistJson(trace.compile.PartitionDecisionTrace.CandidateCostTrace finalist) {
         return "{"
                 + "\"nodeIds\": " + intListJson(finalist.nodeIds()) + ", "
                 + "\"reason\": \"" + escape(finalist.reason()) + "\", "
@@ -1098,11 +1094,11 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"layoutFallbackBytes\": " + finalist.layoutFallbackBytes() + ", "
                 + "\"estimatedComputeWork\": " + finalist.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(finalist.preset()) + "\", "
-                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(finalist.toCostScore().explain(finalist.reason()))
+                + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(TraceCostScoreAdapter.toCostScore(finalist).explain(finalist.reason()))
                 + "}";
     }
 
-    private static boolean usesParallel(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+    private static boolean usesParallel(java.util.List<trace.execution.ExecutionStepTrace> steps) {
         if (steps == null || steps.isEmpty()) {
             return false;
         }
@@ -1127,7 +1123,7 @@ public final class JsonBenchmarkReportRenderer {
         return false;
     }
 
-    private static boolean usesVector(java.util.List<graph.execution.trace.ExecutionStepTrace> steps) {
+    private static boolean usesVector(java.util.List<trace.execution.ExecutionStepTrace> steps) {
         if (steps == null || steps.isEmpty()) {
             return false;
         }
@@ -1334,7 +1330,7 @@ public final class JsonBenchmarkReportRenderer {
 
     private static void appendCpuMaterializationJson(
             StringBuilder sb,
-            graph.execution.trace.CpuMaterializationTrace materialization,
+            trace.execution.CpuMaterializationTrace materialization,
             String indent
     ) {
         sb.append(indent).append("{\n");
@@ -1352,13 +1348,13 @@ public final class JsonBenchmarkReportRenderer {
 
     private static void appendHostDeviceTransferJson(
             StringBuilder sb,
-            graph.execution.trace.HostDeviceTransferTrace transfer,
+            trace.execution.HostDeviceTransferTrace transfer,
             String indent
     ) {
         sb.append(indent).append("{\n");
         sb.append(indent).append("  \"nodeId\": ").append(transfer.nodeId()).append(",\n");
         sb.append(indent).append("  \"backend\": \"").append(escape(transfer.backend())).append("\",\n");
-        sb.append(indent).append("  \"dataType\": \"").append(transfer.dataType() == null ? "" : transfer.dataType().name()).append("\",\n");
+        sb.append(indent).append("  \"dataType\": \"").append(transfer.dataType() == null ? "" : transfer.dataType()).append("\",\n");
         sb.append(indent).append("  \"sourceResidency\": \"").append(transfer.sourceResidency().name()).append("\",\n");
         sb.append(indent).append("  \"targetResidency\": \"").append(transfer.targetResidency().name()).append("\",\n");
         sb.append(indent).append("  \"transferKind\": \"").append(transfer.transferKind().name()).append("\",\n");
@@ -1376,13 +1372,13 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("}");
     }
 
-    private static void appendStepJson(StringBuilder sb, graph.execution.trace.ExecutionStepTrace step, String indent) {
+    private static void appendStepJson(StringBuilder sb, trace.execution.ExecutionStepTrace step, String indent) {
         sb.append(indent).append("{\n");
         sb.append(indent).append("  \"index\": ").append(step.index()).append(",\n");
         sb.append(indent).append("  \"label\": \"").append(escape(step.label())).append("\",\n");
         sb.append(indent).append("  \"opType\": \"").append(escape(step.opType())).append("\",\n");
         sb.append(indent).append("  \"shape\": ").append(intListJson(step.shape())).append(",\n");
-        sb.append(indent).append("  \"dataType\": \"").append(step.dataType() == null ? "" : escape(step.dataType().name())).append("\",\n");
+        sb.append(indent).append("  \"dataType\": \"").append(step.dataType() == null ? "" : escape(step.dataType())).append("\",\n");
         sb.append(indent).append("  \"backend\": \"").append(escape(step.backend())).append("\",\n");
         sb.append(indent).append("  \"kernel\": \"").append(escape(step.kernel())).append("\",\n");
         sb.append(indent).append("  \"durationMs\": ").append(format(nanosToMs(step.durationNs()))).append(",\n");
@@ -1392,7 +1388,7 @@ public final class JsonBenchmarkReportRenderer {
 
     private static void appendStepMetadataJson(
             StringBuilder sb,
-            graph.execution.trace.StepExecutionMetadata metadata,
+            trace.execution.StepExecutionMetadata metadata,
             String indent
     ) {
         if (metadata == null) {
@@ -1415,7 +1411,7 @@ public final class JsonBenchmarkReportRenderer {
         sb.append(indent).append("}");
     }
 
-    private static String optimizerCostJson(graph.optimizer.state.OptimizerTrace trace) {
+    private static String optimizerCostJson(trace.compile.OptimizerTrace trace) {
         if (trace == null) {
             return "{\"events\": [], \"cost_explanations\": []}";
         }
@@ -1426,7 +1422,9 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(CostExplanationJsonRenderer.render(trace.costExplanations().get(i)));
+            sb.append(CostExplanationJsonRenderer.render(
+                    TraceCostExplanationAdapter.toCostExplanation(trace.costExplanations().get(i))
+            ));
         }
         sb.append("]}");
         return sb.toString();
@@ -1446,7 +1444,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String computeJson(graph.execution.trace.ComputeTraceMetadata compute) {
+    private static String computeJson(trace.backend.ComputeTraceMetadata compute) {
         if (compute == null) {
             return "null";
         }
@@ -1459,7 +1457,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String layoutJson(graph.execution.trace.LayoutTraceMetadata layout) {
+    private static String layoutJson(trace.backend.LayoutTraceMetadata layout) {
         if (layout == null) {
             return "null";
         }
@@ -1471,7 +1469,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String dispatchJson(graph.execution.trace.DispatchTraceMetadata dispatch) {
+    private static String dispatchJson(trace.backend.DispatchTraceMetadata dispatch) {
         if (dispatch == null) {
             return "null";
         }
@@ -1484,7 +1482,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String reductionJson(graph.execution.trace.ReductionTraceMetadata reduction) {
+    private static String reductionJson(trace.backend.ReductionTraceMetadata reduction) {
         if (reduction == null) {
             return "null";
         }
@@ -1497,7 +1495,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String matMulJson(graph.execution.trace.MatMulTraceMetadata matMul) {
+    private static String matMulJson(trace.backend.MatMulTraceMetadata matMul) {
         if (matMul == null) {
             return "null";
         }
@@ -1536,7 +1534,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String convJson(graph.execution.trace.ConvTraceMetadata conv) {
+    private static String convJson(trace.backend.ConvTraceMetadata conv) {
         if (conv == null) {
             return "null";
         }
@@ -1553,7 +1551,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String fusedJson(graph.execution.trace.FusedTraceMetadata fused) {
+    private static String fusedJson(trace.backend.FusedTraceMetadata fused) {
         if (fused == null) {
             return "null";
         }

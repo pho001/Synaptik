@@ -1,6 +1,6 @@
 package backend.metal;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.BackendPlanningConfig;
 import config.compile.CompileConfig;
 import config.optimizer.CpuFusionConfig;
@@ -10,7 +10,7 @@ import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PublicationPolicy;
-import graph.execution.trace.ExecutionStepTrace;
+import trace.execution.ExecutionStepTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.workload.StandardWorkloads;

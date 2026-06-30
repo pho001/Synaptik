@@ -1,6 +1,6 @@
 package tuning.api;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import tensor.DataType;
 import tuning.calibration.PlatformCalibrationResult;
 import tuning.calibration.family.CalibrationFamilyId;

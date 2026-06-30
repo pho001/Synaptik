@@ -1,20 +1,20 @@
 package graph.execution.state;
 
 import backend.cpu.nativecpu.NativeCpuMaterializer;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import backend.memory.DeviceBufferBinding;
 import backend.memory.DeviceToCpuMaterializer;
 import backend.memory.DeviceToNativeMaterializer;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.memory.TensorResidencyState;
 import config.runtime.DeviceTransferPolicy;
 import graph.execution.residency.DeviceBindingRegistry;
 import graph.execution.residency.NativeCpuStorageRegistry;
 import graph.execution.residency.RuntimeResidencyStore;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.HostDeviceTransferKind;
-import graph.execution.trace.HostDeviceTransferTrace;
+import trace.execution.CpuMaterializationTrace;
+import runtime.contract.HostDeviceTransferKind;
+import trace.execution.HostDeviceTransferTrace;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;
@@ -78,7 +78,7 @@ final class RuntimeMaterializationService {
             recordHostDeviceTransfer(new HostDeviceTransferTrace(
                     nodeId,
                     state.deviceBackend(),
-                    runtimeTensorForNodeId(nodeId).getDataType(),
+                    runtimeTensorForNodeId(nodeId).getDataType().name(),
                     state.residency(),
                     StorageResidency.CPU_ARRAY,
                     HostDeviceTransferKind.DEVICE_TO_CPU_ARRAY_COPY,
@@ -176,7 +176,7 @@ final class RuntimeMaterializationService {
             recordHostDeviceTransfer(new HostDeviceTransferTrace(
                     nodeId,
                     backend,
-                    runtimeTensorForNodeId(nodeId).getDataType(),
+                    runtimeTensorForNodeId(nodeId).getDataType().name(),
                     sourceResidency,
                     StorageResidency.CPU_NATIVE,
                     HostDeviceTransferKind.DEVICE_TO_ARRAY_TO_NATIVE_BRIDGE,
@@ -272,7 +272,7 @@ final class RuntimeMaterializationService {
         recordHostDeviceTransfer(new HostDeviceTransferTrace(
                 nodeId,
                 state.deviceBackend(),
-                tensor.getDataType(),
+                tensor.getDataType().name(),
                 state.residency(),
                 StorageResidency.CPU_NATIVE,
                 HostDeviceTransferKind.DEVICE_TO_NATIVE_SEGMENT_COPY,

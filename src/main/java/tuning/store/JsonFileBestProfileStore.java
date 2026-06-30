@@ -75,7 +75,7 @@ public final class JsonFileBestProfileStore implements BestProfileStore {
                     "loaded-best",
                     "loaded-best",
                     tensor.DataType.FLOAT64,
-                    backend.runtime.ExecutionMode.FORWARD,
+                    runtime.contract.ExecutionMode.FORWARD,
                     config.compile.CompileConfig.inference(),
                     config.runtime.RuntimeConfig.inferenceDefaults()
             );

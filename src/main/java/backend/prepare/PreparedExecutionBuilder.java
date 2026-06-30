@@ -17,7 +17,7 @@ import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.trace.PrepareTrace;
+import trace.prepare.PrepareTrace;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
 

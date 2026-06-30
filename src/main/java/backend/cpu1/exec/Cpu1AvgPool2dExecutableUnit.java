@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.prepare.Cpu1PreparedAvgPool2dUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.Tensor;
 import tensor.storage.NativeTensorStorage;

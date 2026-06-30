@@ -1,16 +1,16 @@
 package backend.metal;
 
 import backend.contract.ComputeBackend;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
-import graph.execution.trace.CpuMaterializationTrace;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.RunTrace;
+import trace.execution.CpuMaterializationTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.execution.RunTrace;
 import operations.elementwise.unary.relu;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -72,8 +72,8 @@ class MetalBufferTraceSmokeTest {
         assertFalse(trace.cpuMaterializations().isEmpty());
         CpuMaterializationTrace materialization = trace.cpuMaterializations().getFirst();
         assertTrue(EnumSet.of(
-                backend.memory.CpuMaterializationReason.CPU_CONSUMER,
-                backend.memory.CpuMaterializationReason.GRAPH_OUTPUT
+                runtime.contract.CpuMaterializationReason.CPU_CONSUMER,
+                runtime.contract.CpuMaterializationReason.GRAPH_OUTPUT
         ).contains(materialization.reason()));
         assertEquals(ComputeBackend.GPU_METAL.name(), materialization.materializedFrom());
         assertTrue(materialization.completed());

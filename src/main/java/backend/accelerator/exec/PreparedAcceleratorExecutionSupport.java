@@ -1,7 +1,7 @@
 package backend.accelerator.exec;
 
 import backend.cpu.CpuBackend;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;

@@ -1,7 +1,7 @@
 package graph.compile.session;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
 import graph.compile.CompiledNodeSnapshotter;
@@ -25,12 +25,12 @@ import graph.compile.planning.region.DefaultRegionOptimizer;
 import graph.compile.planning.region.OptimizedRegion;
 import graph.compile.planning.region.RegionOptimizationContext;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.trace.PartitionCompileTrace;
+import trace.compile.PartitionCompileTrace;
 import graph.model.CompiledGradientBinding;
 import graph.model.CompiledNode;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.state.OptimizerState;
-import graph.optimizer.state.OptimizerTrace;
+import trace.compile.OptimizerTrace;
 import tensor.AutogradCompilationScope;
 import tensor.CompileMode;
 import tensor.Tensor;

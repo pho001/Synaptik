@@ -63,7 +63,7 @@ public class Conv2dLoweringRuleTest {
                         .withGraphOptimization(GraphOptimizationConfig
                                 .stages(true, false, false, false, false)
                                 .withRewrite(new RewriteConfig(Conv2dLoweringConfig.always())))
-        ).prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        ).prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{
                 -4, -4,

@@ -5,7 +5,7 @@ import tensor.TensorInternalAccess;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.CpuMaterializationResult;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;

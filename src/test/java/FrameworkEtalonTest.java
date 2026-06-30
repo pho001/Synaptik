@@ -12,7 +12,7 @@ public class FrameworkEtalonTest {
         var request = FrameworkEtalon.inferenceSuite(TuningPreset.QUICK);
         assertFalse(request.workloads().isEmpty());
         assertFalse(request.entries().isEmpty());
-        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD));
+        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == runtime.contract.ExecutionMode.FORWARD));
     }
 
     @Test
@@ -20,7 +20,7 @@ public class FrameworkEtalonTest {
         var request = FrameworkEtalon.trainingSuite(TuningPreset.QUICK);
         assertFalse(request.workloads().isEmpty());
         assertFalse(request.entries().isEmpty());
-        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD));
+        assertTrue(request.entries().stream().allMatch(c -> c.profile().mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD));
     }
 
     @Test

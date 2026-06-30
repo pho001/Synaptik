@@ -2,7 +2,7 @@ package config.profile;
 
 import backend.ApproxMode;
 import backend.blas.BlasProvider;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;

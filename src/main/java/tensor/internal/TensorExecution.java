@@ -4,7 +4,7 @@ import tensor.CompileMode;
 import tensor.ComputeOptions;
 import tensor.Tensor;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;

@@ -5,7 +5,7 @@ import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PublicationPolicy;
-import graph.execution.trace.NativeOptimizerTrace;
+import trace.execution.NativeOptimizerTrace;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,4 +1,4 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ public class TuningResultRendererTest {
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(
                         tuning.measure.MeasurementPolicy.defaults(),
-                        new graph.execution.trace.ExecutionTrace(null, null, graph.execution.trace.RunTrace.empty(ExecutionMode.FORWARD)),
+                        new trace.ExecutionTrace(null, null, trace.execution.RunTrace.empty(ExecutionMode.FORWARD)),
                         new tuning.measure.MeasurementStatistics(1.0, 1.0, 1.0)
                 )
         );

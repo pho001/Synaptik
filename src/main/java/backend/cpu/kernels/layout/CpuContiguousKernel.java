@@ -5,7 +5,7 @@ import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.kernels.CpuKernelResult;
 import backend.cpu.kernels.CpuStorageAwareKernel;
 import backend.cpu.nativecpu.CpuNativeTraceSupport;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;

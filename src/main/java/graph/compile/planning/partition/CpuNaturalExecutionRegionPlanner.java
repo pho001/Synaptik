@@ -4,8 +4,8 @@ import config.optimizer.CpuRegionBoundaryPolicy;
 import config.optimizer.CpuRegionPolicy;
 import graph.model.CompiledNode;
 import graph.compile.planning.value.GraphValueRef;
-import graph.execution.trace.PartitionCompileTrace;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionCompileTrace;
+import trace.compile.PartitionDecisionTrace;
 import operations.Operation;
 import operations.linalg.linear;
 
@@ -119,7 +119,7 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
         return new PartitionPlanningResult(
                 partitions,
                 plansByPartitionId,
-                PartitionCompileTrace.forJob(request.strategy(), request.target(), decisions)
+                PartitionCompileTrace.forJob(request.strategy().name(), request.target().name(), decisions)
         );
     }
 
@@ -276,8 +276,8 @@ public final class CpuNaturalExecutionRegionPlanner implements PartitionPlanner 
     ) {
         int nodeId = node == null ? -1 : node.id();
         return new PartitionDecisionTrace(
-                request.strategy(),
-                request.target(),
+                request.strategy().name(),
+                request.target().name(),
                 Math.max(0, nodeId),
                 false,
                 reason,

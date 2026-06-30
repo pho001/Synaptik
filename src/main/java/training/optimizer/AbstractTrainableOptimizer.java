@@ -4,9 +4,9 @@ import tensor.TensorInternalAccess;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
-import backend.memory.StorageResidency;
+import runtime.contract.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
@@ -18,7 +18,7 @@ import config.runtime.NativeCpuFailurePolicy;
 import graph.model.CompiledGradientBinding;
 import graph.model.CompiledNode;
 import graph.execution.PublicationPolicy;
-import graph.execution.trace.NativeOptimizerTrace;
+import trace.execution.NativeOptimizerTrace;
 import tensor.DataType;
 import tensor.Tensor;
 
@@ -157,7 +157,7 @@ abstract class AbstractTrainableOptimizer implements TrainingOptimizer {
         context.recordNativeOptimizerTrace(new NativeOptimizerTrace(
                 optimizerName(),
                 route,
-                ref.parameterNode().dataType(),
+                ref.parameterNode().dataType().name(),
                 ref.parameterNode().id(),
                 gradientNodeId,
                 context.executionContext().runtimeTensorForNodeId(ref.parameterNode().id()).getFlatDataSize(),

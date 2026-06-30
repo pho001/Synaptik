@@ -15,7 +15,7 @@ import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.storage.CpuStorageView;
 import backend.runtime.ExecutionContext;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.backend.CpuMatMulMicroKernel;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;

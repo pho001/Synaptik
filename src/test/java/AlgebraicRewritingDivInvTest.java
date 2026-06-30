@@ -23,7 +23,7 @@ public class AlgebraicRewritingDivInvTest {
                 "oneOverX", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(divNode, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{0.5, 0.25}, divNode.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
@@ -45,7 +45,7 @@ public class AlgebraicRewritingDivInvTest {
         Tensor outerInv = new Tensor(new int[]{2}, List.of(innerInv), new inv(), "invInvX", DataType.FLOAT64);
 
         CompiledGraph compiledGraph = CompiledGraph.compile(outerInv, arOnlyInferenceConfig());
-        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
+        compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(runtime.contract.ExecutionMode.FORWARD);
 
         assertArrayEquals(new double[]{2.0, 4.0}, outerInv.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()

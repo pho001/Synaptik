@@ -1,6 +1,6 @@
 package debug;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuRegionConfig;
 import config.compile.CompileConfig;

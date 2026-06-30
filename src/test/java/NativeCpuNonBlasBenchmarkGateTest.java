@@ -1,16 +1,16 @@
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.execution.trace.CompileTrace;
-import graph.execution.trace.ExecutionStepTrace;
-import graph.execution.trace.ExecutionTrace;
-import graph.execution.trace.NativeCpuMemoryTrace;
-import graph.execution.trace.PrepareTrace;
-import graph.execution.trace.RunTrace;
-import graph.execution.trace.StepExecutionMetadata;
+import trace.compile.CompileTrace;
+import trace.execution.ExecutionStepTrace;
+import trace.ExecutionTrace;
+import trace.execution.NativeCpuMemoryTrace;
+import trace.prepare.PrepareTrace;
+import trace.execution.RunTrace;
+import trace.execution.StepExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.benchmark.BenchmarkEntry;
@@ -282,7 +282,7 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 name,
                 "MATMUL",
                 List.of(2, 2),
-                DataType.FLOAT32,
+                DataType.FLOAT32.name(),
                 "CPU",
                 kernel,
                 100L,

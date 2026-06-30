@@ -13,7 +13,7 @@ import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.trace.ConvTraceMetadata;
+import trace.backend.ConvTraceMetadata;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
 import tensor.Tensor;

@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import graph.execution.trace.PartitionCompileTrace;
+import trace.compile.PartitionCompileTrace;
 
 import java.util.List;
 import java.util.Map;

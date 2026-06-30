@@ -163,8 +163,8 @@ public final class DefaultValidationEngine implements ValidationEngine {
         execute(root, profile, BackendIntentPlan.empty());
     }
 
-    private static tensor.CompileMode compileModeFor(backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD
+    private static tensor.CompileMode compileModeFor(runtime.contract.ExecutionMode mode) {
+        return mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD
                 ? tensor.CompileMode.TRAINING
                 : tensor.CompileMode.INFERENCE_ONLY;
     }

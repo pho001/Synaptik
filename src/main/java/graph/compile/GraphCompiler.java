@@ -7,7 +7,7 @@ import graph.compile.intent.BackendIntentPlan;
 import graph.compile.planning.BackendPlanningJobResolver;
 import graph.compile.planning.BackendPlanningService;
 import graph.compile.session.CompileSession;
-import graph.execution.trace.CompileTrace;
+import trace.compile.CompileTrace;
 import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
 import tensor.Tensor;

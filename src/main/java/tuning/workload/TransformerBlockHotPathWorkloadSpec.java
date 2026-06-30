@@ -1,6 +1,6 @@
 package tuning.workload;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadKind;
 import config.profile.WorkloadProfile;

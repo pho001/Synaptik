@@ -3,7 +3,8 @@ package graph.compile.planning.partition;
 import graph.model.CompiledNode;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.value.GraphValueRef;
-import graph.execution.trace.PartitionDecisionTrace;
+import trace.compile.PartitionDecisionTrace;
+import trace.compile.MaterializationCostTrace;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,8 +53,8 @@ final class PartitionAssembly {
                 .toList();
         long estimatedWork = attachedPlan == null ? 0L : attachedPlan.estimatedWork();
         PartitionDecisionTrace trace = new PartitionDecisionTrace(
-                request.strategy(),
-                request.target(),
+                request.strategy().name(),
+                request.target().name(),
                 candidate.anchorNodeId(),
                 true,
                 reason,
@@ -66,7 +67,7 @@ final class PartitionAssembly {
                 explored,
                 budgetHit,
                 rejectedNodeId,
-                costSummary,
+                traceCost(costSummary),
                 finalists
         );
         return new Partition(
@@ -85,6 +86,20 @@ final class PartitionAssembly {
                 metricsFor(candidate, context),
                 request.strategy(),
                 trace
+        );
+    }
+
+    private static MaterializationCostTrace traceCost(
+            AcceleratorPartitionScoreModel.MaterializationCostSummary source
+    ) {
+        if (source == null) {
+            return null;
+        }
+        return new MaterializationCostTrace(
+                source.preset(), source.boundaryCount(), source.estimatedTransferBytes(),
+                source.layoutFallbackBytes(), source.estimatedComputeWork(),
+                source.avoidedIntermediateBytes(), source.dispatchCost(), source.finalScore(),
+                source.reasonCode(), source.fallbackMode(), source.layoutClass()
         );
     }
 

@@ -1,6 +1,6 @@
 package tuning.benchmark;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.BackendPlanningConfig;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;

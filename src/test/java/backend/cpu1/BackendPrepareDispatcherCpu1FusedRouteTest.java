@@ -6,7 +6,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.BackendPrepareDispatcher;
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.backend.CpuKernelConfig;
 import config.runtime.ApproximationConfig;

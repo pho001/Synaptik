@@ -1,6 +1,6 @@
 package synaptik.app;
 
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tuning.autotune.GraphAutotuneMode;

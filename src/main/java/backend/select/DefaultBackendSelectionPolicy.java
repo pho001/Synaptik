@@ -1,11 +1,15 @@
 package backend.select;
 
 import backend.contract.ComputeBackend;
+import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.accelerator.select.AcceleratorRuntimeAvailability;
 import config.runtime.RuntimeConfig;
-import graph.execution.trace.BackendSelectionDecisionTrace;
-import graph.execution.trace.BackendSelectionTrace;
+import trace.prepare.BackendSelectionDecisionTrace;
+import trace.prepare.BackendSelectionTrace;
+import trace.prepare.GpuLoweredRegionTrace;
+import trace.compile.MaterializationCostTrace;
+import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
 
@@ -42,8 +46,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
             if (plannedPartition == null) {
                 continue;
             }
-            List<ComputeBackend> compatibleBackends = plannedPartition.compatibleBackends().stream()
+            List<String> compatibleBackends = plannedPartition.compatibleBackends().stream()
                     .sorted(Comparator.comparing(Enum::name))
+                    .map(Enum::name)
                     .toList();
             PartitionPlan plan = plannedPartition.plan();
             if (plan != null && plan.backend() == ComputeBackend.CPU) {
@@ -71,7 +76,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         null,
                         "backend-not-compatible",
                         plan.estimatedWork(),
-                        summary,
+                        traceCost(summary),
                         List.of()
                 ));
                 continue;
@@ -86,7 +91,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         null,
                         "backend-disabled",
                         plan.estimatedWork(),
-                        summary,
+                        traceCost(summary),
                         List.of()
                 ));
                 continue;
@@ -104,7 +109,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         null,
                         "runtime-unavailable",
                         plan.estimatedWork(),
-                        summary,
+                        traceCost(summary),
                         List.of()
                 ));
                 continue;
@@ -117,12 +122,12 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         plannedPartition.nodeIds(),
                         compatibleBackends,
                         true,
-                        plan.backend(),
+                        plan.backend().name(),
                         "selected",
                         plan.estimatedWork(),
-                        decision.costSummary(),
+                        traceCost(decision.costSummary()),
                         List.of(),
-                        plan.gpuLoweredRegionManifest()
+                        traceManifest(plan.gpuLoweredRegionManifest())
                 ));
             } else {
                 decisions.add(new BackendSelectionDecisionTrace(
@@ -133,7 +138,7 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         null,
                         decision.reason(),
                         plan.estimatedWork(),
-                        decision.costSummary(),
+                        traceCost(decision.costSummary()),
                         List.of()
                 ));
             }
@@ -142,6 +147,86 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
         return new BackendSelectionResult(
                 List.copyOf(out),
                 new BackendSelectionTrace(decisions.size(), selectedCount, decisions.size() - selectedCount, decisions)
+        );
+    }
+
+    private static MaterializationCostTrace traceCost(
+            AcceleratorPartitionScoreModel.MaterializationCostSummary source
+    ) {
+        if (source == null) {
+            return null;
+        }
+        return new MaterializationCostTrace(
+                source.preset(), source.boundaryCount(), source.estimatedTransferBytes(),
+                source.layoutFallbackBytes(), source.estimatedComputeWork(),
+                source.avoidedIntermediateBytes(), source.dispatchCost(), source.finalScore(),
+                source.reasonCode(), source.fallbackMode(), source.layoutClass()
+        );
+    }
+
+    private static GpuLoweredRegionTrace traceManifest(GpuLoweredRegionManifest source) {
+        if (source == null) {
+            return null;
+        }
+        return new GpuLoweredRegionTrace(
+                source.regionId(),
+                source.backend().name(),
+                source.anchorNodeId(),
+                source.orderedNodeIds(),
+                source.externalInputNodeIds(),
+                source.outputNodeIds(),
+                source.selectedRegionLength(),
+                source.originalOps().stream()
+                        .map(op -> new GpuLoweredRegionTrace.OriginalOperation(
+                                op.nodeId(), op.opType(), op.inputNodeIds(), op.outputNodeIds(),
+                                op.dataType().name(), op.shape(), op.loweredPrimitiveIds(),
+                                op.aggregatedReasons().stream().map(Enum::name).toList()
+                        ))
+                        .toList(),
+                source.loweredPrimitives().stream()
+                        .map(primitive -> new GpuLoweredRegionTrace.LoweredPrimitive(
+                                primitive.primitiveId(), primitive.primitiveType(), primitive.sourceOriginalNodeIds(),
+                                primitive.inputRefs(), primitive.outputRef(), primitive.dataType().name(),
+                                primitive.shape(), primitive.reasons().stream().map(Enum::name).toList()
+                        ))
+                        .toList(),
+                source.inputAssumptions().stream().map(DefaultBackendSelectionPolicy::traceAssumption).toList(),
+                source.outputAssumptions().stream().map(DefaultBackendSelectionPolicy::traceAssumption).toList(),
+                new GpuLoweredRegionTrace.CompoundSummary(
+                        source.fusedSummary().backend().name(), source.fusedSummary().patternType().name(),
+                        source.fusedSummary().supported(), source.fusedSummary().reason().name(),
+                        source.fusedSummary().orderedNodeIds(), source.fusedSummary().externalInputNodeIds(),
+                        source.fusedSummary().outputNodeIds(), source.fusedSummary().dagNodeTypes(),
+                        source.fusedSummary().postOps(), source.fusedSummary().detail()
+                ),
+                source.fusedSubpatterns().stream()
+                        .map(summary -> new GpuLoweredRegionTrace.FusedSubpattern(
+                                summary.patternType().name(), summary.supported(),
+                                summary.originalOperationNodeIds(), summary.loweredPrimitiveIds(),
+                                summary.loweredPrimitiveCount(), summary.reason().name(), summary.detail()
+                        ))
+                        .toList(),
+                source.rejections().stream()
+                        .map(rejection -> new GpuLoweredRegionTrace.Rejection(
+                                rejection.level(), rejection.originalNodeId(), rejection.primitiveId(),
+                                rejection.fusedPatternType(), rejection.reason().name(), rejection.detail()
+                        ))
+                        .toList(),
+                new GpuLoweredRegionTrace.CandidateSpan(
+                        source.candidateSpan().originalCandidateNodeIds(), source.candidateSpan().acceptedNodeIds(),
+                        source.candidateSpan().rejectedOriginalNodeId(), source.candidateSpan().rejectedPrimitiveId(),
+                        source.candidateSpan().reason().name()
+                ),
+                source.backendExtensions()
+        );
+    }
+
+    private static GpuLoweredRegionTrace.ValueAssumption traceAssumption(
+            backend.accelerator.lowering.GpuLoweredRegionValueAssumption source
+    ) {
+        return new GpuLoweredRegionTrace.ValueAssumption(
+                source.nodeId(), source.role(), source.dataType().name(), source.rank(), source.shape(),
+                source.layout(), source.contiguous(), source.hasStorageOffset(), source.storageOffset()
         );
     }
 }

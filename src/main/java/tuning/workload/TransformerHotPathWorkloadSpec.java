@@ -67,7 +67,7 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
             throw new IllegalArgumentException("TransformerHotPathWorkloadSpec requires profile.workload.kind == TRANSFORMER_HOT_PATH");
         }
 
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
         int modelDim = workload.modelDim();
 
@@ -132,8 +132,8 @@ public final class TransformerHotPathWorkloadSpec implements WorkloadSpec {
         );
     }
 
-    private static Tensor finalizeRoot(Tensor out, backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
+    private static Tensor finalizeRoot(Tensor out, runtime.contract.ExecutionMode mode) {
+        return mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
     }
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {

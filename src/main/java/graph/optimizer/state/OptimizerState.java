@@ -1,5 +1,7 @@
 package graph.optimizer.state;
 
+import trace.compile.OptimizerTrace;
+
 import tensor.Tensor;
 
 import java.util.List;

@@ -1,7 +1,7 @@
 package backend.cuda.buffer;
 
 import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

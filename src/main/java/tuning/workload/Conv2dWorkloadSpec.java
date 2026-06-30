@@ -64,7 +64,7 @@ public final class Conv2dWorkloadSpec implements WorkloadSpec {
     @Override
     public WorkloadInstance instantiate(WorkloadEnvironment environment) {
         ExecutionProfile profile = environment.profile();
-        boolean requiresGrad = profile.mode() == backend.runtime.ExecutionMode.FORWARD_BACKWARD;
+        boolean requiresGrad = profile.mode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD;
         DataType dataType = profile.dataType();
 
         Tensor input = tensor("CONV_INPUT", 201, dataType, requiresGrad, batch, inChannels, height, width);
@@ -121,8 +121,8 @@ public final class Conv2dWorkloadSpec implements WorkloadSpec {
         );
     }
 
-    private static Tensor finalizeRoot(Tensor out, backend.runtime.ExecutionMode mode) {
-        return mode == backend.runtime.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
+    private static Tensor finalizeRoot(Tensor out, runtime.contract.ExecutionMode mode) {
+        return mode == runtime.contract.ExecutionMode.FORWARD_BACKWARD ? out.sum() : out.sum();
     }
 
     private static Tensor tensor(String label, int seed, DataType dataType, boolean requiresGrad, int... shape) {

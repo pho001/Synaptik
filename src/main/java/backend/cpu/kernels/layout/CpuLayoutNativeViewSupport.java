@@ -2,7 +2,7 @@ package backend.cpu.kernels.layout;
 
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.nativecpu.CpuNativeTraceSupport;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import operations.Operation;

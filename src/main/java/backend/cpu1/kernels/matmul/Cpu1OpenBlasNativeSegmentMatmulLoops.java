@@ -4,7 +4,7 @@ import backend.blas.OpenBlasRuntime;
 import backend.blas.OpenBlasSegmentGemm;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
-import backend.memory.CpuMaterializationReason;
+import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
