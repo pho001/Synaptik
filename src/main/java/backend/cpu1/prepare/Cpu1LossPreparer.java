@@ -11,7 +11,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;

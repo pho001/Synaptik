@@ -1,6 +1,6 @@
 package backend.accelerator.select;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.metal.bridge.MetalMpsFfmBridge;
 import backend.cuda.bridge.CudaFfmBridge;
 

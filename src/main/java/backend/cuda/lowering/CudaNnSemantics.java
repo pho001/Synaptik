@@ -1,6 +1,6 @@
 package backend.cuda.lowering;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.linalg.scaledDotProductAttention;

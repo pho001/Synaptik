@@ -9,7 +9,8 @@ import config.optimizer.CpuRegionConfig;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.planning.value.GraphValueRef;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 import graph.compile.planning.region.DefaultRegionOptimizer;
@@ -38,7 +39,7 @@ class CpuNaturalExecutionRegionPlannerTest {
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor sum = a.add(b).relu().sum();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(sum.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(sum.topologicalSort(), BackendIntentPlan.empty());
         PartitionPlanningContext context = new PartitionPlanningContext(
                 false,
                 nodes,

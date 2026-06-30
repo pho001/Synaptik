@@ -1,9 +1,10 @@
 package backend.lowering;
 
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import config.optimizer.FuseConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.memory.MemoryPlanner;
@@ -47,7 +48,7 @@ class LoweringPipelineTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-partition",
                 PartitionTarget.CPU,
@@ -98,7 +99,7 @@ class LoweringPipelineTest {
         Tensor out = a.add(b).relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "metal-partition",
                 PartitionTarget.GPU_METAL,

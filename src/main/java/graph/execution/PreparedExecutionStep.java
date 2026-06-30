@@ -1,6 +1,6 @@
 package graph.execution;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import operations.Operation;
 

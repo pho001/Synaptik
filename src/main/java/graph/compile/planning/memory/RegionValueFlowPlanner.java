@@ -1,6 +1,6 @@
 package graph.compile.planning.memory;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.region.ExecutionUnit;
 import graph.compile.planning.region.MaterializationDecision;
 import graph.compile.planning.region.OptimizedRegion;

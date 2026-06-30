@@ -24,7 +24,8 @@ import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.layout.sliceBackward;
@@ -3499,7 +3500,7 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

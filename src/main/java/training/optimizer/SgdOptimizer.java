@@ -11,7 +11,7 @@ import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import tensor.dtype.TensorDTypeOps;
 import tensor.DataType;
 import tensor.storage.NativeBFloat16Storage;

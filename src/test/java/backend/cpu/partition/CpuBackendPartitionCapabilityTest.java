@@ -5,7 +5,8 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -96,7 +97,7 @@ class CpuBackendPartitionCapabilityTest {
                 }
             }
         }
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

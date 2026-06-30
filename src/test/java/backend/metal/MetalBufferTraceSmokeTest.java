@@ -1,6 +1,6 @@
 package backend.metal;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.memory.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.runtime.ExecutionMode;

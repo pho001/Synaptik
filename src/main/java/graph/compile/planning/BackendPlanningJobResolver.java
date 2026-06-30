@@ -6,7 +6,7 @@ import config.compile.BackendTarget;
 import config.compile.PartitionSearchConfig;
 import config.optimizer.CpuRegionConfig;
 import config.optimizer.CpuRegionPolicy;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlannerStrategy;
 import graph.compile.planning.partition.PartitionSourcePolicy;
 import graph.compile.planning.partition.PartitionTarget;
@@ -30,7 +30,7 @@ public final class BackendPlanningJobResolver {
         }
 
         EnumSet<BackendTarget> explicitTargets = explicitTargets(graph);
-        boolean cpuSeen = graph.stream().anyMatch(node -> node.backend() == backend.ComputeBackend.CPU);
+        boolean cpuSeen = graph.stream().anyMatch(node -> node.backend() == backend.contract.ComputeBackend.CPU);
         List<BackendPlanningJob> jobs = new ArrayList<>();
 
         if (resolved.discoveryMode() != BackendDiscoveryMode.CPU_ONLY) {

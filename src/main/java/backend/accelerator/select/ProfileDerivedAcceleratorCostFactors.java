@@ -1,6 +1,6 @@
 package backend.accelerator.select;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import config.runtime.RuntimeConfig;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 

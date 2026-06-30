@@ -1,6 +1,6 @@
 package tuning.calibration.run;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.select.AcceleratorRuntimeAvailability;
 import tensor.DataType;
 import tuning.calibration.PlatformCalibrationDefaults;

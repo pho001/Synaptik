@@ -2,8 +2,8 @@ package graph.execution.publication;
 
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionMode;
-import graph.AliasViewPolicy;
-import graph.CompiledGradientBinding;
+import graph.model.AliasViewPolicy;
+import graph.model.CompiledGradientBinding;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PublicationPolicy;
 import graph.execution.state.ExecutionState;

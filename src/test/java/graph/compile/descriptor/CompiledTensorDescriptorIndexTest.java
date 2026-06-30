@@ -1,6 +1,7 @@
 package graph.compile.descriptor;
 
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.state.ExecutionState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -91,7 +92,7 @@ class CompiledTensorDescriptorIndexTest {
         Tensor right = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "right", DataType.BFLOAT16);
         left.setRequiresGrad(true);
         Tensor out = left.add(right).relu();
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
 
         CompiledTensorDescriptorIndex index = CompiledTensorDescriptorBuilder.build(nodes);
         CompiledTensorDescriptor add = index.byNodeId(2);
@@ -127,7 +128,7 @@ class CompiledTensorDescriptorIndexTest {
         Tensor input = new Tensor(new float[]{1f, -2f}, new int[]{2}, null, "input", DataType.FLOAT32);
         input.setRequiresGrad(true);
         Tensor out = input.relu();
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex index = CompiledTensorDescriptorBuilder.build(nodes);
 
         input.setRequiresGrad(false);
@@ -148,6 +149,6 @@ class CompiledTensorDescriptorIndexTest {
     }
 
     private static CompiledTensorDescriptor descriptorFor(Tensor tensor, int nodeId) {
-        return CompiledTensorDescriptorBuilder.build(CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty())).byNodeId(nodeId);
+        return CompiledTensorDescriptorBuilder.build(CompiledNodeSnapshotter.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty())).byNodeId(nodeId);
     }
 }

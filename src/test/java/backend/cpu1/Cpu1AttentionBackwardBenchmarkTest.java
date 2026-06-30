@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
@@ -17,7 +17,7 @@ import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledProgram;
+import graph.compile.CompiledProgram;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.CompiledNodeExecutionMetadata;

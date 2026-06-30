@@ -3,7 +3,7 @@ package graph.compile.planning.partition;
 import graph.compile.planning.value.GraphValueRef;
 
 import config.optimizer.CpuRegionConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 
 import java.util.LinkedHashSet;

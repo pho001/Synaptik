@@ -1,6 +1,6 @@
 package config.runtime;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 
 import java.util.Objects;
 

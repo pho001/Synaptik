@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 
 import java.util.List;
 import java.util.Set;

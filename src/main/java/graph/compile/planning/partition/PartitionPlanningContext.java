@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 

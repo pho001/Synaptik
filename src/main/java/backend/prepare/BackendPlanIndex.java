@@ -1,6 +1,6 @@
 package backend.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import graph.compile.planning.partition.PartitionPlan;
 
 import java.util.HashMap;

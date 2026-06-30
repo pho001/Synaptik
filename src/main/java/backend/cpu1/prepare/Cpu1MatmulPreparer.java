@@ -13,7 +13,7 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import jdk.incubator.vector.DoubleVector;

@@ -210,7 +210,7 @@ public class BenchmarkSuiteSessionTest {
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(
                         MeasurementPolicy.defaults(),
-                        GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.ComputeBackend.GPU_METAL),
+                        GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.contract.ComputeBackend.GPU_METAL),
                         new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
                 )
         );
@@ -411,7 +411,7 @@ public class BenchmarkSuiteSessionTest {
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(
                         MeasurementPolicy.defaults(),
-                        GpuCoverageSummaryTest.traceFor(backendName, backend.ComputeBackend.valueOf(backendName)),
+                        GpuCoverageSummaryTest.traceFor(backendName, backend.contract.ComputeBackend.valueOf(backendName)),
                         new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
                 )
         );

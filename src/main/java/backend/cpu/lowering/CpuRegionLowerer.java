@@ -1,6 +1,6 @@
 package backend.cpu.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.blas.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationBuilder;
 import backend.lowering.LoweredExecutionUnit;
@@ -23,8 +23,7 @@ import backend.lowering.region.RegionLegalityStatus;
 import backend.lowering.region.RegionNodePlan;
 import backend.lowering.region.RegionRole;
 import backend.lowering.region.RegionStorageContract;
-import graph.AliasViewPolicy;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.region.ExecutionUnit;
 import graph.compile.planning.region.ExecutionUnitKind;
 import graph.compile.planning.value.GraphValueRef;
@@ -203,10 +202,10 @@ public final class CpuRegionLowerer implements RegionLowerer {
             if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
                 return current;
             }
-            if (!AliasViewPolicy.aliasesInput0AtRuntime(node, request.context().descriptorIndex())) {
+            if (node.storageOwnerId() == node.id()) {
                 return current;
             }
-            current = node.inputIds().getFirst();
+            current = node.storageOwnerId();
         }
         return nodeId;
     }

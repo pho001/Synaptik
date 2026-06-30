@@ -1,6 +1,6 @@
 package debug;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.runtime.ExecutionMode;
 import config.optimizer.CpuFusionConfig;
@@ -14,7 +14,7 @@ import config.runtime.AcceleratorConfig;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.CompileMode;

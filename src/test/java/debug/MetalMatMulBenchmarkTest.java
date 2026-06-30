@@ -1,6 +1,6 @@
 package debug;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;

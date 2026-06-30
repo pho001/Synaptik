@@ -1,6 +1,6 @@
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
@@ -31,7 +31,8 @@ import config.runtime.AcceleratorConfig;
 import config.runtime.RuntimeConfig;
 import config.runtime.FusedExecutionPolicy;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
@@ -263,7 +264,7 @@ public class PreparedExecutionBuildTest {
     void phaseNineteenSupportedMultiOpBufferPathDoesNotMaterializePreparedInputs() {
         Tensor input = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "phase19NativeBufferInput", DataType.FLOAT32);
         Tensor out = input.relu().exp();
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Map<Integer, CompiledNodeExecutionMetadata> metadata = Map.of();
         ExecutionState state = ExecutionState.create(
                 nodes,
@@ -302,7 +303,7 @@ public class PreparedExecutionBuildTest {
         Tensor internalSource = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{2, 2}, null, "resolverInternalSource", DataType.FLOAT32);
         Tensor internal = internalSource.relu();
         Tensor out = external.add(internal);
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int externalNodeId = nodeId(nodes, "resolverExternal");
         int internalNodeId = nodeId(nodes, Operation.OpType.RELU);
         int consumerNodeId = nodeId(nodes, Operation.OpType.ADD);
@@ -369,7 +370,7 @@ public class PreparedExecutionBuildTest {
         Tensor laterProducer = input.exp();
         Tensor gpuMerge = earlyProducer.add(laterProducer);
         Tensor out = earlyCpuConsumer.add(gpuMerge.sum(1));
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int earlyProducerNodeId = nodeId(nodes, Operation.OpType.RELU);
         int earlyConsumerNodeId = nodeId(nodes, Operation.OpType.SUM);
         int laterProducerNodeId = nodeId(nodes, Operation.OpType.EXP);
@@ -1932,7 +1933,7 @@ public class PreparedExecutionBuildTest {
         Integer gradNodeId = compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null
                         && node.operation().opType() == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD)
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElse(null);
 
@@ -4530,7 +4531,7 @@ public class PreparedExecutionBuildTest {
     private static int nodeId(CompiledGraph compiled, Operation.OpType opType) {
         return compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
     }
@@ -4538,7 +4539,7 @@ public class PreparedExecutionBuildTest {
     private static int nodeId(CompiledGraph compiled, String label) {
         return compiled.program().compiledNodes().stream()
                 .filter(node -> label.equals(node.label()))
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
     }
@@ -4550,7 +4551,7 @@ public class PreparedExecutionBuildTest {
     private static int nodeId(List<CompiledNode> nodes, Operation.OpType opType) {
         return nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
     }
@@ -4558,7 +4559,7 @@ public class PreparedExecutionBuildTest {
     private static int nodeId(List<CompiledNode> nodes, String label) {
         return nodes.stream()
                 .filter(node -> label.equals(node.label()))
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
     }
@@ -4576,7 +4577,7 @@ public class PreparedExecutionBuildTest {
         return consumers;
     }
 
-    private static graph.CompiledNode compiledNode(CompiledGraph compiled, int nodeId) {
+    private static graph.model.CompiledNode compiledNode(CompiledGraph compiled, int nodeId) {
         return compiled.program().compiledNodes().stream()
                 .filter(node -> node.id() == nodeId)
                 .findFirst()

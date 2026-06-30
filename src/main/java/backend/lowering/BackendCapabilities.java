@@ -1,6 +1,6 @@
 package backend.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 
 import java.util.Set;
 

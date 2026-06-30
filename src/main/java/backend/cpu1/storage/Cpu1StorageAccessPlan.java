@@ -1,6 +1,6 @@
 package backend.cpu1.storage;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import tensor.TensorMetadata;
 import tensor.layout.BroadcastPlan;

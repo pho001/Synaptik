@@ -1,6 +1,6 @@
 package backend.metal;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import operations.Operation;
 import tensor.DataType;
 

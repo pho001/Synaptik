@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import graph.execution.trace.BackendSelectionDecisionTrace;
 import graph.execution.trace.CpuMaterializationTrace;
 import graph.execution.trace.ExecutionStepTrace;

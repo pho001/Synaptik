@@ -1,6 +1,6 @@
 package backend.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.lowering.LoweringInput;
 import backend.select.BackendSelectionResult;
 import graph.execution.trace.BackendPrepareDiagnosticTrace;

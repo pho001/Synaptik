@@ -5,7 +5,7 @@ import backend.runtime.ExecutionMode;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.GraphStructureContract;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;

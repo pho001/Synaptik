@@ -1,6 +1,6 @@
 package backend.lowering;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import config.runtime.RuntimeConfig;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;

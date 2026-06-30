@@ -1,6 +1,6 @@
 package backend.cuda.buffer;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.DeviceBufferBinding;

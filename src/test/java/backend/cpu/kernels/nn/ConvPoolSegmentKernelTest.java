@@ -1,6 +1,6 @@
 package backend.cpu.kernels.nn;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.kernels.CpuKernelCall;

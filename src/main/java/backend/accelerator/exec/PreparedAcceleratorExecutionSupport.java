@@ -3,7 +3,7 @@ package backend.accelerator.exec;
 import backend.cpu.CpuBackend;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 

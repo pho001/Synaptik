@@ -1,6 +1,6 @@
 package backend.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
 import backend.cpu1.prepare.Cpu1AttentionBackwardPreparer;
@@ -17,7 +17,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuSpecializedPrimitivePayload;
 import backend.lowering.region.RegionExecutionPlan;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;

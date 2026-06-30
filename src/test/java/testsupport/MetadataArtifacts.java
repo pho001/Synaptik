@@ -2,7 +2,7 @@ package testsupport;
 
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.fused.exec.PreparedFusedExecutable;

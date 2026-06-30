@@ -1,6 +1,6 @@
 package backend.accelerator.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -12,7 +12,8 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -744,7 +745,7 @@ class Cpu1MlpBenchmarkTest {
         Tensor diff = prediction.sub(target);
         Tensor loss = diff.mul(diff).mean(1).mean(0, true);
         List<Tensor> tensors = loss.topologicalSort();
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensors, BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(tensors, BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         Map<String, LeafData> leaves = Map.of(
                 "mlp-x", new LeafData(xData),
@@ -768,7 +769,7 @@ class Cpu1MlpBenchmarkTest {
         Tensor h = activate(x.matmul(w1), chainCase.activation());
         Tensor out = h.matmul(w2);
         List<Tensor> tensors = out.topologicalSort();
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensors, BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(tensors, BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         Map<String, LeafData> leaves = Map.of(
                 "chain-x", new LeafData(xData),

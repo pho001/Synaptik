@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.kernels.loss.crossentropy.Cpu1CrossEntropyKernelId;
 import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
@@ -9,7 +9,8 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -206,7 +207,7 @@ class Cpu1CrossEntropyLossExecutionContractTest {
     }
 
     private static Fixture fixture(Tensor out) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(out, nodes, descriptorIndex, nodes.getLast());
     }

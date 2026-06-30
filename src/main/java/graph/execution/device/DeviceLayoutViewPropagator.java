@@ -1,6 +1,6 @@
 package graph.execution.device;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
@@ -13,7 +13,7 @@ import backend.memory.StorageResidency;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.PreparedExecutionStep;
 import operations.Operation;
 import tensor.Tensor;

@@ -1,6 +1,6 @@
 package backend.accelerator.residency;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import tensor.DataType;
 

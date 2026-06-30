@@ -2,7 +2,7 @@ package backend.cuda;
 
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 /**

@@ -3,7 +3,7 @@ package backend.cpu.lowering;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.blas.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.lowering.region.CpuFusedRegionPayload;
@@ -21,7 +21,8 @@ import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.memory.MemoryPlanner;
 import graph.compile.planning.partition.Partition;
@@ -55,7 +56,7 @@ class CpuRegionLowererTest {
         Tensor out = a.add(b).relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-fused",
                 PartitionTarget.CPU,
@@ -89,7 +90,7 @@ class CpuRegionLowererTest {
         Tensor out = matmul.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-matmul",
                 PartitionTarget.CPU,
@@ -142,7 +143,7 @@ class CpuRegionLowererTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         int matmulNodeId = nodeId(compiledNodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(compiledNodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(compiledNodes, Operation.OpType.RELU);
@@ -185,7 +186,7 @@ class CpuRegionLowererTest {
         Tensor out = a.matmul(b).relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-native-matmul",
                 PartitionTarget.CPU,
@@ -218,7 +219,7 @@ class CpuRegionLowererTest {
         Tensor out = a.matmul(b).relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-native-auto-reject",
                 PartitionTarget.CPU,
@@ -251,7 +252,7 @@ class CpuRegionLowererTest {
         Tensor out = base.select(0, 1).relu().exp();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-view-chain",
                 PartitionTarget.CPU,

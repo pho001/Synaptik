@@ -1,6 +1,5 @@
 package graph.optimizer.state;
 
-import backend.runtime.ExecutionMode;
 import tensor.Tensor;
 
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Objects;
  *
  * @param graph tensors in topological order
  * @param forwardOutput semantic forward output that must remain observable
- * @param executionMode compile-time execution mode metadata
  * @param supportsBackward whether backward work is present in the graph
  * @param forwardBoundaryNodeId index of the forward output node in {@code graph}
  * @param rewriteMap cumulative identity mapping from pre-optimization tensors to rewritten tensors
@@ -24,7 +22,6 @@ import java.util.Objects;
 public record OptimizerState(
         List<Tensor> graph,
         Tensor forwardOutput,
-        ExecutionMode executionMode,
         boolean supportsBackward,
         int forwardBoundaryNodeId,
         GraphRewriteMap rewriteMap,
@@ -33,7 +30,6 @@ public record OptimizerState(
     public OptimizerState {
         graph = List.copyOf(Objects.requireNonNull(graph, "graph cannot be null"));
         forwardOutput = Objects.requireNonNull(forwardOutput, "forwardOutput cannot be null");
-        executionMode = executionMode == null ? ExecutionMode.FORWARD : executionMode;
         rewriteMap = rewriteMap == null ? GraphRewriteMap.empty() : rewriteMap;
         trace = trace == null ? OptimizerTrace.empty() : trace;
     }
@@ -56,7 +52,6 @@ public record OptimizerState(
         return new OptimizerState(
                 safe,
                 resolvedForwardOutput,
-                ExecutionMode.FORWARD,
                 false,
                 forwardBoundaryNodeId,
                 GraphRewriteMap.empty(),
@@ -68,7 +63,6 @@ public record OptimizerState(
         return new OptimizerState(
                 graph,
                 forwardOutput,
-                executionMode,
                 supportsBackward,
                 resolveBoundaryIndex(graph, forwardOutput),
                 rewriteMap,
@@ -80,7 +74,6 @@ public record OptimizerState(
         return new OptimizerState(
                 graph,
                 forwardOutput,
-                executionMode,
                 supportsBackward,
                 forwardBoundaryNodeId,
                 rewriteMap,
@@ -92,7 +85,6 @@ public record OptimizerState(
         return new OptimizerState(
                 graph,
                 forwardOutput,
-                executionMode,
                 supportsBackward,
                 forwardBoundaryNodeId,
                 rewriteMap,
@@ -100,15 +92,13 @@ public record OptimizerState(
         );
     }
 
-    public OptimizerState withExecutionMetadata(
-            ExecutionMode executionMode,
+    public OptimizerState withCompileMetadata(
             boolean supportsBackward,
             int forwardBoundaryNodeId
     ) {
         return new OptimizerState(
                 graph,
                 forwardOutput,
-                executionMode,
                 supportsBackward,
                 forwardBoundaryNodeId,
                 rewriteMap,

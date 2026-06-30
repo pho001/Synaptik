@@ -1,4 +1,4 @@
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import org.junit.jupiter.api.Test;
 import tuning.benchmark.report.BenchmarkReport;
 import tuning.benchmark.report.BenchmarkSuiteReport;

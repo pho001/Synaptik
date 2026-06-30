@@ -18,7 +18,8 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -153,7 +154,7 @@ class Cpu1FusedElementwisePreparerTest {
     }
 
     private static Fixture fixture(Tensor out) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(nodes, descriptorIndex, nodes.getLast());
     }

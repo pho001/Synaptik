@@ -23,7 +23,7 @@ public class AlgebraicRewritingClampTest {
 
         assertArrayEquals(new double[]{3.0, 3.0, 7.0}, nested.toDoubleArrayCopy(), 1e-9);
         long clampMinCount = compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.CLAMP_MIN)
                 .count();
         assertEquals(1L, clampMinCount);
@@ -39,7 +39,7 @@ public class AlgebraicRewritingClampTest {
 
         assertArrayEquals(new double[]{-5.0, 2.0, 4.0}, nested.toDoubleArrayCopy(), 1e-9);
         long clampMaxCount = compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.CLAMP_MAX)
                 .count();
         assertEquals(1L, clampMaxCount);

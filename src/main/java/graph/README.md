@@ -116,7 +116,7 @@ This matters because the semantic root may be a publication wrapper rather than 
 
 ### Step 2: initialize the working forward graph
 
-If semantic forward canonicalization is enabled through `OptimizerFactory.createSemanticForwardCanonicalizer(...)`, compile starts from a canonicalized forward graph snapshot.
+If semantic forward canonicalization is enabled in the compile configuration, `CompiledGraph` starts compilation from a canonicalized forward graph snapshot.
 
 This stage can normalize decomposed forward patterns before the main optimizer runs.
 

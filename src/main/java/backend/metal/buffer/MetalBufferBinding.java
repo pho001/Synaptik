@@ -1,6 +1,6 @@
 package backend.metal.buffer;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
 import backend.accelerator.buffer.AcceleratorBufferLayout;

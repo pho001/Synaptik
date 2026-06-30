@@ -34,7 +34,7 @@ import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
@@ -89,7 +89,7 @@ class PreparedCudaExecutableBufferPolicyTest {
 
         var decision = backend.accelerator.buffer.AcceleratorLayoutTransformPlanner.decide(
                 new backend.accelerator.buffer.AcceleratorLayoutTransformRequest(
-                        backend.ComputeBackend.GPU_CUDA.name(),
+                        backend.contract.ComputeBackend.GPU_CUDA.name(),
                         1,
                         2,
                         Operation.OpType.CONTIGUOUS,
@@ -344,7 +344,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         PreparedCudaExecutable executable = executable(fixture, bridge, AcceleratorBackendConfig.defaults());
-        var acceleratorMetadata = testsupport.MetadataArtifacts.acceleratorMetadata(backend.ComputeBackend.GPU_CUDA, executable);
+        var acceleratorMetadata = testsupport.MetadataArtifacts.acceleratorMetadata(backend.contract.ComputeBackend.GPU_CUDA, executable);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
                 false,
@@ -485,7 +485,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 List.of(),
                 backendConfig,
                 GpuCompoundRegionSummary.supported(
-                        backend.ComputeBackend.GPU_CUDA,
+                        backend.contract.ComputeBackend.GPU_CUDA,
                         GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                         List.of(fixture.addNode().id(), fixture.reluNode().id(), fixture.expNode().id()),
                         List.of(fixture.inputA().id(), fixture.inputB().id()),
@@ -506,7 +506,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     ) {
         CompiledNodeExecutionMetadata fallbackMetadata = metadata.getOrDefault(
                 outputNode.id(),
-                testsupport.MetadataArtifacts.metadata(backend.ComputeBackend.CPU)
+                testsupport.MetadataArtifacts.metadata(backend.contract.ComputeBackend.CPU)
         );
         return new PreparedCudaExecutable(
                 dag(inputNode, outputNode),

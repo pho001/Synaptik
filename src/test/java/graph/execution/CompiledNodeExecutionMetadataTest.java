@@ -1,6 +1,6 @@
 package graph.execution;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
 import graph.execution.plan.CompiledNodeExecutionMetadata;

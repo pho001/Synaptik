@@ -4,7 +4,8 @@ import backend.runtime.ExecutionMode;
 import config.optimizer.FuseConfig;
 import config.compile.CompileConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
@@ -47,7 +48,7 @@ class MemoryPlannerRegionViewTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-cont",
                 PartitionTarget.CPU,
@@ -210,7 +211,7 @@ class MemoryPlannerRegionViewTest {
         Tensor out = add.relu();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "bf16-region",
                 PartitionTarget.CPU,
@@ -242,7 +243,7 @@ class MemoryPlannerRegionViewTest {
         int diffNodeId = graph.indexOf(diff);
         int squareNodeId = graph.indexOf(square);
         int lossNodeId = graph.indexOf(loss);
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "memory-cpu-mse",
                 PartitionTarget.CPU,
@@ -360,7 +361,7 @@ class MemoryPlannerRegionViewTest {
     ) {
         return MemoryPlanner.plan(
                 new MemoryPlanningInput(
-                        CompiledNode.snapshot(graph, BackendIntentPlan.empty()),
+                        CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty()),
                         regions,
                         Map.of(),
                         ExecutionMode.FORWARD,

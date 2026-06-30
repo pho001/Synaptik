@@ -13,7 +13,7 @@ import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.CpuStorageProfile;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;
 import tensor.storage.NativeTensorStorage;

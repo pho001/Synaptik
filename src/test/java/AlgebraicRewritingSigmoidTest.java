@@ -91,7 +91,7 @@ public class AlgebraicRewritingSigmoidTest {
         compiledGraph.prepare(config.runtime.RuntimeConfig.inferenceDefaults()).execute(backend.runtime.ExecutionMode.FORWARD);
 
         assertEquals(1, compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null && op.opType() == Operation.OpType.GT)
                 .count());
         assertArrayEquals(new byte[]{0, 1, 0}, out.toBoolByteArrayCopy());
@@ -99,7 +99,7 @@ public class AlgebraicRewritingSigmoidTest {
 
     private static boolean containsSigmoid(CompiledGraph compiledGraph) {
         return compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.SIGMOID);

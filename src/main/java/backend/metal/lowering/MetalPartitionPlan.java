@@ -1,6 +1,6 @@
 package backend.metal.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorMatMulSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;

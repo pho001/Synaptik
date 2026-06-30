@@ -4,12 +4,13 @@ import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.residency.RuntimeMemoryBinder;
 import graph.execution.state.ExecutionState;
@@ -57,7 +58,7 @@ class RuntimeMemoryBinderTest {
         short[] secondBefore = TensorInternalAccess.bfloat16Data(fixture.runtimeTensor("second"));
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
 
         assertSame(TensorInternalAccess.bfloat16Data(fixture.runtimeTensor("first")), TensorInternalAccess.bfloat16Data(fixture.runtimeTensor("second")));
     }
@@ -70,7 +71,7 @@ class RuntimeMemoryBinderTest {
         int[] secondBefore = TensorInternalAccess.int32Data(fixture.runtimeTensor("second"));
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
 
         assertSame(TensorInternalAccess.int32Data(fixture.runtimeTensor("first")), TensorInternalAccess.int32Data(fixture.runtimeTensor("second")));
     }
@@ -83,7 +84,7 @@ class RuntimeMemoryBinderTest {
         byte[] secondBefore = TensorInternalAccess.boolData(fixture.runtimeTensor("second"));
         assertNotSame(firstBefore, secondBefore);
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
 
         assertSame(TensorInternalAccess.boolData(fixture.runtimeTensor("first")), TensorInternalAccess.boolData(fixture.runtimeTensor("second")));
     }
@@ -94,7 +95,7 @@ class RuntimeMemoryBinderTest {
         Tensor alias = new Tensor(new int[]{4}, List.of(input), new noop(), "alias", DataType.BFLOAT16);
         Tensor peer = new Tensor(new int[]{4}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.BFLOAT16);
         Tensor root = new Tensor(new int[]{4}, List.of(alias, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.BFLOAT16);
-        List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -104,7 +105,7 @@ class RuntimeMemoryBinderTest {
         );
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("alias", "peer"), DataType.BFLOAT16);
 
-        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, state);
 
         assertSame(TensorInternalAccess.bfloat16Data(runtimeTensor(nodes, state, "input")), TensorInternalAccess.bfloat16Data(runtimeTensor(nodes, state, "alias")));
         assertNotSame(TensorInternalAccess.bfloat16Data(runtimeTensor(nodes, state, "alias")), TensorInternalAccess.bfloat16Data(runtimeTensor(nodes, state, "peer")));
@@ -122,7 +123,7 @@ class RuntimeMemoryBinderTest {
         Tensor slice = input.slice(new int[]{0, 0}, new int[]{2, 1}, new int[]{0, 1}, new int[]{1, 1});
         Tensor peer = new Tensor(new int[]{2}, List.of(input), new TestOperation(Operation.OpType.ADD), "peer", DataType.FLOAT32);
         Tensor root = new Tensor(new int[]{2}, List.of(slice, peer), new TestOperation(Operation.OpType.ADD), "root", DataType.FLOAT32);
-        List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -132,7 +133,7 @@ class RuntimeMemoryBinderTest {
         );
         MemoryPlan memoryPlan = memoryPlanFor(nodes, List.of("peer", slice.getLabel()), DataType.FLOAT32);
 
-        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, state);
 
         assertSame(TensorInternalAccess.float32Data(runtimeTensor(nodes, state, "input")), TensorInternalAccess.float32Data(runtimeTensor(nodes, state, slice.getLabel())));
         assertNotSame(TensorInternalAccess.float32Data(runtimeTensor(nodes, state, slice.getLabel())), TensorInternalAccess.float32Data(runtimeTensor(nodes, state, "peer")));
@@ -141,11 +142,11 @@ class RuntimeMemoryBinderTest {
     @Test
     void typedSlotBindingPreservesFloat32AndFloat64Behavior() {
         RuntimeBindingFixture f32 = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
-        RuntimeMemoryBinder.bind(f32.memoryPlan(), f32.nodes(), CompiledTensorDescriptorBuilder.build(f32.nodes()), f32.state());
+        RuntimeMemoryBinder.bind(f32.memoryPlan(), f32.nodes(), f32.state());
         assertSame(TensorInternalAccess.float32Data(f32.runtimeTensor("first")), TensorInternalAccess.float32Data(f32.runtimeTensor("second")));
 
         RuntimeBindingFixture f64 = runtimeBindingFixture(DataType.FLOAT64, new TestOperation(Operation.OpType.ADD));
-        RuntimeMemoryBinder.bind(f64.memoryPlan(), f64.nodes(), CompiledTensorDescriptorBuilder.build(f64.nodes()), f64.state());
+        RuntimeMemoryBinder.bind(f64.memoryPlan(), f64.nodes(), f64.state());
         assertSame(TensorInternalAccess.float64Data(f64.runtimeTensor("first")), TensorInternalAccess.float64Data(f64.runtimeTensor("second")));
     }
 
@@ -155,7 +156,7 @@ class RuntimeMemoryBinderTest {
         int firstNodeId = nodeByLabel(fixture.nodes(), "first").id();
         int secondNodeId = nodeByLabel(fixture.nodes(), "second").id();
 
-        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), CompiledTensorDescriptorBuilder.build(fixture.nodes()), fixture.state());
+        RuntimeMemoryBinder.bind(fixture.memoryPlan(), fixture.nodes(), fixture.state());
 
         RuntimeStorageSlotKey firstKey = fixture.state().runtimeStorageSlotKeyForNodeId(firstNodeId);
         RuntimeStorageSlotKey secondKey = fixture.state().runtimeStorageSlotKeyForNodeId(secondNodeId);
@@ -257,7 +258,7 @@ class RuntimeMemoryBinderTest {
             }
         }
 
-        RuntimeMemoryBinder.bind(memoryPlan, nodes, CompiledTensorDescriptorBuilder.build(nodes), state);
+        RuntimeMemoryBinder.bind(memoryPlan, nodes, state);
 
         assertSame(maxPoolStorageBefore, TensorInternalAccess.float32Data(state.runtimeTensorForNodeId(maxPoolNode.id())));
         for (CompiledNode node : nodes) {
@@ -292,7 +293,7 @@ class RuntimeMemoryBinderTest {
         Tensor first = new Tensor(new int[]{4}, List.of(input), operation, "first", dataType);
         Tensor second = new Tensor(new int[]{4}, List.of(input), operation, "second", dataType);
         Tensor root = new Tensor(new int[]{4}, List.of(first, second), operation, "root", dataType);
-        List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),

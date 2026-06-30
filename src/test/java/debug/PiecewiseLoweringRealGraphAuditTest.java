@@ -4,7 +4,7 @@ import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.optimizer.PiecewiseLoweringConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

@@ -1,7 +1,5 @@
-package graph;
+package graph.model;
 
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -27,24 +25,6 @@ public final class AliasViewPolicy {
             return true;
         }
         return opType == Operation.OpType.RESHAPE && inputs.getFirst().isContiguous();
-    }
-
-    public static boolean aliasesInput0AtRuntime(
-            CompiledNode node,
-            CompiledTensorDescriptorIndex descriptorIndex
-    ) {
-        if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
-            return false;
-        }
-        Operation.OpType opType = node.operation().opType();
-        if (alwaysAliasesInput0AtRuntime(opType)) {
-            return true;
-        }
-        if (opType != Operation.OpType.RESHAPE) {
-            return false;
-        }
-        CompiledTensorDescriptor source = descriptorIndex.byNodeId(node.inputIds().getFirst());
-        return source.contiguous();
     }
 
     public static boolean alwaysAliasesInput0AtRuntime(Operation.OpType opType) {

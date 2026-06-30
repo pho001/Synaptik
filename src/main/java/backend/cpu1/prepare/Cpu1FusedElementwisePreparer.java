@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.fused.ir.Cpu1FusedExpressionPlan;
 import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.kernels.Cpu1LayoutKind;
@@ -20,7 +20,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.prepare.BackendPrepareContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;

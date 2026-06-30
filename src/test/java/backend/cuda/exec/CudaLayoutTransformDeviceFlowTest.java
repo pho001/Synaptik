@@ -4,7 +4,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
@@ -21,7 +21,8 @@ import config.compile.CompileConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
@@ -51,7 +52,7 @@ class CudaLayoutTransformDeviceFlowTest {
         }, new int[]{2, 3}, null, "cudaLayoutSource", DataType.FLOAT32);
         Tensor reshape = source.reshape(3, 2);
         Tensor permute = reshape.permute(1, 0);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, reshape, permute), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(List.of(source, reshape, permute), BackendIntentPlan.empty());
         CompiledNode sourceNode = nodeFor(nodes, source);
         CompiledNode reshapeNode = nodeFor(nodes, reshape);
         CompiledNode permuteNode = nodeFor(nodes, permute);

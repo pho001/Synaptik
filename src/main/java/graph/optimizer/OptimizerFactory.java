@@ -1,14 +1,12 @@
 package graph.optimizer;
 
 import config.compile.GraphOptimizationConfig;
-import config.compile.SemanticCanonicalizationConfig;
 import config.optimizer.Conv2dLoweringMode;
 import config.optimizer.RewriteConfig;
 import graph.optimizer.simplify.ConstantFoldingRule;
 import graph.optimizer.simplify.SimplificationFixpointRule;
 import graph.optimizer.simplify.CommonSubexpressionEliminationRule;
 import graph.optimizer.simplify.DeadCodeEliminationRule;
-import graph.SemanticForwardCanonicalizer;
 import graph.optimizer.rewrite.algebraic.AlgebraicSimplificationRule;
 import graph.optimizer.rewrite.canonical.PiecewiseCanonicalizationRule;
 import graph.optimizer.rewrite.lowering.Conv2dDagLoweringRule;
@@ -53,17 +51,6 @@ public final class OptimizerFactory {
             addLoweringRules(rules, config.rewrite());
         }
         return new GraphOptimizer(rules);
-    }
-
-    /**
-     * Creates the semantic forward canonicalizer for the compile contract.
-     *
-     * @param config semantic canonicalization configuration
-     * @return canonicalizer, or {@code null} when semantic canonicalization is explicitly disabled
-     */
-    public static SemanticForwardCanonicalizer createSemanticForwardCanonicalizer(SemanticCanonicalizationConfig config) {
-        Objects.requireNonNull(config, "config cannot be null");
-        return config.enabled() ? new SemanticForwardCanonicalizer(config.rewrite()) : null;
     }
 
     private static void flushSimplification(

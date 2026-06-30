@@ -4,7 +4,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
@@ -22,7 +22,8 @@ import backend.runtime.ExecutionMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.device.DeviceLayoutMaterializer;
 import graph.execution.device.DeviceLayoutViewPropagator;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -229,7 +230,7 @@ class DeviceLayoutViewPropagationTest {
             RuntimeConfig runtimeConfig
     ) {
         BackendIntentPlan backendIntentPlan = BackendIntentPlan.of(target, backend);
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(source, target), backendIntentPlan);
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(List.of(source, target), backendIntentPlan);
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);
         CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null);

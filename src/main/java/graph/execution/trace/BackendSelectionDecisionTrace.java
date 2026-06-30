@@ -1,6 +1,6 @@
 package graph.execution.trace;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
 

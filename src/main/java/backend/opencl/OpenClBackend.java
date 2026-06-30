@@ -3,7 +3,7 @@ package backend.opencl;
 import backend.runtime.ExecutionContext;
 import backend.opencl.kernels.OpenClKernel;
 import backend.opencl.registry.OpenClKernelRegistry;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 import operations.Operation;

@@ -4,9 +4,11 @@ import backend.runtime.ExecutionMode;
 import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
+import graph.compile.CompiledProgram;
+import graph.compile.GraphCompiler;
+import graph.compile.canonical.SemanticForwardCanonicalizer;
 import graph.compile.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
-import graph.compile.GraphCompiler;
 import graph.execution.PreparedExecution;
 import graph.execution.trace.CompileTrace;
 import graph.optimizer.GraphOptimizer;
@@ -119,7 +121,9 @@ public final class CompiledGraph {
         }
         return new CompiledGraph(
                 rootTensor,
-                graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(compileConfig.semanticCanonicalization()),
+                compileConfig.semanticCanonicalization().enabled()
+                        ? new SemanticForwardCanonicalizer(compileConfig.semanticCanonicalization().rewrite())
+                        : null,
                 graph.optimizer.OptimizerFactory.create(compileConfig.graphOptimization()),
                 compileConfig,
                 compileMode,

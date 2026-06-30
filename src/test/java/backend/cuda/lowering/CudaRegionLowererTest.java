@@ -4,7 +4,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
@@ -17,7 +17,8 @@ import backend.lowering.region.RegionExecutionKind;
 import backend.lowering.region.RegionExecutionPlan;
 import config.optimizer.FuseConfig;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.memory.MemoryPlanner;
 import graph.compile.planning.partition.Partition;
@@ -75,7 +76,7 @@ class CudaRegionLowererTest {
         backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_CUDA);
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext context = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -152,7 +153,7 @@ class CudaRegionLowererTest {
         backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -972,7 +973,7 @@ class CudaRegionLowererTest {
         Tensor out = a.add(b).relu().exp();
 
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         Partition partition = partition(
                 "cuda-fused",
                 PartitionTarget.GPU_CUDA,
@@ -1044,7 +1045,7 @@ class CudaRegionLowererTest {
         backendIntentPlan = backendIntentPlan.withBackend(relu, ComputeBackend.GPU_CUDA);
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_CUDA);
         List<Tensor> graph = out.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, backendIntentPlan);
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, backendIntentPlan);
         PartitionPlanningContext planningContext = new PartitionPlanningContext(
                 false,
                 compiledNodes,
@@ -1210,7 +1211,7 @@ class CudaRegionLowererTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out, BackendIntentPlan backendIntentPlan) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), backendIntentPlan);
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), backendIntentPlan);
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

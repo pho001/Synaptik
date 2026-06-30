@@ -1,4 +1,4 @@
-package graph;
+package graph.compile.canonical;
 
 import config.optimizer.RewriteConfig;
 import graph.optimizer.rewrite.canonical.PiecewisePatternLowerer;

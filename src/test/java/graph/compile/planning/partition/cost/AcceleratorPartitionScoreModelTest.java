@@ -1,6 +1,6 @@
 package graph.compile.planning.partition.cost;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.select.ProfileDerivedAcceleratorCostFactors;
 import config.backend.CpuKernelConfig;
 import config.runtime.AcceleratorBackendConfig;

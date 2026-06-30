@@ -288,7 +288,7 @@ Compile sees a forward DAG with leaf `a`, leaf `b`, `ADD`, `RELU`, and a system 
 
 **Internals**
 
-`CompiledNode.snapshot(...)` records node id, publication tensor, operation, resolved backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward marker, leaf flag, gradient/publication flags, contiguity, flat size, label, and static data snapshot. Compile topology and input relationships are value-based, so prepare/lowering does not depend on mutable topology in the original tensor objects.
+`CompiledNodeSnapshotter.snapshot(...)` records node id, publication tensor, operation, resolved backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward marker, leaf flag, gradient/publication flags, contiguity, flat size, label, and static data snapshot. Compile topology and input relationships are value-based, so prepare/lowering does not depend on mutable topology in the original tensor objects.
 
 **Edge Cases**
 

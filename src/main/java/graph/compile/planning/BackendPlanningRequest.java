@@ -2,8 +2,8 @@ package graph.compile.planning;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.BackendPlanningConfig;
-import graph.CompiledGradientBinding;
-import graph.CompiledNode;
+import graph.model.CompiledGradientBinding;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.List;

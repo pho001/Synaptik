@@ -12,7 +12,7 @@ import backend.cpu.nativecpu.NativeCpuTraceState;
 import backend.runtime.ExecutionContext;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.trace.ComputeTraceMetadata;
 import graph.execution.trace.ConvTraceMetadata;

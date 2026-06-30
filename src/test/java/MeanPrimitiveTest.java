@@ -24,7 +24,7 @@ public class MeanPrimitiveTest {
 
         assertArrayEquals(new double[]{2.0, 5.0}, mean.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MEAN));
@@ -40,7 +40,7 @@ public class MeanPrimitiveTest {
 
         assertArrayEquals(new double[]{3.5}, mean.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MEAN));

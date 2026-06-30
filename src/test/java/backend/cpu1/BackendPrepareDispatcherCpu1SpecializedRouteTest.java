@@ -13,7 +13,8 @@ import backend.prepare.BackendPrepareContext;
 import backend.prepare.BackendPrepareDispatcher;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -59,7 +60,7 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
         Tensor b = new Tensor(new float[]{7f, 8f, 9f, 10f, 11f, 12f}, new int[]{3, 2}, null, "reluB", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
         return fixture(
@@ -76,7 +77,7 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
         Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "bias", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.add(bias);
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         return fixture(

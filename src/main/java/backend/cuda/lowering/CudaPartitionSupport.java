@@ -2,7 +2,7 @@ package backend.cuda.lowering;
 
 
 import backend.cuda.CudaDTypeRolePolicy;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;

@@ -5,7 +5,7 @@ import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
@@ -56,7 +56,8 @@ import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
 import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
@@ -1389,7 +1390,7 @@ class PreparedMetalExecutableBufferBindingTest {
     }
 
     private static Fixture directFixture(Tensor input, Tensor output) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(List.of(input, output), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(List.of(input, output), BackendIntentPlan.empty());
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
         Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();

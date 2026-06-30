@@ -42,12 +42,12 @@ public class IndexTargetCrossEntropyLossExecutionTest {
         assertArrayEquals(referenceLoss, direct.toDoubleArrayCopy(), 1e-9);
         assertArrayEquals(referenceGrad, logitsB.getGradient().toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES));
         assertFalse(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.CROSS_ENTROPY_LOSS_INDICES_GRAD));

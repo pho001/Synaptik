@@ -13,7 +13,8 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.FusedExecutionPolicy;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.CompiledGraph;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -123,7 +124,7 @@ class BackendPrepareDispatcherCpu1FusedRouteTest {
     private static Fixture fixture() {
         Tensor input = new Tensor(new float[]{-1.0f, 0.0f, 1.0f}, new int[]{3}, null, "input", DataType.FLOAT32);
         Tensor output = input.relu();
-        List<CompiledNode> nodes = CompiledNode.snapshot(output.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(output.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         int reluNodeId = nodes.stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.RELU)

@@ -5,7 +5,7 @@ import operations.elementwise.unary.clampMax;
 import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import tensor.DataType;

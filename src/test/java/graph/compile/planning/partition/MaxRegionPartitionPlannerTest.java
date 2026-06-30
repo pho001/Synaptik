@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
@@ -8,7 +8,7 @@ import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.CompileArtifacts;
 import operations.Operation;
 import org.junit.jupiter.api.Test;

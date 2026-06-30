@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 
 import java.util.List;

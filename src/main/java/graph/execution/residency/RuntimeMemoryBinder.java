@@ -1,14 +1,12 @@
 package graph.execution.residency;
 
-import graph.AliasViewPolicy;
-import graph.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.execution.state.ExecutionState;
-import graph.execution.state.RuntimeStorageSlotKey;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.memory.RegionMemoryBinding;
 import graph.compile.planning.memory.RegionMemoryBindingKind;
 import graph.compile.planning.value.GraphValueRef;
+import graph.execution.state.ExecutionState;
+import graph.execution.state.RuntimeStorageSlotKey;
+import graph.model.CompiledNode;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
@@ -22,13 +20,11 @@ public final class RuntimeMemoryBinder {
     public static void bind(
             MemoryPlan memoryPlan,
             List<CompiledNode> compiledNodes,
-            CompiledTensorDescriptorIndex descriptorIndex,
             ExecutionState executionState
     ) {
         if (memoryPlan == null || compiledNodes == null || compiledNodes.isEmpty()) {
             return;
         }
-        Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         Objects.requireNonNull(executionState, "executionState cannot be null");
         for (CompiledNode node : compiledNodes) {
             if (node.operation() == null) {
@@ -38,7 +34,7 @@ public final class RuntimeMemoryBinder {
                 continue;
             }
             Tensor runtimeTensor = executionState.runtimeTensorForNodeId(node.id());
-            if (aliasesInput0AtRuntime(node, descriptorIndex, executionState, runtimeTensor)) {
+            if (bindAliasView(node, executionState, runtimeTensor)) {
                 continue;
             }
             tryBindRegionMapped(
@@ -50,19 +46,15 @@ public final class RuntimeMemoryBinder {
         }
     }
 
-    private static boolean aliasesInput0AtRuntime(
+    private static boolean bindAliasView(
             CompiledNode node,
-            CompiledTensorDescriptorIndex descriptorIndex,
             ExecutionState executionState,
             Tensor runtimeTensor
     ) {
-        if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
+        if (node == null || node.storageOwnerId() == node.id()) {
             return false;
         }
-        if (!AliasViewPolicy.aliasesInput0AtRuntime(node, descriptorIndex)) {
-            return false;
-        }
-        Tensor sourceRuntime = executionState.runtimeTensorForNodeId(node.inputIds().getFirst());
+        Tensor sourceRuntime = executionState.runtimeTensorForNodeId(node.storageOwnerId());
         if (sourceRuntime != null) {
             TensorInternalAccess.aliasRuntimeFrom(runtimeTensor, sourceRuntime);
         }

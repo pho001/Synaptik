@@ -1,6 +1,6 @@
 package backend.accelerator.buffer;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import config.runtime.AcceleratorBufferBindingMode;
 
 import java.util.List;

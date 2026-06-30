@@ -133,7 +133,7 @@ sequenceDiagram
     GC->>GC: optional backward graph
     GC->>O: optimize(OptimizerState)
     O-->>GC: optimized graph/state
-    GC->>GC: CompiledNode.snapshot(...)
+    GC->>GC: CompiledNodeSnapshotter.snapshot(...)
     GC->>BP: plan backend ownership
     BP-->>GC: planned partitions
     GC-->>CG: CompileArtifacts + CompileTrace

@@ -1,6 +1,6 @@
 package graph.compile.planning.memory;
 
-import graph.AliasViewPolicy;
+import graph.model.AliasViewPolicy;
 import operations.Operation;
 import tensor.Tensor;
 

@@ -651,7 +651,7 @@ flowchart TD
     BackwardDecision{"Backward needed?"}
     Backward["BackwardGraphBuilder"]
     Optimizer["GraphOptimizer\nAR, CF, CSE, DCE, LOWER"]
-    Snapshot["CompiledNode.snapshot"]
+    Snapshot["CompiledNodeSnapshotter.snapshot"]
     Gradients["GradientBindingCollector"]
     Partition["BackendPlanningService"]
     LowerReady["finalizeCompilePlanningArtifacts"]

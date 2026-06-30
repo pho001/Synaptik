@@ -1,6 +1,6 @@
 package backend.cpu.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.CpuBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
@@ -18,7 +18,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;

@@ -1,6 +1,7 @@
 package backend.cpu.fused.ir;
 
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
@@ -124,7 +125,7 @@ class FusedIrBuilderCanonicalizationTest {
 
     private static FusedExpressionPlan plan(Tensor root, List<Tensor> externalInputs) {
         List<Tensor> graph = root.topologicalSort();
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         List<Integer> externalInputNodeIds = externalInputs.stream()
                 .map(graph::indexOf)
                 .toList();

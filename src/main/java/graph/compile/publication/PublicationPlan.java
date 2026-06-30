@@ -1,6 +1,6 @@
 package graph.compile.publication;
 
-import graph.CompiledGradientBinding;
+import graph.model.CompiledGradientBinding;
 import graph.compile.GraphStructureContract;
 import tensor.Tensor;
 
@@ -154,7 +154,7 @@ public record PublicationPlan(
                 || tensor.getPrevTensors() == null || tensor.getPrevTensors().isEmpty()) {
             return;
         }
-        if (!graph.AliasViewPolicy.aliasesInput0AtRuntime(tensor)) {
+        if (!graph.model.AliasViewPolicy.aliasesInput0AtRuntime(tensor)) {
             return;
         }
         Tensor source = tensor.getPrevTensors().getFirst();

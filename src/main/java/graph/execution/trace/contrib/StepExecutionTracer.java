@@ -1,7 +1,7 @@
 package graph.execution.trace.contrib;
 
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.PreparedExecutionStep;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.trace.ExecutionStepTrace;

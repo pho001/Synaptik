@@ -4,8 +4,8 @@ import backend.cpu.nativecpu.NativeCpuMemoryPool;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledGradientBinding;
-import graph.CompiledNode;
+import graph.model.CompiledGradientBinding;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.publication.PublicationPlan;
@@ -107,7 +107,7 @@ final class ExecutionRun {
         RuntimeException executionFailure = null;
         Error executionError = null;
         try {
-            RuntimeMemoryBinder.bind(memoryPlan, allNodes, descriptorIndex, executionState);
+            RuntimeMemoryBinder.bind(memoryPlan, allNodes, executionState);
             ExecutionContext context = ExecutionContext.fromRuntimeConfig(runtimeConfig, mode, metadataIndex, executionState);
             OptimizerStepContext optimizerContext = optimizer == null
                     ? null

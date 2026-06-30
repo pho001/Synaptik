@@ -1,8 +1,8 @@
 package graph.compile;
 
 import backend.lowering.LoweringInput;
-import graph.CompiledNode;
-import graph.CompiledProgram;
+import graph.model.CompiledNode;
+import graph.compile.CompiledProgram;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.planning.memory.MemoryPlan;
 import graph.compile.planning.partition.Partition;

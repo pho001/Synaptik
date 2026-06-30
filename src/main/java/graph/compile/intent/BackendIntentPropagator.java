@@ -1,6 +1,6 @@
 package graph.compile.intent;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import operations.Operation;
 import tensor.Tensor;
 

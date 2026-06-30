@@ -98,7 +98,7 @@ public class ScatterAddExecutionTest {
 
     private static boolean containsOp(CompiledGraph compiledGraph, Operation.OpType opType) {
         return compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(type -> type == opType);

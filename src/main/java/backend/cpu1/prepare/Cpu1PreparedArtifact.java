@@ -21,7 +21,7 @@ import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.trace.Cpu1TraceContributor;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;

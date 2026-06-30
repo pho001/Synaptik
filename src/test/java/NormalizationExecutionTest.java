@@ -1,5 +1,5 @@
 import backend.runtime.ExecutionMode;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;

@@ -1,6 +1,6 @@
 package tuning.workload;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import tensor.dtype.TensorDTypeOps;
 import backend.runtime.ExecutionMode;
 import tensor.DataType;

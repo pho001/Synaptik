@@ -1,6 +1,6 @@
 package graph.compile.intent;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import graph.optimizer.state.GraphRewriteMap;
 import tensor.Tensor;
 

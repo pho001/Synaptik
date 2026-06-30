@@ -1,7 +1,8 @@
 package graph.compile.planning.region;
 
 import config.optimizer.FuseConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionBoundaryReason;
@@ -67,7 +68,7 @@ class DefaultRegionOptimizerServiceTest {
         List<Tensor> graph = out.topologicalSort();
         OptimizedRegion result = new DefaultRegionOptimizer().optimize(
                 partition,
-                new RegionOptimizationContext(CompiledNode.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
+                new RegionOptimizationContext(CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
         );
 
         assertEquals(1, result.executionUnits().size());
@@ -119,7 +120,7 @@ class DefaultRegionOptimizerServiceTest {
         List<Tensor> graph = out.topologicalSort();
         OptimizedRegion result = new DefaultRegionOptimizer().optimize(
                 partition,
-                new RegionOptimizationContext(CompiledNode.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
+                new RegionOptimizationContext(CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty()), FuseConfig.inferenceDefaults())
         );
 
         assertEquals(PartitionTarget.GPU_METAL, result.target());

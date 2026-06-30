@@ -1,6 +1,6 @@
 package backend.cpu1.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
@@ -13,7 +13,7 @@ import backend.prepare.BackendPrepareContext;
 import config.backend.CpuKernelConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.planning.region.specialization.RegionSpecializationCandidate;
 import graph.compile.planning.region.specialization.RegionSpecializationKind;

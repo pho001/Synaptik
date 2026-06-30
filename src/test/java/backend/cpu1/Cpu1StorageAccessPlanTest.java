@@ -2,7 +2,8 @@ package backend.cpu1;
 
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.intent.BackendIntentPlan;
@@ -200,12 +201,12 @@ class Cpu1StorageAccessPlanTest {
     }
 
     private static CompiledTensorDescriptor descriptorFor(Tensor tensor) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
         return CompiledTensorDescriptorBuilder.build(nodes).byNodeId(nodes.getLast().id());
     }
 
     private static CompiledNode nodeFor(Tensor tensor) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
         return nodes.getLast();
     }
 }

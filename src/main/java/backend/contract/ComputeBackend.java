@@ -1,4 +1,4 @@
-package backend;
+package backend.contract;
 
 /**
  * Backend family selected for a compiled execution node or partition.

@@ -1,6 +1,6 @@
 package backend.accelerator.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
@@ -9,7 +9,7 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.compile.planning.partition.PartitionPlan;
 

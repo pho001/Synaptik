@@ -1,6 +1,6 @@
 package backend.cuda.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;

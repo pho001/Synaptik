@@ -1,4 +1,4 @@
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.fused.asm.FusedAsmSpecializationKind;
 import backend.cpu.fused.asm.emit.FusedOperationGenerator;
@@ -1039,7 +1039,6 @@ public class CpuFusedMemorySegmentExecutionTest {
         RuntimeMemoryBinder.bind(
                 compiled.program().memoryPlan(),
                 compiled.program().compiledNodes(),
-                compiled.program().descriptorIndex(),
                 state
         );
         ExecutionContext context = ExecutionContext.fromRuntimeConfig(

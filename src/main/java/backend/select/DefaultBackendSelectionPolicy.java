@@ -1,6 +1,6 @@
 package backend.select;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.accelerator.select.AcceleratorRuntimeAvailability;
 import config.runtime.RuntimeConfig;

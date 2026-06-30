@@ -3,7 +3,7 @@ package debug;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.PreparedExecution;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.OptimizerFactory;

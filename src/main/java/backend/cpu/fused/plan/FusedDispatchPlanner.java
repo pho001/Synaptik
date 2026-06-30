@@ -4,7 +4,7 @@ import backend.cpu.fused.ir.FusedAccessKind;
 import backend.cpu.fused.ir.FusedExpressionPlan;
 import backend.cpu.fused.ir.FusedExternalInputPlan;
 import backend.cpu.fused.ir.FusedNodePlan;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import operations.Operation;
 import tensor.DataType;
 

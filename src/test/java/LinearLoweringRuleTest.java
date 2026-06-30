@@ -1,4 +1,4 @@
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import graph.optimizer.GraphOptimizer;
 import graph.optimizer.state.OptimizerState;
 import graph.optimizer.rewrite.lowering.LinearLoweringRule;

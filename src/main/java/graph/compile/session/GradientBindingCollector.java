@@ -1,7 +1,7 @@
 package graph.compile.session;
 
-import graph.CompiledGradientBinding;
-import graph.CompiledNode;
+import graph.model.CompiledGradientBinding;
+import graph.model.CompiledNode;
 import tensor.Tensor;
 
 import java.util.IdentityHashMap;

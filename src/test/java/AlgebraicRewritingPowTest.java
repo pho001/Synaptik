@@ -24,12 +24,12 @@ public class AlgebraicRewritingPowTest {
 
         assertArrayEquals(new double[]{0.5, 0.25}, powNeg1.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.INV));
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .noneMatch(opType -> opType == Operation.OpType.POW));
@@ -45,17 +45,17 @@ public class AlgebraicRewritingPowTest {
 
         assertArrayEquals(new double[]{0.25, 0.0625}, powNeg2.toDoubleArrayCopy(), 1e-9);
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.MUL));
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .anyMatch(opType -> opType == Operation.OpType.INV));
         assertTrue(compiledGraph.program().compiledNodes().stream()
-                .map(graph.CompiledNode::operation)
+                .map(graph.model.CompiledNode::operation)
                 .filter(op -> op != null)
                 .map(Operation::opType)
                 .noneMatch(opType -> opType == Operation.OpType.POW));

@@ -2,7 +2,7 @@ package graph.compile;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.CompileConfig;
-import graph.SemanticForwardCanonicalizer;
+import graph.compile.canonical.SemanticForwardCanonicalizer;
 import graph.compile.intent.BackendIntentPlan;
 import graph.compile.planning.BackendPlanningJobResolver;
 import graph.compile.planning.BackendPlanningService;

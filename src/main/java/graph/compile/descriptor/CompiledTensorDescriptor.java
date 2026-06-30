@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable compile-time tensor facts derived from {@link graph.CompiledNode}.
+ * Immutable compile-time tensor facts derived from {@link graph.model.CompiledNode}.
  *
  * <p>This descriptor is the stable source for prepare-time capability, layout, lowering, and
  * trace decisions. Public {@code Tensor} objects remain logical/runtime objects; this type is

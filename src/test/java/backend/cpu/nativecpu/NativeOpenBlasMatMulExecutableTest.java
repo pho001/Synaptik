@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu.execution.CpuKernelContext;
 import tensor.dtype.TensorDTypeOps;
@@ -19,7 +19,7 @@ import config.compile.CompileConfig;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;

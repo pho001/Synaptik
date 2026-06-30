@@ -7,7 +7,7 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;

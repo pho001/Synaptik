@@ -10,8 +10,8 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.partition.BackendPartitionDescriptorRegistry;
-import graph.CompiledNode;
-import graph.CompiledProgram;
+import graph.model.CompiledNode;
+import graph.compile.CompiledProgram;
 import graph.compile.CompileArtifacts;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
@@ -293,8 +293,8 @@ public final class PreparedExecutionBuilder {
         LoweringPipeline pipeline = new LoweringPipeline(BackendPartitionDescriptorRegistry.defaults().lowerers());
         Map<String, PartitionPlan> selectedPlansByPartitionId =
                 selectedPlansByPartitionId(selection);
-        Set<backend.ComputeBackend> supportedBackends = new java.util.LinkedHashSet<>();
-        supportedBackends.add(backend.ComputeBackend.CPU);
+        Set<backend.contract.ComputeBackend> supportedBackends = new java.util.LinkedHashSet<>();
+        supportedBackends.add(backend.contract.ComputeBackend.CPU);
         for (PartitionPlan plan : selectedPlansByPartitionId.values()) {
             if (plan != null) {
                 supportedBackends.add(plan.backend());

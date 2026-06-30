@@ -333,7 +333,7 @@ public class SourceTreeHygieneTest {
         String node = Files.readString(Path.of("src/main/java/tensor/TensorNode.java"));
         String access = Files.readString(Path.of("src/main/java/tensor/TensorInternalAccess.java"));
         String tensor = Files.readString(Path.of("src/main/java/tensor/Tensor.java"));
-        assertTrue(!node.contains("backend.ComputeBackend"), "TensorNode must not import backend.ComputeBackend.");
+        assertTrue(!node.contains("backend.contract.ComputeBackend"), "TensorNode must not import backend.contract.ComputeBackend.");
         assertTrue(!node.contains("backendIntent"), "Backend intent belongs to compile planning, not TensorNode.");
         assertTrue(!access.contains("setBackendIntent"), "TensorInternalAccess must not expose backend intent mutation.");
         assertTrue(!access.contains("backendIntent("), "TensorInternalAccess must not expose backend intent reads.");
@@ -1171,7 +1171,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void compiledProgramStaysExecutableValueOnly() throws IOException {
-        String source = Files.readString(Path.of("src/main/java/graph/CompiledProgram.java"));
+        String source = Files.readString(Path.of("src/main/java/graph/compile/CompiledProgram.java"));
         List<String> offenders = List.of("tensor.Tensor", "PublicationPlan", "CompileTrace", "PartitionCompileTrace")
                 .stream()
                 .filter(source::contains)
@@ -1270,7 +1270,6 @@ public class SourceTreeHygieneTest {
     void backendRootContainsOnlyFacadeFiles() throws IOException {
         Set<String> allowedRootFiles = Set.of(
                 "ApproxMode.java",
-                "ComputeBackend.java",
                 "ComputeEngine.java"
         );
         try (Stream<Path> paths = Files.list(Path.of("src/main/java/backend"))) {

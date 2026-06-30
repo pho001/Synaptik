@@ -4,14 +4,15 @@ import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
 import backend.accelerator.dag.AcceleratorDagValueRefKind;
 import backend.accelerator.dag.AcceleratorPostOpType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.layout.sliceBackward;
@@ -1171,7 +1172,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     private static PartitionPlanningContext planningContext(Tensor out) {
-        List<CompiledNode> compiledNodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         return new PartitionPlanningContext(
                 false,
                 compiledNodes,

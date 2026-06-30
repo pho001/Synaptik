@@ -1,4 +1,4 @@
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
@@ -2481,7 +2481,7 @@ public class BenchmarkSessionTest {
     void phaseTwentyEightCoverageBaselineRendersDeterministicDeltaWithoutTiming() {
         var baseline = tuning.benchmark.report.GpuCoverageBaseline.v14Closure("GPU_METAL");
         var current = GpuCoverageSummary.fromTrace(
-                GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.ComputeBackend.GPU_METAL)
+                GpuCoverageSummaryTest.traceFor("GPU_METAL", backend.contract.ComputeBackend.GPU_METAL)
         ).backends().get("GPU_METAL");
 
         var comparison = tuning.benchmark.report.GpuCoverageComparison.compare(baseline, current);

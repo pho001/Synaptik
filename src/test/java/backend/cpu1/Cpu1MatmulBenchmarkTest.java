@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
@@ -11,7 +11,8 @@ import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -418,7 +419,7 @@ class Cpu1MatmulBenchmarkTest {
     }
 
     private static Fixture fixture(MatmulTensor matmulTensor) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(matmulTensor.output().topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(matmulTensor.output().topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(
                 matmulTensor.output(),

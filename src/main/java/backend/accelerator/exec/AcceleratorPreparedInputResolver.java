@@ -6,7 +6,7 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
 import backend.memory.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import tensor.Tensor;
 import tensor.layout.TensorRemap;

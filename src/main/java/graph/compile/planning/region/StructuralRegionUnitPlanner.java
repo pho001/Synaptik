@@ -1,6 +1,6 @@
 package graph.compile.planning.region;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.value.GraphValueRef;
 import graph.compile.planning.partition.Partition;
 

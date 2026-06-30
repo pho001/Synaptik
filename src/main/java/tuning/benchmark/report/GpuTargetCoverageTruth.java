@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;

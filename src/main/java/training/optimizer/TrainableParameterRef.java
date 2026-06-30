@@ -1,7 +1,7 @@
 package training.optimizer;
 
-import graph.CompiledGradientBinding;
-import graph.CompiledNode;
+import graph.model.CompiledGradientBinding;
+import graph.model.CompiledNode;
 import tensor.Tensor;
 
 /**

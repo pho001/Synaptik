@@ -2,7 +2,7 @@ package backend.cpu1;
 
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 
 /**

@@ -1,13 +1,13 @@
 package backend.metal.lowering;
 
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.metal.MetalCastPolicy;
 import backend.metal.MetalMpsCapabilities;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.planning.partition.PartitionPlanningContext;
 import operations.Operation;

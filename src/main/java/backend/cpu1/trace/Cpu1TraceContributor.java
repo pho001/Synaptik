@@ -22,7 +22,7 @@ import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.prepare.Cpu1PreparedRmsNormUnit;
 import backend.cpu1.prepare.dispatch.Cpu1CostClass;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.trace.DispatchTraceMetadata;
 import graph.execution.trace.FusedTraceMetadata;
 import graph.execution.trace.LayoutTraceMetadata;

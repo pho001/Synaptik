@@ -1,4 +1,4 @@
-package graph;
+package graph.compile;
 
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.planning.memory.MemoryPlan;
@@ -6,6 +6,7 @@ import graph.compile.planning.partition.Partition;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PlannedPartition;
 import graph.compile.planning.region.OptimizedRegion;
+import graph.model.CompiledNode;
 
 import java.util.List;
 import java.util.Objects;

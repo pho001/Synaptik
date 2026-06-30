@@ -1,6 +1,6 @@
 package graph.compile.planning.memory;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import operations.Operation;
 import tensor.Tensor;
 

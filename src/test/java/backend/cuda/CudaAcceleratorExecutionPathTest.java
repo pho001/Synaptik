@@ -1,12 +1,13 @@
 package backend.cuda;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.ComputeEngine;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
@@ -23,7 +24,7 @@ class CudaAcceleratorExecutionPathTest {
         Tensor a = Tensor.scalar(1.0);
         Tensor b = Tensor.scalar(2.0);
         Tensor out = a.add(b);
-        CompiledNode node = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty()).getLast();
+        CompiledNode node = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty()).getLast();
 
         AtomicBoolean executed = new AtomicBoolean(false);
         PreparedAcceleratorExecutable executable = new PreparedAcceleratorExecutable() {

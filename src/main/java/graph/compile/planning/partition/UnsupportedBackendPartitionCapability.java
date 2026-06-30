@@ -2,7 +2,7 @@ package graph.compile.planning.partition;
 
 import graph.compile.planning.value.GraphValueRef;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 
 import java.util.Set;
 

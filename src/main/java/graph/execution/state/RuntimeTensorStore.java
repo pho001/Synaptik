@@ -1,17 +1,16 @@
 package graph.execution.state;
 
 import backend.memory.TensorResidencyState;
-import graph.AliasViewPolicy;
-import graph.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
+import graph.model.CompiledNode;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 
-import java.util.IdentityHashMap;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,7 +67,7 @@ final class RuntimeTensorStore {
             runtimeNodeIds.put(runtimeTensor, node.id());
         }
         bindRuntimeInputs(compiledNodes, runtimeTensors);
-        bindCpuAliasViews(compiledNodes, descriptorIndex, runtimeTensors, residencyByNodeId);
+        bindCpuAliasViews(compiledNodes, runtimeTensors, residencyByNodeId);
         return new RuntimeTensorStore(runtimeTensors, runtimeNodeIds);
     }
 
@@ -99,28 +98,20 @@ final class RuntimeTensorStore {
 
     private static void bindCpuAliasViews(
             List<CompiledNode> compiledNodes,
-            CompiledTensorDescriptorIndex descriptorIndex,
             Map<Integer, Tensor> runtimeTensors,
             Map<Integer, TensorResidencyState> residencyByNodeId
     ) {
         for (CompiledNode node : compiledNodes) {
-            if (node.inputIds().isEmpty() || !isCpuAliasView(node, descriptorIndex)) {
+            if (node.storageOwnerId() == node.id()) {
                 continue;
             }
-            int sourceNodeId = node.inputIds().getFirst();
+            int sourceNodeId = node.storageOwnerId();
             TensorResidencyState sourceResidency = residencyByNodeId.get(sourceNodeId);
             if (sourceResidency != null && sourceResidency.cpuCurrent()) {
                 TensorInternalAccess.aliasRuntimeFrom(runtimeTensors.get(node.id()), runtimeTensors.get(sourceNodeId));
                 residencyByNodeId.get(node.id()).markCpuCurrent("alias view runtime binding");
             }
         }
-    }
-
-    private static boolean isCpuAliasView(CompiledNode node, CompiledTensorDescriptorIndex descriptorIndex) {
-        if (node == null || node.operation() == null || node.inputIds().isEmpty()) {
-            return false;
-        }
-        return AliasViewPolicy.aliasesInput0AtRuntime(node, descriptorIndex);
     }
 
     Tensor runtimeTensorForNodeId(int nodeId) {

@@ -4,7 +4,7 @@ import backend.accelerator.exec.PartitionExecutionRole;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.plan.CompiledNodeExecutionMetadata;

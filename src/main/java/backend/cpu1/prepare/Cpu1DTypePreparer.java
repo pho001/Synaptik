@@ -7,7 +7,7 @@ import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.launch.Cpu1ParallelLaunch;
 import backend.cpu1.launch.Cpu1SingleThreadLaunch;
 import backend.cpu1.storage.Cpu1StorageKind;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;

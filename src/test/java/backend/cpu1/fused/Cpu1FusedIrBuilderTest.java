@@ -6,7 +6,8 @@ import backend.cpu1.fused.ir.Cpu1FusedInputPlan;
 import backend.cpu1.fused.ir.Cpu1FusedIrBuilder;
 import backend.cpu1.fused.ir.Cpu1FusedNodePlan;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -155,7 +156,7 @@ class Cpu1FusedIrBuilderTest {
     }
 
     private static Fixture fixture(Tensor output) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(output.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(output.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(nodes, descriptorIndex);
     }

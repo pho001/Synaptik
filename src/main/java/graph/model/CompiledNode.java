@@ -1,17 +1,11 @@
-package graph;
+package graph.model;
 
-import backend.ComputeBackend;
-import graph.compile.intent.BackendIntentPlan;
+import backend.contract.ComputeBackend;
 import operations.Operation;
 import tensor.DataType;
-import tensor.Tensor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Immutable compile-time snapshot of a tensor graph node.
@@ -84,80 +78,52 @@ public final class CompiledNode {
     }
 
     /**
-     * Captures compiled node snapshots.
+     * Creates an immutable model value at the compile-time Tensor-to-model snapshot boundary.
      *
-     * @param orderedGraph tensors in topological order
-     * @return immutable compiled node snapshots
+     * <p>Callers outside compile snapshotting should consume existing compiled nodes rather than constructing them.
      */
-    public static List<CompiledNode> snapshot(List<Tensor> orderedGraph, BackendIntentPlan backendIntentPlan) {
-        if (orderedGraph == null || orderedGraph.isEmpty()) {
-            return List.of();
-        }
-        BackendIntentPlan intents = backendIntentPlan == null ? BackendIntentPlan.empty() : backendIntentPlan;
-        IdentityHashMap<Tensor, Integer> ids = new IdentityHashMap<>();
-        for (int i = 0; i < orderedGraph.size(); i++) {
-            ids.put(orderedGraph.get(i), i);
-        }
-        Set<Tensor> gradientTargets = Collections.newSetFromMap(new IdentityHashMap<>());
-        for (Tensor tensor : orderedGraph) {
-            Tensor gradient = tensor.getGradient();
-            if (gradient != null && ids.containsKey(gradient)) {
-                gradientTargets.add(gradient);
-            }
-        }
-        IdentityHashMap<Tensor, Integer> storageOwnerIds = new IdentityHashMap<>();
-        List<CompiledNode> out = new ArrayList<>(orderedGraph.size());
-        for (int i = 0; i < orderedGraph.size(); i++) {
-            Tensor tensor = orderedGraph.get(i);
-            List<Tensor> inputs = tensor.getPrevTensors();
-            List<Integer> inputIds = new ArrayList<>(inputs == null ? 0 : inputs.size());
-            if (inputs != null) {
-                for (Tensor input : inputs) {
-                    Integer inputId = ids.get(input);
-                    if (inputId == null) {
-                        throw new IllegalStateException("Compiled node input is missing from ordered graph: " + tensor.getLabel());
-                    }
-                    inputIds.add(inputId);
-                }
-            }
-            int storageOwnerId = resolveStorageOwnerId(i, tensor, inputs, storageOwnerIds);
-            storageOwnerIds.put(tensor, storageOwnerId);
-            out.add(new CompiledNode(
-                    i,
-                    tensor.getOperation(),
-                    intents.backend(tensor),
-                    inputIds,
-                    storageOwnerId,
-                    tensor.getShapeUnsafe(),
-                    tensor.getStridesUnsafe(),
-                    tensor.getStorageOffsetUnsafe(),
-                    tensor.getDataType(),
-                    tensor.isBackward(),
-                    tensor.getOperation() == null,
-                    tensor.getRequiresGrad(),
-                    tensor.isTrainableParameter(),
-                    tensor.isContiguous(),
-                    tensor.hasStorageOffset(),
-                    gradientTargets.contains(tensor),
-                    tensor.getFlatDataSize(),
-                    tensor.getLabel(),
-                    CompiledTensorDataSnapshot.captureStaticLeaf(tensor)
-            ));
-        }
-        return List.copyOf(out);
-    }
-
-    private static int resolveStorageOwnerId(
-            int nodeId,
-            Tensor tensor,
-            List<Tensor> inputs,
-            IdentityHashMap<Tensor, Integer> storageOwnerIds
+    public static CompiledNode compiledSnapshot(
+            int id,
+            Operation operation,
+            ComputeBackend backend,
+            List<Integer> inputIds,
+            int storageOwnerId,
+            int[] shape,
+            int[] strides,
+            int storageOffset,
+            DataType dataType,
+            boolean backwardNode,
+            boolean leaf,
+            boolean requiresGrad,
+            boolean trainableParameter,
+            boolean contiguous,
+            boolean hasStorageOffset,
+            boolean gradientTarget,
+            int flatDataSize,
+            String label,
+            CompiledTensorDataSnapshot staticDataSnapshot
     ) {
-        if (!AliasViewPolicy.aliasesInput0AtRuntime(tensor) || inputs == null || inputs.isEmpty()) {
-            return nodeId;
-        }
-        Tensor input0 = inputs.getFirst();
-        return storageOwnerIds.getOrDefault(input0, nodeId);
+        return new CompiledNode(
+                id,
+                operation,
+                backend,
+                inputIds,
+                storageOwnerId,
+                shape,
+                strides,
+                storageOffset,
+                dataType,
+                backwardNode,
+                leaf,
+                requiresGrad,
+                trainableParameter,
+                contiguous,
+                hasStorageOffset,
+                gradientTarget,
+                flatDataSize,
+                label,
+                staticDataSnapshot
+        );
     }
 
     public int id() {

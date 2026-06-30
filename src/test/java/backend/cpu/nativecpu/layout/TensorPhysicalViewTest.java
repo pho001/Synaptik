@@ -1,7 +1,8 @@
 package backend.cpu.nativecpu.layout;
 
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import org.junit.jupiter.api.Test;
@@ -138,7 +139,7 @@ class TensorPhysicalViewTest {
     }
 
     private static CompiledTensorDescriptor descriptorFor(Tensor tensor, int nodeId) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty());
         return CompiledTensorDescriptorBuilder.build(nodes).byNodeId(nodeId);
     }
 }

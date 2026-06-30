@@ -352,7 +352,7 @@ public class GpuHotPathCoverageTargetsTest {
 
         assertEquals(
                 GpuTargetExecutionStatus.NATIVE_EXECUTABLE,
-                GpuTargetCoverageTruth.rowsFor(backend.ComputeBackend.GPU_METAL).stream()
+                GpuTargetCoverageTruth.rowsFor(backend.contract.ComputeBackend.GPU_METAL).stream()
                         .filter(row -> row.opType() == operations.Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION)
                         .findFirst()
                         .orElseThrow()
@@ -390,7 +390,7 @@ public class GpuHotPathCoverageTargetsTest {
         assertVisibleBlocker(GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA"), "dense_loss_small");
         assertTrue(cuda.get("dense_loss_small").expectedVisibleReasons().contains("DAG_PRIMITIVE_UNSUPPORTED"));
 
-        Map<operations.Operation.OpType, GpuTargetCoverageTruth.Row> rows = GpuTargetCoverageTruth.rowsFor(backend.ComputeBackend.GPU_METAL)
+        Map<operations.Operation.OpType, GpuTargetCoverageTruth.Row> rows = GpuTargetCoverageTruth.rowsFor(backend.contract.ComputeBackend.GPU_METAL)
                 .stream()
                 .collect(Collectors.toMap(GpuTargetCoverageTruth.Row::opType, row -> row));
         assertEquals(GpuTargetExecutionStatus.NATIVE_EXECUTABLE, rows.get(operations.Operation.OpType.NLL_LOSS).executionStatus());

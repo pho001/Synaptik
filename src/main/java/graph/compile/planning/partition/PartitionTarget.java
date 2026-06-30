@@ -1,6 +1,6 @@
 package graph.compile.planning.partition;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 
 /**
  * Backend target requested or selected for partition planning.

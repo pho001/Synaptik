@@ -1,7 +1,7 @@
 package graph.compile.planning.partition;
 
-import backend.ComputeBackend;
-import graph.CompiledNode;
+import backend.contract.ComputeBackend;
+import graph.model.CompiledNode;
 
 /**
  * Controls which compiled-node backend intents a partition planner may consider for a target.

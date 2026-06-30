@@ -1,7 +1,7 @@
 package backend.prepare;
 
 import backend.lowering.region.RegionExecutionPlan;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 
 import java.util.HashSet;
 import java.util.Set;

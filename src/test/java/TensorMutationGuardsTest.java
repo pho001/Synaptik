@@ -1,8 +1,8 @@
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import org.junit.jupiter.api.Test;

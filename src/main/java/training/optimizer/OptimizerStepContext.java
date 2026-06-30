@@ -2,7 +2,7 @@ package training.optimizer;
 
 import backend.runtime.ExecutionContext;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeOptimizerTrace;

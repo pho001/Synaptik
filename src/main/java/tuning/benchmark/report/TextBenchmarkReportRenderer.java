@@ -763,12 +763,12 @@ public final class TextBenchmarkReportRenderer {
         });
     }
 
-    private static java.util.Optional<backend.ComputeBackend> backendFromName(String backendName) {
+    private static java.util.Optional<backend.contract.ComputeBackend> backendFromName(String backendName) {
         if ("GPU_METAL".equals(backendName)) {
-            return java.util.Optional.of(backend.ComputeBackend.GPU_METAL);
+            return java.util.Optional.of(backend.contract.ComputeBackend.GPU_METAL);
         }
         if ("GPU_CUDA".equals(backendName)) {
-            return java.util.Optional.of(backend.ComputeBackend.GPU_CUDA);
+            return java.util.Optional.of(backend.contract.ComputeBackend.GPU_CUDA);
         }
         return java.util.Optional.empty();
     }

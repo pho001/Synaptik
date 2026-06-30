@@ -19,7 +19,7 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.trace.HostDeviceTransferKind;
 import graph.CompiledGraph;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;

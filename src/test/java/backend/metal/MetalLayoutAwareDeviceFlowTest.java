@@ -1,6 +1,6 @@
 package backend.metal;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
@@ -359,7 +359,7 @@ class MetalLayoutAwareDeviceFlowTest {
     private static int nodeId(CompiledGraph compiled, operations.Operation.OpType opType) {
         return compiled.program().compiledNodes().stream()
                 .filter(node -> node.operation() != null && node.operation().opType() == opType)
-                .map(graph.CompiledNode::id)
+                .map(graph.model.CompiledNode::id)
                 .findFirst()
                 .orElseThrow();
     }

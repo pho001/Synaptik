@@ -5,7 +5,7 @@ import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.layout.Cpu1LayoutKernelId;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1RangeLauncher;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import operations.layout.concat;

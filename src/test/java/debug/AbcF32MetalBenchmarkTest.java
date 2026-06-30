@@ -1,6 +1,6 @@
 package debug;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.runtime.ExecutionMode;
 import config.profile.ExecutionProfile;
 import org.junit.jupiter.api.Test;

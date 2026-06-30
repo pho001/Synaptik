@@ -2,7 +2,7 @@ package backend.cpu1;
 
 import backend.blas.BlasProvider;
 import backend.blas.OpenBlasRuntime;
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
@@ -29,7 +29,8 @@ import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.CompiledGraph;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
@@ -1671,7 +1672,7 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     private static Fixture fixture(Tensor out) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(out, nodes, descriptorIndex, nodes.getLast());
     }

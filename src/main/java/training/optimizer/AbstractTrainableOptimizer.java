@@ -2,7 +2,7 @@ package training.optimizer;
 
 import tensor.TensorInternalAccess;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferLayout;
 import backend.memory.CpuMaterializationReason;
 import backend.memory.DeviceBufferBinding;
@@ -15,8 +15,8 @@ import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.runtime.ExecutionContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
-import graph.CompiledGradientBinding;
-import graph.CompiledNode;
+import graph.model.CompiledGradientBinding;
+import graph.model.CompiledNode;
 import graph.execution.PublicationPolicy;
 import graph.execution.trace.NativeOptimizerTrace;
 import tensor.DataType;

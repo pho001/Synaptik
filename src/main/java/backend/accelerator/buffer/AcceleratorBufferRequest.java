@@ -1,6 +1,6 @@
 package backend.accelerator.buffer;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import tensor.DataType;
 
 import java.util.List;

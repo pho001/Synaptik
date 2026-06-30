@@ -378,7 +378,7 @@ public class GpuCoverageRegressionGateTest {
         var report = reportWithRejectedReason(
                 "bool_compare_where_small",
                 "GPU_CUDA",
-                backend.ComputeBackend.GPU_CUDA,
+                backend.contract.ComputeBackend.GPU_CUDA,
                 "unsupported-layout"
         );
 
@@ -400,13 +400,13 @@ public class GpuCoverageRegressionGateTest {
         var missingReason = reportWithRejectedReason(
                 "scatter_index_gradient_small",
                 "GPU_CUDA",
-                backend.ComputeBackend.GPU_CUDA,
+                backend.contract.ComputeBackend.GPU_CUDA,
                 "unsupported-layout"
         );
         var visibleReason = reportWithRejectedReason(
                 "scatter_index_gradient_small",
                 "GPU_CUDA",
-                backend.ComputeBackend.GPU_CUDA,
+                backend.contract.ComputeBackend.GPU_CUDA,
                 "UNSUPPORTED_DUPLICATE_INDEX: operation SCATTER_ADD GPU_CUDA native duplicate-index accumulation is not proven"
         );
 
@@ -587,7 +587,7 @@ public class GpuCoverageRegressionGateTest {
     private static tuning.benchmark.report.BenchmarkSuiteReport reportWithRejectedReason(
             String workloadName,
             String backendName,
-            backend.ComputeBackend backend,
+            backend.contract.ComputeBackend backend,
             String reason
     ) {
         return new tuning.benchmark.report.BenchmarkSuiteReport(
@@ -611,7 +611,7 @@ public class GpuCoverageRegressionGateTest {
         tensor.DataType evidenceDType = evidenceDType(coverage);
         var manifest = new backend.accelerator.lowering.GpuLoweredRegionManifest(
                 "dtype-region",
-                backend.ComputeBackend.GPU_METAL,
+                backend.contract.ComputeBackend.GPU_METAL,
                 1,
                 java.util.stream.IntStream.range(0, Math.max(1, coverage.maxSelectedRegionLength()))
                         .boxed()
@@ -635,9 +635,9 @@ public class GpuCoverageRegressionGateTest {
                 List.of(),
                 List.of(),
                 coverage.gpuFusedSubpatternCount() == 0
-                        ? backend.accelerator.lowering.GpuCompoundRegionSummary.none(backend.ComputeBackend.GPU_METAL, List.of(1))
+                        ? backend.accelerator.lowering.GpuCompoundRegionSummary.none(backend.contract.ComputeBackend.GPU_METAL, List.of(1))
                         : backend.accelerator.lowering.GpuCompoundRegionSummary.supported(
-                                backend.ComputeBackend.GPU_METAL,
+                                backend.contract.ComputeBackend.GPU_METAL,
                                 backend.accelerator.lowering.GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                                 List.of(1, 2),
                                 List.of(1),
@@ -692,9 +692,9 @@ public class GpuCoverageRegressionGateTest {
                 List.of(new graph.execution.trace.BackendSelectionDecisionTrace(
                         1,
                         manifest.orderedNodeIds(),
-                        List.of(backend.ComputeBackend.GPU_METAL),
+                        List.of(backend.contract.ComputeBackend.GPU_METAL),
                         true,
-                        backend.ComputeBackend.GPU_METAL,
+                        backend.contract.ComputeBackend.GPU_METAL,
                         "selected",
                         128L,
                         null,
@@ -724,7 +724,7 @@ public class GpuCoverageRegressionGateTest {
 
     private static graph.execution.trace.ExecutionTrace traceWithRejectedReason(
             String backendName,
-            backend.ComputeBackend computeBackend,
+            backend.contract.ComputeBackend computeBackend,
             String reason
     ) {
         var selection = new graph.execution.trace.BackendSelectionTrace(

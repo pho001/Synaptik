@@ -1,6 +1,6 @@
 package backend.cuda.prepare;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.exec.AcceleratorExecutionArtifact;
 import backend.accelerator.prepare.GpuAcceleratorPrepareSupport;
 import backend.accelerator.exec.PartitionExecutionRole;
@@ -13,7 +13,7 @@ import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.OutputResidencyEffect;
 import graph.compile.planning.partition.PartitionPlan;

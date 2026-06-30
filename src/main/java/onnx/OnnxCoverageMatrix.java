@@ -1,6 +1,6 @@
 package onnx;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import operations.Operation;

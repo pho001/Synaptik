@@ -1,6 +1,6 @@
 package backend.cpu.kernels.linalg;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.CpuKernelCall;
 import backend.cpu.plan.CpuExecutionMode;

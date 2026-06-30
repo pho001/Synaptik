@@ -1,6 +1,6 @@
 package graph.execution.plan;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import operations.Operation;
 
 import java.util.List;

@@ -8,7 +8,8 @@ import backend.cpu.prepare.elementwise.StridedPathEligibility;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.plan.PreparedTypeContract;
 import config.backend.CpuKernelConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptor;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.binary.add;
@@ -216,6 +217,6 @@ public class StridedLayoutPlanningTest {
     }
 
     private static CompiledTensorDescriptor desc(Tensor tensor) {
-        return CompiledTensorDescriptorBuilder.fromNode(CompiledNode.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty()).getLast());
+        return CompiledTensorDescriptorBuilder.fromNode(CompiledNodeSnapshotter.snapshot(tensor.topologicalSort(), BackendIntentPlan.empty()).getLast());
     }
 }

@@ -2,7 +2,7 @@ package graph.compile.planning.region;
 
 import config.optimizer.CpuFusionConfig;
 import config.optimizer.FuseConfig;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 
 import java.util.List;
 

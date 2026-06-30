@@ -2,7 +2,8 @@ package graph.compile.planning.region;
 
 import config.optimizer.FuseConfig;
 import config.compile.CompileConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.CompiledGraph;
 import graph.execution.trace.PartitionDecisionTrace;
 import graph.compile.planning.partition.Partition;
@@ -41,7 +42,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.tanh();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-eltwise",
                 PartitionTarget.CPU,
@@ -69,7 +70,7 @@ class DefaultRegionOptimizerTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-mixed",
                 PartitionTarget.CPU,
@@ -100,7 +101,7 @@ class DefaultRegionOptimizerTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -138,7 +139,7 @@ class DefaultRegionOptimizerTest {
         Tensor bias = new Tensor(new float[]{0.25f, -0.5f}, new int[]{2}, null, "cpuLinearBias", DataType.FLOAT32);
         Tensor out = a.linear(weight, bias);
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int linearNodeId = nodeId(nodes, Operation.OpType.LINEAR);
         List<Integer> selectedNodeIds = List.of(linearNodeId);
         List<Integer> externalInputNodeIds = externalInputNodeIds(nodes, selectedNodeIds);
@@ -175,7 +176,7 @@ class DefaultRegionOptimizerTest {
         Tensor matmul = a.matmul(b);
         Tensor out = matmul.add(bias);
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         List<Integer> selectedNodeIds = List.of(matmulNodeId, addNodeId);
@@ -213,7 +214,7 @@ class DefaultRegionOptimizerTest {
         Tensor square = diff.mul(diff);
         Tensor loss = square.mean();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
         int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
         int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
         int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
@@ -258,7 +259,7 @@ class DefaultRegionOptimizerTest {
         Tensor square = diff.mul(diff);
         Tensor loss = square.mean();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
         int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
         int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
         int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
@@ -327,7 +328,7 @@ class DefaultRegionOptimizerTest {
         int squareNodeId = graph.indexOf(square);
         int rowMeanNodeId = graph.indexOf(rowMean);
         int lossNodeId = graph.indexOf(loss);
-        List<CompiledNode> nodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, rowMeanNodeId, lossNodeId);
         Partition partition = partition(
                 "cpu-nested-mean-mse",
@@ -381,7 +382,7 @@ class DefaultRegionOptimizerTest {
         int squareNodeId = graph.indexOf(square);
         int rowMeanNodeId = graph.indexOf(rowMean);
         int lossNodeId = graph.indexOf(loss);
-        List<CompiledNode> nodes = CompiledNode.snapshot(graph, BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(graph, BackendIntentPlan.empty());
         List<Integer> selectedNodeIds = List.of(diffNodeId, squareNodeId, rowMeanNodeId, lossNodeId);
         Partition partition = partition(
                 "cpu-mixed-reduction-mse",
@@ -413,7 +414,7 @@ class DefaultRegionOptimizerTest {
         Tensor square = diff.mul(diff);
         Tensor loss = square.mean();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(loss.topologicalSort(), BackendIntentPlan.empty());
         int diffNodeId = nodeId(nodes, Operation.OpType.SUB);
         int squareNodeId = nodeId(nodes, Operation.OpType.MUL);
         int lossNodeId = nodeId(nodes, Operation.OpType.MEAN);
@@ -454,7 +455,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -497,7 +498,7 @@ class DefaultRegionOptimizerTest {
         Tensor relu = add.relu();
         Tensor out = relu.exp();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -535,7 +536,7 @@ class DefaultRegionOptimizerTest {
         Tensor add = matmul.add(bias);
         Tensor out = add.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int matmulNodeId = nodeId(nodes, Operation.OpType.MATMUL);
         int addNodeId = nodeId(nodes, Operation.OpType.ADD);
         int reluNodeId = nodeId(nodes, Operation.OpType.RELU);
@@ -578,7 +579,7 @@ class DefaultRegionOptimizerTest {
         Tensor tanh = mul.tanh();
         Tensor out = tanh.sigmoid();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         int mulNodeId = nodeId(nodes, Operation.OpType.MUL);
         int tanhNodeId = nodeId(nodes, Operation.OpType.TANH);
         int sigmoidNodeId = nodeId(nodes, Operation.OpType.SIGMOID);
@@ -628,7 +629,7 @@ class DefaultRegionOptimizerTest {
         Tensor add = a.add(b);
         Tensor out = add.relu();
 
-        List<CompiledNode> nodes = CompiledNode.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
         Partition partition = partition(
                 "cpu-cont",
                 PartitionTarget.CPU,

@@ -1,12 +1,12 @@
 package backend.metal.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import config.compile.BackendPlanningCostConfig;
 import config.compile.TransferCostPreset;
 import graph.compile.planning.partition.PartitionPlanningContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.BackendPartitionCapability;
 import graph.compile.planning.partition.PartitionCandidate;

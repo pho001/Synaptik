@@ -23,6 +23,25 @@ public class PackageOwnershipBoundaryTest {
     }
 
     @Test
+    void backendContractIsJdkOnlyDependencyLeaf() throws IOException {
+        assertNoImports(
+                "backend/contract",
+                importedType -> !isJdkImport(importedType),
+                "backend.contract may import only JDK types"
+        );
+    }
+
+    @Test
+    void graphModelDoesNotDependOnCompilePlanningRuntimeTraceOrConcreteBackends() throws IOException {
+        List<String> allowedPackages = List.of("backend.contract.", "operations.", "tensor.");
+        assertNoImports(
+                "graph/model",
+                importedType -> !isJdkImport(importedType) && !startsWithAny(importedType, allowedPackages),
+                "graph.model may import only JDK, backend.contract, operations, and tensor types"
+        );
+    }
+
+    @Test
     void graphOptimizerDoesNotDependOnConcreteBackendKernelPackages() throws IOException {
         List<String> concreteBackends = List.of(
                 "backend.cpu.",
@@ -98,5 +117,9 @@ public class PackageOwnershipBoundaryTest {
 
     private static boolean startsWithAny(String value, List<String> prefixes) {
         return prefixes.stream().anyMatch(value::startsWith);
+    }
+
+    private static boolean isJdkImport(String importedType) {
+        return startsWithAny(importedType, List.of("java.", "javax.", "jdk."));
     }
 }

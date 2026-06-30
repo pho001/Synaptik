@@ -791,9 +791,9 @@ public final class JsonBenchmarkReportRenderer {
     }
 
     private static String targetCoverageTruthJson(String backendName) {
-        backend.ComputeBackend computeBackend = switch (backendName) {
-            case "GPU_METAL" -> backend.ComputeBackend.GPU_METAL;
-            case "GPU_CUDA" -> backend.ComputeBackend.GPU_CUDA;
+        backend.contract.ComputeBackend computeBackend = switch (backendName) {
+            case "GPU_METAL" -> backend.contract.ComputeBackend.GPU_METAL;
+            case "GPU_CUDA" -> backend.contract.ComputeBackend.GPU_CUDA;
             default -> null;
         };
         if (computeBackend == null) {

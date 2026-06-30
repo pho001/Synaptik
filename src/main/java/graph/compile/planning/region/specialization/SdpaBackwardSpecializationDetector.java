@@ -1,6 +1,6 @@
 package graph.compile.planning.region.specialization;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.Partition;
 import graph.compile.planning.region.RegionOptimizationContext;
 import graph.compile.planning.value.GraphValueRef;

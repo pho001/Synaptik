@@ -6,7 +6,7 @@ import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.runtime.ExecutionContext;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.PreparedExecutionArtifact;
 import graph.execution.plan.PreparedRuntimeStateAllocator;

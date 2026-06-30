@@ -1,7 +1,7 @@
 package backend.cpu.partition;
 
-import backend.ComputeBackend;
-import graph.CompiledNode;
+import backend.contract.ComputeBackend;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionCandidate;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PartitionPlanningContext;

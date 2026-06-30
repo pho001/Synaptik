@@ -1,7 +1,7 @@
 package graph.compile.planning.memory;
 
 import backend.runtime.ExecutionMode;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.region.OptimizedRegion;
 import java.util.List;

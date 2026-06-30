@@ -1,6 +1,6 @@
 package testsupport;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.GraphStructureContract;
 import graph.compile.publication.PublicationPlan;
 import tensor.Tensor;

@@ -1,6 +1,6 @@
 package graph.compile.descriptor;
 
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import operations.Operation;
 import tensor.DataType;
 import tensor.TensorMetadata;

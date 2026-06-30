@@ -1,11 +1,11 @@
 package backend.cuda.lowering;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweringCoverageEntry;
 import backend.accelerator.lowering.GpuLoweringCoverageMatrix;
 import backend.accelerator.lowering.GpuLoweringCoverageStatus;
 import backend.accelerator.lowering.AcceleratorSubgraphLowerer;
-import graph.CompiledNode;
+import graph.model.CompiledNode;
 import graph.compile.planning.partition.PartitionCandidate;
 import graph.compile.planning.partition.PartitionPlan;
 import graph.compile.planning.partition.PartitionPlanningContext;

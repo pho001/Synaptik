@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.ComputeBackend;
+import backend.contract.ComputeBackend;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.linalg.attention.Cpu1AttentionKernelId;
 import backend.cpu1.prepare.Cpu1NodePreparer;
@@ -10,7 +10,8 @@ import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.runtime.ExecutionContext;
 import backend.runtime.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.CompiledNode;
+import graph.compile.CompiledNodeSnapshotter;
+import graph.model.CompiledNode;
 import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
 import graph.compile.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.intent.BackendIntentPlan;
@@ -589,7 +590,7 @@ final class Cpu1AttentionExecutionContractTest {
     }
 
     private static Fixture fixture(Tensor root) {
-        List<CompiledNode> nodes = CompiledNode.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
+        List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(root.topologicalSort(), BackendIntentPlan.empty());
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         return new Fixture(root, nodes, descriptorIndex, nodes.getLast());
     }
