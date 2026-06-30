@@ -20,17 +20,17 @@ import backend.cpu1.exec.Cpu1RmsNormExecutableUnit;
 import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.trace.Cpu1TraceContributor;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.PreparedExecutionArtifact;
-import graph.execution.plan.PreparedRuntimeStateAllocator;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.PreparedStepExecutable;
+import runtime.execution.PreparedRuntimeStateAllocator;
 import trace.backend.StepTraceContribution;
 
 /**
  * Prepared execution artifact attached to cpu1 node metadata.
  */
-public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
+public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
     private final Cpu1PreparedElementwiseUnit preparedUnit;
     private final Cpu1PreparedLayoutUnit preparedLayoutUnit;
     private final Cpu1PreparedDTypeUnit preparedDTypeUnit;
@@ -668,20 +668,18 @@ public final class Cpu1PreparedArtifact implements PreparedExecutionArtifact {
             return;
         }
         Cpu1ScratchBufferSpec spec = scratchBufferSpec();
-        if (spec.isEmpty()) {
-            return;
-        }
         allocator.putWorkspace(nodeId, Cpu1ScratchBuffer.allocate(spec));
     }
 
-    public void execute(ExecutionContext context) {
+    @Override
+    public void execute(CompiledNode node, PreparedStepMetadata metadata, ExecutionContext context) {
         executableUnit.run(context);
     }
 
     @Override
     public StepTraceContribution traceContribution(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
         return Cpu1TraceContributor.traceContribution(

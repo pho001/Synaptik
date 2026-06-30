@@ -8,7 +8,7 @@ import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaGraphBridge;
 import runtime.device.buffer.DeviceBufferBinding;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.execution.device.DeviceLayoutMaterializer;
 import tensor.DataType;
 

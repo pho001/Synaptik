@@ -143,7 +143,7 @@ public class FusedExecutionModesTest {
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
                 FusedVectorFallbackReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().executable()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 1e-5);
 
@@ -182,7 +182,7 @@ public class FusedExecutionModesTest {
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
                 FusedVectorFallbackReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().executable()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), EPS);
 
@@ -361,7 +361,7 @@ public class FusedExecutionModesTest {
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
                 FusedVectorFallbackReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().executable()).vectorFallbackReason()
         );
         prepared.execute(ExecutionMode.FORWARD);
 
@@ -599,7 +599,7 @@ public class FusedExecutionModesTest {
         assertEquals(1, cpuPlan.dispatchHints().vectorWidth());
         assertEquals(
                 FusedVectorFallbackReason.VECTOR_PATH_UNSUPPORTED,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().executable()).vectorFallbackReason()
         );
         assertArrayEquals(expected, out.toDoubleArrayCopy(), 2e-2);
     }
@@ -918,7 +918,7 @@ public class FusedExecutionModesTest {
         assertTrue(testsupport.MetadataArtifacts.cpuPlan(fusedStep.metadata()).dispatchHints().vectorWidth() > 1);
         assertEquals(
                 FusedVectorFallbackReason.NONE,
-                ((CpuFusedExecutionArtifact) fusedStep.metadata().artifact()).vectorFallbackReason()
+                ((CpuFusedExecutionArtifact) fusedStep.metadata().executable()).vectorFallbackReason()
         );
         return fusedStep;
     }

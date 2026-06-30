@@ -14,7 +14,7 @@ import graph.model.CompiledNode;
 import graph.compile.CompiledProgram;
 import graph.compile.CompileArtifacts;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import trace.prepare.PrepareTrace;
@@ -120,7 +120,7 @@ public final class PreparedExecutionBuilder {
             if (node.operation() == null || node.inputIds().isEmpty()) {
                 continue;
             }
-            CompiledNodeExecutionMetadata metadata = dispatcher.prepare(node, context);
+            PreparedStepMetadata metadata = dispatcher.prepare(node, context);
             context.publishPreparedMetadata(node.id(), metadata);
             PreparedExecutionStep step = new PreparedExecutionStep(node, metadata);
             addStep(step, program.forwardBoundaryNodeId(), executionSteps, forwardSteps, backwardSteps);
@@ -172,7 +172,7 @@ public final class PreparedExecutionBuilder {
         if (outputNode == null) {
             throw new IllegalStateException("Missing CPU fused output node id=" + outputNodeId);
         }
-        CompiledNodeExecutionMetadata metadata = dispatcher.prepareCpuFusedStep(outputNode, fusedUnit, context);
+        PreparedStepMetadata metadata = dispatcher.prepareCpuFusedStep(outputNode, fusedUnit, context);
         return new PreparedExecutionStep(
                 outputNode,
                 metadata,
@@ -198,7 +198,7 @@ public final class PreparedExecutionBuilder {
                     + ", orderedNodeIds=" + specializedUnit.orderedNodeIds());
         }
         CompiledNode outputNode = context.compiledNode(outputNodeId);
-        CompiledNodeExecutionMetadata metadata = dispatcher.prepareCpuSpecializedStep(outputNode, specializedUnit, context);
+        PreparedStepMetadata metadata = dispatcher.prepareCpuSpecializedStep(outputNode, specializedUnit, context);
         return new PreparedExecutionStep(
                 outputNode,
                 metadata,
@@ -215,7 +215,7 @@ public final class PreparedExecutionBuilder {
     ) {
         RegionExecutionPlan regionPlan = requireBoundaryStepNode(region.units().getFirst().requireRegionPlan(), context, backend.name());
         CompiledNode outputNode = context.compiledNode(representativeBoundaryNodeId(regionPlan));
-        CompiledNodeExecutionMetadata metadata = switch (backend) {
+        PreparedStepMetadata metadata = switch (backend) {
             case METAL -> dispatcher.prepareMetalRegionStep(region, context);
             case CUDA -> dispatcher.prepareCudaRegionStep(region, context);
         };

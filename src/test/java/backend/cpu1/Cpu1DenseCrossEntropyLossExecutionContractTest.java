@@ -7,15 +7,15 @@ import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import trace.backend.StepTraceContribution;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -244,7 +244,7 @@ class Cpu1DenseCrossEntropyLossExecutionContractTest {
     }
 
     private static Tensor execute(Fixture fixture, Cpu1PreparedArtifact artifact) {
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         new Cpu1Backend().execute(fixture.node(), metadata, context);
         context.requireCpuReadable(fixture.node().id(), CpuMaterializationReason.CPU_CONSUMER);
@@ -273,7 +273,7 @@ class Cpu1DenseCrossEntropyLossExecutionContractTest {
     }
 
     private static StepTraceContribution trace(Fixture fixture, Cpu1PreparedArtifact artifact) {
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         return artifact.traceContribution(fixture.node(), metadata, context(fixture, metadata));
     }
 
@@ -283,8 +283,8 @@ class Cpu1DenseCrossEntropyLossExecutionContractTest {
         return new Fixture(out, nodes, descriptorIndex, nodes.getLast());
     }
 
-    private static ExecutionContext context(Fixture fixture, CompiledNodeExecutionMetadata metadata) {
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
+    private static ExecutionContext context(Fixture fixture, PreparedStepMetadata metadata) {
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
                 fixture.descriptorIndex(),
@@ -300,15 +300,17 @@ class Cpu1DenseCrossEntropyLossExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata cpu1Metadata(
+    private static PreparedStepMetadata cpu1Metadata(
             CompiledNode node,
             Cpu1PreparedArtifact artifact
     ) {
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

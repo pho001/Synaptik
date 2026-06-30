@@ -1,9 +1,9 @@
 package backend.cpu1;
 
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 
 /**
  * Experimental CPU backend entry point for prepared cpu1 artifacts.
@@ -16,7 +16,7 @@ public final class Cpu1Backend {
      * @param metadata prepared node metadata
      * @param context run-scoped execution context
      */
-    public void execute(CompiledNode node, CompiledNodeExecutionMetadata metadata, ExecutionContext context) {
+    public void execute(CompiledNode node, PreparedStepMetadata metadata, ExecutionContext context) {
         if (node == null) {
             throw new IllegalArgumentException("node cannot be null");
         }
@@ -26,9 +26,9 @@ public final class Cpu1Backend {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
-        if (!(metadata.artifact() instanceof Cpu1PreparedArtifact artifact)) {
+        if (!(metadata.executable() instanceof Cpu1PreparedArtifact artifact)) {
             throw new IllegalArgumentException("cpu1 execution requires Cpu1PreparedArtifact for nodeId=" + node.id());
         }
-        artifact.execute(context);
+        artifact.execute(node, metadata, context);
     }
 }

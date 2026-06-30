@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public final class Cpu1ElementwiseJavaArrayExecutableUnit implements Cpu1Executa
                 preparedUnit,
                 inputs,
                 output,
-                context.cpu1ScratchBufferForNodeId(preparedUnit.nodeId())
+                context.requireWorkspace(preparedUnit.nodeId(), Cpu1ScratchBuffer.class)
         );
         preparedUnit.launchPolicy().launch(
                 args.elementCount(),

@@ -1,6 +1,6 @@
 package backend.cpu1.exec;
 
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Runtime executable prepared by cpu1.

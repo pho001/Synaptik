@@ -9,7 +9,7 @@ import graph.model.CompiledNode;
 import graph.compile.GraphStructureContract;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import trace.prepare.PrepareTrace;
 import trace.execution.RunTrace;
 import planning.memory.MemoryPlan;
@@ -46,7 +46,7 @@ public final class PreparedExecution implements AutoCloseable {
     private final CompiledNode forwardOutputNode;
     private final MemoryPlan memoryPlan;
     private final PrepareTrace prepareTrace;
-    private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
+    private final Map<Integer, PreparedStepMetadata> metadataIndex;
     private final NativeCpuMemoryPool nativeCpuMemoryPool;
     private final AtomicBoolean closed;
 
@@ -306,8 +306,8 @@ public final class PreparedExecution implements AutoCloseable {
         return null;
     }
 
-    private static Map<Integer, CompiledNodeExecutionMetadata> buildMetadataIndex(List<PreparedExecutionStep> executionSteps) {
-        Map<Integer, CompiledNodeExecutionMetadata> out = new HashMap<>();
+    private static Map<Integer, PreparedStepMetadata> buildMetadataIndex(List<PreparedExecutionStep> executionSteps) {
+        Map<Integer, PreparedStepMetadata> out = new HashMap<>();
         for (PreparedExecutionStep step : executionSteps) {
             out.put(step.compiledNode().id(), step.metadata());
         }

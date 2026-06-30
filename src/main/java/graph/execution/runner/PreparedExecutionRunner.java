@@ -1,12 +1,11 @@
 package graph.execution.runner;
 
-import backend.ComputeEngine;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.execution.PreparedExecutionStep;
 import graph.execution.device.DeviceLayoutViewPropagator;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import trace.execution.ExecutionStepTrace;
 import runtime.runner.StepExecutionTracer;
 
@@ -36,7 +35,7 @@ public final class PreparedExecutionRunner {
                 continue;
             }
             requireCpuReadableInputs(step, context);
-            ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
+            step.metadata().executable().execute(step.compiledNode(), step.metadata(), context);
             markResidencyAfterStep(step, context);
             if (captureTrace) {
                 traces.add(StepExecutionTracer.toStepTrace(startIndex + i, step, System.nanoTime() - t0, context));

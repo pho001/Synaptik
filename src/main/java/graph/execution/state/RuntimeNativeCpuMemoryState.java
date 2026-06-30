@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * Run-scoped native CPU memory state and invariants.
  */
-final class RuntimeNativeCpuMemoryState {
+public final class RuntimeNativeCpuMemoryState {
     private final RuntimeTensorStore tensorStore;
     private final RuntimeResidencyStore residencyStore;
     private final NativeCpuStorageRegistry nativeStorageRegistry;
@@ -24,7 +24,7 @@ final class RuntimeNativeCpuMemoryState {
     private final RuntimeResourceRegistry resourceRegistry;
     private final RuntimeMaterializationService materializationService;
 
-    RuntimeNativeCpuMemoryState(
+    public RuntimeNativeCpuMemoryState(
             RuntimeTensorStore tensorStore,
             RuntimeResidencyStore residencyStore,
             NativeCpuStorageRegistry nativeStorageRegistry,
@@ -40,11 +40,11 @@ final class RuntimeNativeCpuMemoryState {
         this.materializationService = Objects.requireNonNull(materializationService, "materializationService cannot be null");
     }
 
-    void configure(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
+    public void configure(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
         resourceRegistry.configureNativeCpuMemory(config, preparedPool);
     }
 
-    void attachNativeStorage(int nodeId, NativeTensorStorage storage, String reason) {
+    public void attachNativeStorage(int nodeId, NativeTensorStorage storage, String reason) {
         Objects.requireNonNull(storage, "storage cannot be null");
         Tensor tensor = tensorStore.runtimeTensorForNodeId(nodeId);
         if (tensor.getDataType() != storage.getType()) {
@@ -63,7 +63,7 @@ final class RuntimeNativeCpuMemoryState {
         residencyForNodeId(nodeId).markNativeCurrent(reason);
     }
 
-    void reserveNativeOutputStorage(int nodeId, NativeTensorStorage storage) {
+    public void reserveNativeOutputStorage(int nodeId, NativeTensorStorage storage) {
         Objects.requireNonNull(storage, "storage cannot be null");
         Tensor tensor = tensorStore.runtimeTensorForNodeId(nodeId);
         if (tensor.getDataType() != storage.getType()) {
@@ -83,11 +83,11 @@ final class RuntimeNativeCpuMemoryState {
         residencyForNodeId(nodeId).markNativeOutputReserved("native output storage reserved");
     }
 
-    NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
+    public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
         return resourceRegistry.allocateNativeStorage(dataType, elements, label);
     }
 
-    void aliasNativeStorage(int targetNodeId, int sourceNodeId, String reason) {
+    public void aliasNativeStorage(int targetNodeId, int sourceNodeId, String reason) {
         Tensor target = tensorStore.runtimeTensorForNodeId(targetNodeId);
         Tensor source = tensorStore.runtimeTensorForNodeId(sourceNodeId);
         if (target.getDataType() != source.getDataType()) {
@@ -110,7 +110,7 @@ final class RuntimeNativeCpuMemoryState {
         residencyForNodeId(targetNodeId).markNativeCurrent(reason);
     }
 
-    NativeTensorStorage nativeStorageForNodeId(int nodeId) {
+    public NativeTensorStorage nativeStorageForNodeId(int nodeId) {
         residencyForNodeId(nodeId);
         return nativeStorageRegistry.get(nodeId);
     }

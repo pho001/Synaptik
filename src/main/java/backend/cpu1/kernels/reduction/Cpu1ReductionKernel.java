@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.reduction;
 
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Prepared reduction loop entry point.

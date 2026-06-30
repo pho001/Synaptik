@@ -46,7 +46,7 @@ import backend.metal.kernel.MetalCustomKernelCandidate;
 import backend.metal.kernel.MetalCustomKernelCapabilities;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import backend.metal.lowering.MetalPartitionPlan;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
@@ -58,8 +58,8 @@ import runtime.contract.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import operations.Operation;
@@ -325,7 +325,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge);
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
+        PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
         PreparedExecutionStep step = new PreparedExecutionStep(fixture.outputNode(), metadata);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
@@ -373,7 +373,7 @@ class PreparedMetalExecutableBufferBindingTest {
         Fixture fixture = fixture();
         FakeBridge bridge = new FakeBridge(true);
         PreparedMetalExecutable executable = executable(fixture, bridge, new FakeCustomKernelBridge(true));
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
+        PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
         PreparedExecutionStep step = new PreparedExecutionStep(fixture.outputNode(), metadata);
         PreparedExecution prepared = new PreparedExecution(
                 RuntimeConfig.inferenceDefaults(),
@@ -1291,7 +1291,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 .filter(node -> node.id() == middleNode.inputIds().getFirst())
                 .findFirst()
                 .orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -1324,7 +1324,7 @@ class PreparedMetalExecutableBufferBindingTest {
         CompiledNode expNode = operationNode(nodes, Operation.OpType.EXP);
         CompiledNode inputA = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(0)).findFirst().orElseThrow();
         CompiledNode inputB = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(1)).findFirst().orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -1393,7 +1393,7 @@ class PreparedMetalExecutableBufferBindingTest {
         List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(List.of(input, output), BackendIntentPlan.empty());
         CompiledNode inputNode = nodes.get(0);
         CompiledNode outputNode = nodes.get(1);
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -1514,7 +1514,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 .filter(node -> node.id() == inputNodeId)
                 .findFirst()
                 .orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -1796,7 +1796,7 @@ class PreparedMetalExecutableBufferBindingTest {
             CompiledNode outputNode,
             ExecutionState state,
             ExecutionContext context,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata
+            Map<Integer, PreparedStepMetadata> metadata
     ) {
     }
 

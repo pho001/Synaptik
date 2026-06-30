@@ -16,8 +16,9 @@ import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.OutputResidencyEffect;
+import runtime.execution.InputResidencyRequirement;
 import planning.partition.PartitionPlan;
 
 /**
@@ -62,10 +63,11 @@ public final class MetalNodePreparer {
     /**
      * Prepares execution metadata for a node according to its Metal partition role.
      */
-    public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
+    public PreparedStepMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return cpuPreparer.prepareAsCpu(node, context);
+            throw new IllegalStateException("Interior Metal partition node must be covered before prepare: nodeId="
+                    + node.id());
         }
         if (role != PartitionExecutionRole.ANCHOR) {
             return cpuPreparer.prepareAsCpu(node, context);
@@ -78,7 +80,7 @@ public final class MetalNodePreparer {
         return prepareRegionStep(loweredRegion, context);
     }
 
-    public CompiledNodeExecutionMetadata prepareRegionStep(
+    public PreparedStepMetadata prepareRegionStep(
             LoweredRegion loweredRegion,
             BackendPrepareContext context
     ) {
@@ -113,12 +115,12 @@ public final class MetalNodePreparer {
                 context.runtimeConfig().accelerator().metal(),
                 customKernelBridge
         );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.GPU_METAL,
                 null,
                 java.util.List.of(),
                 new AcceleratorExecutionArtifact(executable),
-                null,
+                InputResidencyRequirement.none(),
                 OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())
         );
     }

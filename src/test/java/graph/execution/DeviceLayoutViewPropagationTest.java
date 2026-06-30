@@ -17,7 +17,7 @@ import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalDeviceToCpuMaterializer;
 import backend.metal.buffer.MetalBufferHandle;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
@@ -26,8 +26,8 @@ import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import graph.execution.device.DeviceLayoutMaterializer;
 import graph.execution.device.DeviceLayoutViewPropagator;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -233,7 +233,7 @@ class DeviceLayoutViewPropagationTest {
         List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(List.of(source, target), backendIntentPlan);
         CompiledNode sourceNode = nodes.getFirst();
         CompiledNode targetNode = nodes.get(1);
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null);
+        PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.CPU, null);
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),

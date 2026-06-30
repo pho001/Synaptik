@@ -10,10 +10,10 @@ import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.plan.linalg.attention.ResolvedAttentionHints;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.linalg.scaledDotProductAttention;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -170,7 +170,7 @@ class CpuScaledDotProductAttentionKernelStorageViewTest {
     }
 
     private static CpuKernelContext context(scaledDotProductAttention op, CpuNodeExecutionPlan plan) {
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(ComputeBackend.CPU, op, List.of(), null);
+        PreparedStepMetadata metadata = new PreparedStepMetadata(ComputeBackend.CPU, op, List.of(), testsupport.MetadataArtifacts.noopExecutable(), runtime.execution.InputResidencyRequirement.cpuReadableAll(), runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative());
         return new CpuKernelContext(
                 1,
                 List.of(0, 1, 2, 3),

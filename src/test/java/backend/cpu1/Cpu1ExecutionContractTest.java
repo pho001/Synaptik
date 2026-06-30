@@ -20,7 +20,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.runtime.RuntimeConfig;
@@ -29,8 +29,8 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import trace.backend.StepTraceContribution;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
@@ -65,7 +65,7 @@ class Cpu1ExecutionContractTest {
         Fixture fixture = fixture(out);
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -98,7 +98,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.ADD_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -126,7 +126,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.MUL_F64_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -151,7 +151,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK3_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -176,7 +176,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK4_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -198,7 +198,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.RELU_F64_ARRAY_STRIDED_GENERIC_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -229,7 +229,7 @@ class Cpu1ExecutionContractTest {
                 registry.resolve(Operation.OpType.RELU, DataType.FLOAT32),
                 new Cpu1SingleThreadLaunch()
         );
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(
+        PreparedStepMetadata metadata = cpu1Metadata(
                 fixture.node(),
                 new Cpu1PreparedArtifact(reluLeftInsteadOfAdd)
         );
@@ -486,7 +486,7 @@ class Cpu1ExecutionContractTest {
         );
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -518,7 +518,7 @@ class Cpu1ExecutionContractTest {
                 Cpu1PrepareConfig.vectorParallel(4)
         );
         assertInstanceOf(Cpu1ParallelLaunch.class, artifact.preparedUnit().launchPolicy());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -570,7 +570,7 @@ class Cpu1ExecutionContractTest {
         );
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1037,7 +1037,7 @@ class Cpu1ExecutionContractTest {
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
         assertEquals(Cpu1ElementwiseKernelId.WHERE_F32_FROM_F32_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1065,7 +1065,7 @@ class Cpu1ExecutionContractTest {
                 artifact.executableUnit()
         );
         assertSame(artifact.preparedUnit(), executable.preparedUnit());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1122,7 +1122,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorMemorySegmentSingleThread()
         );
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1145,7 +1145,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.vectorMemorySegmentSingleThread()
         );
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1175,7 +1175,7 @@ class Cpu1ExecutionContractTest {
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
         assertEquals(Cpu1ElementwiseKernelId.ADD_F32_SEGMENT_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1205,7 +1205,7 @@ class Cpu1ExecutionContractTest {
                 Cpu1PrepareConfig.vectorMemorySegmentSingleThread()
         );
         assertEquals(Cpu1ElementwiseKernelId.ADD_F32_SEGMENT_BROADCAST_INNER_VECTOR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1228,7 +1228,7 @@ class Cpu1ExecutionContractTest {
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
         assertEquals(Cpu1ElementwiseKernelId.ERF_F32_SEGMENT_CONTIGUOUS_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1260,7 +1260,7 @@ class Cpu1ExecutionContractTest {
                 fixture.descriptorIndex(),
                 Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
         );
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
 
@@ -1347,7 +1347,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.RELU_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1368,7 +1368,7 @@ class Cpu1ExecutionContractTest {
 
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex());
         assertEquals(Cpu1ElementwiseKernelId.SQRT_F32_ARRAY_STRIDED_RANK2_SCALAR, artifact.preparedUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1471,8 +1471,8 @@ class Cpu1ExecutionContractTest {
         return expected;
     }
 
-    private static ExecutionContext context(Fixture fixture, CompiledNodeExecutionMetadata metadata) {
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
+    private static ExecutionContext context(Fixture fixture, PreparedStepMetadata metadata) {
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
                 fixture.descriptorIndex(),
@@ -1589,21 +1589,23 @@ class Cpu1ExecutionContractTest {
 
     private static Tensor executeCpu1(Fixture fixture, Cpu1PrepareConfig config) {
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         new Cpu1Backend().execute(fixture.node(), metadata, context);
         return context.runtimeTensorForNodeId(fixture.node().id());
     }
 
-    private static CompiledNodeExecutionMetadata cpu1Metadata(
+    private static PreparedStepMetadata cpu1Metadata(
             CompiledNode node,
             Cpu1PreparedArtifact artifact
     ) {
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

@@ -1,7 +1,7 @@
 package backend.cpu.storage;
 
 import runtime.residency.TensorResidencyState;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;

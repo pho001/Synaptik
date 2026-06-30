@@ -8,7 +8,7 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.prepare.Cpu1AttentionBackwardPreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
@@ -20,10 +20,10 @@ import graph.CompiledGraph;
 import graph.compile.CompiledProgram;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
+import runtime.execution.ExecutionState;
 import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
 import planning.region.specialization.SdpaBackwardOutputKind;
@@ -145,7 +145,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
         PreparedCase prepared = prepareCase(fixture, dataType, outputKind, runtimeConfig);
         PreparedExecutionStep originalStep = requireAttentionBackwardStep(prepared.execution(), outputKind);
         PreparedExecutionStep step = reprepareStep(prepared, originalStep, storageKind, vectorizationKind);
-        Cpu1PreparedAttentionBackwardUnit unit = ((Cpu1PreparedArtifact) step.metadata().artifact())
+        Cpu1PreparedAttentionBackwardUnit unit = ((Cpu1PreparedArtifact) step.metadata().executable())
                 .preparedAttentionBackwardUnit();
         ExecutionContext context = isolatedContext(prepared, step);
         double[] weights = attentionWeights(fixture);
@@ -175,7 +175,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
             Cpu1StorageKind storageKind,
             Cpu1VectorizationKind vectorizationKind
     ) {
-        Cpu1PreparedAttentionBackwardUnit original = ((Cpu1PreparedArtifact) originalStep.metadata().artifact())
+        Cpu1PreparedAttentionBackwardUnit original = ((Cpu1PreparedArtifact) originalStep.metadata().executable())
                 .preparedAttentionBackwardUnit();
         Cpu1PrepareConfig config = new Cpu1PrepareConfig(
                 vectorizationKind,
@@ -197,7 +197,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
         List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
                 .toList();
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 inputNodeIds,
@@ -295,7 +295,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
             SdpaBackwardOutputKind outputKind
     ) {
         for (PreparedExecutionStep step : execution.backwardSteps()) {
-            if (step.metadata().artifact() instanceof Cpu1PreparedArtifact artifact
+            if (step.metadata().executable() instanceof Cpu1PreparedArtifact artifact
                     && artifact.preparedAttentionBackwardUnit().outputKind() == outputKind) {
                 return step;
             }
@@ -305,7 +305,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
 
     private static ExecutionContext isolatedContext(PreparedCase prepared, PreparedExecutionStep overrideStep) {
         CompiledProgram program = prepared.compiledGraph().program();
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadataIndex = new HashMap<>();
         for (PreparedExecutionStep step : prepared.execution().executionSteps()) {
             metadataIndex.put(step.compiledNode().id(), step.metadata());
         }

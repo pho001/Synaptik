@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.kernels.loss.mse.Cpu1MseLossKernel;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 public final class Cpu1MseLossExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedMseLossUnit preparedUnit;

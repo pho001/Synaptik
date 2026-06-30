@@ -10,7 +10,7 @@ import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import planning.partition.PartitionPlan;
 
 import java.util.ArrayList;
@@ -38,8 +38,8 @@ public final class GpuAcceleratorPrepareSupport {
     public record CpuFallbackPreparation(
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> preparedSteps,
             CompiledNode computeNode,
-            CompiledNodeExecutionMetadata computeCpuMetadata,
-            CompiledNodeExecutionMetadata anchorCpuMetadata
+            PreparedStepMetadata computeCpuMetadata,
+            PreparedStepMetadata anchorCpuMetadata
     ) {
     }
 
@@ -91,15 +91,15 @@ public final class GpuAcceleratorPrepareSupport {
         BackendPrepareContext localContext = context.fork();
         List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> preparedSteps = new ArrayList<>(plan.nodeIds().size());
         CompiledNode computeNode = null;
-        CompiledNodeExecutionMetadata computeCpuMetadata = null;
-        CompiledNodeExecutionMetadata anchorCpuMetadata = null;
+        PreparedStepMetadata computeCpuMetadata = null;
+        PreparedStepMetadata anchorCpuMetadata = null;
 
         for (int nodeId : plan.nodeIds()) {
             CompiledNode partitionNode = context.compiledNode(nodeId);
             if (partitionNode == null) {
                 throw new IllegalStateException("Missing compiled node for " + backendName + " partition nodeId=" + nodeId);
             }
-            CompiledNodeExecutionMetadata cpuMetadata = cpuPreparer.prepareAsCpu(partitionNode, localContext);
+            PreparedStepMetadata cpuMetadata = cpuPreparer.prepareAsCpu(partitionNode, localContext);
             localContext.publishPreparedMetadata(nodeId, cpuMetadata);
             preparedSteps.add(new PreparedAcceleratorExecutionSupport.CpuFallbackStep(partitionNode, cpuMetadata));
             if (computeNode == null) {
@@ -128,14 +128,11 @@ public final class GpuAcceleratorPrepareSupport {
         );
     }
 
-    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+    private static CpuNodeExecutionPlan cpuPlan(PreparedStepMetadata metadata) {
         if (metadata == null) {
             return null;
         }
-        if (metadata.artifact() == null) {
-            return null;
-        }
-        return switch (metadata.artifact()) {
+        return switch (metadata.executable()) {
             case CpuNodeExecutionArtifact artifact -> artifact.cpuPlan();
             case CpuFusedExecutionArtifact artifact -> artifact.cpuPlan();
             default -> null;

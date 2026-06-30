@@ -75,7 +75,7 @@ class BackendPrepareDispatcherCpu1FusedRouteTest {
                 fixture.context(runtimeConfig)
         );
 
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, metadata.artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, metadata.executable());
         assertTrue(artifact.preparedFusedElementwiseUnit().generatedKernel()
                 .generatedClassName()
                 .contains("Cpu1GeneratedFusedKernel"));
@@ -217,12 +217,12 @@ class BackendPrepareDispatcherCpu1FusedRouteTest {
 
     private static boolean hasOldCpuFusedArtifact(PreparedExecution execution) {
         return execution.forwardSteps().stream()
-                .anyMatch(step -> step.metadata().artifact() instanceof CpuFusedExecutionArtifact);
+                .anyMatch(step -> step.metadata().executable() instanceof CpuFusedExecutionArtifact);
     }
 
     private static Cpu1PreparedArtifact requireCpu1FusedArtifact(PreparedExecution execution) {
         for (var step : execution.forwardSteps()) {
-            if (step.metadata().artifact() instanceof Cpu1PreparedArtifact artifact) {
+            if (step.metadata().executable() instanceof Cpu1PreparedArtifact artifact) {
                 try {
                     artifact.preparedFusedElementwiseUnit();
                     return artifact;

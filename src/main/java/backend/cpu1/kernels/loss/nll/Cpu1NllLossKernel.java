@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.loss.nll;
 
 import backend.cpu1.prepare.Cpu1PreparedNllLossUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 @FunctionalInterface
 public interface Cpu1NllLossKernel {

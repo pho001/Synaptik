@@ -7,10 +7,10 @@ import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.argMax;
@@ -130,11 +130,14 @@ class ReductionSpecialCaseSegmentKernelTest {
             CpuStorageView output
     ) {
         CpuNodeExecutionPlan plan = plan(output.dtype());
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 List.of(),
-                null);
+                testsupport.MetadataArtifacts.noopExecutable(),
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
+                );
         CpuKernelContext context = new CpuKernelContext(
                 1,
                 inputTensors.stream().map(tensor -> 0).toList(),

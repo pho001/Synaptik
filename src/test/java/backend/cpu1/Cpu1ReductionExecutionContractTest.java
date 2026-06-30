@@ -11,7 +11,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.runtime.RuntimeConfig;
@@ -21,8 +21,8 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import runtime.runner.StepExecutionTracer;
 import operations.reduction.ArgMaxTiePolicy;
 import operations.reduction.logSoftmax;
@@ -123,7 +123,7 @@ class Cpu1ReductionExecutionContractTest {
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS,
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS
         );
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -152,7 +152,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.mean(1, true));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.MEAN_F64_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF64Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -176,7 +176,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.mean(1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.MEAN_BF16_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeBf16Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -200,7 +200,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.min(1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.MIN_F32_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -226,7 +226,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.prod(1, true));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.PROD_F64_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF64Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -250,7 +250,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.prod(0));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.PROD_BF16_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeBf16Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -276,7 +276,7 @@ class Cpu1ReductionExecutionContractTest {
         Fixture fixture = fixture(input.any(1, true));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
         assertReductionKernel(artifact, Cpu1ReductionKernelId.ANY_BOOL_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeBoolInput(context, fixture.node().inputIds().getFirst(), values);
 
@@ -706,7 +706,7 @@ class Cpu1ReductionExecutionContractTest {
                 Cpu1StorageAccessKind.DENSE_WITH_OFFSET,
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS
         );
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -739,7 +739,7 @@ class Cpu1ReductionExecutionContractTest {
                 Cpu1StorageAccessKind.STRIDED,
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS
         );
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -772,7 +772,7 @@ class Cpu1ReductionExecutionContractTest {
                 Cpu1StorageAccessKind.STRIDED,
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS
         );
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -800,7 +800,7 @@ class Cpu1ReductionExecutionContractTest {
                 Cpu1StorageAccessKind.STRIDED,
                 Cpu1StorageAccessKind.DENSE_CONTIGUOUS
         );
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().getFirst(), values);
 
@@ -1002,7 +1002,7 @@ class Cpu1ReductionExecutionContractTest {
         assertReductionKernel(artifact, Cpu1ReductionKernelId.SOFTMAX_F32_DENSE_SCALAR);
         assertEquals(4, unit.launchConfig().workerCount());
         assertEquals(25_000, unit.launchConfig().chunkSize());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1028,7 +1028,7 @@ class Cpu1ReductionExecutionContractTest {
         );
         Fixture fixture = fixture(input.mean(0));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1063,7 +1063,7 @@ class Cpu1ReductionExecutionContractTest {
         assertEquals(4, unit.launchConfig().workerCount());
         assertInstanceOf(Cpu1ParallelLaunch.class, unit.launchPolicy());
 
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         new Cpu1Backend().execute(fixture.node(), metadata, context);
 
@@ -1102,7 +1102,7 @@ class Cpu1ReductionExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
         Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
         assertEquals(0, unit.scratchBufferSpec().f64ArrayElements());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1135,7 +1135,7 @@ class Cpu1ReductionExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(4));
         Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
         assertEquals(0, unit.scratchBufferSpec().f64ArrayElements());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1164,7 +1164,7 @@ class Cpu1ReductionExecutionContractTest {
         Cpu1PreparedReductionUnit unit = artifact.preparedReductionUnit();
         int expectedSlots = Cpu1RangeLauncher.slotCount(unit.axisSize(), unit.launchConfig());
         assertEquals(expectedSlots, unit.scratchBufferSpec().f64ArrayElements());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1280,7 +1280,7 @@ class Cpu1ReductionExecutionContractTest {
 
     private static ExecutionContext context(
             Fixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
@@ -1297,12 +1297,14 @@ class Cpu1ReductionExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 
@@ -1585,7 +1587,7 @@ class Cpu1ReductionExecutionContractTest {
             Cpu1PreparedArtifact artifact,
             NativeInputBinder nativeInputBinder
     ) {
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         nativeInputBinder.attach(context);
         new Cpu1Backend().execute(fixture.node(), metadata, context);

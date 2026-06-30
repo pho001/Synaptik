@@ -20,9 +20,9 @@ import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import backend.cpu.fused.exec.FusedExecutablePreparer;
 import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.plan.FusedExecutionPlan;
@@ -50,18 +50,20 @@ public final class CpuNodePreparer {
         this.planner = CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig());
     }
 
-    public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
+    public PreparedStepMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         if (node.backend() != ComputeBackend.CPU) {
-            return new CompiledNodeExecutionMetadata(node.backend(), null, List.of(), null);
+            throw new IllegalStateException("CPU preparer cannot prepare backend " + node.backend()
+                    + " for nodeId=" + node.id());
         }
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, null, List.of(), null);
+            throw new IllegalStateException("Interior partition node must be covered before CPU prepare: nodeId="
+                    + node.id());
         }
         return prepareAsCpu(node, context);
     }
 
-    public CompiledNodeExecutionMetadata prepareLoweredFusedStep(
+    public PreparedStepMetadata prepareLoweredFusedStep(
             CompiledNode outputNode,
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
@@ -115,7 +117,7 @@ public final class CpuNodePreparer {
                 runtimeConfig.fused()
         );
         CpuNodeWorkspace cpuWorkspace = resolveCpuWorkspace(outputNode, operation, cpuPlan, publishFloatContinuation, context);
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 fusedPreparation.runtimeInputNodeIds(),
@@ -151,7 +153,7 @@ public final class CpuNodePreparer {
         return CpuFusedStorageSelectionPolicy.specialize(specialized, runtimeConfig.cpuStorageProfile());
     }
 
-    public CompiledNodeExecutionMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
+    public PreparedStepMetadata prepareAsCpu(CompiledNode node, BackendPrepareContext context) {
         Operation operation = node.operation();
         operation = specializeFusedOperation(operation, context);
         CpuKernel kernel = CpuKernelRegistry.resolve(operation.opType());
@@ -222,7 +224,7 @@ public final class CpuNodePreparer {
                                 ? FusedVectorFallbackReason.NONE
                                 : preparedFusedDispatch.vectorFallbackReason()
                 );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 List.of(),

@@ -13,8 +13,8 @@ import backend.cpu1.plan.Cpu1IterationPlan;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedElementwiseUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
-import graph.execution.plan.PreparedRuntimeStateAllocator;
+import runtime.execution.ExecutionContext;
+import runtime.execution.PreparedRuntimeStateAllocator;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -37,11 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class Cpu1ScratchBufferTest {
 
     @Test
-    void noneSpecIsEmptyAndDoesNotAllocate() {
+    void noneSpecAllocatesTypedEmptyWorkspace() {
         Cpu1ScratchBufferSpec spec = Cpu1ScratchBufferSpec.none();
 
         assertTrue(spec.isEmpty());
-        assertThrows(IllegalArgumentException.class, () -> Cpu1ScratchBuffer.allocate(spec));
+        Cpu1ScratchBuffer scratchBuffer = Cpu1ScratchBuffer.allocate(spec);
+        assertSame(spec, scratchBuffer.spec());
+        assertThrows(IllegalStateException.class, scratchBuffer::requireF32Array);
     }
 
     @Test
@@ -79,7 +80,7 @@ class Cpu1ScratchBufferTest {
     }
 
     @Test
-    void memorySegmentElementwiseDoesNotAllocateScratchBufferOnlyForNativeOutput() {
+    void memorySegmentElementwiseAllocatesTypedEmptyWorkspace() {
         Cpu1KernelRegistry registry = new Cpu1KernelRegistry();
         Cpu1PreparedElementwiseUnit unit = new Cpu1PreparedElementwiseUnit(
                 42,
@@ -110,7 +111,7 @@ class Cpu1ScratchBufferTest {
         );
         assertSame(unit, executable.preparedUnit());
         assertTrue(artifact.scratchBufferSpec().isEmpty());
-        assertFalse(allocator.workspaces.containsKey(42));
+        assertInstanceOf(Cpu1ScratchBuffer.class, allocator.workspaces.get(42));
     }
 
     @Test
@@ -126,13 +127,13 @@ class Cpu1ScratchBufferTest {
     }
 
     @Test
-    void preparedArtifactDoesNotAllocateScratchBufferForDefaultExecutable() {
+    void preparedArtifactAllocatesTypedWorkspaceForDefaultExecutable() {
         RecordingAllocator allocator = new RecordingAllocator();
         Cpu1PreparedArtifact artifact = new Cpu1PreparedArtifact(new NoopExecutable());
 
         artifact.allocateRuntimeState(42, allocator);
 
-        assertFalse(allocator.workspaces.containsKey(42));
+        assertInstanceOf(Cpu1ScratchBuffer.class, allocator.workspaces.get(42));
     }
 
     @Test

@@ -15,7 +15,7 @@ import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBufferBindingMode;
@@ -23,7 +23,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import trace.execution.ExecutionStepTrace;
@@ -98,7 +98,7 @@ class CudaLayoutTransformDeviceFlowTest {
         CompiledNode baseNode = nodeFor(nodes, base);
         CompiledNode sourceNode = nodeFor(nodes, nonDenseSource);
         CompiledNode contiguousNode = nodeFor(nodes, contiguous);
-        CompiledNodeExecutionMetadata contiguousMetadata = compiled.prepare(RuntimeConfig.inferenceDefaults())
+        PreparedStepMetadata contiguousMetadata = compiled.prepare(RuntimeConfig.inferenceDefaults())
                 .executionSteps()
                 .stream()
                 .filter(step -> step.compiledNode().id() == contiguousNode.id())
@@ -186,11 +186,11 @@ class CudaLayoutTransformDeviceFlowTest {
         return new PreparedExecutionStep(node, metadata(ComputeBackend.GPU_CUDA));
     }
 
-    private static PreparedExecutionStep cpuLayoutStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
+    private static PreparedExecutionStep cpuLayoutStep(CompiledNode node, PreparedStepMetadata metadata) {
         return new PreparedExecutionStep(node, metadata);
     }
 
-    private static CompiledNodeExecutionMetadata metadata(ComputeBackend backend) {
+    private static PreparedStepMetadata metadata(ComputeBackend backend) {
         return testsupport.MetadataArtifacts.acceleratorMetadata(backend, null);
     }
 

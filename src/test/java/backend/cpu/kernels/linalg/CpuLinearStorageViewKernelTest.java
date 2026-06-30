@@ -13,9 +13,9 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.linalg.linear;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -223,11 +223,13 @@ class CpuLinearStorageViewKernelTest {
         for (int i = 0; i < inputCount; i++) {
             inputNodeIds.add(i);
         }
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 inputNodeIds,
-                null
+                testsupport.MetadataArtifacts.noopExecutable(),
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         return new CpuKernelContext(
                 inputCount,

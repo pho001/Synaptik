@@ -4,7 +4,7 @@ import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.storage.NativeTensorStorage;
 
 import java.util.List;
@@ -70,7 +70,7 @@ public abstract class Cpu1LayoutKernelSupport {
     public abstract void copyContiguousVector();
 
     public double[] foldAccumulator(int elements, int slotCount) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 FOLD2D requires prepared F64 scratch buffer for nodeId="
                     + unit.nodeId());

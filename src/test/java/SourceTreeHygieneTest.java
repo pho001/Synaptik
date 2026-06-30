@@ -1041,7 +1041,7 @@ public class SourceTreeHygieneTest {
     void partitionExecutionRoleDoesNotLeakIntoGraphRuntimeContract() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(
-                        Path.of("src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java"),
+                        Path.of("src/main/java/graph/execution/plan/PreparedStepMetadata.java"),
                         Path.of("src/main/java/backend/ComputeEngine.java"),
                         Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java"),
                         Path.of("src/test/java/testsupport/MetadataArtifacts.java")
@@ -1241,7 +1241,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void runtimeWorkspaceStoreDoesNotImportConcreteBackendDetails() throws IOException {
-        String source = Files.readString(Path.of("src/main/java/graph/execution/state/RuntimeWorkspaceStore.java"));
+        String source = Files.readString(Path.of("src/main/java/runtime/execution/RuntimeWorkspaceStore.java"));
         assertTrue(!source.contains("import backend.cpu."), "RuntimeWorkspaceStore must store backend workspaces opaquely.");
         assertTrue(!source.contains("import backend.blas."), "RuntimeWorkspaceStore must not know BLAS runtime state.");
         assertTrue(!source.contains("import backend.metal."), "RuntimeWorkspaceStore must not know Metal runtime state.");

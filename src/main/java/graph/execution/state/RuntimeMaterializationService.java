@@ -24,14 +24,14 @@ import java.util.Objects;
 /**
  * Run-scoped CPU/native/device materialization logic.
  */
-final class RuntimeMaterializationService {
+public final class RuntimeMaterializationService {
     private final RuntimeTensorStore tensorStore;
     private final RuntimeResidencyStore residencyStore;
     private final DeviceBindingRegistry deviceBindingRegistry;
     private final NativeCpuStorageRegistry nativeStorageRegistry;
     private final RuntimeResourceRegistry resourceRegistry;
 
-    RuntimeMaterializationService(
+    public RuntimeMaterializationService(
             RuntimeTensorStore tensorStore,
             RuntimeResidencyStore residencyStore,
             DeviceBindingRegistry deviceBindingRegistry,
@@ -45,15 +45,15 @@ final class RuntimeMaterializationService {
         this.resourceRegistry = Objects.requireNonNull(resourceRegistry, "resourceRegistry cannot be null");
     }
 
-    void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason) {
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason) {
         markMaterializedToCpu(nodeId, reason, 0L);
     }
 
-    void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
+    public void markMaterializedToCpu(int nodeId, CpuMaterializationReason reason, long durationNs) {
         markMaterializedToCpu(nodeId, reason, durationNs, "device value synchronized to CPU storage");
     }
 
-    void markMaterializedToCpu(
+    public void markMaterializedToCpu(
             int nodeId,
             CpuMaterializationReason reason,
             long durationNs,
@@ -98,11 +98,11 @@ final class RuntimeMaterializationService {
         state.markMaterializedToCpu(reason.label());
     }
 
-    void recordHostDeviceTransfer(HostDeviceTransferTrace trace) {
+    public void recordHostDeviceTransfer(HostDeviceTransferTrace trace) {
         residencyStore.recordHostDeviceTransfer(trace);
     }
 
-    void requireCpuReadable(int nodeId, CpuMaterializationReason reason) {
+    public void requireCpuReadable(int nodeId, CpuMaterializationReason reason) {
         Objects.requireNonNull(reason, "reason cannot be null");
         TensorResidencyState state = residencyForNodeId(nodeId);
         if (state.requiresCpuMaterialization()) {
@@ -128,11 +128,11 @@ final class RuntimeMaterializationService {
         }
     }
 
-    NativeTensorStorage requireNativeReadable(int nodeId, CpuMaterializationReason reason) {
+    public NativeTensorStorage requireNativeReadable(int nodeId, CpuMaterializationReason reason) {
         return requireNativeReadable(nodeId, reason, DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE);
     }
 
-    NativeTensorStorage requireNativeReadable(
+    public NativeTensorStorage requireNativeReadable(
             int nodeId,
             CpuMaterializationReason reason,
             DeviceTransferPolicy deviceTransferPolicy
@@ -200,7 +200,7 @@ final class RuntimeMaterializationService {
         );
     }
 
-    NativeTensorStorage materializeArrayToNative(int nodeId, CpuMaterializationReason reason, String detail) {
+    public NativeTensorStorage materializeArrayToNative(int nodeId, CpuMaterializationReason reason, String detail) {
         Objects.requireNonNull(reason, "reason cannot be null");
         requireCpuReadable(nodeId, reason);
         Tensor tensor = runtimeTensorForNodeId(nodeId);

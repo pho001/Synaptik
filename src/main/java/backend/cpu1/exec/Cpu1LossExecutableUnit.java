@@ -6,7 +6,7 @@ import backend.cpu1.kernels.loss.nll.Cpu1NllLossKernel;
 import backend.cpu1.prepare.Cpu1PreparedCrossEntropyLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedDenseCrossEntropyLossUnit;
 import backend.cpu1.prepare.Cpu1PreparedNllLossUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 public final class Cpu1LossExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedCrossEntropyLossUnit preparedCrossEntropyLossUnit;

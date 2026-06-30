@@ -28,7 +28,7 @@ import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.metal.kernel.MetalCustomKernelBridge;
 import backend.metal.kernel.MetalCustomKernelExecutable;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import backend.lowering.LoweringFamily;
 import backend.lowering.region.RegionExecutionPlan;
 import config.runtime.AcceleratorBackendConfig;

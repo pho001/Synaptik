@@ -1,9 +1,9 @@
 package runtime.runner;
 
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.PreparedExecutionArtifact;
+import runtime.execution.PreparedStepExecutable;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.StepExecutionMetadata;
 import trace.backend.StepTraceContribution;
@@ -46,11 +46,8 @@ public final class StepExecutionTracer {
             PreparedExecutionStep step,
             ExecutionContext context
     ) {
-        PreparedExecutionArtifact artifact = step.metadata().artifact();
-        if (artifact == null) {
-            return StepTraceContribution.empty();
-        }
-        return artifact.traceContribution(node, step.metadata(), context);
+        PreparedStepExecutable executable = step.metadata().executable();
+        return executable.traceContribution(node, step.metadata(), context);
     }
 
     private static StepExecutionMetadata buildStepMetadata(

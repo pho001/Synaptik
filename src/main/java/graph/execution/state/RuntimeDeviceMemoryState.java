@@ -11,12 +11,12 @@ import java.util.Objects;
 /**
  * Run-scoped device buffer bindings and residency transitions.
  */
-final class RuntimeDeviceMemoryState {
+public final class RuntimeDeviceMemoryState {
     private final RuntimeResidencyStore residencyStore;
     private final DeviceBindingRegistry deviceBindingRegistry;
     private final NativeCpuStorageRegistry nativeStorageRegistry;
 
-    RuntimeDeviceMemoryState(
+    public RuntimeDeviceMemoryState(
             RuntimeResidencyStore residencyStore,
             DeviceBindingRegistry deviceBindingRegistry,
             NativeCpuStorageRegistry nativeStorageRegistry
@@ -26,18 +26,18 @@ final class RuntimeDeviceMemoryState {
         this.nativeStorageRegistry = Objects.requireNonNull(nativeStorageRegistry, "nativeStorageRegistry cannot be null");
     }
 
-    void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
+    public void markDeviceCurrent(int nodeId, StorageResidency residency, String deviceBackend, String reason) {
         nativeStorageRegistry.remove(nodeId);
         deviceBindingRegistry.remove(nodeId);
         residencyStore.residencyForNodeId(nodeId).markDeviceCurrent(residency, deviceBackend, reason);
     }
 
-    void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
+    public void reserveDeviceBufferBinding(int nodeId, DeviceBufferBinding binding) {
         validateDeviceBufferBinding(nodeId, binding);
         deviceBindingRegistry.putReserved(nodeId, binding);
     }
 
-    void attachDeviceBufferBinding(
+    public void attachDeviceBufferBinding(
             int nodeId,
             DeviceBufferBinding binding,
             StorageResidency residency,
@@ -58,12 +58,12 @@ final class RuntimeDeviceMemoryState {
         residencyStore.residencyForNodeId(nodeId).markDeviceCurrent(residency, binding.backendId(), reason);
     }
 
-    DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
+    public DeviceBufferBinding deviceBufferBindingForNodeId(int nodeId) {
         residencyStore.residencyForNodeId(nodeId);
         return deviceBindingRegistry.active(nodeId);
     }
 
-    DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
+    public DeviceBufferBinding writableDeviceBufferBindingForNodeId(int nodeId) {
         residencyStore.residencyForNodeId(nodeId);
         return deviceBindingRegistry.writable(nodeId);
     }

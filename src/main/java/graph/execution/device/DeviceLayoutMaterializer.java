@@ -2,7 +2,7 @@ package graph.execution.device;
 
 import runtime.device.buffer.AcceleratorLayoutTransformDecision;
 import runtime.device.buffer.DeviceBufferBinding;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Run-scoped backend service for dense GPU layout materialization.

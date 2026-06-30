@@ -7,10 +7,10 @@ import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import operations.reduction.reduceMax;
 import operations.reduction.reduceMin;
@@ -112,11 +112,13 @@ class MinMaxReductionSegmentKernelTest {
             CpuStorageView output
     ) {
         CpuNodeExecutionPlan plan = plan(output.dtype());
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 List.of(1),
-                null
+                testsupport.MetadataArtifacts.noopExecutable(),
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         CpuKernelContext context = new CpuKernelContext(
                 2,

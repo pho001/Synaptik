@@ -4,7 +4,7 @@ import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.Tensor;
 import tensor.dtype.TensorDTypeOps;
 import tensor.storage.NativeTensorStorage;

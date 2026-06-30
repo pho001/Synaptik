@@ -6,7 +6,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -252,7 +252,7 @@ public final class Cpu1JavaVectorMatmulLoops {
     }
 
     private static float[] packedBScratchBuffer(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F32 scratch buffer for nodeId="
                     + unit.nodeId());
@@ -264,7 +264,7 @@ public final class Cpu1JavaVectorMatmulLoops {
     }
 
     private static double[] packedBF64ScratchBuffer(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 packed-B vector MATMUL requires prepared F64 scratch buffer for nodeId="
                     + unit.nodeId());

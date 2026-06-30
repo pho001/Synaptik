@@ -7,7 +7,7 @@ import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import planning.partition.PartitionPlan;
 
 import java.util.List;
@@ -78,11 +78,11 @@ public final class BackendPrepareContext {
         return inputs.consumersFor(nodeId);
     }
 
-    public CompiledNodeExecutionMetadata preparedMetadataFor(int nodeId) {
+    public PreparedStepMetadata preparedMetadataFor(int nodeId) {
         return metadataIndex.metadataFor(nodeId);
     }
 
-    public void publishPreparedMetadata(int nodeId, CompiledNodeExecutionMetadata metadata) {
+    public void publishPreparedMetadata(int nodeId, PreparedStepMetadata metadata) {
         metadataIndex.publish(nodeId, metadata);
     }
 

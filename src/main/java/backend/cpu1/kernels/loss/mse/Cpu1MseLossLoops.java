@@ -6,7 +6,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.Tensor;
 import tensor.dtype.TensorDTypeOps;
 import tensor.storage.NativeTensorStorage;
@@ -311,7 +311,7 @@ public final class Cpu1MseLossLoops {
     }
 
     private static double[] partialSums(Cpu1PreparedMseLossUnit unit, ExecutionContext context, int slotCount) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.outputNodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.outputNodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 MSE_LOSS parallel nodeId=" + unit.outputNodeId()
                     + " requires prepared F64 partial-sum scratch buffer.");

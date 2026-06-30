@@ -21,7 +21,7 @@ import runtime.contract.StorageResidency;
 import backend.metal.MetalMpsCapabilities;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsGraphBridge;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;

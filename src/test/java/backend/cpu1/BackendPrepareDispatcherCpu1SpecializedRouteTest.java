@@ -22,8 +22,8 @@ import planning.partition.PartitionTarget;
 import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
 import planning.value.GraphValueRef;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -48,7 +48,7 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
         var metadata = BackendPrepareDispatcher.from(runtimeConfig)
                 .prepareCpuSpecializedStep(fixture.outputNode(), fixture.loweredUnit(), fixture.context(runtimeConfig));
 
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, metadata.artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, metadata.executable());
         assertEquals(Cpu1StorageKind.JAVA_ARRAY, artifact.preparedMatmulUnit().storageKind());
         assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
         assertEquals(InputResidencyRequirement.Mode.CPU_READABLE_ALL, metadata.inputResidencyRequirement().mode());

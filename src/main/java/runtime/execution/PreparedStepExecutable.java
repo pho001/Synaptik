@@ -1,13 +1,18 @@
-package graph.execution.plan;
+package runtime.execution;
 
-import backend.runtime.ExecutionContext;
 import graph.model.CompiledNode;
 import trace.backend.StepTraceContribution;
 
 /**
  * Backend-owned payload attached to prepared node metadata.
  */
-public interface PreparedExecutionArtifact {
+public interface PreparedStepExecutable {
+    void execute(
+            CompiledNode node,
+            PreparedStepMetadata metadata,
+            ExecutionContext context
+    );
+
     /**
      * Allocates run-scoped workspace state required by this prepared artifact.
      *
@@ -27,7 +32,7 @@ public interface PreparedExecutionArtifact {
      */
     default StepTraceContribution traceContribution(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
         return StepTraceContribution.empty();

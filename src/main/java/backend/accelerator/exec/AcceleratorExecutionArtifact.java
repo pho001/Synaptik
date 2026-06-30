@@ -5,26 +5,34 @@ import runtime.device.buffer.AcceleratorLayoutTransformDecision;
 import runtime.device.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.lowering.region.RegionExecutionPlan;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.PreparedExecutionArtifact;
-import graph.execution.plan.PreparedRuntimeStateAllocator;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.PreparedStepExecutable;
+import runtime.execution.PreparedRuntimeStateAllocator;
 import trace.backend.StepTraceContribution;
 
 import java.util.LinkedHashMap;
 
 public record AcceleratorExecutionArtifact(
         PreparedAcceleratorExecutable executable
-) implements PreparedExecutionArtifact {
+) implements PreparedStepExecutable {
+    @Override
+    public void execute(CompiledNode node, PreparedStepMetadata metadata, ExecutionContext context) {
+        if (executable == null) {
+            throw new IllegalStateException("Missing prepared accelerator executable for node " + node.id());
+        }
+        executable.execute(context);
+    }
+
     @Override
     public void allocateRuntimeState(int nodeId, PreparedRuntimeStateAllocator allocator) {
         if (executable == null) {
             return;
         }
         for (var fallbackStep : executable.cpuFallbackSteps()) {
-            if (fallbackStep != null && fallbackStep.metadata().artifact() != null) {
-                fallbackStep.metadata().artifact().allocateRuntimeState(fallbackStep.node().id(), allocator);
+            if (fallbackStep != null) {
+                fallbackStep.metadata().executable().allocateRuntimeState(fallbackStep.node().id(), allocator);
             }
         }
     }
@@ -32,7 +40,7 @@ public record AcceleratorExecutionArtifact(
     @Override
     public StepTraceContribution traceContribution(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();

@@ -8,7 +8,7 @@ import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import planning.region.specialization.SdpaBackwardOutputKind;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
@@ -1748,7 +1748,7 @@ public final class Cpu1AttentionBackwardLoops {
     }
 
     private static Cpu1ScratchBuffer requireScratch(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 SDPA_BACKWARD nodeId=" + unit.nodeId()
                     + " requires prepared score scratch buffer.");

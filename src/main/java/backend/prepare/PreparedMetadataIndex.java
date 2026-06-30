@@ -1,26 +1,26 @@
 package backend.prepare;
 
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 
 import java.util.HashMap;
 import java.util.Map;
 
 final class PreparedMetadataIndex {
-    private final Map<Integer, CompiledNodeExecutionMetadata> metadataByNodeId;
+    private final Map<Integer, PreparedStepMetadata> metadataByNodeId;
 
     PreparedMetadataIndex() {
         this.metadataByNodeId = new HashMap<>();
     }
 
-    private PreparedMetadataIndex(Map<Integer, CompiledNodeExecutionMetadata> metadataByNodeId) {
+    private PreparedMetadataIndex(Map<Integer, PreparedStepMetadata> metadataByNodeId) {
         this.metadataByNodeId = new HashMap<>(metadataByNodeId);
     }
 
-    CompiledNodeExecutionMetadata metadataFor(int nodeId) {
+    PreparedStepMetadata metadataFor(int nodeId) {
         return metadataByNodeId.get(nodeId);
     }
 
-    void publish(int nodeId, CompiledNodeExecutionMetadata metadata) {
+    void publish(int nodeId, PreparedStepMetadata metadata) {
         if (metadata == null) {
             metadataByNodeId.remove(nodeId);
             return;

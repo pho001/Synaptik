@@ -325,10 +325,10 @@ class Cpu1MseLossExecutionContractTest {
     ) {
         assertEquals(2, execution.forwardSteps().size());
         PreparedExecutionStep step = execution.forwardSteps().stream()
-                .filter(candidate -> candidate.metadata().artifact() instanceof Cpu1PreparedArtifact)
+                .filter(candidate -> candidate.metadata().executable() instanceof Cpu1PreparedArtifact)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().executable());
         assertEquals(expectedKernelId, artifact.preparedMseLossUnit().kernelId());
         assertEquals(expectedMseNodeCount, step.orderedNodeIds().size());
         if (expectedReductionDivisor > 0) {

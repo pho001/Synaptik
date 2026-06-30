@@ -1,17 +1,15 @@
-package graph.execution;
+package runtime.execution;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.runtime.ExecutionContext;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-class CompiledNodeExecutionMetadataTest {
+class PreparedStepMetadataTest {
     @Test
-    void acceleratorMetadataPreservesExecutableAndDefaultsResidency() {
+    void acceleratorMetadataPreservesExecutableAndExplicitResidency() {
         PreparedAcceleratorExecutable executable = new PreparedAcceleratorExecutable() {
             @Override
             public ComputeBackend backend() {
@@ -23,7 +21,7 @@ class CompiledNodeExecutionMetadataTest {
             }
         };
 
-        CompiledNodeExecutionMetadata metadata =
+        PreparedStepMetadata metadata =
                 testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_METAL, executable);
 
         assertEquals(ComputeBackend.GPU_METAL, metadata.backend());

@@ -6,7 +6,7 @@ import graph.model.AliasViewPolicy;
 import graph.model.CompiledGradientBinding;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PublicationPolicy;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

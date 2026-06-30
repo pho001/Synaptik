@@ -16,15 +16,15 @@ import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import operations.Operation;
@@ -237,7 +237,7 @@ class NativeOpenBlasMatMulExecutableTest {
     private static Fixture fixture(Tensor out, RuntimeConfig runtime) {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         PreparedExecution prepared = compiled.prepare(runtime);
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = prepared.executionSteps().stream()
+        Map<Integer, PreparedStepMetadata> metadataIndex = prepared.executionSteps().stream()
                 .collect(Collectors.toMap(step -> step.compiledNode().id(), PreparedExecutionStep::metadata));
         ExecutionState state = ExecutionState.create(
                 compiled.program().compiledNodes(),
@@ -342,7 +342,7 @@ class NativeOpenBlasMatMulExecutableTest {
             PreparedExecution prepared,
             PreparedExecutionStep matmulStep,
             ExecutionState state,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
     }
 }

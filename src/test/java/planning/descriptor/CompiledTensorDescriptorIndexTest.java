@@ -2,7 +2,7 @@ package planning.descriptor;
 
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

@@ -13,7 +13,7 @@ import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
@@ -21,8 +21,8 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -171,7 +171,7 @@ class Cpu1DTypeExecutionContractTest {
 
     private static Tensor executeCpu1(Fixture fixture, Cpu1PrepareConfig config) {
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         new Cpu1Backend().execute(fixture.node(), metadata, context);
         return context.runtimeTensorForNodeId(fixture.node().id());
@@ -181,7 +181,7 @@ class Cpu1DTypeExecutionContractTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarMemorySegmentSingleThread();
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
         assertEquals(Cpu1DTypeKernelId.CAST_SEGMENT_SCALAR, artifact.preparedDTypeUnit().kernelId());
-        CompiledNodeExecutionMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         attachNativeInputs(context, fixture);
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -194,8 +194,8 @@ class Cpu1DTypeExecutionContractTest {
         return new Fixture(out, nodes, descriptorIndex, nodes.getLast());
     }
 
-    private static ExecutionContext context(Fixture fixture, CompiledNodeExecutionMetadata metadata) {
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
+    private static ExecutionContext context(Fixture fixture, PreparedStepMetadata metadata) {
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
                 fixture.descriptorIndex(),
@@ -211,12 +211,14 @@ class Cpu1DTypeExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata cpu1Metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata cpu1Metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

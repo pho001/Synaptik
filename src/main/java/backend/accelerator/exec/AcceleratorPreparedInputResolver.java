@@ -5,9 +5,9 @@ import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuPreparedInput;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import tensor.Tensor;
 import tensor.layout.TensorRemap;
 
@@ -151,19 +151,19 @@ public final class AcceleratorPreparedInputResolver {
     private record InputSite(
             int externalInputNodeId,
             CompiledNode consumerNode,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             int consumerInputIndex
     ) {
     }
 
-    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+    private static CpuNodeExecutionPlan cpuPlan(PreparedStepMetadata metadata) {
         if (metadata == null) {
             return null;
         }
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuNodeExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuFusedExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
         return null;

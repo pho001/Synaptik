@@ -16,15 +16,15 @@ import java.util.Objects;
 /**
  * Run-scoped reusable storage cache keyed by planned runtime slot identity.
  */
-final class RuntimeStorageSlotCache {
+public final class RuntimeStorageSlotCache {
     private final RuntimeResourceRegistry resourceRegistry;
     private final Map<RuntimeStorageSlotKey, Object> storageByKey = new HashMap<>();
 
-    RuntimeStorageSlotCache(RuntimeResourceRegistry resourceRegistry) {
+    public RuntimeStorageSlotCache(RuntimeResourceRegistry resourceRegistry) {
         this.resourceRegistry = Objects.requireNonNull(resourceRegistry, "resourceRegistry cannot be null");
     }
 
-    void bindJavaStorage(Tensor tensor, RuntimeStorageSlotKey key) {
+    public void bindJavaStorage(Tensor tensor, RuntimeStorageSlotKey key) {
         Objects.requireNonNull(tensor, "tensor cannot be null");
         Object storage = javaStorage(key);
         if (tensor.getDataType() != key.dataType()) {
@@ -45,7 +45,7 @@ final class RuntimeStorageSlotCache {
         }
     }
 
-    NativeTensorStorage nativeCpuStorage(RuntimeStorageSlotKey key, String label) {
+    public NativeTensorStorage nativeCpuStorage(RuntimeStorageSlotKey key, String label) {
         requireKind(key, RuntimeStorageKind.NATIVE_CPU);
         Object storage = storageByKey.computeIfAbsent(key, ignored ->
                 resourceRegistry.allocateNativeStorage(key.dataType(), key.elements(), label));

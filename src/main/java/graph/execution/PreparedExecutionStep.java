@@ -1,7 +1,7 @@
 package graph.execution;
 
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.Objects;
  */
 public record PreparedExecutionStep(
         CompiledNode compiledNode,
-        CompiledNodeExecutionMetadata metadata,
+        PreparedStepMetadata metadata,
         List<Integer> orderedNodeIds,
         List<Integer> boundaryOutputNodeIds
 ) {
@@ -37,7 +37,7 @@ public record PreparedExecutionStep(
         }
     }
 
-    public PreparedExecutionStep(CompiledNode compiledNode, CompiledNodeExecutionMetadata metadata) {
+    public PreparedExecutionStep(CompiledNode compiledNode, PreparedStepMetadata metadata) {
         this(compiledNode, metadata, List.of(compiledNode.id()), List.of(compiledNode.id()));
     }
 

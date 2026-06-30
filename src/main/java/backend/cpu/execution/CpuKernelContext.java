@@ -11,8 +11,8 @@ import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
-import backend.runtime.ExecutionContext;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.ExecutionContext;
+import runtime.execution.PreparedStepMetadata;
 import trace.backend.ConvTraceMetadata;
 import backend.cpu.fused.exec.PreparedFusedExecutable;
 import operations.Operation;
@@ -28,8 +28,8 @@ public final class CpuKernelContext {
     private final int nodeId;
     private final List<Integer> inputNodeIds;
     private final ExecutionContext executionContext;
-    private final CompiledNodeExecutionMetadata executionMetadata;
-    private final List<CompiledNodeExecutionMetadata> inputMetadatas;
+    private final PreparedStepMetadata executionMetadata;
+    private final List<PreparedStepMetadata> inputMetadatas;
     private final Operation executionOperation;
 
     public CpuKernelContext(
@@ -37,8 +37,8 @@ public final class CpuKernelContext {
             List<Integer> inputNodeIds,
             CpuNodeExecutionPlan nodePlan,
             ExecutionContext executionContext,
-            CompiledNodeExecutionMetadata executionMetadata,
-            List<CompiledNodeExecutionMetadata> inputMetadatas
+            PreparedStepMetadata executionMetadata,
+            List<PreparedStepMetadata> inputMetadatas
     ) {
         this(nodeId, inputNodeIds, nodePlan, executionContext, executionMetadata, inputMetadatas, null);
     }
@@ -48,8 +48,8 @@ public final class CpuKernelContext {
             List<Integer> inputNodeIds,
             CpuNodeExecutionPlan nodePlan,
             ExecutionContext executionContext,
-            CompiledNodeExecutionMetadata executionMetadata,
-            List<CompiledNodeExecutionMetadata> inputMetadatas,
+            PreparedStepMetadata executionMetadata,
+            List<PreparedStepMetadata> inputMetadatas,
             Operation executionOperation
     ) {
         this.nodeId = nodeId;
@@ -142,7 +142,7 @@ public final class CpuKernelContext {
         executionContext.publishConvTrace(nodeId, trace);
     }
 
-    public CompiledNodeExecutionMetadata executionMetadata() {
+    public PreparedStepMetadata executionMetadata() {
         return executionMetadata;
     }
 
@@ -151,13 +151,15 @@ public final class CpuKernelContext {
     }
 
     public PreparedFusedExecutable fusedExecutable() {
-        return executionMetadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+        return executionMetadata.executable() instanceof CpuFusedExecutionArtifact artifact
                 ? artifact.fusedExecutable()
                 : null;
     }
 
     public CpuNodeWorkspace cpuWorkspace() {
-        return executionContext.cpuWorkspaceForNodeId(nodeId);
+        return executionContext.workspaceForNodeId(nodeId) == null
+                ? null
+                : executionContext.requireWorkspace(nodeId, CpuNodeWorkspace.class);
     }
 
     public boolean publishFloatContinuation() {
@@ -192,21 +194,23 @@ public final class CpuKernelContext {
         if (inputIndex < 0 || inputIndex >= inputMetadatas.size()) {
             return null;
         }
-        CompiledNodeExecutionMetadata metadata = inputMetadatas.get(inputIndex);
+        PreparedStepMetadata metadata = inputMetadatas.get(inputIndex);
         Integer inputNodeId = inputIndex < inputNodeIds.size() ? inputNodeIds.get(inputIndex) : null;
         return resolveInputFloatContinuation(inputNodeId, metadata, requiredLength, 0);
     }
 
     private float[] resolveInputFloatContinuation(
             Integer nodeId,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             int requiredLength,
             int depth
     ) {
         if (nodeId == null || metadata == null || depth > 8) {
             return null;
         }
-        CpuNodeWorkspace workspace = executionContext.cpuWorkspaceForNodeId(nodeId);
+        CpuNodeWorkspace workspace = executionContext.workspaceForNodeId(nodeId) == null
+                ? null
+                : executionContext.requireWorkspace(nodeId, CpuNodeWorkspace.class);
         if (workspace != null && workspace.hasFloatContinuation(requiredLength)) {
             return workspace.requireFloatWorkspace();
         }

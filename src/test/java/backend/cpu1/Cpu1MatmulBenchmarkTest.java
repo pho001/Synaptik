@@ -8,7 +8,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
@@ -16,8 +16,8 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import trace.backend.StepTraceContribution;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
@@ -182,7 +182,7 @@ class Cpu1MatmulBenchmarkTest {
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
         assertEquals(expectedKernelId, artifact.preparedMatmulUnit().kernelId());
         assertEquals(expectedRoute, artifact.preparedMatmulUnit().route());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         if (expectedRoute == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
             attachNativeInputs(context, fixture);
@@ -431,8 +431,8 @@ class Cpu1MatmulBenchmarkTest {
         );
     }
 
-    private static ExecutionContext context(Fixture fixture, CompiledNodeExecutionMetadata metadata) {
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
+    private static ExecutionContext context(Fixture fixture, PreparedStepMetadata metadata) {
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
                 fixture.descriptorIndex(),
@@ -448,12 +448,14 @@ class Cpu1MatmulBenchmarkTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 
@@ -532,7 +534,7 @@ class Cpu1MatmulBenchmarkTest {
 
     private record PreparedFixture(
             Fixture fixture,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             Cpu1PreparedArtifact artifact,
             ExecutionContext context
     ) {

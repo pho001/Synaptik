@@ -1,14 +1,13 @@
 package backend.cuda;
 
 import backend.contract.ComputeBackend;
-import backend.ComputeEngine;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 import planning.intent.BackendIntentPlan;
@@ -20,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CudaAcceleratorExecutionPathTest {
     @Test
-    void computeEngineUsesAcceleratorExecutableForCudaMetadataWhenPresent() {
+    void preparedArtifactExecutesCudaAcceleratorWithoutCentralDispatch() {
         Tensor a = Tensor.scalar(1.0);
         Tensor b = Tensor.scalar(2.0);
         Tensor out = a.add(b);
@@ -39,9 +38,9 @@ class CudaAcceleratorExecutionPathTest {
             }
         };
 
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable);
+        PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable);
 
-        ComputeEngine.compute(
+        metadata.executable().execute(
                 node,
                 metadata,
                 ExecutionContext.fromRuntimeConfig(RuntimeConfig.inferenceDefaults(), ExecutionMode.FORWARD)

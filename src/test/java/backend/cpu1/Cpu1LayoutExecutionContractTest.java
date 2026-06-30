@@ -16,7 +16,7 @@ import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.runtime.RuntimeConfig;
@@ -26,8 +26,8 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import runtime.runner.StepExecutionTracer;
 import org.junit.jupiter.api.Test;
 import operations.layout.sliceBackward;
@@ -724,7 +724,7 @@ class Cpu1LayoutExecutionContractTest {
         );
         Fixture fixture = fixture(input.tile(1, 3));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorSingleThread());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1318,7 +1318,7 @@ class Cpu1LayoutExecutionContractTest {
 
     private static ExecutionResult executeAll(Fixture fixture, Cpu1PrepareConfig config, boolean attachNativeLeaves) {
         Cpu1NodePreparer preparer = new Cpu1NodePreparer();
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = new LinkedHashMap<>();
+        Map<Integer, PreparedStepMetadata> metadataIndex = new LinkedHashMap<>();
         for (CompiledNode node : fixture.nodes()) {
             if (node.operation() == null) {
                 continue;
@@ -1332,7 +1332,7 @@ class Cpu1LayoutExecutionContractTest {
         }
         Cpu1Backend backend = new Cpu1Backend();
         for (CompiledNode node : fixture.nodes()) {
-            CompiledNodeExecutionMetadata metadata = metadataIndex.get(node.id());
+            PreparedStepMetadata metadata = metadataIndex.get(node.id());
             if (metadata != null) {
                 backend.execute(node, metadata, context);
             }
@@ -1348,7 +1348,7 @@ class Cpu1LayoutExecutionContractTest {
 
     private static ExecutionContext context(
             Fixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
@@ -1365,12 +1365,14 @@ class Cpu1LayoutExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

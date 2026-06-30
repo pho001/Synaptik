@@ -7,9 +7,9 @@ import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import operations.loss.crossEntropyLoss;
 import operations.loss.nllLoss;
@@ -185,11 +185,13 @@ class LossReductionExecutorSegmentTest {
                 null,
                 null
         );
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 List.of(1, 2),
-                null
+                testsupport.MetadataArtifacts.noopExecutable(),
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         return new CpuKernelContext(
                 3,

@@ -7,7 +7,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
@@ -15,8 +15,8 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import operations.reduction.logSoftmax;
 import operations.reduction.softmax;
 import org.junit.jupiter.api.Tag;
@@ -117,7 +117,7 @@ class Cpu1ReductionSoftmaxBenchmarkTest {
 
     private static PreparedCase prepare(Fixture fixture, Cpu1PrepareConfig config) {
         Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(fixture.node(), fixture.descriptorIndex(), config);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, metadata);
         return new PreparedCase(fixture, artifact, metadata, context);
     }
@@ -187,8 +187,8 @@ class Cpu1ReductionSoftmaxBenchmarkTest {
         return new Fixture(out, nodes, descriptorIndex, node, node.inputIds().getFirst());
     }
 
-    private static ExecutionContext context(Fixture fixture, CompiledNodeExecutionMetadata metadata) {
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
+    private static ExecutionContext context(Fixture fixture, PreparedStepMetadata metadata) {
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(fixture.node().id(), metadata);
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
                 fixture.descriptorIndex(),
@@ -204,8 +204,8 @@ class Cpu1ReductionSoftmaxBenchmarkTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(ComputeBackend.CPU, null, node.inputIds(), artifact);
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(ComputeBackend.CPU, null, node.inputIds(), artifact, runtime.execution.InputResidencyRequirement.cpuReadableAll(), runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative());
     }
 
     private static double medianMs(long[] nanos) {
@@ -241,7 +241,7 @@ class Cpu1ReductionSoftmaxBenchmarkTest {
     private record PreparedCase(
             Fixture fixture,
             Cpu1PreparedArtifact artifact,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
     }

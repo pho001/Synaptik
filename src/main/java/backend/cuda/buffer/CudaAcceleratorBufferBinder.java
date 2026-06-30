@@ -20,7 +20,7 @@ import backend.cuda.bridge.CudaGraphBridge;
 import runtime.contract.CpuMaterializationReason;
 import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.DeviceTransferPolicy;

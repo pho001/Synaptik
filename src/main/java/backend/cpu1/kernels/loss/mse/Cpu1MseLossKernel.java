@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.loss.mse;
 
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 @FunctionalInterface
 public interface Cpu1MseLossKernel {

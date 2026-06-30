@@ -1,7 +1,5 @@
-package graph.execution.state;
+package runtime.execution;
 
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.PreparedRuntimeStateAllocator;
 import tensor.Tensor;
 
 import java.util.HashMap;
@@ -17,12 +15,10 @@ final class RuntimeWorkspaceStore implements PreparedRuntimeStateAllocator {
     private final Map<Long, Tensor> preparedInputTensorByKey;
     private final Map<Object, Object> runtimeWorkspaceByTemplate;
 
-    static RuntimeWorkspaceStore create(Map<Integer, CompiledNodeExecutionMetadata> metadataIndex) {
+    static RuntimeWorkspaceStore create(Map<Integer, PreparedStepMetadata> metadataIndex) {
         RuntimeWorkspaceStore store = new RuntimeWorkspaceStore(new HashMap<>(), new HashMap<>(), new IdentityHashMap<>());
-        for (Map.Entry<Integer, CompiledNodeExecutionMetadata> entry : metadataIndex.entrySet()) {
-            if (entry.getValue() != null && entry.getValue().artifact() != null) {
-                entry.getValue().artifact().allocateRuntimeState(entry.getKey(), store);
-            }
+        for (Map.Entry<Integer, PreparedStepMetadata> entry : metadataIndex.entrySet()) {
+            entry.getValue().executable().allocateRuntimeState(entry.getKey(), store);
         }
         return store.freeze();
     }

@@ -7,7 +7,7 @@ import runtime.device.buffer.AcceleratorLayoutTransformKind;
 import runtime.device.buffer.DeviceBufferBinding;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsGraphBridge;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.execution.device.DeviceLayoutMaterializer;
 import tensor.DataType;
 

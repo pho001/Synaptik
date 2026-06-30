@@ -1,4 +1,4 @@
-package graph.execution.state;
+package runtime.execution;
 
 import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import runtime.contract.CpuMaterializationReason;
@@ -13,10 +13,17 @@ import config.runtime.NativeCpuMemoryConfig;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.residency.DeviceBindingRegistry;
 import graph.execution.residency.NativeCpuStorageRegistry;
 import graph.execution.residency.RuntimeResidencyStore;
+import graph.execution.state.RuntimeDeviceMemoryState;
+import graph.execution.state.RuntimeMaterializationService;
+import graph.execution.state.RuntimeNativeCpuMemoryState;
+import graph.execution.state.RuntimeResourceRegistry;
+import graph.execution.state.RuntimeStorageKind;
+import graph.execution.state.RuntimeStorageSlotCache;
+import graph.execution.state.RuntimeStorageSlotKey;
+import graph.execution.state.RuntimeTensorStore;
 import trace.execution.CpuMaterializationTrace;
 import trace.execution.HostDeviceTransferTrace;
 import trace.execution.NativeCpuMemoryTrace;
@@ -117,7 +124,7 @@ public final class ExecutionState {
     public static ExecutionState create(
             List<CompiledNode> compiledNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             int forwardBoundaryNodeId,
             PublicationPlan publicationPlan
     ) {

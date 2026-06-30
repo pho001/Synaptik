@@ -1,7 +1,7 @@
 package backend.cpu1.kernels.matmul;
 
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Prepared cpu1 matmul runner.

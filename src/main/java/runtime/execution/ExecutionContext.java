@@ -1,4 +1,4 @@
-package backend.runtime;
+package runtime.execution;
 
 import runtime.contract.ExecutionMode;
 
@@ -11,8 +11,6 @@ import runtime.contract.StorageResidency;
 import runtime.residency.TensorResidencyState;
 import runtime.device.buffer.AcceleratorLayoutTransformDecision;
 import config.runtime.RuntimeConfig;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
 import trace.backend.ConvTraceMetadata;
 import trace.execution.HostDeviceTransferTrace;
 import tensor.DataType;
@@ -40,7 +38,7 @@ public final class ExecutionContext {
     private final ExecutionMode mode;
     private final boolean useFastExpApprox;
     private final boolean useFastTanhApprox;
-    private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
+    private final Map<Integer, PreparedStepMetadata> metadataIndex;
     private final ExecutionState executionState;
     private final Map<Tensor, Object> runtimeStateIndex;
     private final Map<Integer, ConvTraceMetadata> convTraceIndex;
@@ -62,7 +60,7 @@ public final class ExecutionContext {
             ExecutionMode mode,
             boolean useFastExpApprox,
             boolean useFastTanhApprox,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             ExecutionState executionState
     ) {
         this(null, mode, useFastExpApprox, useFastTanhApprox, metadataIndex, executionState);
@@ -73,7 +71,7 @@ public final class ExecutionContext {
             ExecutionMode mode,
             boolean useFastExpApprox,
             boolean useFastTanhApprox,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             ExecutionState executionState
     ) {
         this(
@@ -95,7 +93,7 @@ public final class ExecutionContext {
             ExecutionMode mode,
             boolean useFastExpApprox,
             boolean useFastTanhApprox,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             ExecutionState executionState,
             Map<Tensor, Object> runtimeStateIndex,
             Map<Integer, ConvTraceMetadata> convTraceIndex,
@@ -145,7 +143,7 @@ public final class ExecutionContext {
     public static ExecutionContext fromRuntimeConfig(
             RuntimeConfig runtimeConfig,
             ExecutionMode mode,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             ExecutionState executionState
     ) {
         Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null");
@@ -218,7 +216,7 @@ public final class ExecutionContext {
         return useFastTanhApprox;
     }
 
-    public CompiledNodeExecutionMetadata metadataForNodeId(int nodeId) {
+    public PreparedStepMetadata metadataForNodeId(int nodeId) {
         return metadataIndex.get(nodeId);
     }
 
@@ -236,28 +234,18 @@ public final class ExecutionContext {
         return executionState.runtimeTensorForNodeId(nodeId);
     }
 
-    public backend.cpu.execution.CpuNodeWorkspace cpuWorkspaceForNodeId(int nodeId) {
+    public <T> T requireWorkspace(int nodeId, Class<T> workspaceType) {
+        Objects.requireNonNull(workspaceType, "workspaceType cannot be null");
         Object workspace = workspaceForNodeId(nodeId);
         if (workspace == null) {
-            return null;
+            throw new IllegalStateException("Missing runtime workspace for nodeId=" + nodeId);
         }
-        if (workspace instanceof backend.cpu.execution.CpuNodeWorkspace cpuWorkspace) {
-            return cpuWorkspace;
+        if (!workspaceType.isInstance(workspace)) {
+            throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
+                    + " is not " + workspaceType.getName()
+                    + ": " + workspace.getClass().getName());
         }
-        throw new IllegalStateException("Runtime workspace for nodeId=" + nodeId
-                + " is not a CpuNodeWorkspace: " + workspace.getClass().getName());
-    }
-
-    public backend.cpu1.exec.Cpu1ScratchBuffer cpu1ScratchBufferForNodeId(int nodeId) {
-        Object scratchBuffer = workspaceForNodeId(nodeId);
-        if (scratchBuffer == null) {
-            return null;
-        }
-        if (scratchBuffer instanceof backend.cpu1.exec.Cpu1ScratchBuffer cpu1ScratchBuffer) {
-            return cpu1ScratchBuffer;
-        }
-        throw new IllegalStateException("Runtime scratch buffer for nodeId=" + nodeId
-                + " is not a Cpu1ScratchBuffer: " + scratchBuffer.getClass().getName());
+        return workspaceType.cast(workspace);
     }
 
     public Object workspaceForNodeId(int nodeId) {

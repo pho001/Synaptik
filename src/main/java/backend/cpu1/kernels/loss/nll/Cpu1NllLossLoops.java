@@ -5,7 +5,7 @@ import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedNllLossUnit;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.Tensor;
 import tensor.dtype.TensorDTypeOps;
 import tensor.storage.NativeTensorStorage;
@@ -139,7 +139,7 @@ public final class Cpu1NllLossLoops {
             return total / unit.groupCount();
         }
         int slotCount = Cpu1RangeLauncher.slotCount(unit.groupCount(), unit.launchConfig());
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 NLL_LOSS parallel nodeId=" + unit.nodeId()
                     + " requires prepared F64 scratch buffers.");

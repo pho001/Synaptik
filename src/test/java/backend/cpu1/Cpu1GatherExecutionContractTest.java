@@ -10,7 +10,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedIndexUnit;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
@@ -19,8 +19,8 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import runtime.runner.StepExecutionTracer;
 import operations.index.ScatterReduction;
 import operations.index.gather;
@@ -867,7 +867,7 @@ class Cpu1GatherExecutionContractTest {
         Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "indices", DataType.INT32);
         Fixture fixture = fixture(input.gather(indices, 1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(2));
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -904,7 +904,7 @@ class Cpu1GatherExecutionContractTest {
         Tensor indices = new Tensor(new int[]{2, 0}, new int[]{2}, null, "traceSegmentIndices", DataType.INT32);
         Fixture fixture = fixture(input.gather(indices, 1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarMemorySegmentSingleThread());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeLeaves(context, fixture);
 
@@ -937,7 +937,7 @@ class Cpu1GatherExecutionContractTest {
         Tensor indices = new Tensor(new int[]{1, 0}, new int[]{2}, null, "traceGatherAxisIndices", DataType.INT32);
         Fixture fixture = fixture(input.gatherAxis(indices, 1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(2));
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1612,7 +1612,7 @@ class Cpu1GatherExecutionContractTest {
                 "traceScatterWriteUpdates", DataType.FLOAT64);
         Fixture fixture = fixture(data.scatterElements(indices, updates, 1, ScatterReduction.ADD));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(8));
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1646,7 +1646,7 @@ class Cpu1GatherExecutionContractTest {
         Tensor updates = new Tensor(new double[]{1.0d, 5.0d}, new int[]{2}, null, "traceScatterUpdates", DataType.FLOAT64);
         Fixture fixture = fixture(base.scatterAdd(indices, updates, 1));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.vectorParallel(8));
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1674,14 +1674,14 @@ class Cpu1GatherExecutionContractTest {
     }
 
     private static Tensor execute(Fixture fixture, Cpu1PreparedArtifact artifact) {
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         new Cpu1Backend().execute(fixture.node(), metadata, context);
         return context.runtimeTensorForNodeId(fixture.node().id());
     }
 
     private static ExecutionResult executeNative(Fixture fixture, Cpu1PreparedArtifact artifact) {
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeLeaves(context, fixture);
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1719,7 +1719,7 @@ class Cpu1GatherExecutionContractTest {
 
     private static ExecutionContext context(
             Fixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
@@ -1736,12 +1736,14 @@ class Cpu1GatherExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

@@ -4,7 +4,7 @@ import planning.memory.MemoryPlan;
 import planning.memory.RegionMemoryBinding;
 import planning.memory.RegionMemoryBindingKind;
 import planning.value.GraphValueRef;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import graph.execution.state.RuntimeStorageSlotKey;
 import graph.model.CompiledNode;
 import tensor.Tensor;

@@ -9,11 +9,11 @@ import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import runtime.residency.TensorResidencyState;
 import runtime.memory.nativecpu.NativeCpuTraceState;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import trace.backend.ComputeTraceMetadata;
 import trace.backend.ConvTraceMetadata;
 import trace.backend.DispatchTraceMetadata;
@@ -34,7 +34,7 @@ public final class CpuStepTraceContributor {
 
     public static StepTraceContribution contribute(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
         CpuKernel cpuKernel = cpuKernel(metadata);
@@ -88,11 +88,11 @@ public final class CpuStepTraceContributor {
                 ? node.operation()
                 : metadata.executionOperation();
         if (executionOperation instanceof FusedOperation fused) {
-            var fusedExecutable = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+            var fusedExecutable = metadata.executable() instanceof CpuFusedExecutionArtifact artifact
                     ? artifact.fusedExecutable()
                     : null;
             String executionClass = fusedExecutable == null ? "" : fusedExecutable.getClass().getSimpleName();
-            FusedVectorFallbackReason vectorFallbackReason = metadata.artifact() instanceof CpuFusedExecutionArtifact artifact
+            FusedVectorFallbackReason vectorFallbackReason = metadata.executable() instanceof CpuFusedExecutionArtifact artifact
                     ? artifact.vectorFallbackReason()
                     : FusedVectorFallbackReason.NONE;
             attrs.put("fusedInputStorageKind", fused.getNumericContract().inputStorageKind().name());
@@ -151,7 +151,7 @@ public final class CpuStepTraceContributor {
 
     private static MatMulTraceMetadata matMulTrace(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context,
             CpuNodeExecutionPlan plan
     ) {
@@ -256,7 +256,7 @@ public final class CpuStepTraceContributor {
 
     private static long matMulCopyInBytes(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context,
             PreparedMatMulExecutable executable,
             MatMulExecutionRoute route
@@ -460,27 +460,27 @@ public final class CpuStepTraceContributor {
         }
     }
 
-    private static CpuKernel cpuKernel(CompiledNodeExecutionMetadata metadata) {
+    private static CpuKernel cpuKernel(PreparedStepMetadata metadata) {
         if (metadata == null) {
             return null;
         }
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuNodeExecutionArtifact artifact) {
             return artifact.cpuKernel();
         }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuFusedExecutionArtifact artifact) {
             return artifact.cpuKernel();
         }
         return null;
     }
 
-    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
+    private static CpuNodeExecutionPlan cpuPlan(PreparedStepMetadata metadata) {
         if (metadata == null) {
             return null;
         }
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuNodeExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuFusedExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
         return null;

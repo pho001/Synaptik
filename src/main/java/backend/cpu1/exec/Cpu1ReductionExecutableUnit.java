@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.kernels.reduction.Cpu1ReductionKernel;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Runtime wrapper for a prepared cpu1 reduction node.

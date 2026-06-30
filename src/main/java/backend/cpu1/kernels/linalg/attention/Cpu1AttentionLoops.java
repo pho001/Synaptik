@@ -8,7 +8,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedAttentionUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -1337,7 +1337,7 @@ public final class Cpu1AttentionLoops {
     }
 
     private static Cpu1ScratchBuffer requireScratch(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 attention nodeId=" + unit.nodeId()
                     + " requires prepared row scratch buffer.");

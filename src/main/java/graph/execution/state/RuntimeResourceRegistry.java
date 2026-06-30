@@ -20,29 +20,29 @@ import java.util.Set;
 /**
  * Run-scoped owned native/backend resources.
  */
-final class RuntimeResourceRegistry {
+public final class RuntimeResourceRegistry {
     private final List<ExecutionResource> executionResources = new ArrayList<>();
     private final Set<ExecutionResource> registeredResources = Collections.newSetFromMap(new IdentityHashMap<>());
     private NativeCpuAllocator nativeCpuAllocator = new NativeCpuAllocator();
     private NativeCpuStorageFactory nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
 
-    void configureNativeCpuMemory(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
+    public void configureNativeCpuMemory(NativeCpuMemoryConfig config, NativeCpuMemoryPool preparedPool) {
         nativeCpuAllocator = new NativeCpuAllocator(config, new NativeCpuMemoryStats(), preparedPool);
         nativeCpuStorageFactory = new NativeCpuStorageFactory(nativeCpuAllocator);
     }
 
-    NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
+    public NativeTensorStorage allocateNativeStorage(DataType dataType, int elements, String label) {
         return nativeCpuStorageFactory.allocate(dataType, elements, label);
     }
 
-    void registerResource(ExecutionResource resource) {
+    public void registerResource(ExecutionResource resource) {
         Objects.requireNonNull(resource, "resource cannot be null");
         if (registeredResources.add(resource)) {
             executionResources.add(resource);
         }
     }
 
-    void closeResources() {
+    public void closeResources() {
         RuntimeException closeFailure = null;
         for (int i = executionResources.size() - 1; i >= 0; i--) {
             try {
@@ -62,7 +62,7 @@ final class RuntimeResourceRegistry {
         }
     }
 
-    NativeCpuMemoryTrace nativeCpuMemoryTrace() {
+    public NativeCpuMemoryTrace nativeCpuMemoryTrace() {
         var snapshot = nativeCpuAllocator.statsSnapshot();
         return new NativeCpuMemoryTrace(
                 snapshot.allocationCount(),

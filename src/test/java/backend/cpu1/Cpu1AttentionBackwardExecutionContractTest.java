@@ -10,7 +10,7 @@ import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.compile.CompileConfig;
@@ -23,10 +23,10 @@ import graph.model.CompiledNode;
 import graph.compile.CompiledProgram;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
+import runtime.execution.ExecutionState;
 import planning.region.specialization.SdpaBackwardOutputKind;
 import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
@@ -152,7 +152,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
                 fixture
         );
         PreparedExecutionStep step = requireAttentionBackwardStep(prepared.execution(), SdpaBackwardOutputKind.QUERY);
-        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().artifact();
+        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().executable();
         Cpu1PreparedAttentionBackwardUnit unit = artifact.preparedAttentionBackwardUnit();
         ExecutionContext context = isolatedContext(prepared);
         attachCpuArray(context, unit.weightsNodeId(), attentionWeights(fixture), DataType.FLOAT32);
@@ -462,7 +462,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
     ) {
         PreparedCase prepared = prepareCase(dataType, outputKind, CompileConfig.training(), runtimeConfig, fixture);
         PreparedExecutionStep step = requireAttentionBackwardStep(prepared.execution(), outputKind);
-        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().artifact();
+        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().executable();
         Cpu1PreparedAttentionBackwardUnit unit = artifact.preparedAttentionBackwardUnit();
         ExecutionContext context = isolatedContext(prepared);
 
@@ -495,7 +495,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
     ) {
         PreparedCase prepared = prepareDenseOutGradCase(dataType, outputKind, CompileConfig.training(), runtimeConfig, fixture);
         PreparedExecutionStep step = requireAttentionBackwardStep(prepared.execution(), outputKind);
-        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().artifact();
+        Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) step.metadata().executable();
         Cpu1PreparedAttentionBackwardUnit unit = artifact.preparedAttentionBackwardUnit();
         ExecutionContext context = isolatedContext(prepared);
 
@@ -607,7 +607,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
     ) {
         PreparedCase prepared = prepareCase(dataType, outputKind, CompileConfig.training(), runtimeConfig, fixture);
         PreparedExecutionStep originalStep = requireAttentionBackwardStep(prepared.execution(), outputKind);
-        Cpu1PreparedAttentionBackwardUnit original = ((Cpu1PreparedArtifact) originalStep.metadata().artifact())
+        Cpu1PreparedAttentionBackwardUnit original = ((Cpu1PreparedArtifact) originalStep.metadata().executable())
                 .preparedAttentionBackwardUnit();
         Cpu1PreparedArtifact artifact = new Cpu1AttentionBackwardPreparer().prepare(
                 originalStep.compiledNode(),
@@ -676,7 +676,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
             SdpaBackwardOutputKind outputKind
     ) {
         for (PreparedExecutionStep step : execution.backwardSteps()) {
-            if (!(step.metadata().artifact() instanceof Cpu1PreparedArtifact artifact)) {
+            if (!(step.metadata().executable() instanceof Cpu1PreparedArtifact artifact)) {
                 continue;
             }
             try {
@@ -696,7 +696,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
             SdpaBackwardOutputKind outputKind
     ) {
         for (PreparedExecutionStep step : execution.backwardSteps()) {
-            if (!(step.metadata().artifact() instanceof Cpu1PreparedArtifact artifact)) {
+            if (!(step.metadata().executable() instanceof Cpu1PreparedArtifact artifact)) {
                 continue;
             }
             try {
@@ -713,7 +713,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
 
     private static ExecutionContext isolatedContext(PreparedCase prepared) {
         CompiledProgram program = prepared.compiledGraph().program();
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadataIndex = new HashMap<>();
         for (PreparedExecutionStep step : prepared.execution().executionSteps()) {
             metadataIndex.put(step.compiledNode().id(), step.metadata());
         }

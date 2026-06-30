@@ -2,7 +2,7 @@ package backend.cpu1.exec;
 
 import backend.cpu1.kernels.layout.Cpu1LayoutMemorySegmentKernelSupport;
 import backend.cpu1.prepare.Cpu1PreparedLayoutUnit;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 /**
  * Executable unit for prepared materializing layout kernels using native CPU segment storage.

@@ -19,7 +19,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
@@ -37,8 +37,8 @@ import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;
 import runtime.runner.StepExecutionTracer;
@@ -733,7 +733,7 @@ class Cpu1MatmulExecutionContractTest {
         );
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_SCALAR);
         assertEquals(Cpu1MatmulPostOp.RELU, artifact.preparedMatmulUnit().postOp());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -772,11 +772,11 @@ class Cpu1MatmulExecutionContractTest {
                 .prepare(RuntimeConfig.inferenceDefaults(DataType.FLOAT32));
 
         PreparedExecutionStep step = execution.forwardSteps().stream()
-                .filter(candidate -> candidate.metadata().artifact() instanceof Cpu1PreparedArtifact artifact
+                .filter(candidate -> candidate.metadata().executable() instanceof Cpu1PreparedArtifact artifact
                         && artifact.executableUnit() instanceof Cpu1MatmulExecutableUnit)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().executable());
 
         assertEquals(Operation.OpType.RELU, step.compiledNode().operation().opType());
         assertEquals(2, step.orderedNodeIds().size());
@@ -825,11 +825,11 @@ class Cpu1MatmulExecutionContractTest {
                 .prepare(RuntimeConfig.inferenceDefaults(DataType.FLOAT32));
 
         PreparedExecutionStep step = execution.forwardSteps().stream()
-                .filter(candidate -> candidate.metadata().artifact() instanceof Cpu1PreparedArtifact artifact
+                .filter(candidate -> candidate.metadata().executable() instanceof Cpu1PreparedArtifact artifact
                         && artifact.executableUnit() instanceof Cpu1MatmulExecutableUnit)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().executable());
 
         assertEquals(Operation.OpType.RELU, step.compiledNode().operation().opType());
         assertEquals(2, step.orderedNodeIds().size());
@@ -893,11 +893,13 @@ class Cpu1MatmulExecutionContractTest {
         assertTrue(artifact.preparedMatmulUnit().hasBias());
         assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, artifact.preparedMatmulUnit().route());
         assertEquals(nodeId(fixture.nodes(), "bias"), artifact.preparedMatmulUnit().biasNodeId());
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 List.of(matmulNode.inputIds().get(0), matmulNode.inputIds().get(1), artifact.preparedMatmulUnit().biasNodeId()),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
@@ -942,11 +944,13 @@ class Cpu1MatmulExecutionContractTest {
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS_RELU, artifact.preparedMatmulUnit().postOp());
         assertEquals(nodeId(fixture.nodes(), "bias"), artifact.preparedMatmulUnit().biasNodeId());
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 List.of(matmulNode.inputIds().get(0), matmulNode.inputIds().get(1), artifact.preparedMatmulUnit().biasNodeId()),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
@@ -1011,7 +1015,7 @@ class Cpu1MatmulExecutionContractTest {
         );
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
         assertEquals(Cpu1MatmulPostOp.RELU, artifact.preparedMatmulUnit().postOp());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1059,7 +1063,7 @@ class Cpu1MatmulExecutionContractTest {
         );
         assertSame(launchConfig, artifact.preparedMatmulUnit().launchConfig());
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_SCALAR);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1104,7 +1108,7 @@ class Cpu1MatmulExecutionContractTest {
         assertSame(launchConfig, artifact.preparedMatmulUnit().launchConfig());
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_DENSE_PACKED_B_VECTOR);
         assertEquals(Math.multiplyExact(batchCount, Math.multiplyExact(n, k)), artifact.scratchBufferSpec().f32ArrayElements());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1215,7 +1219,7 @@ class Cpu1MatmulExecutionContractTest {
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_ARRAY_COPYING);
         assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
         assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1251,7 +1255,7 @@ class Cpu1MatmulExecutionContractTest {
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_ARRAY_COPYING);
         assertEquals(Cpu1VectorizationKind.SCALAR, artifact.preparedMatmulUnit().vectorizationKind());
         assertEquals(Cpu1LaunchConfig.singleThread(), artifact.preparedMatmulUnit().launchConfig());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1286,7 +1290,7 @@ class Cpu1MatmulExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().get(0), leftData);
         attachNativeF32Input(context, fixture.node().inputIds().get(1), rightData);
@@ -1329,7 +1333,7 @@ class Cpu1MatmulExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
         assertMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF64Input(context, fixture.node().inputIds().get(0), leftData);
         attachNativeF64Input(context, fixture.node().inputIds().get(1), rightData);
@@ -1400,7 +1404,7 @@ class Cpu1MatmulExecutionContractTest {
         );
         Fixture fixture = fixture(left.matmul(right));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -1424,7 +1428,7 @@ class Cpu1MatmulExecutionContractTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarSingleThread()
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         var trace = StepExecutionTracer.toStepTrace(
@@ -1459,7 +1463,7 @@ class Cpu1MatmulExecutionContractTest {
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT);
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         var trace = StepExecutionTracer.toStepTrace(
@@ -1694,7 +1698,7 @@ class Cpu1MatmulExecutionContractTest {
 
     private static ExecutionContext context(
             Fixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
@@ -1711,12 +1715,14 @@ class Cpu1MatmulExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

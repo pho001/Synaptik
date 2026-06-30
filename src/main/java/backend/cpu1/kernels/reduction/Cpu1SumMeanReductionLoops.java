@@ -6,7 +6,7 @@ import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import tensor.Tensor;
 import tensor.dtype.TensorDTypeOps;
 import tensor.storage.NativeTensorStorage;
@@ -508,7 +508,7 @@ public final class Cpu1SumMeanReductionLoops {
     }
 
     private static double[] partialSums(Cpu1PreparedReductionUnit unit, ExecutionContext context, int slotCount) {
-        Cpu1ScratchBuffer scratchBuffer = context.cpu1ScratchBufferForNodeId(unit.nodeId());
+        Cpu1ScratchBuffer scratchBuffer = context.requireWorkspace(unit.nodeId(), Cpu1ScratchBuffer.class);
         if (scratchBuffer == null) {
             throw new IllegalStateException("cpu1 " + unit.opType() + " parallel scalar reduction nodeId="
                     + unit.nodeId() + " requires prepared F64 partial-sum scratch buffer.");

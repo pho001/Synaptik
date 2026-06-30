@@ -10,13 +10,13 @@ import runtime.memory.DeviceToCpuMaterializer;
 import runtime.memory.DeviceToNativeMaterializer;
 import runtime.memory.ExecutionResource;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.RuntimeConfig;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import runtime.contract.HostDeviceTransferKind;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;
@@ -437,7 +437,7 @@ class ExecutionStateResidencyTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
         PreparedExecution prepared = compiled.prepare(RuntimeConfig.inferenceDefaults());
         List<CompiledNode> nodes = compiled.program().compiledNodes();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -454,7 +454,7 @@ class ExecutionStateResidencyTest {
     private record Fixture(
             CompiledGraph compiled,
             ExecutionState state,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata
+            Map<Integer, PreparedStepMetadata> metadata
     ) {
     }
 

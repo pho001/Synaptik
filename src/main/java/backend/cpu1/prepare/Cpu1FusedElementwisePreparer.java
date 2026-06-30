@@ -21,9 +21,9 @@ import backend.prepare.BackendPrepareContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import operations.Operation;
 import tensor.DataType;
 
@@ -45,13 +45,13 @@ public final class Cpu1FusedElementwisePreparer {
         this.dispatchPolicy = new Cpu1DispatchPolicy();
     }
 
-    public CompiledNodeExecutionMetadata prepare(
+    public PreparedStepMetadata prepare(
             CompiledNode outputNode,
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
     ) {
         Cpu1PreparedFusedElementwiseUnit preparedUnit = prepareUnit(outputNode, loweredUnit, context);
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 preparedUnit.inputNodeIds(),

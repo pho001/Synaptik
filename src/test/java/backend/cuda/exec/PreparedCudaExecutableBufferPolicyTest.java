@@ -26,7 +26,7 @@ import backend.lowering.LoweringFamily;
 import runtime.contract.CpuMaterializationReason;
 import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
@@ -35,8 +35,8 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import trace.execution.RunTrace;
@@ -500,11 +500,11 @@ class PreparedCudaExecutableBufferPolicyTest {
     private static PreparedCudaExecutable executable(
             CompiledNode inputNode,
             CompiledNode outputNode,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            Map<Integer, PreparedStepMetadata> metadata,
             CudaGraphBridge bridge,
             AcceleratorBackendConfig backendConfig
     ) {
-        CompiledNodeExecutionMetadata fallbackMetadata = metadata.getOrDefault(
+        PreparedStepMetadata fallbackMetadata = metadata.getOrDefault(
                 outputNode.id(),
                 testsupport.MetadataArtifacts.metadata(backend.contract.ComputeBackend.CPU)
         );
@@ -533,7 +533,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 .filter(node -> node.id() == outputNode.inputIds().getFirst())
                 .findFirst()
                 .orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -569,7 +569,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 .filter(node -> node.id() == middleNode.inputIds().getFirst())
                 .findFirst()
                 .orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -602,7 +602,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         CompiledNode expNode = operationNode(nodes, Operation.OpType.EXP);
         CompiledNode inputA = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(0)).findFirst().orElseThrow();
         CompiledNode inputB = nodes.stream().filter(node -> node.id() == addNode.inputIds().get(1)).findFirst().orElseThrow();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : compiled.prepare(RuntimeConfig.inferenceDefaults()).executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -674,7 +674,7 @@ class PreparedCudaExecutableBufferPolicyTest {
             List<CompiledNode> nodes,
             CompiledNode inputNode,
             CompiledNode outputNode,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            Map<Integer, PreparedStepMetadata> metadata,
             ExecutionState state,
             ExecutionContext context
     ) {
@@ -684,7 +684,7 @@ class PreparedCudaExecutableBufferPolicyTest {
             CompiledNode inputNode,
             CompiledNode middleNode,
             CompiledNode outputNode,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            Map<Integer, PreparedStepMetadata> metadata,
             ExecutionState state,
             ExecutionContext context
     ) {

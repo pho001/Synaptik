@@ -11,9 +11,9 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import graph.execution.residency.RuntimeMemoryBinder;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import graph.execution.state.RuntimeStorageKind;
 import graph.execution.state.RuntimeStorageSlotKey;
 import graph.execution.state.RuntimeStorageSlotScope;
@@ -232,7 +232,7 @@ class RuntimeMemoryBinderTest {
         assertNotNull(memoryPlan);
 
         List<CompiledNode> nodes = compiled.program().compiledNodes();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }

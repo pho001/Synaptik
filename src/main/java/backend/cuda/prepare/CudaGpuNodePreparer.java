@@ -8,14 +8,16 @@ import backend.cpu.prepare.CpuNodePreparer;
 import backend.cuda.bridge.CudaFfmBridge;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.cuda.exec.PreparedCudaExecutable;
+import backend.cuda.exec.CudaDirectPreparedExecutable;
 import backend.cuda.lowering.CudaGpuPartitionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import backend.prepare.RegionPlanValidator;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.OutputResidencyEffect;
+import runtime.execution.InputResidencyRequirement;
 import planning.partition.PartitionPlan;
 
 /**
@@ -47,13 +49,21 @@ public final class CudaGpuNodePreparer {
     /**
      * Prepares execution metadata for a node according to its CUDA partition role.
      */
-    public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
+    public PreparedStepMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         PartitionExecutionRole role = context.partitionRoleFor(node.id());
         if (role == PartitionExecutionRole.INTERIOR) {
-            return cpuPreparer.prepareAsCpu(node, context);
+            throw new IllegalStateException("Interior CUDA partition node must be covered before prepare: nodeId="
+                    + node.id());
         }
         if (role != PartitionExecutionRole.ANCHOR) {
-            return cpuPreparer.prepareAsCpu(node, context);
+            return new PreparedStepMetadata(
+                    ComputeBackend.GPU_CUDA,
+                    null,
+                    node.inputIds(),
+                    CudaDirectPreparedExecutable.prepare(node),
+                    InputResidencyRequirement.cpuReadableAll(),
+                    OutputResidencyEffect.cpuCurrentPreserveNative()
+            );
         }
         LoweredRegion loweredRegion = GpuAcceleratorPrepareSupport.requireLoweredRegion(
                 context.cudaLoweredRegionForAnchor(node.id()),
@@ -63,7 +73,7 @@ public final class CudaGpuNodePreparer {
         return prepareRegionStep(loweredRegion, context);
     }
 
-    public CompiledNodeExecutionMetadata prepareRegionStep(
+    public PreparedStepMetadata prepareRegionStep(
             LoweredRegion loweredRegion,
             BackendPrepareContext context
     ) {
@@ -98,12 +108,12 @@ public final class CudaGpuNodePreparer {
                 plan.compoundSummary(),
                 plan.manifest()
         );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.GPU_CUDA,
                 null,
                 java.util.List.of(),
                 new AcceleratorExecutionArtifact(executable),
-                null,
+                InputResidencyRequirement.none(),
                 OutputResidencyEffect.cpuCurrentIfUnset(executable.outputResidencyReason())
         );
     }

@@ -2,9 +2,9 @@ package backend.accelerator.exec;
 
 import backend.cpu.CpuBackend;
 import runtime.contract.CpuMaterializationReason;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import tensor.Tensor;
 
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ public final class PreparedAcceleratorExecutionSupport {
      * @param node compiled node to execute on the CPU backend
      * @param metadata CPU execution metadata prepared for the node
      */
-    public record CpuFallbackStep(CompiledNode node, CompiledNodeExecutionMetadata metadata) {
+    public record CpuFallbackStep(CompiledNode node, PreparedStepMetadata metadata) {
         public CpuFallbackStep {
             Objects.requireNonNull(node, "node cannot be null");
             Objects.requireNonNull(metadata, "metadata cannot be null");

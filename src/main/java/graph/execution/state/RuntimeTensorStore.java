@@ -18,11 +18,11 @@ import java.util.Objects;
 /**
  * Run-scoped runtime tensor identity and node-id lookup.
  */
-final class RuntimeTensorStore {
+public final class RuntimeTensorStore {
     private final Map<Integer, Tensor> runtimeTensorByNodeId;
     private final Map<Tensor, Integer> runtimeNodeIdByTensor;
 
-    static RuntimeTensorStore create(
+    public static RuntimeTensorStore create(
             List<CompiledNode> compiledNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
             int forwardBoundaryNodeId,
@@ -71,7 +71,7 @@ final class RuntimeTensorStore {
         return new RuntimeTensorStore(runtimeTensors, runtimeNodeIds);
     }
 
-    RuntimeTensorStore(
+    public RuntimeTensorStore(
             Map<Integer, Tensor> runtimeTensorByNodeId,
             Map<Tensor, Integer> runtimeNodeIdByTensor
     ) {
@@ -114,7 +114,7 @@ final class RuntimeTensorStore {
         }
     }
 
-    Tensor runtimeTensorForNodeId(int nodeId) {
+    public Tensor runtimeTensorForNodeId(int nodeId) {
         Tensor tensor = runtimeTensorByNodeId.get(nodeId);
         if (tensor == null) {
             throw new IllegalStateException("Missing runtime tensor for nodeId=" + nodeId);
@@ -122,11 +122,11 @@ final class RuntimeTensorStore {
         return tensor;
     }
 
-    Integer nodeIdForRuntimeTensor(Tensor tensor) {
+    public Integer nodeIdForRuntimeTensor(Tensor tensor) {
         return tensor == null ? null : runtimeNodeIdByTensor.get(tensor);
     }
 
-    long logicalByteLength(int nodeId) {
+    public long logicalByteLength(int nodeId) {
         Tensor tensor = runtimeTensorForNodeId(nodeId);
         return (long) tensor.getFlatDataSize() * elementByteSize(tensor.getDataType());
     }

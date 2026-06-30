@@ -7,8 +7,8 @@ import backend.cpu.kernels.layout.CpuLayoutOutputStorageDeferredKernel;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.storage.CpuStorageBindings;
 import backend.cpu.storage.CpuStorageResolver;
-import backend.runtime.ExecutionContext;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.ExecutionContext;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import tensor.Tensor;
 
@@ -35,8 +35,8 @@ public final class CpuKernelExecutor {
             List<Integer> inputNodeIds,
             CpuNodeExecutionPlan plan,
             ExecutionContext executionContext,
-            CompiledNodeExecutionMetadata metadata,
-            List<CompiledNodeExecutionMetadata> inputMetadatas
+            PreparedStepMetadata metadata,
+            List<PreparedStepMetadata> inputMetadatas
     ) {
         Objects.requireNonNull(kernel, "kernel cannot be null");
         Objects.requireNonNull(operation, "operation cannot be null");
@@ -47,7 +47,9 @@ public final class CpuKernelExecutor {
         Objects.requireNonNull(executionContext, "executionContext cannot be null");
         Objects.requireNonNull(metadata, "metadata cannot be null");
 
-        CpuNodeWorkspace workspace = executionContext.cpuWorkspaceForNodeId(nodeId);
+        CpuNodeWorkspace workspace = executionContext.workspaceForNodeId(nodeId) == null
+                ? null
+                : executionContext.requireWorkspace(nodeId, CpuNodeWorkspace.class);
         if (workspace != null) {
             workspace.clearFloatContinuation();
         }

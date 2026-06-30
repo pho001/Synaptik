@@ -9,7 +9,7 @@ import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
@@ -17,8 +17,8 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import operations.Operation;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
@@ -309,7 +309,7 @@ class Cpu1MlpBenchmarkTest {
 
     private static PreparedGraph prepare(MlpFixture fixture, RouteKind routeKind) {
         Cpu1NodePreparer preparer = new Cpu1NodePreparer();
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new LinkedHashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new LinkedHashMap<>();
         for (CompiledNode node : fixture.nodes()) {
             if (node.operation() == null) {
                 continue;
@@ -635,7 +635,7 @@ class Cpu1MlpBenchmarkTest {
         }
         for (int iteration = 0; iteration < profile.measureIterations(); iteration++) {
             for (CompiledNode node : graph.fixture().nodes()) {
-                CompiledNodeExecutionMetadata metadata = graph.metadata().get(node.id());
+                PreparedStepMetadata metadata = graph.metadata().get(node.id());
                 if (metadata == null) {
                     continue;
                 }
@@ -646,11 +646,11 @@ class Cpu1MlpBenchmarkTest {
         }
         List<NodeBenchmarkResult> results = new ArrayList<>();
         for (CompiledNode node : graph.fixture().nodes()) {
-            CompiledNodeExecutionMetadata metadata = graph.metadata().get(node.id());
+            PreparedStepMetadata metadata = graph.metadata().get(node.id());
             if (metadata == null) {
                 continue;
             }
-            Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) metadata.artifact();
+            Cpu1PreparedArtifact artifact = (Cpu1PreparedArtifact) metadata.executable();
             results.add(new NodeBenchmarkResult(
                     node.id(),
                     node.operation().opType().name(),
@@ -683,7 +683,7 @@ class Cpu1MlpBenchmarkTest {
 
     private static void executeGraph(Cpu1Backend backend, PreparedGraph graph) {
         for (CompiledNode node : graph.fixture().nodes()) {
-            CompiledNodeExecutionMetadata metadata = graph.metadata().get(node.id());
+            PreparedStepMetadata metadata = graph.metadata().get(node.id());
             if (metadata != null) {
                 backend.execute(node, metadata, graph.context());
             }
@@ -1326,12 +1326,14 @@ class Cpu1MlpBenchmarkTest {
         return builder.toString();
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 
@@ -1429,7 +1431,7 @@ class Cpu1MlpBenchmarkTest {
 
     private record PreparedGraph(
             MlpFixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadata,
+            Map<Integer, PreparedStepMetadata> metadata,
             ExecutionContext context,
             ExecutionState state
     ) {

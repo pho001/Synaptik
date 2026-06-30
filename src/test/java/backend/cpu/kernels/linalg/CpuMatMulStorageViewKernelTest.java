@@ -14,10 +14,10 @@ import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.storage.CpuStorageView;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuMatMulMicroKernel;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import operations.linalg.matmul;
 import org.junit.jupiter.api.Test;
@@ -287,11 +287,13 @@ class CpuMatMulStorageViewKernelTest {
     }
 
     private static CpuKernelContext context(Operation operation, CpuNodeExecutionPlan plan) {
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 operation,
                 List.of(0, 1),
-                null
+                testsupport.MetadataArtifacts.noopExecutable(),
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         return new CpuKernelContext(
                 2,

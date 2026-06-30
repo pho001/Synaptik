@@ -10,7 +10,7 @@ import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
 import config.backend.CpuKernelConfig;
 import runtime.contract.ExecutionMode;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.compile.CompileConfig;
 import config.compile.GraphOptimizationConfig;
 import config.runtime.CpuStorageProfile;
@@ -19,12 +19,12 @@ import graph.CompiledGraph;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import graph.execution.PublicationPolicy;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import graph.execution.residency.RuntimeMemoryBinder;
 import graph.execution.runner.PreparedExecutionRunner;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import trace.execution.RunTrace;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -1024,7 +1024,7 @@ public class CpuFusedMemorySegmentExecutionTest {
     private static FusedRunFixture runFixture(Tensor out, RuntimeConfig runtimeConfig) {
         CompiledGraph compiled = CompiledGraph.compile(out, fusedOnlyConfig());
         PreparedExecution prepared = compiled.prepare(runtimeConfig);
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = new HashMap<>();
+        Map<Integer, PreparedStepMetadata> metadata = new HashMap<>();
         for (PreparedExecutionStep step : prepared.executionSteps()) {
             metadata.put(step.compiledNode().id(), step.metadata());
         }
@@ -1051,7 +1051,7 @@ public class CpuFusedMemorySegmentExecutionTest {
     }
 
     private static PreparedExecutionStep withThrowingFusedExecutable(PreparedExecutionStep step) {
-        CpuFusedExecutionArtifact artifact = (CpuFusedExecutionArtifact) step.metadata().artifact();
+        CpuFusedExecutionArtifact artifact = (CpuFusedExecutionArtifact) step.metadata().executable();
         PreparedFusedExecutable throwingExecutable = new PreparedFusedExecutable() {
             @Override
             public void applyRangeScalar(
@@ -1077,7 +1077,7 @@ public class CpuFusedMemorySegmentExecutionTest {
                 throw new IllegalStateException("intentional fused segment failure");
             }
         };
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 step.metadata().executionOperation(),
                 step.metadata().executionInputNodeIds(),

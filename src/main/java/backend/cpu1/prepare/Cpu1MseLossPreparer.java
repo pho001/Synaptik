@@ -18,9 +18,9 @@ import planning.descriptor.CompiledTensorDescriptor;
 import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
 import planning.value.GraphValueRef;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import operations.Operation;
 import tensor.DataType;
 
@@ -37,7 +37,7 @@ public final class Cpu1MseLossPreparer {
         this.runtimeConfig = runtimeConfig;
     }
 
-    public CompiledNodeExecutionMetadata prepare(
+    public PreparedStepMetadata prepare(
             CompiledNode outputNode,
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
@@ -87,7 +87,7 @@ public final class Cpu1MseLossPreparer {
                 launchConfig,
                 scratchBufferSpec(launchConfig, elementCount)
         );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 inputNodeIds,

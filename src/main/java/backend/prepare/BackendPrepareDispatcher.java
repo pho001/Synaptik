@@ -12,15 +12,16 @@ import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.cuda.prepare.CudaGpuNodePreparer;
+import backend.opencl.exec.OpenClDirectPreparedExecutable;
 import backend.metal.prepare.MetalNodePreparer;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuSpecializedPrimitivePayload;
 import backend.lowering.region.RegionExecutionPlan;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.InputResidencyRequirement;
-import graph.execution.plan.OutputResidencyEffect;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.InputResidencyRequirement;
+import runtime.execution.OutputResidencyEffect;
 import planning.partition.PartitionPlan;
 import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
@@ -53,19 +54,25 @@ public final class BackendPrepareDispatcher {
         return new BackendPrepareDispatcher(Objects.requireNonNull(runtimeConfig, "runtimeConfig cannot be null"));
     }
 
-    public CompiledNodeExecutionMetadata prepare(CompiledNode node, BackendPrepareContext context) {
+    public PreparedStepMetadata prepare(CompiledNode node, BackendPrepareContext context) {
         Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
         return switch (executionBackendFor(node, context)) {
             case CPU -> cpuPreparer.prepare(node, context);
             case GPU_METAL -> metalPreparer().prepare(node, context);
             case GPU_CUDA -> cudaGpuPreparer().prepare(node, context);
-            case GPU_OPENCL ->
-                    new CompiledNodeExecutionMetadata(node.backend(), null, java.util.List.of(), null);
+            case GPU_OPENCL -> new PreparedStepMetadata(
+                    ComputeBackend.GPU_OPENCL,
+                    null,
+                    node.inputIds(),
+                    OpenClDirectPreparedExecutable.prepare(node),
+                    InputResidencyRequirement.cpuReadableAll(),
+                    OutputResidencyEffect.cpuCurrentPreserveNative()
+            );
         };
     }
 
-    public CompiledNodeExecutionMetadata prepareCpuFusedStep(
+    public PreparedStepMetadata prepareCpuFusedStep(
             CompiledNode outputNode,
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
@@ -79,7 +86,7 @@ public final class BackendPrepareDispatcher {
         return cpuPreparer.prepareLoweredFusedStep(outputNode, loweredUnit, context);
     }
 
-    public CompiledNodeExecutionMetadata prepareCpuSpecializedStep(
+    public PreparedStepMetadata prepareCpuSpecializedStep(
             CompiledNode outputNode,
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
@@ -107,7 +114,7 @@ public final class BackendPrepareDispatcher {
         };
     }
 
-    private CompiledNodeExecutionMetadata prepareCpu1SdpaBackward(
+    private PreparedStepMetadata prepareCpu1SdpaBackward(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
             BackendPrepareContext context
@@ -122,7 +129,7 @@ public final class BackendPrepareDispatcher {
         List<Integer> inputNodeIds = candidate.inputValueRefs().stream()
                 .map(GraphValueRef::nodeId)
                 .toList();
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 inputNodeIds,
@@ -132,7 +139,7 @@ public final class BackendPrepareDispatcher {
         );
     }
 
-    private CompiledNodeExecutionMetadata prepareCpu1MatmulRelu(
+    private PreparedStepMetadata prepareCpu1MatmulRelu(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
             BackendPrepareContext context
@@ -149,7 +156,7 @@ public final class BackendPrepareDispatcher {
                 automaticCpu1MatmulPrepareConfig(),
                 Cpu1MatmulPostOp.RELU
         );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 inputNodeIds,
@@ -159,7 +166,7 @@ public final class BackendPrepareDispatcher {
         );
     }
 
-    private CompiledNodeExecutionMetadata prepareCpu1MatmulBiasEpilogue(
+    private PreparedStepMetadata prepareCpu1MatmulBiasEpilogue(
             CompiledNode outputNode,
             RegionSpecializationCandidate candidate,
             BackendPrepareContext context,
@@ -187,7 +194,7 @@ public final class BackendPrepareDispatcher {
                     config,
                     postOp
                 );
-        return new CompiledNodeExecutionMetadata(
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 inputNodeIds,
@@ -379,7 +386,7 @@ public final class BackendPrepareDispatcher {
         return node == null || node.operation() == null ? Operation.OpType.UNKNOWN : node.operation().opType();
     }
 
-    public CompiledNodeExecutionMetadata prepareMetalRegionStep(
+    public PreparedStepMetadata prepareMetalRegionStep(
             backend.lowering.LoweredRegion loweredRegion,
             BackendPrepareContext context
     ) {
@@ -388,7 +395,7 @@ public final class BackendPrepareDispatcher {
         return metalPreparer().prepareRegionStep(loweredRegion, context);
     }
 
-    public CompiledNodeExecutionMetadata prepareCudaRegionStep(
+    public PreparedStepMetadata prepareCudaRegionStep(
             backend.lowering.LoweredRegion loweredRegion,
             BackendPrepareContext context
     ) {

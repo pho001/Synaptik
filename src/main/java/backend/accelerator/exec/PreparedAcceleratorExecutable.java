@@ -6,7 +6,7 @@ import runtime.device.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.lowering.region.RegionExecutionPlan;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 
 import java.util.LinkedHashMap;
 import java.util.List;

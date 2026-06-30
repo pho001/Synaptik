@@ -1,6 +1,6 @@
 package backend.metal.bridge;
 
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import backend.metal.lowering.MetalPartitionPlan;
 import tensor.Tensor;
 

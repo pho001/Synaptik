@@ -21,7 +21,7 @@ import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.lowering.MetalBackendPartitionCapability;
 import backend.metal.lowering.MetalPartitionSupport;
 import backend.cuda.exec.PreparedCudaExecutable;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.AcceleratorBackendConfig;
@@ -33,8 +33,8 @@ import config.runtime.FusedExecutionPolicy;
 import graph.CompiledGraph;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import planning.partition.PartitionPlanningContext;
@@ -265,7 +265,7 @@ public class PreparedExecutionBuildTest {
         Tensor input = new Tensor(new float[]{1f, -2f, 3f, -4f}, new int[]{4}, null, "phase19NativeBufferInput", DataType.FLOAT32);
         Tensor out = input.relu().exp();
         List<CompiledNode> nodes = CompiledNodeSnapshotter.snapshot(out.topologicalSort(), BackendIntentPlan.empty());
-        Map<Integer, CompiledNodeExecutionMetadata> metadata = Map.of();
+        Map<Integer, PreparedStepMetadata> metadata = Map.of();
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -333,8 +333,8 @@ public class PreparedExecutionBuildTest {
                 null,
                 null
         );
-        CompiledNodeExecutionMetadata metadata = testsupport.MetadataArtifacts.cpuMetadata(cpuPlan);
-        Map<Integer, CompiledNodeExecutionMetadata> metadataIndex = Map.of(consumerNodeId, metadata);
+        PreparedStepMetadata metadata = testsupport.MetadataArtifacts.cpuMetadata(cpuPlan);
+        Map<Integer, PreparedStepMetadata> metadataIndex = Map.of(consumerNodeId, metadata);
         ExecutionState state = ExecutionState.create(
                 nodes,
                 CompiledTensorDescriptorBuilder.build(nodes),
@@ -1420,7 +1420,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.RELU)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, reluStep.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, reluStep.metadata().executable());
         Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
         assertEquals(Operation.OpType.RELU, reluStep.compiledNode().operation().opType());
@@ -1447,7 +1447,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.ADD)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, addStep.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, addStep.metadata().executable());
         Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
         assertEquals(Operation.OpType.ADD, addStep.compiledNode().operation().opType());
@@ -4282,7 +4282,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> hasLabel(step, "logSoftmax"))
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().executable());
         Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
         assertEquals(Operation.OpType.LINEAR, linearStep.compiledNode().operation().opType());
@@ -4315,7 +4315,7 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> hasLabel(step, "softmax"))
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().executable());
         Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
         assertEquals(Operation.OpType.LINEAR, linearStep.compiledNode().operation().opType());

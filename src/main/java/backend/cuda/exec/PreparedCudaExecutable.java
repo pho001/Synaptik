@@ -27,7 +27,7 @@ import backend.lowering.LoweringFamily;
 import backend.lowering.region.RegionExecutionPlan;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;

@@ -4,11 +4,11 @@ import backend.cpu.kernels.CpuKernel;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.execution.CpuNodeWorkspace;
 import backend.cpu.plan.CpuPreparedInput;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.plan.PreparedExecutionArtifact;
-import graph.execution.plan.PreparedRuntimeStateAllocator;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.PreparedStepExecutable;
+import runtime.execution.PreparedRuntimeStateAllocator;
 import trace.backend.StepTraceContribution;
 import tensor.Tensor;
 
@@ -16,7 +16,14 @@ public record CpuNodeExecutionArtifact(
         CpuKernel cpuKernel,
         CpuNodeExecutionPlan cpuPlan,
         CpuNodeWorkspace cpuWorkspace
-) implements PreparedExecutionArtifact {
+) implements PreparedStepExecutable {
+    private static final CpuBackend CPU_BACKEND = new CpuBackend();
+
+    @Override
+    public void execute(CompiledNode node, PreparedStepMetadata metadata, ExecutionContext context) {
+        CPU_BACKEND.execute(node, metadata, context);
+    }
+
     @Override
     public void allocateRuntimeState(int nodeId, PreparedRuntimeStateAllocator allocator) {
         if (allocator == null) {
@@ -40,7 +47,7 @@ public record CpuNodeExecutionArtifact(
     @Override
     public StepTraceContribution traceContribution(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext context
     ) {
         return CpuStepTraceContributor.contribute(node, metadata, context);

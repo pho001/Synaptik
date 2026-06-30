@@ -11,7 +11,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
@@ -23,8 +23,8 @@ import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.execution.state.ExecutionState;
+import runtime.execution.PreparedStepMetadata;
+import runtime.execution.ExecutionState;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;
 import runtime.runner.StepExecutionTracer;
@@ -82,7 +82,7 @@ final class Cpu1LinearExecutionContractTest {
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS, artifact.preparedMatmulUnit().postOp());
         assertTrue(artifact.preparedMatmulUnit().hasBias());
         assertEquals(nodeId(fixture.nodes(), "linearBias"), artifact.preparedMatmulUnit().biasNodeId());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -121,7 +121,7 @@ final class Cpu1LinearExecutionContractTest {
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
         assertLinearMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS, artifact.preparedMatmulUnit().postOp());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         new Cpu1Backend().execute(fixture.node(), metadata, context);
@@ -155,11 +155,11 @@ final class Cpu1LinearExecutionContractTest {
                 .prepare(RuntimeConfig.inferenceDefaults(DataType.FLOAT32));
 
         PreparedExecutionStep step = execution.forwardSteps().stream()
-                .filter(candidate -> candidate.metadata().artifact() instanceof Cpu1PreparedArtifact artifact
+                .filter(candidate -> candidate.metadata().executable() instanceof Cpu1PreparedArtifact artifact
                         && artifact.executableUnit() instanceof Cpu1MatmulExecutableUnit)
                 .findFirst()
                 .orElseThrow();
-        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().artifact());
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, step.metadata().executable());
 
         assertEquals(Operation.OpType.LINEAR, step.compiledNode().operation().opType());
         assertEquals(1, step.orderedNodeIds().size());
@@ -202,7 +202,7 @@ final class Cpu1LinearExecutionContractTest {
         assertLinearMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1MatmulPostOp.NONE, artifact.preparedMatmulUnit().postOp());
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().get(0), inputData);
         attachNativeF32Input(context, fixture.node().inputIds().get(1), weightData);
@@ -241,7 +241,7 @@ final class Cpu1LinearExecutionContractTest {
         assertLinearMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS, artifact.preparedMatmulUnit().postOp());
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, fixture.node().inputIds().get(0), inputData);
         attachNativeF32Input(context, fixture.node().inputIds().get(1), weightData);
@@ -280,7 +280,7 @@ final class Cpu1LinearExecutionContractTest {
         assertLinearMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F64_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS, artifact.preparedMatmulUnit().postOp());
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF64Input(context, fixture.node().inputIds().get(0), inputData);
         attachNativeF64Input(context, fixture.node().inputIds().get(1), weightData);
@@ -326,11 +326,13 @@ final class Cpu1LinearExecutionContractTest {
         assertLinearMatmulKernel(artifact, Cpu1MatmulKernelId.MATMUL_F32_OPENBLAS_NATIVE_SEGMENT);
         assertEquals(Cpu1MatmulPostOp.ADD_BIAS_RELU, artifact.preparedMatmulUnit().postOp());
         assertEquals(Cpu1StorageKind.MEMORY_SEGMENT, artifact.preparedMatmulUnit().storageKind());
-        CompiledNodeExecutionMetadata metadata = new CompiledNodeExecutionMetadata(
+        PreparedStepMetadata metadata = new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 linearNode.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
         attachNativeF32Input(context, linearNode.inputIds().get(0), inputData);
@@ -421,7 +423,7 @@ final class Cpu1LinearExecutionContractTest {
         Tensor bias = new Tensor(new float[]{1.0f, -1.0f}, new int[]{2}, null, "bias", DataType.FLOAT32);
         Fixture fixture = fixture(input.linear(weight, bias));
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, Cpu1PrepareConfig.scalarSingleThread());
-        CompiledNodeExecutionMetadata metadata = metadata(fixture.node(), artifact);
+        PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
         ExecutionContext context = context(fixture, Map.of(fixture.node().id(), metadata));
 
         var trace = StepExecutionTracer.toStepTrace(
@@ -476,7 +478,7 @@ final class Cpu1LinearExecutionContractTest {
 
     private static ExecutionContext context(
             Fixture fixture,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex
+            Map<Integer, PreparedStepMetadata> metadataIndex
     ) {
         ExecutionState state = ExecutionState.create(
                 fixture.nodes(),
@@ -493,12 +495,14 @@ final class Cpu1LinearExecutionContractTest {
         );
     }
 
-    private static CompiledNodeExecutionMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
-        return new CompiledNodeExecutionMetadata(
+    private static PreparedStepMetadata metadata(CompiledNode node, Cpu1PreparedArtifact artifact) {
+        return new PreparedStepMetadata(
                 ComputeBackend.CPU,
                 null,
                 node.inputIds(),
-                artifact
+                artifact,
+                runtime.execution.InputResidencyRequirement.cpuReadableAll(),
+                runtime.execution.OutputResidencyEffect.cpuCurrentPreserveNative()
         );
     }
 

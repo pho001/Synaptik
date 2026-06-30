@@ -12,7 +12,7 @@ import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferAllocator;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.buffer.MetalDeviceToCpuMaterializer;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
 import graph.model.CompiledGradientBinding;

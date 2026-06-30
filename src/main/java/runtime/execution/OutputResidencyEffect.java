@@ -1,4 +1,4 @@
-package graph.execution.plan;
+package runtime.execution;
 
 /**
  * Backend-neutral output residency effect for a prepared execution step.

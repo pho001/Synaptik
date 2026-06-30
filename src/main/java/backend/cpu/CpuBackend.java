@@ -6,15 +6,14 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.prepare.CpuPlanAssembler;
-import backend.cpu1.prepare.Cpu1PreparedArtifact;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.model.CompiledNode;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
@@ -27,13 +26,9 @@ public final class CpuBackend {
 
     public void execute(
             CompiledNode node,
-            CompiledNodeExecutionMetadata metadata,
+            PreparedStepMetadata metadata,
             ExecutionContext executionContext
     ) {
-        if (metadata.artifact() instanceof Cpu1PreparedArtifact artifact) {
-            artifact.execute(executionContext);
-            return;
-        }
         CpuKernel kernel = cpuKernel(metadata);
         CpuNodeExecutionPlan executionPlan = cpuPlan(metadata);
         Operation op = metadata.executionOperation() != null ? metadata.executionOperation() : node.operation();
@@ -57,7 +52,7 @@ public final class CpuBackend {
                 : metadata.executionInputNodeIds();
         List<Tensor> originalInputs = resolveRuntimeInputs(effectiveInputNodeIds, executionContext);
         List<Tensor> inputs = executionPlan.apply(node.id(), originalInputs, executionContext);
-        List<CompiledNodeExecutionMetadata> inputMetadatas = resolveInputMetadatas(effectiveInputNodeIds, originalInputs, inputs, executionContext);
+        List<PreparedStepMetadata> inputMetadatas = resolveInputMetadatas(effectiveInputNodeIds, originalInputs, inputs, executionContext);
         kernelExecutor.execute(
                 kernel,
                 op,
@@ -100,7 +95,7 @@ public final class CpuBackend {
         );
     }
 
-    private static List<CompiledNodeExecutionMetadata> resolveInputMetadatas(
+    private static List<PreparedStepMetadata> resolveInputMetadatas(
             List<Integer> inputNodeIds,
             List<Tensor> originalInputs,
             List<Tensor> runtimeInputs,
@@ -109,7 +104,7 @@ public final class CpuBackend {
         if (runtimeInputs == null || runtimeInputs.isEmpty()) {
             return List.of();
         }
-        List<CompiledNodeExecutionMetadata> out = new ArrayList<>(runtimeInputs.size());
+        List<PreparedStepMetadata> out = new ArrayList<>(runtimeInputs.size());
         for (int i = 0; i < runtimeInputs.size(); i++) {
             Tensor runtime = runtimeInputs.get(i);
             Tensor original = (originalInputs != null && i < originalInputs.size()) ? originalInputs.get(i) : null;
@@ -136,21 +131,21 @@ public final class CpuBackend {
         return out;
     }
 
-    private static CpuKernel cpuKernel(CompiledNodeExecutionMetadata metadata) {
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+    private static CpuKernel cpuKernel(PreparedStepMetadata metadata) {
+        if (metadata.executable() instanceof CpuNodeExecutionArtifact artifact) {
             return artifact.cpuKernel();
         }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuFusedExecutionArtifact artifact) {
             return artifact.cpuKernel();
         }
         return null;
     }
 
-    private static CpuNodeExecutionPlan cpuPlan(CompiledNodeExecutionMetadata metadata) {
-        if (metadata.artifact() instanceof CpuNodeExecutionArtifact artifact) {
+    private static CpuNodeExecutionPlan cpuPlan(PreparedStepMetadata metadata) {
+        if (metadata.executable() instanceof CpuNodeExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
-        if (metadata.artifact() instanceof CpuFusedExecutionArtifact artifact) {
+        if (metadata.executable() instanceof CpuFusedExecutionArtifact artifact) {
             return artifact.cpuPlan();
         }
         return null;

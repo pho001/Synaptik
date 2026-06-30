@@ -1,7 +1,7 @@
 package graph.execution;
 
 import runtime.memory.nativecpu.NativeCpuMemoryPool;
-import backend.runtime.ExecutionContext;
+import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledGradientBinding;
@@ -9,11 +9,11 @@ import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.memory.MemoryPlan;
 import graph.compile.publication.PublicationPlan;
-import graph.execution.plan.CompiledNodeExecutionMetadata;
+import runtime.execution.PreparedStepMetadata;
 import graph.execution.publication.ExecutionPublisher;
 import graph.execution.residency.RuntimeMemoryBinder;
 import graph.execution.runner.PreparedExecutionRunner;
-import graph.execution.state.ExecutionState;
+import runtime.execution.ExecutionState;
 import trace.execution.ExecutionStepTrace;
 import trace.execution.RunTrace;
 import tensor.Tensor;
@@ -39,7 +39,7 @@ final class ExecutionRun {
     private final List<PreparedExecutionStep> forwardSteps;
     private final List<CompiledNode> allNodes;
     private final CompiledTensorDescriptorIndex descriptorIndex;
-    private final Map<Integer, CompiledNodeExecutionMetadata> metadataIndex;
+    private final Map<Integer, PreparedStepMetadata> metadataIndex;
     private final CompiledNode forwardOutputNode;
     private final PublicationPlan publicationPlan;
     private final MemoryPlan memoryPlan;
@@ -56,7 +56,7 @@ final class ExecutionRun {
             List<PreparedExecutionStep> forwardSteps,
             List<CompiledNode> allNodes,
             CompiledTensorDescriptorIndex descriptorIndex,
-            Map<Integer, CompiledNodeExecutionMetadata> metadataIndex,
+            Map<Integer, PreparedStepMetadata> metadataIndex,
             CompiledNode forwardOutputNode,
             PublicationPlan publicationPlan,
             MemoryPlan memoryPlan,

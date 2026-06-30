@@ -36,9 +36,6 @@ public final class Cpu1ScratchBuffer {
         if (spec == null) {
             throw new IllegalArgumentException("spec cannot be null");
         }
-        if (spec.isEmpty()) {
-            throw new IllegalArgumentException("Cannot allocate empty cpu1 scratch buffer.");
-        }
         return new Cpu1ScratchBuffer(
                 spec,
                 spec.f32ArrayElements() == 0 ? null : new float[spec.f32ArrayElements()],

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>The allocation owns its {@link Arena}; closing the allocation releases every segment allocated from
  * that arena. Instances are idempotent {@link ExecutionResource}s so they can be registered with
- * {@link graph.execution.state.ExecutionState} and closed from a {@code finally} block.</p>
+ * {@link runtime.execution.ExecutionState} and closed from a {@code finally} block.</p>
  */
 public final class NativeCpuAllocation implements NativeMemoryAllocation {
     private final Arena arena;
