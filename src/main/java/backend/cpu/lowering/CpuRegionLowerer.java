@@ -24,9 +24,9 @@ import backend.lowering.region.RegionNodePlan;
 import backend.lowering.region.RegionRole;
 import backend.lowering.region.RegionStorageContract;
 import graph.model.CompiledNode;
-import graph.compile.planning.region.ExecutionUnit;
-import graph.compile.planning.region.ExecutionUnitKind;
-import graph.compile.planning.value.GraphValueRef;
+import planning.region.ExecutionUnit;
+import planning.region.ExecutionUnitKind;
+import planning.value.GraphValueRef;
 import operations.Operation;
 
 import java.util.ArrayList;
@@ -35,7 +35,7 @@ import java.util.List;
 public final class CpuRegionLowerer implements RegionLowerer {
     @Override
     public LoweringResult lower(LoweringRequest request) {
-        if (request == null || request.region().target() != graph.compile.planning.partition.PartitionTarget.CPU) {
+        if (request == null || request.region().target() != planning.partition.PartitionTarget.CPU) {
             return null;
         }
         if (!request.capabilities().supports(ComputeBackend.CPU)) {
@@ -148,7 +148,7 @@ public final class CpuRegionLowerer implements RegionLowerer {
         );
         return new RegionExecutionPlan(
                 request.region().regionId() + "/" + unit.unitId(),
-                graph.compile.planning.partition.PartitionTarget.CPU,
+                planning.partition.PartitionTarget.CPU,
                 family,
                 anchorNodeId,
                 orderedNodeIds,

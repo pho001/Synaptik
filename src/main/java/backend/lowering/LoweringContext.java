@@ -2,9 +2,9 @@ package backend.lowering;
 
 import graph.model.CompiledNode;
 import config.runtime.RuntimeConfig;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.partition.PartitionPlan;
 
 import java.util.List;
 import java.util.Map;

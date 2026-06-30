@@ -19,7 +19,7 @@ import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.prepare.BackendPrepareContext;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;

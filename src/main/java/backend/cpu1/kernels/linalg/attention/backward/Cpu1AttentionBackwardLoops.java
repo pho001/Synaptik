@@ -9,7 +9,7 @@ import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import backend.runtime.ExecutionContext;
-import graph.compile.planning.region.specialization.SdpaBackwardOutputKind;
+import planning.region.specialization.SdpaBackwardOutputKind;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;

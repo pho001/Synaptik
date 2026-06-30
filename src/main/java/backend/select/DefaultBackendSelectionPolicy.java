@@ -2,6 +2,7 @@ package backend.select;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.AcceleratorPartitionPlan;
 import backend.accelerator.select.AcceleratorPlanCostModel;
 import backend.accelerator.select.AcceleratorRuntimeAvailability;
 import config.runtime.RuntimeConfig;
@@ -9,9 +10,9 @@ import trace.prepare.BackendSelectionDecisionTrace;
 import trace.prepare.BackendSelectionTrace;
 import trace.prepare.GpuLoweredRegionTrace;
 import trace.compile.MaterializationCostTrace;
-import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PlannedPartition;
+import planning.partition.cost.AcceleratorPartitionScoreModel;
+import planning.partition.PartitionPlan;
+import planning.partition.PlannedPartition;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -127,7 +128,9 @@ public final class DefaultBackendSelectionPolicy implements BackendSelectionPoli
                         plan.estimatedWork(),
                         traceCost(decision.costSummary()),
                         List.of(),
-                        traceManifest(plan.gpuLoweredRegionManifest())
+                        traceManifest(plan instanceof AcceleratorPartitionPlan acceleratorPlan
+                                ? acceleratorPlan.gpuLoweredRegionManifest()
+                                : null)
                 ));
             } else {
                 decisions.add(new BackendSelectionDecisionTrace(

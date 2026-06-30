@@ -1,7 +1,7 @@
 package backend.metal.lowering;
 
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.loss.crossEntropyLoss;
 import operations.loss.crossEntropyLossIndices;

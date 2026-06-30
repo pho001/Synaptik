@@ -7,14 +7,15 @@ import backend.cpu.partition.CpuBackendPartitionCapability;
 import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
 import backend.cuda.lowering.CudaRegionLowerer;
 import backend.lowering.RegionLowerer;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.BackendPartitionCapability;
-import graph.compile.planning.partition.UnsupportedBackendPartitionCapability;
+import planning.partition.BackendPartitionCapability;
+import planning.backend.BackendPartitionCapabilityRegistry;
+import planning.partition.PartitionTarget;
+import planning.partition.UnsupportedBackendPartitionCapability;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public final class BackendPartitionDescriptorRegistry {
+public final class BackendPartitionDescriptorRegistry implements BackendPartitionCapabilityRegistry {
     private static final BackendPartitionDescriptorRegistry DEFAULTS = new BackendPartitionDescriptorRegistry(List.of(
             descriptor(PartitionTarget.CPU, CpuBackendPartitionCapability::new, List.of(CpuRegionLowerer::new)),
             descriptor(PartitionTarget.GPU_METAL, MetalBackendPartitionCapability::new, List.of(MetalRegionLowerer::new)),
@@ -41,6 +42,7 @@ public final class BackendPartitionDescriptorRegistry {
         return descriptor(resolved, () -> new UnsupportedBackendPartitionCapability(resolved), List.of());
     }
 
+    @Override
     public BackendPartitionCapability partitionCapabilityFor(PartitionTarget target) {
         return descriptorFor(target).partitionCapability();
     }

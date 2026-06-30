@@ -5,7 +5,7 @@ import backend.cpu.plan.CpuComputeDType;
 import backend.cpu.plan.CpuExecutionBackend;
 import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;

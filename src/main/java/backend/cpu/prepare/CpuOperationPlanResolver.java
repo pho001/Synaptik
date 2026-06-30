@@ -9,8 +9,8 @@ import backend.cpu.kernels.reduction.ReductionLogicalSize;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 
 import java.util.List;

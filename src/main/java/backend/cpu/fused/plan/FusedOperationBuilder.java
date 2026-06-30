@@ -9,7 +9,7 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.LinkedHashSet;
 import java.util.List;

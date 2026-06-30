@@ -1,6 +1,6 @@
 package backend.cpu.prepare.layout;
 
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 import backend.cpu.plan.layout.ResolvedBroadcastPlan;
 import backend.cpu.plan.layout.ResolvedWhereBroadcastPlan;
 import operations.Operation;

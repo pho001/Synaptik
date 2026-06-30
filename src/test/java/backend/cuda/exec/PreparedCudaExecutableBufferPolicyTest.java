@@ -1,7 +1,7 @@
 package backend.cuda.exec;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 
 import backend.accelerator.buffer.AcceleratorBufferAccessMode;
 import backend.accelerator.buffer.AcceleratorBufferLayout;

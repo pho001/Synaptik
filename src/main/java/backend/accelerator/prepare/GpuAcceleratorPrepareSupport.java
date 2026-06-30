@@ -11,7 +11,7 @@ import backend.lowering.LoweringFamily;
 import backend.prepare.BackendPrepareContext;
 import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.partition.PartitionPlan;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -6,8 +6,8 @@ import operations.elementwise.unary.clampMin;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import tensor.DataType;
 
 import java.util.ArrayList;

@@ -12,12 +12,12 @@ import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import config.backend.CpuKernelConfig;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.planning.region.specialization.RegionSpecializationCandidate;
-import graph.compile.planning.region.specialization.RegionSpecializationKind;
-import graph.compile.planning.region.specialization.SdpaBackwardOutputKind;
-import graph.compile.planning.region.specialization.SdpaBackwardSpecializationPayload;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.region.specialization.RegionSpecializationCandidate;
+import planning.region.specialization.RegionSpecializationKind;
+import planning.region.specialization.SdpaBackwardOutputKind;
+import planning.region.specialization.SdpaBackwardSpecializationPayload;
 import tensor.DataType;
 
 import java.util.Arrays;

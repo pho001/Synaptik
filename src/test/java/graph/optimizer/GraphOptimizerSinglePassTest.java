@@ -2,7 +2,7 @@ package graph.optimizer;
 
 import config.compile.CompileConfig;
 import graph.CompiledGraph;
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionTarget;
 import graph.optimizer.state.OptimizerState;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
@@ -43,9 +43,9 @@ public class GraphOptimizerSinglePassTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(1, compiled.program().partitions().size());
-        assertEquals(1, compiled.program().optimizedRegions().size());
+        assertEquals(1, compiled.program().plannedRegions().size());
         assertEquals(PartitionTarget.CPU, compiled.program().partitions().getFirst().target());
-        assertEquals(1, compiled.program().memoryPlan().structuralView().optimizedRegionIds().size());
+        assertEquals(1, compiled.program().memoryPlan().structuralView().plannedRegionIds().size());
     }
 
     private static List<Tensor> buildGraph() {

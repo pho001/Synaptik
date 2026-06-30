@@ -1,6 +1,6 @@
 package graph.compile;
 
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 import graph.model.AliasViewPolicy;
 import graph.model.CompiledNode;
 import graph.model.CompiledTensorDataSnapshot;

@@ -1,7 +1,7 @@
 package backend.metal.lowering;
 
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.nn.conv.conv2d;
 import operations.nn.pool.avgPool2d;

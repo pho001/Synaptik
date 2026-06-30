@@ -1,7 +1,7 @@
 package backend.lowering.region;
 
 import backend.lowering.LoweringFamily;
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
 import tensor.DataType;

@@ -3,9 +3,9 @@ package graph.compile;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import config.compile.CompileConfig;
 import graph.compile.canonical.SemanticForwardCanonicalizer;
-import graph.compile.intent.BackendIntentPlan;
-import graph.compile.planning.BackendPlanningJobResolver;
-import graph.compile.planning.BackendPlanningService;
+import planning.intent.BackendIntentPlan;
+import planning.backend.BackendPlanningJobResolver;
+import planning.backend.BackendPlanningService;
 import graph.compile.session.CompileSession;
 import trace.compile.CompileTrace;
 import graph.optimizer.GraphOptimizer;
@@ -141,10 +141,7 @@ public final class GraphCompiler {
         this.backendPartitionDescriptors = backendPartitionDescriptors == null
                 ? BackendPartitionDescriptorRegistry.defaults()
                 : backendPartitionDescriptors;
-        this.backendPlanningService = new BackendPlanningService(
-                new BackendPlanningJobResolver(),
-                this.backendPartitionDescriptors
-        );
+        this.backendPlanningService = new BackendPlanningService(new BackendPlanningJobResolver());
     }
 
     /**

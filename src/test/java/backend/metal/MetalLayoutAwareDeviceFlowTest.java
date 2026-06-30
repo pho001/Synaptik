@@ -25,7 +25,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Map;

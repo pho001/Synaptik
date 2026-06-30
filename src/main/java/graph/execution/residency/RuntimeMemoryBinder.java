@@ -1,9 +1,9 @@
 package graph.execution.residency;
 
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.memory.RegionMemoryBinding;
-import graph.compile.planning.memory.RegionMemoryBindingKind;
-import graph.compile.planning.value.GraphValueRef;
+import planning.memory.MemoryPlan;
+import planning.memory.RegionMemoryBinding;
+import planning.memory.RegionMemoryBindingKind;
+import planning.value.GraphValueRef;
 import graph.execution.state.ExecutionState;
 import graph.execution.state.RuntimeStorageSlotKey;
 import graph.model.CompiledNode;

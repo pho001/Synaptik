@@ -105,9 +105,9 @@ public class SourceTreeHygieneTest {
                     .flatMap(path -> {
                         try {
                             return Files.readAllLines(path).stream()
-                                    .filter(line -> line.contains("graph.compile.planning.memory.MemoryPlanner")
-                                            || line.contains("graph.compile.planning.region.DefaultRegionOptimizer")
-                                            || line.contains("graph.compile.planning.region.RegionOptimizationContext"))
+                                    .filter(line -> line.contains("planning.memory.MemoryPlanner")
+                                            || line.contains("planning.region.DefaultRegionPlanner")
+                                            || line.contains("planning.region.RegionPlanningContext"))
                                     .map(line -> path + ": " + line.trim());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -130,23 +130,23 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void graphPartitionPackageDoesNotOwnConcreteCpuBackendCode() throws IOException {
-        assertGraphPartitionBackendPackageAbsent("cpu", "CPU backend partition code belongs under backend.cpu.partition");
+    void planningPartitionPackageDoesNotOwnConcreteCpuBackendCode() throws IOException {
+        assertPlanningPartitionBackendPackageAbsent("cpu", "CPU backend partition code belongs under backend.cpu.partition");
     }
 
     @Test
-    void graphPartitionPackageDoesNotOwnConcreteCudaBackendCode() throws IOException {
-        assertGraphPartitionBackendPackageAbsent("cuda", "CUDA backend partition code belongs under backend.cuda.lowering");
+    void planningPartitionPackageDoesNotOwnConcreteCudaBackendCode() throws IOException {
+        assertPlanningPartitionBackendPackageAbsent("cuda", "CUDA backend partition code belongs under backend.cuda.lowering");
     }
 
     @Test
-    void graphPartitionPackageDoesNotOwnConcreteAppleBackendCode() throws IOException {
-        assertGraphPartitionBackendPackageAbsent("apple", "Metal backend partition code belongs under backend.metal.lowering");
+    void planningPartitionPackageDoesNotOwnConcreteAppleBackendCode() throws IOException {
+        assertPlanningPartitionBackendPackageAbsent("apple", "Metal backend partition code belongs under backend.metal.lowering");
     }
 
     @Test
-    void graphPartitionPackageDoesNotOwnAcceleratorDagModelCode() throws IOException {
-        assertGraphPartitionBackendPackageAbsent("model", "Accelerator DAG model belongs under backend.accelerator.dag");
+    void planningPartitionPackageDoesNotOwnAcceleratorDagModelCode() throws IOException {
+        assertPlanningPartitionBackendPackageAbsent("model", "Accelerator DAG model belongs under backend.accelerator.dag");
     }
 
     @Test
@@ -186,12 +186,12 @@ public class SourceTreeHygieneTest {
                 .map(Path::toString)
                 .sorted()
                 .toList();
-        assertTrue(offenders.isEmpty(), () -> "compile-planning value references belong under graph.compile.planning.value: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "compile-planning value references belong under planning.value: " + offenders);
     }
 
     @Test
-    void graphPartitionPackageDoesNotImportConcreteBackendImplementations() throws IOException {
-        Path root = Path.of("src/main/java/graph/compile/planning/partition");
+    void planningPartitionPackageDoesNotImportConcreteBackendImplementations() throws IOException {
+        Path root = Path.of("src/main/java/planning/partition");
         try (Stream<Path> paths = Files.walk(root)) {
             List<String> offenders = paths
                     .filter(Files::isRegularFile)
@@ -210,7 +210,7 @@ public class SourceTreeHygieneTest {
                     })
                     .sorted()
                     .toList();
-            assertTrue(offenders.isEmpty(), () -> "graph.compile.planning.partition imports concrete backend implementations: " + offenders);
+            assertTrue(offenders.isEmpty(), () -> "planning.partition imports concrete backend implementations: " + offenders);
         }
     }
 
@@ -788,7 +788,7 @@ public class SourceTreeHygieneTest {
     void tensorOpsDoNotImportBackendOrCompileIntent() throws IOException {
         List<String> offenders = linesContainingAny(
                 Path.of("src/main/java/tensor/ops"),
-                List.of("import backend.", "import graph.compile.intent.")
+                List.of("import backend.", "import planning.intent.")
         );
         assertTrue(offenders.isEmpty(), () -> "tensor.ops must stay semantic and backend-neutral: " + offenders);
     }
@@ -976,20 +976,20 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void defaultRegionOptimizerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
-        Path optimizer = Path.of("src/main/java/graph/compile/planning/region/DefaultRegionOptimizer.java");
-        String source = Files.readString(optimizer);
-        assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuRegionOptimizationPolicy.");
-        assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside DefaultRegionOptimizer.");
-        assertTrue(!source.contains("isSubchainFusable"), "CPU subchain fusion checks belong outside DefaultRegionOptimizer.");
-        assertTrue(!source.contains("consumesUnitOutput"), "CPU subchain traversal belongs outside DefaultRegionOptimizer.");
+    void defaultRegionPlannerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
+        Path planner = Path.of("src/main/java/planning/region/DefaultRegionPlanner.java");
+        String source = Files.readString(planner);
+        assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuRegionPlanningPolicy.");
+        assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside DefaultRegionPlanner.");
+        assertTrue(!source.contains("isSubchainFusable"), "CPU subchain fusion checks belong outside DefaultRegionPlanner.");
+        assertTrue(!source.contains("consumesUnitOutput"), "CPU subchain traversal belongs outside DefaultRegionPlanner.");
     }
 
     @Test
-    void regionOptimizerDoesNotOwnBackendLoweringPolicy() throws IOException {
-        Path regionRoot = Path.of("src/main/java/graph/compile/planning/region");
+    void regionPlannerDoesNotOwnBackendLoweringPolicy() throws IOException {
+        Path regionRoot = Path.of("src/main/java/planning/region");
         assertTrue(!Files.exists(regionRoot.resolve("RegionOptimizationPolicy.java")),
-                "Region optimizer should not keep an extra policy abstraction layer.");
+                "Region planner should not keep an extra policy abstraction layer.");
         assertTrue(!Files.exists(regionRoot.resolve("GenericGpuRegionOptimizationPolicy.java")),
                 "Generic GPU policy should be expressed as backend-neutral structural region planning.");
         List<String> offenders = linesContainingAny(
@@ -1003,7 +1003,7 @@ public class SourceTreeHygieneTest {
                         "CUDA_GRAPH"
                 )
         );
-        assertTrue(offenders.isEmpty(), () -> "Region optimizer must stay backend-lowering neutral: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "Region planner must stay backend-lowering neutral: " + offenders);
     }
 
     @Test
@@ -1016,7 +1016,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void regionOptimizationRuleAdapterIsRemoved() {
-        Path rule = Path.of("src/main/java/graph/compile/planning/region/RegionOptimizationRule.java");
+        Path rule = Path.of("src/main/java/planning/region/RegionOptimizationRule.java");
         assertTrue(!Files.exists(rule), "Region optimization is a compile-planning service, not an optimizer rule adapter.");
     }
 
@@ -1033,7 +1033,7 @@ public class SourceTreeHygieneTest {
         Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);
         assertTrue(!source.contains("MemoryPlanner"), "prepare must consume compile artifacts instead of rebuilding memory plans.");
-        assertTrue(!source.contains("DefaultRegionOptimizer"), "prepare must consume compile artifacts instead of rebuilding optimized regions.");
+        assertTrue(!source.contains("DefaultRegionPlanner"), "prepare must consume compile artifacts instead of rebuilding planned regions.");
         assertTrue(source.contains("loweringInput"), "prepare must rely on CompileArtifacts lowering input contract.");
     }
 
@@ -1113,13 +1113,13 @@ public class SourceTreeHygieneTest {
 
     @Test
     void maxRegionPartitionPlannerIsSingleAlgorithmWithSeedOrdering() throws IOException {
-        assertTrue(Files.exists(Path.of("src/main/java/graph/compile/planning/partition/MaxRegionPartitionPlanner.java")),
+        assertTrue(Files.exists(Path.of("src/main/java/planning/partition/MaxRegionPartitionPlanner.java")),
                 "Max-region planning should use one concrete planner.");
-        assertTrue(!Files.exists(Path.of("src/main/java/graph/compile/planning/partition/GreedyMaxRegionPartitionPlanner.java")),
+        assertTrue(!Files.exists(Path.of("src/main/java/planning/partition/GreedyMaxRegionPartitionPlanner.java")),
                 "Node-order max-region planning must not keep a duplicate planner class.");
-        assertTrue(!Files.exists(Path.of("src/main/java/graph/compile/planning/partition/AnchorBasedPartitionPlanner.java")),
+        assertTrue(!Files.exists(Path.of("src/main/java/planning/partition/AnchorBasedPartitionPlanner.java")),
                 "Anchor-first max-region planning must not keep a duplicate planner class.");
-        String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/MaxRegionPartitionPlanner.java"));
+        String source = Files.readString(Path.of("src/main/java/planning/partition/MaxRegionPartitionPlanner.java"));
         assertTrue(source.contains("enum SeedOrdering"), "The max-region planner should express mode differences through seed ordering.");
         assertTrue(source.contains(".partitionPriority("), "Backend-specific partition priority must come from backend capability.");
         assertTrue(!source.contains("Operation.OpType"), "Max-region traversal must not hardcode backend operation-family priorities.");
@@ -1127,12 +1127,12 @@ public class SourceTreeHygieneTest {
 
     @Test
     void partitionPlanningRequestUsesBackendCapabilityAndNeutralCostPreset() throws IOException {
-        String source = Files.readString(Path.of("src/main/java/graph/compile/planning/partition/PartitionPlanningRequest.java"));
+        String source = Files.readString(Path.of("src/main/java/planning/partition/PartitionPlanningRequest.java"));
         assertTrue(source.contains("BackendPartitionCapability"), "Partition planning must consume backend capability directly.");
         assertTrue(source.contains("StaticCostPreset"), "Partition planning cost input must stay backend-neutral.");
-        assertTrue(!source.contains("RegionLegalityAdapter"), "Graph partition planning must not depend on adapter contracts.");
-        assertTrue(!source.contains("TransferCostPreset"), "Graph partition planning request must not own profile cost preset details.");
-        assertTrue(!source.contains("transferCostPreset"), "Graph partition planning request must not expose profile cost preset fields.");
+        assertTrue(!source.contains("RegionLegalityAdapter"), "Partition planning must not depend on adapter contracts.");
+        assertTrue(!source.contains("TransferCostPreset"), "Partition planning request must not own profile cost preset details.");
+        assertTrue(!source.contains("transferCostPreset"), "Partition planning request must not expose profile cost preset fields.");
     }
 
     @Test
@@ -1163,7 +1163,7 @@ public class SourceTreeHygieneTest {
     @Test
     void productionPartitionContractsDoNotUseLegalityAdapters() throws IOException {
         List<String> offenders = sourceLinesContaining(
-                List.of(Path.of("src/main/java/backend/partition"), Path.of("src/main/java/graph/compile/planning/partition")),
+                List.of(Path.of("src/main/java/backend/partition"), Path.of("src/main/java/planning/partition")),
                 List.of("RegionLegalityAdapter", "legalityAdapter")
         );
         assertTrue(offenders.isEmpty(), () -> "Partition ownership must use backend capabilities, not adapters: " + offenders);
@@ -1570,7 +1570,7 @@ public class SourceTreeHygieneTest {
         assertTrue(!source.contains(".append("), "Benchmark CLI must not append benchmark output to persistent history.");
     }
 
-    private static void assertGraphPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
+    private static void assertPlanningPartitionBackendPackageAbsent(String packageName, String message) throws IOException {
         List<Path> roots = List.of(Path.of("src/main/java"), Path.of("src/test/java"));
         try (Stream<Path> paths = roots.stream()
                 .filter(Files::exists)
@@ -1584,7 +1584,7 @@ public class SourceTreeHygieneTest {
             List<String> offenders = paths
                     .filter(Files::isRegularFile)
                     .filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> path.toString().contains("graph/compile/planning/partition/" + packageName))
+                    .filter(path -> path.toString().contains("planning/partition/" + packageName))
                     .map(Path::toString)
                     .sorted()
                     .toList();

@@ -3,7 +3,7 @@ package backend.cuda.lowering;
 
 import backend.cuda.CudaDTypeRolePolicy;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gather;
 import operations.index.takeAlongAxis;

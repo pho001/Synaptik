@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <p>A rule receives an {@link OptimizerState} and must return a non-null state. Rules may rewrite the tensor graph,
  * update graph-level compile metadata, or add trace data. Backend ownership, region planning, and memory planning live
- * in {@code graph.compile.planning}; optimizer rules should not attach compile-planning artifacts.
+ * in {@code planning.backend}; optimizer rules should not attach compile-planning artifacts.
  *
  * <p>Rules are expected to be deterministic for the same input graph and configuration. Implementations that keep
  * diagnostic state should document their thread-safety separately.

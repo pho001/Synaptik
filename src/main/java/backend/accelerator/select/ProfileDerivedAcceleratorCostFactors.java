@@ -2,7 +2,7 @@ package backend.accelerator.select;
 
 import backend.contract.ComputeBackend;
 import config.runtime.RuntimeConfig;
-import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
+import planning.partition.cost.AcceleratorPartitionScoreModel;
 
 public record ProfileDerivedAcceleratorCostFactors(
         String presetName,

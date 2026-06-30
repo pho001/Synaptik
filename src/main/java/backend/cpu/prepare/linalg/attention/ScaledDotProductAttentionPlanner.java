@@ -8,8 +8,8 @@ import backend.cpu.plan.ResolvedCpuComputeContract;
 import backend.cpu.plan.linalg.attention.ResolvedScaledDotProductAttentionPlan;
 import backend.cpu.prepare.reduction.ReductionPlanner;
 import config.runtime.BlasConfig;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 import tensor.DataType;
 

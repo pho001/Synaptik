@@ -1,8 +1,8 @@
 package backend.cuda.lowering;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.GpuCompoundLoweringArtifact;
@@ -20,15 +20,15 @@ import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import trace.compile.PartitionDecisionTrace;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionBoundaryReason;
-import graph.compile.planning.partition.PartitionEdge;
-import graph.compile.planning.partition.PartitionPlannerStrategy;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.PartitionValue;
-import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.memory.MemoryPlanner;
+import planning.partition.Partition;
+import planning.partition.PartitionBoundaryReason;
+import planning.partition.PartitionEdge;
+import planning.partition.PartitionPlannerStrategy;
+import planning.partition.PartitionTarget;
+import planning.partition.PartitionValue;
+import planning.value.GraphValueRef;
+import planning.partition.PartitionPlanningContext;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -36,10 +36,10 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
-import graph.compile.planning.region.DefaultRegionOptimizer;
-import graph.compile.planning.region.ExecutionUnitKind;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.planning.region.RegionOptimizationContext;
+import planning.region.DefaultRegionPlanner;
+import planning.region.ExecutionUnitKind;
+import planning.region.PlannedRegion;
+import planning.region.RegionPlanningContext;
 import operations.Operation;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
@@ -111,9 +111,9 @@ class CudaRegionLowererTest {
                 candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 List.of(GraphValueRef.node(reluNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
                 region,
@@ -181,9 +181,9 @@ class CudaRegionLowererTest {
                 candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 List.of(GraphValueRef.node(expNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
 
         LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
@@ -982,9 +982,9 @@ class CudaRegionLowererTest {
                 List.of(GraphValueRef.node(4)),
                 List.of(GraphValueRef.node(4))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         CudaGpuPartitionPlan plan = new CudaGpuPartitionPlan(
                 4,
@@ -1075,9 +1075,9 @@ class CudaRegionLowererTest {
                 candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 List.of(GraphValueRef.node(expNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         LoweringResult result = new CudaRegionLowerer().lower(new LoweringRequest(
                 region,
@@ -1185,7 +1185,7 @@ class CudaRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),

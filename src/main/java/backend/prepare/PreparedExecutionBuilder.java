@@ -18,8 +18,8 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
 import trace.prepare.PrepareTrace;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PlannedPartition;
+import planning.partition.PartitionPlan;
+import planning.partition.PlannedPartition;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -287,7 +287,7 @@ public final class PreparedExecutionBuilder {
             BackendSelectionResult selection,
             LoweringInput loweringInput
     ) {
-        if (loweringInput == null || loweringInput.optimizedRegions().isEmpty() || loweringInput.memoryPlan() == null) {
+        if (loweringInput == null || loweringInput.plannedRegions().isEmpty() || loweringInput.memoryPlan() == null) {
             return;
         }
         LoweringPipeline pipeline = new LoweringPipeline(BackendPartitionDescriptorRegistry.defaults().lowerers());

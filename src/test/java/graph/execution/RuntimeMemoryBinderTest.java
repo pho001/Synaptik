@@ -1,8 +1,8 @@
 package graph.execution;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import runtime.contract.ExecutionMode;
@@ -17,16 +17,16 @@ import graph.execution.state.ExecutionState;
 import graph.execution.state.RuntimeStorageKind;
 import graph.execution.state.RuntimeStorageSlotKey;
 import graph.execution.state.RuntimeStorageSlotScope;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.memory.MemoryPlanSummary;
-import graph.compile.planning.memory.MemoryPlannerPolicy;
-import graph.compile.planning.memory.RegionMemoryBinding;
-import graph.compile.planning.memory.RegionMemoryBindingKind;
-import graph.compile.planning.memory.RegionMemoryPlan;
-import graph.compile.planning.memory.RuntimeBindingPlan;
-import graph.compile.planning.memory.StructuralMemoryView;
-import graph.compile.planning.memory.TensorMemoryPlan;
-import graph.compile.planning.value.GraphValueRef;
+import planning.memory.MemoryPlan;
+import planning.memory.MemoryPlanSummary;
+import planning.memory.MemoryPlannerPolicy;
+import planning.memory.RegionMemoryBinding;
+import planning.memory.RegionMemoryBindingKind;
+import planning.memory.RegionMemoryPlan;
+import planning.memory.RuntimeBindingPlan;
+import planning.memory.StructuralMemoryView;
+import planning.memory.TensorMemoryPlan;
+import planning.value.GraphValueRef;
 import operations.Operation;
 import operations.layout.noop;
 import org.junit.jupiter.api.Test;

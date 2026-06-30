@@ -7,7 +7,7 @@ import operations.Operation;
 import tensor.Tensor;
 import tensor.DataType;
 import tensor.internal.TensorPrimitiveBuilder;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

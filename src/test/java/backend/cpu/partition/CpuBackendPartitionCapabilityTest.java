@@ -1,13 +1,13 @@
 package backend.cpu.partition;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

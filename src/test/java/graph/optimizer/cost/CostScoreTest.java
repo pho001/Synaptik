@@ -1,7 +1,7 @@
 package graph.optimizer.cost;
 
 import graph.optimizer.simplify.GraphOptimizationScore;
-import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
+import planning.partition.cost.AcceleratorPartitionScoreModel;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

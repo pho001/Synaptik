@@ -42,6 +42,40 @@ public class PackageOwnershipBoundaryTest {
     }
 
     @Test
+    void planningDoesNotDependOnCompileRuntimeOrConcreteBackends() throws IOException {
+        assertNoImports(
+                "planning",
+                importedType -> startsWithAny(importedType, List.of(
+                        "graph.CompiledGraph",
+                        "graph.compile.",
+                        "prepare.",
+                        "runtime.",
+                        "backend.cpu.",
+                        "backend.cpu1.",
+                        "backend.metal.",
+                        "backend.cuda.",
+                        "backend.opencl.",
+                        "backend.accelerator.",
+                        "backend.partition.",
+                        "backend.lowering."
+                )),
+                "planning must not depend on graph compile orchestration, prepare, runtime, or concrete backends"
+        );
+    }
+
+    @Test
+    void legacyCompilePlanningTreesAreRemoved() {
+        List<Path> legacyTrees = List.of(
+                MAIN.resolve("graph/compile/descriptor"),
+                MAIN.resolve("graph/compile/intent"),
+                MAIN.resolve("graph/compile/planning")
+        );
+        assertTrue(legacyTrees.stream().noneMatch(Files::exists),
+                () -> "legacy compile planning trees remain: "
+                        + legacyTrees.stream().filter(Files::exists).toList());
+    }
+
+    @Test
     void graphOptimizerDoesNotDependOnConcreteBackendKernelPackages() throws IOException {
         List<String> concreteBackends = List.of(
                 "backend.cpu.",

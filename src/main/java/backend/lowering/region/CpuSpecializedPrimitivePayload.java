@@ -1,7 +1,7 @@
 package backend.lowering.region;
 
-import graph.compile.planning.region.specialization.RegionSpecializationCandidate;
-import graph.compile.planning.region.specialization.RegionSpecializationKind;
+import planning.region.specialization.RegionSpecializationCandidate;
+import planning.region.specialization.RegionSpecializationKind;
 
 import java.util.Objects;
 

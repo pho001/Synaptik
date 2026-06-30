@@ -16,8 +16,8 @@ import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.MatMulProviderExecutableFactory;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
 
 import java.util.List;

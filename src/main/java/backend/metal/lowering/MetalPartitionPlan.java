@@ -4,7 +4,7 @@ import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorMatMulSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import graph.compile.planning.partition.PartitionPlan;
+import backend.accelerator.lowering.AcceleratorPartitionPlan;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 
 import java.util.List;
@@ -21,7 +21,7 @@ public record MetalPartitionPlan(
         int anchorNodeId,
         AcceleratorSubgraphSpec subgraph,
         AcceleratorSubgraphLoweringResult lowering
-) implements PartitionPlan {
+) implements AcceleratorPartitionPlan {
     public MetalPartitionPlan {
         Objects.requireNonNull(subgraph, "subgraph cannot be null");
         Objects.requireNonNull(lowering, "lowering cannot be null");

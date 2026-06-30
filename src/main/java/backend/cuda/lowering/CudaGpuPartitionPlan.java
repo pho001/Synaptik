@@ -6,7 +6,7 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
 import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import graph.compile.planning.partition.PartitionPlan;
+import backend.accelerator.lowering.AcceleratorPartitionPlan;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import tensor.DataType;
@@ -32,7 +32,7 @@ public record CudaGpuPartitionPlan(
         long estimatedWork,
         GpuCompoundRegionSummary compoundSummary,
         GpuLoweredRegionManifest manifest
-) implements PartitionPlan {
+) implements AcceleratorPartitionPlan {
     public CudaGpuPartitionPlan {
         Objects.requireNonNull(subgraph, "subgraph cannot be null");
         Objects.requireNonNull(dagSpec, "dagSpec cannot be null");

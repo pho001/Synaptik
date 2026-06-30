@@ -2,14 +2,14 @@ package backend.cpu.fused.ir;
 
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.unary.mulScalar;
 import operations.elementwise.unary.pow;
 import operations.elementwise.binary.powTensor;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

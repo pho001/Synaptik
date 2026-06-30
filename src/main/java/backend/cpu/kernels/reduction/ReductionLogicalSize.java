@@ -1,6 +1,6 @@
 package backend.cpu.kernels.reduction;
 
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 

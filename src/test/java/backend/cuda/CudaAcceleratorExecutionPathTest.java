@@ -11,7 +11,7 @@ import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;

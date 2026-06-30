@@ -21,10 +21,10 @@ import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.InputResidencyRequirement;
 import graph.execution.plan.OutputResidencyEffect;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.region.specialization.RegionSpecializationCandidate;
-import graph.compile.planning.region.specialization.RegionSpecializationKind;
-import graph.compile.planning.value.GraphValueRef;
+import planning.partition.PartitionPlan;
+import planning.region.specialization.RegionSpecializationCandidate;
+import planning.region.specialization.RegionSpecializationKind;
+import planning.value.GraphValueRef;
 import operations.Operation;
 
 import java.util.List;

@@ -2,12 +2,12 @@ package backend.cpu.partition;
 
 import backend.contract.ComputeBackend;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionCandidate;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PartitionPlanningContext;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.partition.BackendPartitionCapability;
+import planning.partition.PartitionCandidate;
+import planning.partition.PartitionPlan;
+import planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionTarget;
+import planning.value.GraphValueRef;
+import planning.partition.BackendPartitionCapability;
 import operations.Operation;
 
 import java.util.LinkedHashSet;

@@ -11,7 +11,7 @@ import tensor.DataType;
 import tensor.storage.Float64Storage;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

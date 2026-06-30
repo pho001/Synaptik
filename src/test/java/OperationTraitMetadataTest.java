@@ -1,5 +1,5 @@
-import graph.compile.planning.region.lowering.OperationSemanticClassifier;
-import graph.compile.planning.region.lowering.OperationSemanticLevel;
+import planning.region.lowering.OperationSemanticClassifier;
+import planning.region.lowering.OperationSemanticLevel;
 import operations.Operation;
 import operations.elementwise.binary.add;
 import operations.elementwise.compare.greaterThan;

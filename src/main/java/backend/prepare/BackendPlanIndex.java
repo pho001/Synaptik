@@ -1,7 +1,7 @@
 package backend.prepare;
 
 import backend.contract.ComputeBackend;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.partition.PartitionPlan;
 
 import java.util.HashMap;
 import java.util.List;

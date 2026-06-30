@@ -5,10 +5,10 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.partition.PartitionPlan;
 
 import java.util.List;
 import java.util.Map;

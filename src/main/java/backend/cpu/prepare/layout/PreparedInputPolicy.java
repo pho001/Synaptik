@@ -4,7 +4,7 @@ import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.cpu.plan.PreparedTypeContract;
 import operations.Operation;
 import tensor.DataType;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 

@@ -2,7 +2,7 @@ package backend.lowering.region;
 
 import backend.lowering.LoweredUnitArtifact;
 import backend.lowering.LoweringFamily;
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionTarget;
 
 import java.util.LinkedHashSet;
 import java.util.List;

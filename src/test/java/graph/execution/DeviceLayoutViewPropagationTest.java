@@ -1,8 +1,8 @@
 package graph.execution;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;

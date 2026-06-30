@@ -17,7 +17,7 @@ import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
 import graph.model.CompiledNode;
 import graph.compile.CompileArtifacts;
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
 import tensor.Tensor;

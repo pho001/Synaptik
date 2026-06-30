@@ -1,29 +1,29 @@
 package backend.lowering;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
 import backend.contract.ComputeBackend;
 import config.optimizer.FuseConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import trace.compile.PartitionDecisionTrace;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.memory.MemoryPlannerPolicy;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionBoundaryReason;
-import graph.compile.planning.partition.PartitionEdge;
-import graph.compile.planning.partition.PartitionPlannerStrategy;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.PartitionValue;
-import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.region.DefaultRegionOptimizer;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.planning.region.RegionOptimizationContext;
+import planning.memory.MemoryPlan;
+import planning.memory.MemoryPlanner;
+import planning.memory.MemoryPlannerPolicy;
+import planning.partition.Partition;
+import planning.partition.PartitionBoundaryReason;
+import planning.partition.PartitionEdge;
+import planning.partition.PartitionPlannerStrategy;
+import planning.partition.PartitionPlan;
+import planning.partition.PartitionTarget;
+import planning.partition.PartitionValue;
+import planning.value.GraphValueRef;
+import planning.region.DefaultRegionPlanner;
+import planning.region.PlannedRegion;
+import planning.region.RegionPlanningContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Set;
@@ -41,7 +41,7 @@ class LoweringPipelineTest {
     }
 
     @Test
-    void loweringPipelineBuildsLoweringStateFromOptimizedRegions() {
+    void loweringPipelineBuildsLoweringStateFromPlannedRegions() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor add = a.add(b);
@@ -57,9 +57,9 @@ class LoweringPipelineTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
         LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
@@ -108,9 +108,9 @@ class LoweringPipelineTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
         LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
@@ -196,7 +196,7 @@ class LoweringPipelineTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),

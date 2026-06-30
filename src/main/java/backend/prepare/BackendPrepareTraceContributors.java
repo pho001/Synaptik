@@ -4,7 +4,7 @@ import backend.contract.ComputeBackend;
 import backend.lowering.LoweringInput;
 import backend.select.BackendSelectionResult;
 import trace.prepare.BackendPrepareDiagnosticTrace;
-import graph.compile.planning.partition.PlannedPartition;
+import planning.partition.PlannedPartition;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,7 +48,7 @@ final class BackendPrepareTraceContributors {
     ) {
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("loweringInputPresent", loweringInput != null);
-        attrs.put("optimizedRegionCount", loweringInput == null ? 0 : loweringInput.optimizedRegions().size());
+        attrs.put("plannedRegionCount", loweringInput == null ? 0 : loweringInput.plannedRegions().size());
         attrs.put("selectedPlanCount", selection == null ? 0 : selection.selectedPlans().size());
         attrs.put("memoryPlanPresent", loweringInput != null && loweringInput.memoryPlan() != null);
         return new BackendPrepareDiagnosticTrace("backend-lowering", attrs);

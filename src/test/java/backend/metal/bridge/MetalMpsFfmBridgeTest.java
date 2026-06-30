@@ -1,8 +1,8 @@
 package backend.metal.bridge;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
@@ -26,7 +26,7 @@ import backend.metal.lowering.MetalPartitionPlan;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.layout.sliceBackward;
 import org.junit.jupiter.api.Test;

@@ -22,7 +22,7 @@ import tuning.workload.WorkloadGraph;
 import tuning.workload.WorkloadGraphFactory;
 import tuning.workload.WorkloadKind;
 import tuning.workload.WorkloadMetadata;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -7,12 +7,12 @@ import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import graph.compile.GraphStructureContract;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import trace.prepare.PrepareTrace;
 import trace.execution.RunTrace;
-import graph.compile.planning.memory.MemoryPlan;
+import planning.memory.MemoryPlan;
 import tensor.Tensor;
 import training.optimizer.TrainingOptimizer;
 

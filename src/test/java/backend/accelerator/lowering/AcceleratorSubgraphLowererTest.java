@@ -1,8 +1,8 @@
 package backend.accelerator.lowering;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -13,7 +13,7 @@ import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.layout.sliceBackward;
 import org.junit.jupiter.api.Test;

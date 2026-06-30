@@ -10,14 +10,14 @@ import backend.cpu.plan.PreparedTypeContract;
 import config.backend.CpuKernelConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
 import operations.elementwise.binary.add;
 import operations.elementwise.where.where;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

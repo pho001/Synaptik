@@ -2,8 +2,8 @@ package backend.prepare;
 
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.List;
 import java.util.Map;

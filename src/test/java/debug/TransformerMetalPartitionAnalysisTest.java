@@ -26,7 +26,7 @@ import tensor.options.AttentionOptions;
 import tuning.workload.StandardWorkloads;
 import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadInstance;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import operations.linalg.scaledDotProductAttentionBackward;
 

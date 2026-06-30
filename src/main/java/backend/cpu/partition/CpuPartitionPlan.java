@@ -1,7 +1,7 @@
 package backend.cpu.partition;
 
 import backend.contract.ComputeBackend;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.partition.PartitionPlan;
 
 import java.util.List;
 

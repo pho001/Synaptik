@@ -1,7 +1,7 @@
 package backend.cpu.plan.layout;
 
 import backend.cpu.plan.CpuPreparedInput;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 
 import java.util.List;
 

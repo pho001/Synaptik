@@ -1,6 +1,6 @@
 package graph.compile.session;
 
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 

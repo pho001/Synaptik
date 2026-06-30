@@ -8,7 +8,7 @@ import operations.index.ScatterReduction;
 import operations.index.scatterElements;
 import operations.index.scatterNd;
 import tensor.DataType;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 
 import java.util.ArrayList;
 import java.util.List;

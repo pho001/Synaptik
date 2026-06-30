@@ -1,5 +1,5 @@
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import backend.contract.ComputeBackend;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
@@ -37,7 +37,7 @@ import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.state.ExecutionState;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 import operations.index.gatherGrad;
 import operations.index.takeAlongAxisGrad;
@@ -53,7 +53,7 @@ import tensor.layout.TensorRemap;
 import tensor.options.AttentionOptions;
 import tensor.options.Conv2dOptions;
 import tensor.options.Pool2dOptions;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -151,7 +151,7 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, partitionOnly, backendIntentPlan);
 
         assertFalse(compiled.program().plannedPartitions().isEmpty());
-        assertFalse(compiled.program().optimizedRegions().isEmpty());
+        assertFalse(compiled.program().plannedRegions().isEmpty());
         assertNotNull(compiled.program().memoryPlan());
     }
 
@@ -3389,7 +3389,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void minimumWorkRejectionStillWinsOverProfileDerivedCost() {
-        graph.compile.planning.partition.PartitionPlan plan = new graph.compile.planning.partition.PartitionPlan() {
+        planning.partition.PartitionPlan plan = new planning.partition.PartitionPlan() {
             @Override
             public ComputeBackend backend() {
                 return ComputeBackend.GPU_METAL;
@@ -3436,7 +3436,7 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void staticCostDoesNotSelectAcceleratorWhenCpuPathIsClearlyCompetitive() {
-        graph.compile.planning.partition.PartitionPlan tinyBoundaryHeavyPlan = new graph.compile.planning.partition.PartitionPlan() {
+        planning.partition.PartitionPlan tinyBoundaryHeavyPlan = new planning.partition.PartitionPlan() {
             @Override
             public ComputeBackend backend() {
                 return ComputeBackend.GPU_METAL;

@@ -10,7 +10,7 @@ import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
-import graph.compile.planning.region.specialization.SdpaBackwardOutputKind;
+import planning.region.specialization.SdpaBackwardOutputKind;
 import tensor.DataType;
 
 import java.util.Arrays;

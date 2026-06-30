@@ -1,15 +1,14 @@
 package graph.compile;
 
 import backend.lowering.LoweringInput;
-import graph.model.CompiledNode;
-import graph.compile.CompiledProgram;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PlannedPartition;
-import graph.compile.planning.region.OptimizedRegion;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.memory.MemoryPlan;
+import planning.partition.Partition;
+import planning.partition.PartitionPlan;
+import planning.partition.PlannedPartition;
+import planning.region.PlannedRegion;
 import graph.compile.publication.PublicationPlan;
+import graph.model.CompiledNode;
 
 import java.util.List;
 import java.util.Map;
@@ -55,8 +54,8 @@ public record CompileArtifacts(
         return program.memoryPlan();
     }
 
-    public List<OptimizedRegion> optimizedRegions() {
-        return program.optimizedRegions();
+    public List<PlannedRegion> plannedRegions() {
+        return program.plannedRegions();
     }
 
     public List<PlannedPartition> plannedPartitions() {
@@ -74,21 +73,21 @@ public record CompileArtifacts(
     /**
      * Returns finalized lowering input for prepare-time backend lowering.
      *
-     * @return lowering input, or {@code null} when no planned optimized regions require lowering
-     * @throws IllegalStateException if planned optimized regions exist but memory plan is missing
+     * @return lowering input, or {@code null} when no planned planned regions require lowering
+     * @throws IllegalStateException if planned planned regions exist but memory plan is missing
      */
     public LoweringInput loweringInput() {
         if (!requiresLoweringInput()) {
             return null;
         }
-        if (program.optimizedRegions().isEmpty() || program.memoryPlan() == null) {
+        if (program.plannedRegions().isEmpty() || program.memoryPlan() == null) {
             throw new IllegalStateException("Compile artifacts are missing lowering input.");
         }
-        return new LoweringInput(program.optimizedRegions(), program.memoryPlan(), planByPartitionId());
+        return new LoweringInput(program.plannedRegions(), program.memoryPlan(), planByPartitionId());
     }
 
     public boolean requiresLoweringInput() {
-        return !program.plannedPartitions().isEmpty() && !program.optimizedRegions().isEmpty();
+        return !program.plannedPartitions().isEmpty() && !program.plannedRegions().isEmpty();
     }
 
     private Map<String, PartitionPlan> planByPartitionId() {

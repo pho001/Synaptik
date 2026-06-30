@@ -7,7 +7,7 @@ import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tuning.validate.ValidationReference;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 public final class CalibrationWorkloads {
     private CalibrationWorkloads() {

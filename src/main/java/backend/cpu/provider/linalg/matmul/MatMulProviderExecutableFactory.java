@@ -13,7 +13,7 @@ import backend.cpu.provider.linalg.matmul.f64.F64BlasMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.f64.F64JavaMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.f64.F64NativeBlasMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 import operations.Operation;
 import tensor.DataType;
 

@@ -11,7 +11,7 @@ import backend.accelerator.dag.AcceleratorPostOpType;
 import backend.accelerator.dag.AcceleratorSubgraphOp;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 import graph.model.CompiledNode;
-import graph.compile.planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionPlanningContext;
 import operations.Operation;
 
 import java.util.ArrayList;

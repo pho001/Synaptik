@@ -1,11 +1,11 @@
 package graph.compile;
 
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PlannedPartition;
-import graph.compile.planning.region.OptimizedRegion;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.memory.MemoryPlan;
+import planning.partition.Partition;
+import planning.partition.PartitionPlan;
+import planning.partition.PlannedPartition;
+import planning.region.PlannedRegion;
 import graph.model.CompiledNode;
 
 import java.util.List;
@@ -24,14 +24,14 @@ public record CompiledProgram(
         int forwardBoundaryNodeId,
         boolean supportsBackward,
         List<PlannedPartition> plannedPartitions,
-        List<OptimizedRegion> optimizedRegions,
+        List<PlannedRegion> plannedRegions,
         MemoryPlan memoryPlan
 ) {
     public CompiledProgram {
         compiledNodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
         descriptorIndex = Objects.requireNonNull(descriptorIndex, "descriptorIndex cannot be null");
         plannedPartitions = List.copyOf(plannedPartitions == null ? List.of() : plannedPartitions);
-        optimizedRegions = List.copyOf(optimizedRegions == null ? List.of() : optimizedRegions);
+        plannedRegions = List.copyOf(plannedRegions == null ? List.of() : plannedRegions);
         if (forwardOutputNodeId < 0 && !compiledNodes.isEmpty()) {
             throw new IllegalArgumentException("forwardOutputNodeId must be >= 0");
         }

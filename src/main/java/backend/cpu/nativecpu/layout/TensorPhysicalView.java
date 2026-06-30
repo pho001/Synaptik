@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu.layout;
 
-import graph.compile.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptor;
 import tensor.DataType;
 
 import java.util.Arrays;

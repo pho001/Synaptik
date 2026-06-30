@@ -2,7 +2,7 @@ package tuning.validate;
 
 import config.profile.ExecutionProfile;
 import graph.CompiledGraph;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 import tensor.DataType;
 import tensor.Tensor;
 import tuning.candidate.Candidate;

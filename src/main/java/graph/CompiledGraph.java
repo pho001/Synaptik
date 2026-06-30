@@ -7,7 +7,7 @@ import graph.compile.CompileArtifacts;
 import graph.compile.CompiledProgram;
 import graph.compile.GraphCompiler;
 import graph.compile.canonical.SemanticForwardCanonicalizer;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.PreparedExecution;
 import trace.compile.CompileTrace;

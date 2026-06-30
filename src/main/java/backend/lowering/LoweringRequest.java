@@ -1,8 +1,8 @@
 package backend.lowering;
 
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.memory.MemoryPlan;
+import planning.region.PlannedRegion;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 
 import java.util.Objects;
 
@@ -15,7 +15,7 @@ import java.util.Objects;
  * @param context runtime/partition context; {@code null} becomes an empty context
  */
 public record LoweringRequest(
-        OptimizedRegion region,
+        PlannedRegion region,
         MemoryPlan memoryPlan,
         BackendCapabilities capabilities,
         LoweringContext context

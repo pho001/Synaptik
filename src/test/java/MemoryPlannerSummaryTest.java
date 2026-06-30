@@ -1,7 +1,7 @@
 import config.compile.CompileConfig;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.memory.MemoryPlannerPolicy;
+import planning.memory.MemoryPlan;
+import planning.memory.MemoryPlanner;
+import planning.memory.MemoryPlannerPolicy;
 import org.junit.jupiter.api.Test;
 import tensor.Tensor;
 

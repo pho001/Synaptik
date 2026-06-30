@@ -1,8 +1,8 @@
 package graph.execution.state;
 
 import backend.memory.TensorResidencyState;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
 import graph.model.CompiledNode;
 import tensor.DataType;

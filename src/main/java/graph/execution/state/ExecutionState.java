@@ -11,7 +11,7 @@ import backend.memory.TensorResidencyState;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.residency.DeviceBindingRegistry;

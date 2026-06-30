@@ -6,7 +6,7 @@ import operations.Operation;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

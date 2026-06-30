@@ -1,6 +1,6 @@
 package backend.lowering;
 
-import graph.compile.planning.region.OptimizedRegion;
+import planning.region.PlannedRegion;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +56,7 @@ public final class LoweringPipeline {
         List<LoweredRegion> loweredRegions = new ArrayList<>();
         List<BackendWorkspaceRequirement> requirements = new ArrayList<>();
         List<String> events = new ArrayList<>();
-        for (OptimizedRegion region : effectiveInput.optimizedRegions()) {
+        for (PlannedRegion region : effectiveInput.plannedRegions()) {
             LoweringRequest request = new LoweringRequest(region, effectiveInput.memoryPlan(), capabilities, effectiveContext);
             LoweringResult result = lowerRegion(request);
             if (result == null || result.loweredRegion() == null) {

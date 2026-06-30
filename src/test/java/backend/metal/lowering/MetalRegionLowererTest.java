@@ -1,8 +1,8 @@
 package backend.metal.lowering;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -25,20 +25,20 @@ import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import trace.compile.PartitionDecisionTrace;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionBoundaryReason;
-import graph.compile.planning.partition.PartitionCandidate;
-import graph.compile.planning.partition.PartitionEdge;
-import graph.compile.planning.partition.PartitionPlannerStrategy;
-import graph.compile.planning.partition.PartitionPlanningContext;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.PartitionValue;
-import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.region.DefaultRegionOptimizer;
-import graph.compile.planning.region.ExecutionUnitKind;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.planning.region.RegionOptimizationContext;
+import planning.memory.MemoryPlanner;
+import planning.partition.Partition;
+import planning.partition.PartitionBoundaryReason;
+import planning.partition.PartitionCandidate;
+import planning.partition.PartitionEdge;
+import planning.partition.PartitionPlannerStrategy;
+import planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionTarget;
+import planning.partition.PartitionValue;
+import planning.value.GraphValueRef;
+import planning.region.DefaultRegionPlanner;
+import planning.region.ExecutionUnitKind;
+import planning.region.PlannedRegion;
+import planning.region.RegionPlanningContext;
 import operations.Operation;
 import operations.elementwise.unary.sign;
 import operations.elementwise.where.where;
@@ -124,7 +124,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
@@ -143,7 +143,7 @@ class MetalRegionLowererTest {
                         -1
                 )
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         LoweringResult result = new MetalRegionLowerer().lower(new LoweringRequest(
                 region,
@@ -211,9 +211,9 @@ class MetalRegionLowererTest {
                 candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 List.of(GraphValueRef.node(expNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
 
         LoweringResult result = new MetalRegionLowerer().lower(new LoweringRequest(
@@ -1795,7 +1795,7 @@ class MetalRegionLowererTest {
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, backendIntentPlan);
-        graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
+        planning.partition.PartitionPlanningContext planningContext = new planning.partition.PartitionPlanningContext(
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1821,7 +1821,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 1, candidate.externalInputIds().size(), 0, 1),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
@@ -1840,7 +1840,7 @@ class MetalRegionLowererTest {
                         -1
                 )
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         MetalRegionLowerer lowerer = new MetalRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -1867,7 +1867,7 @@ class MetalRegionLowererTest {
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
         List<Tensor> graph = out.topologicalSort();
         List<CompiledNode> compiledNodes = CompiledNodeSnapshotter.snapshot(graph, backendIntentPlan);
-        graph.compile.planning.partition.PartitionPlanningContext planningContext = new graph.compile.planning.partition.PartitionPlanningContext(
+        planning.partition.PartitionPlanningContext planningContext = new planning.partition.PartitionPlanningContext(
                 false,
                 compiledNodes,
                 CompiledTensorDescriptorBuilder.build(compiledNodes),
@@ -1896,7 +1896,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 attachedPlan.estimatedWork(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 2, candidate.externalInputIds().size(), 0, 2),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(candidate.orderedNodeIds().size(), 2, candidate.externalInputIds().size(), 0, 2),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
@@ -1915,9 +1915,9 @@ class MetalRegionLowererTest {
                         -1
                 )
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
 
         assertEquals(1, region.executionUnits().size());
@@ -1985,9 +1985,9 @@ class MetalRegionLowererTest {
                 candidate.outputNodeIds().stream().map(GraphValueRef::node).toList(),
                 List.of(GraphValueRef.node(expNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(
                 partition,
-                new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         LoweringResult result = new MetalRegionLowerer().lower(new LoweringRequest(
                 region,
@@ -2419,7 +2419,7 @@ class MetalRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),

@@ -3,13 +3,13 @@ package backend.cpu.nativecpu.layout;
 import backend.cpu.nativecpu.NativeCpuStorageFactory;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptor;
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptor;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

@@ -1,29 +1,28 @@
 package graph.compile.session;
 
 import backend.partition.BackendPartitionDescriptorRegistry;
-import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import graph.compile.CompileArtifacts;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.compile.CompiledProgram;
 import graph.compile.GraphStructureContract;
 import graph.compile.canonical.SemanticForwardCanonicalizer;
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
-import graph.compile.intent.BackendIntentPlan;
-import graph.compile.intent.BackendIntentPropagator;
-import graph.compile.planning.BackendPlanningRequest;
-import graph.compile.planning.BackendPlanningResult;
-import graph.compile.planning.BackendPlanningService;
-import graph.compile.planning.memory.MemoryPlan;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.memory.MemoryPlannerPolicy;
-import graph.compile.planning.memory.MemoryPlanningInput;
-import graph.compile.planning.partition.PartitionPlan;
-import graph.compile.planning.partition.PlannedPartition;
-import graph.compile.planning.region.DefaultRegionOptimizer;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.planning.region.RegionOptimizationContext;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
+import planning.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPropagator;
+import planning.backend.BackendPlanningRequest;
+import planning.backend.BackendPlanningResult;
+import planning.backend.BackendPlanningService;
+import planning.memory.MemoryPlan;
+import planning.memory.MemoryPlanner;
+import planning.memory.MemoryPlannerPolicy;
+import planning.memory.MemoryPlanningInput;
+import planning.partition.PartitionPlan;
+import planning.partition.PlannedPartition;
+import planning.region.DefaultRegionPlanner;
+import planning.region.PlannedRegion;
+import planning.region.RegionPlanningContext;
 import graph.compile.publication.PublicationPlan;
 import trace.compile.PartitionCompileTrace;
 import graph.model.CompiledGradientBinding;
@@ -108,12 +107,12 @@ public final class CompileSession {
     }
 
     private record PlannedRegionsAndMemory(
-            List<OptimizedRegion> optimizedRegions,
+            List<PlannedRegion> plannedRegions,
             OptimizerState optimizerState,
             MemoryPlan memoryPlan
     ) {
         private PlannedRegionsAndMemory {
-            optimizedRegions = List.copyOf(optimizedRegions == null ? List.of() : optimizedRegions);
+            plannedRegions = List.copyOf(plannedRegions == null ? List.of() : plannedRegions);
             optimizerState = Objects.requireNonNull(optimizerState, "optimizerState cannot be null");
         }
     }
@@ -234,7 +233,7 @@ public final class CompileSession {
                             snapshot.forwardBoundaryNodeId(),
                             backward.supportsBackward(),
                             backendPlanning.plannedPartitions(),
-                            planning.optimizedRegions(),
+                            planning.plannedRegions(),
                             planning.memoryPlan()
                     ),
                     publicationPlan
@@ -357,11 +356,10 @@ public final class CompileSession {
     ) {
         List<PlannedPartition> partitions = List.copyOf(plannedPartitions == null ? List.of() : plannedPartitions);
         List<CompiledNode> nodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
-        List<OptimizedRegion> optimizedRegions = optimizedRegions(partitions, nodes);
+        List<PlannedRegion> plannedRegions = plannedRegions(partitions, nodes);
         OptimizerState base = optimizerState == null
                 ? OptimizerState.ofGraph(graph, forwardOutput)
                 : optimizerState;
-        ExecutionMode executionMode = supportsBackward ? ExecutionMode.FORWARD_BACKWARD : ExecutionMode.FORWARD;
         OptimizerState withMetadata = base.withCompileMetadata(
                 supportsBackward,
                 forwardBoundaryNodeId
@@ -372,34 +370,33 @@ public final class CompileSession {
                 ? MemoryPlanner.plan(
                         new MemoryPlanningInput(
                                 nodes,
-                                optimizedRegions,
+                                plannedRegions,
                                 partitionPlansById,
-                                executionMode,
                                 supportsBackward,
                                 forwardBoundaryNodeId
                         ),
                         MemoryPlannerPolicy.fromConfig(compileConfig.memoryPlanning().memory())
                 )
                 : null;
-        return new PlannedRegionsAndMemory(optimizedRegions, withMetadata, memoryPlan);
+        return new PlannedRegionsAndMemory(plannedRegions, withMetadata, memoryPlan);
     }
 
-    private List<OptimizedRegion> optimizedRegions(
+    private List<PlannedRegion> plannedRegions(
             List<PlannedPartition> plannedPartitions,
             List<CompiledNode> compiledNodes
     ) {
         if (!compileConfig.regionOptimization().enabled()) {
             return List.of();
         }
-        DefaultRegionOptimizer optimizer = new DefaultRegionOptimizer();
-        RegionOptimizationContext context = new RegionOptimizationContext(
+        DefaultRegionPlanner planner = new DefaultRegionPlanner();
+        RegionPlanningContext context = new RegionPlanningContext(
                 compiledNodes,
                 compileConfig.regionOptimization().fuse(),
                 compileConfig.regionOptimization().cpuFusion()
         );
         return plannedPartitions.stream()
                 .map(PlannedPartition::partition)
-                .map(partition -> optimizer.optimize(partition, context))
+                .map(partition -> planner.planRegion(partition, context))
                 .toList();
     }
 

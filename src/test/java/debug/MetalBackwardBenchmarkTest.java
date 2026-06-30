@@ -20,7 +20,7 @@ import tuning.workload.WorkloadEnvironment;
 import tuning.workload.WorkloadGraph;
 import tuning.workload.WorkloadGraphFactory;
 import tuning.workload.WorkloadKind;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 

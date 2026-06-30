@@ -16,7 +16,7 @@ import backend.prepare.RegionPlanValidator;
 import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.plan.OutputResidencyEffect;
-import graph.compile.planning.partition.PartitionPlan;
+import planning.partition.PartitionPlan;
 
 /**
  * Prepares compiled nodes for CUDA partition execution.

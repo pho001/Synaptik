@@ -1,5 +1,5 @@
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.descriptor.CompiledTensorDescriptorIndex;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorIndex;
 import backend.accelerator.buffer.AcceleratorBufferDecision;
 import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.buffer.AcceleratorBufferReasonCode;
@@ -35,14 +35,14 @@ import graph.model.CompiledNode;
 import graph.execution.plan.CompiledNodeExecutionMetadata;
 import graph.execution.PreparedExecution;
 import graph.execution.PreparedExecutionStep;
-import graph.compile.planning.partition.PartitionPlanningContext;
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionPlanningContext;
+import planning.partition.PartitionTarget;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
 import tensor.TensorInternalAccess;
 import tensor.internal.TensorPrimitiveBuilder;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 import java.util.Map;

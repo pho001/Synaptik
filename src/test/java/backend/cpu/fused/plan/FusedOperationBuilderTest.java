@@ -4,12 +4,12 @@ import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
 import tensor.DataType;
 import tensor.Tensor;
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 
 import java.util.List;
 
@@ -72,7 +72,7 @@ class FusedOperationBuilderTest {
         assertThrows(IllegalArgumentException.class, () -> FusedOperationBuilder.build(
                 new LoweredExecutionUnit("unit", LoweringFamily.FUSED_NATIVE, List.of(), List.of()),
                 ignored -> null,
-                graph.compile.descriptor.CompiledTensorDescriptorIndex.empty()
+                planning.descriptor.CompiledTensorDescriptorIndex.empty()
         ));
     }
 }

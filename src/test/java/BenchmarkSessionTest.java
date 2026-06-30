@@ -21,7 +21,7 @@ import config.runtime.NativeCpuFailurePolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import config.runtime.NativeMemoryPoolPolicy;
 import config.runtime.RuntimeConfig;
-import graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel;
+import planning.partition.cost.AcceleratorPartitionScoreModel;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;

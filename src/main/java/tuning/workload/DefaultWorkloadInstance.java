@@ -1,6 +1,6 @@
 package tuning.workload;
 
-import graph.compile.intent.BackendIntentPlan;
+import planning.intent.BackendIntentPlan;
 import tensor.Tensor;
 import tuning.validate.ValidationReference;
 import tuning.validate.ValidationTarget;

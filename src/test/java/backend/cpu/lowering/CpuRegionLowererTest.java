@@ -1,7 +1,7 @@
 package backend.cpu.lowering;
 
-import graph.compile.descriptor.CompiledTensorDescriptorBuilder;
-import graph.compile.intent.BackendIntentPlan;
+import planning.descriptor.CompiledTensorDescriptorBuilder;
+import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
 import backend.blas.BlasProvider;
@@ -24,18 +24,18 @@ import config.runtime.RuntimeConfig;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import trace.compile.PartitionDecisionTrace;
-import graph.compile.planning.memory.MemoryPlanner;
-import graph.compile.planning.partition.Partition;
-import graph.compile.planning.partition.PartitionBoundaryReason;
-import graph.compile.planning.partition.PartitionEdge;
-import graph.compile.planning.partition.PartitionPlannerStrategy;
-import graph.compile.planning.partition.PartitionTarget;
-import graph.compile.planning.partition.PartitionValue;
-import graph.compile.planning.value.GraphValueRef;
-import graph.compile.planning.region.DefaultRegionOptimizer;
-import graph.compile.planning.region.OptimizedRegion;
-import graph.compile.planning.region.RegionOptimizationContext;
-import graph.compile.planning.region.specialization.RegionSpecializationKind;
+import planning.memory.MemoryPlanner;
+import planning.partition.Partition;
+import planning.partition.PartitionBoundaryReason;
+import planning.partition.PartitionEdge;
+import planning.partition.PartitionPlannerStrategy;
+import planning.partition.PartitionTarget;
+import planning.partition.PartitionValue;
+import planning.value.GraphValueRef;
+import planning.region.DefaultRegionPlanner;
+import planning.region.PlannedRegion;
+import planning.region.RegionPlanningContext;
+import planning.region.specialization.RegionSpecializationKind;
 import org.junit.jupiter.api.Test;
 import operations.Operation;
 import tensor.DataType;
@@ -65,7 +65,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         CpuRegionLowerer lowerer = new CpuRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -99,7 +99,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         RuntimeConfig runtime = RuntimeConfig.inferenceDefaults()
                 .withAccelerator(config.runtime.AcceleratorConfig.defaultsInference());
@@ -156,7 +156,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(reluNodeId)),
                 List.of(GraphValueRef.node(reluNodeId))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         CpuRegionLowerer lowerer = new CpuRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -195,7 +195,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         CpuRegionLowerer lowerer = new CpuRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -228,7 +228,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         CpuRegionLowerer lowerer = new CpuRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -261,7 +261,7 @@ class CpuRegionLowererTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        OptimizedRegion region = new DefaultRegionOptimizer().optimize(partition, new RegionOptimizationContext(compiledNodes, FuseConfig.inferenceDefaults()));
+        PlannedRegion region = new DefaultRegionPlanner().planRegion(partition, new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults()));
 
         CpuRegionLowerer lowerer = new CpuRegionLowerer();
         LoweringResult result = lowerer.lower(new LoweringRequest(
@@ -310,7 +310,7 @@ class CpuRegionLowererTest {
                 List.of(),
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
-                new graph.compile.planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
+                new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
                 PartitionPlannerStrategy.GREEDY_MAX_REGION,
                 new PartitionDecisionTrace(
                         PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),

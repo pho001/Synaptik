@@ -62,7 +62,7 @@ final class LoweredRegionIndex {
             if (region == null) {
                 continue;
             }
-            if (region.target() == graph.compile.planning.partition.PartitionTarget.CPU) {
+            if (region.target() == planning.partition.PartitionTarget.CPU) {
                 publishCpuRegion(region, roleIndex);
             }
         }

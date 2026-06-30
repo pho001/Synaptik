@@ -1,6 +1,6 @@
 package config.compile;
 
-import graph.compile.planning.partition.PartitionTarget;
+import planning.partition.PartitionTarget;
 
 /**
  * Public compile-policy backend target.

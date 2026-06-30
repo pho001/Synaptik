@@ -1,6 +1,6 @@
 package config.compile;
 
-import graph.compile.planning.partition.PartitionPlannerStrategy;
+import planning.partition.PartitionPlannerStrategy;
 
 /**
  * Planner strategy for compile-time backend ownership regions.
