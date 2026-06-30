@@ -95,8 +95,8 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void backendPrepareDoesNotRebuildOptimizerArtifacts() throws IOException {
-        Path root = Path.of("src/main/java/backend/prepare");
+    void prepareOrchestrationDoesNotRebuildOptimizerArtifacts() throws IOException {
+        Path root = Path.of("src/main/java/prepare/orchestration");
         try (Stream<Path> paths = Files.walk(root)) {
             List<String> offenders = paths
                     .filter(Files::isRegularFile)
@@ -115,7 +115,7 @@ public class SourceTreeHygieneTest {
                     })
                     .sorted()
                     .toList();
-            assertTrue(offenders.isEmpty(), () -> "backend.prepare rebuilds optimizer artifacts: " + offenders);
+            assertTrue(offenders.isEmpty(), () -> "prepare orchestration rebuilds optimizer artifacts: " + offenders);
         }
     }
 
@@ -1008,7 +1008,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void prepareDoesNotGloballySkipLoweringForLegacyFusedGraphs() throws IOException {
-        Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
+        Path builder = Path.of("src/main/java/prepare/orchestration/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);
         assertTrue(!source.contains("containsLegacyFusedGraph"), "prepare must not globally suppress lowered-region publication for legacy fused nodes.");
         assertTrue(!source.contains("OpType.FUSED"), "legacy fused nodes must not be a prepare-layer global lowering gate.");
@@ -1030,7 +1030,7 @@ public class SourceTreeHygieneTest {
 
     @Test
     void preparedExecutionBuilderDoesNotOwnCompileArtifactRecovery() throws IOException {
-        Path builder = Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java");
+        Path builder = Path.of("src/main/java/prepare/orchestration/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);
         assertTrue(!source.contains("MemoryPlanner"), "prepare must consume compile artifacts instead of rebuilding memory plans.");
         assertTrue(!source.contains("DefaultRegionPlanner"), "prepare must consume compile artifacts instead of rebuilding planned regions.");
@@ -1043,13 +1043,13 @@ public class SourceTreeHygieneTest {
                 List.of(
                         Path.of("src/main/java/runtime/execution/PreparedStepMetadata.java"),
                         Path.of("src/main/java/backend/ComputeEngine.java"),
-                        Path.of("src/main/java/backend/prepare/PreparedExecutionBuilder.java"),
+                        Path.of("src/main/java/prepare/orchestration/PreparedExecutionBuilder.java"),
                         Path.of("src/test/java/testsupport/MetadataArtifacts.java")
                 ),
                 List.of("PartitionExecutionRole", "partitionRole()")
         );
         assertTrue(offenders.isEmpty(),
-                () -> "Partition roles may stay backend-prepare-local, but must not be graph runtime metadata/dispatch contract: "
+                () -> "Partition roles belong to prepare.context and must not be graph runtime metadata/dispatch contract: "
                         + offenders);
     }
 
@@ -1320,8 +1320,8 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void backendPrepareDoesNotOwnConcreteBackendPreparers() throws IOException {
-        List<String> offenders = javaFilesUnder(Path.of("src/main/java/backend/prepare")).stream()
+    void prepareOrchestrationDoesNotOwnConcreteBackendPreparers() throws IOException {
+        List<String> offenders = javaFilesUnder(Path.of("src/main/java/prepare/orchestration")).stream()
                 .map(path -> Path.of(path).getFileName().toString())
                 .filter(name -> name.endsWith("NodePreparer.java"))
                 .sorted()
@@ -1501,7 +1501,7 @@ public class SourceTreeHygieneTest {
                         Path.of("src/main/java/backend/metal/bridge"),
                         Path.of("src/main/java/backend/cuda/bridge")
                 ),
-                List.of("import backend.prepare.")
+                List.of("import prepare.")
         );
         assertTrue(offenders.isEmpty(), () -> "Bridge packages must not depend on generic prepare internals: " + offenders);
     }

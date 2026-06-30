@@ -1,4 +1,4 @@
-package backend.prepare;
+package prepare.context;
 
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
@@ -18,7 +18,7 @@ import java.util.Objects;
  * @param descriptorIndex immutable tensor descriptor facts for {@code compiledNodes}
  * @param consumers consumer map keyed by producer node id
  */
-public record PrepareInputs(
+record PrepareInputs(
         RuntimeConfig runtimeConfig,
         boolean supportsBackward,
         List<CompiledNode> compiledNodes,

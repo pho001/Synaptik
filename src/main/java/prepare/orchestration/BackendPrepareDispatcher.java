@@ -1,7 +1,6 @@
-package backend.prepare;
+package prepare.orchestration;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.prepare.CpuNodePreparer;
 import backend.cpu1.prepare.Cpu1AttentionBackwardPreparer;
 import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
@@ -27,6 +26,8 @@ import planning.region.specialization.RegionSpecializationCandidate;
 import planning.region.specialization.RegionSpecializationKind;
 import planning.value.GraphValueRef;
 import operations.Operation;
+import prepare.context.BackendPrepareContext;
+import prepare.context.PartitionExecutionRole;
 
 import java.util.List;
 import java.util.Objects;

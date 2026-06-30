@@ -1,7 +1,6 @@
 package backend.cpu.prepare;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.exec.PartitionExecutionRole;
 import backend.cpu.CpuBackend;
 import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
@@ -17,7 +16,8 @@ import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.RegionExecutionPlan;
-import backend.prepare.BackendPrepareContext;
+import prepare.context.BackendPrepareContext;
+import prepare.context.PartitionExecutionRole;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
 import runtime.execution.PreparedStepMetadata;

@@ -1,17 +1,18 @@
 package graph;
 
-import runtime.contract.ExecutionMode;
-import backend.prepare.PreparedExecutionBuilder;
 import config.compile.CompileConfig;
+import config.runtime.RuntimeConfig;
 import graph.compile.CompileArtifacts;
 import graph.compile.CompiledProgram;
 import graph.compile.GraphCompiler;
 import graph.compile.canonical.SemanticForwardCanonicalizer;
-import planning.intent.BackendIntentPlan;
 import graph.compile.publication.PublicationPlan;
+import graph.optimizer.GraphOptimizer;
+import planning.intent.BackendIntentPlan;
+import prepare.orchestration.PreparedExecutionBuilder;
+import runtime.contract.ExecutionMode;
 import runtime.execution.PreparedExecution;
 import trace.compile.CompileTrace;
-import graph.optimizer.GraphOptimizer;
 import tensor.CompileMode;
 import tensor.Tensor;
 
@@ -26,7 +27,7 @@ import java.util.List;
  *     <li>{@link #compile(Tensor, CompileConfig)} captures the root tensor's forward graph,
  *     optionally builds backward nodes, applies optimizer stages, snapshots compiled nodes, plans partitions and
  *     computes a memory plan.</li>
- *     <li>{@link #prepare(config.runtime.RuntimeConfig)} lowers those compile artifacts into runtime execution steps
+ *     <li>{@link #prepare(RuntimeConfig)} lowers those compile artifacts into runtime execution steps
  *     for a specific runtime configuration.</li>
  *     <li>{@link PreparedExecution#execute(ExecutionMode)} runs the prepared steps and publishes values according to
  *     the selected {@link runtime.execution.PublicationPolicy}.</li>
@@ -222,7 +223,7 @@ public final class CompiledGraph {
      * @return prepared execution plan bound to this graph's compile artifacts
      */
     public PreparedExecution prepare() {
-        return prepare((config.runtime.RuntimeConfig) null);
+        return prepare((RuntimeConfig) null);
     }
 
     /**
@@ -235,11 +236,11 @@ public final class CompiledGraph {
      * @param runtimeConfig runtime settings, or {@code null} to choose training or inference defaults
      * @return prepared execution plan bound to this graph's compile artifacts
      */
-    public PreparedExecution prepare(config.runtime.RuntimeConfig runtimeConfig) {
-        config.runtime.RuntimeConfig effectiveConfig = runtimeConfig == null
+    public PreparedExecution prepare(RuntimeConfig runtimeConfig) {
+        RuntimeConfig effectiveConfig = runtimeConfig == null
                 ? (supportsBackward()
-                ? config.runtime.RuntimeConfig.trainingDefaults(rootTensor.getDataType())
-                : config.runtime.RuntimeConfig.inferenceDefaults(rootTensor.getDataType()))
+                ? RuntimeConfig.trainingDefaults(rootTensor.getDataType())
+                : RuntimeConfig.inferenceDefaults(rootTensor.getDataType()))
                 : runtimeConfig;
         return PreparedExecutionBuilder.prepare(artifacts, effectiveConfig);
     }

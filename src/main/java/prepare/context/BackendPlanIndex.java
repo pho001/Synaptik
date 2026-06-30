@@ -1,4 +1,4 @@
-package backend.prepare;
+package prepare.context;
 
 import backend.contract.ComputeBackend;
 import planning.partition.PartitionPlan;

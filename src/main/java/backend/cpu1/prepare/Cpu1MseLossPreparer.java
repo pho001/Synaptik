@@ -9,7 +9,7 @@ import backend.cpu1.storage.Cpu1StorageKind;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.region.CpuSpecializedPrimitivePayload;
 import backend.lowering.region.RegionExecutionPlan;
-import backend.prepare.BackendPrepareContext;
+import prepare.context.BackendPrepareContext;
 import config.backend.CpuKernelConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;

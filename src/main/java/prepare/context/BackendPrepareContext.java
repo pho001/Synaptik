@@ -1,6 +1,4 @@
-package backend.prepare;
-
-import backend.accelerator.exec.PartitionExecutionRole;
+package prepare.context;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;
 import config.runtime.RuntimeConfig;

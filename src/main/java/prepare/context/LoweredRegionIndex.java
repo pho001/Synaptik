@@ -1,4 +1,4 @@
-package backend.prepare;
+package prepare.context;
 
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredRegion;

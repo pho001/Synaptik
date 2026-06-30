@@ -8,7 +8,7 @@ import backend.cpu.prepare.CpuNodePreparer;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.lowering.LoweredRegion;
 import backend.lowering.LoweringFamily;
-import backend.prepare.BackendPrepareContext;
+import prepare.context.BackendPrepareContext;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
 import planning.partition.PartitionPlan;

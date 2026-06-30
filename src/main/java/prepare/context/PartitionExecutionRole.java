@@ -1,4 +1,4 @@
-package backend.accelerator.exec;
+package prepare.context;
 
 /**
  * Role of a node inside a prepared backend partition.

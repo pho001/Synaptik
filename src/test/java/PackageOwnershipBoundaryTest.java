@@ -132,6 +132,59 @@ public class PackageOwnershipBoundaryTest {
     }
 
     @Test
+    void prepareContextAndValidationDoNotDependOnOrchestrationOrConcreteBackends() throws IOException {
+        List<String> forbiddenPackages = List.of(
+                "prepare.orchestration.",
+                "backend.cpu.",
+                "backend.cpu1.",
+                "backend.metal.",
+                "backend.cuda.",
+                "backend.opencl."
+        );
+        assertNoImports(
+                "prepare/context",
+                importedType -> startsWithAny(importedType, forbiddenPackages),
+                "prepare.context must not depend on orchestration or concrete backends"
+        );
+        assertNoImports(
+                "prepare/validation",
+                importedType -> startsWithAny(importedType, forbiddenPackages),
+                "prepare.validation must not depend on orchestration or concrete backends"
+        );
+    }
+
+    @Test
+    void concreteBackendPreparersDoNotDependOnPrepareOrchestration() throws IOException {
+        for (String backend : List.of("cpu", "cpu1", "metal", "cuda", "opencl")) {
+            Path prepareRoot = MAIN.resolve("backend").resolve(backend).resolve("prepare");
+            if (!Files.isDirectory(prepareRoot)) {
+                continue;
+            }
+            List<String> offenders = importsUnder(
+                    prepareRoot,
+                    importedType -> importedType.startsWith("prepare.orchestration.")
+            );
+            assertTrue(offenders.isEmpty(),
+                    () -> "backend." + backend + ".prepare must not depend on prepare orchestration: " + offenders);
+        }
+    }
+
+    @Test
+    void legacyBackendPrepareTreeContainsNoSources() throws IOException {
+        Path legacyTree = MAIN.resolve("backend/prepare");
+        if (!Files.exists(legacyTree)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(legacyTree)) {
+            List<Path> sources = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java") || path.toString().endsWith(".md"))
+                    .toList();
+            assertTrue(sources.isEmpty(), () -> "legacy backend.prepare sources remain: " + sources);
+        }
+    }
+
+    @Test
     void tensorRuntimeImportsAreLimitedToLifecycleAndStorageContracts() throws IOException {
         Map<String, Set<String>> allowedByFile = Map.of(
                 "src/main/java/tensor/Tensor.java", Set.of(

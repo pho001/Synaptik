@@ -1,4 +1,4 @@
-package backend.prepare;
+package prepare.orchestration;
 
 import backend.contract.ComputeBackend;
 import backend.lowering.LoweringInput;

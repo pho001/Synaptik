@@ -17,7 +17,7 @@ import backend.cpu1.prepare.dispatch.Cpu1DispatchPolicy;
 import backend.cpu1.prepare.dispatch.Cpu1FusedDispatchDecision;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.lowering.LoweredExecutionUnit;
-import backend.prepare.BackendPrepareContext;
+import prepare.context.BackendPrepareContext;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
