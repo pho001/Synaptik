@@ -1,6 +1,6 @@
 package graph.execution.state;
 
-import backend.memory.TensorResidencyState;
+import runtime.residency.TensorResidencyState;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.compile.publication.PublicationPlan;

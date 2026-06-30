@@ -1,10 +1,10 @@
 package graph.execution.state;
 
-import backend.cpu.nativecpu.NativeCpuAllocator;
-import backend.cpu.nativecpu.NativeCpuMemoryPool;
-import backend.cpu.nativecpu.NativeCpuMemoryStats;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.memory.ExecutionResource;
+import runtime.memory.nativecpu.NativeCpuAllocator;
+import runtime.memory.nativecpu.NativeCpuMemoryPool;
+import runtime.memory.nativecpu.NativeCpuMemoryStats;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.ExecutionResource;
 import config.runtime.NativeCpuMemoryConfig;
 import trace.execution.NativeCpuMemoryTrace;
 import tensor.DataType;

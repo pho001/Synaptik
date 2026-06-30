@@ -1,14 +1,14 @@
 package graph.execution.device;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
-import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
-import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformKind;
+import runtime.device.buffer.AcceleratorLayoutTransformPlanner;
+import runtime.device.buffer.AcceleratorLayoutTransformRequest;
+import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
 import config.runtime.AcceleratorBufferBindingMode;

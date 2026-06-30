@@ -1,14 +1,14 @@
 package graph.execution;
 
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.CpuMaterializationResult;
-import backend.memory.DeviceBufferBinding;
-import backend.memory.DeviceToCpuMaterializer;
-import backend.memory.DeviceToNativeMaterializer;
-import backend.memory.ExecutionResource;
+import runtime.memory.CpuMaterializationResult;
+import runtime.device.buffer.DeviceBufferBinding;
+import runtime.memory.DeviceToCpuMaterializer;
+import runtime.memory.DeviceToNativeMaterializer;
+import runtime.memory.ExecutionResource;
 import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
 import runtime.contract.ExecutionMode;

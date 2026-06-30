@@ -1,9 +1,9 @@
 package backend.cuda.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformRequest;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;

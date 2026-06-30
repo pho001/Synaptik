@@ -1,8 +1,8 @@
 package backend.metal.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 

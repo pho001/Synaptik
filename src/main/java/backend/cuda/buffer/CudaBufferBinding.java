@@ -1,9 +1,9 @@
 package backend.cuda.buffer;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.DeviceBufferBinding;
 
 import java.util.Objects;
 

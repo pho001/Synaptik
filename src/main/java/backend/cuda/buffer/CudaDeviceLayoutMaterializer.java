@@ -1,13 +1,13 @@
 package backend.cuda.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformKind;
 import backend.cuda.CudaDTypeRolePolicy;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaGraphBridge;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.DeviceBufferBinding;
 import backend.runtime.ExecutionContext;
 import graph.execution.device.DeviceLayoutMaterializer;
 import tensor.DataType;

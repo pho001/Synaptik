@@ -1,6 +1,6 @@
 package backend.cuda.bridge;
 
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
 
 /**
  * Per-execution diagnostics reported by the CUDA bridge.

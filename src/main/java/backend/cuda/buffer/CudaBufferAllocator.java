@@ -2,10 +2,10 @@ package backend.cuda.buffer;
 
 import tensor.TensorInternalAccess;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.CpuMaterializationResult;
+import runtime.memory.CpuMaterializationResult;
 import tensor.DataType;
 import tensor.Tensor;
 

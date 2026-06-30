@@ -165,8 +165,8 @@ class MetalBufferTraceSmokeTest {
         String reason = (String) attrs.get("acceleratorBufferReason");
 
         assertTrue(EnumSet.of(
-                backend.accelerator.buffer.AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
-                backend.accelerator.buffer.AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED
+                runtime.device.buffer.AcceleratorBufferReasonCode.OUTPUT_LAYOUT_UNSUPPORTED,
+                runtime.device.buffer.AcceleratorBufferReasonCode.INPUT_LAYOUT_UNSUPPORTED
         ).stream().anyMatch(code -> code.name().equals(attrs.get("acceleratorBufferReasonCode"))));
         assertTrue(reason.contains("layoutClass=BROADCAST_ZERO_STRIDE_VIEW")
                 || reason.contains("layoutClass=UNSUPPORTED"));

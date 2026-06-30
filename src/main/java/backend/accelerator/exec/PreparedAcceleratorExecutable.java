@@ -1,8 +1,8 @@
 package backend.accelerator.exec;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferDecision;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferDecision;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.lowering.region.RegionExecutionPlan;

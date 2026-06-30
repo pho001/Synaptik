@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;

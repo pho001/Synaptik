@@ -1,7 +1,7 @@
 package backend.accelerator.residency;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayout;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

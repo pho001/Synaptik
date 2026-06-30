@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.exec.Cpu1IndexExecutableUnit;
 import backend.cpu1.kernels.index.Cpu1IndexKernelId;
 import backend.cpu1.prepare.Cpu1NodePreparer;

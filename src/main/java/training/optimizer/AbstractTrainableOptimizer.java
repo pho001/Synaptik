@@ -3,9 +3,9 @@ package training.optimizer;
 import tensor.TensorInternalAccess;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayout;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAccess;

@@ -1,6 +1,6 @@
 package backend.metal.exec;
 
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;

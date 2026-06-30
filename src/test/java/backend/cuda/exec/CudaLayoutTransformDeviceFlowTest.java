@@ -5,10 +5,10 @@ import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferDecision;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferDecision;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;

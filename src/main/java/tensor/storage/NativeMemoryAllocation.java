@@ -2,7 +2,7 @@ package tensor.storage;
 
 import tensor.DataType;
 
-import backend.memory.ExecutionResource;
+import runtime.memory.ExecutionResource;
 
 import java.lang.foreign.MemorySegment;
 

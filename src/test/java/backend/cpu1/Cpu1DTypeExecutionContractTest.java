@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.kernels.Cpu1LayoutKind;
 import backend.cpu1.kernels.dtype.Cpu1DTypeKernelId;

@@ -1,8 +1,8 @@
 package backend.metal.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformRequest;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
 import backend.metal.bridge.MetalMpsGraphBridge;

@@ -1,10 +1,10 @@
 package backend.metal.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformKind;
+import runtime.device.buffer.DeviceBufferBinding;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.runtime.ExecutionContext;

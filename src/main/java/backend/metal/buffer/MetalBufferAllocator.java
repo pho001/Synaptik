@@ -2,11 +2,11 @@ package backend.metal.buffer;
 
 import tensor.TensorInternalAccess;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorLayoutAbiV2Descriptor;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.CpuMaterializationResult;
+import runtime.memory.CpuMaterializationResult;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;
 import tensor.Tensor;

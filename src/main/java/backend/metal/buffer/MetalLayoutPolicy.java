@@ -1,8 +1,8 @@
 package backend.metal.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 
 import java.util.Arrays;
 import java.util.Objects;

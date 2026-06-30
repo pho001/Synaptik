@@ -1,7 +1,7 @@
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.GpuCompoundPatternType;
@@ -1060,7 +1060,7 @@ public class PreparedExecutionBuildTest {
         assertNotNull(executable.gpuLoweredRegionManifest());
         assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
         assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
-        assertEquals(backend.accelerator.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
+        assertEquals(runtime.device.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().path());
     }
 
@@ -1115,7 +1115,7 @@ public class PreparedExecutionBuildTest {
         assertNotNull(executable.gpuLoweredRegionManifest());
         assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
         assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
-        assertEquals(backend.accelerator.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
+        assertEquals(runtime.device.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().path());
     }
 

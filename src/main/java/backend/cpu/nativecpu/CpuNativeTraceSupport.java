@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import runtime.memory.nativecpu.NativeCpuTraceState;
+
 import backend.cpu.execution.CpuKernelContext;
 import tensor.DataType;
 import tensor.Tensor;

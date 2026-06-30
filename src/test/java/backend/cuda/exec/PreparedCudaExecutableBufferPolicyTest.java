@@ -3,10 +3,10 @@ package backend.cuda.exec;
 import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -24,7 +24,7 @@ import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
 import backend.lowering.LoweringFamily;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
 import backend.runtime.ExecutionContext;
 import runtime.contract.ExecutionMode;
@@ -71,7 +71,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                 0,
                 6,
                 24,
-                backend.accelerator.buffer.AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW
+                runtime.device.buffer.AcceleratorBufferLayoutClass.PERMUTED_OR_STRIDED_VIEW
         );
         AcceleratorBufferLayout targetLayout = AcceleratorBufferLayout.of(
                 DataType.FLOAT32,
@@ -87,8 +87,8 @@ class PreparedCudaExecutableBufferPolicyTest {
                 CudaBufferAccess.READ
         );
 
-        var decision = backend.accelerator.buffer.AcceleratorLayoutTransformPlanner.decide(
-                new backend.accelerator.buffer.AcceleratorLayoutTransformRequest(
+        var decision = runtime.device.buffer.AcceleratorLayoutTransformPlanner.decide(
+                new runtime.device.buffer.AcceleratorLayoutTransformRequest(
                         backend.contract.ComputeBackend.GPU_CUDA.name(),
                         1,
                         2,
@@ -99,7 +99,7 @@ class PreparedCudaExecutableBufferPolicyTest {
                         false
                 ));
 
-        assertEquals(backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
+        assertEquals(runtime.device.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
         assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, decision.reasonCode());
     }
 

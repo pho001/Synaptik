@@ -4,13 +4,13 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.buffer.AcceleratorBufferRequest;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferRequest;
 import backend.accelerator.dag.AcceleratorDagInput;
 import backend.accelerator.dag.AcceleratorDagNode;
 import backend.accelerator.dag.AcceleratorDagNodeType;
@@ -27,8 +27,8 @@ import backend.accelerator.lowering.GpuCompoundRegionSummary;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
-import backend.memory.DeviceBufferBinding;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
+import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.StorageResidency;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalMpsBridgeExecutable;
@@ -98,8 +98,8 @@ class PreparedMetalExecutableBufferBindingTest {
                 6
         );
 
-        var decision = backend.accelerator.buffer.AcceleratorLayoutTransformPlanner.decide(
-                new backend.accelerator.buffer.AcceleratorLayoutTransformRequest(
+        var decision = runtime.device.buffer.AcceleratorLayoutTransformPlanner.decide(
+                new runtime.device.buffer.AcceleratorLayoutTransformRequest(
                         ComputeBackend.GPU_METAL.name(),
                         1,
                         2,
@@ -110,7 +110,7 @@ class PreparedMetalExecutableBufferBindingTest {
                         false
                 ));
 
-        assertEquals(backend.accelerator.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
+        assertEquals(runtime.device.buffer.AcceleratorLayoutTransformKind.DENSE_GPU_MATERIALIZATION, decision.kind());
         assertEquals(AcceleratorBufferReasonCode.GPU_LAYOUT_DENSE_MATERIALIZATION_AVAILABLE, decision.reasonCode());
     }
 

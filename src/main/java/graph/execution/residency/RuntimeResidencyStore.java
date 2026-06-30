@@ -1,8 +1,8 @@
 package graph.execution.residency;
 
-import backend.memory.DeviceToCpuMaterializer;
-import backend.memory.DeviceToNativeMaterializer;
-import backend.memory.TensorResidencyState;
+import runtime.memory.DeviceToCpuMaterializer;
+import runtime.memory.DeviceToNativeMaterializer;
+import runtime.residency.TensorResidencyState;
 import trace.execution.CpuMaterializationTrace;
 import trace.execution.HostDeviceTransferTrace;
 

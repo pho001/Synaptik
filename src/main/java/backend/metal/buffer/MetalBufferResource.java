@@ -1,6 +1,6 @@
 package backend.metal.buffer;
 
-import backend.memory.ExecutionResource;
+import runtime.memory.ExecutionResource;
 
 import java.util.Objects;
 

@@ -1,6 +1,6 @@
 package backend.cuda.bridge;
 
-import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
+import runtime.device.buffer.AcceleratorLayoutAbiV2Support;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;

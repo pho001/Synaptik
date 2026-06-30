@@ -1,7 +1,7 @@
 package graph.execution.device;
 
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.DeviceBufferBinding;
 import backend.runtime.ExecutionContext;
 
 /**

@@ -1,6 +1,6 @@
 package backend.cuda.buffer;
 
-import backend.memory.ExecutionResource;
+import runtime.memory.ExecutionResource;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;

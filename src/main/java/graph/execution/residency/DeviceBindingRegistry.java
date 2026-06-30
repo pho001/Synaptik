@@ -1,6 +1,6 @@
 package graph.execution.residency;
 
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.DeviceBufferBinding;
 
 import java.util.HashMap;
 import java.util.Map;

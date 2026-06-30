@@ -1,8 +1,8 @@
 package backend.metal.buffer;
 
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.DeviceToCpuMaterializer;
+import runtime.memory.DeviceToCpuMaterializer;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.storage.NativeFloat32Storage;
@@ -46,7 +46,7 @@ class MetalBufferAllocatorTest {
                 .allocate(DataType.FLOAT32, 3, "native-destination");
         MetalBufferBinding binding = allocator.createOutputBinding(
                 7,
-                backend.accelerator.buffer.AcceleratorBufferLayout.fromTensor(destination)
+                runtime.device.buffer.AcceleratorBufferLayout.fromTensor(destination)
         );
         nativeAccess.putFloatValues(binding.handle(), new float[]{4f, 5f, 6f});
 
@@ -79,7 +79,7 @@ class MetalBufferAllocatorTest {
         MetalBufferAllocator allocator = MetalBufferAllocator.available(nativeAccess);
         Tensor output = new Tensor(new short[]{0, 0, 0, 0}, new int[]{2, 2}, null, "out", DataType.BFLOAT16);
 
-        MetalBufferBinding binding = allocator.createOutputBinding(9, backend.accelerator.buffer.AcceleratorBufferLayout.fromTensor(output));
+        MetalBufferBinding binding = allocator.createOutputBinding(9, runtime.device.buffer.AcceleratorBufferLayout.fromTensor(output));
 
         assertEquals(DataType.BFLOAT16, binding.layout().dataType());
         assertEquals(4L * Short.BYTES, binding.logicalByteLength());
@@ -118,7 +118,7 @@ class MetalBufferAllocatorTest {
         MetalBufferBinding sourceBinding = allocator.createInputBinding(3, source);
         MetalBufferBinding viewBinding = MetalBufferBinding.viewOf(
                 4,
-                backend.accelerator.buffer.AcceleratorBufferLayout.fromTensor(expanded),
+                runtime.device.buffer.AcceleratorBufferLayout.fromTensor(expanded),
                 sourceBinding,
                 MetalBufferAccess.READ
         );
@@ -126,7 +126,7 @@ class MetalBufferAllocatorTest {
 
         assertEquals(3L * Float.BYTES, viewBinding.handle().byteLength());
         assertEquals(6L * Float.BYTES, viewBinding.logicalByteLength());
-        assertEquals(backend.accelerator.buffer.AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
+        assertEquals(runtime.device.buffer.AcceleratorBufferLayoutClass.BROADCAST_ZERO_STRIDE_VIEW,
                 viewBinding.layout().layoutClass());
         assertTrue(materializer.supports(viewBinding, destination, CpuMaterializationReason.GRADIENT_PUBLICATION));
 

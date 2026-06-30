@@ -1,5 +1,7 @@
 package backend.cpu.nativecpu;
 
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
+
 import tensor.dtype.TensorDTypeOps;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;

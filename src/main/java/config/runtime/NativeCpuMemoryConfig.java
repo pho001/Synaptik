@@ -19,14 +19,14 @@ public record NativeCpuMemoryConfig(
     public NativeCpuMemoryConfig {
         poolPolicy = poolPolicy == null ? NativeMemoryPoolPolicy.DISABLED : poolPolicy;
         maxPoolBytes = Math.max(0L, maxPoolBytes);
-        alignmentBytes = alignmentBytes <= 0 ? (int) backend.cpu.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES : alignmentBytes;
+        alignmentBytes = alignmentBytes <= 0 ? (int) runtime.memory.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES : alignmentBytes;
     }
 
     public static NativeCpuMemoryConfig disabled() {
         return new NativeCpuMemoryConfig(
                 NativeMemoryPoolPolicy.DISABLED,
                 0L,
-                (int) backend.cpu.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
+                (int) runtime.memory.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
                 false,
                 false
         );
@@ -36,7 +36,7 @@ public record NativeCpuMemoryConfig(
         return new NativeCpuMemoryConfig(
                 NativeMemoryPoolPolicy.PER_EXECUTION,
                 maxPoolBytes,
-                (int) backend.cpu.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
+                (int) runtime.memory.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
                 false,
                 false
         );
@@ -46,7 +46,7 @@ public record NativeCpuMemoryConfig(
         return new NativeCpuMemoryConfig(
                 NativeMemoryPoolPolicy.PER_PREPARED_EXECUTION,
                 maxPoolBytes,
-                (int) backend.cpu.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
+                (int) runtime.memory.nativecpu.NativeCpuAllocator.DEFAULT_ALIGNMENT_BYTES,
                 false,
                 false
         );

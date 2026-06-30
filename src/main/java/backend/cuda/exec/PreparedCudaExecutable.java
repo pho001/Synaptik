@@ -1,12 +1,12 @@
 package backend.cuda.exec;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferBindings;
-import backend.accelerator.buffer.AcceleratorBufferDecision;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferRequest;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferBindings;
+import runtime.device.buffer.AcceleratorBufferDecision;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferRequest;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
@@ -575,7 +575,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
         return bytes;
     }
 
-    private static long logicalBytesFromInputs(List<backend.accelerator.buffer.AcceleratorBufferInputDecision> inputs) {
+    private static long logicalBytesFromInputs(List<runtime.device.buffer.AcceleratorBufferInputDecision> inputs) {
         long bytes = 0L;
         if (inputs == null) {
             return 0L;
@@ -588,7 +588,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
         return bytes;
     }
 
-    private static long logicalBytesFromOutputs(List<backend.accelerator.buffer.AcceleratorBufferOutputDecision> outputs) {
+    private static long logicalBytesFromOutputs(List<runtime.device.buffer.AcceleratorBufferOutputDecision> outputs) {
         long bytes = 0L;
         if (outputs == null) {
             return 0L;

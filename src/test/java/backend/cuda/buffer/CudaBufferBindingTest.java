@@ -1,7 +1,7 @@
 package backend.cuda.buffer;
 
-import backend.accelerator.buffer.AcceleratorBufferAccessMode;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferAccessMode;
+import runtime.device.buffer.AcceleratorBufferLayout;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 

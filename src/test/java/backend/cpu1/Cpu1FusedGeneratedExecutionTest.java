@@ -1,6 +1,6 @@
 package backend.cpu1;
 
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import backend.cpu1.exec.Cpu1FusedKernelArgs;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.fused.ir.Cpu1FusedAccessKind;

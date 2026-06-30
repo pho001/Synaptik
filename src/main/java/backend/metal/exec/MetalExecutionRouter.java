@@ -1,6 +1,6 @@
 package backend.metal.exec;
 
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.lowering.GpuLoweredRegionManifest;
 import backend.metal.bridge.MetalMpsBridgeCapabilities;
 import backend.metal.kernel.MetalCustomKernelCapabilities;

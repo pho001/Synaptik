@@ -3,8 +3,8 @@ package backend.metal.bridge;
 import tensor.TensorInternalAccess;
 
 import backend.metal.MetalMpsCapabilities;
-import backend.accelerator.buffer.AcceleratorLayoutAbiV2Descriptor;
-import backend.accelerator.buffer.AcceleratorLayoutAbiV2Support;
+import runtime.device.buffer.AcceleratorLayoutAbiV2Descriptor;
+import runtime.device.buffer.AcceleratorLayoutAbiV2Support;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.lowering.AcceleratorSubgraphSignature;
 import backend.accelerator.dag.AcceleratorDagInput;

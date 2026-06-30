@@ -2,9 +2,9 @@ package training.optimizer;
 
 import tensor.TensorInternalAccess;
 
-import backend.cpu.nativecpu.NativeCpuAllocator;
-import backend.cpu.nativecpu.NativeCpuMaterializer;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuAllocator;
+import runtime.memory.nativecpu.NativeCpuMaterializer;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import runtime.contract.CpuMaterializationReason;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.buffer.MetalBufferAllocator;

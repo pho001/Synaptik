@@ -1,6 +1,6 @@
 package graph.execution;
 
-import backend.cpu.nativecpu.NativeCpuMemoryPool;
+import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import backend.runtime.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;

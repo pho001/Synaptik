@@ -1,10 +1,10 @@
 package backend.metal;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.buffer.AcceleratorLayoutTransformPlanner;
-import backend.accelerator.buffer.AcceleratorLayoutTransformRequest;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorLayoutTransformPlanner;
+import runtime.device.buffer.AcceleratorLayoutTransformRequest;
 import runtime.contract.CpuMaterializationReason;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.buffer.MetalBufferAccess;

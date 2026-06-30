@@ -1,6 +1,6 @@
 package backend.metal.bridge;
 
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
 import backend.metal.buffer.MetalBufferAccess;
 import backend.metal.buffer.MetalBufferBinding;
 import backend.metal.kernel.MetalCustomKernelBridge;

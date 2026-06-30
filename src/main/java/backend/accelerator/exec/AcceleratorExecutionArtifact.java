@@ -1,8 +1,8 @@
 package backend.accelerator.exec;
 
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.accelerator.buffer.AcceleratorLayoutTransformKind;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.lowering.GpuCompoundPatternType;
 import backend.lowering.region.RegionExecutionPlan;
 import backend.runtime.ExecutionContext;

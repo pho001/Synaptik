@@ -1,11 +1,11 @@
 package backend.cuda.buffer;
 
 import backend.contract.ComputeBackend;
-import backend.accelerator.buffer.AcceleratorBufferDecision;
-import backend.accelerator.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.buffer.AcceleratorBufferLayout;
-import backend.accelerator.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.buffer.AcceleratorBufferRequest;
+import runtime.device.buffer.AcceleratorBufferDecision;
+import runtime.device.buffer.AcceleratorBufferExecutionPath;
+import runtime.device.buffer.AcceleratorBufferLayout;
+import runtime.device.buffer.AcceleratorBufferReasonCode;
+import runtime.device.buffer.AcceleratorBufferRequest;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;

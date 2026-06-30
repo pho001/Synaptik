@@ -2,7 +2,7 @@ package backend.cpu.nativecpu.layout;
 
 import tensor.dtype.TensorDTypeOps;
 import backend.cpu.kernels.elementwise.where.CpuWhereKernel;
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import operations.elementwise.compare.greaterThan;
 import operations.elementwise.binary.add;
 import operations.elementwise.binary.max;

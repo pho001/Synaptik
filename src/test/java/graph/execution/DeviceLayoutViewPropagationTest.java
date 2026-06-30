@@ -8,8 +8,8 @@ import backend.contract.ComputeBackend;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferBinding;
 import backend.cuda.buffer.CudaBufferHandle;
-import backend.accelerator.buffer.AcceleratorLayoutTransformDecision;
-import backend.memory.DeviceBufferBinding;
+import runtime.device.buffer.AcceleratorLayoutTransformDecision;
+import runtime.device.buffer.DeviceBufferBinding;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
 import backend.metal.buffer.MetalBufferAccess;
@@ -151,7 +151,7 @@ class DeviceLayoutViewPropagationTest {
         assertNotNull(binding);
         assertEquals("GPU_METAL", binding.backendId());
         assertEquals(
-                backend.accelerator.buffer.AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
+                runtime.device.buffer.AcceleratorBufferLayoutClass.DENSE_CONTIGUOUS,
                 binding.layout().layoutClass()
         );
         assertEquals(StorageResidency.DEVICE_OWNED, fixture.state().residencyForNodeId(fixture.targetNode().id()).residency());
@@ -268,7 +268,7 @@ class DeviceLayoutViewPropagationTest {
         void attachMetalSource() {
             MetalBufferBinding binding = new MetalBufferBinding(
                     sourceNode.id(),
-                    backend.accelerator.buffer.AcceleratorBufferLayout.of(
+                    runtime.device.buffer.AcceleratorBufferLayout.of(
                             sourceNode.dataType(),
                             sourceNode.shape(),
                             sourceNode.strides(),
@@ -284,7 +284,7 @@ class DeviceLayoutViewPropagationTest {
         void attachHostSharedMetalSource() {
             MetalBufferBinding binding = new MetalBufferBinding(
                     sourceNode.id(),
-                    backend.accelerator.buffer.AcceleratorBufferLayout.of(
+                    runtime.device.buffer.AcceleratorBufferLayout.of(
                             sourceNode.dataType(),
                             sourceNode.shape(),
                             sourceNode.strides(),
@@ -300,7 +300,7 @@ class DeviceLayoutViewPropagationTest {
         void attachCudaSource() {
             CudaBufferBinding binding = new CudaBufferBinding(
                     sourceNode.id(),
-                    backend.accelerator.buffer.AcceleratorBufferLayout.of(
+                    runtime.device.buffer.AcceleratorBufferLayout.of(
                             sourceNode.dataType(),
                             sourceNode.shape(),
                             sourceNode.strides(),

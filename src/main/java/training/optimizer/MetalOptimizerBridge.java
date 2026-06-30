@@ -1,6 +1,6 @@
 package training.optimizer;
 
-import backend.accelerator.buffer.AcceleratorBufferLayoutClass;
+import runtime.device.buffer.AcceleratorBufferLayoutClass;
 import backend.metal.bridge.MetalMpsBridgeContext;
 import backend.metal.bridge.MetalNativeLibraryResolver;
 import backend.metal.buffer.MetalBufferAccess;

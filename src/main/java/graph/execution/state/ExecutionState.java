@@ -1,13 +1,13 @@
 package graph.execution.state;
 
-import backend.cpu.nativecpu.NativeCpuMemoryPool;
+import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.DeviceBufferBinding;
-import backend.memory.DeviceToCpuMaterializer;
-import backend.memory.DeviceToNativeMaterializer;
-import backend.memory.ExecutionResource;
+import runtime.device.buffer.DeviceBufferBinding;
+import runtime.memory.DeviceToCpuMaterializer;
+import runtime.memory.DeviceToNativeMaterializer;
+import runtime.memory.ExecutionResource;
 import runtime.contract.StorageResidency;
-import backend.memory.TensorResidencyState;
+import runtime.residency.TensorResidencyState;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.NativeCpuMemoryConfig;
 import graph.model.CompiledNode;

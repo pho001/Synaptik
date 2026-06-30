@@ -1,8 +1,8 @@
 package graph.execution.state;
 
-import backend.cpu.nativecpu.NativeCpuMemoryPool;
+import runtime.memory.nativecpu.NativeCpuMemoryPool;
 import runtime.contract.CpuMaterializationReason;
-import backend.memory.TensorResidencyState;
+import runtime.residency.TensorResidencyState;
 import config.runtime.NativeCpuMemoryConfig;
 import graph.execution.residency.DeviceBindingRegistry;
 import graph.execution.residency.NativeCpuStorageRegistry;

@@ -1,6 +1,6 @@
 package backend.cpu.nativecpu.layout;
 
-import backend.cpu.nativecpu.NativeCpuStorageFactory;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
 import graph.compile.CompiledNodeSnapshotter;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;

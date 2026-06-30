@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -112,6 +114,56 @@ public class PackageOwnershipBoundaryTest {
                 )),
                 "tensor must not import current or target runtime residency implementations"
         );
+    }
+
+    @Test
+    void runtimeDoesNotDependOnConcreteBackends() throws IOException {
+        assertNoImports(
+                "runtime",
+                importedType -> startsWithAny(importedType, List.of(
+                        "backend.cpu.",
+                        "backend.cpu1.",
+                        "backend.metal.",
+                        "backend.cuda.",
+                        "backend.opencl."
+                )),
+                "runtime must not import concrete backend implementations"
+        );
+    }
+
+    @Test
+    void tensorRuntimeImportsAreLimitedToLifecycleAndStorageContracts() throws IOException {
+        Map<String, Set<String>> allowedByFile = Map.of(
+                "src/main/java/tensor/Tensor.java", Set.of(
+                        "runtime.contract.ExecutionMode",
+                        "runtime.execution.PreparedExecution"
+                ),
+                "src/main/java/tensor/internal/TensorExecution.java", Set.of(
+                        "runtime.contract.ExecutionMode",
+                        "runtime.execution.PreparedExecution"
+                ),
+                "src/main/java/tensor/storage/NativeMemoryAllocation.java", Set.of(
+                        "runtime.memory.ExecutionResource"
+                )
+        );
+        List<String> offenders = importsUnder(MAIN.resolve("tensor"), importedType -> importedType.startsWith("runtime."))
+                .stream()
+                .filter(line -> allowedByFile.entrySet().stream().noneMatch(entry ->
+                        line.startsWith(entry.getKey() + ":")
+                                && entry.getValue().stream().anyMatch(line::endsWith)))
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "tensor runtime imports outside lifecycle boundary: " + offenders);
+    }
+
+    @Test
+    void legacyRuntimeMemoryOwnershipTreesAreRemoved() {
+        List<Path> legacyTrees = List.of(
+                MAIN.resolve("backend/memory"),
+                MAIN.resolve("backend/accelerator/buffer")
+        );
+        assertTrue(legacyTrees.stream().noneMatch(Files::exists),
+                () -> "legacy runtime memory ownership trees remain: "
+                        + legacyTrees.stream().filter(Files::exists).toList());
     }
 
     private static void assertNoImports(

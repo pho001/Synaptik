@@ -1,5 +1,8 @@
 package backend.cpu.nativecpu;
 
+import runtime.memory.nativecpu.NativeCpuMaterializer;
+import runtime.memory.nativecpu.NativeCpuStorageFactory;
+
 import backend.contract.ComputeBackend;
 import backend.blas.OpenBlasRuntime;
 import backend.cpu.execution.CpuKernelContext;
