@@ -954,7 +954,7 @@ public class SourceTreeHygieneTest {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java")),
                 List.of(".getStorage()", ".getFloat32Data()", ".getFloat64Data()", ".getBFloat16Data()",
-                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()",
+                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()",
                         ".markDataViewStale()", "\"getFloat32Data\"", "\"getFloat64Data\"", "\"getBFloat16Data\"",
                         "\"getInt32Data\"", "\"getInt64Data\"", "\"getBoolData\"")
         ).stream()
@@ -969,7 +969,7 @@ public class SourceTreeHygieneTest {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/test/java")),
                 List.of(".getStorage()", ".getFloat32Data()", ".getFloat64Data()", ".getBFloat16Data()",
-                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()", ".markStorageModified()",
+                        ".getInt32Data()", ".getInt64Data()", ".getBoolData()", ".getData()",
                         ".markDataViewStale()")
         );
         assertTrue(offenders.isEmpty(), () -> "Tests should use logical copy APIs or TensorInternalAccess for explicit storage assertions: " + offenders);

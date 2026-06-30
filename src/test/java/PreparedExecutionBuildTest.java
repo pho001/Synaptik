@@ -10,6 +10,12 @@ import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.CpuPreparedInput;
+import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
+import backend.cpu1.prepare.Cpu1MatmulPostOp;
+import backend.cpu1.prepare.Cpu1PreparedArtifact;
+import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
+import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
+import backend.cpu1.storage.Cpu1StorageKind;
 import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.lowering.MetalBackendPartitionCapability;
@@ -58,6 +64,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -1399,9 +1406,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void bfloat16LinearToReluPublishesFloatContinuationInInference() {
-        assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
-
+    void bfloat16LinearToReluPreparesCpu1BiasReluSpecialization() {
         Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
         Tensor bias = new Tensor(new double[96], new int[]{96}, null, "bias", DataType.BFLOAT16);
@@ -1410,21 +1415,25 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(bfloat16BlasRuntime());
 
-        var linearStep = execution.forwardSteps().stream()
-                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.LINEAR)
+        var reluStep = execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.RELU)
                 .findFirst()
                 .orElseThrow();
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, reluStep.metadata().artifact());
+        Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
-        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().storageType().name());
-        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().computeType().name());
-        assertEquals("CPU_MATMUL_BLAS", testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).computeContract().backend().name());
-        assertTrue(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()).publishFloatContinuation());
+        assertEquals(Operation.OpType.RELU, reluStep.compiledNode().operation().opType());
+        assertEquals(2, reluStep.orderedNodeIds().size());
+        assertEquals(reluStep.compiledNode().id(), reluStep.orderedNodeIds().getLast());
+        assertEquals(DataType.BFLOAT16, preparedMatmulUnit.dataType());
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY, preparedMatmulUnit.storageKind());
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, preparedMatmulUnit.route());
+        assertEquals(Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR, preparedMatmulUnit.kernelId());
+        assertEquals(Cpu1MatmulPostOp.ADD_BIAS_RELU, preparedMatmulUnit.postOp());
     }
 
     @Test
-    void bfloat16MatmulToAddPublishesFloatContinuationInInference() {
-        assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), "OpenBLAS SBGEMM is unavailable");
-
+    void bfloat16MatmulToAddPreparesCpu1BiasSpecialization() {
         Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.BFLOAT16);
         Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.BFLOAT16);
         Tensor c = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "c", DataType.BFLOAT16);
@@ -1433,17 +1442,21 @@ public class PreparedExecutionBuildTest {
         PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
                 .prepare(bfloat16BlasRuntime());
 
-        var matmulStep = execution.forwardSteps().stream()
-                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.MATMUL)
+        var addStep = execution.forwardSteps().stream()
+                .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == Operation.OpType.ADD)
                 .findFirst()
                 .orElseThrow();
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, addStep.metadata().artifact());
+        Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
-        assertEquals("BFLOAT16", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().storageType().name());
-        assertEquals("F32", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().computeType().name());
-        assertEquals("CPU_MATMUL_BLAS", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).computeContract().backend().name());
-        assertTrue(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).publishFloatContinuation());
-        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable());
-        assertEquals("BF16BlasMatMulExecutable", testsupport.MetadataArtifacts.cpuPlan(matmulStep.metadata()).matMulExecutable().getClass().getSimpleName());
+        assertEquals(Operation.OpType.ADD, addStep.compiledNode().operation().opType());
+        assertEquals(2, addStep.orderedNodeIds().size());
+        assertEquals(addStep.compiledNode().id(), addStep.orderedNodeIds().getLast());
+        assertEquals(DataType.BFLOAT16, preparedMatmulUnit.dataType());
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY, preparedMatmulUnit.storageKind());
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, preparedMatmulUnit.route());
+        assertEquals(Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR, preparedMatmulUnit.kernelId());
+        assertEquals(Cpu1MatmulPostOp.ADD_BIAS, preparedMatmulUnit.postOp());
     }
 
     @Test
@@ -4268,15 +4281,23 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> hasLabel(step, "logSoftmax"))
                 .findFirst()
                 .orElseThrow();
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().artifact());
+        Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
-        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
+        assertEquals(Operation.OpType.LINEAR, linearStep.compiledNode().operation().opType());
+        assertEquals(1, linearStep.orderedNodeIds().size());
+        assertEquals(DataType.BFLOAT16, preparedMatmulUnit.dataType());
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY, preparedMatmulUnit.storageKind());
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, preparedMatmulUnit.route());
+        assertEquals(Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR, preparedMatmulUnit.kernelId());
+        assertEquals(Cpu1MatmulPostOp.ADD_BIAS, preparedMatmulUnit.postOp());
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(logSoftmaxStep.metadata()));
         assertFalse(logSoftmaxStep.compiledNode().operation() != null
                 && logSoftmaxStep.compiledNode().operation().opType() == Operation.OpType.LOG_SOFTMAX);
     }
 
     @Test
-    void bfloat16SoftmaxToMeanKeepsFloatContinuationInInference() {
+    void bfloat16SoftmaxToMeanUsesCpu1LinearSpecializationAndPreparedReduction() {
         Tensor input = new Tensor(new double[32 * 64], new int[]{32, 64}, null, "input", DataType.BFLOAT16);
         Tensor weight = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "weight", DataType.BFLOAT16);
         Tensor bias = new Tensor(new double[96], new int[]{96}, null, "bias", DataType.BFLOAT16);
@@ -4293,8 +4314,16 @@ public class PreparedExecutionBuildTest {
                 .filter(step -> hasLabel(step, "softmax"))
                 .findFirst()
                 .orElseThrow();
+        Cpu1PreparedArtifact artifact = assertInstanceOf(Cpu1PreparedArtifact.class, linearStep.metadata().artifact());
+        Cpu1PreparedMatmulUnit preparedMatmulUnit = artifact.preparedMatmulUnit();
 
-        assertNotNull(testsupport.MetadataArtifacts.cpuPlan(linearStep.metadata()));
+        assertEquals(Operation.OpType.LINEAR, linearStep.compiledNode().operation().opType());
+        assertEquals(1, linearStep.orderedNodeIds().size());
+        assertEquals(DataType.BFLOAT16, preparedMatmulUnit.dataType());
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY, preparedMatmulUnit.storageKind());
+        assertEquals(Cpu1MatmulRoute.JAVA_SCALAR, preparedMatmulUnit.route());
+        assertEquals(Cpu1MatmulKernelId.MATMUL_BF16_DENSE_SCALAR, preparedMatmulUnit.kernelId());
+        assertEquals(Cpu1MatmulPostOp.ADD_BIAS, preparedMatmulUnit.postOp());
         assertNotNull(testsupport.MetadataArtifacts.cpuPlan(softmaxStep.metadata()));
         assertFalse(softmaxStep.compiledNode().operation() != null
                 && softmaxStep.compiledNode().operation().opType() == Operation.OpType.SOFTMAX);
