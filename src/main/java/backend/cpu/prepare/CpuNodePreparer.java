@@ -103,6 +103,7 @@ public final class CpuNodePreparer {
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
                 runtimeConfig.cpuStorageProfile(),
+                runtimeConfig.nativeCpuFailurePolicy(),
                 publishFloatContinuation,
                 dispatchHintsOverride
         );
@@ -194,6 +195,7 @@ public final class CpuNodePreparer {
                 runtimeConfig.blas(),
                 runtimeConfig.conv2d(),
                 runtimeConfig.cpuStorageProfile(),
+                runtimeConfig.nativeCpuFailurePolicy(),
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

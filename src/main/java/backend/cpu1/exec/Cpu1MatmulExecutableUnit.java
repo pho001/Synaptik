@@ -1,6 +1,6 @@
 package backend.cpu1.exec;
 
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernel;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import runtime.execution.ExecutionContext;

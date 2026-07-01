@@ -1,4 +1,4 @@
-package backend.blas;
+package backend.provider.blas.openblas;
 
 import java.util.OptionalInt;
 
@@ -46,17 +46,6 @@ public final class OpenBlasRuntime {
         return symbols.source == null ? "UNAVAILABLE" : symbols.source.name();
     }
 
-    public static String threadPolicy() {
-        return "AUTO_UNCONTROLLED";
-    }
-
-    public static String threadPolicy(int requestedThreads) {
-        if (requestedThreads <= 0) {
-            return threadPolicy();
-        }
-        return "SET_NUM_THREADS(" + requestedThreads + ")";
-    }
-
     public static OptionalInt getNumThreads() {
         OpenBlasSymbols symbols = OpenBlasSymbols.get();
         if (!symbols.available || symbols.getNumThreads == null) {
@@ -95,18 +84,5 @@ public final class OpenBlasRuntime {
         } catch (Throwable t) {
             throw new IllegalStateException("OpenBLAS openblas_get_parallel call failed", t);
         }
-    }
-
-    public static String parallelModeDescription() {
-        OptionalInt mode = getParallelMode();
-        if (mode.isEmpty()) {
-            return "UNAVAILABLE";
-        }
-        return switch (mode.getAsInt()) {
-            case 0 -> "SEQUENTIAL";
-            case 1 -> "PTHREADS";
-            case 2 -> "OPENMP";
-            default -> "UNKNOWN(" + mode.getAsInt() + ")";
-        };
     }
 }

@@ -1,7 +1,6 @@
 package backend.cpu1.kernels.matmul;
 
-import backend.blas.OpenBlasRuntime;
-import backend.blas.OpenBlasSegmentGemm;
+import backend.provider.blas.openblas.OpenBlasSegmentGemm;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import runtime.contract.CpuMaterializationReason;
@@ -22,10 +21,6 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
     }
 
     public static void matmulF32NativeSegment(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        if (!OpenBlasRuntime.isFloat32GemmAvailable()) {
-            throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT F32 MATMUL requires OpenBLAS sgemm: "
-                    + OpenBlasRuntime.unavailableReason());
-        }
         NativeTensorStorage left = inputStorage("left", unit.leftNodeId(), DataType.FLOAT32, context);
         NativeTensorStorage right = inputStorage("right", unit.rightNodeId(), DataType.FLOAT32, context);
         NativeTensorStorage bias = unit.hasBias()
@@ -37,10 +32,6 @@ public final class Cpu1OpenBlasNativeSegmentMatmulLoops {
     }
 
     public static void matmulF64NativeSegment(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        if (!OpenBlasRuntime.isFloat64GemmAvailable()) {
-            throw new IllegalStateException("cpu1 OPENBLAS_NATIVE_SEGMENT F64 MATMUL requires OpenBLAS dgemm: "
-                    + OpenBlasRuntime.unavailableReason());
-        }
         NativeTensorStorage left = inputStorage("left", unit.leftNodeId(), DataType.FLOAT64, context);
         NativeTensorStorage right = inputStorage("right", unit.rightNodeId(), DataType.FLOAT64, context);
         NativeTensorStorage bias = unit.hasBias()

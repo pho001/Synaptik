@@ -1,6 +1,6 @@
 package tuning.etalon;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;

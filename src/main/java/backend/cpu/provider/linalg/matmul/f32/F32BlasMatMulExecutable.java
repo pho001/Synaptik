@@ -28,7 +28,7 @@ public final class F32BlasMatMulExecutable implements PreparedMatMulExecutable {
         float[] ad = TensorInternalAccess.float32Data(a);
         float[] bd = TensorInternalAccess.float32Data(b);
         float[] out = TensorInternalAccess.float32Data(node);
-        if (MatMulBlasBackend.tryBlasF32(ad, bd, out, m, n, k)) {
+        if (MatMulBlasBackend.tryBlasF32(ad, bd, out, m, n, k, hints.blasDebug(), hints.openBlasThreads())) {
             return;
         }
         Arrays.fill(out, 0.0f);

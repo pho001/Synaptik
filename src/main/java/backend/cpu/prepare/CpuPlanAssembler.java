@@ -16,6 +16,7 @@ import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.provider.linalg.matmul.MatMulProviderExecutableFactory;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
@@ -35,6 +36,7 @@ public final class CpuPlanAssembler {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
@@ -70,6 +72,7 @@ public final class CpuPlanAssembler {
                 planner,
                 blasConfig,
                 cpuStorageProfile,
+                nativeCpuFailurePolicy,
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

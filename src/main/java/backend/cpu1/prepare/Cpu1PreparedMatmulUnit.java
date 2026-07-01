@@ -45,6 +45,12 @@ public final class Cpu1PreparedMatmulUnit {
     private final Cpu1LaunchConfig launchConfig;
     private final Cpu1ScratchBufferSpec scratchBufferSpec;
     private final int openBlasThreads;
+    private final boolean openblasSgemmAvailable;
+    private final boolean openblasDgemmAvailable;
+    private final boolean openblasSbgemmAvailable;
+    private final boolean openblasBgemmAvailable;
+    private final String openblasLookupSource;
+    private final String blasThreadPolicy;
 
     public Cpu1PreparedMatmulUnit(
             int nodeId,
@@ -71,7 +77,13 @@ public final class Cpu1PreparedMatmulUnit {
             int[] outputBatchOffsets,
             Cpu1LaunchConfig launchConfig,
             Cpu1ScratchBufferSpec scratchBufferSpec,
-            int openBlasThreads
+            int openBlasThreads,
+            boolean openblasSgemmAvailable,
+            boolean openblasDgemmAvailable,
+            boolean openblasSbgemmAvailable,
+            boolean openblasBgemmAvailable,
+            String openblasLookupSource,
+            String blasThreadPolicy
     ) {
         this(
                 nodeId,
@@ -102,7 +114,13 @@ public final class Cpu1PreparedMatmulUnit {
                 outputBatchOffsets,
                 launchConfig,
                 scratchBufferSpec,
-                openBlasThreads
+                openBlasThreads,
+                openblasSgemmAvailable,
+                openblasDgemmAvailable,
+                openblasSbgemmAvailable,
+                openblasBgemmAvailable,
+                openblasLookupSource,
+                blasThreadPolicy
         );
     }
 
@@ -135,7 +153,13 @@ public final class Cpu1PreparedMatmulUnit {
             int[] outputBatchOffsets,
             Cpu1LaunchConfig launchConfig,
             Cpu1ScratchBufferSpec scratchBufferSpec,
-            int openBlasThreads
+            int openBlasThreads,
+            boolean openblasSgemmAvailable,
+            boolean openblasDgemmAvailable,
+            boolean openblasSbgemmAvailable,
+            boolean openblasBgemmAvailable,
+            String openblasLookupSource,
+            String blasThreadPolicy
     ) {
         if (nodeId < 0 || leftNodeId < 0 || rightNodeId < 0) {
             throw new IllegalArgumentException("node ids cannot be negative");
@@ -213,6 +237,12 @@ public final class Cpu1PreparedMatmulUnit {
             throw new IllegalArgumentException("openBlasThreads must be non-negative: " + openBlasThreads);
         }
         this.openBlasThreads = openBlasThreads;
+        this.openblasSgemmAvailable = openblasSgemmAvailable;
+        this.openblasDgemmAvailable = openblasDgemmAvailable;
+        this.openblasSbgemmAvailable = openblasSbgemmAvailable;
+        this.openblasBgemmAvailable = openblasBgemmAvailable;
+        this.openblasLookupSource = requireText(openblasLookupSource, "openblasLookupSource");
+        this.blasThreadPolicy = requireText(blasThreadPolicy, "blasThreadPolicy");
     }
 
     public int nodeId() {
@@ -346,6 +376,30 @@ public final class Cpu1PreparedMatmulUnit {
         return openBlasThreads;
     }
 
+    public boolean openblasSgemmAvailable() {
+        return openblasSgemmAvailable;
+    }
+
+    public boolean openblasDgemmAvailable() {
+        return openblasDgemmAvailable;
+    }
+
+    public boolean openblasSbgemmAvailable() {
+        return openblasSbgemmAvailable;
+    }
+
+    public boolean openblasBgemmAvailable() {
+        return openblasBgemmAvailable;
+    }
+
+    public String openblasLookupSource() {
+        return openblasLookupSource;
+    }
+
+    public String blasThreadPolicy() {
+        return blasThreadPolicy;
+    }
+
     private static int[] requireOffsets(int[] offsets, int batchCount, String name) {
         if (offsets == null) {
             throw new IllegalArgumentException(name + " cannot be null");
@@ -361,5 +415,12 @@ public final class Cpu1PreparedMatmulUnit {
         if (value <= 0) {
             throw new IllegalArgumentException(name + " must be positive: " + value);
         }
+    }
+
+    private static String requireText(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " cannot be blank");
+        }
+        return value;
     }
 }

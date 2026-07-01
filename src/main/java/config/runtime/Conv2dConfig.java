@@ -1,6 +1,5 @@
 package config.runtime;
 
-import backend.blas.BlasProvider;
 import tensor.DataType;
 
 import java.util.Objects;

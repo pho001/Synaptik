@@ -1,6 +1,5 @@
 package backend.cpu1.trace;
 
-import backend.blas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.prepare.Cpu1PreparedDTypeUnit;
@@ -259,10 +258,10 @@ public final class Cpu1TraceContributor {
                 unit.storageKind().name(),
                 unit.storageKind().name(),
                 "",
-                matmulUsesBlas(unit) && OpenBlasRuntime.isFloat32GemmAvailable(),
-                matmulUsesBlas(unit) && OpenBlasRuntime.isFloat64GemmAvailable(),
-                matmulUsesBlas(unit) && OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(),
-                matmulUsesBlas(unit) && OpenBlasRuntime.isBFloat16OutputGemmAvailable(),
+                matmulUsesBlas(unit) && unit.openblasSgemmAvailable(),
+                matmulUsesBlas(unit) && unit.openblasDgemmAvailable(),
+                matmulUsesBlas(unit) && unit.openblasSbgemmAvailable(),
+                matmulUsesBlas(unit) && unit.openblasBgemmAvailable(),
                 unit.dataType() == DataType.BFLOAT16 ? "JAVA" : "",
                 unit.dataType() == DataType.BFLOAT16 ? "JAVA" : "",
                 unit.dataType() == DataType.BFLOAT16 ? "F32_PROMOTED" : unit.dataType().name(),
@@ -270,7 +269,7 @@ public final class Cpu1TraceContributor {
                 matmulCopyInBytes(unit),
                 matmulCopyOutBytes(unit),
                 matmulUsesBlas(unit) ? -1L : 0L,
-                matmulUsesBlas(unit) ? OpenBlasRuntime.threadPolicy(unit.openBlasThreads()) : "SINGLE_THREAD",
+                unit.blasThreadPolicy(),
                 "",
                 false,
                 unit.m(),
@@ -941,15 +940,15 @@ public final class Cpu1TraceContributor {
         attrs.put("blasProvider", matmulBlasProvider(unit));
         attrs.put("blasSymbol", matmulBlasSymbol(unit));
         attrs.put("blasRoute", matmulBlasRoute(unit));
-        attrs.put("openblasSgemmAvailable", OpenBlasRuntime.isFloat32GemmAvailable());
-        attrs.put("openblasDgemmAvailable", OpenBlasRuntime.isFloat64GemmAvailable());
-        attrs.put("openblasSbgemmAvailable", OpenBlasRuntime.isBFloat16ToFloatGemmAvailable());
-        attrs.put("openblasBgemmAvailable", OpenBlasRuntime.isBFloat16OutputGemmAvailable());
-        attrs.put("openblasLookupSource", OpenBlasRuntime.lookupSource());
+        attrs.put("openblasSgemmAvailable", unit.openblasSgemmAvailable());
+        attrs.put("openblasDgemmAvailable", unit.openblasDgemmAvailable());
+        attrs.put("openblasSbgemmAvailable", unit.openblasSbgemmAvailable());
+        attrs.put("openblasBgemmAvailable", unit.openblasBgemmAvailable());
+        attrs.put("openblasLookupSource", unit.openblasLookupSource());
         attrs.put("matMulCopyInBytes", matmulCopyInBytes(unit));
         attrs.put("matMulCopyOutBytes", matmulCopyOutBytes(unit));
         attrs.put("matMulNativeTempBytes", -1L);
-        attrs.put("blasThreadPolicy", OpenBlasRuntime.threadPolicy(unit.openBlasThreads()));
+        attrs.put("blasThreadPolicy", unit.blasThreadPolicy());
     }
 
     private static boolean matmulUsesBlas(Cpu1PreparedMatmulUnit unit) {

@@ -9,6 +9,7 @@ import backend.cpu.kernels.reduction.ReductionLogicalSize;
 import backend.cpu.plan.reduction.ResolvedReductionHints;
 import config.runtime.BlasConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import operations.Operation;
@@ -28,6 +29,7 @@ final class CpuOperationPlanResolver {
             CpuExecutionPlanner planner,
             BlasConfig blasConfig,
             CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
@@ -46,6 +48,7 @@ final class CpuOperationPlanResolver {
                                 publishFloatContinuation
                         )
                         : null;
+        matMulHints = withNativeCpuFailurePolicy(matMulHints, nativeCpuFailurePolicy);
 
         ResolvedScaledDotProductAttentionPlan attentionPlan =
                 planner.resolveScaledDotProductAttentionPlan(op, runtimeInputs, nodeDescriptor, descriptorIndex, blasConfig);
@@ -71,6 +74,39 @@ final class CpuOperationPlanResolver {
                 computeContract,
                 dispatchHints,
                 reductionHints
+        );
+    }
+
+    private static ResolvedMatMulHints withNativeCpuFailurePolicy(
+            ResolvedMatMulHints hints,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy
+    ) {
+        if (hints == null) {
+            return null;
+        }
+        return new ResolvedMatMulHints(
+                hints.useBlas(),
+                hints.useBatchedBlas(),
+                hints.route(),
+                hints.parallel(),
+                hints.tileM(),
+                hints.tileN(),
+                hints.tileK(),
+                hints.plannedWorkers(),
+                hints.work(),
+                hints.microKernel(),
+                hints.blasProvider(),
+                hints.blasDebug(),
+                hints.openBlasThreads(),
+                hints.openblasSgemmAvailable(),
+                hints.openblasDgemmAvailable(),
+                hints.openblasSbgemmAvailable(),
+                hints.openblasBgemmAvailable(),
+                hints.openblasLookupSource(),
+                hints.threadPolicy(),
+                hints.cpuStorageProfile(),
+                hints.requestedCpuStorage(),
+                nativeCpuFailurePolicy == null ? "" : nativeCpuFailurePolicy.name()
         );
     }
 

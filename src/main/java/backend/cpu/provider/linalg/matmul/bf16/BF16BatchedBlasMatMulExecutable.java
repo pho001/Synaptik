@@ -25,7 +25,10 @@ public final class BF16BatchedBlasMatMulExecutable extends AbstractBF16MatMulExe
         int n = bs[bs.length - 1];
         CpuNodeWorkspace workspace = context.cpuWorkspace();
         float[] tmp = workspace == null ? null : workspace.requireFloatWorkspace();
-        if (!MatMulBlasBackend.tryBatchedBlasBF16ToFloat(ad, as, bd, bs, tmp, node.getShapeUnsafe(), m, n, k)) {
+        if (!MatMulBlasBackend.tryBatchedBlasBF16ToFloat(
+                ad, as, bd, bs, tmp, node.getShapeUnsafe(), m, n, k,
+                hints.blasDebug(), hints.openBlasThreads()
+        )) {
             return false;
         }
         recordBlasSymbol("cblas_sbgemm");
@@ -39,7 +42,10 @@ public final class BF16BatchedBlasMatMulExecutable extends AbstractBF16MatMulExe
         int n = bs[bs.length - 1];
         CpuNodeWorkspace workspace = context.cpuWorkspace();
         float[] tmp = workspace == null ? null : workspace.requireFloatWorkspace();
-        if (!MatMulBlasBackend.tryBatchedBlasBF16(ad, as, bd, bs, TensorInternalAccess.bfloat16Data(node), tmp, node.getShapeUnsafe(), m, n, k)) {
+        if (!MatMulBlasBackend.tryBatchedBlasBF16(
+                ad, as, bd, bs, TensorInternalAccess.bfloat16Data(node), tmp,
+                node.getShapeUnsafe(), m, n, k, hints.blasDebug(), hints.openBlasThreads()
+        )) {
             return false;
         }
         recordBlasSymbol("cblas_bgemm");

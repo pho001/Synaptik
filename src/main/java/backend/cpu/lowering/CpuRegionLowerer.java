@@ -1,7 +1,7 @@
 package backend.cpu.lowering;
 
 import backend.contract.ComputeBackend;
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationBuilder;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweredUnitArtifact;

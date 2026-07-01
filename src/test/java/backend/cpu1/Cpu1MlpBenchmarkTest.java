@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.prepare.Cpu1NodePreparer;
@@ -447,7 +447,7 @@ class Cpu1MlpBenchmarkTest {
                 threadCase.requestedThreads(),
                 OpenBlasRuntime.getNumThreads().orElse(-1),
                 OpenBlasRuntime.getParallelMode().orElse(-1),
-                OpenBlasRuntime.parallelModeDescription(),
+                parallelModeDescription(OpenBlasRuntime.getParallelMode()),
                 medianMs(samples),
                 output(graph, true)
         );
@@ -483,7 +483,7 @@ class Cpu1MlpBenchmarkTest {
                 requestedThreads,
                 OpenBlasRuntime.getNumThreads().orElse(-1),
                 OpenBlasRuntime.getParallelMode().orElse(-1),
-                OpenBlasRuntime.parallelModeDescription(),
+                parallelModeDescription(OpenBlasRuntime.getParallelMode()),
                 benchmark
         );
     }
@@ -879,7 +879,7 @@ class Cpu1MlpBenchmarkTest {
                 mlpCase.hidden2Activation(),
                 mlpCase.output(),
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 profile.warmupIterations(),
                 profile.measureIterations(),
@@ -936,7 +936,7 @@ class Cpu1MlpBenchmarkTest {
                 chainCase.hidden(),
                 chainCase.output(),
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 profile.warmupIterations(),
                 profile.measureIterations(),
@@ -998,10 +998,10 @@ class Cpu1MlpBenchmarkTest {
                 chainCase.hidden(),
                 chainCase.output(),
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 originalThreads,
-                OpenBlasRuntime.parallelModeDescription(),
+                parallelModeDescription(OpenBlasRuntime.getParallelMode()),
                 profile.warmupIterations(),
                 profile.measureIterations(),
                 rows
@@ -1076,7 +1076,7 @@ class Cpu1MlpBenchmarkTest {
                 mlpCase.hidden2Activation(),
                 mlpCase.output(),
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 originalThreads,
                 rounds,
@@ -1150,7 +1150,7 @@ class Cpu1MlpBenchmarkTest {
                 mlpCase.hidden2Activation(),
                 mlpCase.output(),
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 originalThreads,
                 forks,
@@ -1454,6 +1454,24 @@ class Cpu1MlpBenchmarkTest {
             BenchmarkResult javaMatmul,
             BenchmarkResult nativeSegment
     ) {
+    }
+
+    private static String threadPolicy(int requestedThreads) {
+        return requestedThreads <= 0
+                ? "AUTO_UNCONTROLLED"
+                : "SET_NUM_THREADS(" + requestedThreads + ")";
+    }
+
+    private static String parallelModeDescription(OptionalInt mode) {
+        if (mode.isEmpty()) {
+            return "UNAVAILABLE";
+        }
+        return switch (mode.getAsInt()) {
+            case 0 -> "SEQUENTIAL";
+            case 1 -> "PTHREADS";
+            case 2 -> "OPENMP";
+            default -> "UNKNOWN(" + mode.getAsInt() + ")";
+        };
     }
 
     private record BenchmarkResult(

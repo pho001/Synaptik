@@ -2,22 +2,24 @@ package backend.cpu.provider.linalg.matmul.f64;
 
 import tensor.TensorInternalAccess;
 
-import backend.blas.OpenBlasRuntime;
-import backend.blas.OpenBlasSegmentGemm;
+import backend.provider.blas.openblas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasSegmentGemm;
 import backend.cpu.execution.CpuKernelContext;
 import backend.cpu.kernels.linalg.matmul.f64.F64MatMulJavaBackend;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import runtime.contract.CpuMaterializationReason;
-import config.runtime.NativeCpuFailurePolicy;
 import tensor.storage.NativeFloat64Storage;
 import tensor.storage.NativeTensorStorage;
 import tensor.Tensor;
 
 import java.util.Arrays;
+import java.util.OptionalInt;
 
 public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecutable {
+    private static final int NO_THREAD_RESTORE = -1;
+
     private final ResolvedMatMulHints hints;
     private MatMulExecutionRoute lastRoute = MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;
     private long lastCopyInBytes;
@@ -41,10 +43,6 @@ public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecut
         int m = as[as.length - 2];
         int k = as[as.length - 1];
         int n = bs[bs.length - 1];
-        if (!OpenBlasRuntime.isAvailable()) {
-            fallbackToJava(a, b, node, context, "OpenBLAS FFM unavailable: " + OpenBlasRuntime.unavailableReason());
-            return;
-        }
         if (as.length != 2 || bs.length != 2) {
             fallbackToJava(a, b, node, context, "native OpenBLAS segment route supports only rank-2 matmul in this wave");
             return;
@@ -73,22 +71,15 @@ public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecut
                     node.getFlatDataSize(),
                     "node-" + context.nodeId() + ":" + node.getLabel() + ":openblas-f64"
             );
-            OpenBlasSegmentGemm.dgemmRowMajorNoTransSegment(
-                    m,
-                    n,
-                    k,
-                    1.0d,
-                    aStorage.segment(),
-                    0L,
-                    k,
-                    bStorage.segment(),
-                    0L,
-                    n,
-                    0.0d,
-                    outStorage.segment(),
-                    0L,
-                    n
-            );
+            int previousThreads = applyPreparedThreads();
+            try {
+                OpenBlasSegmentGemm.dgemmRowMajorNoTransSegment(
+                        m, n, k, 1.0d, aStorage.segment(), 0L, k,
+                        bStorage.segment(), 0L, n, 0.0d, outStorage.segment(), 0L, n
+                );
+            } finally {
+                restoreThreads(previousThreads);
+            }
             outStorage.markModified();
             context.executionContext().attachNativeStorage(context.nodeId(), outStorage, "openblas native segment wrote FLOAT64 output");
             lastRoute = MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT;
@@ -122,7 +113,7 @@ public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecut
         lastFallbackReason = reason == null ? "" : reason;
         lastCopyInBytes = -1L;
         lastCopyOutBytes = -1L;
-        if (requiresNative(context)) {
+        if (requiresNative()) {
             throw new IllegalStateException("Native CPU execution required but FLOAT64 matmul fell back to Java: " + lastFallbackReason);
         }
         requireCpuReadableInputs(context);
@@ -145,14 +136,37 @@ public final class F64NativeBlasMatMulExecutable implements PreparedMatMulExecut
         }
     }
 
-    private static boolean requiresNative(CpuKernelContext context) {
-        return context != null
-                && context.executionContext().runtimeConfig() != null
-                && context.executionContext().runtimeConfig().nativeCpuFailurePolicy() == NativeCpuFailurePolicy.REQUIRE_NATIVE;
+    private boolean requiresNative() {
+        return "REQUIRE_NATIVE".equals(hints.nativeCpuFailurePolicy());
     }
 
     private static long logicalByteLength(Tensor tensor) {
         return Math.multiplyExact((long) tensor.getFlatDataSize(), Double.BYTES);
+    }
+
+    private int applyPreparedThreads() {
+        int requestedThreads = hints.openBlasThreads();
+        if (requestedThreads <= 0) {
+            return NO_THREAD_RESTORE;
+        }
+        OptionalInt previousThreads = OpenBlasRuntime.getNumThreads();
+        if (previousThreads.isEmpty()) {
+            throw new IllegalStateException("OpenBLAS thread override requires openblas_get_num_threads.");
+        }
+        int previous = previousThreads.getAsInt();
+        if (previous == requestedThreads) {
+            return NO_THREAD_RESTORE;
+        }
+        if (!OpenBlasRuntime.setNumThreads(requestedThreads)) {
+            throw new IllegalStateException("OpenBLAS thread override requires openblas_set_num_threads.");
+        }
+        return previous;
+    }
+
+    private static void restoreThreads(int previousThreads) {
+        if (previousThreads > 0) {
+            OpenBlasRuntime.setNumThreads(previousThreads);
+        }
     }
 
     private void resetTrace() {

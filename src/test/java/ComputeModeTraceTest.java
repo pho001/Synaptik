@@ -1,4 +1,4 @@
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import org.junit.jupiter.api.Assumptions;
@@ -85,7 +85,7 @@ public class ComputeModeTraceTest {
                 config.backend.KernelTuningConfig.defaultsInference(),
                 config.runtime.ApproximationConfig.defaults(),
                 new config.runtime.BlasConfig(
-                        backend.blas.BlasProvider.OPENBLAS_FFM,
+                        config.runtime.BlasProvider.OPENBLAS_FFM,
                         1L,
                         false,
                         100.0d,

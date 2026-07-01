@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
 import backend.cpu1.prepare.Cpu1NodePreparer;
@@ -342,7 +342,7 @@ class Cpu1MatmulBenchmarkTest {
                 N,
                 scalar.output().length,
                 OpenBlasRuntime.lookupSource(),
-                OpenBlasRuntime.threadPolicy(),
+                threadPolicy(0),
                 OpenBlasRuntime.isFloat32GemmAvailable(),
                 OpenBlasRuntime.isFloat64GemmAvailable(),
                 WARMUP_ITERATIONS,
@@ -513,6 +513,12 @@ class Cpu1MatmulBenchmarkTest {
             out[i] = storage.getFloat64At(i);
         }
         return out;
+    }
+
+    private static String threadPolicy(int requestedThreads) {
+        return requestedThreads <= 0
+                ? "AUTO_UNCONTROLLED"
+                : "SET_NUM_THREADS(" + requestedThreads + ")";
     }
 
     private record MatmulTensor(

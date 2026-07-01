@@ -1,5 +1,5 @@
 import backend.ApproxMode;
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import runtime.contract.ExecutionMode;
 import config.backend.CpuKernelConfig;
 import config.backend.CudaKernelConfig;

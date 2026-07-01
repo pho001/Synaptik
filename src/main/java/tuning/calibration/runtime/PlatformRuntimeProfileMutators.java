@@ -1,7 +1,7 @@
 package tuning.calibration.runtime;
 
 import backend.ApproxMode;
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import config.profile.AcceleratorBackendPlatformProfile;
 import config.profile.AcceleratorPlatformProfile;
 import config.backend.CpuMatMulMicroKernel;

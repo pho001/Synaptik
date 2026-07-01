@@ -28,7 +28,7 @@ public final class F64BlasMatMulExecutable implements PreparedMatMulExecutable {
         double[] ad = TensorInternalAccess.float64Data(a);
         double[] bd = TensorInternalAccess.float64Data(b);
         double[] out = TensorInternalAccess.float64Data(node);
-        if (MatMulBlasBackend.tryBlasF64(ad, bd, out, m, n, k)) {
+        if (MatMulBlasBackend.tryBlasF64(ad, bd, out, m, n, k, hints.blasDebug(), hints.openBlasThreads())) {
             return;
         }
         Arrays.fill(out, 0.0d);

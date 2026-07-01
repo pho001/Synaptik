@@ -1,7 +1,7 @@
 package backend.cpu1;
 
 import backend.contract.ComputeBackend;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;

@@ -1,6 +1,6 @@
 package config.profile;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import config.backend.CpuMatMulMicroKernel;
 import config.runtime.BlasStorageMode;
 

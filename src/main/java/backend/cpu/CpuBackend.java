@@ -10,6 +10,7 @@ import runtime.execution.ExecutionContext;
 import config.runtime.BlasConfig;
 import config.runtime.Conv2dConfig;
 import config.runtime.CpuStorageProfile;
+import config.runtime.NativeCpuFailurePolicy;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import graph.model.CompiledNode;
@@ -79,6 +80,7 @@ public final class CpuBackend {
             BlasConfig blasConfig,
             Conv2dConfig conv2dConfig,
             CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
             boolean publishFloatContinuation,
             ResolvedDispatchHints dispatchHintsOverride
     ) {
@@ -90,6 +92,7 @@ public final class CpuBackend {
                 planner,
                 blasConfig,
                 cpuStorageProfile,
+                nativeCpuFailurePolicy,
                 publishFloatContinuation,
                 dispatchHintsOverride
         );

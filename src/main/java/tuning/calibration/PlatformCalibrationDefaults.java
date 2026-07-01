@@ -1,6 +1,6 @@
 package tuning.calibration;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import config.backend.CpuMatMulMicroKernel;
 import config.profile.ExecutionProfile;

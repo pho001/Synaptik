@@ -4,7 +4,7 @@ import runtime.memory.nativecpu.NativeCpuMaterializer;
 import runtime.memory.nativecpu.NativeCpuStorageFactory;
 
 import backend.contract.ComputeBackend;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu.execution.CpuKernelContext;
 import tensor.dtype.TensorDTypeOps;
 import backend.cpu.plan.CpuNodeExecutionPlan;
@@ -299,7 +299,19 @@ class NativeOpenBlasMatMulExecutableTest {
                 base.tileK(),
                 base.plannedWorkers(),
                 base.work(),
-                base.microKernel()
+                base.microKernel(),
+                base.blasProvider(),
+                base.blasDebug(),
+                base.openBlasThreads(),
+                base.openblasSgemmAvailable(),
+                base.openblasDgemmAvailable(),
+                base.openblasSbgemmAvailable(),
+                base.openblasBgemmAvailable(),
+                base.openblasLookupSource(),
+                base.threadPolicy(),
+                base.cpuStorageProfile(),
+                "CPU_NATIVE",
+                base.nativeCpuFailurePolicy()
         );
     }
 

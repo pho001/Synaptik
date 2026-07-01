@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu;
 
-import backend.blas.BlasProvider;
-import backend.blas.OpenBlasRuntime;
+import config.runtime.BlasProvider;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import tensor.dtype.TensorDTypeOps;
 import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;

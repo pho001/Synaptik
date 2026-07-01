@@ -13,6 +13,51 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class SourceTreeHygieneTest {
 
     @Test
+    void legacyArchitecturePackagesAreRemoved() throws IOException {
+        List<Path> legacyPackages = List.of(Path.of("src/main/java/backend/blas"));
+        for (Path legacyPackage : legacyPackages) {
+            try (Stream<Path> paths = Files.exists(legacyPackage)
+                    ? Files.walk(legacyPackage)
+                    : Stream.empty()) {
+                assertTrue(
+                        paths.noneMatch(path -> Files.isRegularFile(path) && path.toString().endsWith(".java")),
+                        () -> "Legacy architecture package still contains Java sources: " + legacyPackage
+                );
+            }
+        }
+    }
+
+    @Test
+    void openBlasProviderUsesOnlyJdkFfmImports() throws IOException {
+        Path root = Path.of("src/main/java/backend/provider/blas/openblas");
+        List<String> offenders;
+        try (Stream<Path> paths = Files.walk(root)) {
+            offenders = paths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .flatMap(path -> {
+                        try {
+                            return Files.readAllLines(path).stream()
+                                    .map(String::trim)
+                                    .filter(line -> line.startsWith("import "))
+                                    .filter(line -> !line.startsWith("import java.")
+                                            && !line.startsWith("import javax.")
+                                            && !line.startsWith("import jdk.")
+                                            && !line.startsWith("import static java.")
+                                            && !line.startsWith("import static javax.")
+                                            && !line.startsWith("import static jdk."))
+                                    .map(line -> path + ": " + line);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+        }
+        assertTrue(offenders.isEmpty(), () -> "OpenBLAS provider has non-JDK imports: " + offenders);
+    }
+
+    @Test
     void planningTmpScratchIsIgnored() throws IOException {
         String gitignore = Files.readString(Path.of(".gitignore"));
         assertTrue(gitignore.contains(".planning/tmp/"), ".planning/tmp/ must stay ignored for local verification scratch files.");
@@ -1234,7 +1279,12 @@ public class SourceTreeHygieneTest {
     void topLevelTraceDoesNotImportConcreteBackendDetails() throws IOException {
         List<String> offenders = linesContainingAny(
                 Path.of("src/main/java/trace"),
-                List.of("import backend.cpu.", "import backend.blas.", "import backend.metal.", "import backend.cuda.")
+                List.of(
+                        "import backend.cpu.",
+                        "import backend.provider.blas.openblas.",
+                        "import backend.metal.",
+                        "import backend.cuda."
+                )
         );
         assertTrue(offenders.isEmpty(), () -> "top-level trace must consume backend-owned trace contributions: " + offenders);
     }
@@ -1243,7 +1293,8 @@ public class SourceTreeHygieneTest {
     void runtimeWorkspaceStoreDoesNotImportConcreteBackendDetails() throws IOException {
         String source = Files.readString(Path.of("src/main/java/runtime/execution/RuntimeWorkspaceStore.java"));
         assertTrue(!source.contains("import backend.cpu."), "RuntimeWorkspaceStore must store backend workspaces opaquely.");
-        assertTrue(!source.contains("import backend.blas."), "RuntimeWorkspaceStore must not know BLAS runtime state.");
+        assertTrue(!source.contains("import backend.provider.blas.openblas."),
+                "RuntimeWorkspaceStore must not know OpenBLAS provider state.");
         assertTrue(!source.contains("import backend.metal."), "RuntimeWorkspaceStore must not know Metal runtime state.");
         assertTrue(!source.contains("import backend.cuda."), "RuntimeWorkspaceStore must not know CUDA runtime state.");
     }

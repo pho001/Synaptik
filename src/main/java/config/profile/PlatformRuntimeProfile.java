@@ -1,6 +1,6 @@
 package config.profile;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.backend.CpuKernelConfig;

@@ -75,9 +75,9 @@ public class BenchmarkSessionTest {
 
         assertEquals(DataType.FLOAT32, entries.get(0).profile().dataType());
         assertEquals(DataType.BFLOAT16, entries.get(1).profile().dataType());
-        assertEquals(backend.blas.BlasProvider.NONE, entries.get(1).profile().runtime().blas().provider());
-        assertEquals(backend.blas.BlasProvider.OPENBLAS_FFM, entries.get(2).profile().runtime().blas().provider());
-        assertEquals(backend.blas.BlasProvider.OPENBLAS_FFM, entries.get(3).profile().runtime().blas().provider());
+        assertEquals(config.runtime.BlasProvider.NONE, entries.get(1).profile().runtime().blas().provider());
+        assertEquals(config.runtime.BlasProvider.OPENBLAS_FFM, entries.get(2).profile().runtime().blas().provider());
+        assertEquals(config.runtime.BlasProvider.OPENBLAS_FFM, entries.get(3).profile().runtime().blas().provider());
         assertEquals(ExecutionMode.FORWARD_BACKWARD, entries.get(4).profile().mode());
         assertEquals(CpuStorageProfile.CPU_NATIVE, entries.get(4).profile().runtime().cpuStorageProfile());
         assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, entries.get(4).profile().runtime().bfloat16TrainingPolicy());

@@ -1,6 +1,5 @@
-import backend.blas.OpenBlasArrayGemm;
-import backend.blas.OpenBlasRuntime;
-import backend.blas.OpenBlasSegmentGemm;
+package backend.provider.blas.openblas;
+
 import tensor.dtype.TensorDTypeOps;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class OpenBlasGemmTest {
     @Test
-    void bundledOrConfiguredOpenBlasProvidesRequiredGemmSymbols() {
+    void explicitEnvironmentOrSystemOpenBlasProvidesRequiredGemmSymbols() {
         Assumptions.assumeTrue(OpenBlasRuntime.isAvailable(), OpenBlasRuntime.unavailableReason());
 
         double[] a64 = {1.0d, 2.0d, 3.0d, 4.0d};
@@ -35,7 +34,7 @@ public class OpenBlasGemmTest {
     }
 
     @Test
-    void bundledOrConfiguredOpenBlasProvidesBFloat16ToFloatGemmWhenAdvertised() {
+    void explicitEnvironmentOrSystemOpenBlasProvidesBFloat16ToFloatGemmWhenAdvertised() {
         Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
@@ -58,7 +57,7 @@ public class OpenBlasGemmTest {
     }
 
     @Test
-    void bundledOrConfiguredOpenBlasProvidesBFloat16OutputGemmWhenAdvertised() {
+    void explicitEnvironmentOrSystemOpenBlasProvidesBFloat16OutputGemmWhenAdvertised() {
         Assumptions.assumeTrue(OpenBlasRuntime.isBFloat16OutputGemmAvailable(), OpenBlasRuntime.unavailableReason());
 
         short[] a = {
@@ -221,12 +220,14 @@ public class OpenBlasGemmTest {
 
     @Test
     void legacyOpenBlasBridgeClassIsRemoved() {
-        assertFalse(Files.exists(Path.of("src/main/java/backend/blas/OpenBlasFfmBridge.java")));
+        assertFalse(Files.exists(Path.of("src/main/java/backend/provider/blas/openblas/OpenBlasFfmBridge.java")));
     }
 
     @Test
     void segmentGemmMethodsDoNotUseArrayCopyHelpers() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/backend/blas/OpenBlasSegmentGemm.java"));
+        String source = Files.readString(Path.of(
+                "src/main/java/backend/provider/blas/openblas/OpenBlasSegmentGemm.java"
+        ));
         assertNoCopyHelpers(source);
     }
 

@@ -34,6 +34,41 @@ public class PackageOwnershipBoundaryTest {
     }
 
     @Test
+    void externalOpenBlasProviderIsLowLevelAndBackendNeutral() throws IOException {
+        List<String> forbiddenPackages = List.of(
+                "config.",
+                "graph.",
+                "planning.",
+                "prepare.",
+                "runtime.",
+                "trace.",
+                "tensor.",
+                "backend.cpu.",
+                "backend.cpu1.",
+                "backend.metal.",
+                "backend.cuda.",
+                "backend.opencl."
+        );
+        assertNoImports(
+                "backend/provider/blas/openblas",
+                importedType -> startsWithAny(importedType, forbiddenPackages),
+                "the shared OpenBLAS provider must remain a low-level backend-neutral leaf"
+        );
+    }
+
+    @Test
+    void removedPackageTreesStayRemoved() throws IOException {
+        List<Path> removedTrees = List.of(MAIN.resolve("backend/blas"));
+        List<Path> offenders = new ArrayList<>();
+        for (Path removedTree : removedTrees) {
+            if (containsJavaSources(removedTree)) {
+                offenders.add(removedTree);
+            }
+        }
+        assertTrue(offenders.isEmpty(), () -> "removed package source trees remain: " + offenders);
+    }
+
+    @Test
     void graphModelDoesNotDependOnCompilePlanningRuntimeTraceOrConcreteBackends() throws IOException {
         List<String> allowedPackages = List.of("backend.contract.", "operations.", "tensor.");
         assertNoImports(
@@ -229,6 +264,15 @@ public class PackageOwnershipBoundaryTest {
 
         List<String> offenders = importsUnder(root, forbiddenImport);
         assertTrue(offenders.isEmpty(), () -> rule + ": " + offenders);
+    }
+
+    private static boolean containsJavaSources(Path root) throws IOException {
+        if (!Files.exists(root)) {
+            return false;
+        }
+        try (Stream<Path> paths = Files.walk(root)) {
+            return paths.anyMatch(path -> Files.isRegularFile(path) && path.toString().endsWith(".java"));
+        }
     }
 
     private static List<String> importsUnder(Path root, Predicate<String> forbiddenImport) throws IOException {

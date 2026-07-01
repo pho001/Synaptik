@@ -1,7 +1,7 @@
 package backend.cpu1;
 
-import backend.blas.BlasProvider;
-import backend.blas.OpenBlasRuntime;
+import config.runtime.BlasProvider;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.contract.ComputeBackend;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
@@ -138,6 +138,7 @@ class Cpu1MatmulExecutionContractTest {
 
     @Test
     void prepareCarriesRouteSpecificOpenBlasThreadOverrides() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         BlasConfig blasConfig = openBlasConfig(1L, BlasStorageMode.AUTO)
                 .withThreads(2)
                 .withOpenBlasRouteThreads(4, 16);
@@ -168,6 +169,7 @@ class Cpu1MatmulExecutionContractTest {
 
     @Test
     void prepareFallsBackToGenericOpenBlasThreadConfigWhenRouteOverrideIsUnset() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         BlasConfig blasConfig = openBlasConfig(1L, BlasStorageMode.AUTO).withThreads(6);
 
         Cpu1PreparedArtifact arrayArtifact = prepareRoot(
@@ -537,7 +539,10 @@ class Cpu1MatmulExecutionContractTest {
 
     @Test
     void openBlasArrayCopyingRoutePreparesF32AndF64Kernels() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarSingleThread()
+                .withBlasConfig(openBlasConfig(1L, BlasStorageMode.CPU_ARRAY))
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
 
         Cpu1PreparedArtifact f32 = prepareRoot(simpleF32MatmulFixture(), config);
@@ -571,8 +576,34 @@ class Cpu1MatmulExecutionContractTest {
     }
 
     @Test
+    void explicitOpenBlasRoutesRejectDisabledProviderAtPrepare() {
+        UnsupportedOperationException arrayFailure = assertThrows(
+                UnsupportedOperationException.class,
+                () -> prepareRoot(
+                        simpleF32MatmulFixture(),
+                        Cpu1PrepareConfig.scalarSingleThread()
+                                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING)
+                )
+        );
+        UnsupportedOperationException nativeFailure = assertThrows(
+                UnsupportedOperationException.class,
+                () -> prepareRoot(
+                        simpleF32MatmulFixture(),
+                        Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
+                                .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT)
+                )
+        );
+
+        assertTrue(arrayFailure.getMessage().contains(BlasProvider.OPENBLAS_FFM.name()));
+        assertTrue(nativeFailure.getMessage().contains(BlasProvider.OPENBLAS_FFM.name()));
+    }
+
+    @Test
     void openBlasNativeSegmentRoutePreparesF32AndF64KernelsForMemorySegmentStorage() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
+                .withBlasConfig(openBlasConfig(1L, BlasStorageMode.CPU_NATIVE))
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT);
 
         Cpu1PreparedArtifact f32 = prepareRoot(simpleF32MatmulFixture(), config);
@@ -1424,8 +1455,10 @@ class Cpu1MatmulExecutionContractTest {
 
     @Test
     void matmulTraceReportsOpenBlasArrayCopyingRouteAndKernel() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         Fixture fixture = simpleF32MatmulFixture();
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarSingleThread()
+                .withBlasConfig(openBlasConfig(1L, BlasStorageMode.CPU_ARRAY))
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING);
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
         PreparedStepMetadata metadata = metadata(fixture.node(), artifact);
@@ -1459,8 +1492,10 @@ class Cpu1MatmulExecutionContractTest {
 
     @Test
     void matmulTraceReportsOpenBlasNativeSegmentRouteAndKernel() {
+        Assumptions.assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         Fixture fixture = simpleF32MatmulFixture();
         Cpu1PrepareConfig config = Cpu1PrepareConfig.scalarMemorySegmentSingleThread()
+                .withBlasConfig(openBlasConfig(1L, BlasStorageMode.CPU_NATIVE))
                 .withMatmulRoute(Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT);
         Cpu1PreparedArtifact artifact = prepareRoot(fixture, config);
         PreparedStepMetadata metadata = metadata(fixture.node(), artifact);

@@ -1,6 +1,6 @@
 import runtime.contract.ExecutionMode;
-import backend.blas.BlasProvider;
-import backend.blas.OpenBlasRuntime;
+import config.runtime.BlasProvider;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.runtime.BlasConfig;

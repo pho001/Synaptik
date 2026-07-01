@@ -12,7 +12,19 @@ public record ResolvedMatMulHints(
         int tileK,
         int plannedWorkers,
         long work,
-        CpuMatMulMicroKernel microKernel
+        CpuMatMulMicroKernel microKernel,
+        String blasProvider,
+        boolean blasDebug,
+        int openBlasThreads,
+        boolean openblasSgemmAvailable,
+        boolean openblasDgemmAvailable,
+        boolean openblasSbgemmAvailable,
+        boolean openblasBgemmAvailable,
+        String openblasLookupSource,
+        String threadPolicy,
+        String cpuStorageProfile,
+        String requestedCpuStorage,
+        String nativeCpuFailurePolicy
 ) {
     public ResolvedMatMulHints(
             boolean useBlas,
@@ -35,7 +47,19 @@ public record ResolvedMatMulHints(
                 tileK,
                 plannedWorkers,
                 work,
-                microKernel
+                microKernel,
+                "",
+                false,
+                0,
+                false,
+                false,
+                false,
+                false,
+                "UNAVAILABLE",
+                "",
+                "AUTO",
+                "CPU_ARRAY",
+                ""
         );
     }
 
@@ -49,6 +73,13 @@ public record ResolvedMatMulHints(
         plannedWorkers = Math.max(1, plannedWorkers);
         work = Math.max(0L, work);
         microKernel = microKernel == null ? CpuMatMulMicroKernel.AUTO : microKernel;
+        blasProvider = blasProvider == null ? "" : blasProvider;
+        openBlasThreads = Math.max(0, openBlasThreads);
+        openblasLookupSource = openblasLookupSource == null ? "UNAVAILABLE" : openblasLookupSource;
+        threadPolicy = threadPolicy == null ? "" : threadPolicy;
+        cpuStorageProfile = cpuStorageProfile == null ? "AUTO" : cpuStorageProfile;
+        requestedCpuStorage = requestedCpuStorage == null ? "CPU_ARRAY" : requestedCpuStorage;
+        nativeCpuFailurePolicy = nativeCpuFailurePolicy == null ? "" : nativeCpuFailurePolicy;
     }
 
     public boolean usesOpenBlasMemorySegment() {

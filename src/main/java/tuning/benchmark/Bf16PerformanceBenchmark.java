@@ -1,6 +1,6 @@
 package tuning.benchmark;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;

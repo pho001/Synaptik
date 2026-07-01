@@ -1,7 +1,7 @@
 package config.profile;
 
 import backend.ApproxMode;
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import runtime.contract.ExecutionMode;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuMatMulMicroKernel;
@@ -319,7 +319,12 @@ public final class ExecutionProfileIO {
                     )
             );
             BlasConfig blas = new BlasConfig(
-                    BlasProvider.fromProperty(findString(json, "provider", defaultProfile.runtime().blas().provider().name())),
+                    findEnum(
+                            json,
+                            "provider",
+                            defaultProfile.runtime().blas().provider(),
+                            BlasProvider.class
+                    ),
                     Math.max(1L, Math.round(findDouble(json, "matmulMinWork", defaultProfile.runtime().blas().matmulMinWork()))),
                     findBoolean(json, "f32RequireMgeK", defaultProfile.runtime().blas().f32RequireMgeK()),
                     findDouble(json, "f32MaxNOverK", defaultProfile.runtime().blas().f32MaxNOverK()),
@@ -340,11 +345,12 @@ public final class ExecutionProfileIO {
                     )
             );
             Conv2dConfig conv2d = new Conv2dConfig(
-                    BlasProvider.fromProperty(findString(
+                    findEnum(
                             json,
                             "conv2dProvider",
-                            defaultProfile.runtime().conv2d().provider().name()
-                    )),
+                            defaultProfile.runtime().conv2d().provider(),
+                            BlasProvider.class
+                    ),
                     Math.max(1L, Math.round(findDouble(
                             json,
                             "conv2dF64MinWork",

@@ -1,12 +1,12 @@
 package backend.cpu.prepare.linalg.matmul;
 
-import backend.blas.BlasProvider;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
 import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import backend.cpu.prepare.CpuPlanningPolicy;
 import config.backend.CpuMatMulMicroKernel;
 import config.runtime.BlasConfig;
+import config.runtime.BlasProvider;
 import config.runtime.BlasStorageMode;
 import config.runtime.CpuStorageProfile;
 import tensor.DataType;
@@ -137,12 +137,13 @@ public final class MatMulPlanner {
             batchCount *= outShape[i];
         }
         long work = batchCount * m * n * k;
+        OpenBlasCapabilities openBlas = snapshotOpenBlasCapabilities(blasConfig);
 
         boolean parallel = work >= policy.matMulParallelMinSize() && policy.plannedWorkers() > 1;
         boolean useBlas = aShape.length == 2 && bShape.length == 2
-                && shouldUseBlas(outDataType, aContiguous, bContiguous, outContiguous, m, n, k, blasConfig, publishFloatContinuation);
+                && shouldUseBlas(outDataType, aContiguous, bContiguous, outContiguous, m, n, k, blasConfig, publishFloatContinuation, openBlas);
         boolean useBatchedBlas = aShape.length > 2
-                && shouldUseBatchedBlas(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, m, n, k, work, blasConfig, publishFloatContinuation);
+                && shouldUseBatchedBlas(aShape, aContiguous, bShape, bContiguous, outShape, outDataType, outContiguous, m, n, k, work, blasConfig, publishFloatContinuation, openBlas);
         MatMulExecutionRoute route = resolveRoute(
                 aShape,
                 aContiguous,
@@ -158,7 +159,8 @@ public final class MatMulPlanner {
                 cpuStorageProfile,
                 publishFloatContinuation,
                 useBlas,
-                useBatchedBlas
+                useBatchedBlas,
+                openBlas
         );
         if (route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT) {
             useBlas = true;
@@ -175,7 +177,19 @@ public final class MatMulPlanner {
                 policy.matMulTileK(),
                 policy.plannedWorkers(),
                 work,
-                policy.matMulMicroKernel().resolve(outDataType)
+                policy.matMulMicroKernel().resolve(outDataType),
+                blasConfig.provider().name(),
+                blasConfig.debug(),
+                openBlasThreads(route, blasConfig),
+                openBlas.sgemmAvailable(),
+                openBlas.dgemmAvailable(),
+                openBlas.sbgemmAvailable(),
+                openBlas.bgemmAvailable(),
+                openBlas.lookupSource(),
+                blasThreadPolicy(route, blasConfig),
+                normalizedCpuStorageProfile(cpuStorageProfile).name(),
+                effectiveStorageMode(blasConfig, cpuStorageProfile).name(),
+                ""
         );
     }
 
@@ -270,7 +284,8 @@ public final class MatMulPlanner {
             int n,
             int k,
             BlasConfig blasConfig,
-            boolean publishFloatContinuation
+            boolean publishFloatContinuation,
+            OpenBlasCapabilities openBlas
     ) {
         if (outDataType != DataType.FLOAT32 && outDataType != DataType.FLOAT64 && outDataType != DataType.BFLOAT16) {
             return false;
@@ -278,7 +293,7 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (outDataType == DataType.BFLOAT16 && !bf16BlasSymbolAvailable(publishFloatContinuation)) {
+        if (!gemmAvailable(outDataType, publishFloatContinuation, openBlas)) {
             return false;
         }
         long work = (long) m * n * k;
@@ -315,7 +330,8 @@ public final class MatMulPlanner {
             CpuStorageProfile cpuStorageProfile,
             boolean publishFloatContinuation,
             boolean useBlas,
-            boolean useBatchedBlas
+            boolean useBatchedBlas,
+            OpenBlasCapabilities openBlas
     ) {
         if (useBatchedBlas) {
             return MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING;
@@ -334,7 +350,8 @@ public final class MatMulPlanner {
                 bContiguous,
                 outDataType,
                 outContiguous,
-                publishFloatContinuation
+                publishFloatContinuation,
+                openBlas
         );
         if (!nativeEligible) {
             return useBlas ? MatMulExecutionRoute.OPENBLAS_ARRAY_COPYING : MatMulExecutionRoute.JAVA_DIRECT;
@@ -349,7 +366,7 @@ public final class MatMulPlanner {
     }
 
     private static BlasStorageMode effectiveStorageMode(BlasConfig blasConfig, CpuStorageProfile cpuStorageProfile) {
-        CpuStorageProfile profile = cpuStorageProfile == null ? CpuStorageProfile.AUTO : cpuStorageProfile;
+        CpuStorageProfile profile = normalizedCpuStorageProfile(cpuStorageProfile);
         return switch (profile) {
             case CPU_ARRAY -> BlasStorageMode.CPU_ARRAY;
             case CPU_NATIVE -> BlasStorageMode.CPU_NATIVE;
@@ -364,7 +381,8 @@ public final class MatMulPlanner {
             boolean bContiguous,
             DataType outDataType,
             boolean outContiguous,
-            boolean publishFloatContinuation
+            boolean publishFloatContinuation,
+            OpenBlasCapabilities openBlas
     ) {
         if (aShape.length != 2 || bShape.length != 2) {
             return false;
@@ -373,9 +391,9 @@ public final class MatMulPlanner {
             return false;
         }
         return switch (outDataType) {
-            case FLOAT32 -> OpenBlasRuntime.isFloat32GemmAvailable();
-            case FLOAT64 -> OpenBlasRuntime.isFloat64GemmAvailable();
-            case BFLOAT16 -> !publishFloatContinuation && OpenBlasRuntime.isBFloat16OutputGemmAvailable();
+            case FLOAT32 -> openBlas.sgemmAvailable();
+            case FLOAT64 -> openBlas.dgemmAvailable();
+            case BFLOAT16 -> !publishFloatContinuation && openBlas.bgemmAvailable();
             default -> false;
         };
     }
@@ -393,7 +411,8 @@ public final class MatMulPlanner {
             int k,
             long work,
             BlasConfig blasConfig,
-            boolean publishFloatContinuation
+            boolean publishFloatContinuation,
+            OpenBlasCapabilities openBlas
     ) {
         if (outDataType != DataType.FLOAT32 && outDataType != DataType.FLOAT64 && outDataType != DataType.BFLOAT16) {
             return false;
@@ -407,7 +426,7 @@ public final class MatMulPlanner {
         if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
             return false;
         }
-        if (outDataType == DataType.BFLOAT16 && !bf16BlasSymbolAvailable(publishFloatContinuation)) {
+        if (!gemmAvailable(outDataType, publishFloatContinuation, openBlas)) {
             return false;
         }
         if (work < blasConfig.matmulMinWork()) {
@@ -429,10 +448,26 @@ public final class MatMulPlanner {
         };
     }
 
-    private static boolean bf16BlasSymbolAvailable(boolean publishFloatContinuation) {
+    private static boolean bf16BlasSymbolAvailable(
+            boolean publishFloatContinuation,
+            OpenBlasCapabilities openBlas
+    ) {
         return publishFloatContinuation
-                ? OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()
-                : OpenBlasRuntime.isBFloat16OutputGemmAvailable();
+                ? openBlas.sbgemmAvailable()
+                : openBlas.bgemmAvailable();
+    }
+
+    private static boolean gemmAvailable(
+            DataType dataType,
+            boolean publishFloatContinuation,
+            OpenBlasCapabilities openBlas
+    ) {
+        return switch (dataType) {
+            case FLOAT32 -> openBlas.sgemmAvailable();
+            case FLOAT64 -> openBlas.dgemmAvailable();
+            case BFLOAT16 -> bf16BlasSymbolAvailable(publishFloatContinuation, openBlas);
+            default -> false;
+        };
     }
 
     private MatMulBlasShapeHeuristics selectBlasShapeHeuristics(int m, int n, int k, BlasConfig blasConfig) {
@@ -493,7 +528,68 @@ public final class MatMulPlanner {
                 tileK,
                 hints.plannedWorkers(),
                 hints.work(),
-                microKernel
+                microKernel,
+                hints.blasProvider(),
+                hints.blasDebug(),
+                hints.openBlasThreads(),
+                hints.openblasSgemmAvailable(),
+                hints.openblasDgemmAvailable(),
+                hints.openblasSbgemmAvailable(),
+                hints.openblasBgemmAvailable(),
+                hints.openblasLookupSource(),
+                hints.threadPolicy(),
+                hints.cpuStorageProfile(),
+                hints.requestedCpuStorage(),
+                hints.nativeCpuFailurePolicy()
         );
+    }
+
+    private static OpenBlasCapabilities snapshotOpenBlasCapabilities(BlasConfig blasConfig) {
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return OpenBlasCapabilities.unavailable();
+        }
+        return new OpenBlasCapabilities(
+                OpenBlasRuntime.isFloat32GemmAvailable(),
+                OpenBlasRuntime.isFloat64GemmAvailable(),
+                OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(),
+                OpenBlasRuntime.isBFloat16OutputGemmAvailable(),
+                OpenBlasRuntime.lookupSource()
+        );
+    }
+
+    private static int openBlasThreads(MatMulExecutionRoute route, BlasConfig blasConfig) {
+        return switch (route) {
+            case OPENBLAS_ARRAY_COPYING -> blasConfig.openBlasArrayCopyEffectiveThreads();
+            case OPENBLAS_NATIVE_SEGMENT -> blasConfig.openBlasNativeSegmentEffectiveThreads();
+            case JAVA_DIRECT -> 0;
+        };
+    }
+
+    private static String threadPolicy(int requestedThreads) {
+        return requestedThreads <= 0
+                ? "AUTO_UNCONTROLLED"
+                : "SET_NUM_THREADS(" + requestedThreads + ")";
+    }
+
+    private static String blasThreadPolicy(MatMulExecutionRoute route, BlasConfig blasConfig) {
+        return blasConfig.provider() == BlasProvider.OPENBLAS_FFM
+                ? threadPolicy(openBlasThreads(route, blasConfig))
+                : "";
+    }
+
+    private static CpuStorageProfile normalizedCpuStorageProfile(CpuStorageProfile cpuStorageProfile) {
+        return cpuStorageProfile == null ? CpuStorageProfile.AUTO : cpuStorageProfile;
+    }
+
+    private record OpenBlasCapabilities(
+            boolean sgemmAvailable,
+            boolean dgemmAvailable,
+            boolean sbgemmAvailable,
+            boolean bgemmAvailable,
+            String lookupSource
+    ) {
+        private static OpenBlasCapabilities unavailable() {
+            return new OpenBlasCapabilities(false, false, false, false, "UNAVAILABLE");
+        }
     }
 }

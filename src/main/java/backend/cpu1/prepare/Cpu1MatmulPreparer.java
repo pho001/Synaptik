@@ -1,7 +1,5 @@
 package backend.cpu1.prepare;
 
-import backend.blas.BlasProvider;
-import backend.blas.OpenBlasRuntime;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
 import backend.cpu1.kernels.Cpu1VectorizationKind;
 import backend.cpu1.kernels.matmul.Cpu1MatmulKernelId;
@@ -10,8 +8,10 @@ import backend.cpu1.provider.matmul.Cpu1MatmulProvider;
 import backend.cpu1.provider.matmul.Cpu1MatmulProviders;
 import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
+import backend.provider.blas.openblas.OpenBlasRuntime;
 import config.backend.CpuKernelConfig;
 import config.runtime.BlasConfig;
+import config.runtime.BlasProvider;
 import config.runtime.BlasStorageMode;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
@@ -174,10 +174,13 @@ public final class Cpu1MatmulPreparer {
         int m = outputShape[outputShape.length - 2];
         int n = outputShape[outputShape.length - 1];
         int k = leftShape[leftShape.length - 1];
+        OpenBlasCapabilities openBlas = snapshotOpenBlasCapabilities(config.blasConfig());
         int[] biasBroadcastStrides = bias == null
                 ? null
                 : broadcastStrides(bias.shape(), bias.strides(), outputShape, "bias");
-        Cpu1MatmulRoute route = resolveMatmulRoute(config, effectivePostOp, outputNode.dataType(), batchCount, m, n, k);
+        Cpu1MatmulRoute route = resolveMatmulRoute(
+                config, effectivePostOp, outputNode.dataType(), batchCount, m, n, k, openBlas
+        );
         requireStorageContract(route, config.storageKind());
         requirePostOpContract(route, effectivePostOp);
         Cpu1MatmulProvider provider = Cpu1MatmulProviders.forRoute(route);
@@ -192,6 +195,7 @@ public final class Cpu1MatmulPreparer {
                 config
         );
         Cpu1MatmulKernelId kernelId = resolveMatmulKernelId(provider, outputNode.dataType(), vectorizationKind);
+        requireOpenBlasCapability(route, outputNode.dataType(), config.blasConfig(), openBlas);
         Cpu1PreparedMatmulUnit unit = new Cpu1PreparedMatmulUnit(
                 outputNode.id(),
                 matmulNode.inputIds().get(0),
@@ -221,7 +225,15 @@ public final class Cpu1MatmulPreparer {
                 batchOffsets(outputShape, outputStrides, outputShape, false),
                 launchConfig,
                 scratchBufferSpec(kernelId, batchCount, n, k),
-                openBlasThreads(route, config.blasConfig())
+                openBlasThreads(route, config.blasConfig()),
+                openBlas.sgemmAvailable(),
+                openBlas.dgemmAvailable(),
+                openBlas.sbgemmAvailable(),
+                openBlas.bgemmAvailable(),
+                openBlas.lookupSource(),
+                matmulUsesBlas(route)
+                        ? threadPolicy(openBlasThreads(route, config.blasConfig()))
+                        : "SINGLE_THREAD"
         );
         return new Cpu1PreparedArtifact(unit);
     }
@@ -603,7 +615,8 @@ public final class Cpu1MatmulPreparer {
             int batchCount,
             int m,
             int n,
-            int k
+            int k,
+            OpenBlasCapabilities openBlas
     ) {
         Cpu1MatmulRoute requested = config.matmulRoute();
         if (requested != Cpu1MatmulRoute.AUTO) {
@@ -612,9 +625,42 @@ public final class Cpu1MatmulPreparer {
         if (postOp != Cpu1MatmulPostOp.NONE) {
             return Cpu1MatmulRoute.JAVA_SCALAR;
         }
-        return openBlasArrayCopyingEligible(config, dataType, batchCount, m, n, k)
+        return openBlasArrayCopyingEligible(config, dataType, batchCount, m, n, k, openBlas)
                 ? Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
                 : Cpu1MatmulRoute.JAVA_SCALAR;
+    }
+
+    private static void requireOpenBlasCapability(
+            Cpu1MatmulRoute route,
+            DataType dataType,
+            BlasConfig blasConfig,
+            OpenBlasCapabilities openBlas
+    ) {
+        if (route != Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
+                && route != Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT) {
+            return;
+        }
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            throw new UnsupportedOperationException("cpu1 " + route
+                    + " MATMUL requires BlasProvider.OPENBLAS_FFM.");
+        }
+        boolean available = switch (dataType) {
+            case FLOAT32 -> openBlas.sgemmAvailable();
+            case FLOAT64 -> openBlas.dgemmAvailable();
+            default -> false;
+        };
+        if (!available) {
+            throw new UnsupportedOperationException("cpu1 " + route + " MATMUL requires an available OpenBLAS "
+                    + requiredGemmSymbol(dataType) + " symbol at prepare time.");
+        }
+    }
+
+    private static String requiredGemmSymbol(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT32 -> "cblas_sgemm";
+            case FLOAT64 -> "cblas_dgemm";
+            default -> "GEMM for " + dataType;
+        };
     }
 
     private static boolean openBlasArrayCopyingEligible(
@@ -623,7 +669,8 @@ public final class Cpu1MatmulPreparer {
             int batchCount,
             int m,
             int n,
-            int k
+            int k,
+            OpenBlasCapabilities openBlas
     ) {
         if (config.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
             return false;
@@ -644,8 +691,8 @@ public final class Cpu1MatmulPreparer {
             return false;
         }
         return switch (dataType) {
-            case FLOAT32 -> OpenBlasRuntime.isFloat32GemmAvailable();
-            case FLOAT64 -> OpenBlasRuntime.isFloat64GemmAvailable();
+            case FLOAT32 -> openBlas.sgemmAvailable();
+            case FLOAT64 -> openBlas.dgemmAvailable();
             default -> false;
         };
     }
@@ -703,6 +750,42 @@ public final class Cpu1MatmulPreparer {
             case OPENBLAS_NATIVE_SEGMENT -> blasConfig.openBlasNativeSegmentEffectiveThreads();
             case JAVA_SCALAR, AUTO -> 0;
         };
+    }
+
+    private static OpenBlasCapabilities snapshotOpenBlasCapabilities(BlasConfig blasConfig) {
+        if (blasConfig.provider() != BlasProvider.OPENBLAS_FFM) {
+            return OpenBlasCapabilities.unavailable();
+        }
+        return new OpenBlasCapabilities(
+                OpenBlasRuntime.isFloat32GemmAvailable(),
+                OpenBlasRuntime.isFloat64GemmAvailable(),
+                OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(),
+                OpenBlasRuntime.isBFloat16OutputGemmAvailable(),
+                OpenBlasRuntime.lookupSource()
+        );
+    }
+
+    private static boolean matmulUsesBlas(Cpu1MatmulRoute route) {
+        return route == Cpu1MatmulRoute.OPENBLAS_ARRAY_COPYING
+                || route == Cpu1MatmulRoute.OPENBLAS_NATIVE_SEGMENT;
+    }
+
+    private static String threadPolicy(int requestedThreads) {
+        return requestedThreads <= 0
+                ? "AUTO_UNCONTROLLED"
+                : "SET_NUM_THREADS(" + requestedThreads + ")";
+    }
+
+    private record OpenBlasCapabilities(
+            boolean sgemmAvailable,
+            boolean dgemmAvailable,
+            boolean sbgemmAvailable,
+            boolean bgemmAvailable,
+            String lookupSource
+    ) {
+        private static OpenBlasCapabilities unavailable() {
+            return new OpenBlasCapabilities(false, false, false, false, "UNAVAILABLE");
+        }
     }
 
     private static long matmulWork(int batchCount, int m, int n, int k) {

@@ -1,4 +1,4 @@
-package backend.blas;
+package backend.provider.blas.openblas;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;

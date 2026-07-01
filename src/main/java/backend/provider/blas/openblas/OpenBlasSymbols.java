@@ -1,7 +1,4 @@
-package backend.blas;
-
-import org.bytedeco.javacpp.Loader;
-import org.bytedeco.openblas.global.openblas;
+package backend.provider.blas.openblas;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -210,28 +207,24 @@ final class OpenBlasSymbols {
     private static LookupResolution resolveLookup(Arena arena) {
         String explicit = System.getProperty("openblas.lib");
         if (explicit != null && !explicit.isBlank()) {
-            return new LookupResolution(SymbolLookup.libraryLookup(explicit.trim(), arena), LookupSource.EXPLICIT_PROPERTY);
+            return new LookupResolution(
+                    SymbolLookup.libraryLookup(explicit.trim(), arena),
+                    LookupSource.EXPLICIT_PROPERTY
+            );
         }
-        String envLib = System.getenv("OPENBLAS_LIB");
-        if (envLib != null && !envLib.isBlank()) {
-            return new LookupResolution(SymbolLookup.libraryLookup(envLib.trim(), arena), LookupSource.ENVIRONMENT);
+
+        String environment = System.getenv("OPENBLAS_LIB");
+        if (environment != null && !environment.isBlank()) {
+            return new LookupResolution(
+                    SymbolLookup.libraryLookup(environment.trim(), arena),
+                    LookupSource.ENVIRONMENT
+            );
         }
-        try {
-            return new LookupResolution(SymbolLookup.libraryLookup(Loader.load(openblas.class), arena), LookupSource.BUNDLED_JAVACPP);
-        } catch (Throwable bundledFailure) {
-            try {
-                return new LookupResolution(SymbolLookup.libraryLookup("openblas", arena), LookupSource.SYSTEM_LIBRARY);
-            } catch (Throwable systemFailure) {
-                IllegalStateException combined = new IllegalStateException(
-                        "OpenBLAS lookup failed for bundled JavaCPP preset and system library. Bundled: "
-                                + bundledFailure.getClass().getSimpleName() + ": " + safeMessage(bundledFailure)
-                                + "; system: " + systemFailure.getClass().getSimpleName() + ": " + safeMessage(systemFailure),
-                        systemFailure
-                );
-                combined.addSuppressed(bundledFailure);
-                throw combined;
-            }
-        }
+
+        return new LookupResolution(
+                SymbolLookup.libraryLookup("openblas", arena),
+                LookupSource.SYSTEM_LIBRARY
+        );
     }
 
     private static String safeMessage(Throwable t) {
@@ -242,7 +235,6 @@ final class OpenBlasSymbols {
     enum LookupSource {
         EXPLICIT_PROPERTY,
         ENVIRONMENT,
-        BUNDLED_JAVACPP,
         SYSTEM_LIBRARY
     }
 

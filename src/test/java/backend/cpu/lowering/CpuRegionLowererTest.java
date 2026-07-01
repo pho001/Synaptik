@@ -4,7 +4,7 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.intent.BackendIntentPlan;
 
 import backend.contract.ComputeBackend;
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import backend.cpu.fused.plan.FusedOperationPreparation;
 import backend.lowering.region.CpuFusedRegionPayload;
 import backend.lowering.region.CpuSpecializedPrimitivePayload;

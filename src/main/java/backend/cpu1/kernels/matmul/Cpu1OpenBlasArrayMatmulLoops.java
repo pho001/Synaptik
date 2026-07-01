@@ -1,7 +1,6 @@
 package backend.cpu1.kernels.matmul;
 
-import backend.blas.OpenBlasArrayGemm;
-import backend.blas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasArrayGemm;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedMatmulUnit;
 import runtime.contract.CpuMaterializationReason;
@@ -16,10 +15,6 @@ public final class Cpu1OpenBlasArrayMatmulLoops {
     }
 
     public static void matmulF32ArrayCopy(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        if (!OpenBlasRuntime.isFloat32GemmAvailable()) {
-            throw new IllegalStateException("cpu1 OPENBLAS_ARRAY_COPYING F32 MATMUL requires OpenBLAS sgemm: "
-                    + OpenBlasRuntime.unavailableReason());
-        }
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
         Cpu1TensorView output = outputView(unit, context);
@@ -36,10 +31,6 @@ public final class Cpu1OpenBlasArrayMatmulLoops {
     }
 
     public static void matmulF64ArrayCopy(Cpu1PreparedMatmulUnit unit, ExecutionContext context) {
-        if (!OpenBlasRuntime.isFloat64GemmAvailable()) {
-            throw new IllegalStateException("cpu1 OPENBLAS_ARRAY_COPYING F64 MATMUL requires OpenBLAS dgemm: "
-                    + OpenBlasRuntime.unavailableReason());
-        }
         Cpu1TensorView left = inputView(unit.leftNodeId(), context);
         Cpu1TensorView right = inputView(unit.rightNodeId(), context);
         Cpu1TensorView output = outputView(unit, context);

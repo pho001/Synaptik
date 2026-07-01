@@ -1,8 +1,8 @@
 package debug;
 
-import backend.blas.OpenBlasArrayGemm;
-import backend.blas.OpenBlasRuntime;
-import backend.blas.OpenBlasSegmentGemm;
+import backend.provider.blas.openblas.OpenBlasArrayGemm;
+import backend.provider.blas.openblas.OpenBlasRuntime;
+import backend.provider.blas.openblas.OpenBlasSegmentGemm;
 import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.Arena;
@@ -29,7 +29,7 @@ final class NativeOpenBlasSegmentGemmBenchmarkTest {
         assumeTrue(OpenBlasRuntime.isFloat32GemmAvailable(), OpenBlasRuntime.unavailableReason());
         System.out.println("NATIVE_OPENBLAS_SEGMENT_GEMM_BENCHMARK");
         System.out.println("lookupSource=" + OpenBlasRuntime.lookupSource()
-                + " threadPolicy=" + OpenBlasRuntime.threadPolicy());
+                + " threadPolicy=" + threadPolicy(0));
         for (Shape shape : SHAPES) {
             Result javaDirect = measureJava(shape);
             Result arrayCopy = measureArrayCopyOpenBlas(shape);
@@ -143,6 +143,12 @@ final class NativeOpenBlasSegmentGemmBenchmarkTest {
     private static boolean benchmarkEnabled() {
         return Boolean.getBoolean("synaptik.benchmark.nativeOpenBlasSegment")
                 || "true".equalsIgnoreCase(System.getenv("SYNAPTIK_BENCHMARK_NATIVE_OPENBLAS_SEGMENT"));
+    }
+
+    private static String threadPolicy(int requestedThreads) {
+        return requestedThreads <= 0
+                ? "AUTO_UNCONTROLLED"
+                : "SET_NUM_THREADS(" + requestedThreads + ")";
     }
 
     private record Shape(int m, int k, int n) {

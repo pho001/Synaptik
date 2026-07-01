@@ -279,7 +279,19 @@ class CpuMatMulStorageViewKernelTest {
                         16,
                         1,
                         0,
-                        CpuMatMulMicroKernel.AUTO
+                        CpuMatMulMicroKernel.AUTO,
+                        "",
+                        false,
+                        0,
+                        false,
+                        false,
+                        false,
+                        false,
+                        "UNAVAILABLE",
+                        "",
+                        "AUTO",
+                        "CPU_ARRAY",
+                        ""
                 ),
                 executable,
                 null

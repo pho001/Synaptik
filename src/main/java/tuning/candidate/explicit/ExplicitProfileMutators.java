@@ -1,6 +1,6 @@
 package tuning.candidate.explicit;
 
-import backend.blas.BlasProvider;
+import config.runtime.BlasProvider;
 import config.backend.AttentionMatMulPolicy;
 import config.backend.CpuKernelConfig;
 import config.optimizer.Conv2dLoweringConfig;

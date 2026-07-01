@@ -64,7 +64,7 @@ public class ProfileGridCandidateSpaceTest {
                         config.backend.CpuKernelConfig.defaultsInference(),
                         config.runtime.ApproximationConfig.defaults(),
                         new config.runtime.BlasConfig(
-                                backend.blas.BlasProvider.OPENBLAS_FFM,
+                                config.runtime.BlasProvider.OPENBLAS_FFM,
                                 2_000_000L,
                                 true,
                                 3.0d,
@@ -108,7 +108,7 @@ public class ProfileGridCandidateSpaceTest {
 
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=cpu-array")
                 && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_ARRAY
-                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.NONE));
+                && c.profile().runtime().blas().provider() == config.runtime.BlasProvider.NONE));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=cpu-native-require")
                 && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE
                 && c.profile().runtime().nativeCpuFailurePolicy() == config.runtime.NativeCpuFailurePolicy.REQUIRE_NATIVE));
@@ -117,11 +117,11 @@ public class ProfileGridCandidateSpaceTest {
                 && c.profile().runtime().nativeCpuFailurePolicy() == config.runtime.NativeCpuFailurePolicy.FALLBACK_TO_ARRAY));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-array-copy")
                 && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_ARRAY
-                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.OPENBLAS_FFM
+                && c.profile().runtime().blas().provider() == config.runtime.BlasProvider.OPENBLAS_FFM
                 && c.profile().runtime().blas().storageMode() == config.runtime.BlasStorageMode.CPU_ARRAY));
         assertTrue(candidates.stream().anyMatch(c -> c.name().contains("runtime=openblas-native")
                 && c.profile().runtime().cpuStorageProfile() == config.runtime.CpuStorageProfile.CPU_NATIVE
-                && c.profile().runtime().blas().provider() == backend.blas.BlasProvider.OPENBLAS_FFM
+                && c.profile().runtime().blas().provider() == config.runtime.BlasProvider.OPENBLAS_FFM
                 && c.profile().runtime().blas().storageMode() == config.runtime.BlasStorageMode.CPU_NATIVE));
     }
 
@@ -137,7 +137,7 @@ public class ProfileGridCandidateSpaceTest {
                         config.backend.CpuKernelConfig.defaultsInference(),
                         config.runtime.ApproximationConfig.defaults(),
                         new config.runtime.BlasConfig(
-                                backend.blas.BlasProvider.OPENBLAS_FFM,
+                                config.runtime.BlasProvider.OPENBLAS_FFM,
                                 1_000_000L,
                                 true,
                                 3.0d,
@@ -181,7 +181,7 @@ public class ProfileGridCandidateSpaceTest {
                 base,
                 List.of(
                         ExplicitProfileMutators.matmulBlasProviders(
-                                List.of(backend.blas.BlasProvider.OPENBLAS_FFM),
+                                List.of(config.runtime.BlasProvider.OPENBLAS_FFM),
                                 List.of(1_000_000L)
                         ),
                         ExplicitProfileMutators.blasThreads(List.of(0)),
@@ -371,7 +371,7 @@ public class ProfileGridCandidateSpaceTest {
                 base,
                 List.of(
                         ExplicitProfileMutators.matmulBlasProviders(
-                                List.of(backend.blas.BlasProvider.NONE, backend.blas.BlasProvider.OPENBLAS_FFM),
+                                List.of(config.runtime.BlasProvider.NONE, config.runtime.BlasProvider.OPENBLAS_FFM),
                                 List.of(1_000_000L, 2_000_000L)
                         ),
                         ExplicitProfileMutators.attentionMatMulPolicies(List.of(

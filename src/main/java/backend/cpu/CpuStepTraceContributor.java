@@ -1,17 +1,15 @@
 package backend.cpu;
 
-import backend.blas.OpenBlasRuntime;
 import backend.cpu.fused.plan.FusedOperation;
 import backend.cpu.fused.plan.FusedVectorFallbackReason;
 import backend.cpu.kernels.CpuKernel;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.provider.linalg.matmul.PreparedMatMulExecutable;
 import backend.cpu.plan.linalg.matmul.MatMulExecutionRoute;
+import backend.cpu.plan.linalg.matmul.ResolvedMatMulHints;
 import runtime.residency.TensorResidencyState;
 import runtime.memory.nativecpu.NativeCpuTraceState;
 import runtime.execution.ExecutionContext;
-import config.runtime.BlasStorageMode;
-import config.runtime.CpuStorageProfile;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
 import trace.backend.ComputeTraceMetadata;
@@ -116,7 +114,7 @@ public final class CpuStepTraceContributor {
             );
         }
 
-        addMatMulAttrs(attrs, matMul);
+        addMatMulAttrs(attrs, matMul, cpuPlan == null ? null : cpuPlan.matMulHints());
         addNativeCpuStateAttrs(attrs, node, context);
         return new StepTraceContribution(
                 cpuKernel == null ? "" : cpuKernel.getClass().getSimpleName(),
@@ -159,26 +157,26 @@ public final class CpuStepTraceContributor {
         MatMulExecutionRoute route = executable == null || executable.lastExecutionRoute() == null
                 ? plan.matMulHints().route()
                 : executable.lastExecutionRoute();
-        String blasProvider = matMulBlasProvider(context);
+        ResolvedMatMulHints hints = plan.matMulHints();
+        String blasProvider = hints.blasProvider();
         String blasSymbol = matMulBlasSymbol(node, route, executable, plan);
         String nativeCpuFallbackReason = executable == null ? "" : executable.lastFallbackReason();
-        boolean openblasProvider = "OPENBLAS_FFM".equals(blasProvider);
         return new MatMulTraceMetadata(
-                plan.matMulHints().useBlas(),
-                plan.matMulHints().useBatchedBlas(),
+                hints.useBlas(),
+                hints.useBatchedBlas(),
                 blasProvider,
                 blasSymbol,
                 route.name(),
                 route.name(),
-                matMulCpuStorageProfile(context),
-                matMulNativeCpuFailurePolicy(context),
-                matMulRequestedCpuStorage(context),
+                hints.cpuStorageProfile(),
+                hints.nativeCpuFailurePolicy(),
+                hints.requestedCpuStorage(),
                 matMulActualCpuStorage(route),
                 nativeCpuFallbackReason,
-                openblasProvider && OpenBlasRuntime.isFloat32GemmAvailable(),
-                openblasProvider && OpenBlasRuntime.isFloat64GemmAvailable(),
-                openblasProvider && OpenBlasRuntime.isBFloat16ToFloatGemmAvailable(),
-                openblasProvider && OpenBlasRuntime.isBFloat16OutputGemmAvailable(),
+                hints.openblasSgemmAvailable(),
+                hints.openblasDgemmAvailable(),
+                hints.openblasSbgemmAvailable(),
+                hints.openblasBgemmAvailable(),
                 matMulBf16ContinuationRoute(node, route, blasSymbol),
                 matMulBf16OutputRoute(node, route, blasSymbol),
                 matMulBf16ComputePrecision(node, route, blasSymbol),
@@ -186,19 +184,23 @@ public final class CpuStepTraceContributor {
                 matMulCopyInBytes(node, metadata, context, executable, route),
                 matMulCopyOutBytes(node, executable, route),
                 matMulNativeTempBytes(route),
-                matMulThreadPolicy(context),
+                hints.threadPolicy(),
                 nativeCpuFallbackReason,
-                plan.matMulHints().parallel(),
-                plan.matMulHints().tileM(),
-                plan.matMulHints().tileN(),
-                plan.matMulHints().tileK(),
-                plan.matMulHints().plannedWorkers(),
-                plan.matMulHints().work(),
-                plan.matMulHints().microKernel().name()
+                hints.parallel(),
+                hints.tileM(),
+                hints.tileN(),
+                hints.tileK(),
+                hints.plannedWorkers(),
+                hints.work(),
+                hints.microKernel().name()
         );
     }
 
-    private static void addMatMulAttrs(LinkedHashMap<String, Object> attrs, MatMulTraceMetadata matMul) {
+    private static void addMatMulAttrs(
+            LinkedHashMap<String, Object> attrs,
+            MatMulTraceMetadata matMul,
+            ResolvedMatMulHints hints
+    ) {
         if (matMul == null) {
             return;
         }
@@ -219,8 +221,9 @@ public final class CpuStepTraceContributor {
         attrs.put("bf16OutputRoute", matMul.bf16OutputRoute());
         attrs.put("bf16ComputePrecision", matMul.bf16ComputePrecision());
         attrs.put("bf16OutputPrecision", matMul.bf16OutputPrecision());
-        if ("OPENBLAS_FFM".equals(matMul.blasProvider())) {
-            attrs.put("openblasLookupSource", OpenBlasRuntime.lookupSource());
+        if (hints != null && "OPENBLAS_FFM".equals(matMul.blasProvider())) {
+            attrs.put("openblasLookupSource", hints.openblasLookupSource());
+            attrs.put("blasDebug", hints.blasDebug());
         }
         attrs.put("matMulCopyInBytes", matMul.copyInBytes());
         attrs.put("matMulCopyOutBytes", matMul.copyOutBytes());
@@ -295,47 +298,6 @@ public final class CpuStepTraceContributor {
         return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? 0L : -1L;
     }
 
-    private static String matMulBlasProvider(ExecutionContext context) {
-        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
-            return "";
-        }
-        return context.runtimeConfig().blas().provider().name();
-    }
-
-    private static String matMulThreadPolicy(ExecutionContext context) {
-        if (context.runtimeConfig() == null
-                || context.runtimeConfig().blas() == null
-                || context.runtimeConfig().blas().provider() != backend.blas.BlasProvider.OPENBLAS_FFM) {
-            return "";
-        }
-        return OpenBlasRuntime.threadPolicy();
-    }
-
-    private static String matMulCpuStorageProfile(ExecutionContext context) {
-        return context.runtimeConfig() == null || context.runtimeConfig().cpuStorageProfile() == null
-                ? ""
-                : context.runtimeConfig().cpuStorageProfile().name();
-    }
-
-    private static String matMulNativeCpuFailurePolicy(ExecutionContext context) {
-        return context.runtimeConfig() == null || context.runtimeConfig().nativeCpuFailurePolicy() == null
-                ? ""
-                : context.runtimeConfig().nativeCpuFailurePolicy().name();
-    }
-
-    private static String matMulRequestedCpuStorage(ExecutionContext context) {
-        if (context.runtimeConfig() == null || context.runtimeConfig().blas() == null) {
-            return "";
-        }
-        CpuStorageProfile profile = context.runtimeConfig().cpuStorageProfile();
-        BlasStorageMode mode = switch (profile) {
-            case CPU_ARRAY -> BlasStorageMode.CPU_ARRAY;
-            case CPU_NATIVE -> BlasStorageMode.CPU_NATIVE;
-            case AUTO -> context.runtimeConfig().blas().storageMode();
-        };
-        return mode.name();
-    }
-
     private static String matMulActualCpuStorage(MatMulExecutionRoute route) {
         return route == MatMulExecutionRoute.OPENBLAS_NATIVE_SEGMENT ? "CPU_NATIVE" : "CPU_ARRAY";
     }
@@ -366,7 +328,7 @@ public final class CpuStepTraceContributor {
                 || (!plan.matMulHints().useBlas() && !plan.matMulHints().useBatchedBlas())) {
             return false;
         }
-        return OpenBlasRuntime.isBFloat16ToFloatGemmAvailable()
+        return plan.matMulHints().openblasSbgemmAvailable()
                 && (plan.publishFloatContinuation() || linearOp.hasBias());
     }
 

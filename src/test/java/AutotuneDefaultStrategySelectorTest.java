@@ -90,7 +90,7 @@ public class AutotuneDefaultStrategySelectorTest {
                         new config.backend.CpuKernelConfig(4, 32, 32, 32, 256, 50_000, 1_000_000_000),
                         config.runtime.ApproximationConfig.defaults(),
                         new config.runtime.BlasConfig(
-                                backend.blas.BlasProvider.OPENBLAS_FFM,
+                                config.runtime.BlasProvider.OPENBLAS_FFM,
                                 2_000_000L,
                                 true,
                                 3.0d,
