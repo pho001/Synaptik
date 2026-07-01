@@ -11,8 +11,8 @@ import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import backend.cuda.buffer.CudaAcceleratorBufferBinder;
 import backend.cuda.buffer.CudaBufferAccess;
 import backend.cuda.buffer.CudaBufferAllocator;
@@ -24,7 +24,7 @@ import backend.cuda.bridge.CudaBridgeExecutionStats;
 import backend.cuda.bridge.CudaGraphBridge;
 import backend.cuda.buffer.CudaDeviceToCpuMaterializer;
 import backend.lowering.LoweringFamily;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
 import runtime.execution.ExecutionContext;
@@ -49,10 +49,10 @@ import java.util.Objects;
  */
 public final class PreparedCudaExecutable implements PreparedAcceleratorExecutable {
     private final AcceleratorDagSpec dagSpec;
-    private final GpuCompoundRegionSummary compoundSummary;
-    private final GpuLoweredRegionManifest gpuLoweredRegionManifest;
+    private final GpuCompoundPartitionSummary compoundSummary;
+    private final GpuLoweredPartitionManifest gpuLoweredPartitionManifest;
     private final LoweringFamily loweringFamily;
-    private final RegionExecutionPlan regionExecutionPlan;
+    private final BackendPartitionExecutionPlan partitionExecutionPlan;
     private final CudaGraphBridge bridge;
     private final CudaBridgeContext bridgeContext;
     private final CudaBridgeExecutable bridgeExecutable;
@@ -103,7 +103,7 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             CudaGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig,
-            GpuCompoundRegionSummary compoundSummary
+            GpuCompoundPartitionSummary compoundSummary
     ) {
         this(dagSpec, loweringFamily, bridge, cpuFallbackSteps, backendConfig, compoundSummary, null);
     }
@@ -117,29 +117,29 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
             CudaGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig,
-            GpuCompoundRegionSummary compoundSummary,
-            GpuLoweredRegionManifest gpuLoweredRegionManifest
+            GpuCompoundPartitionSummary compoundSummary,
+            GpuLoweredPartitionManifest gpuLoweredPartitionManifest
     ) {
-        this(dagSpec, loweringFamily, null, bridge, cpuFallbackSteps, backendConfig, compoundSummary, gpuLoweredRegionManifest);
+        this(dagSpec, loweringFamily, null, bridge, cpuFallbackSteps, backendConfig, compoundSummary, gpuLoweredPartitionManifest);
     }
 
     public PreparedCudaExecutable(
             AcceleratorDagSpec dagSpec,
             LoweringFamily loweringFamily,
-            RegionExecutionPlan regionExecutionPlan,
+            BackendPartitionExecutionPlan partitionExecutionPlan,
             CudaGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig,
-            GpuCompoundRegionSummary compoundSummary,
-            GpuLoweredRegionManifest gpuLoweredRegionManifest
+            GpuCompoundPartitionSummary compoundSummary,
+            GpuLoweredPartitionManifest gpuLoweredPartitionManifest
     ) {
         this.dagSpec = Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         this.compoundSummary = compoundSummary == null
-                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, dagSpec.outputNodeIds())
+                ? GpuCompoundPartitionSummary.none(ComputeBackend.GPU_CUDA, dagSpec.outputNodeIds())
                 : compoundSummary;
-        this.gpuLoweredRegionManifest = gpuLoweredRegionManifest;
+        this.gpuLoweredPartitionManifest = gpuLoweredPartitionManifest;
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
-        this.regionExecutionPlan = regionExecutionPlan;
+        this.partitionExecutionPlan = partitionExecutionPlan;
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.bridgeContext = bridge.createContext();
         this.bridgeExecutable = bridge.compile(bridgeContext, dagSpec);
@@ -382,18 +382,18 @@ public final class PreparedCudaExecutable implements PreparedAcceleratorExecutab
      * Returns the compound GPU summary associated with this prepared CUDA executable.
      */
     @Override
-    public GpuCompoundRegionSummary compoundSummary() {
+    public GpuCompoundPartitionSummary compoundSummary() {
         return compoundSummary;
     }
 
     @Override
-    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
-        return gpuLoweredRegionManifest;
+    public GpuLoweredPartitionManifest gpuLoweredPartitionManifest() {
+        return gpuLoweredPartitionManifest;
     }
 
     @Override
-    public RegionExecutionPlan regionExecutionPlan() {
-        return regionExecutionPlan;
+    public BackendPartitionExecutionPlan partitionExecutionPlan() {
+        return partitionExecutionPlan;
     }
 
     /**

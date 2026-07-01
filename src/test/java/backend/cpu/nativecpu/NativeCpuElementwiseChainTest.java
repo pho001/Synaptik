@@ -6,7 +6,7 @@ import tensor.dtype.TensorDTypeOps;
 import runtime.contract.ExecutionMode;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
-import config.compile.RegionOptimizationConfig;
+import config.compile.PartitionExecutionConfig;
 import config.compile.SemanticCanonicalizationConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
@@ -1593,7 +1593,7 @@ class NativeCpuElementwiseChainTest {
     }
 
     @Test
-    void unsupportedCpuNativeSoftmaxLikeDoesNotEmitNativeRegionTrace() {
+    void unsupportedCpuNativeSoftmaxLikeDoesNotEmitNativePartitionTrace() {
         Tensor softmaxOut = specialSoftmax(a(), 1);
         Tensor logSoftmaxOut = specialLogSoftmax(a(), 1);
 
@@ -1611,12 +1611,12 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertFalse(softmax.containsKey("nativeCpuRegionDecision"));
-        assertFalse(logSoftmax.containsKey("nativeCpuRegionDecision"));
+        assertFalse(softmax.containsKey("nativeCpuPartitionDecision"));
+        assertFalse(logSoftmax.containsKey("nativeCpuPartitionDecision"));
     }
 
     @Test
-    void unsupportedCpuNativeArgMaxDoesNotEmitNativeRegionTrace() {
+    void unsupportedCpuNativeArgMaxDoesNotEmitNativePartitionTrace() {
         Tensor out = a().argMax(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
@@ -1627,11 +1627,11 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertFalse(argMax.containsKey("nativeCpuRegionDecision"));
+        assertFalse(argMax.containsKey("nativeCpuPartitionDecision"));
     }
 
     @Test
-    void unsupportedCpuNativeBf16MinMaxReductionDoesNotEmitNativeRegionTrace() {
+    void unsupportedCpuNativeBf16MinMaxReductionDoesNotEmitNativePartitionTrace() {
         Tensor out = bf16(new float[]{1.0f, 4.0f, 2.0f, 3.0f}, "bf16_reduce_min").min(1, false);
 
         var trace = CompiledGraph.compile(out, nativeElementwiseCompileConfig())
@@ -1642,7 +1642,7 @@ class NativeCpuElementwiseChainTest {
                 .findFirst()
                 .orElseThrow());
 
-        assertFalse(reduceMin.containsKey("nativeCpuRegionDecision"));
+        assertFalse(reduceMin.containsKey("nativeCpuPartitionDecision"));
     }
 
     @Test
@@ -2010,7 +2010,7 @@ class NativeCpuElementwiseChainTest {
     private static CompileConfig nativeElementwiseCompileConfig() {
         return CompileConfig.noGraphOptimizationBaseline()
                 .withSemanticCanonicalization(SemanticCanonicalizationConfig.disabled())
-                .withRegionOptimization(RegionOptimizationConfig.disabled());
+                .withPartitionExecution(PartitionExecutionConfig.disabled());
     }
 
     private static Tensor a() {

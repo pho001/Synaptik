@@ -74,7 +74,7 @@ public final class TextBenchmarkSuiteReportRenderer {
             GpuCoverageNativeEvidence nativeEvidence = TextBenchmarkReportRenderer.nativeEvidence(entry.getKey(), coverage);
             sb.append("- backend=").append(entry.getKey())
                     .append(" gpuCoverageRatio=").append(formatDouble(coverage.gpuCoverageRatio()))
-                    .append(" maxSelectedRegionLength=").append(coverage.maxSelectedRegionLength())
+                    .append(" maxSelectedPartitionLength=").append(coverage.maxSelectedPartitionLength())
                     .append(" loweredPrimitiveCount=").append(coverage.loweredPrimitiveCount())
                     .append(" nativeBufferStepCount=").append(coverage.nativeBufferStepCount())
                     .append(" tensorArrayStepCount=").append(coverage.tensorArrayStepCount())
@@ -96,8 +96,8 @@ public final class TextBenchmarkSuiteReportRenderer {
             );
             sb.append("  coverageDeltaVsBaseline baseline=").append(comparison.baselineName())
                     .append(" passes=").append(comparison.passes())
-                    .append(" baselineMaxSelectedRegionLength=").append(comparison.baselineMaxSelectedRegionLength())
-                    .append(" currentMaxSelectedRegionLength=").append(comparison.currentMaxSelectedRegionLength())
+                    .append(" baselineMaxSelectedPartitionLength=").append(comparison.baselineMaxSelectedPartitionLength())
+                    .append(" currentMaxSelectedPartitionLength=").append(comparison.currentMaxSelectedPartitionLength())
                     .append(" baselineCpuMaterializationCount=").append(comparison.baselineCpuMaterializationCount())
                     .append(" currentCpuMaterializationCount=").append(comparison.currentCpuMaterializationCount())
                     .append(" baselineFallbackCount=").append(comparison.baselineFallbackCount())
@@ -127,7 +127,7 @@ public final class TextBenchmarkSuiteReportRenderer {
                     .append(" gatePassed=").append(gate.passed())
                     .append(" gateFailures=").append(gate.failures())
                     .append(" minGpuCoverageRatio=").append(expectation.policy().minGpuCoverageRatio())
-                    .append(" minMaxSelectedRegionLength=").append(expectation.policy().minMaxSelectedRegionLength())
+                    .append(" minMaxSelectedPartitionLength=").append(expectation.policy().minMaxSelectedPartitionLength())
                     .append(" minLoweredPrimitiveCount=").append(expectation.policy().minLoweredPrimitiveCount())
                     .append(" maxCpuMaterializationCount=").append(expectation.policy().maxCpuMaterializationCount())
                     .append(" maxInternalCpuMaterializationCount=")
@@ -183,7 +183,7 @@ public final class TextBenchmarkSuiteReportRenderer {
             return "missing";
         }
         return "gpuCoverageRatio=" + formatDouble(coverage.gpuCoverageRatio())
-                + ",maxSelectedRegionLength=" + coverage.maxSelectedRegionLength()
+                + ",maxSelectedPartitionLength=" + coverage.maxSelectedPartitionLength()
                 + ",loweredPrimitiveCount=" + coverage.loweredPrimitiveCount()
                 + ",nativeBufferStepCount=" + coverage.nativeBufferStepCount()
                 + ",tensorArrayStepCount=" + coverage.tensorArrayStepCount()

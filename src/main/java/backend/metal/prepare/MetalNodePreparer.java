@@ -10,11 +10,11 @@ import backend.metal.bridge.MetalMpsGraphBridge;
 import backend.metal.exec.PreparedMetalExecutable;
 import backend.metal.kernel.MetalCustomKernelBridge;
 import backend.metal.lowering.MetalPartitionPlan;
-import backend.lowering.LoweredRegion;
+import backend.lowering.LoweredPartition;
 import backend.lowering.LoweringFamily;
 import prepare.context.BackendPrepareContext;
 import prepare.context.PartitionExecutionRole;
-import prepare.validation.RegionPlanValidator;
+import prepare.validation.BackendPartitionExecutionPlanValidator;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.OutputResidencyEffect;
@@ -72,31 +72,31 @@ public final class MetalNodePreparer {
         if (role != PartitionExecutionRole.ANCHOR) {
             return cpuPreparer.prepareAsCpu(node, context);
         }
-        LoweredRegion loweredRegion = GpuAcceleratorPrepareSupport.requireLoweredRegion(
-                context.metalLoweredRegionForAnchor(node.id()),
+        LoweredPartition loweredPartition = GpuAcceleratorPrepareSupport.requireLoweredPartition(
+                context.metalLoweredPartitionForAnchor(node.id()),
                 "Metal GPU",
                 node.id()
         );
-        return prepareRegionStep(loweredRegion, context);
+        return preparePartitionStep(loweredPartition, context);
     }
 
-    public PreparedStepMetadata prepareRegionStep(
-            LoweredRegion loweredRegion,
+    public PreparedStepMetadata preparePartitionStep(
+            LoweredPartition loweredPartition,
             BackendPrepareContext context
     ) {
         LoweringFamily loweringFamily = GpuAcceleratorPrepareSupport.resolveLoweringFamily(
-                loweredRegion,
-                LoweringFamily.METAL_GRAPH_REGION
+                loweredPartition,
+                LoweringFamily.METAL_GRAPH_PARTITION
         );
-        var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
-        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
+        var partitionPlan = loweredPartition.units().getFirst().requirePartitionPlan();
+        BackendPartitionExecutionPlanValidator.requireBoundaryCoverage(partitionPlan, context);
 
-        PartitionPlan genericPlan = context.backendPlanForAnchor(regionPlan.anchorNodeId());
+        PartitionPlan genericPlan = context.backendPlanForAnchor(partitionPlan.anchorNodeId());
         MetalPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,
                 MetalPartitionPlan.class,
                 "Metal GPU",
-                regionPlan.anchorNodeId()
+                partitionPlan.anchorNodeId()
         );
         var fallback = GpuAcceleratorPrepareSupport.prepareCpuFallback(
                 plan,
@@ -109,7 +109,7 @@ public final class MetalNodePreparer {
         PreparedMetalExecutable executable = new PreparedMetalExecutable(
                 plan,
                 loweringFamily,
-                regionPlan,
+                partitionPlan,
                 bridge,
                 fallback.preparedSteps(),
                 context.runtimeConfig().accelerator().metal(),

@@ -114,8 +114,8 @@ The following graph-resident fields are research-only or excluded from standard 
   - graph simplification/lowering contract, not a broad production tuning axis
 - `compile.graphOptimization.rewrite.conv2dLowering.mode`
   - GEMM/BLAS/runtime-family proxy
-- `compile.regionOptimization.fuse.*`
-  - persisted fields, but current production region optimization does not consume their scoring values
+- `compile.partitionExecution.fuse.*`
+  - persisted fields, but current production partition optimization does not consume their scoring values
 - `compile.backendPlanning.search.*`
   - accelerator/backend partition scoring and target policy
 - `compile.graphOptimization.cse.strictSafety`

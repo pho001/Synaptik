@@ -72,7 +72,7 @@ class GpuLoweringCoverageMatrixTest {
         assertTrue(docs.contains("UNSUPPORTED_OPERATION"));
         assertTrue(docs.contains("UNSUPPORTED_DTYPE"));
         assertTrue(docs.contains("UNSUPPORTED_LAYOUT"));
-        assertTrue(docs.contains("DEFERRED_FUSED_REGION"));
+        assertTrue(docs.contains("DEFERRED_FUSED_PARTITION"));
         assertTrue(docs.contains("supported"));
         assertTrue(docs.contains("fallback"));
         assertTrue(docs.contains("unsupported"));

@@ -1,0 +1,172 @@
+package planning.partition.execution;
+
+import graph.model.CompiledNode;
+import planning.partition.Partition;
+import planning.partition.PartitionValue;
+import planning.value.GraphValueRef;
+import operations.Operation;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+final class ExecutionUnitFactory {
+    private ExecutionUnitFactory() {
+    }
+
+    static ExecutionUnit buildFusedUnit(Partition partition, PartitionExecutionPlanningContext context) {
+        List<GraphValueRef> outputs = List.copyOf(partition.outputValueRefs());
+        Set<GraphValueRef> outputSet = Set.copyOf(partition.outputValueRefs());
+        List<GraphValueRef> virtuals = partition.values().stream()
+                .map(PartitionValue::ref)
+                .filter(ref -> !outputSet.contains(ref))
+                .toList();
+        List<GraphValueRef> materializedOutputs = partition.requiredMaterializedValueRefs().stream()
+                .filter(outputSet::contains)
+                .toList();
+        return new ExecutionUnit(
+                partition.partitionId() + "-unit-0",
+                ExecutionUnitKind.FUSED_ELEMENTWISE,
+                partition.target(),
+                partition.externalInputNodeIds().stream().map(GraphValueRef::node).toList(),
+                outputs,
+                materializedOutputs,
+                virtuals,
+                partition.orderedNodeIds(),
+                partition.estimatedWork(),
+                partition.externalInputNodeIds(),
+                new PartitionExecutionTrace(unitTraceEvents(
+                        "fused-whole-partition",
+                        partition,
+                        partition.orderedNodeIds(),
+                        context
+                ))
+        );
+    }
+
+    static List<ExecutionUnit> buildSingleOpUnits(Partition partition, PartitionExecutionPlanningContext context) {
+        List<ExecutionUnit> out = new ArrayList<>(partition.orderedNodeIds().size());
+        Set<Integer> selected = Set.copyOf(partition.orderedNodeIds());
+        Set<GraphValueRef> materialized = Set.copyOf(partition.requiredMaterializedValueRefs());
+        for (int nodeId : partition.orderedNodeIds()) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            out.add(buildSingleOpUnit(partition, nodeId, node, selected, materialized, context));
+        }
+        return List.copyOf(out);
+    }
+
+    static ExecutionUnit buildSingleOpUnit(
+            Partition partition,
+            int nodeId,
+            CompiledNode node,
+            Set<Integer> selected,
+            Set<GraphValueRef> materialized,
+            PartitionExecutionPlanningContext context
+    ) {
+        List<GraphValueRef> inputRefs = node.inputIds().stream()
+                .filter(selected::contains)
+                .map(GraphValueRef::node)
+                .toList();
+        GraphValueRef selfRef = GraphValueRef.node(nodeId);
+        List<GraphValueRef> outputRefs = List.of(selfRef);
+        boolean continuationOutput = partition.outputValueRefs().contains(selfRef) && !materialized.contains(selfRef);
+        List<GraphValueRef> materializedOutputs = materialized.contains(selfRef) ? outputRefs : List.of();
+        List<GraphValueRef> virtualOutputs = materialized.contains(selfRef) || continuationOutput ? List.of() : outputRefs;
+        return new ExecutionUnit(
+                partition.partitionId() + "-unit-" + nodeId,
+                ExecutionUnitKind.UNIT_KERNEL,
+                partition.target(),
+                inputRefs,
+                outputRefs,
+                materializedOutputs,
+                virtualOutputs,
+                List.of(nodeId),
+                Math.max(1L, node.flatDataSize()),
+                node.inputIds().stream().filter(inputId -> !selected.contains(inputId)).toList(),
+                new PartitionExecutionTrace(unitTraceEvents(
+                        "single-op:" + nodeId,
+                        partition,
+                        List.of(nodeId),
+                        context
+                ))
+        );
+    }
+
+    static ExecutionUnit buildFusedSubchainUnit(
+            Partition partition,
+            List<Integer> chain,
+            PartitionExecutionPlanningContext context,
+            Set<GraphValueRef> materialized,
+            List<GraphValueRef> outputRefs
+    ) {
+        Set<Integer> chainSet = Set.copyOf(chain);
+        LinkedHashSet<GraphValueRef> inputRefs = new LinkedHashSet<>();
+        LinkedHashSet<Integer> externalInputIds = new LinkedHashSet<>();
+        for (int nodeId : chain) {
+            CompiledNode node = context.compiledNode(nodeId);
+            if (node == null) {
+                continue;
+            }
+            for (int inputId : node.inputIds()) {
+                if (!chainSet.contains(inputId)) {
+                    inputRefs.add(GraphValueRef.node(inputId));
+                    externalInputIds.add(inputId);
+                }
+            }
+        }
+        List<GraphValueRef> materializedOutputs = outputRefs.stream()
+                .filter(materialized::contains)
+                .toList();
+        List<GraphValueRef> virtualOutputs = outputRefs.stream()
+                .filter(ref -> !materializedOutputs.contains(ref))
+                .toList();
+        long estimatedWork = chain.stream()
+                .map(context::compiledNode)
+                .filter(java.util.Objects::nonNull)
+                .mapToLong(CompiledNode::flatDataSize)
+                .sum();
+        return new ExecutionUnit(
+                partition.partitionId() + "-unit-" + chain.getFirst() + "-fused",
+                ExecutionUnitKind.FUSED_ELEMENTWISE,
+                partition.target(),
+                List.copyOf(inputRefs),
+                List.copyOf(outputRefs),
+                materializedOutputs,
+                virtualOutputs,
+                List.copyOf(chain),
+                Math.max(1L, estimatedWork),
+                List.copyOf(externalInputIds),
+                new PartitionExecutionTrace(unitTraceEvents(
+                        "fused-subchain:" + chain,
+                        partition,
+                        chain,
+                        context
+                ))
+        );
+    }
+
+    private static List<String> unitTraceEvents(
+            String baseEvent,
+            Partition partition,
+            List<Integer> nodeIds,
+            PartitionExecutionPlanningContext context
+    ) {
+        ArrayList<String> events = new ArrayList<>();
+        events.add(baseEvent);
+        if (partition == null || nodeIds == null || nodeIds.isEmpty() || context == null) {
+            return List.copyOf(events);
+        }
+        for (int nodeId : nodeIds) {
+            CompiledNode node = context.compiledNode(nodeId);
+            Operation.OpType opType = node == null || node.operation() == null ? null : node.operation().opType();
+            events.add("partition-unit-node:node=" + nodeId
+                    + ",op=" + (opType == null ? "UNKNOWN" : opType.name())
+                    + ",target=" + partition.target().name());
+        }
+        return List.copyOf(events);
+    }
+}

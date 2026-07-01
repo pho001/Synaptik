@@ -1,9 +1,9 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Module Guide
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik) | [Metal Backend](metal-backend.md#source-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#source-map) | [Development](development.md#repository-structure)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#core-artifact-boundaries) | [Compute Flow](compute-flow.md#primary-artifacts) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-partitions.md#backend-planning-and-partitions) | [Native Bridges & BLAS](native-bridges-and-blas.md#openblas-in-synaptik) | [Metal Backend](metal-backend.md#source-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Adding Tensor Operation](adding-tensor-operation.md#source-map) | [Development](development.md#repository-structure)
 
-Chapters: [Package Map](#package-map) | [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface) | [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors) | [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-preparation-facade-and-execution-types) | [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-rewrite-partition-fusion-and-memory-planning) | [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-backend-contracts-selection-lowering-and-runtime-context) | [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation) | [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families) | [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support) | [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [`config`: Optimizer, Runtime, And Profile Records](#config-optimizer-runtime-and-profile-records) | [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence) | [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point) | [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness) | [`utils`: Support Classes](#utils-support-classes) | [Test Coverage Landmarks](#test-coverage-landmarks)
+Chapters: [Package Map](#package-map) | [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface) | [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors) | [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-and-lifecycle-facade) | [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-backend-neutral-graph-optimization) | [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-contracts-providers-selection-lowering-and-implementations) | [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation) | [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families) | [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support) | [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [`config`: Optimizer, Runtime, And Profile Records](#config-compile-runtime-and-profile-records) | [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence) | [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point) | [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness) | [`utils`: Support Classes](#utils-support-classes) | [Test Coverage Landmarks](#test-coverage-landmarks)
 
 This guide explains the important source packages in Synaptik and how they relate to the compile/prepare/execute lifecycle. For deeper package-specific docs, also read the existing package READMEs in `src/main/java/tensor`, `src/main/java/operations`, `src/main/java/graph`, `src/main/java/backend`, and `src/main/java/tuning`.
 
@@ -12,14 +12,14 @@ This guide explains the important source packages in Synaptik and how they relat
 - [Package Map](#package-map)
 - [`tensor`: Public Graph-Building Surface](#tensor-public-graph-building-surface)
 - [`operations`: Primitive Semantic Descriptors](#operations-primitive-semantic-descriptors)
-- [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-preparation-facade-and-execution-types)
-- [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-rewrite-partition-fusion-and-memory-planning)
-- [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-backend-contracts-selection-lowering-and-runtime-context)
+- [`graph`: Compile Artifacts, Preparation Facade, And Execution Types](#graph-compile-artifacts-and-lifecycle-facade)
+- [`graph.optimizer`: Rewrite, Partition, Fusion, And Memory Planning](#graphoptimizer-backend-neutral-graph-optimization)
+- [`backend`: Backend Contracts, Selection, Lowering, And Runtime Context](#backend-contracts-providers-selection-lowering-and-implementations)
 - [`backend.cpu`: CPU Backend Implementation](#backendcpu-cpu-backend-implementation)
 - [`backend.cpu.kernels`: CPU Kernel Families](#backendcpukernels-cpu-kernel-families)
 - [`backend.cpu.fused`: Fused Planning And Generated Execution Support](#backendcpufused-fused-planning-and-generated-execution-support)
 - [Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`](#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl)
-- [`config`: Optimizer, Runtime, And Profile Records](#config-optimizer-runtime-and-profile-records)
+- [`config`: Optimizer, Runtime, And Profile Records](#config-compile-runtime-and-profile-records)
 - [`tuning`: Measurement, Search, Validation, Reporting, Persistence](#tuning-measurement-search-validation-reporting-persistence)
 - [`synaptik.app`: CLI Entry Point](#synaptikapp-cli-entry-point)
 - [`numerics`: Numerical Drift Harness](#numerics-numerical-drift-harness)
@@ -32,8 +32,12 @@ This guide explains the important source packages in Synaptik and how they relat
 src/main/java/
   tensor/        public tensor API, storage, graph-building helpers
   operations/    immutable primitive descriptors
-  graph/         compile artifacts, graph compiler, execution facade, optimizer
-  backend/       backend contracts, prepare/lowering/select/runtime, CPU and accelerator implementations
+  graph/         immutable graph model, compiler, lifecycle facade, optimizer
+  planning/      backend-neutral ownership, partition, value, and memory plans
+  prepare/       shared prepare context/validation and orchestration composition root
+  runtime/       prepared execution contracts and per-run dynamic state
+  trace/         compile, prepare, backend, and execution diagnostic DTOs
+  backend/       contracts/providers plus concrete CPU and accelerator implementations
   config/        compile/runtime/profile configuration records
   tuning/        benchmark, autotune, calibration, validation, reports, persistence
   synaptik/app/  CLI entry point
@@ -73,7 +77,7 @@ Main paths:
 
 - `src/main/java/tensor/Tensor.java`
 - `src/main/java/tensor/TensorOps.java`
-- `src/main/java/tensor/internal/TensorExecutionSupport.java`
+- `src/main/java/tensor/internal/TensorExecution.java`
 - `src/main/java/tensor/ops/**`
 - `src/main/java/tensor/options/**`
 - `src/main/java/tensor/loss/LossReduction.java`
@@ -106,7 +110,7 @@ Tensor y = a.add(b).relu();
 y.compute();
 ```
 
-`TensorExecutionSupport` is the bridge from public convenience calls to compile/prepare/execute. It chooses default compile and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
+`TensorExecution` is the bridge from public convenience calls to compile/prepare/execute. It chooses default compile and runtime configs from `CompileMode`, and it can run generic tensor autotune when `ComputeOptions.autotune(AutotunePolicy.IF_MISSING)` is used.
 
 Sequence-shaped workloads remain ordinary tensor workloads in this package. The public helpers `Tensor.stack`, `Tensor.unstack`, `Tensor.sliceAxis`, `Tensor.take`, masked `sum`/`mean`, masked cross entropy, and N-D `linear` are implemented through `tensor.ops.*` families rather than through a separate `sequence` module. That keeps Synaptik as the primitive tensor/autograd engine and leaves high-level concepts such as layers, recurrent cells, models, and dataloaders to consumer frameworks.
 
@@ -137,8 +141,10 @@ Every descriptor implements `Operation`:
 Operation.OpType opType();
 Operation.OpArityClass arityClass();
 boolean isFusable();
+Operation.OpSemanticFamily semanticFamily();
+Operation.OpComputationalCost computationalCost();
+Operation.OpResultKind resultKind();
 String getExpression();
-default boolean isCheap() { return false; }
 ```
 
 `Operation.OpArityClass` defines broad primitive categories. Each concrete `Operation` descriptor returns its category and fusable flag directly:
@@ -150,18 +156,17 @@ default boolean isCheap() { return false; }
 - `SPECIAL`
 - `FUSED`
 
-That taxonomy is consumed by optimizer and backend code. For example, fusable elementwise descriptors can be grouped into `FUSED` nodes by region optimization, while special descriptors such as `LINEAR`, `CONV2D`, `SCALED_DOT_PRODUCT_ATTENTION`, and index-target cross entropy route to dedicated CPU kernels.
+That taxonomy is consumed by optimizer and backend code. For example, fusable elementwise descriptors can be grouped into `FUSED` nodes by partition optimization, while special descriptors such as `LINEAR`, `CONV2D`, `SCALED_DOT_PRODUCT_ATTENTION`, and index-target cross entropy route to dedicated CPU kernels.
 
-## `graph`: Compile Artifacts, Preparation Facade, And Execution Types
+## `graph`: Compile Artifacts And Lifecycle Facade
 
 Main paths:
 
 - `src/main/java/graph/CompiledGraph.java`
-- `src/main/java/graph/CompiledNode.java`
-- `src/main/java/graph/CompiledGradientBinding.java`
-- `src/main/java/graph/SemanticForwardCanonicalizer.java`
+- `src/main/java/graph/model/CompiledNode.java`
+- `src/main/java/graph/model/CompiledGradientBinding.java`
+- `src/main/java/graph/compile/canonical/SemanticForwardCanonicalizer.java`
 - `src/main/java/graph/compile/**`
-- `src/main/java/graph/execution/**`
 - `src/main/java/graph/README.md`
 
 `graph` is the lifecycle layer between semantic tensors and backend execution.
@@ -174,18 +179,18 @@ Key compile classes:
 - `graph.compile.session.BackwardGraphBuilder` builds backward graph nodes when training mode requires them.
 - `graph.compile.session.GradientBindingCollector` captures semantic-to-compiled gradient bindings.
 - `graph.compile.session.OptimizerGraphSnapshot` creates snapshot graphs for optimizer passes.
-- `graph.compile.planning.BackendPlanningService` derives partition and backend candidate artifacts.
-- `graph.compile.planning.BackendPlanningJobResolver` is the single backend planning job resolver.
+- `planning.backend.BackendPlanningService` derives partition and backend candidate artifacts.
+- `planning.backend.BackendPlanningJobResolver` is the single backend planning job resolver.
 
-Key execution classes:
+Prepared execution types are runtime-owned:
 
-- `graph.execution.PreparedExecution` owns prepared forward/backward steps and run execution.
-- `graph.execution.PreparedExecutionStep` pairs a compiled node with prepared metadata.
-- `graph.execution.plan.CompiledNodeExecutionMetadata` carries backend, kernel, CPU plan, fused executable, workspace, accelerator executable, execution operation, execution inputs, and partition role.
-- `graph.execution.state.ExecutionState` is the public per-run runtime state entrypoint; concrete runtime tensors, workspaces, materialization, resources, residency, and storage bindings are split across run-scoped state/residency helpers.
-- `graph.execution.residency.RuntimeMemoryBinder` binds compile-time memory-plan decisions onto per-run runtime tensors.
+- `runtime.execution.PreparedExecution` owns prepared forward/backward steps and run execution.
+- `runtime.execution.PreparedExecutionStep` pairs a compiled node with prepared metadata.
+- `runtime.execution.PreparedStepMetadata` carries backend, kernel, CPU plan, fused executable, workspace, accelerator executable, execution operation, execution inputs, and partition role.
+- `runtime.execution.ExecutionState` is the public per-run runtime state entrypoint; concrete runtime tensors, workspaces, materialization, resources, residency, and storage bindings are split across run-scoped state/residency helpers.
+- `runtime.residency.RuntimeMemoryBinder` binds compile-time memory-plan decisions onto per-run runtime tensors.
 
-The package also owns trace records under `graph/execution/trace`, including `CompileTrace`, `PrepareTrace`, and `RunTrace`.
+Trace DTOs live under top-level `trace`: `trace.compile.CompileTrace`, `trace.prepare.PrepareTrace`, and `trace.execution.RunTrace`. Their producers remain in compile, prepare, and runtime respectively.
 
 ## `graph.optimizer`: Backend-Neutral Graph Optimization
 
@@ -209,42 +214,39 @@ Main paths:
 | `DCE` | `graph.optimizer.simplify` | Dead-code elimination |
 | `LOWER` | `graph.optimizer.rewrite` | Optional backend-neutral operation lowering |
 
-Backend planning, region optimization, and memory planning use implementation packages under `graph.compile.planning.partition`, `graph.compile.planning.region`, `graph.compile.planning.memory`, and `graph.compile.planning.value`, but they are compile-flow phases controlled by `CompileConfig`, not graph optimizer stages. See [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+Backend planning, partition optimization, and memory planning use implementation packages under `planning.partition`, `planning.partition.execution`, `planning.memory`, and `planning.value`, but they are compile-flow phases controlled by `CompileConfig`, not graph optimizer stages. See [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions).
 
-The optimizer receives an `OptimizerState`, not a live semantic graph. That state carries graph nodes, the semantic forward output, execution metadata, and optimizer trace data. It deliberately does not carry partition plans, optimized regions, or memory plans, so graph rewrites cannot retain stale compile-planning artifacts.
+The optimizer receives an `OptimizerState`, not a live semantic graph. That state carries graph nodes, the semantic forward output, execution metadata, and optimizer trace data. It deliberately does not carry partition plans, optimized partitions, or memory plans, so graph rewrites cannot retain stale compile-planning artifacts.
 
-## `backend`: Backend Contracts, Selection, Lowering, And Runtime Context
+## `backend`: Contracts, Providers, Selection, Lowering, And Implementations
 
 Main paths:
 
-- `src/main/java/backend/ComputeBackend.java`
-- `src/main/java/backend/ComputeEngine.java`
+- `src/main/java/backend/contract/ComputeBackend.java`
 - `src/main/java/backend/ApproxMode.java`
-- `src/main/java/backend/prepare/**`
+- `src/main/java/prepare/**`
 - `src/main/java/backend/lowering/**`
 - `src/main/java/backend/partition/**`
 - `src/main/java/backend/select/**`
-- `src/main/java/backend/runtime/**`
-- `src/main/java/backend/memory/**`
-- `src/main/java/backend/blas/**`
+- `src/main/java/backend/provider/**`
+- `src/main/java/runtime/**`
+- `src/main/java/trace/**`
 - `src/main/java/backend/README.md`
 
-The root `backend` package is the backend-neutral boundary. It defines backend identity, dispatch, runtime context, selection/lowering infrastructure, and shared contracts.
-
-`ComputeEngine` is the final backend dispatcher. It receives a `CompiledNode`, `CompiledNodeExecutionMetadata`, and `ExecutionContext`; then it switches on prepared backend metadata. Backend code should consume prepared metadata rather than re-running optimizer decisions.
+`backend.contract` is the backend-neutral identity/capability leaf. Concrete backend families own their prepare compilers, executable artifacts, kernels, storage adapters, and trace contributors. Runtime does not select or import concrete backends: `PreparedExecutionRunner` invokes the `PreparedStepExecutable` already attached during prepare.
 
 Important support packages:
 
-- `backend.prepare` builds `PreparedExecution` metadata and dispatches to backend-specific preparers.
+- `prepare.orchestration` builds `PreparedExecution` metadata and dispatches to backend-specific preparers.
 - `backend.lowering` defines lowering contracts and `LoweringPipeline`.
 - `backend.partition` registers partition descriptors and lowerers.
 - `backend.select` selects backend plans from candidates.
-- `backend.runtime` carries `ExecutionMode`, `ExecutionContext`, and run-scoped state access.
-- `backend.memory` carries backend-neutral runtime residency records such as `StorageResidency`,
+- `runtime.contract`, `runtime.execution`, `runtime.state`, and `runtime.residency` carry execution mode, context, prepared contracts, and run-scoped state.
+- Runtime packages carry backend-neutral residency records such as `StorageResidency`,
   `TensorResidencyState`, `CpuMaterializationReason`, and `DeviceBufferBinding`. These records describe whether a
   run's newest value is CPU-current, device-current, or backed by a shared/device buffer without changing the semantic
   `Tensor` API.
-- `backend.blas` contains BLAS provider/runtime bridge abstractions. The OpenBLAS FFM implementation is split into
+- `backend.provider.blas.openblas` is the low-level JDK/FFM OpenBLAS provider. The implementation is split into
   `OpenBlasRuntime`, `OpenBlasArrayGemm`, `OpenBlasSegmentGemm`, and package-private symbol/layout classes. It loads OpenBLAS through Java FFM and exposes only the row-major no-transpose GEMM subset
   used by CPU matmul and GEMM-lowered conv2d, including array-copy and `MemorySegment` native segment routes where
   supported. See [Native Bridges & BLAS: OpenBLAS In Synaptik](native-bridges-and-blas.md#openblas-in-synaptik) for the detailed
@@ -257,12 +259,21 @@ Main paths:
 - `src/main/java/backend/cpu/CpuBackend.java`
 - `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`
 - `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
-- `src/main/java/backend/cpu/kernels/plan/**`
+- `src/main/java/backend/cpu/plan/**`
+- `src/main/java/backend/cpu/prepare/**`
 - `src/main/java/backend/cpu/kernels/**`
 - `src/main/java/backend/cpu/fused/**`
 - `src/main/java/backend/cpu/README.md`
 
 `backend.cpu` is the complete concrete backend. CPU preparation resolves a kernel and a `CpuNodeExecutionPlan`; CPU execution consumes that plan and calls dtype-specific kernel methods.
+
+`backend.cpu1` is a second, backend-owned direct CPU implementation under active parity hardening.
+`RuntimeConfig.cpuExecutionPolicy()` keeps cpu1 direct-node routing opt-in: the default sends ordinary CPU nodes to
+`backend.cpu`. When cpu1 direct routing is enabled, prepare can either fail on an unsupported node or explicitly fall
+back to `backend.cpu` according to `CpuExecutionPolicy`.
+Partition-specialized cpu1 routes and the separate fused cpu1 policy are selected through their own prepare decisions.
+Prepared cpu1 units record storage kind, launch policy, scratch requirements, and trace attributes before runtime;
+source-defined coverage, benchmark-owner, and targeted-parity inventories are enforced by cpu1 readiness tests.
 
 Preparation responsibilities include:
 
@@ -289,15 +300,14 @@ This division is intentional: expensive policy interpretation belongs in prepare
 Main paths:
 
 - `src/main/java/backend/cpu/kernels/CpuKernel.java`
-- `src/main/java/backend/cpu/kernels/CpuKernelContext.java`
-- `src/main/java/backend/cpu/kernels/CpuNodeExecutionPlan.java`
+- `src/main/java/backend/cpu/execution/CpuKernelContext.java`
+- `src/main/java/backend/cpu/plan/CpuNodeExecutionPlan.java`
 - `src/main/java/backend/cpu/kernels/elementwise/**`
 - `src/main/java/backend/cpu/kernels/reduction/**`
 - `src/main/java/backend/cpu/kernels/linalg/**`
 - `src/main/java/backend/cpu/kernels/nn/**`
 - `src/main/java/backend/cpu/kernels/layout/**`
 - `src/main/java/backend/cpu/kernels/index/**`
-- `src/main/java/backend/cpu/kernels/grad/**`
 - `src/main/java/backend/cpu/kernels/fused/**`
 
 The CPU kernel tree is organized by operation family:
@@ -310,9 +320,7 @@ The CPU kernel tree is organized by operation family:
 | `nn` | conv2d, pool2d, layer norm, RMS norm |
 | `layout` | alias/view, contiguous, expand, permute, reshape-like, noop |
 | `index` | gather, gather-grad, take-along-axis, scatter-add |
-| `grad` | specialized min/max and index-target loss gradients |
 | `fused` | direct runtime execution for `FUSED` operations |
-| `plan` | assembly of CPU node execution plans |
 
 `backend.cpu.kernels.CpuKernelRegistry` is the central mapping from `Operation.OpType` to concrete kernel singleton. If a new operation descriptor is added, the CPU resolver is one of the places that must be updated for CPU execution.
 
@@ -333,8 +341,7 @@ worked examples are in [Native Bridges & BLAS](native-bridges-and-blas.md#openbl
 Main paths:
 
 - `src/main/java/backend/cpu/fused/plan/**`
-- `src/main/java/backend/cpu/fused/optimize/**`
-- `src/main/java/backend/cpu/fused/codegen/**`
+- `src/main/java/backend/cpu/fused/ir/**`
 - `src/main/java/backend/cpu/fused/exec/**`
 - `src/main/java/backend/cpu/fused/asm/**`
 
@@ -343,10 +350,10 @@ This package prepares fused execution artifacts. It is deliberately separate fro
 Important classes:
 
 - `FusedOperation` and `FusedExecutionPlan` describe the fused operation and planned execution shape.
-- `LoweredFusedOperationBuilder` builds fused operations from optimized regions.
-- `FusedExecutionBackendResolver` selects the fused execution backend.
+- `FusedOperationBuilder` builds fused descriptors from lowered partition metadata.
+- `FusedExecutablePreparer` prepares ASM executables and applies the explicit interpreter-fallback policy.
 - `PreparedFusedExecutable` is the prepared executable contract.
-- `AsmPreparedFusedExecutableFactory` and `AsmFusedExecutionBackend` support generated ASM-specialized execution.
+- `AsmPreparedFusedExecutableFactory` and `FusedExecutablePreparer` support generated ASM-specialized execution.
 
 ## Accelerator Scaffolding: `backend.accelerator`, `backend.metal`, `backend.cuda`, `backend.opencl`
 
@@ -360,7 +367,7 @@ Main paths:
 Shared accelerator code includes:
 
 - DAG specs under `backend.accelerator.dag`
-- buffer policy records under `backend.accelerator.buffer`, including `AcceleratorBufferRequest`,
+- buffer policy records under `runtime.device.buffer`, including `AcceleratorBufferRequest`,
   `AcceleratorBufferDecision`, stable `AcceleratorBufferReasonCode` values, and typed
   `AcceleratorBufferBindings`
 - lowering contracts under `backend.accelerator.lowering`
@@ -372,9 +379,9 @@ Shared accelerator code includes:
 
 Metal and CUDA have more complete source-level scaffolding than OpenCL:
 
-- Metal: partition capability, partition plan, region lowerer, node preparer, prepared executable, MPS FFM bridge wrappers,
+- Metal: partition capability, partition plan, partition lowerer, node preparer, prepared executable, MPS FFM bridge wrappers,
   bridge execution stats, and Java-side buffer binding contracts under `backend.metal.buffer`.
-- CUDA: partition capability, partition plan, region lowerer, node preparer, prepared executable, CUDA FFM bridge wrappers.
+- CUDA: partition capability, partition plan, partition lowerer, node preparer, prepared executable, CUDA FFM bridge wrappers.
 - OpenCL: backend and kernel registry classes exist, but `OpenClKernelRegistry` currently registers only `NOOP`.
 
 Needs verification: whether Metal or CUDA execution is available on a specific machine depends on native bridge availability and external runtime libraries. Source-level availability checks live in `backend.accelerator.select.AcceleratorRuntimeAvailability`.
@@ -383,11 +390,12 @@ The common accelerator buffer package decides path and diagnostics; the Metal bu
 handles. `MetalBufferBinding`, `MetalBufferHandle`, and `MetalBufferAccess` describe explicit run-scoped `MTLBuffer`
 handles. `MetalAcceleratorBufferBinder` maps a common `AcceleratorBufferDecision` to concrete Metal input/output
 bindings. When the native shim exports the complete buffer ABI, `MetalMpsFfmBridge.supportsBufferBindings()` reports
-true, `PreparedMetalExecutable` can pass adjacent Metal-region values through `MetalBufferBinding`, and CPU
+true, `PreparedMetalExecutable` can pass adjacent Metal-partition values through `MetalBufferBinding`, and CPU
 materialization is delayed until a real CPU boundary. The legacy tensor-array path remains as fallback when policy is
 `OFF`, the bridge does not support buffers, dtypes/layouts are illegal, or native execution fails. CUDA consumes the
-same `AcceleratorBackendConfig.buffer()` policy today, but `CudaGraphBridge.supportsBufferBindings()` still defaults
-to false until a concrete CUDA buffer lifetime/ABI exists.
+same `AcceleratorBackendConfig.buffer()` policy. The interface default for
+`CudaGraphBridge.supportsBufferBindings()` is false, while `CudaFfmBridge` reports true only after loading the complete
+native buffer ABI; runtime availability therefore remains capability- and machine-dependent.
 For the native Objective-C implementation and buffer ABI details, see [Metal Backend: Objective-C Native Shim](metal-backend.md#objective-c-native-shim) and [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
 ## `config`: Compile, Runtime, And Profile Records
@@ -407,14 +415,14 @@ Main paths:
 - `CompileConfig`
 - `GraphOptimizationConfig`
 - `BackendPlanningConfig`
-- `RegionOptimizationConfig`
+- `PartitionExecutionConfig`
 - `MemoryPlanningConfig`
 - backend target, discovery, requirement, search, and cost records
 
 `config.optimizer` contains lower-level helper configs consumed by compile policies:
 
 - rewrite and CSE configs
-- CPU region and CPU fusion configs
+- CPU partition and CPU fusion configs
 - fuse and memory helper configs
 - linear, piecewise, conv2d, and Metal transfer cost configs
 
@@ -581,7 +589,7 @@ Useful tests for understanding module behavior:
 
 - Tensor API and dtype/storage: `TensorAddTest`, `TensorConstructorDataTypeTest`, `TensorStorageDataTypeTest`, `TensorComputeConvenienceApiTest`
 - Graph compile/prepare: `CompiledGraphIdempotencyTest`, `CompiledGraphTraceTest`, `PreparedExecutionBuildTest`, `PreparedExecutionTrainingCapabilityTest`
-- Optimizer and compile planning: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `graph.optimizer.GraphOptimizerSinglePassTest`, `MemoryPlanningDataTypeTest`, `MemoryPlannerSummaryTest`, `graph.compile.planning.memory.MemoryPlannerRegionViewTest`
+- Optimizer and compile planning: `AlgebraicRewriting*Test`, `CommonSubexpressionEliminationRuleTest`, `graph.optimizer.GraphOptimizerSinglePassTest`, `MemoryPlanningDataTypeTest`, `MemoryPlannerSummaryTest`, `planning.memory.MemoryPlannerPartitionViewTest`
 - CPU kernels and execution: `DataTypeExecutionCoverageTest`, `CpuExecutionPlannerDispatchHeuristicsTest`, `CpuKernelFamilyArchitectureTest`, operation-specific execution tests
 - Tuning/calibration: `AutotuneSessionTest`, `GraphAutotuneCandidateSpaceTest`, `BenchmarkSessionTest`, `PlatformCalibrationSessionTest`, `TuningStoreTest`
 - Source/package hygiene: `LowercasePackageNamingTest`, `SourceTreeHygieneTest`

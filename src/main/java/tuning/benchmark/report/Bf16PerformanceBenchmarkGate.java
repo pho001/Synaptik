@@ -117,11 +117,11 @@ public final class Bf16PerformanceBenchmarkGate {
                 || !"F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("computePrecision", ""))))) {
             failures.add("BF16 non-BLAS promoted step missing BF16/F32_PROMOTED precision contract for " + candidateName);
         }
-        int regionPromotedNodes = collectionSize(attrs.get("nativeCpuRegionBf16PromotedNodes"));
-        if (regionPromotedNodes > 0) {
-            if (!"BF16".equals(String.valueOf(attrs.getOrDefault("nativeCpuRegionBf16StoragePrecision", "")))
-                    || !"F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("nativeCpuRegionBf16ComputePrecision", "")))) {
-                failures.add("BF16 native region promoted nodes missing BF16/F32_PROMOTED precision contract for "
+        int partitionPromotedNodes = collectionSize(attrs.get("nativeCpuPartitionBf16PromotedNodes"));
+        if (partitionPromotedNodes > 0) {
+            if (!"BF16".equals(String.valueOf(attrs.getOrDefault("nativeCpuPartitionBf16StoragePrecision", "")))
+                    || !"F32_PROMOTED".equals(String.valueOf(attrs.getOrDefault("nativeCpuPartitionBf16ComputePrecision", "")))) {
+                failures.add("BF16 native partition promoted nodes missing BF16/F32_PROMOTED precision contract for "
                         + candidateName);
             }
         }

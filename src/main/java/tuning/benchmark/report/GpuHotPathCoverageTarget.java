@@ -3,7 +3,7 @@ package tuning.benchmark.report;
 import java.util.List;
 
 /**
- * v1.3 hot-path workload target for coverage-driven GPU region expansion.
+ * v1.3 hot-path workload target for coverage-driven GPU partition expansion.
  *
  * @param workloadName standard workload name
  * @param targetKind coarse target family

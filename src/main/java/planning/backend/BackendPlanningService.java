@@ -8,8 +8,8 @@ import trace.compile.PartitionCompileTrace;
 import trace.compile.PartitionDecisionTrace;
 import planning.value.GraphValueRef;
 import planning.partition.BackendPartitionCapability;
-import planning.partition.CpuNaturalExecutionRegionPlanner;
-import planning.partition.MaxRegionPartitionPlanner;
+import planning.partition.CpuNaturalPartitionPlanner;
+import planning.partition.MaxPartitionPlanner;
 import planning.partition.Partition;
 import planning.partition.PartitionPlan;
 import planning.partition.PartitionPlanner;
@@ -79,7 +79,7 @@ public final class BackendPlanningService {
                             capability,
                             job.sourcePolicy(),
                             requiredMaterialized,
-                            job.cpuRegionConfig(),
+                            job.cpuPartitionConfig(),
                             capability.costPreset(config.cost())
                     )
             );
@@ -163,12 +163,12 @@ public final class BackendPlanningService {
     }
 
     private static PartitionPlanner selectPlanner(PartitionPlannerStrategy strategy) {
-        PartitionPlannerStrategy resolved = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
+        PartitionPlannerStrategy resolved = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_PARTITION : strategy;
         return switch (resolved) {
-            case ANCHOR_MAX_REGION -> new MaxRegionPartitionPlanner(MaxRegionPartitionPlanner.SeedOrdering.ANCHOR_FIRST);
-            case GREEDY_MAX_REGION -> new MaxRegionPartitionPlanner(MaxRegionPartitionPlanner.SeedOrdering.NODE_ORDER);
+            case ANCHOR_MAX_PARTITION -> new MaxPartitionPlanner(MaxPartitionPlanner.SeedOrdering.ANCHOR_FIRST);
+            case GREEDY_MAX_PARTITION -> new MaxPartitionPlanner(MaxPartitionPlanner.SeedOrdering.NODE_ORDER);
             case SCORED_CANDIDATE_SEARCH -> new ScoredCandidatePartitionPlanner();
-            case CPU_NATURAL_EXECUTION_REGION -> new CpuNaturalExecutionRegionPlanner();
+            case CPU_NATURAL_EXECUTION_PARTITION -> new CpuNaturalPartitionPlanner();
         };
     }
 

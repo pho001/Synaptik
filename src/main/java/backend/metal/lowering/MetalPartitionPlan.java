@@ -3,7 +3,7 @@ package backend.metal.lowering;
 import backend.contract.ComputeBackend;
 import backend.accelerator.lowering.AcceleratorMatMulSpec;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import backend.accelerator.lowering.AcceleratorPartitionPlan;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
 
@@ -81,14 +81,14 @@ public record MetalPartitionPlan(
     }
 
     /**
-     * Returns the Java-side lowered-region manifest selected for this Metal plan.
+     * Returns the Java-side lowered-partition manifest selected for this Metal plan.
      */
-    public GpuLoweredRegionManifest manifest() {
+    public GpuLoweredPartitionManifest manifest() {
         return lowering.manifest();
     }
 
     @Override
-    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+    public GpuLoweredPartitionManifest gpuLoweredPartitionManifest() {
         return manifest();
     }
 }

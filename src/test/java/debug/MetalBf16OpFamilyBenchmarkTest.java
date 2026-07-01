@@ -4,7 +4,7 @@ import runtime.contract.ExecutionMode;
 import config.compile.BackendPlanningConfig;
 import config.compile.CompileConfig;
 import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -166,8 +166,8 @@ final class MetalBf16OpFamilyBenchmarkTest {
                 ? CompileConfig.training()
                 : CompileConfig.inference();
         return base
-                .withBackendPlanning(BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                .withRegionOptimization(base.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()));
+                .withBackendPlanning(BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                .withPartitionExecution(base.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()));
     }
 
     private static double medianMs(BenchmarkCandidateReport candidate) {

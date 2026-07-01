@@ -1,7 +1,7 @@
 package config.optimizer;
 
 /**
- * Scoring and safety configuration for region fusion.
+ * Scoring and safety configuration for partition fusion.
  *
  * <p>Fusion groups compatible operations into larger execution units. The score parameters trade off
  * loop-combining benefit against extra inputs, shared expensive nodes, and graph complexity. All numeric
@@ -13,7 +13,7 @@ package config.optimizer;
  * @param externalInputPenalty penalty for extra external inputs
  * @param sharedExpensivePenalty penalty for consuming nodes that are expensive and shared elsewhere
  * @param nonCheapBonus bonus for fusing non-cheap operations where loop reduction matters more
- * @param preserveSharedExpensiveNodes whether shared expensive nodes should remain outside fused regions
+ * @param preserveSharedExpensiveNodes whether shared expensive nodes should remain outside fused partitions
  */
 public record FuseConfig(
         int maxClusterNodes,

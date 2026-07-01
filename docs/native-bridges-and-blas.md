@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Native Bridges And BLAS
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#cpu-backend) | [Configuration](configuration.md#blasconfig) | [Modules](modules.md#backend-backend-contracts-selection-lowering-and-runtime-context) | [Compute Flow](compute-flow.md#lowering) | [Metal Backend](metal-backend.md#java-ffm-bridge) | [Testing](testing.md#native-and-optional-backend-tests) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#cpu-backend) | [Configuration](configuration.md#blasconfig) | [Modules](modules.md#backend-contracts-providers-selection-lowering-and-implementations) | [Compute Flow](compute-flow.md#lowering) | [Metal Backend](metal-backend.md#java-ffm-bridge) | [Testing](testing.md#native-and-optional-backend-tests) | [Troubleshooting](troubleshooting.md#openblas-missing-or-unavailable)
 
 Chapters: [Why Native Bridges Exist](#why-native-bridges-exist) | [Term Map At A Glance](#term-map-at-a-glance) | [What BLAS Is](#what-blas-is) | [BLAS Naming And Levels](#blas-naming-and-levels) | [GEMM Mental Model](#gemm-mental-model) | [Matrix Storage Terms](#matrix-storage-terms) | [What Java FFM Is](#what-java-ffm-is) | [Java FFM Step-By-Step](#java-ffm-step-by-step) | [OpenBLAS In Synaptik](#openblas-in-synaptik) | [OpenBLAS Bridge Lifecycle](#openblas-bridge-lifecycle) | [Matmul Dispatch Flow](#matmul-dispatch-flow) | [Dispatch Terms](#dispatch-terms) | [Worked GEMM Example](#worked-gemm-example) | [BF16 And Batched BLAS](#bf16-and-batched-blas) | [Conv2d DAG And BLAS](#conv2d-dag-and-blas) | [Configuration And Library Lookup](#configuration-and-library-lookup) | [Trace And Debug Terms](#trace-and-debug-terms) | [Failure And Fallback Behavior](#failure-and-fallback-behavior) | [Performance Model](#performance-model) | [How This Differs From Metal FFM](#how-this-differs-from-metal-ffm) | [Common Misconceptions](#common-misconceptions) | [Source Map](#source-map)
 
@@ -56,7 +56,7 @@ The runtime decides during prepare whether that `MATMUL` node will use:
 - a Java CPU kernel;
 - a Java CPU kernel with vector/parallel policy;
 - an OpenBLAS FFM call;
-- an accelerator region such as Metal, when the graph and dtype are legal.
+- an accelerator partition such as Metal, when the graph and dtype are legal.
 
 The important design boundary is: graph semantics stay in Java descriptors, while native bridges implement selected hot execution paths.
 
@@ -75,7 +75,7 @@ Java, C, BLAS, and accelerator code, so the table is intentionally concrete.
 | Symbol | Exported native function or data name found in a native library. | `cblas_sgemm`, `cblas_dgemm`, `cblas_sbgemm`, `cblas_bgemm`. |
 | Downcall | Java calling into native code. | `MethodHandle.invokeExact(...)` calls the CBLAS function. |
 | Upcall | Native code calling back into Java. | Not used by the OpenBLAS bridge documented here. |
-| Memory segment | Java FFM view of a memory region. | Array-copy BLAS calls allocate temporary native segments; native CPU storage calls pass `MemorySegment` slices directly. |
+| Memory segment | Java FFM view of a memory partition. | Array-copy BLAS calls allocate temporary native segments; native CPU storage calls pass `MemorySegment` slices directly. |
 | Arena | Lifetime scope for FFM allocations and symbol lookup resources. | `Arena.ofShared()` keeps the library lookup state alive for the OpenBLAS bridge. |
 | Provider | Runtime choice of implementation family. | `BlasProvider.NONE` or `BlasProvider.OPENBLAS_FFM`. |
 | Fallback | Alternative execution path when a faster/specialized path is unavailable or illegal. | Matmul can fall back from OpenBLAS to Java CPU kernels. Metal can fall back to CPU replay. |
@@ -674,7 +674,7 @@ Tests therefore gate BF16 continuation and BF16-output coverage separately.
 
 Matmul does not call OpenBLAS just because `OPENBLAS_FFM` is selected. The planner must decide that the operation is legal and likely worth the native call.
 
-The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java). For ordinary rank-2 BLAS, the current source checks:
+The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java). For ordinary rank-2 BLAS, the current source checks:
 
 1. Output dtype is `FLOAT32`, `FLOAT64`, or `BFLOAT16`.
 2. `blasConfig.provider() == BlasProvider.OPENBLAS_FFM`.
@@ -707,7 +707,7 @@ The decision starts in [`MatMulPlanner.java`](../src/main/java/backend/cpu/kerne
 | `CPU_NATIVE` | Prefer the native segment route for legal dense rank-2 F32/F64 and legal BF16-output when `cblas_bgemm` exists. |
 | `AUTO` | Let the planner choose native segment route for supported large dense GEMM shapes. |
 
-The execution call then goes through [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java):
+The execution call then goes through [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/provider/linalg/matmul/blas/MatMulBlasBackend.java):
 
 ```text
 Prepared matmul metadata says "use BLAS"
@@ -1118,11 +1118,11 @@ OpenBLAS FFM and Metal FFM use the same Java mechanism, but the execution model 
 | Aspect | OpenBLAS FFM | Metal FFM |
 |---|---|---|
 | Native library | OpenBLAS CBLAS implementation | Synaptik Objective-C shim over MPSGraph |
-| Unit of execution | One GEMM call | Lowered accelerator graph/region |
+| Unit of execution | One GEMM call | Lowered accelerator graph/partition |
 | Main data location | Java CPU tensor arrays | Java arrays for legacy path, explicit `MTLBuffer` handles for buffer-binding path |
 | Output ownership | Java array is current after call | Buffer path can mark output `DEVICE_OWNED` until CPU materialization |
-| Capability gate | Library and `cblas_*gemm` symbols | Library, MPS context, compile/execute symbols, dtype/layout/region legality |
-| Fallback | Java CPU matmul/conv path | CPU replay of selected Metal region |
+| Capability gate | Library and `cblas_*gemm` symbols | Library, MPS context, compile/execute symbols, dtype/layout/partition legality |
+| Fallback | Java CPU matmul/conv path | CPU replay of selected Metal partition |
 
 The shared concept is the ABI: Java and native code must agree exactly on symbol names, primitive argument layout, pointer meaning, ownership, and lifetime. For the Metal-specific ABI, see [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi).
 
@@ -1217,7 +1217,7 @@ opaque `MTLBuffer` handles and delay CPU materialization.
 ### "BLAS is a backend like Metal"
 
 No. In this repository BLAS is an optional CPU implementation path for GEMM. The prepared node is still CPU-owned.
-Metal is an accelerator backend that can own whole graph regions and use device residency.
+Metal is an accelerator backend that can own whole graph partitions and use device residency.
 
 ### "A tensor being mathematically compatible is enough for BLAS"
 
@@ -1249,8 +1249,8 @@ likely when a prepared profile explicitly requires a native path that is unavail
 | OpenBLAS Java array GEMM | [`OpenBlasArrayGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasArrayGemm.java) |
 | OpenBLAS native segment GEMM | [`OpenBlasSegmentGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSegmentGemm.java) |
 | Runtime BLAS config record | [`BlasConfig.java`](../src/main/java/config/runtime/BlasConfig.java) |
-| Matmul BLAS planner gates | [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java) |
-| Matmul BLAS execution wrapper | [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java) |
+| Matmul BLAS planner gates | [`MatMulPlanner.java`](../src/main/java/backend/cpu/prepare/linalg/matmul/MatMulPlanner.java) |
+| Matmul BLAS execution wrapper | [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/provider/linalg/matmul/blas/MatMulBlasBackend.java) |
 | Matmul execution trace metadata | [`MatMulTraceMetadata.java`](../src/main/java/trace/backend/MatMulTraceMetadata.java) |
 | Conv execution trace metadata | [`ConvTraceMetadata.java`](../src/main/java/trace/backend/ConvTraceMetadata.java) |
 | Metal FFM bridge | [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) |

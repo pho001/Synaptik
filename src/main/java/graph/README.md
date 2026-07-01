@@ -291,7 +291,7 @@ That is what powers detailed benchmark and hotspot reports in the tuning layer.
 
 ## Fused Preparation
 
-Graph-level fusion publishes optimized region units for lowering.
+Graph-level fusion publishes optimized partition units for lowering.
 CPU lowering attaches backend-owned fused plan artifacts to lowered execution units, and preparation resolves how those artifacts should run.
 
 That preparation currently involves:
@@ -302,7 +302,7 @@ That preparation currently involves:
 
 The important boundary is:
 
-- region optimization decides optimized region shape
+- partition optimization decides optimized partition shape
 - CPU lowering builds backend-owned fused plan artifacts for fused elementwise units
 - `prepare(...)` decides how that fused artifact is executed on the current backend
 - `execute(...)` runs that already prepared fused executable

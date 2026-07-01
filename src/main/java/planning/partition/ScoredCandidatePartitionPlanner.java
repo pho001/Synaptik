@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Candidate-search planner that scores structural regions before accepting a backend plan.
+ * Candidate-search planner that scores structural partitions before accepting a backend plan.
  *
- * <p>Compared with {@link MaxRegionPartitionPlanner}, this planner explores more candidate shapes and uses
+ * <p>Compared with {@link MaxPartitionPlanner}, this planner explores more candidate shapes and uses
  * {@link AcceleratorPartitionScoreModel} to balance node count, internal edges, external inputs, tail depth, and backend
  * work estimates. Search limits are supplied by the request policy and reported in partition trace metadata.
  */
@@ -44,7 +44,7 @@ public final class ScoredCandidatePartitionPlanner implements PartitionPlanner {
     }
 
     /**
-     * Plans scored candidate regions for the request target.
+     * Plans scored candidate partitions for the request target.
      *
      * @param request planning request
      * @return accepted partitions, attached backend plans, and trace decisions

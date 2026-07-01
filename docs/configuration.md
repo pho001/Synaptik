@@ -64,7 +64,7 @@ The `test` task defaults to `maxHeapSize = 2g`. Override it with:
 
 **Source:** `src/main/java/config/compile/CompileConfig.java`
 
-`CompileConfig` is the compile-time source of truth. It separates graph simplification from backend ownership planning, region optimization, and memory planning:
+`CompileConfig` is the compile-time source of truth. It separates graph simplification from backend ownership planning, partition optimization, and memory planning:
 
 ```java
 CompileConfig.training()
@@ -79,34 +79,34 @@ Primary layers:
 | `SemanticCanonicalizationConfig` | `config.compile` | Required semantic forward canonicalization before compile artifacts are produced. |
 | `GraphOptimizationConfig` | `config.compile` | Backend-neutral graph rewrite/simplification/lowering: AR, CF, CSE, DCE, optional LOWER. |
 | `BackendPlanningConfig` | `config.compile` | Compile-time backend ownership planning: `CPU_ONLY`, `EXPLICIT`, or `AUTO`. |
-| `RegionOptimizationConfig` | `config.compile` | Optimization inside already-owned execution regions, including CPU fusion policy. |
+| `PartitionExecutionConfig` | `config.compile` | Optimization inside already-owned execution partitions, including CPU fusion policy. |
 | `MemoryPlanningConfig` | `config.compile` | Compile-time memory reuse policy. |
 
 Preset methods:
 
 | Preset | Meaning |
 |---|---|
-| `CompileConfig.training()` | Training graph optimization, explicit backend intent planning, region optimization, memory planning. |
-| `CompileConfig.inference()` | Inference graph optimization, explicit backend intent planning, region optimization, memory planning. |
-| `CompileConfig.trainingAutoAccelerator()` | Training defaults with automatic accelerator region discovery. |
-| `CompileConfig.inferenceAutoAccelerator()` | Inference defaults with automatic accelerator region discovery. |
+| `CompileConfig.training()` | Training graph optimization, explicit backend intent planning, partition optimization, memory planning. |
+| `CompileConfig.inference()` | Inference graph optimization, explicit backend intent planning, partition optimization, memory planning. |
+| `CompileConfig.trainingAutoAccelerator()` | Training defaults with automatic accelerator partition discovery. |
+| `CompileConfig.inferenceAutoAccelerator()` | Inference defaults with automatic accelerator partition discovery. |
 | `CompileConfig.noGraphOptimization()` | Disables graph optimization only; backend planning and prepare invariants remain active. |
 | `CompileConfig.noGraphOptimizationBaseline()` | Benchmark-friendly no-graph-optimization preset that still honors explicit backend intent. |
-| `CompileConfig.cpuOnlyBaseline()` | Strict CPU-only baseline with graph optimization, CPU regions, region optimization, and memory planning disabled. |
+| `CompileConfig.cpuOnlyBaseline()` | Strict CPU-only baseline with graph optimization, CPU partitions, partition optimization, and memory planning disabled. |
 
-`BackendPlanningConfig.cpuOnly()` means no accelerator ownership regions. `BackendPlanningConfig.explicitOnly()` honors explicit GPU backend intent without auto-discovering GPU regions from a CPU-owned graph. `BackendPlanningConfig.autoAccelerator()` may discover GPU regions from CPU-owned graphs according to legality and cost policy.
+`BackendPlanningConfig.cpuOnly()` means no accelerator ownership partitions. `BackendPlanningConfig.explicitOnly()` honors explicit GPU backend intent without auto-discovering GPU partitions from a CPU-owned graph. `BackendPlanningConfig.autoAccelerator()` may discover GPU partitions from CPU-owned graphs according to legality and cost policy.
 
 Terminology to keep clean:
 
 | Current term | Meaning | Not the same as |
 |---|---|---|
-| `GraphOptimizationConfig` | Backend-neutral graph simplification and lowering. | Backend planning, region optimization, memory planning, runtime dispatch. |
+| `GraphOptimizationConfig` | Backend-neutral graph simplification and lowering. | Backend planning, partition optimization, memory planning, runtime dispatch. |
 | `BackendPlanningConfig` | Compile-time backend ownership planning. | Execute-time "offload" or runtime availability. |
 | `PartitionSearchConfig` | Search limits and scoring weights. | Backend target selection. |
-| `RegionOptimizationConfig` | Fusion/execution-unit policy inside already owned regions. | Backend ownership discovery. |
+| `PartitionExecutionConfig` | Fusion/execution-unit policy inside already owned partitions. | Backend ownership discovery. |
 | `RuntimeConfig` | Runtime/hardware policy. | Compile-time graph or backend ownership policy. |
 
-Legacy public names such as an optimizer-wide stage-order config, offload config, and monolithic partition config are no longer the architecture model. The implementation still has lower-level helper configs under `config.optimizer` for rewrite, CSE, fuse, memory, CPU region, and Metal transfer cost models, but `CompileConfig` is the public compile-policy composition point.
+Legacy public names such as an optimizer-wide stage-order config, offload config, and monolithic partition config are no longer the architecture model. The implementation still has lower-level helper configs under `config.optimizer` for rewrite, CSE, fuse, memory, CPU partition, and Metal transfer cost models, but `CompileConfig` is the public compile-policy composition point.
 
 ### RewriteConfig
 
@@ -179,13 +179,13 @@ Validation:
 
 ### Backend Planning Search
 
-`PartitionSearchConfig` now carries only search and scoring limits. Backend target, discovery mode, planner strategy, CPU region policy, and Metal transfer cost profile live under `BackendPlanningConfig`.
+`PartitionSearchConfig` now carries only search and scoring limits. Backend target, discovery mode, planner strategy, CPU partition policy, and Metal transfer cost profile live under `BackendPlanningConfig`.
 
-For detailed examples of `CPU_ONLY`, `EXPLICIT`, `AUTO`, required accelerator planning, CPU natural regions, accelerator regions, region optimization, memory planning, and benchmark semantics, see [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+For detailed examples of `CPU_ONLY`, `EXPLICIT`, `AUTO`, required accelerator planning, CPU natural partitions, accelerator partitions, partition optimization, memory planning, and benchmark semantics, see [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions).
 
 ## PublicationPolicy
 
-**Source:** `src/main/java/graph/execution/PublicationPolicy.java`
+**Source:** `src/main/java/runtime/execution/PublicationPolicy.java`
 
 `PublicationPolicy` controls which values are copied from run-scoped execution state back to public `Tensor` objects after execution.
 
@@ -216,7 +216,7 @@ This still executes the prepared forward/backward graph. It only changes which r
 
 **Source:** `src/main/java/config/runtime/RuntimeConfig.java`
 
-`RuntimeConfig` controls runtime kernel tuning, approximations, CPU storage policy, BLAS, conv2d, fused execution, and accelerator enablement.
+`RuntimeConfig` controls runtime kernel tuning, approximations, CPU route/storage policy, BLAS, conv2d, fused execution, transfers, native memory, BF16 training, and accelerator enablement.
 
 Fields:
 
@@ -227,9 +227,13 @@ Fields:
 | `blas` | `BlasConfig` | Defaults to disabled |
 | `conv2d` | `Conv2dConfig` | Defaults from BLAS config |
 | `fused` | `FusedExecutionPolicy` | Defaults to training fused policy |
+| `cpuExecutionPolicy` | `CpuExecutionPolicy` | Defaults to cpu1 direct routing disabled with fallback allowed |
 | `accelerator` | `AcceleratorConfig` | Defaults to training accelerator config |
 | `cpuStorageProfile` | `CpuStorageProfile` | Defaults to `CPU_ARRAY` |
 | `nativeCpuFailurePolicy` | `NativeCpuFailurePolicy` | Defaults to `FALLBACK_TO_ARRAY` |
+| `deviceTransferPolicy` | `DeviceTransferPolicy` | Defaults to `ALLOW_ARRAY_BRIDGE` |
+| `nativeCpuMemory` | `NativeCpuMemoryConfig` | Defaults to disabled pooling |
+| `bfloat16TrainingPolicy` | `BFloat16TrainingPolicy` | Defaults to `ACTIVATIONS_ONLY` |
 
 Preset methods:
 
@@ -255,6 +259,15 @@ Preset methods:
 | `REQUIRE_NATIVE` | Native CPU matmul segment fallback fails instead of silently using the Java-array path. Broader chain-aware native planner enforcement remains future scope. |
 
 This is deliberately separate from `BlasStorageMode`. `CpuStorageProfile` describes the runtime CPU storage policy for the whole prepared execution. `BlasStorageMode` describes the storage route of an individual BLAS-capable kernel family.
+
+`CpuExecutionPolicy` selects the CPU prepare implementation independently of array-versus-native storage:
+
+| Field | Default | Meaning |
+|---|---:|---|
+| `useCpu1Direct` | `false` | Keep ordinary CPU nodes on `backend.cpu.prepare`. When true, prepare asks `backend.cpu1.prepare.Cpu1NodePreparer` first. |
+| `allowCpu1DirectFallback` | `true` | If the opt-in cpu1 preparer rejects a node, allow explicit fallback to the established CPU preparer. When false, the unsupported route fails during prepare. |
+
+Install the immutable policy with `RuntimeConfig.withCpuExecutionPolicy(...)`. Execution and platform profile JSON persist it as `cpuUseCpu1Direct` and `cpuAllowCpu1DirectFallback`. The default is intentionally compatibility-preserving: cpu1 is a backend-owned prepared route with parity/readiness gates, not an implicit replacement for every workload.
 
 ### KernelTuningConfig
 
@@ -484,8 +497,13 @@ Presets:
 - `materialization`
 - `numerics`
 - `accelerator`
+- `fusedExecutionPolicy`
+- `cpuExecutionPolicy`
+- `cpuStorageProfile`
+- `nativeCpuFailurePolicy`
+- `deviceTransferPolicy`
 
-JSON written by `PlatformRuntimeProfileIO.toJson(...)` has matching top-level objects:
+JSON written by `PlatformRuntimeProfileIO.toJson(...)` groups the last five policy fields under `runtimePolicy`:
 
 ```json
 {
@@ -498,7 +516,16 @@ JSON written by `PlatformRuntimeProfileIO.toJson(...)` has matching top-level ob
   "scheduler": {},
   "materialization": {},
   "numerics": {},
-  "accelerator": {}
+  "accelerator": {},
+  "runtimePolicy": {
+    "cpuStorageProfile": "CPU_ARRAY",
+    "nativeCpuFailurePolicy": "FALLBACK_TO_ARRAY",
+    "deviceTransferPolicy": "ALLOW_ARRAY_BRIDGE",
+    "fusedAllowBackendFallback": true,
+    "fusedUseCpu1Elementwise": false,
+    "cpuUseCpu1Direct": false,
+    "cpuAllowCpu1DirectFallback": true
+  }
 }
 ```
 
@@ -595,7 +622,7 @@ profiles/platform/<platform-id>/tuning/abc/<dtype>-history.jsonl
 
 ### Tensor Convenience Autotune Layout
 
-**Source:** `src/main/java/tensor/internal/TensorExecutionSupport.java`
+**Source:** `src/main/java/tensor/internal/TensorExecution.java`
 
 `Tensor.compute(new ComputeOptions().autotune(...))` uses a generic tensor workload and writes:
 

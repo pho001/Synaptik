@@ -5,7 +5,7 @@ import trace.prepare.BackendSelectionDecisionTrace;
 import trace.execution.CpuMaterializationTrace;
 import trace.execution.ExecutionStepTrace;
 import trace.ExecutionTrace;
-import trace.prepare.GpuLoweredRegionTrace;
+import trace.prepare.GpuLoweredPartitionTrace;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Backend-neutral GPU coverage diagnostics derived from prepare and run traces.
  *
- * <p>This summary intentionally separates selected region coverage, native buffer execution, tensor-array bridge
+ * <p>This summary intentionally separates selected partition coverage, native buffer execution, tensor-array bridge
  * execution, CPU fallback, CPU materialization boundaries, storage residency, and device handoffs so reports cannot
  * hide a CPU exit behind generic accelerator presence.</p>
  *
@@ -150,18 +150,18 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         for (BackendSelectionDecisionTrace decision : decisions) {
             if (decision.selected() && backend.equals(decision.selectedBackend())) {
                 int length = decision.nodeIds().size();
-                coverage.selectedRegionCount++;
+                coverage.selectedPartitionCount++;
                 selectedTotalLength += length;
-                coverage.maxSelectedRegionLength = Math.max(coverage.maxSelectedRegionLength, length);
-                GpuLoweredRegionTrace manifest = decision.gpuLoweredRegionManifest();
-                if (length > 1 || (manifest != null && manifest.selectedRegionLength() > 1)) {
-                    coverage.multiOpGpuRegionCount++;
+                coverage.maxSelectedPartitionLength = Math.max(coverage.maxSelectedPartitionLength, length);
+                GpuLoweredPartitionTrace manifest = decision.gpuLoweredPartitionManifest();
+                if (length > 1 || (manifest != null && manifest.selectedPartitionLength() > 1)) {
+                    coverage.multiOpGpuPartitionCount++;
                 }
                 if (manifest != null) {
                     coverage.loweredPrimitiveCount += manifest.loweredPrimitives().size();
                 }
-                addDTypeResidencyCoverage(decision.gpuLoweredRegionManifest(), coverage);
-                addFusedSubpatternCoverage(decision.gpuLoweredRegionManifest(), coverage);
+                addDTypeResidencyCoverage(decision.gpuLoweredPartitionManifest(), coverage);
+                addFusedSubpatternCoverage(decision.gpuLoweredPartitionManifest(), coverage);
                 continue;
             }
             if (!decision.selected() && compatibleWith(backend, decision)) {
@@ -170,7 +170,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 addCount(coverage.rejectedCandidateReasonCounts, reason);
             }
         }
-        coverage.selectedRegionTotalLength = selectedTotalLength;
+        coverage.selectedPartitionTotalLength = selectedTotalLength;
     }
 
     private static void addMaterializationCoverage(
@@ -191,7 +191,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     }
 
     private static void addDTypeResidencyCoverage(
-            GpuLoweredRegionTrace manifest,
+            GpuLoweredPartitionTrace manifest,
             MutableBackendCoverage coverage
     ) {
         if (manifest == null) {
@@ -202,7 +202,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 addDTypeResidencyReason(coverage, "dtypeResidency " + value);
             }
         });
-        for (GpuLoweredRegionTrace.Rejection rejection : manifest.rejections()) {
+        for (GpuLoweredPartitionTrace.Rejection rejection : manifest.rejections()) {
             if (rejection.detail().contains("dtypeResidency")) {
                 addDTypeResidencyReason(coverage, rejection.reason() + " " + rejection.detail());
             }
@@ -217,7 +217,7 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     }
 
     private static void addFusedSubpatternCoverage(
-            GpuLoweredRegionTrace manifest,
+            GpuLoweredPartitionTrace manifest,
             MutableBackendCoverage coverage
     ) {
         if (manifest == null || manifest.fusedSubpatterns().isEmpty()) {
@@ -341,10 +341,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
             int totalStepCount,
             int acceleratorStepCount,
             double gpuCoverageRatio,
-            int selectedRegionCount,
-            int multiOpGpuRegionCount,
-            int maxSelectedRegionLength,
-            double averageSelectedRegionLength,
+            int selectedPartitionCount,
+            int multiOpGpuPartitionCount,
+            int maxSelectedPartitionLength,
+            double averageSelectedPartitionLength,
             int loweredPrimitiveCount,
             int rejectedCandidateCount,
             Map<String, Integer> rejectedCandidateReasonCounts,
@@ -404,10 +404,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                 int totalStepCount,
                 int acceleratorStepCount,
                 double gpuCoverageRatio,
-                int selectedRegionCount,
-                int multiOpGpuRegionCount,
-                int maxSelectedRegionLength,
-                double averageSelectedRegionLength,
+                int selectedPartitionCount,
+                int multiOpGpuPartitionCount,
+                int maxSelectedPartitionLength,
+                double averageSelectedPartitionLength,
                 int loweredPrimitiveCount,
                 int rejectedCandidateCount,
                 Map<String, Integer> rejectedCandidateReasonCounts,
@@ -440,10 +440,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
                     totalStepCount,
                     acceleratorStepCount,
                     gpuCoverageRatio,
-                    selectedRegionCount,
-                    multiOpGpuRegionCount,
-                    maxSelectedRegionLength,
-                    averageSelectedRegionLength,
+                    selectedPartitionCount,
+                    multiOpGpuPartitionCount,
+                    maxSelectedPartitionLength,
+                    averageSelectedPartitionLength,
                     loweredPrimitiveCount,
                     rejectedCandidateCount,
                     rejectedCandidateReasonCounts,
@@ -507,10 +507,10 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
     private static final class MutableBackendCoverage {
         private int totalStepCount;
         private int acceleratorStepCount;
-        private int selectedRegionCount;
-        private int multiOpGpuRegionCount;
-        private int maxSelectedRegionLength;
-        private int selectedRegionTotalLength;
+        private int selectedPartitionCount;
+        private int multiOpGpuPartitionCount;
+        private int maxSelectedPartitionLength;
+        private int selectedPartitionTotalLength;
         private int loweredPrimitiveCount;
         private int rejectedCandidateCount;
         private final LinkedHashMap<String, Integer> rejectedCandidateReasonCounts = new LinkedHashMap<>();
@@ -543,16 +543,16 @@ public record GpuCoverageSummary(Map<String, BackendCoverage> backends) {
         private BackendCoverage toImmutable() {
             int fallbackCount = tensorArrayStepCount + cpuFallbackStepCount;
             double ratio = totalStepCount == 0 ? 0.0d : (double) acceleratorStepCount / (double) totalStepCount;
-            double averageLength = selectedRegionCount == 0
+            double averageLength = selectedPartitionCount == 0
                     ? 0.0d
-                    : (double) selectedRegionTotalLength / (double) selectedRegionCount;
+                    : (double) selectedPartitionTotalLength / (double) selectedPartitionCount;
             return new BackendCoverage(
                     totalStepCount,
                     acceleratorStepCount,
                     ratio,
-                    selectedRegionCount,
-                    multiOpGpuRegionCount,
-                    maxSelectedRegionLength,
+                    selectedPartitionCount,
+                    multiOpGpuPartitionCount,
+                    maxSelectedPartitionLength,
                     averageLength,
                     loweredPrimitiveCount,
                     rejectedCandidateCount,

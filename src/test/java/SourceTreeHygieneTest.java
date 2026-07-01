@@ -167,8 +167,8 @@ public class SourceTreeHygieneTest {
                         try {
                             return Files.readAllLines(path).stream()
                                     .filter(line -> line.contains("planning.memory.MemoryPlanner")
-                                            || line.contains("planning.region.DefaultRegionPlanner")
-                                            || line.contains("planning.region.RegionPlanningContext"))
+                                            || line.contains("planning.partition.execution.PartitionExecutionPlanner")
+                                            || line.contains("planning.partition.execution.PartitionExecutionPlanningContext"))
                                     .map(line -> path + ": " + line.trim());
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -220,7 +220,7 @@ public class SourceTreeHygieneTest {
     void graphOptimizerDoesNotOwnCompilePlanningPackages() throws IOException {
         List<Path> legacyDirs = List.of(
                 Path.of("src/main/java/graph/optimizer/partition"),
-                Path.of("src/main/java/graph/optimizer/region"),
+                Path.of("src/main/java/graph/optimizer/partition"),
                 Path.of("src/main/java/graph/optimizer/memory"),
                 Path.of("src/main/java/graph/optimizer/intent"),
                 Path.of("src/main/java/graph/optimizer/cleanup"),
@@ -372,7 +372,7 @@ public class SourceTreeHygieneTest {
                 ),
                 List.of("import backend.cpu.fused")
         );
-        assertTrue(offenders.isEmpty(), () -> "Phase 19 GPU region lowering must not import CPU fused internals: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "Phase 19 GPU partition lowering must not import CPU fused internals: " + offenders);
     }
 
     @Test
@@ -1037,24 +1037,24 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void defaultRegionPlannerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
-        Path planner = Path.of("src/main/java/planning/region/DefaultRegionPlanner.java");
+    void defaultPartitionPlannerDoesNotOwnCpuMixedUnitPolicy() throws IOException {
+        Path planner = Path.of("src/main/java/planning/partition/execution/PartitionExecutionPlanner.java");
         String source = Files.readString(planner);
-        assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuRegionPlanningPolicy.");
-        assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside DefaultRegionPlanner.");
-        assertTrue(!source.contains("isSubchainFusable"), "CPU subchain fusion checks belong outside DefaultRegionPlanner.");
-        assertTrue(!source.contains("consumesUnitOutput"), "CPU subchain traversal belongs outside DefaultRegionPlanner.");
+        assertTrue(!source.contains("buildMixedCpuUnits"), "CPU mixed-unit policy belongs in CpuPartitionExecutionPlanningPolicy.");
+        assertTrue(!source.contains("fused-subchain"), "CPU fused-subchain policy belongs outside PartitionExecutionPlanner.");
+        assertTrue(!source.contains("isSubchainFusable"), "CPU subchain fusion checks belong outside PartitionExecutionPlanner.");
+        assertTrue(!source.contains("consumesUnitOutput"), "CPU subchain traversal belongs outside PartitionExecutionPlanner.");
     }
 
     @Test
-    void regionPlannerDoesNotOwnBackendLoweringPolicy() throws IOException {
-        Path regionRoot = Path.of("src/main/java/planning/region");
-        assertTrue(!Files.exists(regionRoot.resolve("RegionOptimizationPolicy.java")),
-                "Region planner should not keep an extra policy abstraction layer.");
-        assertTrue(!Files.exists(regionRoot.resolve("GenericGpuRegionOptimizationPolicy.java")),
-                "Generic GPU policy should be expressed as backend-neutral structural region planning.");
+    void partitionPlannerDoesNotOwnBackendLoweringPolicy() throws IOException {
+        Path partitionRoot = Path.of("src/main/java/planning/partition/execution");
+        assertTrue(!Files.exists(partitionRoot.resolve("PartitionOptimizationPolicy.java")),
+                "Partition planner should not keep an extra policy abstraction layer.");
+        assertTrue(!Files.exists(partitionRoot.resolve("GenericGpuPartitionOptimizationPolicy.java")),
+                "Generic GPU policy should be expressed as backend-neutral structural partition planning.");
         List<String> offenders = linesContainingAny(
-                regionRoot,
+                partitionRoot,
                 List.of(
                         "LoweringFamily.",
                         "BackendCapabilities",
@@ -1064,21 +1064,21 @@ public class SourceTreeHygieneTest {
                         "CUDA_GRAPH"
                 )
         );
-        assertTrue(offenders.isEmpty(), () -> "Region planner must stay backend-lowering neutral: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "Partition planner must stay backend-lowering neutral: " + offenders);
     }
 
     @Test
     void prepareDoesNotGloballySkipLoweringForLegacyFusedGraphs() throws IOException {
         Path builder = Path.of("src/main/java/prepare/orchestration/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);
-        assertTrue(!source.contains("containsLegacyFusedGraph"), "prepare must not globally suppress lowered-region publication for legacy fused nodes.");
+        assertTrue(!source.contains("containsLegacyFusedGraph"), "prepare must not globally suppress lowered-partition publication for legacy fused nodes.");
         assertTrue(!source.contains("OpType.FUSED"), "legacy fused nodes must not be a prepare-layer global lowering gate.");
     }
 
     @Test
-    void regionOptimizationRuleAdapterIsRemoved() {
-        Path rule = Path.of("src/main/java/planning/region/RegionOptimizationRule.java");
-        assertTrue(!Files.exists(rule), "Region optimization is a compile-planning service, not an optimizer rule adapter.");
+    void partitionExecutionRuleAdapterIsRemoved() {
+        Path rule = Path.of("src/main/java/planning/partition/PartitionOptimizationRule.java");
+        assertTrue(!Files.exists(rule), "Partition optimization is a compile-planning service, not an optimizer rule adapter.");
     }
 
     @Test
@@ -1094,7 +1094,7 @@ public class SourceTreeHygieneTest {
         Path builder = Path.of("src/main/java/prepare/orchestration/PreparedExecutionBuilder.java");
         String source = Files.readString(builder);
         assertTrue(!source.contains("MemoryPlanner"), "prepare must consume compile artifacts instead of rebuilding memory plans.");
-        assertTrue(!source.contains("DefaultRegionPlanner"), "prepare must consume compile artifacts instead of rebuilding planned regions.");
+        assertTrue(!source.contains("PartitionExecutionPlanner"), "prepare must consume compile artifacts instead of rebuilding planned partitions.");
         assertTrue(source.contains("loweringInput"), "prepare must rely on CompileArtifacts lowering input contract.");
     }
 
@@ -1137,14 +1137,14 @@ public class SourceTreeHygieneTest {
         assertTrue(source.contains("optimizeGraph("), "CompileSession should keep optimizer flow explicit.");
         assertTrue(source.contains("snapshotProgram("), "CompileSession should keep immutable snapshot creation explicit.");
         assertTrue(source.contains("planBackendOwnership("), "CompileSession should own backend ownership planning.");
-        assertTrue(source.contains("planRegionsAndMemory("), "CompileSession should own region and memory planning.");
+        assertTrue(source.contains("planExecutablePartitionsAndMemory("), "CompileSession should own executable partition and memory planning.");
         assertTrue(source.contains("buildPublicationPlan("), "CompileSession should own publication plan assembly.");
         List<String> removedStages = List.of(
                 "ForwardGraphCapture.java",
                 "OptimizerSnapshotStage.java",
                 "CompiledProgramSnapshotStage.java",
                 "BackendOwnershipPlanningStage.java",
-                "RegionAndMemoryPlanningStage.java",
+                "PartitionAndMemoryPlanningStage.java",
                 "PublicationPlanBuilder.java"
         );
         List<String> existingStages = removedStages.stream()
@@ -1173,17 +1173,17 @@ public class SourceTreeHygieneTest {
     }
 
     @Test
-    void maxRegionPartitionPlannerIsSingleAlgorithmWithSeedOrdering() throws IOException {
-        assertTrue(Files.exists(Path.of("src/main/java/planning/partition/MaxRegionPartitionPlanner.java")),
-                "Max-region planning should use one concrete planner.");
-        assertTrue(!Files.exists(Path.of("src/main/java/planning/partition/GreedyMaxRegionPartitionPlanner.java")),
-                "Node-order max-region planning must not keep a duplicate planner class.");
+    void maxPartitionPartitionPlannerIsSingleAlgorithmWithSeedOrdering() throws IOException {
+        assertTrue(Files.exists(Path.of("src/main/java/planning/partition/MaxPartitionPlanner.java")),
+                "Max-partition planning should use one concrete planner.");
+        assertTrue(!Files.exists(Path.of("src/main/java/planning/partition/GreedyMaxPartitionPlanner.java")),
+                "Node-order max-partition planning must not keep a duplicate planner class.");
         assertTrue(!Files.exists(Path.of("src/main/java/planning/partition/AnchorBasedPartitionPlanner.java")),
-                "Anchor-first max-region planning must not keep a duplicate planner class.");
-        String source = Files.readString(Path.of("src/main/java/planning/partition/MaxRegionPartitionPlanner.java"));
-        assertTrue(source.contains("enum SeedOrdering"), "The max-region planner should express mode differences through seed ordering.");
+                "Anchor-first max-partition planning must not keep a duplicate planner class.");
+        String source = Files.readString(Path.of("src/main/java/planning/partition/MaxPartitionPlanner.java"));
+        assertTrue(source.contains("enum SeedOrdering"), "The max-partition planner should express mode differences through seed ordering.");
         assertTrue(source.contains(".partitionPriority("), "Backend-specific partition priority must come from backend capability.");
-        assertTrue(!source.contains("Operation.OpType"), "Max-region traversal must not hardcode backend operation-family priorities.");
+        assertTrue(!source.contains("Operation.OpType"), "Max-partition traversal must not hardcode backend operation-family priorities.");
     }
 
     @Test
@@ -1191,7 +1191,7 @@ public class SourceTreeHygieneTest {
         String source = Files.readString(Path.of("src/main/java/planning/partition/PartitionPlanningRequest.java"));
         assertTrue(source.contains("BackendPartitionCapability"), "Partition planning must consume backend capability directly.");
         assertTrue(source.contains("StaticCostPreset"), "Partition planning cost input must stay backend-neutral.");
-        assertTrue(!source.contains("RegionLegalityAdapter"), "Partition planning must not depend on adapter contracts.");
+        assertTrue(!source.contains("PartitionLegalityAdapter"), "Partition planning must not depend on adapter contracts.");
         assertTrue(!source.contains("TransferCostPreset"), "Partition planning request must not own profile cost preset details.");
         assertTrue(!source.contains("transferCostPreset"), "Partition planning request must not expose profile cost preset fields.");
     }
@@ -1225,7 +1225,7 @@ public class SourceTreeHygieneTest {
     void productionPartitionContractsDoNotUseLegalityAdapters() throws IOException {
         List<String> offenders = sourceLinesContaining(
                 List.of(Path.of("src/main/java/backend/partition"), Path.of("src/main/java/planning/partition")),
-                List.of("RegionLegalityAdapter", "legalityAdapter")
+                List.of("PartitionLegalityAdapter", "legalityAdapter")
         );
         assertTrue(offenders.isEmpty(), () -> "Partition ownership must use backend capabilities, not adapters: " + offenders);
     }
@@ -1287,7 +1287,7 @@ public class SourceTreeHygieneTest {
                 "PreparedExecution should delegate step trace assembly to StepExecutionTracer.");
         assertTrue(!preparedExecution.contains("\"metalBridgeAvailable\""), "Metal trace attributes belong in backend-owned trace contribution.");
         assertTrue(!preparedExecution.contains("\"cudaBridgeAvailable\""), "CUDA trace attributes belong in backend-owned trace contribution.");
-        assertTrue(!preparedExecution.contains("\"nativeCpuRegionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
+        assertTrue(!preparedExecution.contains("\"nativeCpuPartitionId\""), "Native CPU trace attributes belong in the CPU trace contributor.");
         assertTrue(!preparedExecution.contains("\"acceleratorBufferMode\""), "Accelerator buffer trace attributes belong in the accelerator trace contributor.");
     }
 
@@ -1588,14 +1588,14 @@ public class SourceTreeHygieneTest {
                 List.of(Path.of("src/main/java"), Path.of("src/test/java")),
                 List.of(
                         "Apple" + "Gpu",
-                        "Apple" + "Region",
+                        "Apple" + "Partition",
                         "Apple" + "Mps",
                         "backend." + "apple",
-                        "APPLE" + "_GRAPH_REGION",
+                        "APPLE" + "_GRAPH_PARTITION",
                         "APPLE" + "_FUSED_ELEMENTWISE_GRAPH",
-                        "apple" + "LoweredRegionForAnchor",
-                        "apple" + "RegionForAnchor",
-                        "apple" + "RegionsByAnchor",
+                        "apple" + "LoweredPartitionForAnchor",
+                        "apple" + "PartitionForAnchor",
+                        "apple" + "PartitionsByAnchor",
                         "synaptik." + "apple.mps.lib",
                         "SYNAPTIK_" + "APPLE_MPS_LIB"
                 )

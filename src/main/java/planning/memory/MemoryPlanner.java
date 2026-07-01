@@ -7,10 +7,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Computes tensor and region memory reuse plans for optimized graphs.
+ * Computes tensor and partition memory reuse plans for optimized graphs.
  *
  * <p>The planner is the public entry point for memory planning. The concrete planning responsibilities live in
- * package-local planners for tensor lifetimes, reusable slots, region value flow, region bindings, handoffs, runtime
+ * package-local planners for tensor lifetimes, reusable slots, partition value flow, partition bindings, handoffs, runtime
  * binding policy, and summary reporting.
  *
  * <p>This class is stateless and thread-safe as long as the input graph and planning input are not mutated
@@ -31,7 +31,7 @@ public final class MemoryPlanner {
     }
 
     /**
-     * Plans tensor memory without region planning artifacts.
+     * Plans tensor memory without partition planning artifacts.
      *
      * @param sortedGraph tensors in topological execution order
      * @param policy memory reuse policy
@@ -70,7 +70,7 @@ public final class MemoryPlanner {
                         slotAssignment.slotByOwner(),
                         slotAssignment.slotSizes()
                 ),
-                RegionMemoryPlan.empty(),
+                PartitionMemoryPlan.empty(),
                 new RuntimeBindingPlan(
                         RuntimeMemoryBindingPolicyPlanner.forTensors(sortedGraph),
                         Map.of()
@@ -83,9 +83,9 @@ public final class MemoryPlanner {
     /**
      * Plans memory using full compile-planning input.
      *
-     * <p>When planned regions are present, the returned plan includes structural memory view, region value lifetimes,
-     * materialization decisions, region slot assignment, and handoff requirements. Tensor-level reuse is intentionally
-     * empty on this compiled-node path; runtime binding consumes node-id and region value metadata.
+     * <p>When planned partitions are present, the returned plan includes structural memory view, partition value lifetimes,
+     * materialization decisions, partition slot assignment, and handoff requirements. Tensor-level reuse is intentionally
+     * empty on this compiled-node path; runtime binding consumes node-id and partition value metadata.
      *
      * @param input compile-planning memory input
      * @param policy memory reuse policy
@@ -95,19 +95,19 @@ public final class MemoryPlanner {
         Objects.requireNonNull(input, "input cannot be null");
         Objects.requireNonNull(policy, "policy cannot be null");
 
-        RegionValueFlowPlan flowPlan = RegionValueFlowPlanner.plan(input);
-        RegionBindingAssignment bindingAssignment = RegionBindingAllocator.allocate(
-                flowPlan.regionValueLifetimes().values().stream().toList()
+        PartitionValueFlowPlan flowPlan = PartitionValueFlowPlanner.plan(input);
+        PartitionBindingAssignment bindingAssignment = PartitionBindingAllocator.allocate(
+                flowPlan.partitionValueLifetimes().values().stream().toList()
         );
-        List<RegionHandoffRequirement> handoffRequirements = RegionHandoffPlanner.plan(
-                flowPlan.regionValueLifetimes().values().stream().toList()
+        List<PartitionHandoffRequirement> handoffRequirements = PartitionHandoffPlanner.plan(
+                flowPlan.partitionValueLifetimes().values().stream().toList()
         );
 
         return new MemoryPlan(
                 TensorMemoryPlan.empty(),
-                new RegionMemoryPlan(
+                new PartitionMemoryPlan(
                         flowPlan.structuralView(),
-                        flowPlan.regionValueLifetimes(),
+                        flowPlan.partitionValueLifetimes(),
                         flowPlan.materializationPlan(),
                         bindingAssignment.bindingsByValueRef(),
                         bindingAssignment.slotByValueRef(),
@@ -128,7 +128,7 @@ public final class MemoryPlanner {
     private static MemoryPlan emptyPlan(MemoryPlannerPolicy policy) {
         return new MemoryPlan(
                 TensorMemoryPlan.empty(),
-                RegionMemoryPlan.empty(),
+                PartitionMemoryPlan.empty(),
                 RuntimeBindingPlan.empty(),
                 policy,
                 emptySummary()

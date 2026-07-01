@@ -5,24 +5,24 @@ import runtime.device.buffer.AcceleratorBufferExecutionPath;
 import runtime.device.buffer.AcceleratorBufferReasonCode;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import backend.accelerator.lowering.GpuCompoundPatternType;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
-import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import tuning.benchmark.report.GpuLoweredRegionTraceRenderer;
-import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
-import backend.accelerator.lowering.GpuLoweredRegionRejection;
-import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+import backend.accelerator.lowering.GpuLoweredPartitionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
+import tuning.benchmark.report.GpuLoweredPartitionTraceRenderer;
+import backend.accelerator.lowering.GpuLoweredPartitionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredPartitionRejection;
+import backend.accelerator.lowering.GpuLoweredPartitionValueAssumption;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
 import backend.lowering.LoweringFamily;
-import backend.lowering.region.EmptyRegionPayload;
-import backend.lowering.region.RegionCost;
-import backend.lowering.region.RegionDecision;
-import backend.lowering.region.RegionExecutionGroup;
-import backend.lowering.region.RegionExecutionKind;
-import backend.lowering.region.RegionExecutionPlan;
-import backend.lowering.region.RegionStorageContract;
+import backend.lowering.partition.EmptyPartitionPayload;
+import backend.lowering.partition.PartitionCost;
+import backend.lowering.partition.PartitionDecision;
+import backend.lowering.partition.PartitionExecutionGroup;
+import backend.lowering.partition.PartitionExecutionKind;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
+import backend.lowering.partition.PartitionStorageContract;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.ExecutionMode;
 import backend.contract.ComputeBackend;
@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class CompiledGraphTraceTest {
     @Test
-    void gpuLoweringCoverageSelectionTraceNamesSupportedLogSoftmaxRegion() {
+    void gpuLoweringCoverageSelectionTraceNamesSupportedLogSoftmaxPartition() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "traceLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "traceLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
@@ -80,7 +80,7 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
-    void gpuLoweredRegionManifestTraceContainsOriginalOpsAndPrimitives() {
+    void gpuLoweredPartitionManifestTraceContainsOriginalOpsAndPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "manifestInput", DataType.FLOAT32);
         Tensor out = specialLogSoftmax(input, 1);
         BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
@@ -92,13 +92,13 @@ public class CompiledGraphTraceTest {
         var manifest = prepared.prepareTrace().backendSelection().decisions().stream()
                 .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
-                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredPartitionManifest)
                 .filter(candidate -> candidate != null)
                 .findFirst()
                 .orElseThrow();
 
         assertEquals("GPU_METAL", manifest.backend());
-        assertTrue(manifest.selectedRegionLength() >= 1);
+        assertTrue(manifest.selectedPartitionLength() >= 1);
         assertTrue(manifest.originalOperations().stream().anyMatch(op -> op.nodeId() == logSoftmaxNodeId));
         assertTrue(manifest.originalOperations().stream().anyMatch(op -> "LOG_SOFTMAX".equals(op.opType())));
         assertTrue(manifest.loweredPrimitives().stream().anyMatch(primitive -> "SOFTMAX".equals(primitive.primitiveType())));
@@ -337,11 +337,11 @@ public class CompiledGraphTraceTest {
     }
 
     @Test
-    void gpuLoweredRegionRunTraceReferencesRegionIdOnly() {
+    void gpuLoweredPartitionRunTraceReferencesPartitionIdOnly() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = publicationNode(compiled, out);
-        GpuLoweredRegionManifest manifest = sampleManifest(outputNode.id());
+        GpuLoweredPartitionManifest manifest = sampleManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable);
         PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
@@ -361,16 +361,16 @@ public class CompiledGraphTraceTest {
 
         var attrs = prepared.executeTraced(ExecutionMode.FORWARD).steps().getFirst().metadata().attributes();
 
-        assertEquals(manifest.regionId(), attrs.get("gpuLoweredRegionId"));
-        assertFalse(attrs.containsKey("gpuLoweredRegionManifest"));
+        assertEquals(manifest.partitionId(), attrs.get("gpuLoweredPartitionId"));
+        assertFalse(attrs.containsKey("gpuLoweredPartitionManifest"));
     }
 
     @Test
-    void phaseNineteenPreparedTraceCarriesMultiOpRegionMetrics() {
+    void phaseNineteenPreparedTraceCarriesMultiOpPartitionMetrics() {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = publicationNode(compiled, out);
-        GpuLoweredRegionManifest manifest = sampleMultiOpFusedManifest(outputNode.id());
+        GpuLoweredPartitionManifest manifest = sampleMultiOpFusedManifest(outputNode.id());
 
         var attrs = syntheticTraceAttributes(
                 out,
@@ -379,16 +379,16 @@ public class CompiledGraphTraceTest {
                 new SyntheticAcceleratorExecutable(outputNode.id(), manifest)
         );
 
-        assertEquals(manifest.regionId(), attrs.get("gpuRegionId"));
-        assertEquals(manifest.regionId(), attrs.get("gpuLoweredRegionId"));
-        assertEquals(manifest.regionId(), attrs.get("regionId"));
-        assertEquals("GPU_CUDA", attrs.get("regionTarget"));
-        assertEquals("CUDA_GRAPH_REGION", attrs.get("loweringFamily"));
+        assertEquals(manifest.partitionId(), attrs.get("gpuPartitionId"));
+        assertEquals(manifest.partitionId(), attrs.get("gpuLoweredPartitionId"));
+        assertEquals(manifest.partitionId(), attrs.get("partitionId"));
+        assertEquals("GPU_CUDA", attrs.get("partitionTarget"));
+        assertEquals("CUDA_GRAPH_PARTITION", attrs.get("loweringFamily"));
         assertEquals(outputNode.id(), attrs.get("anchorNodeId"));
         assertEquals(List.of(outputNode.id()), attrs.get("boundaryOutputNodeIds"));
-        assertEquals(List.of("GRAPH_EXECUTABLE"), attrs.get("regionExecutionKindSummary"));
-        assertEquals(List.of("DEVICE_BUFFER"), attrs.get("regionStorageContractSummary"));
-        assertEquals(2, attrs.get("selectedRegionLength"));
+        assertEquals(List.of("GRAPH_EXECUTABLE"), attrs.get("partitionExecutionKindSummary"));
+        assertEquals(List.of("DEVICE_BUFFER"), attrs.get("partitionStorageContractSummary"));
+        assertEquals(2, attrs.get("selectedPartitionLength"));
         assertEquals(2, attrs.get("loweredPrimitiveCount"));
         assertEquals(1, attrs.get("gpuFusedSubpatternCount"));
         assertEquals(List.of("ELEMENTWISE_CHAIN"), attrs.get("gpuFusedSubpatternTypes"));
@@ -522,7 +522,7 @@ public class CompiledGraphTraceTest {
         Tensor out = Tensor.scalar(1.0f).relu();
         graph.CompiledGraph compiled = graph.CompiledGraph.compile(out, CompileConfig.noGraphOptimizationBaseline());
         CompiledNode outputNode = publicationNode(compiled, out);
-        GpuLoweredRegionManifest manifest = sampleFusedManifest(outputNode.id());
+        GpuLoweredPartitionManifest manifest = sampleFusedManifest(outputNode.id());
         SyntheticAcceleratorExecutable executable = new SyntheticAcceleratorExecutable(outputNode.id(), manifest);
         PreparedStepMetadata metadata = testsupport.MetadataArtifacts.acceleratorMetadata(ComputeBackend.GPU_CUDA, executable);
         PreparedExecutionStep step = new PreparedExecutionStep(outputNode, metadata);
@@ -553,8 +553,8 @@ public class CompiledGraphTraceTest {
 
     @Test
     void prepareTraceRendersDTypeResidencyRejectionReasons() {
-        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
-                "gpu-cuda-region-dtype",
+        GpuLoweredPartitionManifest manifest = new GpuLoweredPartitionManifest(
+                "gpu-cuda-partition-dtype",
                 ComputeBackend.GPU_CUDA,
                 70,
                 List.of(70, 71),
@@ -563,7 +563,7 @@ public class CompiledGraphTraceTest {
                 2,
                 List.of(),
                 List.of(),
-                List.of(new GpuLoweredRegionValueAssumption(
+                List.of(new GpuLoweredPartitionValueAssumption(
                         60,
                         "input",
                         DataType.BOOL,
@@ -574,7 +574,7 @@ public class CompiledGraphTraceTest {
                         false,
                         0L
                 )),
-                List.of(new GpuLoweredRegionValueAssumption(
+                List.of(new GpuLoweredPartitionValueAssumption(
                         71,
                         "output",
                         DataType.INT32,
@@ -585,9 +585,9 @@ public class CompiledGraphTraceTest {
                         false,
                         0L
                 )),
-                GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, List.of(70, 71)),
+                GpuCompoundPartitionSummary.none(ComputeBackend.GPU_CUDA, List.of(70, 71)),
                 List.of(
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "dtype_residency.compute",
                                 70,
                                 "p0",
@@ -595,7 +595,7 @@ public class CompiledGraphTraceTest {
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
                                 "dtypeResidency backend=GPU_CUDA role=compute dtype=BFLOAT16 unsupported"
                         ),
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "dtype_residency.output",
                                 71,
                                 "p1",
@@ -604,7 +604,7 @@ public class CompiledGraphTraceTest {
                                 "dtypeResidency backend=GPU_METAL role=output dtype=INT32 unsupported"
                         )
                 ),
-                GpuLoweredRegionCandidateSpan.none(List.of(70, 71)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(70, 71)),
                 Map.of("dtypeResidency.input.60", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true")
         );
         var selection = new trace.prepare.BackendSelectionTrace(
@@ -625,8 +625,8 @@ public class CompiledGraphTraceTest {
                 ))
         );
 
-        String rendered = GpuLoweredRegionTraceRenderer.renderCompact(
-                selection.decisions().getFirst().gpuLoweredRegionManifest()
+        String rendered = GpuLoweredPartitionTraceRenderer.renderCompact(
+                selection.decisions().getFirst().gpuLoweredPartitionManifest()
         );
 
         assertTrue(rendered.contains("dtypeResidency"));
@@ -640,15 +640,15 @@ public class CompiledGraphTraceTest {
 
     @Test
     void prepareTraceRendersPhaseSeventeenNormAndLossEvidence() {
-        GpuLoweredRegionManifest manifest = new GpuLoweredRegionManifest(
-                "gpu-metal-region-phase17",
+        GpuLoweredPartitionManifest manifest = new GpuLoweredPartitionManifest(
+                "gpu-metal-partition-phase17",
                 ComputeBackend.GPU_METAL,
                 80,
                 List.of(80, 81),
                 List.of(70),
                 List.of(81),
                 2,
-                List.of(new GpuLoweredRegionOriginalOp(
+                List.of(new GpuLoweredPartitionOriginalOp(
                         81,
                         "LOG_SOFTMAX",
                         List.of(80),
@@ -682,9 +682,9 @@ public class CompiledGraphTraceTest {
                 ),
                 List.of(),
                 List.of(),
-                GpuCompoundRegionSummary.none(ComputeBackend.GPU_METAL, List.of(80, 81)),
+                GpuCompoundPartitionSummary.none(ComputeBackend.GPU_METAL, List.of(80, 81)),
                 List.of(
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "planner.normalization",
                                 90,
                                 "",
@@ -692,7 +692,7 @@ public class CompiledGraphTraceTest {
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_LAYOUT,
                                 "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small"
                         ),
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "planner.loss",
                                 91,
                                 "",
@@ -701,7 +701,7 @@ public class CompiledGraphTraceTest {
                                 "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss target out of range: 17 for classes=16 family=LOSS_ADJACENT target=transformer_block_hot_path"
                         )
                 ),
-                GpuLoweredRegionCandidateSpan.none(List.of(80, 81)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(80, 81)),
                 Map.of("phase17Target", "target=transformer_block_hot_path")
         );
         var selection = new trace.prepare.BackendSelectionTrace(
@@ -722,8 +722,8 @@ public class CompiledGraphTraceTest {
                 ))
         );
 
-        String rendered = GpuLoweredRegionTraceRenderer.renderCompact(
-                selection.decisions().getFirst().gpuLoweredRegionManifest()
+        String rendered = GpuLoweredPartitionTraceRenderer.renderCompact(
+                selection.decisions().getFirst().gpuLoweredPartitionManifest()
         );
 
         assertTrue(rendered.contains("LOG_SOFTMAX"));
@@ -762,8 +762,8 @@ public class CompiledGraphTraceTest {
 
     private record SyntheticAcceleratorExecutable(
             int nodeId,
-            GpuLoweredRegionManifest gpuLoweredRegionManifest,
-            RegionExecutionPlan regionExecutionPlan,
+            GpuLoweredPartitionManifest gpuLoweredPartitionManifest,
+            BackendPartitionExecutionPlan partitionExecutionPlan,
             AcceleratorBufferExecutionPath executionPath,
             AcceleratorBufferReasonCode reasonCode
     ) implements PreparedAcceleratorExecutable {
@@ -771,10 +771,10 @@ public class CompiledGraphTraceTest {
             this(nodeId, null);
         }
 
-        private SyntheticAcceleratorExecutable(int nodeId, GpuLoweredRegionManifest gpuLoweredRegionManifest) {
+        private SyntheticAcceleratorExecutable(int nodeId, GpuLoweredPartitionManifest gpuLoweredPartitionManifest) {
             this(
                     nodeId,
-                    gpuLoweredRegionManifest,
+                    gpuLoweredPartitionManifest,
                     AcceleratorBufferExecutionPath.BUFFER_BINDING,
                     AcceleratorBufferReasonCode.BUFFER_BINDING_AVAILABLE
             );
@@ -782,14 +782,14 @@ public class CompiledGraphTraceTest {
 
         private SyntheticAcceleratorExecutable(
                 int nodeId,
-                GpuLoweredRegionManifest gpuLoweredRegionManifest,
+                GpuLoweredPartitionManifest gpuLoweredPartitionManifest,
                 AcceleratorBufferExecutionPath executionPath,
                 AcceleratorBufferReasonCode reasonCode
         ) {
             this(
                     nodeId,
-                    gpuLoweredRegionManifest,
-                    gpuLoweredRegionManifest == null ? null : sampleRegionPlan(gpuLoweredRegionManifest),
+                    gpuLoweredPartitionManifest,
+                    gpuLoweredPartitionManifest == null ? null : samplePartitionPlan(gpuLoweredPartitionManifest),
                     executionPath,
                     reasonCode
             );
@@ -821,38 +821,37 @@ public class CompiledGraphTraceTest {
         }
     }
 
-    private static RegionExecutionPlan sampleRegionPlan(GpuLoweredRegionManifest manifest) {
-        return new RegionExecutionPlan(
-                manifest.regionId(),
-                PartitionTarget.fromBackend(manifest.backend()),
+    private static BackendPartitionExecutionPlan samplePartitionPlan(GpuLoweredPartitionManifest manifest) {
+        return new BackendPartitionExecutionPlan(
+                manifest.partitionId(),
                 manifest.backend() == ComputeBackend.GPU_METAL
-                        ? LoweringFamily.METAL_GRAPH_REGION
-                        : LoweringFamily.CUDA_GRAPH_REGION,
+                        ? LoweringFamily.METAL_GRAPH_PARTITION
+                        : LoweringFamily.CUDA_GRAPH_PARTITION,
                 manifest.anchorNodeId(),
                 manifest.orderedNodeIds(),
                 manifest.externalInputNodeIds(),
                 manifest.outputNodeIds(),
                 List.of(),
-                List.of(new RegionExecutionGroup(
-                        manifest.regionId() + "-group-0",
+                List.of(new PartitionExecutionGroup(
+                        manifest.partitionId() + "-group-0",
                         manifest.orderedNodeIds(),
-                        RegionExecutionKind.GRAPH_EXECUTABLE,
+                        PartitionExecutionKind.GRAPH_EXECUTABLE,
                         manifest.backend().name() + "_GRAPH",
                         manifest.externalInputNodeIds(),
                         manifest.outputNodeIds(),
                         List.of(),
-                        RegionStorageContract.DEVICE_BUFFER,
-                        "synthetic-region-plan"
+                        PartitionStorageContract.DEVICE_BUFFER,
+                        "synthetic-partition-plan"
                 )),
-                RegionCost.ofWork(manifest.selectedRegionLength()),
-                RegionDecision.selected("synthetic", "synthetic-region-plan"),
-                EmptyRegionPayload.INSTANCE
+                PartitionCost.ofWork(manifest.selectedPartitionLength()),
+                PartitionDecision.selected("synthetic", "synthetic-partition-plan"),
+                EmptyPartitionPayload.INSTANCE
         );
     }
 
-    private static GpuLoweredRegionManifest sampleMultiOpFusedManifest(int nodeId) {
-        return new GpuLoweredRegionManifest(
-                "gpu-cuda-region-multi-op-" + nodeId,
+    private static GpuLoweredPartitionManifest sampleMultiOpFusedManifest(int nodeId) {
+        return new GpuLoweredPartitionManifest(
+                "gpu-cuda-partition-multi-op-" + nodeId,
                 ComputeBackend.GPU_CUDA,
                 nodeId,
                 List.of(nodeId - 1, nodeId),
@@ -860,7 +859,7 @@ public class CompiledGraphTraceTest {
                 List.of(nodeId),
                 2,
                 List.of(
-                        new GpuLoweredRegionOriginalOp(
+                        new GpuLoweredPartitionOriginalOp(
                                 nodeId - 1,
                                 "ADD",
                                 List.of(),
@@ -870,7 +869,7 @@ public class CompiledGraphTraceTest {
                                 List.of("p0"),
                                 List.of()
                         ),
-                        new GpuLoweredRegionOriginalOp(
+                        new GpuLoweredPartitionOriginalOp(
                                 nodeId,
                                 "RELU",
                                 List.of(nodeId - 1),
@@ -905,7 +904,7 @@ public class CompiledGraphTraceTest {
                 ),
                 List.of(),
                 List.of(),
-                GpuCompoundRegionSummary.supported(
+                GpuCompoundPartitionSummary.supported(
                         ComputeBackend.GPU_CUDA,
                         GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                         List.of(nodeId - 1, nodeId),
@@ -916,21 +915,21 @@ public class CompiledGraphTraceTest {
                         "synthetic Phase 19 multi-op fused subpattern"
                 ),
                 List.of(),
-                GpuLoweredRegionCandidateSpan.none(List.of(nodeId - 1, nodeId)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(nodeId - 1, nodeId)),
                 Map.of("dagNodeCount", "2")
         );
     }
 
-    private static GpuLoweredRegionManifest sampleManifest(int nodeId) {
-        return new GpuLoweredRegionManifest(
-                "gpu-cuda-region-" + nodeId,
+    private static GpuLoweredPartitionManifest sampleManifest(int nodeId) {
+        return new GpuLoweredPartitionManifest(
+                "gpu-cuda-partition-" + nodeId,
                 ComputeBackend.GPU_CUDA,
                 nodeId,
                 List.of(nodeId),
                 List.of(),
                 List.of(nodeId),
                 1,
-                List.of(new GpuLoweredRegionOriginalOp(
+                List.of(new GpuLoweredPartitionOriginalOp(
                         nodeId,
                         "RELU",
                         List.of(),
@@ -950,7 +949,7 @@ public class CompiledGraphTraceTest {
                         List.of(1),
                         List.of()
                 )),
-                List.of(new GpuLoweredRegionValueAssumption(
+                List.of(new GpuLoweredPartitionValueAssumption(
                         nodeId,
                         "input",
                         DataType.FLOAT32,
@@ -962,8 +961,8 @@ public class CompiledGraphTraceTest {
                         0L
                 )),
                 List.of(),
-                GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, List.of(nodeId)),
-                List.of(new GpuLoweredRegionRejection(
+                GpuCompoundPartitionSummary.none(ComputeBackend.GPU_CUDA, List.of(nodeId)),
+                List.of(new GpuLoweredPartitionRejection(
                         "primitive",
                         nodeId,
                         "p0",
@@ -971,21 +970,21 @@ public class CompiledGraphTraceTest {
                         GpuLoweringUnsupportedReason.DAG_PRIMITIVE_UNSUPPORTED,
                         "synthetic rejection"
                 )),
-                GpuLoweredRegionCandidateSpan.none(List.of(nodeId)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(nodeId)),
                 Map.of("dagNodeCount", "1")
         );
     }
 
-    private static GpuLoweredRegionManifest sampleFusedManifest(int nodeId) {
-        return new GpuLoweredRegionManifest(
-                "gpu-cuda-region-fused-" + nodeId,
+    private static GpuLoweredPartitionManifest sampleFusedManifest(int nodeId) {
+        return new GpuLoweredPartitionManifest(
+                "gpu-cuda-partition-fused-" + nodeId,
                 ComputeBackend.GPU_CUDA,
                 nodeId,
                 List.of(nodeId),
                 List.of(),
                 List.of(nodeId),
                 1,
-                List.of(new GpuLoweredRegionOriginalOp(
+                List.of(new GpuLoweredPartitionOriginalOp(
                         nodeId,
                         "RELU",
                         List.of(),
@@ -1007,7 +1006,7 @@ public class CompiledGraphTraceTest {
                 )),
                 List.of(),
                 List.of(),
-                GpuCompoundRegionSummary.supported(
+                GpuCompoundPartitionSummary.supported(
                         ComputeBackend.GPU_CUDA,
                         GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                         List.of(nodeId),
@@ -1018,7 +1017,7 @@ public class CompiledGraphTraceTest {
                         "synthetic fused subpattern"
                 ),
                 List.of(),
-                GpuLoweredRegionCandidateSpan.none(List.of(nodeId)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(nodeId)),
                 Map.of("dagNodeCount", "1")
         );
     }

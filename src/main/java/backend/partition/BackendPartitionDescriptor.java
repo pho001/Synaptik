@@ -1,6 +1,6 @@
 package backend.partition;
 
-import backend.lowering.RegionLowerer;
+import backend.lowering.PartitionLowerer;
 import planning.partition.PartitionTarget;
 import planning.partition.BackendPartitionCapability;
 
@@ -16,12 +16,12 @@ public interface BackendPartitionDescriptor {
     PartitionTarget target();
 
     /**
-     * @return capability used to decide whether graph regions can run on this backend
+     * @return capability used to decide whether graph partitions can run on this backend
      */
     BackendPartitionCapability partitionCapability();
 
     /**
-     * @return region lowerers that can translate optimized regions for this backend
+     * @return partition lowerers that can translate optimized partitions for this backend
      */
-    List<RegionLowerer> lowerers();
+    List<PartitionLowerer> lowerers();
 }

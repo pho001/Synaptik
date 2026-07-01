@@ -31,19 +31,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeCpuNonBlasBenchmarkGateTest {
     @Test
-    void rejectsAutoNativeRegionWithSegmentScalarLocalKernel() {
+    void rejectsAutoNativePartitionWithSegmentScalarLocalKernel() {
         BenchmarkReport report = report(
                 "auto-native-slow",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
-                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
-                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
+                        Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
                 )
         );
 
@@ -52,24 +52,24 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
         );
 
-        assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
+        assertTrue(failure.getMessage().contains("AUTO native CPU partition selected slow segment scalar kernels"));
         assertTrue(failure.getMessage().contains("auto-native-slow"));
         assertTrue(failure.getMessage().contains("SEGMENT_DENSE_SCALAR"));
         assertTrue(failure.getMessage().contains("DENSE_CONTIGUOUS"));
     }
 
     @Test
-    void allowsExplicitCpuNativeDiagnosticRegionWithSegmentScalarLocalKernel() {
+    void allowsExplicitCpuNativeDiagnosticPartitionWithSegmentScalarLocalKernel() {
         BenchmarkReport report = report(
                 "forced-native-slow",
                 CpuStorageProfile.CPU_NATIVE,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
                 )
         );
 
@@ -77,19 +77,19 @@ class NativeCpuNonBlasBenchmarkGateTest {
     }
 
     @Test
-    void rejectsAutoNativeRegionWithNonEligibleNodeEvenWithoutScalarFamily() {
+    void rejectsAutoNativePartitionWithNonEligibleNodeEvenWithoutScalarFamily() {
         BenchmarkReport report = report(
                 "auto-native-non-eligible",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionAutoEligible", List.of(true, false)),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1, "OFFSET_CONTIGUOUS", 1)),
-                        Map.entry("nativeCpuRegionResultResidencies", List.of(List.of("CPU_NATIVE"), List.of("CPU_NATIVE"))),
-                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "CUSTOM_NATIVE"))
+                        Map.entry("nativeCpuPartitionResultResidencies", List.of(List.of("CPU_NATIVE"), List.of("CPU_NATIVE"))),
+                        Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "CUSTOM_NATIVE"))
                 )
         );
 
@@ -98,30 +98,30 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
         );
 
-        assertTrue(failure.getMessage().contains("AUTO native CPU region selected non-auto-eligible nodes"));
+        assertTrue(failure.getMessage().contains("AUTO native CPU partition selected non-auto-eligible nodes"));
         assertTrue(failure.getMessage().contains("auto-native-non-eligible"));
         assertTrue(failure.getMessage().contains("autoEligible=[true, false]"));
         assertTrue(failure.getMessage().contains("OFFSET_CONTIGUOUS"));
     }
 
     @Test
-    void allowsAutoSlowNativeRegionOnlyWithMeasuredWinProof() {
+    void allowsAutoSlowNativePartitionOnlyWithMeasuredWinProof() {
         BenchmarkReport report = report(
                 "auto-native-measured-win",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
-                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionAutoEligible", List.of(true, false)),
+                        Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
-                        Map.entry("nativeCpuRegionMeasuredWin", true),
-                        Map.entry("nativeCpuRegionNativeMedianMs", 0.90d),
-                        Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
-                        Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d)
+                        Map.entry("nativeCpuPartitionMeasuredWin", true),
+                        Map.entry("nativeCpuPartitionNativeMedianMs", 0.90d),
+                        Map.entry("nativeCpuPartitionArrayMedianMs", 1.00d),
+                        Map.entry("nativeCpuPartitionMeasuredWinThreshold", 0.95d)
                 )
         );
 
@@ -134,14 +134,14 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 "auto-native-measured-win-strings",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
-                        Map.entry("nativeCpuRegionMeasuredWin", "true"),
-                        Map.entry("nativeCpuRegionNativeMedianMs", "0.94"),
-                        Map.entry("nativeCpuRegionArrayMedianMs", "1.00")
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
+                        Map.entry("nativeCpuPartitionMeasuredWin", "true"),
+                        Map.entry("nativeCpuPartitionNativeMedianMs", "0.94"),
+                        Map.entry("nativeCpuPartitionArrayMedianMs", "1.00")
                 )
         );
 
@@ -149,22 +149,22 @@ class NativeCpuNonBlasBenchmarkGateTest {
     }
 
     @Test
-    void rejectsAutoSlowNativeRegionWhenMeasuredWinFlagLacksNumericProof() {
+    void rejectsAutoSlowNativePartitionWhenMeasuredWinFlagLacksNumericProof() {
         BenchmarkReport report = report(
                 "auto-native-stale-proof",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
-                        Map.entry("nativeCpuRegionMeasuredWin", true),
-                        Map.entry("nativeCpuRegionNativeMedianMs", 0.99d),
-                        Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
-                        Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d)
+                        Map.entry("nativeCpuPartitionMeasuredWin", true),
+                        Map.entry("nativeCpuPartitionNativeMedianMs", 0.99d),
+                        Map.entry("nativeCpuPartitionArrayMedianMs", 1.00d),
+                        Map.entry("nativeCpuPartitionMeasuredWinThreshold", 0.95d)
                 )
         );
 
@@ -173,23 +173,23 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
         );
 
-        assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
+        assertTrue(failure.getMessage().contains("AUTO native CPU partition selected slow segment scalar kernels"));
         assertTrue(failure.getMessage().contains("measuredWinProof={enabled=true"));
         assertTrue(failure.getMessage().contains("nativeMedianMs=0.99"));
         assertTrue(failure.getMessage().contains("arrayMedianMs=1.0"));
     }
 
     @Test
-    void rejectsAutoSlowNativeRegionEvenWhenWholeWorkloadBeatsBaselineWithoutRegionProof() {
+    void rejectsAutoSlowNativePartitionEvenWhenWholeWorkloadBeatsBaselineWithoutPartitionProof() {
         BenchmarkReport report = reportWithBaseline(
-                "auto-native-workload-win-without-region-proof",
+                "auto-native-workload-win-without-partition-proof",
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(2)),
-                        Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(2)),
+                        Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                         Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2))
                 ),
                 1.00d,
@@ -201,33 +201,33 @@ class NativeCpuNonBlasBenchmarkGateTest {
                 () -> NativeCpuNonBlasBenchmarkGate.requirePass(report)
         );
 
-        assertTrue(failure.getMessage().contains("AUTO native CPU region selected slow segment scalar kernels"));
+        assertTrue(failure.getMessage().contains("AUTO native CPU partition selected slow segment scalar kernels"));
         assertTrue(failure.getMessage().contains("measuredWinProof={enabled=[]"));
     }
 
     @Test
-    void allowsAutoProviderOnlyOrRejectedRegionEvidence() {
+    void allowsAutoProviderOnlyOrRejectedPartitionEvidence() {
         BenchmarkReport providerOnly = report(
                 "auto-native-provider-only",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                        Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                        Map.entry("nativeCpuRegionProviderNodes", List.of(1)),
-                        Map.entry("nativeCpuRegionLocalKernelNodes", List.of()),
-                        Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
-                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT"))
+                        Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                        Map.entry("nativeCpuPartitionProviderNodes", List.of(1)),
+                        Map.entry("nativeCpuPartitionLocalKernelNodes", List.of()),
+                        Map.entry("nativeCpuPartitionAutoEligible", List.of(true)),
+                        Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT"))
                 )
         );
         BenchmarkReport rejectedSlow = report(
                 "auto-native-rejected-slow",
                 CpuStorageProfile.AUTO,
                 Map.ofEntries(
-                        Map.entry("nativeCpuRegionDecision", "REJECTED"),
-                        Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
-                        Map.entry("nativeCpuRegionReason", "native-cpu-region-auto-rejected-slow-op:relu"),
-                        Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-auto-rejected-slow-op:relu"),
-                        Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
+                        Map.entry("nativeCpuPartitionDecision", "REJECTED"),
+                        Map.entry("nativeCpuPartitionRoute", "CPU_ARRAY"),
+                        Map.entry("nativeCpuPartitionReason", "native-cpu-partition-auto-rejected-slow-op:relu"),
+                        Map.entry("nativeCpuPartitionFallbackReason", "native-cpu-partition-auto-rejected-slow-op:relu"),
+                        Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR"))
                 )
         );
 

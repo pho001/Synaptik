@@ -1,6 +1,6 @@
 package tuning.benchmark.report;
 
-import trace.prepare.GpuLoweredRegionTrace;
+import trace.prepare.GpuLoweredPartitionTrace;
 import trace.execution.ExecutionStepTrace;
 
 import java.util.Locale;
@@ -64,8 +64,8 @@ public final class JsonBenchmarkReportRenderer {
                 sb.append("        \"nativeCpu\": ").append(nativeCpuTraceSummaryJson(
                         NativeCpuTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
-                sb.append("        \"nativeCpuRegion\": ").append(nativeCpuRegionTraceSummaryJson(
-                        NativeCpuRegionTraceSummary.fromSteps(trace.run().steps())
+                sb.append("        \"nativeCpuPartition\": ").append(nativeCpuPartitionTraceSummaryJson(
+                        NativeCpuPartitionTraceSummary.fromSteps(trace.run().steps())
                 )).append(",\n");
                 sb.append("        \"runtimeCopy\": ").append(runtimeCopyTraceSummaryJson(
                         RuntimeCopyTraceSummary.fromRun(trace.run())
@@ -176,13 +176,13 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String nativeCpuRegionTraceSummaryJson(NativeCpuRegionTraceSummary summary) {
+    private static String nativeCpuPartitionTraceSummaryJson(NativeCpuPartitionTraceSummary summary) {
         if (summary == null || !summary.present()) {
             return "null";
         }
         return "{"
-                + "\"selectedRegionCount\": " + summary.selectedRegionCount() + ", "
-                + "\"rejectedRegionCount\": " + summary.rejectedRegionCount() + ", "
+                + "\"selectedPartitionCount\": " + summary.selectedPartitionCount() + ", "
+                + "\"rejectedPartitionCount\": " + summary.rejectedPartitionCount() + ", "
                 + "\"nativeRouteCount\": " + summary.nativeRouteCount() + ", "
                 + "\"fallbackCount\": " + summary.fallbackCount() + ", "
                 + "\"measuredWinClaimCount\": " + summary.measuredWinClaimCount() + ", "
@@ -194,8 +194,8 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"stridedMaterializationCount\": " + summary.stridedMaterializationCount() + ", "
                 + "\"benchmarkRowCounts\": " + intMapJson(summary.benchmarkRowCounts()) + ", "
                 + "\"layoutClassCounts\": " + intMapJson(summary.layoutClassCounts()) + ", "
-                + "\"regionResultResidencyCounts\": " + intMapJson(summary.regionResultResidencyCounts()) + ", "
-                + "\"regionAutoEligibleNodeCount\": " + summary.regionAutoEligibleNodeCount() + ", "
+                + "\"partitionResultResidencyCounts\": " + intMapJson(summary.partitionResultResidencyCounts()) + ", "
+                + "\"partitionAutoEligibleNodeCount\": " + summary.partitionAutoEligibleNodeCount() + ", "
                 + "\"boundaryOutputCount\": " + summary.boundaryOutputCount() + ", "
                 + "\"fallbackReasons\": " + stringListJson(summary.fallbackReasons()) + ", "
                 + "\"stridedFallbackReasons\": " + stringListJson(summary.stridedFallbackReasons()) + ", "
@@ -226,7 +226,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"sbgemmContinuationCount\": " + summary.sbgemmContinuationCount() + ", "
                 + "\"promotedF32Count\": " + summary.promotedF32Count() + ", "
                 + "\"promotedNonBlasStepCount\": " + summary.promotedNonBlasStepCount() + ", "
-                + "\"promotedNonBlasRegionNodeCount\": " + summary.promotedNonBlasRegionNodeCount() + ", "
+                + "\"promotedNonBlasPartitionNodeCount\": " + summary.promotedNonBlasPartitionNodeCount() + ", "
                 + "\"promotedNonBlasSegmentScalarCount\": " + summary.promotedNonBlasSegmentScalarCount() + ", "
                 + "\"promotedNonBlasArrayFallbackCount\": " + summary.promotedNonBlasArrayFallbackCount() + ", "
                 + "\"javaRouteCount\": " + summary.javaRouteCount() + ", "
@@ -360,9 +360,9 @@ public final class JsonBenchmarkReportRenderer {
         }
     }
 
-    private record NativeCpuRegionTraceSummary(
-            int selectedRegionCount,
-            int rejectedRegionCount,
+    private record NativeCpuPartitionTraceSummary(
+            int selectedPartitionCount,
+            int rejectedPartitionCount,
             int nativeRouteCount,
             int fallbackCount,
             int measuredWinClaimCount,
@@ -374,15 +374,15 @@ public final class JsonBenchmarkReportRenderer {
             int stridedMaterializationCount,
             java.util.Map<String, Integer> benchmarkRowCounts,
             java.util.Map<String, Integer> layoutClassCounts,
-            java.util.Map<String, Integer> regionResultResidencyCounts,
-            int regionAutoEligibleNodeCount,
+            java.util.Map<String, Integer> partitionResultResidencyCounts,
+            int partitionAutoEligibleNodeCount,
             int boundaryOutputCount,
             java.util.List<String> fallbackReasons,
             java.util.List<String> stridedFallbackReasons,
             java.util.List<String> rejectionReasons,
             boolean present
     ) {
-        static NativeCpuRegionTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
+        static NativeCpuPartitionTraceSummary fromSteps(java.util.List<trace.execution.ExecutionStepTrace> steps) {
             if (steps == null || steps.isEmpty()) {
                 return empty(false);
             }
@@ -400,8 +400,8 @@ public final class JsonBenchmarkReportRenderer {
             int boundaries = 0;
             java.util.LinkedHashMap<String, Integer> benchmarkRowCounts = new java.util.LinkedHashMap<>();
             java.util.LinkedHashMap<String, Integer> layoutClassCounts = new java.util.LinkedHashMap<>();
-            java.util.LinkedHashMap<String, Integer> regionResultResidencyCounts = new java.util.LinkedHashMap<>();
-            int regionAutoEligibleNodes = 0;
+            java.util.LinkedHashMap<String, Integer> partitionResultResidencyCounts = new java.util.LinkedHashMap<>();
+            int partitionAutoEligibleNodes = 0;
             java.util.LinkedHashSet<String> fallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> stridedFallbackReasons = new java.util.LinkedHashSet<>();
             java.util.LinkedHashSet<String> rejectionReasons = new java.util.LinkedHashSet<>();
@@ -411,14 +411,14 @@ public final class JsonBenchmarkReportRenderer {
                     continue;
                 }
                 Map<String, Object> attrs = step.metadata().attributes();
-                if (!attrs.containsKey("nativeCpuRegionDecision")) {
+                if (!attrs.containsKey("nativeCpuPartitionDecision")) {
                     continue;
                 }
                 present = true;
-                String decision = String.valueOf(attrs.getOrDefault("nativeCpuRegionDecision", ""));
-                String route = String.valueOf(attrs.getOrDefault("nativeCpuRegionRoute", ""));
-                String reason = String.valueOf(attrs.getOrDefault("nativeCpuRegionReason", ""));
-                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuRegionFallbackReason", ""));
+                String decision = String.valueOf(attrs.getOrDefault("nativeCpuPartitionDecision", ""));
+                String route = String.valueOf(attrs.getOrDefault("nativeCpuPartitionRoute", ""));
+                String reason = String.valueOf(attrs.getOrDefault("nativeCpuPartitionReason", ""));
+                String fallbackReason = String.valueOf(attrs.getOrDefault("nativeCpuPartitionFallbackReason", ""));
                 if ("SELECTED".equals(decision)) {
                     selected++;
                 } else if ("REJECTED".equals(decision)) {
@@ -434,25 +434,25 @@ public final class JsonBenchmarkReportRenderer {
                     fallbacks++;
                     fallbackReasons.add(fallbackReason);
                 }
-                if (NativeCpuRegionMeasuredWinEvidence.claimed(attrs)) {
+                if (NativeCpuPartitionMeasuredWinEvidence.claimed(attrs)) {
                     measuredWinClaims++;
-                    if (NativeCpuRegionMeasuredWinEvidence.proven(attrs)) {
+                    if (NativeCpuPartitionMeasuredWinEvidence.proven(attrs)) {
                         measuredWinProofs++;
                     }
                 }
-                providers += listSize(attrs.get("nativeCpuRegionProviderNodes"));
-                localKernels += listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
-                segmentScalarNodes += nativeCpuRegionSegmentScalarNodeCount(attrs);
+                providers += listSize(attrs.get("nativeCpuPartitionProviderNodes"));
+                localKernels += listSize(attrs.get("nativeCpuPartitionLocalKernelNodes"));
+                segmentScalarNodes += nativeCpuPartitionSegmentScalarNodeCount(attrs);
                 stridedNodes += intAttr(attrs.get("nativeCpuStridedNodeCount"));
                 stridedMaterializations += intAttr(attrs.get("nativeCpuStridedMaterializationCount"));
                 mergeStringCounts(layoutClassCounts, attrs.get("nativeCpuLayoutClassCounts"));
-                mergeNestedStringCounts(regionResultResidencyCounts, attrs.get("nativeCpuRegionResultResidencies"));
-                regionAutoEligibleNodes += trueCount(attrs.get("nativeCpuRegionAutoEligible"));
+                mergeNestedStringCounts(partitionResultResidencyCounts, attrs.get("nativeCpuPartitionResultResidencies"));
+                partitionAutoEligibleNodes += trueCount(attrs.get("nativeCpuPartitionAutoEligible"));
                 addStrings(stridedFallbackReasons, attrs.get("nativeCpuStridedFallbackReasons"));
-                boundaries += listSize(attrs.get("nativeCpuRegionOutputs"));
-                increment(benchmarkRowCounts, nativeCpuRegionBenchmarkRow(attrs));
+                boundaries += listSize(attrs.get("nativeCpuPartitionOutputs"));
+                increment(benchmarkRowCounts, nativeCpuPartitionBenchmarkRow(attrs));
             }
-            return new NativeCpuRegionTraceSummary(
+            return new NativeCpuPartitionTraceSummary(
                     selected,
                     rejected,
                     nativeRoutes,
@@ -466,8 +466,8 @@ public final class JsonBenchmarkReportRenderer {
                     stridedMaterializations,
                     orderedMap(benchmarkRowCounts),
                     orderedMap(layoutClassCounts),
-                    orderedMap(regionResultResidencyCounts),
-                    regionAutoEligibleNodes,
+                    orderedMap(partitionResultResidencyCounts),
+                    partitionAutoEligibleNodes,
                     boundaries,
                     java.util.List.copyOf(fallbackReasons),
                     java.util.List.copyOf(stridedFallbackReasons),
@@ -476,8 +476,8 @@ public final class JsonBenchmarkReportRenderer {
             );
         }
 
-        private static NativeCpuRegionTraceSummary empty(boolean present) {
-            return new NativeCpuRegionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        private static NativeCpuPartitionTraceSummary empty(boolean present) {
+            return new NativeCpuPartitionTraceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     java.util.Map.of(), java.util.Map.of(), java.util.Map.of(), 0,
                     0, java.util.List.of(), java.util.List.of(), java.util.List.of(), present);
         }
@@ -588,7 +588,7 @@ public final class JsonBenchmarkReportRenderer {
         var compile = candidate.entry().profile().compile();
         var graph = compile.graphOptimization();
         var backend = compile.backendPlanning();
-        var region = compile.regionOptimization();
+        var partition = compile.partitionExecution();
         var memory = compile.memoryPlanning();
         StringBuilder sb = new StringBuilder("{");
         sb.append("\"graphStages\": ").append(graphStagesJson(graph)).append(", ");
@@ -598,7 +598,7 @@ public final class JsonBenchmarkReportRenderer {
                 .sorted()
                 .toList())).append(", ");
         sb.append("\"ownershipPlanner\": \"").append(backend.ownershipPlanner().name()).append("\", ");
-        sb.append("\"regionOptimization\": ").append(region.enabled()).append(", ");
+        sb.append("\"partitionExecution\": ").append(partition.enabled()).append(", ");
         sb.append("\"memoryPlanning\": ").append(memory.enabled());
         sb.append('}');
         return sb.toString();
@@ -649,25 +649,25 @@ public final class JsonBenchmarkReportRenderer {
             if (i++ > 0) {
                 sb.append(", ");
             }
-            var backend = entry.getValue();
+            var backendSummary = entry.getValue();
             sb.append('"').append(escape(entry.getKey())).append("\": {")
-                    .append("\"steps\": ").append(backend.steps()).append(", ")
-                    .append("\"bufferBindingSteps\": ").append(backend.bufferBindingSteps()).append(", ")
-                    .append("\"tensorArraySteps\": ").append(backend.tensorArraySteps()).append(", ")
-                    .append("\"cpuFallbackSteps\": ").append(backend.cpuFallbackSteps()).append(", ")
-                    .append("\"unavailableSteps\": ").append(backend.unavailableSteps()).append(", ")
-                    .append("\"preparedInputSteps\": ").append(backend.preparedInputSteps()).append(", ")
-                    .append("\"inputBytes\": ").append(backend.inputBytes()).append(", ")
-                    .append("\"outputBytes\": ").append(backend.outputBytes()).append(", ")
-                    .append("\"javaToNativeCopyNs\": ").append(backend.javaToNativeCopyNs()).append(", ")
-                    .append("\"nativeToJavaCopyNs\": ").append(backend.nativeToJavaCopyNs()).append(", ")
-                    .append("\"nativeDeviceCopyNs\": ").append(backend.nativeDeviceCopyNs()).append(", ")
-                    .append("\"nativeCopyStrategies\": ").append(stringListJson(backend.nativeCopyStrategies())).append(", ")
-                    .append("\"outputBufferWriteStatuses\": ").append(stringListJson(backend.outputBufferWriteStatuses())).append(", ")
-                    .append("\"executionRouteCounts\": ").append(intMapJson(backend.executionRouteCounts())).append(", ")
-                    .append("\"rejectedRouteReasonCounts\": ").append(intMapJson(backend.rejectedRouteReasonCounts())).append(", ")
-                    .append("\"reasonCodes\": ").append(stringListJson(backend.reasonCodes())).append(", ")
-                    .append("\"fallbackReasons\": ").append(stringListJson(backend.fallbackReasons()))
+                    .append("\"steps\": ").append(backendSummary.steps()).append(", ")
+                    .append("\"bufferBindingSteps\": ").append(backendSummary.bufferBindingSteps()).append(", ")
+                    .append("\"tensorArraySteps\": ").append(backendSummary.tensorArraySteps()).append(", ")
+                    .append("\"cpuFallbackSteps\": ").append(backendSummary.cpuFallbackSteps()).append(", ")
+                    .append("\"unavailableSteps\": ").append(backendSummary.unavailableSteps()).append(", ")
+                    .append("\"preparedInputSteps\": ").append(backendSummary.preparedInputSteps()).append(", ")
+                    .append("\"inputBytes\": ").append(backendSummary.inputBytes()).append(", ")
+                    .append("\"outputBytes\": ").append(backendSummary.outputBytes()).append(", ")
+                    .append("\"javaToNativeCopyNs\": ").append(backendSummary.javaToNativeCopyNs()).append(", ")
+                    .append("\"nativeToJavaCopyNs\": ").append(backendSummary.nativeToJavaCopyNs()).append(", ")
+                    .append("\"nativeDeviceCopyNs\": ").append(backendSummary.nativeDeviceCopyNs()).append(", ")
+                    .append("\"nativeCopyStrategies\": ").append(stringListJson(backendSummary.nativeCopyStrategies())).append(", ")
+                    .append("\"outputBufferWriteStatuses\": ").append(stringListJson(backendSummary.outputBufferWriteStatuses())).append(", ")
+                    .append("\"executionRouteCounts\": ").append(intMapJson(backendSummary.executionRouteCounts())).append(", ")
+                    .append("\"rejectedRouteReasonCounts\": ").append(intMapJson(backendSummary.rejectedRouteReasonCounts())).append(", ")
+                    .append("\"reasonCodes\": ").append(stringListJson(backendSummary.reasonCodes())).append(", ")
+                    .append("\"fallbackReasons\": ").append(stringListJson(backendSummary.fallbackReasons()))
                     .append("}");
         }
         sb.append('}');
@@ -694,11 +694,11 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"totalStepCount\": ").append(backend.totalStepCount()).append(", ")
                     .append("\"acceleratorStepCount\": ").append(backend.acceleratorStepCount()).append(", ")
                     .append("\"gpuCoverageRatio\": ").append(format(backend.gpuCoverageRatio())).append(", ")
-                    .append("\"selectedRegionCount\": ").append(backend.selectedRegionCount()).append(", ")
-                    .append("\"multiOpGpuRegionCount\": ").append(backend.multiOpGpuRegionCount()).append(", ")
-                    .append("\"maxSelectedRegionLength\": ").append(backend.maxSelectedRegionLength()).append(", ")
-                    .append("\"averageSelectedRegionLength\": ")
-                    .append(format(backend.averageSelectedRegionLength())).append(", ")
+                    .append("\"selectedPartitionCount\": ").append(backend.selectedPartitionCount()).append(", ")
+                    .append("\"multiOpGpuPartitionCount\": ").append(backend.multiOpGpuPartitionCount()).append(", ")
+                    .append("\"maxSelectedPartitionLength\": ").append(backend.maxSelectedPartitionLength()).append(", ")
+                    .append("\"averageSelectedPartitionLength\": ")
+                    .append(format(backend.averageSelectedPartitionLength())).append(", ")
                     .append("\"loweredPrimitiveCount\": ").append(backend.loweredPrimitiveCount()).append(", ")
                     .append("\"rejectedCandidateCount\": ").append(backend.rejectedCandidateCount()).append(", ")
                     .append("\"rejectedCandidateReasonCounts\": ")
@@ -770,8 +770,8 @@ public final class JsonBenchmarkReportRenderer {
                     .append("\"nativeCopyStrategyCounts\": ").append(intMapJson(backend.nativeCopyStrategyCounts())).append(", ")
                     .append("\"outputBufferWriteStatusCounts\": ")
                     .append(intMapJson(backend.outputBufferWriteStatusCounts())).append(", ")
-                    .append("\"selectedRegionCount\": ").append(backend.selectedRegionCount()).append(", ")
-                    .append("\"maxSelectedRegionLength\": ").append(backend.maxSelectedRegionLength()).append(", ")
+                    .append("\"selectedPartitionCount\": ").append(backend.selectedPartitionCount()).append(", ")
+                    .append("\"maxSelectedPartitionLength\": ").append(backend.maxSelectedPartitionLength()).append(", ")
                     .append("\"loweredPrimitiveCount\": ").append(backend.loweredPrimitiveCount()).append(", ")
                     .append("\"gpuFusedSubpatternCount\": ").append(backend.gpuFusedSubpatternCount()).append(", ")
                     .append("\"tensorArrayStepCount\": ").append(backend.tensorArrayStepCount()).append(", ")
@@ -876,22 +876,22 @@ public final class JsonBenchmarkReportRenderer {
                 + "\"estimatedComputeWork\": " + summary.estimatedComputeWork() + ", "
                 + "\"preset\": \"" + escape(summary.preset()) + "\", "
                 + "\"cost_explanation\": " + CostExplanationJsonRenderer.render(TraceCostScoreAdapter.toCostScore(summary).explain(summary.reasonCode()))
-                + manifestJsonSuffix(decision.gpuLoweredRegionManifest())
+                + manifestJsonSuffix(decision.gpuLoweredPartitionManifest())
                 + "}";
     }
 
-    private static String manifestJsonSuffix(GpuLoweredRegionTrace manifest) {
+    private static String manifestJsonSuffix(GpuLoweredPartitionTrace manifest) {
         if (manifest == null) {
             return "";
         }
-        return ", \"gpuLoweredRegionManifest\": " + manifestJson(manifest);
+        return ", \"gpuLoweredPartitionManifest\": " + manifestJson(manifest);
     }
 
-    private static String manifestJson(GpuLoweredRegionTrace manifest) {
+    private static String manifestJson(GpuLoweredPartitionTrace manifest) {
         return "{"
-                + "\"regionId\": \"" + escape(manifest.regionId()) + "\", "
+                + "\"partitionId\": \"" + escape(manifest.partitionId()) + "\", "
                 + "\"backend\": \"" + escape(String.valueOf(manifest.backend())) + "\", "
-                + "\"selectedRegionLength\": " + manifest.selectedRegionLength() + ", "
+                + "\"selectedPartitionLength\": " + manifest.selectedPartitionLength() + ", "
                 + "\"originalOps\": " + originalOpsJson(manifest.originalOperations()) + ", "
                 + "\"loweredPrimitives\": " + loweredPrimitivesJson(manifest.loweredPrimitives()) + ", "
                 + "\"valueAssumptions\": " + valueAssumptionsJson(manifest) + ", "
@@ -902,7 +902,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static Map<String, String> dtypeResidencyEvidence(GpuLoweredRegionTrace manifest) {
+    private static Map<String, String> dtypeResidencyEvidence(GpuLoweredPartitionTrace manifest) {
         if (manifest == null || manifest.backendExtensions().isEmpty()) {
             return Map.of();
         }
@@ -915,7 +915,7 @@ public final class JsonBenchmarkReportRenderer {
         return out;
     }
 
-    private static String originalOpsJson(java.util.List<GpuLoweredRegionTrace.OriginalOperation> ops) {
+    private static String originalOpsJson(java.util.List<GpuLoweredPartitionTrace.OriginalOperation> ops) {
         if (ops == null || ops.isEmpty()) {
             return "[]";
         }
@@ -924,7 +924,7 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionTrace.OriginalOperation op = ops.get(i);
+            GpuLoweredPartitionTrace.OriginalOperation op = ops.get(i);
             sb.append("{")
                     .append("\"nodeId\": ").append(op.nodeId()).append(", ")
                     .append("\"opType\": \"").append(escape(op.opType())).append("\", ")
@@ -940,7 +940,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String loweredPrimitivesJson(java.util.List<GpuLoweredRegionTrace.LoweredPrimitive> primitives) {
+    private static String loweredPrimitivesJson(java.util.List<GpuLoweredPartitionTrace.LoweredPrimitive> primitives) {
         if (primitives == null || primitives.isEmpty()) {
             return "[]";
         }
@@ -949,7 +949,7 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionTrace.LoweredPrimitive primitive = primitives.get(i);
+            GpuLoweredPartitionTrace.LoweredPrimitive primitive = primitives.get(i);
             sb.append("{")
                     .append("\"primitiveId\": \"").append(escape(primitive.primitiveId())).append("\", ")
                     .append("\"primitiveType\": \"").append(escape(primitive.primitiveType())).append("\", ")
@@ -965,18 +965,18 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String valueAssumptionsJson(GpuLoweredRegionTrace manifest) {
+    private static String valueAssumptionsJson(GpuLoweredPartitionTrace manifest) {
         java.util.List<String> items = new java.util.ArrayList<>();
-        for (GpuLoweredRegionTrace.ValueAssumption assumption : manifest.inputAssumptions()) {
+        for (GpuLoweredPartitionTrace.ValueAssumption assumption : manifest.inputAssumptions()) {
             items.add(valueAssumptionJson("input", assumption));
         }
-        for (GpuLoweredRegionTrace.ValueAssumption assumption : manifest.outputAssumptions()) {
+        for (GpuLoweredPartitionTrace.ValueAssumption assumption : manifest.outputAssumptions()) {
             items.add(valueAssumptionJson("output", assumption));
         }
         return "[" + String.join(", ", items) + "]";
     }
 
-    private static String valueAssumptionJson(String scope, GpuLoweredRegionTrace.ValueAssumption assumption) {
+    private static String valueAssumptionJson(String scope, GpuLoweredPartitionTrace.ValueAssumption assumption) {
         return "{"
                 + "\"scope\": \"" + escape(scope) + "\", "
                 + "\"nodeId\": " + assumption.nodeId() + ", "
@@ -991,7 +991,7 @@ public final class JsonBenchmarkReportRenderer {
                 + "}";
     }
 
-    private static String fusedSubpatternsJson(java.util.List<GpuLoweredRegionTrace.FusedSubpattern> subpatterns) {
+    private static String fusedSubpatternsJson(java.util.List<GpuLoweredPartitionTrace.FusedSubpattern> subpatterns) {
         if (subpatterns == null || subpatterns.isEmpty()) {
             return "[]";
         }
@@ -1000,7 +1000,7 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionTrace.FusedSubpattern subpattern = subpatterns.get(i);
+            GpuLoweredPartitionTrace.FusedSubpattern subpattern = subpatterns.get(i);
             sb.append("{")
                     .append("\"patternType\": \"").append(subpattern.patternType()).append("\", ")
                     .append("\"supported\": ").append(subpattern.supported()).append(", ")
@@ -1015,7 +1015,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String rejectionsJson(java.util.List<GpuLoweredRegionTrace.Rejection> rejections) {
+    private static String rejectionsJson(java.util.List<GpuLoweredPartitionTrace.Rejection> rejections) {
         if (rejections == null || rejections.isEmpty()) {
             return "[]";
         }
@@ -1024,7 +1024,7 @@ public final class JsonBenchmarkReportRenderer {
             if (i > 0) {
                 sb.append(", ");
             }
-            GpuLoweredRegionTrace.Rejection rejection = rejections.get(i);
+            GpuLoweredPartitionTrace.Rejection rejection = rejections.get(i);
             sb.append("{")
                     .append("\"level\": \"").append(escape(rejection.level())).append("\", ")
                     .append("\"originalNodeId\": ").append(rejection.originalNodeId()).append(", ")
@@ -1038,7 +1038,7 @@ public final class JsonBenchmarkReportRenderer {
         return sb.toString();
     }
 
-    private static String candidateSpanJson(GpuLoweredRegionTrace.CandidateSpan span) {
+    private static String candidateSpanJson(GpuLoweredPartitionTrace.CandidateSpan span) {
         if (span == null) {
             return "{}";
         }
@@ -1245,12 +1245,12 @@ public final class JsonBenchmarkReportRenderer {
         return count;
     }
 
-    private static int nativeCpuRegionSegmentScalarNodeCount(Map<String, Object> attrs) {
-        int explicitCount = listSize(attrs.get("nativeCpuRegionSegmentScalarNodes"));
+    private static int nativeCpuPartitionSegmentScalarNodeCount(Map<String, Object> attrs) {
+        int explicitCount = listSize(attrs.get("nativeCpuPartitionSegmentScalarNodes"));
         if (explicitCount > 0) {
             return explicitCount;
         }
-        Object kernels = attrs.get("nativeCpuRegionPhysicalKernels");
+        Object kernels = attrs.get("nativeCpuPartitionPhysicalKernels");
         int count = 0;
         if (kernels instanceof java.util.Collection<?> collection) {
             for (Object kernel : collection) {
@@ -1265,7 +1265,7 @@ public final class JsonBenchmarkReportRenderer {
         if (count > 0) {
             return count;
         }
-        Object families = attrs.get("nativeCpuRegionSegmentKernelFamilies");
+        Object families = attrs.get("nativeCpuPartitionSegmentKernelFamilies");
         if (families instanceof java.util.Collection<?> familyCollection) {
             for (Object family : familyCollection) {
                 String value = String.valueOf(family);
@@ -1277,11 +1277,11 @@ public final class JsonBenchmarkReportRenderer {
         return count;
     }
 
-    private static String nativeCpuRegionBenchmarkRow(Map<String, Object> attrs) {
-        String route = String.valueOf(attrs.getOrDefault("nativeCpuRegionRoute", ""));
-        int providerNodes = listSize(attrs.get("nativeCpuRegionProviderNodes"));
-        int localKernelNodes = listSize(attrs.get("nativeCpuRegionLocalKernelNodes"));
-        int segmentScalarNodes = nativeCpuRegionSegmentScalarNodeCount(attrs);
+    private static String nativeCpuPartitionBenchmarkRow(Map<String, Object> attrs) {
+        String route = String.valueOf(attrs.getOrDefault("nativeCpuPartitionRoute", ""));
+        int providerNodes = listSize(attrs.get("nativeCpuPartitionProviderNodes"));
+        int localKernelNodes = listSize(attrs.get("nativeCpuPartitionLocalKernelNodes"));
+        int segmentScalarNodes = nativeCpuPartitionSegmentScalarNodeCount(attrs);
         int stridedNodes = intAttr(attrs.get("nativeCpuStridedNodeCount"));
         if ("NATIVE".equals(route)) {
             if (providerNodes > 0 && localKernelNodes > 0) {
@@ -1312,8 +1312,8 @@ public final class JsonBenchmarkReportRenderer {
         if (attrs == null || expected == null || expected.isBlank()) {
             return false;
         }
-        return containsValue(attrs.get("nativeCpuRegionSegmentKernelFamilies"), expected)
-                || containsValue(attrs.get("nativeCpuRegionPhysicalKernels"), expected);
+        return containsValue(attrs.get("nativeCpuPartitionSegmentKernelFamilies"), expected)
+                || containsValue(attrs.get("nativeCpuPartitionPhysicalKernels"), expected);
     }
 
     private static boolean containsValue(Object value, String expected) {

@@ -744,6 +744,12 @@ class Cpu1LayoutExecutionContractTest {
                 Cpu1LayoutKernelId.TILE_LAST_AXIS_BLOCK_COPY_VECTOR.name(),
                 trace.metadata().layout().targetType()
         );
+        assertEquals(DataType.FLOAT32.name(), trace.metadata().attributes().get("cpu1DType"));
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY.name(), trace.metadata().attributes().get("cpu1StorageKind"));
+        assertEquals(Cpu1VectorizationKind.VECTOR.name(), trace.metadata().attributes().get("cpu1VectorizationKind"));
+        assertEquals(1, trace.metadata().attributes().get("cpu1LaunchWorkers"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ScratchF32"));
+        assertEquals("DENSE_CONTIGUOUS", trace.metadata().attributes().get("cpu1AccessModel"));
     }
 
     @Test

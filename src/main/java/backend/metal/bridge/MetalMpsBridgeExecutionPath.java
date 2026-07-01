@@ -5,7 +5,7 @@ package backend.metal.bridge;
  */
 public enum MetalMpsBridgeExecutionPath {
     /**
-     * The selected Metal region was replayed through CPU fallback steps.
+     * The selected Metal partition was replayed through CPU fallback steps.
      */
     CPU_FALLBACK,
 
@@ -21,7 +21,7 @@ public enum MetalMpsBridgeExecutionPath {
     BUFFER_BINDING,
 
     /**
-     * The selected Metal region executed through a scoped custom Metal kernel route.
+     * The selected Metal partition executed through a scoped custom Metal kernel route.
      */
     CUSTOM_KERNEL
 }

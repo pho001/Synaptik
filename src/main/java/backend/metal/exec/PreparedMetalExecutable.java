@@ -13,8 +13,8 @@ import runtime.device.buffer.AcceleratorBufferRequest;
 import backend.accelerator.exec.AcceleratorPreparedInputResolver;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import backend.metal.lowering.MetalPartitionPlan;
 import backend.accelerator.exec.PreparedAcceleratorExecutable;
 import runtime.contract.StorageResidency;
@@ -30,7 +30,7 @@ import backend.metal.kernel.MetalCustomKernelBridge;
 import backend.metal.kernel.MetalCustomKernelExecutable;
 import runtime.execution.ExecutionContext;
 import backend.lowering.LoweringFamily;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import config.runtime.AcceleratorBackendConfig;
 import config.runtime.AcceleratorBufferBindingMode;
 import graph.optimizer.cost.CostComponent;
@@ -54,7 +54,7 @@ import java.util.Objects;
 public final class PreparedMetalExecutable implements PreparedAcceleratorExecutable {
     private final MetalPartitionPlan plan;
     private final LoweringFamily loweringFamily;
-    private final RegionExecutionPlan regionExecutionPlan;
+    private final BackendPartitionExecutionPlan partitionExecutionPlan;
     private final MetalMpsGraphBridge bridge;
     private final MetalMpsBridgeContext bridgeContext;
     private final MetalMpsBridgeExecutable bridgeExecutable;
@@ -126,7 +126,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     public PreparedMetalExecutable(
             MetalPartitionPlan plan,
             LoweringFamily loweringFamily,
-            RegionExecutionPlan regionExecutionPlan,
+            BackendPartitionExecutionPlan partitionExecutionPlan,
             MetalMpsGraphBridge bridge,
             List<PreparedAcceleratorExecutionSupport.CpuFallbackStep> cpuFallbackSteps,
             AcceleratorBackendConfig backendConfig,
@@ -134,7 +134,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
     ) {
         this.plan = Objects.requireNonNull(plan, "plan cannot be null");
         this.loweringFamily = Objects.requireNonNull(loweringFamily, "loweringFamily cannot be null");
-        this.regionExecutionPlan = regionExecutionPlan;
+        this.partitionExecutionPlan = partitionExecutionPlan;
         this.bridge = Objects.requireNonNull(bridge, "bridge cannot be null");
         this.customKernelBridge = customKernelBridge == null ? MetalCustomKernelBridge.unavailable() : customKernelBridge;
         this.bridgeContext = bridge.createContext();
@@ -592,18 +592,18 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      * Returns the compound GPU summary associated with this prepared Metal executable.
      */
     @Override
-    public GpuCompoundRegionSummary compoundSummary() {
+    public GpuCompoundPartitionSummary compoundSummary() {
         return plan.lowering().compoundSummary();
     }
 
     @Override
-    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+    public GpuLoweredPartitionManifest gpuLoweredPartitionManifest() {
         return plan.manifest();
     }
 
     @Override
-    public RegionExecutionPlan regionExecutionPlan() {
-        return regionExecutionPlan;
+    public BackendPartitionExecutionPlan partitionExecutionPlan() {
+        return partitionExecutionPlan;
     }
 
     /**
@@ -652,7 +652,7 @@ public final class PreparedMetalExecutable implements PreparedAcceleratorExecuta
      * Returns diagnostics captured during the most recent execution attempt.
      *
      * <p>The value is updated for both Metal executions and CPU fallbacks, so
-     * trace rendering can explain why a selected Metal region did or did not
+     * trace rendering can explain why a selected Metal partition did or did not
      * enter the native bridge.</p>
      *
      * @return latest bridge execution diagnostics

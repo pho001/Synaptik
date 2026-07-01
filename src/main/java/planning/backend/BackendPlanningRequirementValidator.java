@@ -26,13 +26,13 @@ final class BackendPlanningRequirementValidator {
         if (config.failurePolicy() == BackendPlanningFailurePolicy.OPTIONAL) {
             return;
         }
-        if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION) {
+        if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION) {
             Set<BackendTarget> accepted = acceptedAcceleratorTargets(partitions);
             boolean ok = config.requirementScope() == BackendPlanningRequirementScope.EACH_TARGET
                     ? accepted.containsAll(config.targets())
                     : !accepted.isEmpty();
             if (!ok) {
-                throw new IllegalStateException("Required accelerator backend planning produced no legal region");
+                throw new IllegalStateException("Required accelerator backend planning produced no legal partition");
             }
         }
         if (config.failurePolicy() == BackendPlanningFailurePolicy.REQUIRE_ALL_EXPLICIT_INTENTS) {

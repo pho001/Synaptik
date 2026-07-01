@@ -1,11 +1,11 @@
-# Region Optimization / FUSE
+# Partition Optimization / FUSE
 
-`FUSE` is historical shorthand for region optimization. In the current architecture it is a compile-flow phase outside the backend-neutral `GraphOptimizer`.
+`FUSE` is historical shorthand for partition optimization. In the current architecture it is a compile-flow phase outside the backend-neutral `GraphOptimizer`.
 
 Its responsibility is:
 
 - choose safe and worthwhile elementwise subgraphs
-- publish optimized region units for backend lowering
+- publish optimized partition units for backend lowering
 - leave fused operation descriptors, code generation, and machine-level execution strategy to backend preparation and runtime
 
 It is not a code generator by itself.
@@ -13,7 +13,7 @@ It is not a code generator by itself.
 ## Entry Points
 
 - optimizer:
-  - [../compile/planning/region/DefaultRegionOptimizer.java](../compile/planning/region/DefaultRegionOptimizer.java)
+  - [../../planning/partition/PartitionExecutionPlanner.java](../../planning/partition/PartitionExecutionPlanner.java)
 - config:
   - [../../config/optimizer/FuseConfig.java](../../config/optimizer/FuseConfig.java)
 - fused dispatch planning:
@@ -40,13 +40,13 @@ The current implementation consumes backend planning `Partition` artifacts and f
 
 1. snapshot the current graph as immutable compiled nodes
 2. optimize each partition into one or more execution units
-3. publish `OptimizedRegion` artifacts for lowering and prepare
+3. publish `PartitionExecutionPlan` artifacts for lowering and prepare
 
 The optimizer does not mutate `Tensor.operation` or rewrite graph inputs directly. Compile session calls it only for accepted partitions.
 
 ## Consumer Maps
 
-Region optimization builds two consumer views:
+Partition optimization builds two consumer views:
 
 - all-consumer view
   - used for liveness and materialization logic across the whole combined graph
@@ -225,14 +225,14 @@ Cluster output:
 
 - `y`
 
-If the score passes threshold and no materialization boundary blocks growth, this becomes a fused elementwise execution unit in an optimized region.
+If the score passes threshold and no materialization boundary blocks growth, this becomes a fused elementwise execution unit in an optimized partition.
 
 ## What Happens On Success
 
 On success:
 
 1. the original graph remains the semantic source of truth
-2. the optimized region records a fused elementwise execution unit
+2. the optimized partition records a fused elementwise execution unit
 3. lowering records the unit's ordered node ids and external input ids
 4. CPU prepare builds backend-owned fused plan descriptors from the lowered unit
 
@@ -252,6 +252,6 @@ In the current architecture they are fixed during `prepare(...)`, not rediscover
 
 So the correct mental model is:
 
-- `FUSE` decides optimized region shape
+- `FUSE` decides optimized partition shape
 - `prepare(...)` plus backend planning decide execution shape
 - `execute(...)` runs the prepared recipe

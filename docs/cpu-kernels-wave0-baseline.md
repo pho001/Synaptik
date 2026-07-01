@@ -37,9 +37,9 @@ Execution path classes participate in compile, prepare, or per-op execution:
 
 - `backend.cpu.CPUBackend`
 - `backend.cpu.CpuNodePreparer`
-- `backend.cpu.kernels.plan.CpuExecutionPlanner`
-- `backend.cpu.kernels.plan.CpuPlanAssembler`
-- `backend.cpu.kernels.CpuNodeExecutionPlan`
+- `backend.cpu.prepare.CpuExecutionPlanner`
+- `backend.cpu.prepare.CpuPlanAssembler`
+- `backend.cpu.plan.CpuNodeExecutionPlan`
 - `backend.cpu.kernels.CpuKernelContext`
 - `backend.cpu.kernels.*` family kernels, executors, loops, planners, and prepared executable classes
 - `backend.cpu.nativecpu.NativeCpuPlanResolver`
@@ -51,12 +51,12 @@ Execution path classes participate in compile, prepare, or per-op execution:
 - `backend.cpu.nativecpu.NativeCpuCastExecutor`
 - `backend.cpu.nativecpu.NativeCpuContiguousExecutor`
 - `backend.cpu.nativecpu.NativeCpuViewExecutor`
-- `backend.blas.OpenBlasArrayGemm`, `OpenBlasSegmentGemm`, and `OpenBlasRuntime`
+- `backend.provider.blas.openblas.OpenBlasArrayGemm`, `OpenBlasSegmentGemm`, and `OpenBlasRuntime`
 
 Reporting or evidence classes are not per-element executors, but some still influence planning and trace output:
 
 - `NativeCpuKernelFacts` is metadata used by coverage, parity, and executor trace evidence.
-- `NativeCpuCoverageMatrix` is used by `NativeCpuPlanResolver` and `CpuRegionLowerer`; it is not docs-only today.
+- `NativeCpuCoverageMatrix` is used by `NativeCpuPlanResolver` and `CpuPartitionLowerer`; it is not docs-only today.
 - `NativeCpuParityMatrix` is used by CPU lowering and trace reporting; it is not docs-only today.
 - Benchmark report renderers and gates under `tuning.benchmark.report` consume traces and should not become runtime owners.
 
@@ -136,5 +136,7 @@ SYNAPTIK_BENCHMARK_NATIVE_OPENBLAS_SEGMENT=true ./gradlew test --tests debug.Nat
 
 - Architecture baseline: `./gradlew test --tests CpuKernelFamilyArchitectureTest`
 - Compile baseline: `./gradlew classes`
-- Native CPU focused tests when feasible: `./gradlew test --tests backend.cpu.nativecpu.NativeCpuPlanResolverTest`
+- The historical `NativeCpuPlanResolverTest` no longer exists. Current replacement coverage is
+  `./gradlew test --tests backend.cpu.nativecpu.NativeCpuPartitionSelectionTest` plus
+  `CpuKernelFamilyArchitectureTest` and `SourceTreeHygieneTest` removal guards.
 - Benchmark sanity: run the slices above without staging generated profile/calibration artifacts.

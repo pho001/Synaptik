@@ -8,8 +8,10 @@ import config.backend.SumAccuracyMode;
 import config.runtime.AcceleratorBufferBindingMode;
 import config.runtime.AcceleratorBufferConfig;
 import config.runtime.BlasStorageMode;
+import config.runtime.CpuExecutionPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
+import config.runtime.FusedExecutionPolicy;
 import config.runtime.NativeCpuFailurePolicy;
 import tensor.DataType;
 
@@ -153,7 +155,11 @@ public final class PlatformRuntimeProfileIO {
                 "  \"runtimePolicy\": {\n" +
                 "    \"cpuStorageProfile\": \"" + profile.cpuStorageProfile().name() + "\",\n" +
                 "    \"nativeCpuFailurePolicy\": \"" + profile.nativeCpuFailurePolicy().name() + "\",\n" +
-                "    \"deviceTransferPolicy\": \"" + profile.deviceTransferPolicy().name() + "\"\n" +
+                "    \"deviceTransferPolicy\": \"" + profile.deviceTransferPolicy().name() + "\",\n" +
+                "    \"fusedAllowBackendFallback\": " + profile.fusedExecutionPolicy().allowBackendFallback() + ",\n" +
+                "    \"fusedUseCpu1Elementwise\": " + profile.fusedExecutionPolicy().useCpu1Elementwise() + ",\n" +
+                "    \"cpuUseCpu1Direct\": " + profile.cpuExecutionPolicy().useCpu1Direct() + ",\n" +
+                "    \"cpuAllowCpu1DirectFallback\": " + profile.cpuExecutionPolicy().allowCpu1DirectFallback() + "\n" +
                 "  }\n" +
                 "}\n";
     }
@@ -357,6 +363,30 @@ public final class PlatformRuntimeProfileIO {
                                             fallback.accelerator().metal().minimumEstimatedWork()
                                     ),
                                     acceleratorBufferConfig(json, "metal", fallback.accelerator().metal().buffer())
+                            )
+                    ),
+                    new FusedExecutionPolicy(
+                            findBoolean(
+                                    json,
+                                    "fusedAllowBackendFallback",
+                                    fallback.fusedExecutionPolicy().allowBackendFallback()
+                            ),
+                            findBoolean(
+                                    json,
+                                    "fusedUseCpu1Elementwise",
+                                    fallback.fusedExecutionPolicy().useCpu1Elementwise()
+                            )
+                    ),
+                    new CpuExecutionPolicy(
+                            findBoolean(
+                                    json,
+                                    "cpuUseCpu1Direct",
+                                    fallback.cpuExecutionPolicy().useCpu1Direct()
+                            ),
+                            findBoolean(
+                                    json,
+                                    "cpuAllowCpu1DirectFallback",
+                                    fallback.cpuExecutionPolicy().allowCpu1DirectFallback()
                             )
                     ),
                     findEnum(json, "cpuStorageProfile", fallback.cpuStorageProfile(), CpuStorageProfile.class),

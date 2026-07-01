@@ -4,7 +4,6 @@ import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedMseLossUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -21,19 +20,35 @@ public final class Cpu1MseLossLoops {
     }
 
     public static void sumF32DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF32(unit, context);
+        runF32Array(unit, context);
+    }
+
+    public static void sumF32DenseScalarSegment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
+        runF32Segment(unit, context);
     }
 
     public static void meanF32DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF32(unit, context);
+        runF32Array(unit, context);
+    }
+
+    public static void meanF32DenseScalarSegment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
+        runF32Segment(unit, context);
     }
 
     public static void sumF64DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF64(unit, context);
+        runF64Array(unit, context);
+    }
+
+    public static void sumF64DenseScalarSegment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
+        runF64Segment(unit, context);
     }
 
     public static void meanF64DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        runF64(unit, context);
+        runF64Array(unit, context);
+    }
+
+    public static void meanF64DenseScalarSegment(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
+        runF64Segment(unit, context);
     }
 
     public static void sumBf16DenseScalar(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
@@ -44,11 +59,7 @@ public final class Cpu1MseLossLoops {
         runBf16(unit, context);
     }
 
-    private static void runF32(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            runF32Segment(unit, context);
-            return;
-        }
+    private static void runF32Array(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         Cpu1TensorView prediction = inputArrayView(unit.predictionNodeId(), context);
         Cpu1TensorView target = inputArrayView(unit.targetNodeId(), context);
         Cpu1TensorView output = outputArrayView(unit, context);
@@ -60,11 +71,7 @@ public final class Cpu1MseLossLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void runF64(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            runF64Segment(unit, context);
-            return;
-        }
+    private static void runF64Array(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
         Cpu1TensorView prediction = inputArrayView(unit.predictionNodeId(), context);
         Cpu1TensorView target = inputArrayView(unit.targetNodeId(), context);
         Cpu1TensorView output = outputArrayView(unit, context);
@@ -77,9 +84,6 @@ public final class Cpu1MseLossLoops {
     }
 
     private static void runBf16(Cpu1PreparedMseLossUnit unit, ExecutionContext context) {
-        if (unit.storageKind() != Cpu1StorageKind.JAVA_ARRAY) {
-            throw new UnsupportedOperationException("cpu1 MSE_LOSS BFLOAT16 supports JAVA_ARRAY storage only.");
-        }
         Cpu1TensorView prediction = inputArrayView(unit.predictionNodeId(), context);
         Cpu1TensorView target = inputArrayView(unit.targetNodeId(), context);
         Cpu1TensorView output = outputArrayView(unit, context);

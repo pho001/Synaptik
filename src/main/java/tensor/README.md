@@ -12,7 +12,7 @@ It is not the whole execution pipeline.
 Compilation, runtime preparation, and execution live in:
 
 - [../graph/CompiledGraph.java](../graph/CompiledGraph.java)
-- [../graph/execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
+- [../runtime/execution/PreparedExecution.java](../runtime/execution/PreparedExecution.java)
 
 ## Layering
 

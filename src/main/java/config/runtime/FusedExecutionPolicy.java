@@ -3,8 +3,8 @@ package config.runtime;
 /**
  * Runtime policy for fused elementwise execution.
  *
- * @param allowBackendFallback whether fallback execution is allowed when generated ASM cannot execute a fused region
- * @param useCpu1Elementwise whether CPU fused elementwise regions should prepare through the cpu1 fused path
+ * @param allowBackendFallback whether fallback execution is allowed when generated ASM cannot execute a fused partition
+ * @param useCpu1Elementwise whether CPU fused elementwise partitions should prepare through the cpu1 fused path
  */
 public record FusedExecutionPolicy(
         boolean allowBackendFallback,

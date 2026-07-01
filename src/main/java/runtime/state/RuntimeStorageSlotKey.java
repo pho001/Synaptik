@@ -10,7 +10,7 @@ import java.util.Objects;
  * @param kind physical storage family
  * @param dataType tensor dtype stored in the slot
  * @param scope planner/runtime id namespace
- * @param storageId region slot id or node id, depending on {@code scope}
+ * @param storageId partition slot id or node id, depending on {@code scope}
  * @param elements number of logical elements in the slot
  */
 public record RuntimeStorageSlotKey(
@@ -32,13 +32,13 @@ public record RuntimeStorageSlotKey(
         }
     }
 
-    public static RuntimeStorageSlotKey regionSlot(
+    public static RuntimeStorageSlotKey partitionSlot(
             RuntimeStorageKind kind,
             DataType dataType,
             int slotId,
             int elements
     ) {
-        return new RuntimeStorageSlotKey(kind, dataType, RuntimeStorageSlotScope.REGION_SLOT, slotId, elements);
+        return new RuntimeStorageSlotKey(kind, dataType, RuntimeStorageSlotScope.PARTITION_SLOT, slotId, elements);
     }
 
     public static RuntimeStorageSlotKey nodeOutput(

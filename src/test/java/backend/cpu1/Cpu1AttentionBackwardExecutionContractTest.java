@@ -27,10 +27,10 @@ import runtime.execution.PreparedStepMetadata;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
 import runtime.execution.ExecutionState;
-import planning.region.specialization.SdpaBackwardOutputKind;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
-import planning.region.specialization.SdpaBackwardSpecializationPayload;
+import planning.partition.specialization.SdpaBackwardOutputKind;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
+import planning.partition.specialization.SdpaBackwardSpecializationPayload;
 import planning.value.GraphValueRef;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
@@ -116,7 +116,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
             double tolerance
     ) {
         GradientRun baseline = execute(dataType, outputKind, CompileConfig.cpuOnlyBaseline());
-        RuntimeConfig nativeRuntime = RuntimeConfig.trainingDefaults(dataType)
+        RuntimeConfig nativeRuntime = controlledTrainingRuntime()
                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
         GradientRun specialized = executeMemorySegmentStep(dataType, outputKind, nativeRuntime);
 
@@ -141,7 +141,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
 
     @Test
     void memorySegmentSpecializedSdpaBackwardMaterializesCpuArrayInputsThroughRuntimeBoundary() {
-        RuntimeConfig nativeRuntime = RuntimeConfig.trainingDefaults(DataType.FLOAT32)
+        RuntimeConfig nativeRuntime = controlledTrainingRuntime()
                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
         AttentionFixture fixture = defaultFixture();
         PreparedCase prepared = prepareDenseOutGradCase(
@@ -179,7 +179,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
     @Test
     void scalarConfigSelectsScalarMemorySegmentSdpaBackwardKernels() {
         for (DataType dataType : new DataType[]{DataType.FLOAT32, DataType.FLOAT64}) {
-            RuntimeConfig nativeRuntime = RuntimeConfig.trainingDefaults(dataType)
+            RuntimeConfig nativeRuntime = controlledTrainingRuntime()
                     .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
             for (SdpaBackwardOutputKind outputKind : SdpaBackwardOutputKind.values()) {
                 Cpu1PreparedAttentionBackwardUnit unit = preparedUnitWithConfig(
@@ -270,7 +270,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
         Cpu1PreparedAttentionBackwardUnit unit = preparedUnit(
                 dataType,
                 outputKind,
-                RuntimeConfig.trainingDefaults(dataType),
+                controlledTrainingRuntime(),
                 defaultFixture()
         );
         Cpu1ScratchBufferSpec scratch = unit.scratchBufferSpec();
@@ -313,17 +313,17 @@ class Cpu1AttentionBackwardExecutionContractTest {
                 dataType,
                 SdpaBackwardOutputKind.KEY,
                 CompileConfig.cpuOnlyBaseline(),
-                RuntimeConfig.trainingDefaults(dataType),
+                controlledTrainingRuntime(),
                 fixture
         );
         GradientRun array = execute(
                 dataType,
                 SdpaBackwardOutputKind.KEY,
                 CompileConfig.training(),
-                RuntimeConfig.trainingDefaults(dataType),
+                controlledTrainingRuntime(),
                 fixture
         );
-        RuntimeConfig nativeRuntime = RuntimeConfig.trainingDefaults(dataType)
+        RuntimeConfig nativeRuntime = controlledTrainingRuntime()
                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
         GradientRun segment = executeMemorySegmentStep(dataType, SdpaBackwardOutputKind.KEY, nativeRuntime, fixture);
 
@@ -336,21 +336,21 @@ class Cpu1AttentionBackwardExecutionContractTest {
             AttentionFixture fixture,
             double tolerance
     ) {
-        RuntimeConfig nativeRuntime = RuntimeConfig.trainingDefaults(dataType)
+        RuntimeConfig nativeRuntime = controlledTrainingRuntime()
                 .withCpuStorageProfile(CpuStorageProfile.CPU_NATIVE);
         for (SdpaBackwardOutputKind outputKind : SdpaBackwardOutputKind.values()) {
             GradientRun baseline = executeDenseOutGrad(
                     dataType,
                     outputKind,
                     CompileConfig.cpuOnlyBaseline(),
-                    RuntimeConfig.trainingDefaults(dataType),
+                    controlledTrainingRuntime(),
                     fixture
             );
             GradientRun specialized = executeDenseOutGrad(
                     dataType,
                     outputKind,
                     CompileConfig.training(),
-                    RuntimeConfig.trainingDefaults(dataType),
+                    controlledTrainingRuntime(),
                     fixture
             );
             Cpu1PreparedAttentionBackwardUnit unit = requireAttentionBackwardArtifact(
@@ -379,7 +379,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
             SdpaBackwardOutputKind outputKind,
             CompileConfig compileConfig
     ) {
-        return execute(dataType, outputKind, compileConfig, RuntimeConfig.trainingDefaults(dataType));
+        return execute(dataType, outputKind, compileConfig, controlledTrainingRuntime());
     }
 
     private static GradientRun execute(
@@ -618,7 +618,7 @@ class Cpu1AttentionBackwardExecutionContractTest {
         return artifact.preparedAttentionBackwardUnit();
     }
 
-    private static RegionSpecializationCandidate candidateFromUnit(
+    private static PartitionSpecializationCandidate candidateFromUnit(
             Cpu1PreparedAttentionBackwardUnit unit,
             List<Integer> orderedNodeIds
     ) {
@@ -633,8 +633,8 @@ class Cpu1AttentionBackwardExecutionContractTest {
                 unit.valueNodeId(),
                 unit.maskNodeId()
         );
-        return new RegionSpecializationCandidate(
-                RegionSpecializationKind.SDPA_BACKWARD,
+        return new PartitionSpecializationCandidate(
+                PartitionSpecializationKind.SDPA_BACKWARD,
                 orderedNodeIds,
                 inputRefs(unit),
                 GraphValueRef.node(unit.nodeId()),
@@ -669,6 +669,10 @@ class Cpu1AttentionBackwardExecutionContractTest {
 
     private static RuntimeConfig runtimeConfig(CpuKernelConfig cpuKernelConfig) {
         return new RuntimeConfig(cpuKernelConfig, ApproximationConfig.defaults(), BlasConfig.disabled());
+    }
+
+    private static RuntimeConfig controlledTrainingRuntime() {
+        return runtimeConfig(CpuKernelConfig.defaultsTraining());
     }
 
     private static Cpu1PreparedArtifact requireAttentionBackwardArtifact(

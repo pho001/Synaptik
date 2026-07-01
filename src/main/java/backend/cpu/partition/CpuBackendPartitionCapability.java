@@ -240,17 +240,17 @@ public final class CpuBackendPartitionCapability implements BackendPartitionCapa
     }
 
     /**
-     * CPU structural region coverage inventory.
+     * CPU structural partition coverage inventory.
      *
-     * Families listed here are intentionally excluded from CPU structural region coverage because
-     * they are graph/runtime boundary markers rather than meaningful region compute content.
+     * Families listed here are intentionally excluded from CPU structural partition coverage because
+     * they are graph/runtime boundary markers rather than meaningful partition compute content.
      */
     private boolean isStructurallyExcludedFamily(operations.Operation.OpType opType) {
         if (opType == null) {
             return true;
         }
         return switch (opType) {
-            // Not meaningful structural CPU region content.
+            // Not meaningful structural CPU partition content.
             case NOOP, FUSED -> true;
             case MIN_GRAD, MAX_GRAD, REDUCE_MIN_GRAD, REDUCE_MAX_GRAD,
                     SOFTMAX_GRAD, LOG_SOFTMAX_GRAD,

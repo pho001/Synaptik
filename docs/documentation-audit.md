@@ -5,7 +5,7 @@ Navigation: [Index](index.md#recommended-reading-paths) | [Quickstart](quickstar
 
 Chapters: [Audit Scope](#audit-scope) | [Executive Findings](#executive-findings) | [Terminology Baseline](#terminology-baseline) | [Documentation Inventory](#documentation-inventory) | [Source Of Truth Map](#source-of-truth-map) | [Accuracy Notes By Area](#accuracy-notes-by-area) | [Known Stale-Risk Areas](#known-stale-risk-areas) | [Examples And Snippet Policy](#examples-and-snippet-policy) | [Verification Procedure](#verification-procedure) | [Recommended Follow-Up](#recommended-follow-up)
 
-Audit date: 2026-05-14.
+Audit date: 2026-07-01.
 
 This document records the current state of the documentation set and the boundaries that future doc updates should preserve. It is not a replacement for the detailed subsystem guides. It is the map that explains which guides exist, which code owns the facts, and where a future maintainer should be suspicious of drift.
 
@@ -24,7 +24,13 @@ The audit deliberately did not rewrite local benchmark or calibration artifacts 
 
 ## Executive Findings
 
-The documentation set is broad and mostly aligned with the architecture after the configuration, publication, ONNX, BF16, and release-hardening work. The strongest docs are the lifecycle docs, backend planning docs, ONNX docs, tuning docs, and package-local subsystem docs.
+The documentation set contains 34 top-level Markdown guides and covers public API, lifecycle, planning, backends,
+tuning, testing, and historical migration evidence. The current source uses top-level `planning`, `prepare`, `runtime`,
+and `trace`, low-level `backend.provider.blas.openblas`, and an opt-in cpu1 direct prepare route. Backend ownership is
+represented by `Partition`/`PlannedPartition`; executable unit planning is represented by
+`PartitionExecutionPlan` under `planning.partition.execution`, and the compile artifact exposes the combined
+`ExecutablePartitionPlan`. The former standalone intermediate planning/lowering model has been removed from the current worktree; current
+compile accessors, traces, renderers, and backend execution contracts consistently use partition terminology.
 
 The main issues found during this pass were:
 
@@ -36,6 +42,11 @@ The main issues found during this pass were:
 | The docs had no explicit audit artifact explaining source-of-truth ownership. | Fixed by this document. | Large docs need a map so future updates do not turn generated summaries into unverified claims. |
 | ONNX support is expanding quickly and needs exact boundary wording. | Existing docs are good; audit calls out generated coverage and stale-risk areas. | ONNX docs must distinguish import/export support, CPU execution, GPU lowering, and static helper behavior. |
 | Accelerator docs are intentionally capability-scoped and machine-dependent. | Left as explicit `Needs verification` where appropriate. | Metal/CUDA runtime availability cannot be proven from source alone. |
+| Lifecycle and source maps still named removed graph-execution, backend-runtime, backend-memory, and central-dispatch classes. | Fixed across the documentation set. | Runtime now invokes prepared executable contracts and must not select concrete backends. |
+| The dirty worktree adds `CpuExecutionPolicy` and expands cpu1 parity/readiness evidence. | Documented as an opt-in prepare route with explicit fallback policy. | The default remains the established CPU path; docs must not imply that cpu1 is globally enabled. |
+| Planning docs still described the removed standalone intermediate planning/lowering model. | Fixed to distinguish ownership `Partition`/`PlannedPartition`, combined `ExecutablePartitionPlan`, and its `PartitionExecutionPlan`. | Source paths and ownership terminology must match the current dirty worktree, not the pre-migration model. |
+| OpenCL prepare was described as metadata-only. | Fixed: prepare attaches `OpenClDirectPreparedExecutable`; the current registry contains only `NOOP` and unsupported operations fail during prepare. | The executable contract and the narrow capability boundary are both observable behavior. |
+| Shared accelerator buffer contracts were assigned to a nonexistent backend package. | Fixed to `runtime.device.buffer`; Metal/CUDA bind those neutral decisions to backend-owned handles. | Buffer policy and run-state ownership belongs to runtime, while concrete handles stay backend-owned. |
 
 ## Terminology Baseline
 
@@ -51,7 +62,7 @@ Future documentation should use these terms consistently.
 | Prepare | Resolve runtime/backend policy into executable steps and backend metadata. | `compiled.prepare(RuntimeConfig.inferenceDefaults())` |
 | Execute | Run prepared steps and publish selected outputs/gradients. | `prepared.execute(ExecutionMode.FORWARD)` |
 | Graph optimization | Backend-neutral graph rewrite/simplification/lowering. | `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
-| Backend planning | Compile-time ownership planning for CPU or accelerator regions. | `BackendPlanningConfig.autoAccelerator()` |
+| Backend planning | Compile-time ownership planning for CPU or accelerator partitions. | `BackendPlanningConfig.autoAccelerator()` |
 | Runtime policy | Hardware-facing execution policy. | CPU thresholds, BLAS, fused backend, accelerator availability |
 | Publication | Copying run-scoped values back to public `Tensor` objects after execution. | `PublicationPolicy.OUTPUT_ONLY` |
 | Calibration | Measuring platform/runtime defaults. | vector threshold, BLAS threshold |
@@ -79,7 +90,7 @@ Current top-level guides under `docs/`:
 | [framework-concepts.md](framework-concepts.md) | First-principles conceptual model. | Updated to avoid overclaiming full-framework identity. |
 | [compute-flow.md](compute-flow.md) | Deep lifecycle guide from `Tensor.compute(...)` through traces and backend behavior. | Strong; high value, high stale risk because it is detailed. |
 | [graph-optimizer.md](graph-optimizer.md) | Graph optimization stages, simplification fixpoint, lowering, diagnostics. | Strong; must stay separate from backend planning docs. |
-| [backend-planning-and-regions.md](backend-planning-and-regions.md) | Backend ownership, regions, memory planning, publication, benchmark semantics. | Strong; central architecture doc. |
+| [backend-planning-and-partitions.md](backend-planning-and-partitions.md) | Backend ownership, partitions, memory planning, publication, benchmark semantics. | Strong; central architecture doc. |
 | [configuration.md](configuration.md) | Build, runtime, profile, CLI, native lookup, tuning persistence. | Strong; update whenever config records move. |
 | [public-api.md](public-api.md) | Public and probably-internal Java API surfaces. | Updated in this pass. |
 | [tensor-api.md](tensor-api.md) | Detailed operation-level Tensor API. | Strong; large and high stale risk. |
@@ -93,7 +104,7 @@ Current top-level guides under `docs/`:
 | [cuda-backend.md](cuda-backend.md) | CUDA backend state and boundaries. | Useful; likely lower maturity than Metal docs. |
 | [gpu-lowering-coverage.md](gpu-lowering-coverage.md) | GPU lowering coverage details. | Should be kept in sync with coverage matrix code. |
 | [gpu-coverage-triage.md](gpu-coverage-triage.md) | GPU support triage and prioritization. | Useful as planning/triage evidence. |
-| [gpu-lowered-region-manifest.md](gpu-lowered-region-manifest.md) | Manifest-style lowered-region evidence. | Verify after major accelerator lowering changes. |
+| [gpu-lowered-partition-manifest.md](gpu-lowered-partition-manifest.md) | Manifest-style lowered-partition evidence. | Verify after major accelerator lowering changes. |
 | [metal-operation-parity.md](metal-operation-parity.md) | Metal operation parity matrix. | Generated/derived style; high stale risk. |
 | [native-bridges-and-blas.md](native-bridges-and-blas.md) | BLAS/GEMM/FFM bridge explanation and native lookup. | Strong; detailed educational doc. |
 | [calibration-autotune.md](calibration-autotune.md) | Full calibration/autotune architecture and API guide. | Very strong; very large. Update carefully. |
@@ -113,7 +124,7 @@ Package-local source docs:
 | Operation descriptors | `src/main/java/operations/README.md` | Primitive descriptor contract and operation taxonomy. |
 | Graph compile | `src/main/java/graph/README.md` | Graph package lifecycle and compile objects. |
 | Optimizer | `src/main/java/graph/optimizer/README.md`, `AR.md`, `CSE.md`, `FUSE.md`, `MEM.md` | Detailed optimizer implementation notes. |
-| Backend | `src/main/java/backend/README.md`, `backend/cpu/README.md`, `backend/prepare/README.md`, `backend/lowering/README.md`, `backend/partition/README.md` | Backend execution, lowering, partition, and prepare implementation docs. |
+| Backend | `src/main/java/backend/README.md`, `backend/cpu/README.md`, `prepare/README.md`, `backend/lowering/README.md`, `backend/partition/README.md` | Backend execution, lowering, partition, and prepare implementation docs. |
 | Tuning | `src/main/java/tuning/README.md`, `ARCHITECTURE.md`, `KNOBS.md`, `PERSISTENCE.md`, `REPORTING.md`, `SEARCH.md`, `WORKLOADS.md`, `LEGACY-BENCHMARK-REVIEW.md` | Measurement and persistence internals. |
 | Numerics | `src/main/java/numerics/README.md` | Numerical drift harness. |
 
@@ -129,13 +140,13 @@ Use this table when updating docs.
 | Compile config presets | `src/main/java/config/compile/CompileConfig.java` and sibling records |
 | Runtime config presets | `src/main/java/config/runtime/RuntimeConfig.java` and sibling records |
 | Execution profiles | `src/main/java/config/profile/ExecutionProfile.java`, profile IO classes |
-| Publication behavior | `src/main/java/graph/execution/PublicationPolicy.java`, `PreparedExecution.java`, `PublicationPolicyTest.java` |
+| Publication behavior | `src/main/java/runtime/execution/PublicationPolicy.java`, `PreparedExecution.java`, `PublicationPolicyTest.java` |
 | Compile lifecycle | `CompiledGraph.java`, `GraphCompiler.java`, `CompileArtifacts.java` |
-| Prepare lifecycle | `backend/prepare/**`, `PreparedExecutionBuilder.java` |
-| Execution lifecycle | `PreparedExecution.java`, `ExecutionState.java`, `ComputeEngine.java` |
+| Prepare lifecycle | `prepare/**`, `PreparedExecutionBuilder.java` |
+| Execution lifecycle | `PreparedExecution.java`, `ExecutionState.java`, `PreparedExecutionRunner.java` |
 | Graph optimizer stages | `GraphOptimizationConfig.java`, `OptimizerFactory.java`, `graph/optimizer/**` |
-| Backend planning | `BackendPlanningConfig.java`, `graph/compile/planning/partition/**`, `graph/compile/planning/region/**` |
-| Memory planning | `MemoryPlanningConfig.java`, `graph/compile/planning/memory/**` |
+| Backend planning | `BackendPlanningConfig.java`, `planning/partition/**`, including `planning/partition/execution/**` and `planning/partition/specialization/**` |
+| Memory planning | `MemoryPlanningConfig.java`, `planning/memory/**` |
 | ONNX public API | `src/main/java/onnx/Onnx.java`, `OnnxModel.java`, `ImportedOnnxModel.java` |
 | ONNX supported ops | `OnnxGraphImporter.java`, `OnnxGraphExporter.java`, `OnnxCoverageMatrix.java`, ONNX tests |
 | GPU lowering coverage | `GpuLoweringCoverageMatrix.java`, backend-specific lowering/semantics classes |
@@ -201,7 +212,7 @@ CompileConfig
   -> SemanticCanonicalizationConfig
   -> GraphOptimizationConfig
   -> BackendPlanningConfig
-  -> RegionOptimizationConfig
+  -> PartitionExecutionConfig
   -> MemoryPlanningConfig
 
 RuntimeConfig
@@ -234,7 +245,7 @@ Definitions:
 - `DCE`: dead-code elimination.
 - `LOWER`: optional backend-neutral lowering.
 
-Docs should not describe partitioning as an optimizer stage in the target architecture. Partitioning/backend ownership belongs to backend planning and region planning.
+Docs should not describe partitioning as an optimizer stage in the target architecture. Partitioning/backend ownership belongs to backend planning and partition planning.
 
 ### Autodiff And Gradient Primitives
 
@@ -398,7 +409,7 @@ For docs that touch Tensor API operation semantics:
 For docs that touch backend planning or accelerator behavior:
 
 ```bash
-./gradlew test --tests 'graph.compile.planning.partition.*'
+./gradlew test --tests 'planning.partition.*'
 ./gradlew metalTest
 ```
 

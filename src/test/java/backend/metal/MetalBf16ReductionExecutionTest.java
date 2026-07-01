@@ -4,7 +4,7 @@ import runtime.contract.ExecutionMode;
 import config.compile.BackendPlanningConfig;
 import config.compile.CompileConfig;
 import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.RuntimeConfig;
@@ -44,7 +44,7 @@ class MetalBf16ReductionExecutionTest {
                 .prepare(profile.runtime())
                 .executeTraced(profile.mode(), PublicationPolicy.NONE);
 
-        assertEquals(1, trace.steps().size(), () -> "Expected one fused Metal reduction region, got:\n" + describe(trace.steps()));
+        assertEquals(1, trace.steps().size(), () -> "Expected one fused Metal reduction partition, got:\n" + describe(trace.steps()));
         assertEquals(0, trace.cpuMaterializations().size(), () -> "Unexpected CPU materialization: " + trace.cpuMaterializations());
 
         ExecutionStepTrace step = trace.steps().getFirst();
@@ -57,8 +57,8 @@ class MetalBf16ReductionExecutionTest {
     private static CompileConfig compileConfig() {
         CompileConfig base = CompileConfig.inference();
         return base
-                .withBackendPlanning(BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                .withRegionOptimization(base.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()));
+                .withBackendPlanning(BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                .withPartitionExecution(base.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()));
     }
 
     private static String describe(java.util.List<ExecutionStepTrace> steps) {

@@ -289,14 +289,14 @@ If a conv/pool path unexpectedly falls back, check all of these before treating 
 Native buffer ABI boundary: a current shim should also export `synaptik_apple_mps_create_buffer`,
 `synaptik_apple_mps_read_buffer`, `synaptik_apple_mps_destroy_buffer`, and
 `synaptik_apple_mps_execute_partition_f32_buffers`. When those symbols are present,
-`MetalMpsFfmBridge.supportsBufferBindings()` can return `true` and run Metal regions through
+`MetalMpsFfmBridge.supportsBufferBindings()` can return `true` and run Metal partitions through
 `BUFFER_BINDING`. If traces still show `TENSOR_ARRAY_COPY`, check `metalBufferBindingDecision`: it should explain
 whether the bridge lacked symbols, input allocation failed, dtype/layout was unsupported, or native buffer execution
 failed and fell back.
 
 For successful buffer execution, outputs are marked `DEVICE_OWNED` until root/gradient publication reads the Metal
 buffer back through the registered materializer. Seeing `metalNativeToJavaCopyNs=0` with a later
-`CpuMaterializationTrace` is expected: there was no Java array round-trip between Metal regions, but public tensors
+`CpuMaterializationTrace` is expected: there was no Java array round-trip between Metal partitions, but public tensors
 still become CPU-readable before `compute()` returns. The full call path is described in
 [Metal Backend: Native Buffer ABI](metal-backend.md#native-buffer-abi) and
 [Metal Backend: Trace Reading](metal-backend.md#trace-reading).
@@ -315,7 +315,7 @@ backendSelectionCost is missing from benchmark reports
 Fix path:
 
 1. If `acceleratorBufferReasonCode` is missing, confirm the step came from a prepared accelerator executable. CPU-only steps do not emit accelerator buffer attributes. For Metal, inspect `metalExecutionPath`, `metalBufferBindingDecision`, and `acceleratorBufferExecutionPath`.
-2. If `cpuMaterializationCount` is unexpected, inspect each `CpuMaterializationTrace` reason. Training reports split this into `gradientPublicationMaterializationCount` and `internalCpuMaterializationCount`: `GRADIENT_PUBLICATION` is a public `.grad()` boundary, while `CPU_CONSUMER`, `CPU_FALLBACK`, `PUBLIC_DATA_ACCESS`, and prepared-input reads indicate internal CPU exits that should not appear inside supported Metal regions.
+2. If `cpuMaterializationCount` is unexpected, inspect each `CpuMaterializationTrace` reason. Training reports split this into `gradientPublicationMaterializationCount` and `internalCpuMaterializationCount`: `GRADIENT_PUBLICATION` is a public `.grad()` boundary, while `CPU_CONSUMER`, `CPU_FALLBACK`, `PUBLIC_DATA_ACCESS`, and prepared-input reads indicate internal CPU exits that should not appear inside supported Metal partitions.
 3. If `nativeToJavaCopyNs` is nonzero, the run likely used the tensor-array copy path rather than buffer binding. Check `acceleratorBufferReasonCode`, `metalSupportsBufferBindings`, unsupported dtype/layout reasons, and whether the native shim exports the buffer ABI symbols.
 4. If `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY` or `metalOutputBufferWriteStatus=COPY_REQUIRED`, do not treat the run as proven zero-copy output-buffer writing. It means the native shim kept the conservative MPSGraph-result-copy path visible. `metalOutputBufferWriteProbeSupported=true` only means the internal no-copy proof seam is available; `metalOutputBufferWriteProven=true` and `metalOutputBufferWriteStatus=PROVEN_TRUE_WRITE` are reserved for routes with an accepted direct-write proof such as the scoped custom RELU kernel.
 5. If a benchmark report is missing `backendSelectionCost`, confirm the candidate prepared with a backend selection trace that includes a selected cost summary. Reports can only print selected accelerator candidate and `rejectedFinalists` data when `PrepareTrace.backendSelection()` carries it.
@@ -421,9 +421,9 @@ Fix path:
 
 If the shape is valid before compile but wrong after execution, inspect:
 
-- `src/main/java/backend/cpu/kernels/layout/plan/ResolvedBroadcastPlan.java`
-- `src/main/java/backend/cpu/kernels/layout/plan/ResolvedWhereBroadcastPlan.java`
-- `src/main/java/backend/cpu/kernels/layout/BroadcastPlanResolver.java`
+- `src/main/java/backend/cpu/plan/layout/ResolvedBroadcastPlan.java`
+- `src/main/java/backend/cpu/plan/layout/ResolvedWhereBroadcastPlan.java`
+- `src/main/java/backend/cpu/prepare/layout/BroadcastPlanResolver.java`
 - `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`
 
 ## Optimizer Rewrite Bugs
@@ -433,7 +433,7 @@ Symptoms:
 ```text
 optimized result differs from noGraphOptimizationBaseline
 missing node after compile
-backend region is missing
+backend partition is missing
 ```
 
 Graph optimization mapping is in `src/main/java/graph/optimizer/OptimizerFactory.java`:
@@ -447,7 +447,7 @@ DCE   -> graph.optimizer.simplify.DeadCodeEliminationRule
 LOWER -> graph.optimizer.rewrite.lowering.*Rule
 ```
 
-Backend planning, region optimization, and memory planning are separate compile phases. If the bug is about CPU natural regions, Metal/CUDA ownership, fused execution units, or memory handoff, start with [Backend Planning And Regions](backend-planning-and-regions.md#diagnostics-checklist) rather than graph optimizer stage order.
+Backend planning, partition optimization, and memory planning are separate compile phases. If the bug is about CPU natural partitions, Metal/CUDA ownership, fused execution units, or memory handoff, start with [Backend Planning And Partitions](backend-planning-and-partitions.md#diagnostics-checklist) rather than graph optimizer stage order.
 
 `CompileConfig.noGraphOptimizationBaseline()` is the baseline compile preset for graph-optimizer comparisons. It does not mean runtime vectorization, BLAS, backend planning, or publication are automatically disabled; use `RuntimeConfig.noOptNoVecNoPar()` and explicit `PublicationPolicy` when the benchmark question requires those controls.
 
@@ -458,7 +458,7 @@ Fix path:
 ./gradlew test --no-daemon --tests AlgebraicRewritingSigmoidTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests planning.region.DefaultRegionPlannerServiceTest
+./gradlew test --no-daemon --tests planning.partition.execution.PartitionExecutionPlannerServiceTest
 ```
 
 If a new operation has parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise CSE may treat parameterized nodes incorrectly.
@@ -466,7 +466,7 @@ If a new operation has parameters, update `CommonSubexpressionEliminationRule.pa
 For memory-related compile failures, isolate memory planning by running the focused memory tests. Memory planning is controlled through `CompileConfig.memoryPlanning()` and `MemoryPlanningConfig`; it is not toggled by a JVM system property.
 
 ```bash
-./gradlew test --no-daemon --tests MemoryPlannerSummaryTest --tests planning.memory.MemoryPlannerRegionViewTest
+./gradlew test --no-daemon --tests MemoryPlannerSummaryTest --tests planning.memory.MemoryPlannerPartitionViewTest
 ```
 
 ## Gradients Missing Or Wrong
@@ -654,7 +654,7 @@ Fix by moving code to the owner package:
 | Generic lowering contracts | `src/main/java/backend/lowering` |
 | Generic prepare orchestration | `src/main/java/prepare/orchestration` |
 | Optimizer rewrite | `src/main/java/graph/optimizer/rewrite` |
-| Optimizer region policy | `src/main/java/planning/region` plus CPU-specific policy under `backend.cpu.fused` |
+| Partition execution policy | `src/main/java/planning/partition/execution` plus CPU-specific policy under `backend.cpu.fused` |
 | Graph autotune policy candidates | `src/main/java/tuning/candidate/graph` without runtime/backend imports |
 
 Run:

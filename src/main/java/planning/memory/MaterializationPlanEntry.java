@@ -1,12 +1,12 @@
 package planning.memory;
 
-import planning.region.MaterializationDecision;
+import planning.partition.execution.MaterializationDecision;
 import planning.value.GraphValueRef;
 
 import java.util.Objects;
 
 /**
- * Materialization decision for one planned region value.
+ * Materialization decision for one planned partition value.
  *
  * @param valueRef graph value reference
  * @param decision planner decision for storage materialization

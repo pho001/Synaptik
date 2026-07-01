@@ -39,7 +39,7 @@ import java.util.Objects;
  *                      {@code profileName}
  * @param dataType tensor dtype this profile is intended to execute
  * @param mode execution mode, usually forward-only inference or forward/backward training
- * @param compile compile-time semantic, graph, backend, region, and memory planning policy
+ * @param compile compile-time semantic, graph, backend, partition, and memory planning policy
  * @param runtime backend/runtime policy
  * @param workload optional workload descriptor used by specialized tuning decisions; {@code null}
  *                 becomes {@link WorkloadProfile#none()}

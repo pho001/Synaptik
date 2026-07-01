@@ -51,8 +51,8 @@ class MetalBufferTraceSmokeTest {
         assertEquals("BUFFER_BINDING", attrs.get("acceleratorBufferExecutionPath"));
         assertEquals("BUFFER_BINDING_AVAILABLE", attrs.get("acceleratorBufferReasonCode"));
         assertTrue(attrs.containsKey("acceleratorBufferPreparedInputUsed"));
-        assertEquals("BUFFER_BINDING", attrs.get("metalExecutionPath"));
-        assertEquals("MPS_GRAPH", attrs.get("metalExecutionRoute"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionPath"));
+        assertEquals("CUSTOM_KERNEL", attrs.get("metalExecutionRoute"));
         if ("TRUE_OUTPUT_BUFFER_WRITE".equals(attrs.get("metalNativeCopyStrategy"))) {
             assertEquals("TRUE_OUTPUT_BUFFER_WRITE", attrs.get("metalNativeCopyStrategy"));
             assertEquals(true, attrs.get("metalOutputBufferWriteProven"));
@@ -82,8 +82,12 @@ class MetalBufferTraceSmokeTest {
 
     @Test
     void layoutAwareTraceReportsBufferPathAndLogicalMaterialization() {
-        Tensor out = layoutAwareLinearReshapePermute("metal");
-        PreparedExecution execution = CompiledGraph.compile(out, CompileConfig.inference())
+        LayoutAwareFixture fixture = layoutAwareLinearReshapePermute("metal");
+        PreparedExecution execution = CompiledGraph.compile(
+                        fixture.output(),
+                        CompileConfig.inference(),
+                        fixture.backendIntentPlan()
+                )
                 .prepare(RuntimeConfig.inferenceDefaults());
         assumeNativeBufferBridge(execution);
 
@@ -172,7 +176,7 @@ class MetalBufferTraceSmokeTest {
                 || reason.contains("layoutClass=UNSUPPORTED"));
     }
 
-    private static Tensor layoutAwareLinearReshapePermute(String labelPrefix) {
+    private static LayoutAwareFixture layoutAwareLinearReshapePermute(String labelPrefix) {
         Tensor input = new Tensor(new float[]{
                 0.1f, 0.2f, 0.3f,
                 0.4f, 0.5f, 0.6f
@@ -186,13 +190,14 @@ class MetalBufferTraceSmokeTest {
         Tensor reshape = linear.reshape(2, 2);
         Tensor permute = reshape.permute(1, 0);
 
-        if ("metal".equals(labelPrefix)) {
-            BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
-            backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_METAL);
-            backendIntentPlan = backendIntentPlan.withBackend(reshape, ComputeBackend.GPU_METAL);
-            backendIntentPlan = backendIntentPlan.withBackend(permute, ComputeBackend.GPU_METAL);
-        }
-        return permute;
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
+        backendIntentPlan = backendIntentPlan.withBackend(linear, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(reshape, ComputeBackend.GPU_METAL);
+        backendIntentPlan = backendIntentPlan.withBackend(permute, ComputeBackend.GPU_METAL);
+        return new LayoutAwareFixture(permute, backendIntentPlan);
+    }
+
+    private record LayoutAwareFixture(Tensor output, BackendIntentPlan backendIntentPlan) {
     }
 
     private static void assumeNativeBufferBridge(PreparedExecution execution) {

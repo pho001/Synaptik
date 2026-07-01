@@ -1,11 +1,11 @@
 import backend.contract.ComputeBackend;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
-import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.accelerator.lowering.GpuLoweredRegionOriginalOp;
-import backend.accelerator.lowering.GpuLoweredRegionRejection;
-import backend.accelerator.lowering.GpuLoweredRegionValueAssumption;
+import backend.accelerator.lowering.GpuLoweredPartitionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
+import backend.accelerator.lowering.GpuLoweredPartitionOriginalOp;
+import backend.accelerator.lowering.GpuLoweredPartitionRejection;
+import backend.accelerator.lowering.GpuLoweredPartitionValueAssumption;
 import backend.accelerator.lowering.GpuLoweringUnsupportedReason;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
@@ -108,7 +108,7 @@ public class BenchmarkSessionTest {
                 direct.runtime().accelerator().metal().buffer().bindingMode()
         );
         assertEquals(
-                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION,
+                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION,
                 direct.compile().backendPlanning().failurePolicy()
         );
     }
@@ -1013,9 +1013,9 @@ public class BenchmarkSessionTest {
                         null
                 )
         );
-        var promotedRegionStep = new trace.execution.ExecutionStepTrace(
+        var promotedPartitionStep = new trace.execution.ExecutionStepTrace(
                 2,
-                "bf16_native_region",
+                "bf16_native_partition",
                 "MATMUL",
                 List.of(32, 32),
                 DataType.BFLOAT16.name(),
@@ -1025,12 +1025,12 @@ public class BenchmarkSessionTest {
                 new trace.execution.StepExecutionMetadata(
                         "node",
                         Map.of(
-                                "nativeCpuRegionDecision", "SELECTED",
-                                "nativeCpuRegionRoute", "NATIVE",
-                                "nativeCpuRegionBf16PromotedNodes", List.of(22, 23),
-                                "nativeCpuRegionBf16PromotedSegmentScalarNodes", List.of(22, 23),
-                                "nativeCpuRegionBf16StoragePrecision", "BF16",
-                                "nativeCpuRegionBf16ComputePrecision", "F32_PROMOTED"
+                                "nativeCpuPartitionDecision", "SELECTED",
+                                "nativeCpuPartitionRoute", "NATIVE",
+                                "nativeCpuPartitionBf16PromotedNodes", List.of(22, 23),
+                                "nativeCpuPartitionBf16PromotedSegmentScalarNodes", List.of(22, 23),
+                                "nativeCpuPartitionBf16StoragePrecision", "BF16",
+                                "nativeCpuPartitionBf16ComputePrecision", "F32_PROMOTED"
                         ),
                         null,
                         null,
@@ -1055,7 +1055,7 @@ public class BenchmarkSessionTest {
                                         new trace.execution.RunTrace(
                                                 ExecutionMode.FORWARD,
                                                 100L,
-                                                List.of(step, promotedNonBlasStep, promotedRegionStep),
+                                                List.of(step, promotedNonBlasStep, promotedPartitionStep),
                                                 List.of(),
                                                 List.of(),
                                                 trace.execution.NativeCpuMemoryTrace.empty(),
@@ -1113,7 +1113,7 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("sbgemmContinuationCount=1"));
         assertTrue(text.contains("promotedF32Count=1"));
         assertTrue(text.contains("promotedNonBlasStepCount=1"));
-        assertTrue(text.contains("promotedNonBlasRegionNodeCount=2"));
+        assertTrue(text.contains("promotedNonBlasPartitionNodeCount=2"));
         assertTrue(text.contains("promotedNonBlasSegmentScalarCount=2"));
         assertTrue(text.contains("promotedNonBlasArrayFallbackCount=0"));
         assertTrue(text.contains("optimizerArrayFallbackCount=2"));
@@ -1140,7 +1140,7 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"sbgemmContinuationCount\": 1"));
         assertTrue(json.contains("\"promotedF32Count\": 1"));
         assertTrue(json.contains("\"promotedNonBlasStepCount\": 1"));
-        assertTrue(json.contains("\"promotedNonBlasRegionNodeCount\": 2"));
+        assertTrue(json.contains("\"promotedNonBlasPartitionNodeCount\": 2"));
         assertTrue(json.contains("\"promotedNonBlasSegmentScalarCount\": 2"));
         assertTrue(json.contains("\"promotedNonBlasArrayFallbackCount\": 0"));
         assertTrue(json.contains("\"optimizerArrayFallbackCount\": 2"));
@@ -1422,10 +1422,10 @@ public class BenchmarkSessionTest {
     }
 
     @Test
-    void renderersAggregateNativeCpuRegionEvidenceFromStepAttributes() {
+    void renderersAggregateNativeCpuPartitionEvidenceFromStepAttributes() {
         var profile = new ExecutionProfile(
-                "native-cpu-region-profile",
-                "native-cpu-region",
+                "native-cpu-partition-profile",
+                "native-cpu-partition",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
                 config.compile.CompileConfig.noGraphOptimizationBaseline(),
@@ -1433,140 +1433,140 @@ public class BenchmarkSessionTest {
                 WorkloadProfile.none()
         );
         var selectedAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                Map.entry("nativeCpuRegionReason", "selected"),
-                Map.entry("nativeCpuRegionFallbackReason", ""),
-                Map.entry("nativeCpuRegionProviderNodes", List.of(2)),
-                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(3)),
-                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(3)),
-                Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR")),
-                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
+                Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                Map.entry("nativeCpuPartitionReason", "selected"),
+                Map.entry("nativeCpuPartitionFallbackReason", ""),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of(2)),
+                Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(3)),
+                Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(3)),
+                Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT", "SEGMENT_SCALAR")),
+                Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER", "SEGMENT_DENSE_SCALAR")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 2)),
-                Map.entry("nativeCpuRegionResultResidencies", List.of(
+                Map.entry("nativeCpuPartitionResultResidencies", List.of(
                         List.of("CPU_NATIVE"),
                         List.of("CPU_NATIVE")
                 )),
-                Map.entry("nativeCpuRegionAutoEligible", List.of(true, false)),
-                Map.entry("nativeCpuRegionMeasuredWin", true),
-                Map.entry("nativeCpuRegionNativeMedianMs", 0.90d),
-                Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
-                Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d),
+                Map.entry("nativeCpuPartitionAutoEligible", List.of(true, false)),
+                Map.entry("nativeCpuPartitionMeasuredWin", true),
+                Map.entry("nativeCpuPartitionNativeMedianMs", 0.90d),
+                Map.entry("nativeCpuPartitionArrayMedianMs", 1.00d),
+                Map.entry("nativeCpuPartitionMeasuredWinThreshold", 0.95d),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(3))
+                Map.entry("nativeCpuPartitionOutputs", List.of(3))
         );
         var providerOnlyAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                Map.entry("nativeCpuRegionReason", "selected"),
-                Map.entry("nativeCpuRegionFallbackReason", ""),
-                Map.entry("nativeCpuRegionProviderNodes", List.of(5)),
-                Map.entry("nativeCpuRegionLocalKernelNodes", List.of()),
-                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
-                Map.entry("nativeCpuRegionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT")),
-                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("PROVIDER")),
+                Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                Map.entry("nativeCpuPartitionReason", "selected"),
+                Map.entry("nativeCpuPartitionFallbackReason", ""),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of(5)),
+                Map.entry("nativeCpuPartitionLocalKernelNodes", List.of()),
+                Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuPartitionPhysicalKernels", List.of("OPENBLAS_NATIVE_SEGMENT")),
+                Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("PROVIDER")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
+                Map.entry("nativeCpuPartitionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(5))
+                Map.entry("nativeCpuPartitionOutputs", List.of(5))
         );
         var scalarAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                Map.entry("nativeCpuRegionReason", "selected"),
-                Map.entry("nativeCpuRegionFallbackReason", ""),
-                Map.entry("nativeCpuRegionProviderNodes", List.of()),
-                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(6)),
-                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of(6)),
-                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_SCALAR")),
-                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
+                Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                Map.entry("nativeCpuPartitionReason", "selected"),
+                Map.entry("nativeCpuPartitionFallbackReason", ""),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of()),
+                Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(6)),
+                Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of(6)),
+                Map.entry("nativeCpuPartitionPhysicalKernels", List.of("SEGMENT_SCALAR")),
+                Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("SEGMENT_STRIDED_SCALAR")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("STRIDED_VIEW", 1)),
-                Map.entry("nativeCpuRegionAutoEligible", List.of(false)),
+                Map.entry("nativeCpuPartitionAutoEligible", List.of(false)),
                 Map.entry("nativeCpuStridedNodeCount", 1),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(6))
+                Map.entry("nativeCpuPartitionOutputs", List.of(6))
         );
         var parallelAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                Map.entry("nativeCpuRegionReason", "selected"),
-                Map.entry("nativeCpuRegionFallbackReason", ""),
-                Map.entry("nativeCpuRegionProviderNodes", List.of()),
-                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(7)),
-                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
-                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_PARALLEL")),
-                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_PARALLEL")),
+                Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                Map.entry("nativeCpuPartitionReason", "selected"),
+                Map.entry("nativeCpuPartitionFallbackReason", ""),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of()),
+                Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(7)),
+                Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuPartitionPhysicalKernels", List.of("SEGMENT_PARALLEL")),
+                Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("SEGMENT_PARALLEL")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
+                Map.entry("nativeCpuPartitionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(7))
+                Map.entry("nativeCpuPartitionOutputs", List.of(7))
         );
         var fusedAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "SELECTED"),
-                Map.entry("nativeCpuRegionRoute", "NATIVE"),
-                Map.entry("nativeCpuRegionReason", "selected"),
-                Map.entry("nativeCpuRegionFallbackReason", ""),
-                Map.entry("nativeCpuRegionProviderNodes", List.of()),
-                Map.entry("nativeCpuRegionLocalKernelNodes", List.of(8)),
-                Map.entry("nativeCpuRegionSegmentScalarNodes", List.of()),
-                Map.entry("nativeCpuRegionPhysicalKernels", List.of("SEGMENT_FUSED")),
-                Map.entry("nativeCpuRegionSegmentKernelFamilies", List.of("SEGMENT_FUSED")),
+                Map.entry("nativeCpuPartitionDecision", "SELECTED"),
+                Map.entry("nativeCpuPartitionRoute", "NATIVE"),
+                Map.entry("nativeCpuPartitionReason", "selected"),
+                Map.entry("nativeCpuPartitionFallbackReason", ""),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of()),
+                Map.entry("nativeCpuPartitionLocalKernelNodes", List.of(8)),
+                Map.entry("nativeCpuPartitionSegmentScalarNodes", List.of()),
+                Map.entry("nativeCpuPartitionPhysicalKernels", List.of("SEGMENT_FUSED")),
+                Map.entry("nativeCpuPartitionSegmentKernelFamilies", List.of("SEGMENT_FUSED")),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuRegionAutoEligible", List.of(true)),
+                Map.entry("nativeCpuPartitionAutoEligible", List.of(true)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(8))
+                Map.entry("nativeCpuPartitionOutputs", List.of(8))
         );
         var providerFallbackAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "REJECTED"),
-                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
-                Map.entry("nativeCpuRegionReason", "native-cpu-region-provider-fallback:matmul"),
-                Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-provider-fallback:matmul"),
-                Map.entry("nativeCpuRegionProviderNodes", List.of(9)),
+                Map.entry("nativeCpuPartitionDecision", "REJECTED"),
+                Map.entry("nativeCpuPartitionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuPartitionReason", "native-cpu-partition-provider-fallback:matmul"),
+                Map.entry("nativeCpuPartitionFallbackReason", "native-cpu-partition-provider-fallback:matmul"),
+                Map.entry("nativeCpuPartitionProviderNodes", List.of(9)),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(9))
+                Map.entry("nativeCpuPartitionOutputs", List.of(9))
         );
         var stridedRejectedAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "REJECTED"),
-                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
-                Map.entry("nativeCpuRegionReason", "native-layout-unsupported:negative-stride"),
-                Map.entry("nativeCpuRegionFallbackReason", "native-layout-unsupported:negative-stride"),
+                Map.entry("nativeCpuPartitionDecision", "REJECTED"),
+                Map.entry("nativeCpuPartitionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuPartitionReason", "native-layout-unsupported:negative-stride"),
+                Map.entry("nativeCpuPartitionFallbackReason", "native-layout-unsupported:negative-stride"),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("NEGATIVE_STRIDE", 1)),
                 Map.entry("nativeCpuStridedNodeCount", 1),
                 Map.entry("nativeCpuStridedMaterializationCount", 1),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of("native-layout-unsupported:negative-stride")),
-                Map.entry("nativeCpuRegionOutputs", List.of(10))
+                Map.entry("nativeCpuPartitionOutputs", List.of(10))
         );
         var rejectedAttrs = Map.<String, Object>ofEntries(
-                Map.entry("nativeCpuRegionDecision", "REJECTED"),
-                Map.entry("nativeCpuRegionRoute", "CPU_ARRAY"),
-                Map.entry("nativeCpuRegionReason", "native-cpu-region-provider-unavailable:matmul"),
-                Map.entry("nativeCpuRegionFallbackReason", "native-cpu-region-provider-unavailable:matmul"),
+                Map.entry("nativeCpuPartitionDecision", "REJECTED"),
+                Map.entry("nativeCpuPartitionRoute", "CPU_ARRAY"),
+                Map.entry("nativeCpuPartitionReason", "native-cpu-partition-provider-unavailable:matmul"),
+                Map.entry("nativeCpuPartitionFallbackReason", "native-cpu-partition-provider-unavailable:matmul"),
                 Map.entry("nativeCpuLayoutClassCounts", Map.of("DENSE_CONTIGUOUS", 1)),
-                Map.entry("nativeCpuRegionMeasuredWin", true),
-                Map.entry("nativeCpuRegionNativeMedianMs", 0.99d),
-                Map.entry("nativeCpuRegionArrayMedianMs", 1.00d),
-                Map.entry("nativeCpuRegionMeasuredWinThreshold", 0.95d),
+                Map.entry("nativeCpuPartitionMeasuredWin", true),
+                Map.entry("nativeCpuPartitionNativeMedianMs", 0.99d),
+                Map.entry("nativeCpuPartitionArrayMedianMs", 1.00d),
+                Map.entry("nativeCpuPartitionMeasuredWinThreshold", 0.95d),
                 Map.entry("nativeCpuStridedNodeCount", 0),
                 Map.entry("nativeCpuStridedMaterializationCount", 0),
                 Map.entry("nativeCpuStridedFallbackReasons", List.of()),
-                Map.entry("nativeCpuRegionOutputs", List.of(4))
+                Map.entry("nativeCpuPartitionOutputs", List.of(4))
         );
         BenchmarkReport report = BenchmarkReport.of(
-                "native_cpu_region_report",
+                "native_cpu_partition_report",
                 List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
-                        BenchmarkEntry.candidate("native-cpu-region", profile),
+                        BenchmarkEntry.candidate("native-cpu-partition", profile),
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
@@ -1577,14 +1577,14 @@ public class BenchmarkSessionTest {
                                                 ExecutionMode.FORWARD,
                                                 100L,
                                                 List.of(
-                                                        nativeRegionStep(0, "native_provider_local", "CpuNativeStorageTrace", selectedAttrs),
-                                                        nativeRegionStep(1, "native_provider_only", "CpuNativeStorageTrace", providerOnlyAttrs),
-                                                        nativeRegionStep(2, "native_segment_scalar", "CpuNativeStorageTrace", scalarAttrs),
-                                                        nativeRegionStep(3, "native_segment_parallel", "CpuNativeStorageTrace", parallelAttrs),
-                                                        nativeRegionStep(4, "native_segment_fused", "CpuNativeStorageTrace", fusedAttrs),
-                                                        nativeRegionStep(5, "native_provider_array_fallback", "CpuMatMulKernel", providerFallbackAttrs),
-                                                        nativeRegionStep(6, "array_strided", "CpuStridedKernel", stridedRejectedAttrs),
-                                                        nativeRegionStep(7, "array_dense", "CpuMatMulKernel", rejectedAttrs)
+                                                        nativePartitionStep(0, "native_provider_local", "CpuNativeStorageTrace", selectedAttrs),
+                                                        nativePartitionStep(1, "native_provider_only", "CpuNativeStorageTrace", providerOnlyAttrs),
+                                                        nativePartitionStep(2, "native_segment_scalar", "CpuNativeStorageTrace", scalarAttrs),
+                                                        nativePartitionStep(3, "native_segment_parallel", "CpuNativeStorageTrace", parallelAttrs),
+                                                        nativePartitionStep(4, "native_segment_fused", "CpuNativeStorageTrace", fusedAttrs),
+                                                        nativePartitionStep(5, "native_provider_array_fallback", "CpuMatMulKernel", providerFallbackAttrs),
+                                                        nativePartitionStep(6, "array_strided", "CpuStridedKernel", stridedRejectedAttrs),
+                                                        nativePartitionStep(7, "array_dense", "CpuMatMulKernel", rejectedAttrs)
                                                 )
                                         )
                                 ),
@@ -1594,7 +1594,7 @@ public class BenchmarkSessionTest {
         );
 
         String text = TextBenchmarkReportRenderer.render(report);
-        assertTrue(text.contains("nativeCpuRegionSummary=selectedRegionCount=5 rejectedRegionCount=3 nativeRouteCount=5 fallbackCount=3"));
+        assertTrue(text.contains("nativeCpuPartitionSummary=selectedPartitionCount=5 rejectedPartitionCount=3 nativeRouteCount=5 fallbackCount=3"));
         assertTrue(text.contains("measuredWinClaimCount=2 measuredWinProofCount=1"));
         assertTrue(text.contains("providerNodeCount=3 localKernelNodeCount=4 segmentScalarNodeCount=2 stridedNodeCount=2 stridedMaterializationCount=1"));
         assertTrue(text.contains("benchmarkRowCounts="));
@@ -1611,14 +1611,14 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("STRIDED_VIEW=1"));
         assertTrue(text.contains("NEGATIVE_STRIDE=1"));
         assertTrue(text.contains("boundaryOutputCount=8"));
-        assertTrue(text.contains("regionResultResidencyCounts={CPU_NATIVE=2}"));
-        assertTrue(text.contains("regionAutoEligibleNodeCount=4"));
-        assertTrue(text.contains("fallbackReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
+        assertTrue(text.contains("partitionResultResidencyCounts={CPU_NATIVE=2}"));
+        assertTrue(text.contains("partitionAutoEligibleNodeCount=4"));
+        assertTrue(text.contains("fallbackReasons=[native-cpu-partition-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-partition-provider-unavailable:matmul]"));
         assertTrue(text.contains("stridedFallbackReasons=[native-layout-unsupported:negative-stride]"));
-        assertTrue(text.contains("rejectionReasons=[native-cpu-region-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-region-provider-unavailable:matmul]"));
+        assertTrue(text.contains("rejectionReasons=[native-cpu-partition-provider-fallback:matmul, native-layout-unsupported:negative-stride, native-cpu-partition-provider-unavailable:matmul]"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
-        assertTrue(json.contains("\"nativeCpuRegion\": {\"selectedRegionCount\": 5, \"rejectedRegionCount\": 3, \"nativeRouteCount\": 5, \"fallbackCount\": 3"));
+        assertTrue(json.contains("\"nativeCpuPartition\": {\"selectedPartitionCount\": 5, \"rejectedPartitionCount\": 3, \"nativeRouteCount\": 5, \"fallbackCount\": 3"));
         assertTrue(json.contains("\"measuredWinClaimCount\": 2"));
         assertTrue(json.contains("\"measuredWinProofCount\": 1"));
         assertTrue(json.contains("\"providerNodeCount\": 3"));
@@ -1638,11 +1638,11 @@ public class BenchmarkSessionTest {
         assertTrue(json.contains("\"DENSE_CONTIGUOUS\": 7"));
         assertTrue(json.contains("\"STRIDED_VIEW\": 1"));
         assertTrue(json.contains("\"NEGATIVE_STRIDE\": 1"));
-        assertTrue(json.contains("\"regionResultResidencyCounts\": {\"CPU_NATIVE\": 2}"));
-        assertTrue(json.contains("\"regionAutoEligibleNodeCount\": 4"));
+        assertTrue(json.contains("\"partitionResultResidencyCounts\": {\"CPU_NATIVE\": 2}"));
+        assertTrue(json.contains("\"partitionAutoEligibleNodeCount\": 4"));
         assertTrue(json.contains("\"boundaryOutputCount\": 8"));
         assertTrue(json.contains("\"stridedFallbackReasons\": [\"native-layout-unsupported:negative-stride\"]"));
-        assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-region-provider-fallback:matmul\", \"native-layout-unsupported:negative-stride\", \"native-cpu-region-provider-unavailable:matmul\"]"));
+        assertTrue(json.contains("\"rejectionReasons\": [\"native-cpu-partition-provider-fallback:matmul\", \"native-layout-unsupported:negative-stride\", \"native-cpu-partition-provider-unavailable:matmul\"]"));
     }
 
     @Test
@@ -1831,33 +1831,33 @@ public class BenchmarkSessionTest {
     }
 
     @Test
-    void benchmarkTextReportRendersGpuLoweredRegionManifest() {
-        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+    void benchmarkTextReportRendersGpuLoweredPartitionManifest() {
+        BenchmarkReport report = reportWithGpuLoweredPartitionManifest();
 
         String text = TextBenchmarkReportRenderer.render(report);
 
-        assertTrue(text.contains("GPU Lowered Region"));
+        assertTrue(text.contains("GPU Lowered Partition"));
         assertTrue(text.contains("Original Ops"));
         assertTrue(text.contains("Lowered Primitives"));
         assertTrue(text.contains("Value Assumptions"));
         assertTrue(text.contains("Fused Subpatterns"));
         assertTrue(text.contains("Rejections"));
-        assertTrue(text.contains("regionId: gpu-metal-region-4"));
-        assertTrue(text.contains("selectedRegionLength: 3"));
+        assertTrue(text.contains("partitionId: gpu-metal-partition-4"));
+        assertTrue(text.contains("selectedPartitionLength: 3"));
         assertTrue(text.contains("LOG_SOFTMAX"));
         assertTrue(text.contains("SOFTMAX"));
     }
 
     @Test
-    void benchmarkJsonReportRendersGpuLoweredRegionManifest() {
-        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+    void benchmarkJsonReportRendersGpuLoweredPartitionManifest() {
+        BenchmarkReport report = reportWithGpuLoweredPartitionManifest();
 
         String json = JsonBenchmarkReportRenderer.render(report);
 
-        assertTrue(json.contains("\"gpuLoweredRegionManifest\":"));
-        assertTrue(json.contains("\"regionId\": \"gpu-metal-region-4\""));
+        assertTrue(json.contains("\"gpuLoweredPartitionManifest\":"));
+        assertTrue(json.contains("\"partitionId\": \"gpu-metal-partition-4\""));
         assertTrue(json.contains("\"backend\": \"GPU_METAL\""));
-        assertTrue(json.contains("\"selectedRegionLength\": 3"));
+        assertTrue(json.contains("\"selectedPartitionLength\": 3"));
         assertTrue(json.contains("\"originalOps\":"));
         assertTrue(json.contains("\"loweredPrimitives\":"));
         assertTrue(json.contains("\"valueAssumptions\":"));
@@ -1868,7 +1868,7 @@ public class BenchmarkSessionTest {
 
     @Test
     void benchmarkReportsRenderDTypeResidencyEvidence() {
-        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+        BenchmarkReport report = reportWithGpuLoweredPartitionManifest();
 
         String text = TextBenchmarkReportRenderer.render(report);
         String json = JsonBenchmarkReportRenderer.render(report);
@@ -1893,7 +1893,7 @@ public class BenchmarkSessionTest {
 
     @Test
     void benchmarkReportsRenderPhaseSeventeenNormAndLossEvidence() {
-        BenchmarkReport report = reportWithGpuLoweredRegionManifest();
+        BenchmarkReport report = reportWithGpuLoweredPartitionManifest();
 
         String text = TextBenchmarkReportRenderer.render(report);
         String json = JsonBenchmarkReportRenderer.render(report);
@@ -2374,10 +2374,10 @@ public class BenchmarkSessionTest {
         assertTrue(text.contains("coverage:"));
         assertTrue(text.contains("backend=GPU_METAL"));
         assertTrue(text.contains("gpuCoverageRatio=0.500000"));
-        assertTrue(text.contains("selectedRegionCount=1"));
-        assertTrue(text.contains("multiOpGpuRegionCount="));
-        assertTrue(text.contains("maxSelectedRegionLength=3"));
-        assertTrue(text.contains("averageSelectedRegionLength=3.000000"));
+        assertTrue(text.contains("selectedPartitionCount=1"));
+        assertTrue(text.contains("multiOpGpuPartitionCount="));
+        assertTrue(text.contains("maxSelectedPartitionLength=3"));
+        assertTrue(text.contains("averageSelectedPartitionLength=3.000000"));
         assertTrue(text.contains("loweredPrimitiveCount="));
         assertTrue(text.contains("rejectedCandidateReasonCounts={unsupported-layout=1}"));
         assertTrue(text.contains("nativeBufferStepCount=1"));
@@ -2392,10 +2392,10 @@ public class BenchmarkSessionTest {
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"coverage\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
-        assertTrue(json.contains("\"selectedRegionCount\": 1"));
-        assertTrue(json.contains("\"multiOpGpuRegionCount\""));
-        assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
-        assertTrue(json.contains("\"averageSelectedRegionLength\": 3.000000"));
+        assertTrue(json.contains("\"selectedPartitionCount\": 1"));
+        assertTrue(json.contains("\"multiOpGpuPartitionCount\""));
+        assertTrue(json.contains("\"maxSelectedPartitionLength\": 3"));
+        assertTrue(json.contains("\"averageSelectedPartitionLength\": 3.000000"));
         assertTrue(json.contains("\"loweredPrimitiveCount\""));
         assertTrue(json.contains("\"rejectedCandidateReasonCounts\": {\"unsupported-layout\": 1}"));
         assertTrue(json.contains("\"nativeBufferStepCount\": 1"));
@@ -2410,22 +2410,22 @@ public class BenchmarkSessionTest {
     }
 
     @Test
-    void phaseNineteenBenchmarkReportRendersMultiOpGpuRegionEvidence() {
-        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_multi_op_gpu_region_report");
+    void phaseNineteenBenchmarkReportRendersMultiOpGpuPartitionEvidence() {
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_multi_op_gpu_partition_report");
 
         String text = TextBenchmarkReportRenderer.render(report);
         String json = JsonBenchmarkReportRenderer.render(report);
 
-        assertTrue(text.contains("multiOpGpuRegionCount="));
-        assertTrue(text.contains("maxSelectedRegionLength="));
+        assertTrue(text.contains("multiOpGpuPartitionCount="));
+        assertTrue(text.contains("maxSelectedPartitionLength="));
         assertTrue(text.contains("loweredPrimitiveCount="));
         assertTrue(text.contains("gpuFusedSubpatternCount="));
         assertTrue(text.contains("cpuMaterializationReasonCounts="));
         assertTrue(text.contains("deviceHandoffCount="));
         assertTrue(text.contains("tensorArrayStepCount="));
         assertTrue(text.contains("nativeBufferStepCount="));
-        assertTrue(json.contains("\"multiOpGpuRegionCount\""));
-        assertTrue(json.contains("\"maxSelectedRegionLength\""));
+        assertTrue(json.contains("\"multiOpGpuPartitionCount\""));
+        assertTrue(json.contains("\"maxSelectedPartitionLength\""));
         assertTrue(json.contains("\"loweredPrimitiveCount\""));
         assertTrue(json.contains("\"gpuFusedSubpatternCount\""));
         assertTrue(json.contains("\"cpuMaterializationReasonCounts\""));
@@ -2436,7 +2436,7 @@ public class BenchmarkSessionTest {
 
     @Test
     void phaseNineteenBenchmarkJsonDistinguishesTensorArrayFromNativeBuffer() {
-        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_gpu_region_runtime_path_report");
+        BenchmarkReport report = gpuCoverageBenchmarkReport("phase19_gpu_partition_runtime_path_report");
 
         String json = JsonBenchmarkReportRenderer.render(report);
 
@@ -2493,7 +2493,7 @@ public class BenchmarkSessionTest {
 
         assertEquals("v1.4-pre-closure", comparison.baselineName());
         assertEquals("GPU_METAL", comparison.backend());
-        assertTrue(comparison.currentMaxSelectedRegionLength() >= comparison.baselineMaxSelectedRegionLength());
+        assertTrue(comparison.currentMaxSelectedPartitionLength() >= comparison.baselineMaxSelectedPartitionLength());
         assertTrue(comparison.currentFallbackCount() <= comparison.baselineFallbackCount());
     }
 
@@ -2553,12 +2553,12 @@ public class BenchmarkSessionTest {
         String text = TextBenchmarkReportRenderer.render(report);
         assertTrue(text.contains("backend=GPU_CUDA"));
         assertTrue(text.contains("gpuCoverageRatio=0.500000"));
-        assertTrue(text.contains("selectedRegionCount=1"));
+        assertTrue(text.contains("selectedPartitionCount=1"));
 
         String json = JsonBenchmarkReportRenderer.render(report);
         assertTrue(json.contains("\"GPU_CUDA\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
-        assertTrue(json.contains("\"selectedRegionCount\": 1"));
+        assertTrue(json.contains("\"selectedPartitionCount\": 1"));
     }
 
     private static BenchmarkReport gpuCoverageBenchmarkReport(String workloadName) {
@@ -2615,10 +2615,10 @@ public class BenchmarkSessionTest {
         assertTrue(failure.getMessage().contains("unexpected CPU materialization"));
     }
 
-    private static BenchmarkReport reportWithGpuLoweredRegionManifest() {
+    private static BenchmarkReport reportWithGpuLoweredPartitionManifest() {
         var profile = new ExecutionProfile(
-                "gpu-lowered-region-profile",
-                "gpu-lowered-region",
+                "gpu-lowered-partition-profile",
+                "gpu-lowered-partition",
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
                 config.compile.CompileConfig.noGraphOptimizationBaseline(),
@@ -2657,9 +2657,9 @@ public class BenchmarkSessionTest {
         );
 
         return BenchmarkReport.of(
-                "gpu_lowered_region_report",
+                "gpu_lowered_partition_report",
                 List.of(tuning.benchmark.report.BenchmarkCandidateReport.success(
-                        BenchmarkEntry.candidate("gpu-lowered-region", profile),
+                        BenchmarkEntry.candidate("gpu-lowered-partition", profile),
                         tuning.validate.ValidationResult.skipped(),
                         new tuning.measure.MeasurementResult(
                                 tuning.measure.MeasurementPolicy.defaults(),
@@ -2693,7 +2693,7 @@ public class BenchmarkSessionTest {
                 ExecutionMode.FORWARD,
                 config.compile.CompileConfig.noGraphOptimizationBaseline()
                         .withSemanticCanonicalization(config.compile.SemanticCanonicalizationConfig.disabled())
-                        .withRegionOptimization(config.compile.RegionOptimizationConfig.disabled()),
+                        .withPartitionExecution(config.compile.PartitionExecutionConfig.disabled()),
                 runtime,
                 WorkloadProfile.none()
         );
@@ -2799,7 +2799,7 @@ public class BenchmarkSessionTest {
                 .orElseThrow();
     }
 
-    private static trace.execution.ExecutionStepTrace nativeRegionStep(
+    private static trace.execution.ExecutionStepTrace nativePartitionStep(
             int index,
             String name,
             String kernel,
@@ -2828,16 +2828,16 @@ public class BenchmarkSessionTest {
         );
     }
 
-    private static GpuLoweredRegionManifest sampleGpuManifest() {
-        return new GpuLoweredRegionManifest(
-                "gpu-metal-region-4",
+    private static GpuLoweredPartitionManifest sampleGpuManifest() {
+        return new GpuLoweredPartitionManifest(
+                "gpu-metal-partition-4",
                 ComputeBackend.GPU_METAL,
                 4,
                 List.of(4, 5, 6),
                 List.of(1, 2),
                 List.of(6),
                 3,
-                List.of(new GpuLoweredRegionOriginalOp(
+                List.of(new GpuLoweredPartitionOriginalOp(
                         4,
                         "LOG_SOFTMAX",
                         List.of(3),
@@ -2867,7 +2867,7 @@ public class BenchmarkSessionTest {
                                 List.of(2, 3),
                                 List.of()
                         )),
-                List.of(new GpuLoweredRegionValueAssumption(
+                List.of(new GpuLoweredPartitionValueAssumption(
                         1,
                         "input",
                         DataType.FLOAT32,
@@ -2878,7 +2878,7 @@ public class BenchmarkSessionTest {
                         false,
                         0L
                 )),
-                List.of(new GpuLoweredRegionValueAssumption(
+                List.of(new GpuLoweredPartitionValueAssumption(
                         6,
                         "output",
                         DataType.FLOAT32,
@@ -2889,7 +2889,7 @@ public class BenchmarkSessionTest {
                         false,
                         0L
                 )),
-                GpuCompoundRegionSummary.supported(
+                GpuCompoundPartitionSummary.supported(
                         ComputeBackend.GPU_METAL,
                         backend.accelerator.lowering.GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                         List.of(4, 5, 6),
@@ -2900,7 +2900,7 @@ public class BenchmarkSessionTest {
                         "benchmark manifest fixture"
                 ),
                 List.of(
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "primitive",
                                 4,
                                 "p0",
@@ -2908,7 +2908,7 @@ public class BenchmarkSessionTest {
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_DTYPE,
                                 "dtypeResidency backend=GPU_CUDA role=compute dtype=INT32 unsupported"
                         ),
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "planner.normalization",
                                 90,
                                 "",
@@ -2916,7 +2916,7 @@ public class BenchmarkSessionTest {
                                 GpuLoweringUnsupportedReason.UNSUPPORTED_LAYOUT,
                                 "UNSUPPORTED_LAYOUT: GPU_METAL normalization inputs require dense layout family=NORMALIZATION target=layer_norm_small"
                         ),
-                        new GpuLoweredRegionRejection(
+                        new GpuLoweredPartitionRejection(
                                 "planner.loss",
                                 91,
                                 "",
@@ -2925,7 +2925,7 @@ public class BenchmarkSessionTest {
                                 "UNSUPPORTED_INDEX_SEMANTICS: GPU_METAL index-target loss target out of range: 17 for classes=16 family=LOSS_ADJACENT target=transformer_block_hot_path"
                         )
                 ),
-                GpuLoweredRegionCandidateSpan.none(List.of(4, 5, 6)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(4, 5, 6)),
                 Map.of(
                         "dagNodeCount", "2",
                         "dtypeResidency.input.1", "backend=GPU_METAL role=externalInput dtype=BOOL residentRepresentable=true",

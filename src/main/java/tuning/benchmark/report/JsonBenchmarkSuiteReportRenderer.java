@@ -72,7 +72,7 @@ public final class JsonBenchmarkSuiteReportRenderer {
             sb.append("    {");
             sb.append("\"backend\": \"").append(escape(entry.getKey())).append("\", ");
             sb.append("\"gpuCoverageRatio\": ").append(format(coverage.gpuCoverageRatio())).append(", ");
-            sb.append("\"maxSelectedRegionLength\": ").append(coverage.maxSelectedRegionLength()).append(", ");
+            sb.append("\"maxSelectedPartitionLength\": ").append(coverage.maxSelectedPartitionLength()).append(", ");
             sb.append("\"loweredPrimitiveCount\": ").append(coverage.loweredPrimitiveCount()).append(", ");
             sb.append("\"nativeBufferStepCount\": ").append(coverage.nativeBufferStepCount()).append(", ");
             sb.append("\"tensorArrayStepCount\": ").append(coverage.tensorArrayStepCount()).append(", ");
@@ -157,8 +157,8 @@ public final class JsonBenchmarkSuiteReportRenderer {
         return "{"
                 + "\"backend\": \"" + escape(policy.backend()) + "\", "
                 + "\"minGpuCoverageRatio\": " + format(policy.minGpuCoverageRatio()) + ", "
-                + "\"minMaxSelectedRegionLength\": " + policy.minMaxSelectedRegionLength() + ", "
-                + "\"minMultiOpGpuRegionCount\": " + policy.minMultiOpGpuRegionCount() + ", "
+                + "\"minMaxSelectedPartitionLength\": " + policy.minMaxSelectedPartitionLength() + ", "
+                + "\"minMultiOpGpuPartitionCount\": " + policy.minMultiOpGpuPartitionCount() + ", "
                 + "\"minLoweredPrimitiveCount\": " + policy.minLoweredPrimitiveCount() + ", "
                 + "\"minGpuFusedSubpatternCount\": " + policy.minGpuFusedSubpatternCount() + ", "
                 + "\"maxCpuMaterializationCount\": " + policy.maxCpuMaterializationCount() + ", "
@@ -178,7 +178,7 @@ public final class JsonBenchmarkSuiteReportRenderer {
         }
         return "{"
                 + "\"gpuCoverageRatio\": " + format(coverage.gpuCoverageRatio()) + ", "
-                + "\"maxSelectedRegionLength\": " + coverage.maxSelectedRegionLength() + ", "
+                + "\"maxSelectedPartitionLength\": " + coverage.maxSelectedPartitionLength() + ", "
                 + "\"loweredPrimitiveCount\": " + coverage.loweredPrimitiveCount() + ", "
                 + "\"nativeBufferStepCount\": " + coverage.nativeBufferStepCount() + ", "
                 + "\"tensorArrayStepCount\": " + coverage.tensorArrayStepCount() + ", "
@@ -219,8 +219,8 @@ public final class JsonBenchmarkSuiteReportRenderer {
                 + "\"baselineName\": \"" + escape(comparison.baselineName()) + "\", "
                 + "\"backend\": \"" + escape(comparison.backend()) + "\", "
                 + "\"passes\": " + comparison.passes() + ", "
-                + "\"baselineMaxSelectedRegionLength\": " + comparison.baselineMaxSelectedRegionLength() + ", "
-                + "\"currentMaxSelectedRegionLength\": " + comparison.currentMaxSelectedRegionLength() + ", "
+                + "\"baselineMaxSelectedPartitionLength\": " + comparison.baselineMaxSelectedPartitionLength() + ", "
+                + "\"currentMaxSelectedPartitionLength\": " + comparison.currentMaxSelectedPartitionLength() + ", "
                 + "\"baselineCpuMaterializationCount\": " + comparison.baselineCpuMaterializationCount() + ", "
                 + "\"currentCpuMaterializationCount\": " + comparison.currentCpuMaterializationCount() + ", "
                 + "\"baselineFallbackCount\": " + comparison.baselineFallbackCount() + ", "

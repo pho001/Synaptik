@@ -1,6 +1,6 @@
 package planning.memory;
 
-import planning.region.MaterializationDecision;
+import planning.partition.execution.MaterializationDecision;
 import planning.value.GraphValueRef;
 
 import java.util.LinkedHashSet;
@@ -8,43 +8,43 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Producer and consumer flow for one region value.
+ * Producer and consumer flow for one partition value.
  *
  * @param valueRef graph value reference
  * @param decision materialization decision
- * @param producerRegionId producing region id
+ * @param producerPartitionId producing partition id
  * @param producerUnitId producing unit id
- * @param consumerRegionIds consuming region ids
+ * @param consumerPartitionIds consuming partition ids
  * @param consumerUnitIds consuming unit ids
  */
 public record StructuralValueFlow(
         GraphValueRef valueRef,
         MaterializationDecision decision,
-        String producerRegionId,
+        String producerPartitionId,
         String producerUnitId,
-        List<String> consumerRegionIds,
+        List<String> consumerPartitionIds,
         List<String> consumerUnitIds
 ) {
     public StructuralValueFlow {
         valueRef = Objects.requireNonNull(valueRef, "valueRef cannot be null");
         decision = Objects.requireNonNull(decision, "decision cannot be null");
-        consumerRegionIds = List.copyOf(consumerRegionIds == null ? List.of() : new LinkedHashSet<>(consumerRegionIds));
+        consumerPartitionIds = List.copyOf(consumerPartitionIds == null ? List.of() : new LinkedHashSet<>(consumerPartitionIds));
         consumerUnitIds = List.copyOf(consumerUnitIds == null ? List.of() : new LinkedHashSet<>(consumerUnitIds));
     }
 
     /**
-     * Returns whether any consumer is in a different region from the producer.
+     * Returns whether any consumer is in a different partition from the producer.
      *
-     * @return {@code true} for cross-region flow
+     * @return {@code true} for cross-partition flow
      */
-    public boolean hasCrossRegionConsumer() {
-        if (producerRegionId == null || producerRegionId.isBlank()) {
+    public boolean hasCrossPartitionConsumer() {
+        if (producerPartitionId == null || producerPartitionId.isBlank()) {
             return false;
         }
-        for (String consumerRegionId : consumerRegionIds) {
-            if (consumerRegionId != null
-                    && !consumerRegionId.isBlank()
-                    && !producerRegionId.equals(consumerRegionId)) {
+        for (String consumerPartitionId : consumerPartitionIds) {
+            if (consumerPartitionId != null
+                    && !consumerPartitionId.isBlank()
+                    && !producerPartitionId.equals(consumerPartitionId)) {
                 return true;
             }
         }

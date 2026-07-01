@@ -10,7 +10,7 @@ package tuning.benchmark.report;
  * @param reason stable reason string
  * @param count raw count contributing to the gap
  * @param severityScore deterministic triage score
- * @param maxSelectedRegionLength maximum selected region length from coverage evidence
+ * @param maxSelectedPartitionLength maximum selected partition length from coverage evidence
  * @param cpuMaterializationCount raw CPU materialization count
  * @param fallbackCount raw fallback count
  * @param deviceHandoffCount raw device handoff count
@@ -24,7 +24,7 @@ public record GpuCoverageGap(
         String reason,
         int count,
         int severityScore,
-        int maxSelectedRegionLength,
+        int maxSelectedPartitionLength,
         int cpuMaterializationCount,
         int fallbackCount,
         int deviceHandoffCount,
@@ -38,7 +38,7 @@ public record GpuCoverageGap(
         reason = reason == null || reason.isBlank() ? "unspecified" : reason;
         count = Math.max(0, count);
         severityScore = Math.max(0, severityScore);
-        maxSelectedRegionLength = Math.max(0, maxSelectedRegionLength);
+        maxSelectedPartitionLength = Math.max(0, maxSelectedPartitionLength);
         cpuMaterializationCount = Math.max(0, cpuMaterializationCount);
         fallbackCount = Math.max(0, fallbackCount);
         deviceHandoffCount = Math.max(0, deviceHandoffCount);

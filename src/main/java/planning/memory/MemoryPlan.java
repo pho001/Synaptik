@@ -16,8 +16,8 @@ import java.util.TreeMap;
  * <p>The plan has two layers:
  * <ul>
  *     <li>Tensor-level lifetimes and reusable slots for storage owners in the compiled graph.</li>
- *     <li>Region-level value lifetimes, materialization decisions, slot assignments, and handoff requirements derived
- *     from planned regions.</li>
+ *     <li>Partition-level value lifetimes, materialization decisions, slot assignments, and handoff requirements derived
+ *     from planned partitions.</li>
  * </ul>
  *
  * <p>The plan is read-only. Runtime binding may allocate or reuse buffers according to this metadata, but should not
@@ -25,7 +25,7 @@ import java.util.TreeMap;
  */
 public final class MemoryPlan {
     private final TensorMemoryPlan tensorPlan;
-    private final RegionMemoryPlan regionPlan;
+    private final PartitionMemoryPlan partitionPlan;
     private final RuntimeBindingPlan runtimeBindingPlan;
     private final MemoryPlannerPolicy policy;
     private final MemoryPlanSummary summary;
@@ -34,20 +34,20 @@ public final class MemoryPlan {
      * Creates a memory plan.
      *
      * @param tensor tensor-level memory planning
-     * @param region region-level memory planning
+     * @param partition partition-level memory planning
      * @param runtimeBinding runtime binding policy
      * @param policy policy used to build the plan
      * @param summary summary metrics
      */
     public MemoryPlan(
             TensorMemoryPlan tensor,
-            RegionMemoryPlan region,
+            PartitionMemoryPlan partition,
             RuntimeBindingPlan runtimeBinding,
             MemoryPlannerPolicy policy,
             MemoryPlanSummary summary
     ) {
         this.tensorPlan = tensor == null ? TensorMemoryPlan.empty() : tensor;
-        this.regionPlan = region == null ? RegionMemoryPlan.empty() : region;
+        this.partitionPlan = partition == null ? PartitionMemoryPlan.empty() : partition;
         this.runtimeBindingPlan = runtimeBinding == null ? RuntimeBindingPlan.empty() : runtimeBinding;
         this.policy = Objects.requireNonNull(policy, "policy cannot be null");
         this.summary = Objects.requireNonNull(summary, "summary cannot be null");
@@ -57,8 +57,8 @@ public final class MemoryPlan {
         return tensorPlan;
     }
 
-    public RegionMemoryPlan region() {
-        return regionPlan;
+    public PartitionMemoryPlan partition() {
+        return partitionPlan;
     }
 
     public RuntimeBindingPlan runtimeBinding() {
@@ -158,36 +158,36 @@ public final class MemoryPlan {
     }
 
     /**
-     * Returns structural region memory flow.
+     * Returns structural partition memory flow.
      *
      * @return structural memory view
      */
     public StructuralMemoryView structuralView() {
-        return regionPlan.structuralView();
+        return partitionPlan.structuralView();
     }
 
     /**
-     * Returns lifetime metadata for a region value.
+     * Returns lifetime metadata for a partition value.
      *
      * @param valueRef graph value reference
-     * @return region value lifetime
+     * @return partition value lifetime
      */
-    public RegionValueLifetime regionValueLifetimeOf(GraphValueRef valueRef) {
-        RegionValueLifetime lifetime = regionPlan.valueLifetimes().get(valueRef);
+    public PartitionValueLifetime partitionValueLifetimeOf(GraphValueRef valueRef) {
+        PartitionValueLifetime lifetime = partitionPlan.valueLifetimes().get(valueRef);
         if (lifetime == null) {
-            throw new IllegalArgumentException("Missing region value lifetime for: " + valueRef.valueId());
+            throw new IllegalArgumentException("Missing partition value lifetime for: " + valueRef.valueId());
         }
         return lifetime;
     }
 
     /**
-     * Returns materialization metadata for a region value.
+     * Returns materialization metadata for a partition value.
      *
      * @param valueRef graph value reference
      * @return materialization plan entry
      */
     public MaterializationPlanEntry materializationPlanOf(GraphValueRef valueRef) {
-        MaterializationPlanEntry entry = regionPlan.materializationPlan().get(valueRef);
+        MaterializationPlanEntry entry = partitionPlan.materializationPlan().get(valueRef);
         if (entry == null) {
             throw new IllegalArgumentException("Missing materialization plan entry for: " + valueRef.valueId());
         }
@@ -195,26 +195,26 @@ public final class MemoryPlan {
     }
 
     /**
-     * Returns memory binding metadata for a region value.
+     * Returns memory binding metadata for a partition value.
      *
      * @param valueRef graph value reference
-     * @return region memory binding
+     * @return partition memory binding
      */
-    public RegionMemoryBinding regionMemoryBindingOf(GraphValueRef valueRef) {
-        RegionMemoryBinding binding = regionPlan.memoryBindings().get(valueRef);
+    public PartitionMemoryBinding partitionMemoryBindingOf(GraphValueRef valueRef) {
+        PartitionMemoryBinding binding = partitionPlan.memoryBindings().get(valueRef);
         if (binding == null) {
-            throw new IllegalArgumentException("Missing region memory binding for: " + valueRef.valueId());
+            throw new IllegalArgumentException("Missing partition memory binding for: " + valueRef.valueId());
         }
         return binding;
     }
 
     /**
-     * Returns all region value lifetimes.
+     * Returns all partition value lifetimes.
      *
      * @return immutable lifetime map
      */
-    public Map<GraphValueRef, RegionValueLifetime> regionValueLifetimes() {
-        return regionPlan.valueLifetimes();
+    public Map<GraphValueRef, PartitionValueLifetime> partitionValueLifetimes() {
+        return partitionPlan.valueLifetimes();
     }
 
     /**
@@ -223,88 +223,88 @@ public final class MemoryPlan {
      * @return immutable materialization map
      */
     public Map<GraphValueRef, MaterializationPlanEntry> materializationPlan() {
-        return regionPlan.materializationPlan();
+        return partitionPlan.materializationPlan();
     }
 
     /**
-     * Returns all region memory bindings.
+     * Returns all partition memory bindings.
      *
      * @return immutable binding map
      */
-    public Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings() {
-        return regionPlan.memoryBindings();
+    public Map<GraphValueRef, PartitionMemoryBinding> partitionMemoryBindings() {
+        return partitionPlan.memoryBindings();
     }
 
     /**
-     * Returns the region slot id for a value.
+     * Returns the partition slot id for a value.
      *
      * @param valueRef graph value reference
-     * @return slot id, or {@code null} when the value has no region slot
+     * @return slot id, or {@code null} when the value has no partition slot
      */
-    public Integer regionSlotIdOf(GraphValueRef valueRef) {
-        return regionPlan.slotByValueRef().get(valueRef);
+    public Integer partitionSlotIdOf(GraphValueRef valueRef) {
+        return partitionPlan.slotByValueRef().get(valueRef);
     }
 
     /**
-     * Returns how many region values use a slot.
+     * Returns how many partition values use a slot.
      *
-     * @param slotId region slot id
+     * @param slotId partition slot id
      * @return use count
      */
-    public int regionSlotUseCount(int slotId) {
-        return regionPlan.slotUseCounts().getOrDefault(slotId, 0);
+    public int partitionSlotUseCount(int slotId) {
+        return partitionPlan.slotUseCounts().getOrDefault(slotId, 0);
     }
 
     /**
-     * Returns region slot size.
+     * Returns partition slot size.
      *
-     * @param slotId region slot id
+     * @param slotId partition slot id
      * @return slot size in elements
      */
-    public int regionSlotSize(int slotId) {
-        Integer size = regionPlan.slotSizes().get(slotId);
+    public int partitionSlotSize(int slotId) {
+        Integer size = partitionPlan.slotSizes().get(slotId);
         if (size == null) {
-            throw new IllegalArgumentException("Missing region slot size for slot " + slotId);
+            throw new IllegalArgumentException("Missing partition slot size for slot " + slotId);
         }
         return size;
     }
 
     /**
-     * Returns region slot assignments by value.
+     * Returns partition slot assignments by value.
      *
-     * @return immutable region slot map
+     * @return immutable partition slot map
      */
-    public Map<GraphValueRef, Integer> regionSlotByValueRef() {
-        return regionPlan.slotByValueRef();
+    public Map<GraphValueRef, Integer> partitionSlotByValueRef() {
+        return partitionPlan.slotByValueRef();
     }
 
     /**
-     * Returns region slot sizes.
+     * Returns partition slot sizes.
      *
-     * @return immutable region slot size map
+     * @return immutable partition slot size map
      */
-    public Map<Integer, Integer> regionSlotSizes() {
-        return regionPlan.slotSizes();
+    public Map<Integer, Integer> partitionSlotSizes() {
+        return partitionPlan.slotSizes();
     }
 
     /**
      * Returns graph value reference associated with a tensor.
      *
      * @param tensor tensor to inspect
-     * @return graph value ref, or {@code null} when the tensor is not region-owned
+     * @return graph value ref, or {@code null} when the tensor is not partition-owned
      */
     public GraphValueRef graphValueRefOf(Tensor tensor) {
-        return regionPlan.tensorToGraphValueRef().get(tensor);
+        return partitionPlan.tensorToGraphValueRef().get(tensor);
     }
 
     public GraphValueRef graphValueRefOfNodeId(int nodeId) {
-        return regionPlan.nodeIdToGraphValueRef().get(nodeId);
+        return partitionPlan.nodeIdToGraphValueRef().get(nodeId);
     }
 
     /**
      * Returns the runtime slot id for a tensor.
      *
-     * <p>Region slots take precedence when a tensor maps to a region value; otherwise the tensor-level slot is used.
+     * <p>Partition slots take precedence when a tensor maps to a partition value; otherwise the tensor-level slot is used.
      *
      * @param tensor tensor to inspect
      * @return runtime slot id, or {@code null} if no slot is assigned
@@ -312,9 +312,9 @@ public final class MemoryPlan {
     public Integer runtimeSlotIdOf(Tensor tensor) {
         GraphValueRef graphValueRef = graphValueRefOf(tensor);
         if (graphValueRef != null) {
-            Integer regionSlotId = regionSlotIdOf(graphValueRef);
-            if (regionSlotId != null) {
-                return regionSlotId;
+            Integer partitionSlotId = partitionSlotIdOf(graphValueRef);
+            if (partitionSlotId != null) {
+                return partitionSlotId;
             }
         }
         return slotIdOf(tensor);
@@ -325,7 +325,7 @@ public final class MemoryPlan {
         if (graphValueRef == null) {
             return null;
         }
-        return regionSlotIdOf(graphValueRef);
+        return partitionSlotIdOf(graphValueRef);
     }
 
     /**
@@ -340,8 +340,8 @@ public final class MemoryPlan {
             throw new IllegalArgumentException("Missing runtime slot for tensor: " + tensor.getLabel());
         }
         GraphValueRef graphValueRef = graphValueRefOf(tensor);
-        if (graphValueRef != null && regionSlotIdOf(graphValueRef) != null && regionSlotIdOf(graphValueRef).equals(runtimeSlotId)) {
-            return regionSlotSize(runtimeSlotId);
+        if (graphValueRef != null && partitionSlotIdOf(graphValueRef) != null && partitionSlotIdOf(graphValueRef).equals(runtimeSlotId)) {
+            return partitionSlotSize(runtimeSlotId);
         }
         return slotSize(runtimeSlotId);
     }
@@ -351,30 +351,30 @@ public final class MemoryPlan {
         if (runtimeSlotId == null) {
             throw new IllegalArgumentException("Missing runtime slot for nodeId: " + nodeId);
         }
-        return regionSlotSize(runtimeSlotId);
+        return partitionSlotSize(runtimeSlotId);
     }
 
     /**
-     * Returns region handoff requirements.
+     * Returns partition handoff requirements.
      *
      * @return immutable handoff list
      */
-    public List<RegionHandoffRequirement> handoffRequirements() {
-        return regionPlan.handoffRequirements();
+    public List<PartitionHandoffRequirement> handoffRequirements() {
+        return partitionPlan.handoffRequirements();
     }
 
     /**
      * Returns runtime binding policy for a tensor.
      *
      * @param tensor tensor to inspect
-     * @return binding policy, defaulting to region binding allowed
+     * @return binding policy, defaulting to partition binding allowed
      */
     public RuntimeMemoryBindingPolicy runtimeBindingPolicyOf(Tensor tensor) {
-        return runtimeBindingPlan.policiesByTensor().getOrDefault(tensor, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
+        return runtimeBindingPlan.policiesByTensor().getOrDefault(tensor, RuntimeMemoryBindingPolicy.PARTITION_BINDING_ALLOWED);
     }
 
     public RuntimeMemoryBindingPolicy runtimeBindingPolicyOfNodeId(int nodeId) {
-        return runtimeBindingPlan.policiesByNodeId().getOrDefault(nodeId, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
+        return runtimeBindingPlan.policiesByNodeId().getOrDefault(nodeId, RuntimeMemoryBindingPolicy.PARTITION_BINDING_ALLOWED);
     }
 
     /**
@@ -417,7 +417,7 @@ public final class MemoryPlan {
         StringBuilder sb = new StringBuilder();
         appendSummary(sb);
         appendStructuralView(sb);
-        appendRegionValuePlan(sb);
+        appendPartitionExecutionValuePlan(sb);
         appendSlots(sb);
         appendNodes(sb);
         appendSavedForward(sb);
@@ -473,41 +473,41 @@ public final class MemoryPlan {
         sb.append('\n');
     }
 
-    private void appendRegionValuePlan(StringBuilder sb) {
-        sb.append("=== Region Value Plan ===\n");
-        sb.append("regionValueCount=").append(regionPlan.valueLifetimes().size()).append('\n');
-        sb.append("materializationEntries=").append(regionPlan.materializationPlan().size()).append('\n');
-        sb.append("regionBindings=").append(regionPlan.memoryBindings().size()).append('\n');
-        sb.append("regionSlots=").append(regionPlan.slotSizes().size()).append('\n');
-        sb.append("handoffRequirements=").append(regionPlan.handoffRequirements().size()).append('\n');
-        List<Map.Entry<GraphValueRef, RegionValueLifetime>> entries = new ArrayList<>(regionPlan.valueLifetimes().entrySet());
+    private void appendPartitionExecutionValuePlan(StringBuilder sb) {
+        sb.append("=== Partition Value Plan ===\n");
+        sb.append("partitionValueCount=").append(partitionPlan.valueLifetimes().size()).append('\n');
+        sb.append("materializationEntries=").append(partitionPlan.materializationPlan().size()).append('\n');
+        sb.append("partitionBindings=").append(partitionPlan.memoryBindings().size()).append('\n');
+        sb.append("partitionSlots=").append(partitionPlan.slotSizes().size()).append('\n');
+        sb.append("handoffRequirements=").append(partitionPlan.handoffRequirements().size()).append('\n');
+        List<Map.Entry<GraphValueRef, PartitionValueLifetime>> entries = new ArrayList<>(partitionPlan.valueLifetimes().entrySet());
         entries.sort(Comparator.comparingInt(e -> e.getValue().birthStep()));
-        for (Map.Entry<GraphValueRef, RegionValueLifetime> entry : entries) {
+        for (Map.Entry<GraphValueRef, PartitionValueLifetime> entry : entries) {
             GraphValueRef valueRef = entry.getKey();
-            RegionValueLifetime lifetime = entry.getValue();
-            MaterializationPlanEntry materializationEntry = regionPlan.materializationPlan().get(valueRef);
-            RegionMemoryBinding binding = regionPlan.memoryBindings().get(valueRef);
+            PartitionValueLifetime lifetime = entry.getValue();
+            MaterializationPlanEntry materializationEntry = partitionPlan.materializationPlan().get(valueRef);
+            PartitionMemoryBinding binding = partitionPlan.memoryBindings().get(valueRef);
             sb.append("- ").append(valueRef.valueId())
                     .append(" [").append(lifetime.birthStep()).append(", ").append(lifetime.lastUseStep()).append("]")
                     .append(" decision=").append(lifetime.decision())
-                    .append(" producerRegion=").append(lifetime.producerRegionId() == null ? "-" : lifetime.producerRegionId())
+                    .append(" producerPartition=").append(lifetime.producerPartitionId() == null ? "-" : lifetime.producerPartitionId())
                     .append(" producerUnit=").append(lifetime.producerUnitId() == null ? "-" : lifetime.producerUnitId())
                     .append(" consumers=").append(lifetime.consumerUnitIds())
                     .append(" binding=").append(binding == null ? "-" : binding.kind())
-                    .append(" slotId=").append(regionPlan.slotByValueRef().get(valueRef) == null ? "-" : regionPlan.slotByValueRef().get(valueRef))
-                    .append(" slotSize=").append(regionPlan.slotByValueRef().get(valueRef) == null ? "-" : regionPlan.slotSizes().get(regionPlan.slotByValueRef().get(valueRef)))
+                    .append(" slotId=").append(partitionPlan.slotByValueRef().get(valueRef) == null ? "-" : partitionPlan.slotByValueRef().get(valueRef))
+                    .append(" slotSize=").append(partitionPlan.slotByValueRef().get(valueRef) == null ? "-" : partitionPlan.slotSizes().get(partitionPlan.slotByValueRef().get(valueRef)))
                     .append(" allocatesStorage=").append(materializationEntry != null && materializationEntry.allocatesStorage())
                     .append('\n');
         }
         if (entries.isEmpty()) {
-            sb.append("(no region value plan)\n");
+            sb.append("(no partition value plan)\n");
         }
-        if (!regionPlan.handoffRequirements().isEmpty()) {
+        if (!partitionPlan.handoffRequirements().isEmpty()) {
             sb.append("handoffs:\n");
-            for (RegionHandoffRequirement handoff : regionPlan.handoffRequirements()) {
+            for (PartitionHandoffRequirement handoff : partitionPlan.handoffRequirements()) {
                 sb.append("  - ").append(handoff.valueRef().valueId())
-                        .append(" ").append(handoff.producerRegionId()).append("/").append(handoff.producerUnitId())
-                        .append(" -> ").append(handoff.consumerRegionId()).append("/").append(handoff.consumerUnitId())
+                        .append(" ").append(handoff.producerPartitionId()).append("/").append(handoff.producerUnitId())
+                        .append(" -> ").append(handoff.consumerPartitionId()).append("/").append(handoff.consumerUnitId())
                         .append(" transportType=").append(handoff.transportType())
                         .append(" decision=").append(handoff.decision())
                         .append('\n');
@@ -518,22 +518,22 @@ public final class MemoryPlan {
 
     private void appendStructuralView(StringBuilder sb) {
         sb.append("=== Structural Memory View ===\n");
-        sb.append("plannedRegions=").append(regionPlan.structuralView().plannedRegionIds().size()).append('\n');
-        sb.append("materializedValues=").append(regionPlan.structuralView().materializedValues().size()).append('\n');
-        sb.append("continuationValues=").append(regionPlan.structuralView().continuationValues().size()).append('\n');
-        sb.append("virtualValues=").append(regionPlan.structuralView().virtualValues().size()).append('\n');
-        sb.append("valueFlows=").append(regionPlan.structuralView().valueFlows().size()).append('\n');
-        sb.append("crossRegionDependencies=").append(regionPlan.structuralView().crossRegionDependencyCount()).append('\n');
-        if (!regionPlan.structuralView().plannedRegionIds().isEmpty()) {
-            sb.append("regionIds=").append(regionPlan.structuralView().plannedRegionIds()).append('\n');
+        sb.append("executablePartitions=").append(partitionPlan.structuralView().plannedPartitionIds().size()).append('\n');
+        sb.append("materializedValues=").append(partitionPlan.structuralView().materializedValues().size()).append('\n');
+        sb.append("continuationValues=").append(partitionPlan.structuralView().continuationValues().size()).append('\n');
+        sb.append("virtualValues=").append(partitionPlan.structuralView().virtualValues().size()).append('\n');
+        sb.append("valueFlows=").append(partitionPlan.structuralView().valueFlows().size()).append('\n');
+        sb.append("crossPartitionDependencies=").append(partitionPlan.structuralView().crossPartitionDependencyCount()).append('\n');
+        if (!partitionPlan.structuralView().plannedPartitionIds().isEmpty()) {
+            sb.append("partitionIds=").append(partitionPlan.structuralView().plannedPartitionIds()).append('\n');
         }
-        for (StructuralValueFlow flow : regionPlan.structuralView().valueFlows()) {
+        for (StructuralValueFlow flow : partitionPlan.structuralView().valueFlows()) {
             sb.append("  - ")
                     .append(flow.valueRef().valueId())
                     .append(" decision=").append(flow.decision())
-                    .append(" producerRegion=").append(flow.producerRegionId() == null ? "-" : flow.producerRegionId())
+                    .append(" producerPartition=").append(flow.producerPartitionId() == null ? "-" : flow.producerPartitionId())
                     .append(" producerUnit=").append(flow.producerUnitId() == null ? "-" : flow.producerUnitId())
-                    .append(" consumerRegions=").append(flow.consumerRegionIds())
+                    .append(" consumerPartitions=").append(flow.consumerPartitionIds())
                     .append(" consumerUnits=").append(flow.consumerUnitIds())
                     .append('\n');
         }

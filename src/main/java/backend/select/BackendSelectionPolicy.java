@@ -6,7 +6,7 @@ import planning.partition.PlannedPartition;
 import java.util.List;
 
 /**
- * Strategy for selecting backend partition plans that should run as accelerator/CPU regions.
+ * Strategy for selecting backend partition plans that should run as accelerator/CPU partitions.
  */
 public interface BackendSelectionPolicy {
     /**

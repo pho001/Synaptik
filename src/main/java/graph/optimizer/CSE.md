@@ -135,7 +135,7 @@ The same applies to `mul(a, b)` and `mul(b, a)`.
 Those belong to:
 
 - `AR` for algebraic simplification
-- region optimization for elementwise fusion
+- partition optimization for elementwise fusion
 
 ## Examples
 

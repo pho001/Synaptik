@@ -22,13 +22,14 @@ public final class Cpu1CastLoops {
     private Cpu1CastLoops() {
     }
 
-    public static void cast(Cpu1PreparedDTypeUnit unit, Cpu1TensorView input, Cpu1TensorView output) {
+    public static void castArray(Cpu1PreparedDTypeUnit unit, Cpu1TensorView input, Cpu1TensorView output) {
         validate(unit, input, output);
-        CastLayout layout = CastLayout.from(unit, input, output);
-        switch (unit.storageKind()) {
-            case JAVA_ARRAY -> castArray(unit, layout, input, output);
-            case MEMORY_SEGMENT -> castSegment(unit, layout, input, output);
-        }
+        castArray(unit, CastLayout.from(unit, input, output), input, output);
+    }
+
+    public static void castSegment(Cpu1PreparedDTypeUnit unit, Cpu1TensorView input, Cpu1TensorView output) {
+        validate(unit, input, output);
+        castSegment(unit, CastLayout.from(unit, input, output), input, output);
     }
 
     private static void validate(Cpu1PreparedDTypeUnit unit, Cpu1TensorView input, Cpu1TensorView output) {
@@ -48,10 +49,6 @@ public final class Cpu1CastLoops {
         if (output.dataType() != unit.outputDataType()) {
             throw new IllegalArgumentException("Output dtype " + output.dataType()
                     + " does not match prepared output dtype " + unit.outputDataType());
-        }
-        if (input.storageKind() != unit.storageKind() || output.storageKind() != unit.storageKind()) {
-            throw new IllegalArgumentException("cpu1 CAST storage kind mismatch. prepared=" + unit.storageKind()
-                    + ", input=" + input.storageKind() + ", output=" + output.storageKind());
         }
         if (input.elementCount() != unit.elementCount() || output.elementCount() != unit.elementCount()) {
             throw new IllegalArgumentException("cpu1 CAST requires input/output element count "

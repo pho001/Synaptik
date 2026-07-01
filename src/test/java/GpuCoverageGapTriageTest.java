@@ -53,7 +53,7 @@ public class GpuCoverageGapTriageTest {
         assertTrue(List.of(categories).contains(GpuCoverageGapCategory.TENSOR_ARRAY_FALLBACK));
         assertTrue(List.of(categories).contains(GpuCoverageGapCategory.CPU_FALLBACK));
         assertTrue(List.of(categories).contains(GpuCoverageGapCategory.DEVICE_HANDOFF));
-        assertTrue(List.of(categories).contains(GpuCoverageGapCategory.LOW_REGION_LENGTH));
+        assertTrue(List.of(categories).contains(GpuCoverageGapCategory.LOW_PARTITION_LENGTH));
         assertTrue(List.of(categories).contains(GpuCoverageGapCategory.LOW_GPU_COVERAGE));
         assertTrue(List.of(categories).contains(GpuCoverageGapCategory.STORAGE_RESIDENCY));
 

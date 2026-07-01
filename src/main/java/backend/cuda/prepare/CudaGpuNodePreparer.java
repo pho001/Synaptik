@@ -9,11 +9,11 @@ import backend.cuda.bridge.CudaGraphBridge;
 import backend.cuda.exec.PreparedCudaExecutable;
 import backend.cuda.exec.CudaDirectPreparedExecutable;
 import backend.cuda.lowering.CudaGpuPartitionPlan;
-import backend.lowering.LoweredRegion;
+import backend.lowering.LoweredPartition;
 import backend.lowering.LoweringFamily;
 import prepare.context.BackendPrepareContext;
 import prepare.context.PartitionExecutionRole;
-import prepare.validation.RegionPlanValidator;
+import prepare.validation.BackendPartitionExecutionPlanValidator;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.OutputResidencyEffect;
@@ -65,30 +65,30 @@ public final class CudaGpuNodePreparer {
                     OutputResidencyEffect.cpuCurrentPreserveNative()
             );
         }
-        LoweredRegion loweredRegion = GpuAcceleratorPrepareSupport.requireLoweredRegion(
-                context.cudaLoweredRegionForAnchor(node.id()),
+        LoweredPartition loweredPartition = GpuAcceleratorPrepareSupport.requireLoweredPartition(
+                context.cudaLoweredPartitionForAnchor(node.id()),
                 "CUDA GPU",
                 node.id()
         );
-        return prepareRegionStep(loweredRegion, context);
+        return preparePartitionStep(loweredPartition, context);
     }
 
-    public PreparedStepMetadata prepareRegionStep(
-            LoweredRegion loweredRegion,
+    public PreparedStepMetadata preparePartitionStep(
+            LoweredPartition loweredPartition,
             BackendPrepareContext context
     ) {
         LoweringFamily loweringFamily = GpuAcceleratorPrepareSupport.resolveLoweringFamily(
-                loweredRegion,
-                LoweringFamily.CUDA_GRAPH_REGION
+                loweredPartition,
+                LoweringFamily.CUDA_GRAPH_PARTITION
         );
-        var regionPlan = loweredRegion.units().getFirst().requireRegionPlan();
-        RegionPlanValidator.requireBoundaryCoverage(regionPlan, context);
-        PartitionPlan genericPlan = context.backendPlanForAnchor(regionPlan.anchorNodeId());
+        var partitionPlan = loweredPartition.units().getFirst().requirePartitionPlan();
+        BackendPartitionExecutionPlanValidator.requireBoundaryCoverage(partitionPlan, context);
+        PartitionPlan genericPlan = context.backendPlanForAnchor(partitionPlan.anchorNodeId());
         CudaGpuPartitionPlan plan = GpuAcceleratorPrepareSupport.requirePlan(
                 genericPlan,
                 CudaGpuPartitionPlan.class,
                 "CUDA GPU",
-                regionPlan.anchorNodeId()
+                partitionPlan.anchorNodeId()
         );
         var fallback = GpuAcceleratorPrepareSupport.prepareCpuFallback(
                 plan,
@@ -101,7 +101,7 @@ public final class CudaGpuNodePreparer {
         PreparedCudaExecutable executable = new PreparedCudaExecutable(
                 plan.dagSpec(),
                 loweringFamily,
-                regionPlan,
+                partitionPlan,
                 bridge,
                 fallback.preparedSteps(),
                 context.runtimeConfig().accelerator().cuda(),

@@ -56,7 +56,7 @@ User call
           -> CompiledGraph snapshots Operation.OpType.SQUARE
             -> optimizer may rewrite/CSE/partition/fuse
               -> backend prepare resolves CpuSquareKernel
-                -> ComputeEngine executes prepared CPU or accelerator step
+                -> PreparedExecutionRunner invokes the prepared executable contract
 ```
 
 The descriptor says what the node means. The tensor builder says how to construct graph shape, dtype, inputs, and backward behavior. The backend kernel says how to compute concrete bytes.
@@ -485,9 +485,9 @@ Most ordinary operations need no memory planner change. Update memory planning o
 - has special workspace requirements
 - saves forward values for backward
 - has non-standard output ownership
-- interacts with region outputs or layout boundaries
+- interacts with partition outputs or layout boundaries
 
-The public entry point is `MemoryPlanner`, but the implementation is split by responsibility. View and alias ownership belongs in `TensorLifetimePlanner`; reusable tensor interval rules belong in `ReusableIntervalBuilder`; slot packing belongs in `ReusableSlotAllocator`; workspace-sensitive binding exclusions belong in `RuntimeMemoryBindingPolicyPlanner`; region value, binding, and handoff changes belong in `RegionValueFlowPlanner`, `RegionBindingAllocator`, and `RegionHandoffPlanner`.
+The public entry point is `MemoryPlanner`, but the implementation is split by responsibility. View and alias ownership belongs in `TensorLifetimePlanner`; reusable tensor interval rules belong in `ReusableIntervalBuilder`; slot packing belongs in `ReusableSlotAllocator`; workspace-sensitive binding exclusions belong in `RuntimeMemoryBindingPolicyPlanner`; partition value, binding, and handoff changes belong in `PartitionExecutionValueFlowPlanner`, `PartitionBindingAllocator`, and `PartitionHandoffPlanner`.
 
 ## Fusion And Accelerator Integration
 
@@ -568,5 +568,5 @@ For performance-sensitive ops, add benchmark coverage only after correctness tes
 | Computing gradients with detached Java arrays | Backward graph cannot be optimized or differentiated consistently. | Build gradients from tensor operations. |
 | Reimplementing broadcasting manually | Shape behavior diverges from the rest of the framework. | Use `TensorBroadcastOps.planBinary(...)` and `sumToShape(...)`. |
 | Letting backend kernels validate public API shape rules | Errors happen too late and may be backend-specific. | Validate user-facing contracts in `tensor.ops.*`. |
-| Adding Metal allowlist support without native implementation | Planner can select a region that cannot execute. | Add native lowering/shim/test first, then allowlist. |
+| Adding Metal allowlist support without native implementation | Planner can select a partition that cannot execute. | Add native lowering/shim/test first, then allowlist. |
 | Forgetting docs | Users see the method but not dtype, shape, gradient, or examples. | Update [Tensor API: Operation Catalog](tensor-api.md#operation-catalog) and [Examples: Running Examples](examples.md#running-examples) where appropriate. |

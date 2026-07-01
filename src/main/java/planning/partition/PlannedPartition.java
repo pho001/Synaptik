@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * Accepted partition together with its executable backend plan.
  *
- * <p>This is the compile-to-prepare contract for backend-owned regions. It keeps the structural partition and the
+ * <p>This is the compile-to-prepare contract for backend-owned partitions. It keeps the structural partition and the
  * attached backend plan together so later stages do not have to reconcile parallel lists or infer ownership through
  * object identity.
  *

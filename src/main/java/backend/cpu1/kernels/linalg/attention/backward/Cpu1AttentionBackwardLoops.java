@@ -9,7 +9,7 @@ import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
-import planning.region.specialization.SdpaBackwardOutputKind;
+import planning.partition.specialization.SdpaBackwardOutputKind;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.VectorOperators;
@@ -27,7 +27,7 @@ import static java.lang.foreign.ValueLayout.JAVA_DOUBLE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 
 /**
- * Dense SDPA backward loops for cpu1 specialized regions.
+ * Dense SDPA backward loops for cpu1 specialized partitions.
  */
 public final class Cpu1AttentionBackwardLoops {
     private static final VectorSpecies<Float> F32 = FloatVector.SPECIES_PREFERRED;
@@ -37,61 +37,29 @@ public final class Cpu1AttentionBackwardLoops {
     private Cpu1AttentionBackwardLoops() {
     }
 
-    public static void run(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
+    public static void runArray(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
         if (unit.dataType() == DataType.FLOAT64) {
-            runF64(unit, context);
+            runF64Array(unit, context);
         } else if (unit.dataType() == DataType.FLOAT32) {
-            runF32(unit, context);
+            runF32Array(unit, context);
         } else {
             throw new UnsupportedOperationException("cpu1 SDPA_BACKWARD kernel supports only FLOAT32/FLOAT64, got "
                     + unit.dataType());
         }
     }
 
-    private static void runF32(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            F32SegmentInputs inputs = f32SegmentInputs(unit, context);
-            Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
-            NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
-                    unit.nodeId(),
-                    unit.dataType(),
-                    unit.outputElementCount(),
-                    "cpu1-sdpa-backward-node-" + unit.nodeId()
-            );
-            Cpu1TensorView outputView = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
-            requireDenseNoOffset("output", outputView, Cpu1StorageKind.MEMORY_SEGMENT);
-            requireShape("output", outputView.shape(), unit.outputShape());
-            MemorySegment output = outputView.segment();
-            boolean vector = unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR;
-            switch (unit.outputKind()) {
-                case QUERY -> {
-                    float[] scratch = requireScratch(unit, context).requireF32Array();
-                    if (vector) {
-                        runF32QuerySegmentVector(unit, inputs, output, scratch);
-                    } else {
-                        runF32QuerySegment(unit, inputs, output, scratch);
-                    }
-                }
-                case KEY -> {
-                    float[] scratch = requireScratch(unit, context).requireF32Array();
-                    if (vector) {
-                        runF32KeySegmentVector(unit, inputs, output, scratch);
-                    } else {
-                        runF32KeySegment(unit, inputs, output, scratch);
-                    }
-                }
-                case VALUE -> {
-                    if (vector) {
-                        runF32ValueSegmentVector(unit, inputs, output);
-                    } else {
-                        runF32ValueSegment(unit, inputs, output);
-                    }
-                }
-            }
-            nativeOutput.markModified();
-            context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 SDPA_BACKWARD wrote native CPU segment");
-            return;
+    public static void runSegment(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
+        if (unit.dataType() == DataType.FLOAT64) {
+            runF64Segment(unit, context);
+        } else if (unit.dataType() == DataType.FLOAT32) {
+            runF32Segment(unit, context);
+        } else {
+            throw new UnsupportedOperationException("cpu1 SDPA_BACKWARD kernel supports only FLOAT32/FLOAT64, got "
+                    + unit.dataType());
         }
+    }
+
+    private static void runF32Array(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
         F32Inputs inputs = f32Inputs(unit, context);
         Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
         Cpu1TensorView outputView = Cpu1TensorView.fromTensor(outputTensor);
@@ -128,50 +96,50 @@ public final class Cpu1AttentionBackwardLoops {
         context.markCpuCurrent(unit.nodeId(), "cpu1 SDPA_BACKWARD wrote CPU array");
     }
 
-    private static void runF64(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            F64SegmentInputs inputs = f64SegmentInputs(unit, context);
-            Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
-            NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
-                    unit.nodeId(),
-                    unit.dataType(),
-                    unit.outputElementCount(),
-                    "cpu1-sdpa-backward-node-" + unit.nodeId()
-            );
-            Cpu1TensorView outputView = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
-            requireDenseNoOffset("output", outputView, Cpu1StorageKind.MEMORY_SEGMENT);
-            requireShape("output", outputView.shape(), unit.outputShape());
-            MemorySegment output = outputView.segment();
-            boolean vector = unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR;
-            switch (unit.outputKind()) {
-                case QUERY -> {
-                    double[] scratch = requireScratch(unit, context).requireF64Array();
-                    if (vector) {
-                        runF64QuerySegmentVector(unit, inputs, output, scratch);
-                    } else {
-                        runF64QuerySegment(unit, inputs, output, scratch);
-                    }
-                }
-                case KEY -> {
-                    double[] scratch = requireScratch(unit, context).requireF64Array();
-                    if (vector) {
-                        runF64KeySegmentVector(unit, inputs, output, scratch);
-                    } else {
-                        runF64KeySegment(unit, inputs, output, scratch);
-                    }
-                }
-                case VALUE -> {
-                    if (vector) {
-                        runF64ValueSegmentVector(unit, inputs, output);
-                    } else {
-                        runF64ValueSegment(unit, inputs, output);
-                    }
+    private static void runF32Segment(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
+        F32SegmentInputs inputs = f32SegmentInputs(unit, context);
+        Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
+        NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
+                unit.nodeId(),
+                unit.dataType(),
+                unit.outputElementCount(),
+                "cpu1-sdpa-backward-node-" + unit.nodeId()
+        );
+        Cpu1TensorView outputView = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
+        requireDenseNoOffset("output", outputView, Cpu1StorageKind.MEMORY_SEGMENT);
+        requireShape("output", outputView.shape(), unit.outputShape());
+        MemorySegment output = outputView.segment();
+        boolean vector = unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR;
+        switch (unit.outputKind()) {
+            case QUERY -> {
+                float[] scratch = requireScratch(unit, context).requireF32Array();
+                if (vector) {
+                    runF32QuerySegmentVector(unit, inputs, output, scratch);
+                } else {
+                    runF32QuerySegment(unit, inputs, output, scratch);
                 }
             }
-            nativeOutput.markModified();
-            context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 SDPA_BACKWARD wrote native CPU segment");
-            return;
+            case KEY -> {
+                float[] scratch = requireScratch(unit, context).requireF32Array();
+                if (vector) {
+                    runF32KeySegmentVector(unit, inputs, output, scratch);
+                } else {
+                    runF32KeySegment(unit, inputs, output, scratch);
+                }
+            }
+            case VALUE -> {
+                if (vector) {
+                    runF32ValueSegmentVector(unit, inputs, output);
+                } else {
+                    runF32ValueSegment(unit, inputs, output);
+                }
+            }
         }
+        nativeOutput.markModified();
+        context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 SDPA_BACKWARD wrote native CPU segment");
+    }
+
+    private static void runF64Array(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
         F64Inputs inputs = f64Inputs(unit, context);
         Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
         Cpu1TensorView outputView = Cpu1TensorView.fromTensor(outputTensor);
@@ -206,6 +174,49 @@ public final class Cpu1AttentionBackwardLoops {
         }
         outputView.markStorageModified();
         context.markCpuCurrent(unit.nodeId(), "cpu1 SDPA_BACKWARD wrote CPU array");
+    }
+
+    private static void runF64Segment(Cpu1PreparedAttentionBackwardUnit unit, ExecutionContext context) {
+        F64SegmentInputs inputs = f64SegmentInputs(unit, context);
+        Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
+        NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
+                unit.nodeId(),
+                unit.dataType(),
+                unit.outputElementCount(),
+                "cpu1-sdpa-backward-node-" + unit.nodeId()
+        );
+        Cpu1TensorView outputView = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
+        requireDenseNoOffset("output", outputView, Cpu1StorageKind.MEMORY_SEGMENT);
+        requireShape("output", outputView.shape(), unit.outputShape());
+        MemorySegment output = outputView.segment();
+        boolean vector = unit.vectorizationKind() == Cpu1VectorizationKind.VECTOR;
+        switch (unit.outputKind()) {
+            case QUERY -> {
+                double[] scratch = requireScratch(unit, context).requireF64Array();
+                if (vector) {
+                    runF64QuerySegmentVector(unit, inputs, output, scratch);
+                } else {
+                    runF64QuerySegment(unit, inputs, output, scratch);
+                }
+            }
+            case KEY -> {
+                double[] scratch = requireScratch(unit, context).requireF64Array();
+                if (vector) {
+                    runF64KeySegmentVector(unit, inputs, output, scratch);
+                } else {
+                    runF64KeySegment(unit, inputs, output, scratch);
+                }
+            }
+            case VALUE -> {
+                if (vector) {
+                    runF64ValueSegmentVector(unit, inputs, output);
+                } else {
+                    runF64ValueSegment(unit, inputs, output);
+                }
+            }
+        }
+        nativeOutput.markModified();
+        context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 SDPA_BACKWARD wrote native CPU segment");
     }
 
     private static void runF32Query(

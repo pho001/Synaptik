@@ -1,7 +1,7 @@
 package backend.metal.exec;
 
 import runtime.device.buffer.AcceleratorBufferReasonCode;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import backend.metal.bridge.MetalMpsBridgeCapabilities;
 import backend.metal.kernel.MetalCustomKernelCapabilities;
 import backend.metal.kernel.MetalCustomKernelExecutable;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Prepare-time router for execution strategies inside selected Metal regions.
+ * Prepare-time router for execution strategies inside selected Metal partitions.
  */
 public final class MetalExecutionRouter {
     private MetalExecutionRouter() {
@@ -238,41 +238,41 @@ public final class MetalExecutionRouter {
     }
 
     private static String mpsGraphDetail(
-            GpuLoweredRegionManifest manifest,
+            GpuLoweredPartitionManifest manifest,
             TransportEvidence evidence,
             MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
     ) {
-        String regionId = manifest == null ? "" : manifest.regionId();
+        String partitionId = manifest == null ? "" : manifest.partitionId();
         String customEvidence = customKernel.available()
                 ? "custom kernel eligible kernelId=" + customKernel.kernelId()
                 + " primitiveIds=" + customKernel.loweredPrimitiveIds()
                 + " but not selected for this non-custom route"
                 : "custom kernel rejected: " + customKernel.reasonCode() + ": " + customKernel.reason();
         String base = "MPSGraph selected via " + evidence.preferredPath()
-                + "; metalRegionLowering=MPSGRAPH_DAG"
+                + "; metalPartitionLowering=MPSGRAPH_DAG"
                 + "; metalExecutionRoute=MPS_GRAPH"
                 + "; " + customEvidence
                 + "; native copy cost unknown";
-        return regionId == null || regionId.isBlank()
+        return partitionId == null || partitionId.isBlank()
                 ? base
-                : base + "; regionId=" + regionId;
+                : base + "; partitionId=" + partitionId;
     }
 
     private static String customKernelDetail(
-            GpuLoweredRegionManifest manifest,
+            GpuLoweredPartitionManifest manifest,
             TransportEvidence evidence,
             MetalCustomKernelRouteAdapter.CustomKernelEvidence customKernel
     ) {
-        String regionId = manifest == null ? "" : manifest.regionId();
+        String partitionId = manifest == null ? "" : manifest.partitionId();
         String base = "CUSTOM_KERNEL selected via " + evidence.preferredPath()
-                + "; metalRegionLowering=CUSTOM_KERNEL_DAG"
+                + "; metalPartitionLowering=CUSTOM_KERNEL_DAG"
                 + "; metalExecutionRoute=CUSTOM_KERNEL"
                 + "; kernelId=" + customKernel.kernelId()
                 + "; primitiveIds=" + customKernel.loweredPrimitiveIds()
                 + "; native copy/write evidence is reported by the executed custom kernel";
-        return regionId == null || regionId.isBlank()
+        return partitionId == null || partitionId.isBlank()
                 ? base
-                : base + "; regionId=" + regionId;
+                : base + "; partitionId=" + partitionId;
     }
 
     private static MetalRouteReasonCode tensorArrayReason(AcceleratorBufferReasonCode reasonCode) {

@@ -271,7 +271,7 @@ That split is important:
 
 ## Fused Backend
 
-The optimizer produces optimized region units.
+The optimizer produces optimized partition units.
 CPU lowering turns fused elementwise units into backend-owned fused plan artifacts, and preparation chooses how those artifacts run.
 
 Current fused execution ideas include:
@@ -282,7 +282,7 @@ Current fused execution ideas include:
 
 The backend documentation should be read together with [../graph/optimizer/FUSE.md](../graph/optimizer/FUSE.md):
 
-- region optimization decides optimized region shape
+- partition optimization decides optimized partition shape
 - backend lowering builds backend-owned execution artifacts
 - backend preparation decides how to execute those artifacts
 

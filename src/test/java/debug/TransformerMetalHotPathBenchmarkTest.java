@@ -2,7 +2,7 @@ package debug;
 
 import runtime.contract.ExecutionMode;
 import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.PlatformRuntimeProfile;
@@ -116,8 +116,8 @@ final class TransformerMetalHotPathBenchmarkTest {
                 dataType,
                 ExecutionMode.FORWARD_BACKWARD,
                 CompileConfig.training()
-                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                        .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults())),
+                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                        .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults())),
                 calibratedRuntime,
                 workload
         );

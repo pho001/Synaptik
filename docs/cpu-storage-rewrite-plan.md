@@ -258,7 +258,7 @@ Validation:
 | `backend.cpu.nativecpu` | Runtime storage, allocator, materializer, trace support. Do not recreate native executor stacks. |
 | `backend.cpu.nativecpu.layout` | Existing segment strided support; decide ownership during strided wave. |
 | `backend.cpu.provider` | Provider boundary; preserve OpenBLAS route semantics. |
-| `backend.cpu.lowering`, `backend.cpu.partition`, `backend.cpu.region` | Planning/region audit only unless route metadata changes. |
+| `backend.cpu.lowering`, `backend.cpu.partition`, `backend.cpu.partition` | Planning/partition audit only unless route metadata changes. |
 
 ## Verification Baseline
 

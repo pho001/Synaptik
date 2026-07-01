@@ -262,7 +262,7 @@ final class CudaNnSemantics {
     private static String denseLossUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         Operation.OpType opType = node.operation().opType();
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: " + opType + " nodes are not legal inside nested CUDA backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: " + opType + " nodes are not legal inside nested CUDA backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opType + " requires planning context";
@@ -304,7 +304,7 @@ final class CudaNnSemantics {
 
     private static String commonForwardReason(String opName, CompiledNode node, PartitionPlanningContext context) {
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opName + " nodes are not legal inside CUDA backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opName + " nodes are not legal inside CUDA backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opName + " requires planning context";

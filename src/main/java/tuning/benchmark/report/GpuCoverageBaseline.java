@@ -5,7 +5,7 @@ package tuning.benchmark.report;
  *
  * @param baselineName baseline label, for example {@code v1.1}
  * @param backend accelerator backend name
- * @param maxSelectedRegionLength baseline maximum selected GPU region length
+ * @param maxSelectedPartitionLength baseline maximum selected GPU partition length
  * @param cpuMaterializationCount baseline CPU materialization count
  * @param fallbackCount baseline tensor-array plus CPU-fallback count
  * @param deviceHandoffCount baseline device handoff count
@@ -13,7 +13,7 @@ package tuning.benchmark.report;
 public record GpuCoverageBaseline(
         String baselineName,
         String backend,
-        int maxSelectedRegionLength,
+        int maxSelectedPartitionLength,
         int cpuMaterializationCount,
         int fallbackCount,
         int deviceHandoffCount
@@ -21,7 +21,7 @@ public record GpuCoverageBaseline(
     public GpuCoverageBaseline {
         baselineName = baselineName == null || baselineName.isBlank() ? "baseline" : baselineName;
         backend = backend == null ? "" : backend;
-        maxSelectedRegionLength = Math.max(0, maxSelectedRegionLength);
+        maxSelectedPartitionLength = Math.max(0, maxSelectedPartitionLength);
         cpuMaterializationCount = Math.max(0, cpuMaterializationCount);
         fallbackCount = Math.max(0, fallbackCount);
         deviceHandoffCount = Math.max(0, deviceHandoffCount);
@@ -31,7 +31,7 @@ public record GpuCoverageBaseline(
      * Deterministic v1.4 closure baseline used by reports to render coverage deltas without raw timing thresholds.
      *
      * @param backend accelerator backend name
-     * @return baseline requiring at least one selected region and no worse than one CPU exit/fallback boundary
+     * @return baseline requiring at least one selected partition and no worse than one CPU exit/fallback boundary
      */
     public static GpuCoverageBaseline v14Closure(String backend) {
         return new GpuCoverageBaseline("v1.4-pre-closure", backend, 1, 1, 1, 2);

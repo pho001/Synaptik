@@ -45,7 +45,7 @@ class GpuCompoundPatternDetectorTest {
                 List.of(4)
         );
 
-        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                 ComputeBackend.GPU_METAL,
                 subgraph,
                 linearReluDag(),
@@ -73,7 +73,7 @@ class GpuCompoundPatternDetectorTest {
                 List.of(4)
         );
 
-        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                 ComputeBackend.GPU_CUDA,
                 subgraph,
                 elementwiseDag(),
@@ -96,7 +96,7 @@ class GpuCompoundPatternDetectorTest {
                 List.of(1)
         );
 
-        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                 ComputeBackend.GPU_METAL,
                 subgraph,
                 singleNodeDag(1, AcceleratorDagNodeType.ADD),
@@ -121,7 +121,7 @@ class GpuCompoundPatternDetectorTest {
                     List.of(1)
             );
 
-            GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+            GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                     ComputeBackend.GPU_CUDA,
                     subgraph,
                     singleNodeDag(1, AcceleratorDagNodeType.ADD),
@@ -145,7 +145,7 @@ class GpuCompoundPatternDetectorTest {
                 List.of(1)
         );
 
-        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                 ComputeBackend.GPU_CUDA,
                 subgraph,
                 null,
@@ -201,7 +201,7 @@ class GpuCompoundPatternDetectorTest {
                 List.of(1)
         );
 
-        GpuCompoundRegionSummary summary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary summary = GpuCompoundPatternDetector.detect(
                 ComputeBackend.GPU_METAL,
                 subgraph,
                 null,

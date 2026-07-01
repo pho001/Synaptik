@@ -4,7 +4,6 @@ import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -25,50 +24,86 @@ public final class Cpu1SumMeanReductionLoops {
     }
 
     public static void sumF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32(unit, context, false);
+        reduceF32Array(unit, context, false);
+    }
+
+    public static void sumF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context, false);
     }
 
     public static void sumF32StridedScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32Strided(unit, context, false);
+        reduceF32StridedArray(unit, context, false);
+    }
+
+    public static void sumF32StridedScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32StridedSegment(unit, context, false);
     }
 
     public static void meanF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32(unit, context, true);
+        reduceF32Array(unit, context, true);
+    }
+
+    public static void meanF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context, true);
     }
 
     public static void meanF32StridedScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32Strided(unit, context, true);
+        reduceF32StridedArray(unit, context, true);
+    }
+
+    public static void meanF32StridedScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32StridedSegment(unit, context, true);
     }
 
     public static void sumF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64(unit, context, false);
+        reduceF64Array(unit, context, false);
+    }
+
+    public static void sumF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context, false);
     }
 
     public static void sumF64StridedScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64Strided(unit, context, false);
+        reduceF64StridedArray(unit, context, false);
+    }
+
+    public static void sumF64StridedScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64StridedSegment(unit, context, false);
     }
 
     public static void meanF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64(unit, context, true);
+        reduceF64Array(unit, context, true);
+    }
+
+    public static void meanF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context, true);
     }
 
     public static void meanF64StridedScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64Strided(unit, context, true);
+        reduceF64StridedArray(unit, context, true);
+    }
+
+    public static void meanF64StridedScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64StridedSegment(unit, context, true);
     }
 
     public static void sumBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBf16(unit, context, false);
+        reduceBf16Array(unit, context, false);
+    }
+
+    public static void sumBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context, false);
     }
 
     public static void meanBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBf16(unit, context, true);
+        reduceBf16Array(unit, context, true);
     }
 
-    private static void reduceF32(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF32Segment(unit, context, mean);
-            return;
-        }
+    public static void meanBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context, true);
+    }
+
+    private static void reduceF32Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         float[] inputArray = input.float32Array();
@@ -112,11 +147,7 @@ public final class Cpu1SumMeanReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceF64(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF64Segment(unit, context, mean);
-            return;
-        }
+    private static void reduceF64Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         double[] inputArray = input.float64Array();
@@ -160,11 +191,7 @@ public final class Cpu1SumMeanReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceBf16(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceBf16Segment(unit, context, mean);
-            return;
-        }
+    private static void reduceBf16Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         short[] inputArray = input.bfloat16Array();
@@ -213,11 +240,7 @@ public final class Cpu1SumMeanReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceF32Strided(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF32StridedSegment(unit, context, mean);
-            return;
-        }
+    private static void reduceF32StridedArray(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         float[] inputArray = input.float32Array();
@@ -242,11 +265,7 @@ public final class Cpu1SumMeanReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceF64Strided(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF64StridedSegment(unit, context, mean);
-            return;
-        }
+    private static void reduceF64StridedArray(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean mean) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         double[] inputArray = input.float64Array();

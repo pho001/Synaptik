@@ -46,8 +46,8 @@ public final class CrossBackendRouterRegressionGate {
         if (policy.requireNativeBufferBinding() && backendEvidence.bufferBindingStepCount() == 0) {
             failures.add("lost native buffer binding");
         }
-        if (backendEvidence.maxSelectedRegionLength() < policy.minMaxSelectedRegionLength()) {
-            failures.add("lost selected region length");
+        if (backendEvidence.maxSelectedPartitionLength() < policy.minMaxSelectedPartitionLength()) {
+            failures.add("lost selected partition length");
         }
         if (backendEvidence.loweredPrimitiveCount() < policy.minLoweredPrimitiveCount()) {
             failures.add("lost lowered primitive coverage");

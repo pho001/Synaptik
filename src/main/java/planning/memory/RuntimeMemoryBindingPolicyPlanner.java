@@ -18,7 +18,7 @@ final class RuntimeMemoryBindingPolicyPlanner {
         for (Tensor tensor : sortedGraph) {
             Operation operation = tensor.getOperation();
             if (operation == null || operation.opType() == null) {
-                policies.put(tensor, RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED);
+                policies.put(tensor, RuntimeMemoryBindingPolicy.PARTITION_BINDING_ALLOWED);
                 continue;
             }
             policies.put(tensor, policyFor(operation));
@@ -30,7 +30,7 @@ final class RuntimeMemoryBindingPolicyPlanner {
         LinkedHashMap<Integer, RuntimeMemoryBindingPolicy> policies = new LinkedHashMap<>();
         for (CompiledNode node : nodes) {
             Operation operation = node.operation();
-            policies.put(node.id(), operation == null ? RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED : policyFor(operation));
+            policies.put(node.id(), operation == null ? RuntimeMemoryBindingPolicy.PARTITION_BINDING_ALLOWED : policyFor(operation));
         }
         return Map.copyOf(policies);
     }
@@ -38,7 +38,7 @@ final class RuntimeMemoryBindingPolicyPlanner {
     private static RuntimeMemoryBindingPolicy policyFor(Operation operation) {
         return switch (operation.opType()) {
             case MAX_POOL2D -> RuntimeMemoryBindingPolicy.skip("workspace-sensitive-storage");
-            default -> RuntimeMemoryBindingPolicy.REGION_BINDING_ALLOWED;
+            default -> RuntimeMemoryBindingPolicy.PARTITION_BINDING_ALLOWED;
         };
     }
 }

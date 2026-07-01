@@ -14,29 +14,29 @@ import config.backend.CpuKernelConfig;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
 import planning.descriptor.CompiledTensorDescriptorIndex;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
-import planning.region.specialization.SdpaBackwardOutputKind;
-import planning.region.specialization.SdpaBackwardSpecializationPayload;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
+import planning.partition.specialization.SdpaBackwardOutputKind;
+import planning.partition.specialization.SdpaBackwardSpecializationPayload;
 import tensor.DataType;
 
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Prepares dense cpu1 routes for canonical SDPA backward specialized regions.
+ * Prepares dense cpu1 routes for canonical SDPA backward specialized partitions.
  */
 public final class Cpu1AttentionBackwardPreparer {
     public Cpu1PreparedArtifact prepare(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             CompiledTensorDescriptorIndex descriptorIndex,
             Cpu1PrepareConfig config
     ) {
         Objects.requireNonNull(outputNode, "outputNode cannot be null");
         Objects.requireNonNull(candidate, "candidate cannot be null");
         Objects.requireNonNull(config, "config cannot be null");
-        if (candidate.kind() != RegionSpecializationKind.SDPA_BACKWARD) {
+        if (candidate.kind() != PartitionSpecializationKind.SDPA_BACKWARD) {
             throw new UnsupportedOperationException("cpu1 SDPA_BACKWARD preparer does not support " + candidate.kind());
         }
         if (!(candidate.payload() instanceof SdpaBackwardSpecializationPayload payload)) {

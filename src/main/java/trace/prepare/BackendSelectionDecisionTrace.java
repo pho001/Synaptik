@@ -17,7 +17,7 @@ import java.util.List;
  * @param estimatedWork backend work estimate
  * @param costSummary static materialization-aware cost summary, if available
  * @param finalists bounded rejected finalist summaries
- * @param gpuLoweredRegionManifest selected lowered GPU region manifest, if this is an accepted GPU decision
+ * @param gpuLoweredPartitionManifest selected lowered GPU partition manifest, if this is an accepted GPU decision
  */
 public record BackendSelectionDecisionTrace(
         int anchorNodeId,
@@ -29,7 +29,7 @@ public record BackendSelectionDecisionTrace(
         long estimatedWork,
         MaterializationCostTrace costSummary,
         List<PartitionDecisionTrace.CandidateCostTrace> finalists,
-        GpuLoweredRegionTrace gpuLoweredRegionManifest
+        GpuLoweredPartitionTrace gpuLoweredPartitionManifest
 ) {
     public BackendSelectionDecisionTrace(
             int anchorNodeId,
@@ -89,7 +89,7 @@ public record BackendSelectionDecisionTrace(
                 .limit(3)
                 .toList();
         if (!selected) {
-            gpuLoweredRegionManifest = null;
+            gpuLoweredPartitionManifest = null;
         }
     }
 }

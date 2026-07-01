@@ -1,17 +1,17 @@
 <!-- generated-by: gsd-doc-writer -->
 # Graph Optimizer
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#optimizer-and-backend-planning) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Compute Flow](compute-flow.md#compile) | [Configuration](configuration.md#compileconfig) | [Testing](testing.md#targeted-test-patterns)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#optimizer-and-backend-planning) | [Backend Planning](backend-planning-and-partitions.md#backend-planning-and-partitions) | [Compute Flow](compute-flow.md#compile) | [Configuration](configuration.md#compileconfig) | [Testing](testing.md#targeted-test-patterns)
 
 This document describes the current graph optimizer as implemented in `graph.optimizer`.
-It intentionally does not describe backend ownership planning, region fusion, or memory planning as optimizer stages.
-Those are compile-flow phases covered in [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+It intentionally does not describe backend ownership planning, partition fusion, or memory planning as optimizer stages.
+Those are compile-flow phases covered in [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions).
 
 ## The Boundary
 
 The graph optimizer is a backend-neutral transformation pass over a compile-time snapshot of the tensor graph.
 
-Backend-neutral means the rule is valid before the compiler knows whether a node will execute on CPU, Metal, CUDA, or another backend. For example, replacing `x + 0` with `x` is backend-neutral because the result is the same on every backend. Choosing a Metal ownership region is not backend-neutral because it depends on target legality, transfer cost, runtime availability, and accelerator policy.
+Backend-neutral means the rule is valid before the compiler knows whether a node will execute on CPU, Metal, CUDA, or another backend. For example, replacing `x + 0` with `x` is backend-neutral because the result is the same on every backend. Choosing a Metal ownership partition is not backend-neutral because it depends on target legality, transfer cost, runtime availability, and accelerator policy.
 
 The source of truth is:
 
@@ -31,9 +31,9 @@ The optimizer owns:
 It does not own:
 
 - backend target selection
-- accelerator region discovery
-- CPU natural region grouping
-- region-internal fusion
+- accelerator partition discovery
+- CPU natural partition grouping
+- partition-internal fusion
 - memory-slot reuse planning
 - CPU vector thresholds
 - BLAS provider selection
@@ -68,7 +68,7 @@ simplification iteration 2:
 `LOWER` then runs once if `GraphOptimizationConfig.optionalLowering()` is enabled. In current code this is for backend-neutral operation surfaces, not backend executable lowering. A useful distinction:
 
 - backend-neutral lowering changes graph semantics into another graph-level primitive, such as recognizing a safe `matmul + bias` form as `LINEAR`
-- backend-specific lowering turns an already planned region into a target-specific executable representation, such as a Metal MPSGraph DAG or a CPU fused executable
+- backend-specific lowering turns an already planned partition into a target-specific executable representation, such as a Metal MPSGraph DAG or a CPU fused executable
 
 ### Canonical DAG Versus Specialization Ops
 
@@ -104,8 +104,8 @@ Tensor API
   -> graph optimization
        SIMPLIFICATION_FIXPOINT(AR -> CF -> CSE -> DCE)
        optional LOWER
-  -> backend planning / ownership regions
-  -> region optimization inside owned regions
+  -> backend planning / ownership partitions
+  -> partition optimization inside owned partitions
   -> memory planning
   -> prepare-time backend lowering
   -> runtime execution
@@ -116,8 +116,8 @@ Terms used here:
 
 - Semantic forward canonicalization: a pre-autograd graph rebuild that recognizes higher-level forward forms while preserving source mappings back to the user-visible tensors.
 - Backward graph build: reverse-mode autodiff graph construction for trainable leaves.
-- Backend planning: compile-time assignment of graph regions to CPU, Metal, CUDA, or future backends.
-- Region optimization: transformation inside an already owned region, for example splitting a CPU region into fused and unit execution units.
+- Backend planning: compile-time assignment of graph partitions to CPU, Metal, CUDA, or future backends.
+- Partition optimization: transformation inside an already owned partition, for example splitting a CPU partition into fused and unit execution units.
 - Memory planning: compile-time lifetime and reusable-slot analysis.
 - Publication policy: runtime policy deciding which run-scoped values are copied back to public `Tensor` objects after execution.
 
@@ -212,7 +212,7 @@ Tensor b = x.mul(w);
 Tensor y = a.add(b);
 ```
 
-If the two `mul` nodes have the same operation, inputs, dtype, shape, layout-relevant metadata, and parameters, CSE can reuse one compiled node. That reduces repeated compute and often exposes simpler downstream region planning.
+If the two `mul` nodes have the same operation, inputs, dtype, shape, layout-relevant metadata, and parameters, CSE can reuse one compiled node. That reduces repeated compute and often exposes simpler downstream partition planning.
 
 Structural identity is stricter than "same Java method was called." Operations with parameters must include those parameters in the signature. For example, `sum(axis=0)` and `sum(axis=1)` are not the same expression.
 
@@ -296,8 +296,8 @@ The old mental model treated backend partitioning, fusion, and memory planning a
 |---|---|
 | Backend-neutral graph simplification | `GraphOptimizationConfig` + `GraphOptimizer` |
 | Backend ownership planning | `BackendPlanningConfig` + `BackendPlanningService` |
-| CPU and accelerator region optimization | `RegionOptimizationConfig` + `DefaultRegionOptimizer` |
-| Memory reuse and handoff planning | `MemoryPlanningConfig` + `MemoryPlanner` public entry point; package-local memory planners own lifetimes, slots, region flow, bindings, handoffs, policy, and summary |
+| CPU and accelerator partition optimization | `PartitionExecutionConfig` + `PartitionExecutionPlanner` |
+| Memory reuse and handoff planning | `MemoryPlanningConfig` + `MemoryPlanner` public entry point; package-local memory planners own lifetimes, slots, partition flow, bindings, handoffs, policy, and summary |
 | Runtime backend and hardware policy | `RuntimeConfig` |
 | Value publication after execution | `PublicationPolicy` |
 
@@ -317,8 +317,8 @@ Use the smallest diagnostic surface that matches the question:
 | Question | Better evidence |
 |---|---|
 | Did AR or CSE change graph shape? | Optimizer trace and compiled node list |
-| Why did a Metal region not appear? | Backend planning trace |
-| Why did a planned Metal region execute on CPU? | Prepare trace and run step fallback metadata |
+| Why did a Metal partition not appear? | Backend planning trace |
+| Why did a planned Metal partition execute on CPU? | Prepare trace and run step fallback metadata |
 | Why did a tensor value get copied back to CPU? | Publication policy, run trace, materialization metadata |
 
 ## Adding A Graph Optimization Change
@@ -343,7 +343,7 @@ Focused tests commonly used for this layer:
 
 ## See Also
 
-- [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions)
+- [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions)
 - [Configuration](configuration.md#compileconfig)
 - [Compute Flow](compute-flow.md#compile)
 - [Metal Backend](metal-backend.md#end-to-end-flow)

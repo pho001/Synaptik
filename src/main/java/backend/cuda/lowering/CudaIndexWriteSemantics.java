@@ -161,7 +161,7 @@ final class CudaIndexWriteSemantics {
 
     private static String commonReason(Operation.OpType opType, CompiledNode node, PartitionPlanningContext context) {
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: " + opType + " nodes are not legal inside nested CUDA backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: " + opType + " nodes are not legal inside nested CUDA backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_CUDA " + opType + " requires planning context";

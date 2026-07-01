@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Mechanisms
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Architecture](architecture.md#core-artifact-boundaries) | [Modules](modules.md#package-map)
+Navigation: [Index](index.md#recommended-reading-paths) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-partitions.md#backend-planning-and-partitions) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Architecture](architecture.md#core-artifact-boundaries) | [Modules](modules.md#package-map)
 
 Chapters: [Graph Construction](#graph-construction) | [Broadcasting](#broadcasting) | [Autodiff / Backward Graph](#autodiff-backward-graph) | [Compile Pipeline](#compile-pipeline) | [Semantic Canonicalization](#semantic-canonicalization) | [Graph Optimization And Compile Planning](#graph-optimization-and-compile-planning) | [Prepared Execution](#prepared-execution) | [Memory Planning / Runtime Binding](#memory-planning-runtime-binding) | [CPU Dispatch](#cpu-dispatch) | [Fused ASM Execution](#fused-asm-execution) | [Tuning / Calibration / Persistence](#tuning-calibration-persistence)
 
@@ -184,7 +184,7 @@ Forward builders attach recipes for how to build gradient nodes. Training compil
 
 - [`BackwardGraphBuilder.java`](../src/main/java/graph/compile/session/BackwardGraphBuilder.java)
 - [`GradientBindingCollector.java`](../src/main/java/graph/compile/session/GradientBindingCollector.java)
-- [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java)
+- [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java)
 - [`GradientEngineRegressionTest.java`](../src/test/java/GradientEngineRegressionTest.java)
 
 **Step-By-Step**
@@ -258,7 +258,7 @@ Compile creates a snapshot, optionally expands it with backward nodes, optimizes
 - [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java)
 - [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java)
 - [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java)
-- [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java)
+- [`CompiledNode.java`](../src/main/java/graph/model/CompiledNode.java)
 - [`CompiledGraphIdempotencyTest.java`](../src/test/java/CompiledGraphIdempotencyTest.java)
 
 **Step-By-Step**
@@ -288,13 +288,13 @@ Compile sees a forward DAG with leaf `a`, leaf `b`, `ADD`, `RELU`, and a system 
 
 **Internals**
 
-`CompiledNodeSnapshotter.snapshot(...)` records node id, publication tensor, operation, resolved backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward marker, leaf flag, gradient/publication flags, contiguity, flat size, label, and static data snapshot. Compile topology and input relationships are value-based, so prepare/lowering does not depend on mutable topology in the original tensor objects.
+`CompiledNodeSnapshotter.snapshot(...)` records node id, operation, resolved backend, input ids, storage owner id, shape, strides, storage offset, dtype, backward marker, leaf flag, gradient flags, contiguity, flat size, label, and static data snapshot. Compile topology and input relationships are value-based, so prepare/lowering does not depend on mutable topology in the original tensor objects.
 
 **Edge Cases**
 
 - Compile maps canonicalized or lowered forward roots back to the original root so execution can publish results to the expected semantic tensor.
 - If the optimized graph no longer contains the forward output, compile fails.
-- Compile finalizes region and memory planning artifacts when partition planning discovers planned partitions.
+- Compile finalizes partition and memory planning artifacts when partition planning discovers planned partitions.
 
 **Misconceptions**
 
@@ -327,7 +327,7 @@ Semantic canonicalization rebuilds a forward-only equivalent graph without mutat
 
 **Where It Lives**
 
-- [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/SemanticForwardCanonicalizer.java)
+- [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/compile/canonical/SemanticForwardCanonicalizer.java)
 - [`RewriteConfig.java`](../src/main/java/config/optimizer/RewriteConfig.java)
 - [`SemanticForwardCanonicalizationCompileTest.java`](../src/test/java/graph/SemanticForwardCanonicalizationCompileTest.java)
 
@@ -374,11 +374,11 @@ Lowerings include piecewise patterns like sigmoid/relu/clamp, linear lowering, i
 
 **Problem**
 
-The compiled graph should be simpler and deduplicated before backend ownership, region optimization, and memory planning prepare it for runtime.
+The compiled graph should be simpler and deduplicated before backend ownership, partition optimization, and memory planning prepare it for runtime.
 
 **Mental Model**
 
-`GraphOptimizer` owns backend-neutral graph simplification. Backend planning, region optimization, and memory planning are later compile phases.
+`GraphOptimizer` owns backend-neutral graph simplification. Backend planning, partition optimization, and memory planning are later compile phases.
 
 **Key Concepts**
 
@@ -389,7 +389,7 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 - `OptimizerState`
 - simplification fixpoint
 - backend ownership planning
-- region optimization
+- partition optimization
 - memory planning
 
 **Where It Lives**
@@ -398,7 +398,7 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 - [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java)
 - [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java)
 - [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java)
-- [`BackendPlanningService.java`](../src/main/java/graph/compile/planning/BackendPlanningService.java)
+- [`BackendPlanningService.java`](../src/main/java/planning/backend/BackendPlanningService.java)
 - [`graph/optimizer`](../src/main/java/graph/optimizer)
 
 **Step-By-Step**
@@ -406,8 +406,8 @@ The compiled graph should be simpler and deduplicated before backend ownership, 
 1. `OptimizerFactory.create(config.graphOptimization())` builds graph simplification and optional lowering rules.
 2. `AR`, `CF`, `CSE`, and `DCE` run inside a simplification fixpoint.
 3. `LOWER` optionally creates backend-neutral specialized operation surfaces.
-4. `BackendPlanningService` discovers CPU and accelerator ownership regions from `BackendPlanningConfig`.
-5. Region optimization creates execution units inside owned regions.
+4. `BackendPlanningService` discovers CPU and accelerator ownership partitions from `BackendPlanningConfig`.
+5. Partition optimization creates execution units inside owned partitions.
 6. Memory planning builds lifetime and handoff plans.
 7. The final `OptimizerState` and compile artifacts are stored for prepare.
 
@@ -419,7 +419,7 @@ For:
 z = exp(log(x)).add(0)
 ```
 
-`AR` can simplify redundant algebraic structure. If another identical expression remains, `CSE` can point both uses at one representative. Backend planning then groups backend-compatible structure, region optimization may convert an elementwise chain into a fused execution unit, and memory planning assigns reusable slots for temporaries.
+`AR` can simplify redundant algebraic structure. If another identical expression remains, `CSE` can point both uses at one representative. Backend planning then groups backend-compatible structure, partition optimization may convert an elementwise chain into a fused execution unit, and memory planning assigns reusable slots for temporaries.
 
 **Internals**
 
@@ -429,18 +429,18 @@ z = exp(log(x)).add(0)
 CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER
 ```
 
-`CompileConfig.training()` and `CompileConfig.inference()` then add explicit backend planning, region optimization, and memory planning.
+`CompileConfig.training()` and `CompileConfig.inference()` then add explicit backend planning, partition optimization, and memory planning.
 
 **Edge Cases**
 
 - `CompileConfig.noGraphOptimization()` disables graph optimization only.
 - Explicit backend planning still has to work when graph optimization is disabled.
-- There is no outer fixpoint loop around backend planning, region optimization, and memory planning.
+- There is no outer fixpoint loop around backend planning, partition optimization, and memory planning.
 
 **Misconceptions**
 
 - Runtime thresholds such as vector width or BLAS work cutoffs are not optimizer responsibilities.
-- Region optimization does not directly execute fused code; it shapes optimized regions and descriptors for later prepare/runtime work.
+- Partition optimization does not directly execute fused code; it shapes optimized partitions and descriptors for later prepare/runtime work.
 
 **Related Mechanisms**
 
@@ -463,7 +463,7 @@ Prepare binds policy; execute consumes the prepared recipe.
 
 - `PreparedExecution`
 - `PreparedExecutionStep`
-- `CompiledNodeExecutionMetadata`
+- `PreparedStepMetadata`
 - backend prepare dispatcher
 - forward steps
 - backward steps
@@ -471,9 +471,9 @@ Prepare binds policy; execute consumes the prepared recipe.
 
 **Where It Lives**
 
-- [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java)
-- [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java)
-- [`PreparedExecutionStep.java`](../src/main/java/graph/execution/PreparedExecutionStep.java)
+- [`PreparedExecutionBuilder.java`](../src/main/java/prepare/orchestration/PreparedExecutionBuilder.java)
+- [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java)
+- [`PreparedExecutionStep.java`](../src/main/java/runtime/execution/PreparedExecutionStep.java)
 - [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java)
 
 **Step-By-Step**
@@ -481,7 +481,7 @@ Prepare binds policy; execute consumes the prepared recipe.
 1. Build a consumer map from compiled nodes.
 2. Create `BackendPrepareContext` with runtime config and backward support.
 3. Select backend partition plans.
-4. Lower optimized regions for supported backends.
+4. Lower optimized partitions for supported backends.
 5. Dispatch each non-leaf node to a backend preparer.
 6. Publish metadata into the prepare context.
 7. Skip partition-interior nodes as executable steps.
@@ -522,7 +522,7 @@ Execution creates many temporary tensors. Reusing compatible buffers reduces all
 
 **Mental Model**
 
-Compile-time memory planning computes lifetimes, reusable slots, region value flow, region bindings, handoff requirements, and runtime binding policy. Runtime binding assigns actual arrays to eligible runtime tensors before execution.
+Compile-time memory planning computes lifetimes, reusable slots, partition value flow, partition bindings, handoff requirements, and runtime binding policy. Runtime binding assigns actual arrays to eligible runtime tensors before execution.
 
 **Key Concepts**
 
@@ -531,24 +531,24 @@ Compile-time memory planning computes lifetimes, reusable slots, region value fl
 - tensor lifetime planning
 - reusable intervals
 - slot assignment
-- region value lifetimes
-- region memory bindings
-- region handoff requirements
+- partition value lifetimes
+- partition memory bindings
+- partition handoff requirements
 - runtime binding policy
 - `RuntimeMemoryBinder`
 
 **Where It Lives**
 
-- [`MemoryPlanner.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanner.java)
-- [`TensorLifetimePlanner.java`](../src/main/java/graph/compile/planning/memory/TensorLifetimePlanner.java)
-- [`ReusableSlotAllocator.java`](../src/main/java/graph/compile/planning/memory/ReusableSlotAllocator.java)
-- [`RegionValueFlowPlanner.java`](../src/main/java/graph/compile/planning/memory/RegionValueFlowPlanner.java)
-- [`RegionBindingAllocator.java`](../src/main/java/graph/compile/planning/memory/RegionBindingAllocator.java)
-- [`RegionHandoffPlanner.java`](../src/main/java/graph/compile/planning/memory/RegionHandoffPlanner.java)
-- [`MemoryPlanningInput.java`](../src/main/java/graph/compile/planning/memory/MemoryPlanningInput.java)
-- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java)
+- [`MemoryPlanner.java`](../src/main/java/planning/memory/MemoryPlanner.java)
+- [`TensorLifetimePlanner.java`](../src/main/java/planning/memory/TensorLifetimePlanner.java)
+- [`ReusableSlotAllocator.java`](../src/main/java/planning/memory/ReusableSlotAllocator.java)
+- [`PartitionExecutionValueFlowPlanner.java`](../src/main/java/planning/memory/PartitionExecutionValueFlowPlanner.java)
+- [`PartitionBindingAllocator.java`](../src/main/java/planning/memory/PartitionBindingAllocator.java)
+- [`PartitionHandoffPlanner.java`](../src/main/java/planning/memory/PartitionHandoffPlanner.java)
+- [`MemoryPlanningInput.java`](../src/main/java/planning/memory/MemoryPlanningInput.java)
+- [`RuntimeMemoryBinder.java`](../src/main/java/runtime/residency/RuntimeMemoryBinder.java)
 - [`MemoryPlannerSummaryTest.java`](../src/test/java/MemoryPlannerSummaryTest.java)
-- [`RuntimeMemoryBinderTest.java`](../src/test/java/graph/execution/RuntimeMemoryBinderTest.java)
+- [`RuntimeMemoryBinderTest.java`](../src/test/java/runtime/residency/RuntimeMemoryBinderTest.java)
 
 **Step-By-Step**
 
@@ -558,9 +558,9 @@ Compile-time memory planning computes lifetimes, reusable slots, region value fl
 4. Mark saved forward owners crossing the forward/backward boundary.
 5. Build lifetimes and reusable intervals.
 6. Assign compatible intervals to slots.
-7. Build region-value flow artifacts for optimized regions.
-8. Allocate region memory bindings for materialized and continuation values.
-9. Build cross-region handoff requirements.
+7. Build partition-value flow artifacts for optimized partitions.
+8. Allocate partition memory bindings for materialized and continuation values.
+9. Build cross-partition handoff requirements.
 10. During execution, bind eligible runtime tensors to shared slot arrays.
 
 **Worked Example**
@@ -575,13 +575,13 @@ If `t1` is no longer needed after `t2`, its buffer may become reusable. A strict
 
 **Internals**
 
-`MemoryPlanner` is the public assembler for `MemoryPlan`. Tensor lifetime analysis, interval filtering, slot allocation, region value flow, region binding allocation, handoff planning, runtime binding policy, and summary reporting live in separate package-local classes with no public compatibility layer. `RuntimeMemoryBindingPolicyPlanner` marks workspace-sensitive operations such as `MAX_POOL2D` as not region-bindable. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
+`MemoryPlanner` is the public assembler for `MemoryPlan`. Tensor lifetime analysis, interval filtering, slot allocation, partition value flow, partition binding allocation, handoff planning, runtime binding policy, and summary reporting live in separate package-local classes with no public compatibility layer. `RuntimeMemoryBindingPolicyPlanner` marks workspace-sensitive operations such as `MAX_POOL2D` as not partition-bindable. `RuntimeMemoryBinder` binds dtype-specific slot arrays for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`; the binding remains a runtime storage optimization and does not change semantic tensor shapes, dtypes, or graph edges.
 
 **Edge Cases**
 
 - Alias/view operations are bound by aliasing their input runtime tensor rather than assigning a new slot.
-- A region slot is bound only when slot use count is at least two and slot size equals runtime tensor flat size.
-- Workspace-sensitive nodes do not disable binding for independent region values.
+- A partition slot is bound only when slot use count is at least two and slot size equals runtime tensor flat size.
+- Workspace-sensitive nodes do not disable binding for independent partition values.
 
 **Misconceptions**
 
@@ -607,7 +607,7 @@ CPU execution reads a prepared recipe, resolves runtime input tensors, applies t
 
 **Key Concepts**
 
-- `ComputeEngine`
+- `PreparedExecutionRunner`
 - `CpuBackend`
 - `CpuKernelRegistry`
 - `CpuExecutionPlanner`
@@ -617,17 +617,18 @@ CPU execution reads a prepared recipe, resolves runtime input tensors, applies t
 
 **Where It Lives**
 
-- [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java)
+- [`PreparedExecutionRunner.java`](../src/main/java/runtime/runner/PreparedExecutionRunner.java)
+- [`CpuNodeExecutionArtifact.java`](../src/main/java/backend/cpu/CpuNodeExecutionArtifact.java)
 - [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java)
 - [`CpuKernelRegistry.java`](../src/main/java/backend/cpu/kernels/CpuKernelRegistry.java)
-- [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java)
+- [`CpuExecutionPlanner.java`](../src/main/java/backend/cpu/prepare/CpuExecutionPlanner.java)
 - [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java)
 
 **Step-By-Step**
 
-1. `PreparedExecution` calls `ComputeEngine.compute(node, metadata, context)`.
-2. `ComputeEngine` switches on `metadata.backend()`.
-3. For CPU, `CpuBackend.execute(...)` resolves the operation from metadata override or compiled node.
+1. `PreparedExecution` delegates its prepared step list to `PreparedExecutionRunner`.
+2. The runner checks the prepared input-residency requirement and invokes `metadata.executable()`.
+3. A CPU step carries a `CpuNodeExecutionArtifact`, which calls `CpuBackend.execute(...)` with its already prepared kernel, plan, and workspace template.
 4. It fetches the runtime output tensor by node id.
 5. It requires a prepared CPU kernel and CPU plan.
 6. It resolves runtime inputs using execution input node ids when present.
@@ -647,14 +648,14 @@ For a fused node, metadata contains `CpuFusedKernel`, a `FusedOperation`, and a 
 
 **Internals**
 
-`CpuExecutionPlanner.from(runtimeConfig.cpuKernelConfig())` creates sub-planners for elementwise dispatch, fused dispatch, reductions, matmul, conv2d, attention, and compute-contract resolution. `CpuKernelRegistry.resolve(opType)` maps every supported `Operation.OpType` to a concrete CPU kernel or throws for unsupported internal types.
+`CpuExecutionPlanner.from(runtimeConfig.kernel().cpu())` creates sub-planners for elementwise dispatch, fused dispatch, reductions, matmul, conv2d, attention, and compute-contract resolution. `CpuKernelRegistry.resolve(opType)` maps every supported `Operation.OpType` to a concrete CPU kernel or throws for unsupported internal types.
 
 **Edge Cases**
 
 - `CONST_SCALAR` has no standalone CPU kernel.
 - `UNKNOWN` cannot resolve a CPU kernel.
 - Non-`FLOAT64` execution marks the tensor's double data view stale after kernel execution.
-- Partition-interior nodes are ignored by `ComputeEngine`.
+- Partition-interior nodes are represented by prepare-time step boundaries rather than skipped by a runtime backend switch.
 
 **Misconceptions**
 
@@ -675,14 +676,14 @@ Elementwise chains can be cheaper as one fused loop than as multiple materialize
 
 **Mental Model**
 
-Graph optimization identifies regions. CPU lowering turns a fused region into a `FusedOperation`. Prepare compiles or retrieves an ASM-backed `PreparedFusedExecutable`. Runtime invokes scalar, vector, parallel, or parallel-vector ranges based on prepared hints.
+Graph optimization identifies partitions. CPU lowering turns a fused partition into a `FusedOperation`. Prepare compiles or retrieves an ASM-backed `PreparedFusedExecutable`. Runtime invokes scalar, vector, parallel, or parallel-vector ranges based on prepared hints.
 
 **Key Concepts**
 
 - `FusedOperation`
 - `FusedExpressionPlan`
 - `FusedExecutionPlan`
-- `FusedExecutionBackendResolver`
+- `FusedExecutablePreparer`
 - `AsmPreparedFusedExecutableFactory`
 - `PreparedFusedExecutable`
 - `CpuFusedKernel`
@@ -691,8 +692,7 @@ Graph optimization identifies regions. CPU lowering turns a fused region into a 
 **Where It Lives**
 
 - [`FusedOperation.java`](../src/main/java/backend/cpu/fused/plan/FusedOperation.java)
-- [`FusedExecutionBackendResolver.java`](../src/main/java/backend/cpu/fused/exec/FusedExecutionBackendResolver.java)
-- [`AsmFusedExecutionBackend.java`](../src/main/java/backend/cpu/fused/asm/AsmFusedExecutionBackend.java)
+- [`FusedExecutablePreparer.java`](../src/main/java/backend/cpu/fused/exec/FusedExecutablePreparer.java)
 - [`AsmPreparedFusedExecutableFactory.java`](../src/main/java/backend/cpu/fused/asm/AsmPreparedFusedExecutableFactory.java)
 - [`CpuFusedKernel.java`](../src/main/java/backend/cpu/kernels/fused/CpuFusedKernel.java)
 - [`FusedExecutor.java`](../src/main/java/backend/cpu/kernels/fused/FusedExecutor.java)
@@ -700,15 +700,15 @@ Graph optimization identifies regions. CPU lowering turns a fused region into a 
 
 **Step-By-Step**
 
-1. Region optimization creates optimized regions from backend planning information.
+1. Partition optimization creates optimized partitions from backend planning information.
 2. CPU lowering produces a lowered fused anchor and `FusedOperationPreparation`.
 3. `CpuNodePreparer` resolves `CpuFusedKernel`, compute contract, fused dispatch hints, and CPU plan.
 4. It creates a `FusedExecutionPlan`.
-5. `FusedExecutionBackendResolver` selects the ASM backend.
-6. `AsmPreparedFusedExecutableFactory` builds a cache key from scheduler signature, precision mode, vector width, and specialization.
+5. `FusedExecutablePreparer` asks `AsmPreparedFusedExecutableFactory` for the production executable.
+6. The factory builds a cache key from scheduler signature, precision mode, vector width, and specialization.
 7. On a cache miss, bytecode is generated and loaded with `CustomClassLoader`.
-8. Runtime `CpuFusedKernel` calls `FusedExecutor.execute(...)`.
-9. `FusedExecutor` dispatches scalar, vector, parallel, or parallel-vector ranges.
+8. If ASM preparation fails for Java-array storage, policy may allow an interpreted prepared fallback; `MemorySegment` fused contracts are ASM-only and fail prepare instead of silently falling back.
+9. Runtime `CpuFusedKernel` calls `FusedExecutor.execute(...)`, which dispatches scalar, vector, parallel, or parallel-vector ranges.
 
 **Worked Example**
 
@@ -731,7 +731,7 @@ The generated class name includes specialization and vector width, for example a
 **Misconceptions**
 
 - Fused ASM execution is not a runtime rewrite; it is prepared before execution.
-- `FusedOperation.isCheap()` is a planning hint, not a correctness rule.
+- `FusedOperation.isLowCostHint()` is a planning hint, not a correctness rule.
 
 **Related Mechanisms**
 

@@ -136,7 +136,7 @@ double[] grad = x.getGradient().toDoubleArrayCopy();
 - N-D sequence-friendly tensor primitives such as last-dimension `linear`, `stack`/`unstack`, axis `take`, axis slicing, masked reductions, masked cross-entropy, and ergonomic factories.
 - Forward compute and reverse-mode autodiff for the supported primitive set.
 - CPU execution as the broad correctness backend.
-- Compile-time graph optimization, backend planning, region optimization, and memory planning.
+- Compile-time graph optimization, backend planning, partition optimization, and memory planning.
 - CPU fused execution for selected fused elementwise families.
 - Static dense ONNX import/export for the documented subset.
 - Runtime `INT32` and `INT64` index tensors on CPU where ONNX/index semantics require them.
@@ -162,7 +162,7 @@ The repository is organized around lifecycle and ownership layers.
 | Public modeling surface | `src/main/java/tensor` | Build tensor graphs, expose ergonomic API |
 | Primitive descriptors | `src/main/java/operations` | Describe what each graph node means |
 | Graph model and compile facade | `src/main/java/graph` | Snapshot and optimize graph structure; `CompiledGraph` is the only graph lifecycle facade |
-| Compile-time planning | `src/main/java/planning` | Describe backend intents, partitions, regions, values, materialization, and memory reuse |
+| Compile-time planning | `src/main/java/planning` | Describe backend intents, partitions, execution plans, values, materialization, and memory reuse |
 | Prepare composition | `src/main/java/prepare` | Share immutable context/validation and orchestrate backend compilers |
 | Prepared runtime | `src/main/java/runtime` | Own execution contracts, per-run state, memory, residency, transfers, and publication |
 | Diagnostic snapshots | `src/main/java/trace` | Define producer-independent compile, prepare, execution, and backend trace DTOs |
@@ -192,7 +192,7 @@ Top-level docs:
 4. [docs/sequence-tensor-primitives.md](docs/sequence-tensor-primitives.md) - N-D sequence-friendly primitives for consumer frameworks: factories, shape helpers, `linear`, `stack`/`unstack`, axis indexing, masked reductions, and masked cross entropy.
 5. [docs/compute-flow.md](docs/compute-flow.md) - deep walkthrough from graph construction through compile, prepare, execution, memory binding, and traces.
 6. [docs/graph-optimizer.md](docs/graph-optimizer.md) - backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, and optional `LOWER`.
-7. [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md) - backend ownership planning, CPU natural regions, accelerator regions, region optimization, memory planning, and publication policy.
+7. [docs/backend-planning-and-partitions.md](docs/backend-planning-and-partitions.md) - backend ownership planning, CPU natural partitions, accelerator partitions, partition optimization, memory planning, and publication policy.
 8. [docs/cpu-bf16.md](docs/cpu-bf16.md) - current CPU BF16 storage/compute contract and why BF16 is not automatically faster than F32 on CPU.
 9. [docs/calibration-autotune.md](docs/calibration-autotune.md) - calibration families, owned knobs, candidate values, graph autotune parameters, persistence, and progress.
 10. [docs/architecture.md](docs/architecture.md) - implementation-grounded lifecycle, backend dispatch, module boundaries, tuning, and diagrams.
@@ -212,7 +212,7 @@ If you are solving a specific problem:
 - public tensor API: [docs/tensor-api.md](docs/tensor-api.md), [docs/sequence-tensor-primitives.md](docs/sequence-tensor-primitives.md), then [src/main/java/tensor/API.md](src/main/java/tensor/API.md)
 - compile/prepare/execute behavior: [docs/compute-flow.md](docs/compute-flow.md)
 - graph optimizer internals: [docs/graph-optimizer.md](docs/graph-optimizer.md)
-- backend planning, regions, memory planning, and publication: [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
+- backend planning, partitions, memory planning, and publication: [docs/backend-planning-and-partitions.md](docs/backend-planning-and-partitions.md)
 - CPU BF16 behavior and performance interpretation: [docs/cpu-bf16.md](docs/cpu-bf16.md)
 - calibration and graph autotune: [docs/calibration-autotune.md](docs/calibration-autotune.md)
 - graph optimization and concrete rewrite behavior:
@@ -244,9 +244,9 @@ The current codebase includes:
 - compile-time backend planning:
   - CPU-only planning
   - explicit accelerator intent planning
-  - automatic accelerator region discovery
-  - CPU natural regions
-- region optimization and memory planning as separate compile phases
+  - automatic accelerator partition discovery
+  - CPU natural partitions
+- partition optimization and memory planning as separate compile phases
 - CPU kernel families for:
   - elementwise
   - broadcast/where
@@ -333,8 +333,8 @@ It:
 - canonicalizes forward structure
 - optionally builds backward structure
 - runs graph optimization
-- plans backend ownership and regions
-- plans region optimization and memory reuse
+- plans backend ownership and partitions
+- plans partition optimization and memory reuse
 - produces a stable compile artifact
 
 ### Stage 3: prepare runtime execution
@@ -578,8 +578,8 @@ Use this rule of thumb:
 
 - graph optimizer shape or backend-neutral pattern lowering:
   - start in `graph/optimizer`
-- backend ownership, CPU natural regions, accelerator regions, or region optimization:
-  - start in `graph/compile`, `planning/partition`, `planning/region`, and [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
+- backend ownership, CPU natural partitions, accelerator partitions, or partition optimization:
+  - start in `graph/compile`, `planning/partition`, `planning/partition`, and [docs/backend-planning-and-partitions.md](docs/backend-planning-and-partitions.md)
 - CPU dispatch thresholds, tiles, microkernels, fused widths:
   - start in `config`, `backend/cpu/prepare`, `backend/cpu/kernels`, and `tuning`
 - new public API surface:

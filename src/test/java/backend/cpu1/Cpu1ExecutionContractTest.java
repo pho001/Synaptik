@@ -83,6 +83,47 @@ class Cpu1ExecutionContractTest {
     }
 
     @Test
+    void elementwiseTraceReportsPreparedStaticRouteAttributes() {
+        Tensor left = new Tensor(new float[]{1.0f, 2.0f, 3.0f, 4.0f}, new int[]{4}, null, "left", DataType.FLOAT32);
+        Tensor right = new Tensor(new float[]{10.0f, 20.0f, 30.0f, 40.0f}, new int[]{4}, null, "right", DataType.FLOAT32);
+        Fixture fixture = fixture(left.add(right));
+        Cpu1PreparedArtifact artifact = new Cpu1NodePreparer().prepare(
+                fixture.node(),
+                fixture.descriptorIndex(),
+                Cpu1PrepareConfig.vectorParallel(3)
+        );
+        PreparedStepMetadata metadata = cpu1Metadata(fixture.node(), artifact);
+        ExecutionContext context = context(fixture, metadata);
+
+        StepTraceContribution trace = artifact.traceContribution(fixture.node(), metadata, context);
+        Map<String, Object> attrs = trace.attributes();
+
+        assertEquals(artifact.preparedUnit().kernelId().name(), trace.kernel());
+        assertEquals(artifact.preparedUnit().kernelId().name(), attrs.get("cpu1ElementwiseKernelId"));
+        assertEquals(Operation.OpType.ADD.name(), attrs.get("cpu1ElementwiseOpType"));
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY.name(), attrs.get("cpu1StorageKind"));
+        assertEquals(DataType.FLOAT32.name(), attrs.get("cpu1DType"));
+        assertEquals(DataType.FLOAT32.name(), attrs.get("cpu1OutputDType"));
+        assertEquals(Cpu1LayoutKind.CONTIGUOUS.name(), attrs.get("cpu1LayoutKind"));
+        assertEquals(
+                artifact.preparedUnit().dispatchDecision().requestedVectorizationKind().name(),
+                attrs.get("cpu1VectorizationKind")
+        );
+        assertEquals(artifact.preparedUnit().dispatchDecision().launchConfig().workerCount(),
+                attrs.get("cpu1LaunchWorkers"));
+        assertEquals(artifact.preparedUnit().dispatchDecision().launchConfig().chunkSize(),
+                attrs.get("cpu1LaunchChunkSize"));
+        assertEquals(0, attrs.get("cpu1ScratchF32"));
+        assertEquals(0, attrs.get("cpu1ScratchF64"));
+        assertEquals(0, attrs.get("cpu1ScratchI32"));
+        assertEquals(
+                List.of(Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name(), Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name()),
+                attrs.get("cpu1ElementwiseInputAccessKinds")
+        );
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name(), attrs.get("cpu1ElementwiseOutputAccessKind"));
+    }
+
+    @Test
     void preparedAddReadsRank3StridedInputViews() {
         float[] leftData = new float[]{
                 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f,

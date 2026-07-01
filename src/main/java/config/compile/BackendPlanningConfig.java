@@ -1,6 +1,6 @@
 package config.compile;
 
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 
 import java.util.EnumSet;
 import java.util.Objects;
@@ -14,18 +14,18 @@ public record BackendPlanningConfig(
         BackendPlanningFailurePolicy failurePolicy,
         BackendPlanningRequirementScope requirementScope,
         Set<BackendTarget> targets,
-        RegionOwnershipPlannerStrategy ownershipPlanner,
+        PartitionOwnershipPlannerStrategy ownershipPlanner,
         PartitionSearchConfig search,
-        CpuRegionConfig cpuRegions,
+        CpuPartitionConfig cpuPartitions,
         BackendPlanningCostConfig cost
 ) {
     public BackendPlanningConfig {
         discoveryMode = discoveryMode == null ? BackendDiscoveryMode.CPU_ONLY : discoveryMode;
         failurePolicy = failurePolicy == null ? BackendPlanningFailurePolicy.OPTIONAL : failurePolicy;
         requirementScope = requirementScope == null ? BackendPlanningRequirementScope.ANY_TARGET : requirementScope;
-        ownershipPlanner = ownershipPlanner == null ? RegionOwnershipPlannerStrategy.ANCHOR : ownershipPlanner;
+        ownershipPlanner = ownershipPlanner == null ? PartitionOwnershipPlannerStrategy.ANCHOR : ownershipPlanner;
         search = search == null ? PartitionSearchConfig.defaults() : search;
-        cpuRegions = cpuRegions == null ? CpuRegionConfig.defaults() : cpuRegions;
+        cpuPartitions = cpuPartitions == null ? CpuPartitionConfig.defaults() : cpuPartitions;
         cost = cost == null ? BackendPlanningCostConfig.conservative() : cost;
         targets = normalizeTargets(discoveryMode, targets);
         validate(discoveryMode, failurePolicy, requirementScope, targets);
@@ -37,9 +37,9 @@ public record BackendPlanningConfig(
                 BackendPlanningFailurePolicy.OPTIONAL,
                 BackendPlanningRequirementScope.ANY_TARGET,
                 Set.of(),
-                RegionOwnershipPlannerStrategy.ANCHOR,
+                PartitionOwnershipPlannerStrategy.ANCHOR,
                 PartitionSearchConfig.defaults(),
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 BackendPlanningCostConfig.conservative()
         );
     }
@@ -50,9 +50,9 @@ public record BackendPlanningConfig(
                 BackendPlanningFailurePolicy.OPTIONAL,
                 BackendPlanningRequirementScope.ALL_EXPLICIT_INTENTS,
                 Set.of(BackendTarget.GPU_METAL, BackendTarget.GPU_CUDA),
-                RegionOwnershipPlannerStrategy.ANCHOR,
+                PartitionOwnershipPlannerStrategy.ANCHOR,
                 PartitionSearchConfig.defaults(),
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 BackendPlanningCostConfig.conservative()
         );
     }
@@ -63,23 +63,23 @@ public record BackendPlanningConfig(
                 BackendPlanningFailurePolicy.OPTIONAL,
                 BackendPlanningRequirementScope.ANY_TARGET,
                 Set.of(BackendTarget.GPU_METAL),
-                RegionOwnershipPlannerStrategy.ANCHOR,
+                PartitionOwnershipPlannerStrategy.ANCHOR,
                 PartitionSearchConfig.defaults(),
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 BackendPlanningCostConfig.conservative()
         );
     }
 
-    public static BackendPlanningConfig requireAnyAcceleratorRegion() {
+    public static BackendPlanningConfig requireAnyAcceleratorPartition() {
         return autoAccelerator().withFailurePolicy(
-                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION,
+                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION,
                 BackendPlanningRequirementScope.ANY_TARGET
         );
     }
 
     public static BackendPlanningConfig requireEachAcceleratorTarget() {
         return autoAccelerator().withFailurePolicy(
-                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION,
+                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION,
                 BackendPlanningRequirementScope.EACH_TARGET
         );
     }
@@ -99,12 +99,12 @@ public record BackendPlanningConfig(
                 targets,
                 ownershipPlanner,
                 search,
-                cpuRegions,
+                cpuPartitions,
                 cost
         );
     }
 
-    public BackendPlanningConfig withOwnershipPlanner(RegionOwnershipPlannerStrategy newPlanner) {
+    public BackendPlanningConfig withOwnershipPlanner(PartitionOwnershipPlannerStrategy newPlanner) {
         return new BackendPlanningConfig(
                 discoveryMode,
                 failurePolicy,
@@ -112,7 +112,7 @@ public record BackendPlanningConfig(
                 targets,
                 newPlanner,
                 search,
-                cpuRegions,
+                cpuPartitions,
                 cost
         );
     }
@@ -125,7 +125,7 @@ public record BackendPlanningConfig(
                 newTargets,
                 ownershipPlanner,
                 search,
-                cpuRegions,
+                cpuPartitions,
                 cost
         );
     }
@@ -138,12 +138,12 @@ public record BackendPlanningConfig(
                 targets,
                 ownershipPlanner,
                 newSearch,
-                cpuRegions,
+                cpuPartitions,
                 cost
         );
     }
 
-    public BackendPlanningConfig withCpuRegions(CpuRegionConfig newCpuRegions) {
+    public BackendPlanningConfig withCpuPartitions(CpuPartitionConfig newCpuPartitions) {
         return new BackendPlanningConfig(
                 discoveryMode,
                 failurePolicy,
@@ -151,7 +151,7 @@ public record BackendPlanningConfig(
                 targets,
                 ownershipPlanner,
                 search,
-                newCpuRegions,
+                newCpuPartitions,
                 cost
         );
     }
@@ -164,7 +164,7 @@ public record BackendPlanningConfig(
                 targets,
                 ownershipPlanner,
                 search,
-                cpuRegions,
+                cpuPartitions,
                 newCost
         );
     }
@@ -180,7 +180,7 @@ public record BackendPlanningConfig(
                 targets,
                 ownershipPlanner,
                 search,
-                cpuRegions,
+                cpuPartitions,
                 cost
         );
     }
@@ -209,8 +209,8 @@ public record BackendPlanningConfig(
             Set<BackendTarget> targets
     ) {
         if (discoveryMode == BackendDiscoveryMode.CPU_ONLY
-                && failurePolicy == BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION) {
-            throw new IllegalArgumentException("CPU_ONLY cannot require accelerator regions");
+                && failurePolicy == BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION) {
+            throw new IllegalArgumentException("CPU_ONLY cannot require accelerator partitions");
         }
         if (failurePolicy == BackendPlanningFailurePolicy.REQUIRE_ALL_EXPLICIT_INTENTS
                 && discoveryMode == BackendDiscoveryMode.CPU_ONLY) {

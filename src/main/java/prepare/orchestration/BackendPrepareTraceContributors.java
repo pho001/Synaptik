@@ -48,7 +48,7 @@ final class BackendPrepareTraceContributors {
     ) {
         LinkedHashMap<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("loweringInputPresent", loweringInput != null);
-        attrs.put("plannedRegionCount", loweringInput == null ? 0 : loweringInput.plannedRegions().size());
+        attrs.put("plannedPartitionCount", loweringInput == null ? 0 : loweringInput.executablePartitions().size());
         attrs.put("selectedPlanCount", selection == null ? 0 : selection.selectedPlans().size());
         attrs.put("memoryPlanPresent", loweringInput != null && loweringInput.memoryPlan() != null);
         return new BackendPrepareDiagnosticTrace("backend-lowering", attrs);

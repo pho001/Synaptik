@@ -2,12 +2,12 @@
 
 `backend.lowering` owns backend-neutral lowering contracts.
 
-This package defines how optimized regions become backend-owned execution artifacts, but it does not implement CPU, Metal, CUDA, or OpenCL policy.
+This package defines how optimized partitions become backend-owned execution artifacts, but it does not implement CPU, Metal, CUDA, or OpenCL policy.
 
 Allowed responsibilities:
 
 - lowering request/result contracts
-- lowered-region and lowered-unit records
+- lowered-partition and lowered-unit records
 - lowering pipeline orchestration
 - backend capability and workspace requirement contracts
 

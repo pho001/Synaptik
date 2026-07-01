@@ -1,7 +1,7 @@
 package backend.accelerator.lowering;
 
 /**
- * Stable names for compound GPU region patterns.
+ * Stable names for compound GPU partition patterns.
  */
 public enum GpuCompoundPatternType {
     NONE,

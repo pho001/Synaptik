@@ -6,15 +6,15 @@ import java.util.List;
 /**
  * Deterministic comparison between a coverage baseline and current coverage.
  *
- * <p>The comparison intentionally ignores raw latency and gates only on selected region length, CPU materialization
+ * <p>The comparison intentionally ignores raw latency and gates only on selected partition length, CPU materialization
  * boundaries, fallback count, and device handoffs.</p>
  */
 public record GpuCoverageComparison(
         String baselineName,
         String backend,
         boolean passes,
-        int baselineMaxSelectedRegionLength,
-        int currentMaxSelectedRegionLength,
+        int baselineMaxSelectedPartitionLength,
+        int currentMaxSelectedPartitionLength,
         int baselineCpuMaterializationCount,
         int currentCpuMaterializationCount,
         int baselineFallbackCount,
@@ -45,7 +45,7 @@ public record GpuCoverageComparison(
         if (baseline == null) {
             baseline = new GpuCoverageBaseline("baseline", "", 0, 0, 0, 0);
         }
-        int currentMaxSelectedRegionLength = current == null ? 0 : current.maxSelectedRegionLength();
+        int currentMaxSelectedPartitionLength = current == null ? 0 : current.maxSelectedPartitionLength();
         int currentCpuMaterializationCount = current == null ? Integer.MAX_VALUE : current.cpuMaterializationCount();
         int currentFallbackCount = current == null ? Integer.MAX_VALUE : current.fallbackCount();
         int currentDeviceHandoffCount = current == null ? Integer.MAX_VALUE : current.deviceHandoffCount();
@@ -54,10 +54,10 @@ public record GpuCoverageComparison(
         List<String> regressions = new ArrayList<>();
 
         compareHigher(
-                currentMaxSelectedRegionLength,
-                baseline.maxSelectedRegionLength(),
-                "longer selected region",
-                "shorter selected region",
+                currentMaxSelectedPartitionLength,
+                baseline.maxSelectedPartitionLength(),
+                "longer selected partition",
+                "shorter selected partition",
                 improvements,
                 regressions
         );
@@ -86,7 +86,7 @@ public record GpuCoverageComparison(
                 regressions
         );
 
-        boolean passes = currentMaxSelectedRegionLength >= baseline.maxSelectedRegionLength()
+        boolean passes = currentMaxSelectedPartitionLength >= baseline.maxSelectedPartitionLength()
                 && currentCpuMaterializationCount <= baseline.cpuMaterializationCount()
                 && currentFallbackCount <= baseline.fallbackCount()
                 && currentDeviceHandoffCount <= baseline.deviceHandoffCount();
@@ -95,8 +95,8 @@ public record GpuCoverageComparison(
                 baseline.baselineName(),
                 baseline.backend(),
                 passes,
-                baseline.maxSelectedRegionLength(),
-                currentMaxSelectedRegionLength,
+                baseline.maxSelectedPartitionLength(),
+                currentMaxSelectedPartitionLength,
                 baseline.cpuMaterializationCount(),
                 currentCpuMaterializationCount,
                 baseline.fallbackCount(),

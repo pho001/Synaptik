@@ -77,7 +77,7 @@ public record PartitionDecisionTrace(
     }
 
     public PartitionDecisionTrace {
-        strategy = strategy == null ? "GREEDY_MAX_REGION" : strategy;
+        strategy = strategy == null ? "GREEDY_MAX_PARTITION" : strategy;
         target = target == null ? "NONE" : target;
         reason = reason == null ? "" : reason;
         nodeIds = List.copyOf(nodeIds == null ? List.of() : nodeIds);

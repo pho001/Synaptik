@@ -12,7 +12,7 @@ import java.util.Set;
  * Backend-specific partition capability used by partition planners.
  *
  * <p>The planner owns search strategy; the capability owns backend facts. It decides which nodes can seed or join a
- * region, whether dependencies may remain outside the region, and whether a structurally valid candidate can be lowered
+ * partition, whether dependencies may remain outside the partition, and whether a structurally valid candidate can be lowered
  * to an executable {@link PartitionPlan}.
  */
 public interface BackendPartitionCapability {
@@ -34,7 +34,7 @@ public interface BackendPartitionCapability {
     }
 
     /**
-     * Returns whether a node can be part of a region for this backend.
+     * Returns whether a node can be part of a partition for this backend.
      *
      * @param node compiled node to test
      * @param context planning context
@@ -84,9 +84,9 @@ public interface BackendPartitionCapability {
     /**
      * Builds a backend-neutral structural candidate from selected node ids.
      *
-     * @param selectedNodeIds selected node ids in the candidate region
+     * @param selectedNodeIds selected node ids in the candidate partition
      * @param context planning context
-     * @param requiredMaterializedValueRefs values that must survive the region boundary
+     * @param requiredMaterializedValueRefs values that must survive the partition boundary
      * @return structural candidate, or {@code null} if the selected set is not representable
      */
     PartitionCandidate createCandidate(

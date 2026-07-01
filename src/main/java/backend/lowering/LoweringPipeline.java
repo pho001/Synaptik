@@ -1,32 +1,32 @@
 package backend.lowering;
 
-import planning.region.PlannedRegion;
+import planning.partition.ExecutablePartitionPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Runs registered backend lowerers over optimized regions after partition/fusion/memory planning.
+ * Runs registered backend lowerers over executable partitions after memory planning.
  *
- * <p>Lowering is a prepare-time bridge between compile planning and backend execution. It receives optimized regions
- * with a finalized memory plan, invokes backend-specific {@link RegionLowerer}s for each region, and returns lowering
+ * <p>Lowering is a prepare-time bridge between compile planning and backend execution. It receives executable partitions
+ * with a finalized memory plan, invokes backend-specific {@link PartitionLowerer}s for each partition, and returns lowering
  * artifacts plus a simple trace.</p>
  */
 public final class LoweringPipeline {
-    private final List<RegionLowerer> lowerers;
+    private final List<PartitionLowerer> lowerers;
 
     /**
      * Creates a lowering pipeline.
      *
-     * @param lowerers lowerers tried in order for each optimized region; {@code null} becomes empty
+     * @param lowerers lowerers tried in order for each optimized partition; {@code null} becomes empty
      */
-    public LoweringPipeline(List<RegionLowerer> lowerers) {
+    public LoweringPipeline(List<PartitionLowerer> lowerers) {
         this.lowerers = List.copyOf(lowerers == null ? List.of() : lowerers);
     }
 
     /**
-     * Lowers optimized regions into backend artifacts.
+     * Lowers optimized partitions into backend artifacts.
      *
      * @param input lowering input after partition/fusion/memory planning
      * @param capabilities backend capabilities available for this prepare step
@@ -45,38 +45,30 @@ public final class LoweringPipeline {
         if (input.memoryPlan() == null) {
             throw new IllegalStateException("Lowering requires a finalized memory plan.");
         }
-        LoweringInput effectiveInput = context.partitionPlansById().isEmpty()
-                ? input
-                : input.withPartitionPlans(context.partitionPlansById());
-        LoweringContext effectiveContext = context.withPartitionPlans(
-                context.partitionPlansById().isEmpty()
-                        ? input.partitionPlansById()
-                        : context.partitionPlansById()
-        );
-        List<LoweredRegion> loweredRegions = new ArrayList<>();
+        List<LoweredPartition> loweredPartitions = new ArrayList<>();
         List<BackendWorkspaceRequirement> requirements = new ArrayList<>();
         List<String> events = new ArrayList<>();
-        for (PlannedRegion region : effectiveInput.plannedRegions()) {
-            LoweringRequest request = new LoweringRequest(region, effectiveInput.memoryPlan(), capabilities, effectiveContext);
-            LoweringResult result = lowerRegion(request);
-            if (result == null || result.loweredRegion() == null) {
+        for (ExecutablePartitionPlan executablePartition : input.executablePartitions()) {
+            LoweringRequest request = new LoweringRequest(executablePartition, input.memoryPlan(), capabilities, context);
+            LoweringResult result = lowerPartition(request);
+            if (result == null || result.loweredPartition() == null) {
                 continue;
             }
-            loweredRegions.add(result.loweredRegion());
+            loweredPartitions.add(result.loweredPartition());
             requirements.addAll(result.workspaceRequirements());
-            events.add("lowered:" + region.regionId());
+            events.add("lowered:" + executablePartition.partition().partitionId());
         }
         return new LoweringState(
-                effectiveInput,
-                new LoweringArtifacts(loweredRegions, requirements),
+                input,
+                new LoweringArtifacts(loweredPartitions, requirements),
                 new LoweringTrace(events)
         );
     }
 
-    private LoweringResult lowerRegion(LoweringRequest request) {
-        for (RegionLowerer lowerer : lowerers) {
-            LoweringResult result = lowerer.lower(request);
-            if (result != null && result.loweredRegion() != null) {
+    private LoweringResult lowerPartition(LoweringRequest request) {
+        for (PartitionLowerer lowerer : lowerers) {
+            LoweringResult result = lowerer.lowerPartition(request);
+            if (result != null && result.loweredPartition() != null) {
                 return result;
             }
         }

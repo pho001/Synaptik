@@ -23,7 +23,7 @@ public final class CpuNativeStorageSupport {
     private CpuNativeStorageSupport() {
     }
 
-    public static boolean nativeRegionSupported(Operation.OpType opType, DataType dataType) {
+    public static boolean nativePartitionSupported(Operation.OpType opType, DataType dataType) {
         return providerRoute(opType, dataType)
                 || viewAlias(opType, dataType)
                 || consumesNativeInputs(opType, dataType)
@@ -52,14 +52,14 @@ public final class CpuNativeStorageSupport {
     }
 
     public static boolean preservesNativeStorage(Operation.OpType opType, DataType dataType) {
-        return dataType != DataType.BOOL && nativeRegionSupported(opType, dataType);
+        return dataType != DataType.BOOL && nativePartitionSupported(opType, dataType);
     }
 
     /**
      * AUTO may keep native storage only for provider-backed kernels or metadata-only views.
      * Segment scalar kernels are CPU_NATIVE-only until a benchmark-backed promotion is added here.
      */
-    public static boolean autoNativeRegionEligible(Operation.OpType opType, DataType dataType) {
+    public static boolean autoNativePartitionEligible(Operation.OpType opType, DataType dataType) {
         return providerRoute(opType, dataType) || viewAlias(opType, dataType);
     }
 
@@ -89,7 +89,7 @@ public final class CpuNativeStorageSupport {
         if (viewAlias(opType, dataType)) {
             return Status.VIEW_ONLY;
         }
-        if (nativeRegionSupported(opType, dataType)) {
+        if (nativePartitionSupported(opType, dataType)) {
             return Status.NATIVE_CORRECT_BUT_SLOW;
         }
         if (dataType == DataType.INT32 || dataType == DataType.INT64) {
@@ -108,14 +108,14 @@ public final class CpuNativeStorageSupport {
         if (opType == Operation.OpType.CONTIGUOUS) {
             return Family.NATIVE_MICROKERNEL;
         }
-        if (nativeRegionSupported(opType, dataType)) {
+        if (nativePartitionSupported(opType, dataType)) {
             return Family.SEGMENT_SCALAR;
         }
         return Family.ARRAY_ONLY;
     }
 
     public static String unsupportedReason(Operation.OpType opType, DataType dataType) {
-        if (nativeRegionSupported(opType, dataType)) {
+        if (nativePartitionSupported(opType, dataType)) {
             return "";
         }
         String label = opType == null ? "unknown" : opType.name().toLowerCase();

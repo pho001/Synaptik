@@ -147,7 +147,7 @@ These are heuristic pruning aids, not correctness proofs.
 
 Their job is:
 
-- estimate which unexplored regions are unlikely to beat current best candidates
+- estimate which unexplored partitions are unlikely to beat current best candidates
 - reduce wasted measurement work
 
 ## Search Reports

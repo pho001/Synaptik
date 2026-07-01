@@ -39,7 +39,7 @@ Today this wraps `CompileConfig`:
 - semantic canonicalization policy
 - graph optimization policy
 - backend planning policy
-- region optimization policy
+- partition optimization policy
 - memory planning policy
 
 ### 3. `ExecutionProfile`
@@ -87,7 +87,7 @@ This boundary matters because:
 
 Current standard graph autotune exposes production graph-policy variants only when
 they are explicitly added to the graph candidate space. The current safe default
-candidate is `graphPolicy=current`; broader axes such as CPU region policy, CPU
+candidate is `graphPolicy=current`; broader axes such as CPU partition policy, CPU
 fusion policy, backend planning mode, conv2d lowering, fusion scoring, and
 partition scoring must be intentional candidate-space choices, not calibration
 side effects.
@@ -101,13 +101,13 @@ calibration do not search the same decision from different directions.
 
 | Owner | Meaning | Examples |
 |---|---|---|
-| Graph/workload-owned | Workload-specific compile or graph policy selected by graph autotune. | backend planning mode, region planner strategy, CPU region policy, CPU fusion policy, graph lowering policy, selected planning cost profile |
+| Graph/workload-owned | Workload-specific compile or graph policy selected by graph autotune. | backend planning mode, partition planner strategy, CPU partition policy, CPU fusion policy, graph lowering policy, selected planning cost profile |
 | Platform/dtype-owned | Hardware, dtype, execution-mode, and runtime thresholds selected by platform calibration. | BLAS thresholds, vector/parallel thresholds, fused dispatch widths, scheduler thresholds, `METAL_SELECTION` |
 | Obsolete | Historical knobs that must not re-enter production candidate spaces. | duplicate graph/runtime aliases and legacy report-derived policy |
 
 `METAL_SELECTION` is explicit accelerator opt-in calibration, not default CPU
 calibration. Graph autotune may select compile policies that make accelerator
-regions possible, but it must not rewrite platform calibration thresholds.
+partitions possible, but it must not rewrite platform calibration thresholds.
 
 Profile-derived accelerator costs enter through RuntimeConfig, not profile file reads.
 
@@ -180,7 +180,7 @@ Examples of compile/graph policy:
 
 - `CLEANUP_FIXPOINT(AR -> CF -> CSE -> DCE) -> LOWER`
 - backend planning mode: CPU-only, explicit accelerator, auto accelerator
-- region planner strategy: anchor or scored
+- partition planner strategy: anchor or scored
 - piecewise lowering enabled/disabled
 - conv2d lowering mode
 

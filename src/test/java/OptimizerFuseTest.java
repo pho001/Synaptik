@@ -215,7 +215,7 @@ public class OptimizerFuseTest {
         Tensor b = new Tensor(new double[]{5, 6, 7, 8}, new int[]{4}, null, "b");
         Tensor out = a.add(b).relu().exp();
 
-        CompileConfig optimizer = fuseOnlyInferenceConfig().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED));
+        CompileConfig optimizer = fuseOnlyInferenceConfig().withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.PartitionOwnershipPlannerStrategy.SCORED));
         PreparedExecution prepared = CompiledGraph.compile(out, optimizer)
                 .prepare(config.runtime.RuntimeConfig.inferenceDefaults()
                         .withAccelerator(config.runtime.AcceleratorConfig.disabled()));

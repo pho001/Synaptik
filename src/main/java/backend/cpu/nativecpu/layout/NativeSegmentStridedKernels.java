@@ -26,7 +26,7 @@ import static java.lang.foreign.ValueLayout.JAVA_SHORT;
  * Correctness-first MemorySegment strided kernels.
  *
  * <p>These loops are dtype-specialized and intentionally separate from planner selection. They provide the
- * physical segment access needed by native CPU region planning, but scalar strided variants remain guarded by
+ * physical segment access needed by native CPU partition planning, but scalar strided variants remain guarded by
  * performance policy before they can become an AUTO hot path.</p>
  */
 public final class NativeSegmentStridedKernels {

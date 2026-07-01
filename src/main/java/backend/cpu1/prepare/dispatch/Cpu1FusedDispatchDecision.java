@@ -8,7 +8,7 @@ import backend.cpu1.storage.Cpu1StorageKind;
  * Prepare-time dispatch result for a fused elementwise unit.
  *
  * <p>Unlike single-op dispatch this record intentionally has no kernel
- * {@code Operation.OpType}: a fused region has no representative operation
+ * {@code Operation.OpType}: a fused partition has no representative operation
  * identity. The concrete fused IR and ASM/codegen eligibility describe what
  * can run; this record only captures prepare-time launch and vectorization
  * tuning.</p>

@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # CPU BF16 Runtime
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Configuration](configuration.md#runtimeconfig) | [Backend Planning](backend-planning-and-regions.md#cpu-natural-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#bf16-and-batched-blas) | [Troubleshooting](troubleshooting.md#performance-regressions)
+Navigation: [Index](index.md#recommended-reading-paths) | [Configuration](configuration.md#runtimeconfig) | [Backend Planning](backend-planning-and-partitions.md#cpu-natural-partitions) | [Native Bridges & BLAS](native-bridges-and-blas.md#bf16-and-batched-blas) | [Troubleshooting](troubleshooting.md#performance-regressions)
 
 This document explains the current CPU `BFLOAT16` path and why BF16 is not automatically faster than `FLOAT32` on CPU.
 
@@ -65,12 +65,12 @@ publication:  controlled separately by PublicationPolicy
 Relevant source areas:
 
 - `src/main/java/tensor/storage/BFloat16Storage.java`
-- `src/main/java/backend/cpu/kernels/CpuDTypeOps.java`
-- `src/main/java/backend/cpu/kernels/plan/CpuComputeContractResolver.java`
-- `src/main/java/backend/cpu/kernels/elementwise/binary/Cpu*Kernel.java`
-- `src/main/java/backend/cpu/kernels/elementwise/unary/Cpu*Kernel.java`
+- `src/main/java/tensor/dtype/BFloat16Bits.java`
+- `src/main/java/backend/cpu/prepare/CpuComputeContractResolver.java`
+- `src/main/java/backend/cpu/kernels/elementwise/binary/*`
+- `src/main/java/backend/cpu/kernels/elementwise/unary/*`
 - `src/main/java/backend/cpu/kernels/linalg/matmul/bf16/*`
-- `src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java`
+- `src/main/java/backend/cpu/provider/linalg/matmul/blas/MatMulBlasBackend.java`
 
 ## Elementwise Example
 
@@ -138,7 +138,7 @@ unit 3 tanh:
   unpack BF16 temporary -> compute F32 tanh -> pack BF16 output
 ```
 
-CPU region planning can group a large natural region, but the region optimizer may still split it into unit kernels and fused units. A "large CPU partition" therefore does not guarantee a single conversion-free BF16 chain.
+CPU partition planning can group a large natural partition, but the partition optimizer may still split it into unit kernels and fused units. A "large CPU partition" therefore does not guarantee a single conversion-free BF16 chain.
 
 ## What Fusion Helps
 
@@ -162,20 +162,20 @@ Even in a fused loop, the current Java CPU path usually computes in F32. Fusion 
 
 Some CPU code can carry an opportunistic float continuation for a produced value. In plain language, that means a node may make its F32 result available to the next compatible consumer so the next step does not immediately unpack the freshly packed BF16 value.
 
-This is useful, but it is not a full region-wide BF16 live-range optimizer.
+This is useful, but it is not a full partition-wide BF16 live-range optimizer.
 
 It helps most when:
 
 - the next consumer is compatible
 - the execution order preserves the continuation
 - there is a single-consumer chain
-- the boundary does not require materialization for layout, publication, or region handoff
+- the boundary does not require materialization for layout, publication, or partition handoff
 
 It helps less when:
 
 - there are multiple consumers
 - a reduction or matmul boundary interrupts the chain
-- region optimization splits the chain
+- partition optimization splits the chain
 - a public tensor must be published
 - a backend handoff requires materialized storage
 
@@ -292,14 +292,14 @@ For a BF16 performance investigation, separate these questions:
 
 | Question | Evidence |
 |---|---|
-| Did compile make large CPU regions? | Compile partition planning trace. |
-| Did region optimization fuse elementwise chains? | Optimized region / execution-unit trace. |
+| Did compile make large CPU partitions? | Compile partition planning trace. |
+| Did partition optimization fuse elementwise chains? | Optimized partition / execution-unit trace. |
 | Did matmul use BLAS? | Matmul trace metadata and runtime profile. |
 | Did execution materialize intermediate values? | Run trace materialization metadata. |
 | Were public tensors copied back after execution? | `PublicationPolicy` and run trace CPU materialization counts. |
 | Did reductions promote accumulation? | Reduction trace metadata and CPU compute contract. |
 
-Do not diagnose BF16 by looking only at region count. Region count is a compile ownership signal, not a direct measure of conversion count.
+Do not diagnose BF16 by looking only at partition count. Partition count is a compile ownership signal, not a direct measure of conversion count.
 
 ## Practical Guidance
 
@@ -320,7 +320,7 @@ For implementation work:
 
 ## See Also
 
-- [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions)
+- [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions)
 - [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance)
 - [Configuration](configuration.md#runtimeconfig)
 - [Compute Flow](compute-flow.md#compile)

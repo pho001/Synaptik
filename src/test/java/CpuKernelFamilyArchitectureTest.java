@@ -784,7 +784,7 @@ public class CpuKernelFamilyArchitectureTest {
     }
 
     @Test
-    void reductionSpecialCaseEntrypointsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+    void reductionSpecialCaseEntrypointsOwnStorageAwareBoundaryWithoutNativePartitionPromotion() {
         for (Operation.OpType opType : List.of(
                 Operation.OpType.REDUCE_PROD,
                 Operation.OpType.CUMSUM,
@@ -798,8 +798,8 @@ public class CpuKernelFamilyArchitectureTest {
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
             for (DataType dtype : DataType.values()) {
-                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
-                        opType + " must not be promoted to CPU_NATIVE region support in the reduction special-case slice.");
+                assertFalse(CpuNativeStorageSupport.nativePartitionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE partition support in the reduction special-case slice.");
             }
         }
     }
@@ -840,14 +840,14 @@ public class CpuKernelFamilyArchitectureTest {
             assertTrue(!Files.exists(Path.of("src/main/java/backend/cpu/nativecpu/" + className + ".java")),
                     className + " must not exist after Wave 6.");
         }
-        List<Path> deletedNativeRegionArtifacts = List.of(
-                Path.of("src/main/java/backend/cpu/CpuRegionExecutionArtifact.java"),
-                Path.of("src/main/java/backend/cpu/region/PreparedCpuRegionExecutable.java"),
-                Path.of("src/main/java/backend/cpu/nativecpu/PreparedNativeCpuRegionExecutable.java"),
-                Path.of("src/main/java/backend/lowering/region/CpuNativeRegionPayload.java")
+        List<Path> deletedNativePartitionArtifacts = List.of(
+                Path.of("src/main/java/backend/cpu/CpuPartitionExecutionArtifact.java"),
+                Path.of("src/main/java/backend/cpu/partition/PreparedCpuPartitionExecutable.java"),
+                Path.of("src/main/java/backend/cpu/nativecpu/PreparedNativeCpuPartitionExecutable.java"),
+                Path.of("src/main/java/backend/lowering/partition/CpuNativePartitionPayload.java")
         );
-        for (Path path : deletedNativeRegionArtifacts) {
-            assertTrue(!Files.exists(path), path + " must not exist after removing CPU native region execution.");
+        for (Path path : deletedNativePartitionArtifacts) {
+            assertTrue(!Files.exists(path), path + " must not exist after removing CPU native partition execution.");
         }
 
         List<Path> runtimeRoots = List.of(
@@ -910,23 +910,23 @@ public class CpuKernelFamilyArchitectureTest {
 
     @Test
     void waveEightAutoNativePolicyExcludesSegmentScalarKernelsWithoutProof() {
-        assertTrue(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.ADD, DataType.FLOAT32),
+        assertTrue(CpuNativeStorageSupport.nativePartitionSupported(Operation.OpType.ADD, DataType.FLOAT32),
                 "ADD has a correct native segment implementation for explicit CPU_NATIVE runs.");
-        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.ADD, DataType.FLOAT32),
+        assertFalse(CpuNativeStorageSupport.autoNativePartitionEligible(Operation.OpType.ADD, DataType.FLOAT32),
                 "AUTO must not select segment scalar elementwise kernels without benchmark promotion.");
-        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.SUM, DataType.FLOAT32),
+        assertFalse(CpuNativeStorageSupport.autoNativePartitionEligible(Operation.OpType.SUM, DataType.FLOAT32),
                 "AUTO must not select segment scalar reductions without benchmark promotion.");
-        assertFalse(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.CAST, DataType.BFLOAT16),
+        assertFalse(CpuNativeStorageSupport.autoNativePartitionEligible(Operation.OpType.CAST, DataType.BFLOAT16),
                 "AUTO must not select segment scalar layout/materialization kernels without benchmark promotion.");
 
-        assertTrue(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.MATMUL, DataType.FLOAT32),
+        assertTrue(CpuNativeStorageSupport.autoNativePartitionEligible(Operation.OpType.MATMUL, DataType.FLOAT32),
                 "AUTO may select measured provider-backed MemorySegment matmul routes.");
-        assertTrue(CpuNativeStorageSupport.autoNativeRegionEligible(Operation.OpType.RESHAPE, DataType.FLOAT32),
+        assertTrue(CpuNativeStorageSupport.autoNativePartitionEligible(Operation.OpType.RESHAPE, DataType.FLOAT32),
                 "AUTO may preserve native storage through metadata-only view aliases.");
     }
 
     @Test
-    void indexReadKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+    void indexReadKernelsOwnStorageAwareBoundaryWithoutNativePartitionPromotion() {
         for (Operation.OpType opType : List.of(
                 Operation.OpType.GATHER,
                 Operation.OpType.GATHER_AXIS,
@@ -938,13 +938,13 @@ public class CpuKernelFamilyArchitectureTest {
                     opType + " must consume CpuKernelCall storage views directly.");
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
-            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, DataType.FLOAT32),
-                    opType + " must not be promoted to CPU_NATIVE region support in the index read slice.");
+            assertFalse(CpuNativeStorageSupport.nativePartitionSupported(opType, DataType.FLOAT32),
+                    opType + " must not be promoted to CPU_NATIVE partition support in the index read slice.");
         }
     }
 
     @Test
-    void indexWriteScatterKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+    void indexWriteScatterKernelsOwnStorageAwareBoundaryWithoutNativePartitionPromotion() {
         for (Operation.OpType opType : List.of(
                 Operation.OpType.SCATTER_ADD,
                 Operation.OpType.SCATTER_AXIS_ADD,
@@ -957,13 +957,13 @@ public class CpuKernelFamilyArchitectureTest {
                     opType + " must consume CpuKernelCall storage views directly.");
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
-            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, DataType.FLOAT32),
-                    opType + " must not be promoted to CPU_NATIVE region support in the index write scatter slice.");
+            assertFalse(CpuNativeStorageSupport.nativePartitionSupported(opType, DataType.FLOAT32),
+                    opType + " must not be promoted to CPU_NATIVE partition support in the index write scatter slice.");
         }
     }
 
     @Test
-    void layoutMaterializationKernelsOwnStorageAwareBoundaryWithoutNativeRegionPromotion() {
+    void layoutMaterializationKernelsOwnStorageAwareBoundaryWithoutNativePartitionPromotion() {
         for (Operation.OpType opType : List.of(
                 Operation.OpType.CONCAT,
                 Operation.OpType.PAD,
@@ -978,8 +978,8 @@ public class CpuKernelFamilyArchitectureTest {
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
             for (DataType dtype : DataType.values()) {
-                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
-                        opType + " must not be promoted to CPU_NATIVE region support in the layout materialization slice.");
+                assertFalse(CpuNativeStorageSupport.nativePartitionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE partition support in the layout materialization slice.");
             }
         }
     }
@@ -1001,10 +1001,10 @@ public class CpuKernelFamilyArchitectureTest {
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
         }
         for (DataType dtype : DataType.values()) {
-            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, dtype),
-                    "attention direct kernel must not be promoted to CPU_NATIVE region support in this entrypoint slice.");
-            assertFalse(CpuNativeStorageSupport.nativeRegionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, dtype),
-                    "attention weights export must not be promoted to CPU_NATIVE region support in this entrypoint slice.");
+            assertFalse(CpuNativeStorageSupport.nativePartitionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION, dtype),
+                    "attention direct kernel must not be promoted to CPU_NATIVE partition support in this entrypoint slice.");
+            assertFalse(CpuNativeStorageSupport.nativePartitionSupported(Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS, dtype),
+                    "attention weights export must not be promoted to CPU_NATIVE partition support in this entrypoint slice.");
         }
     }
 
@@ -1025,8 +1025,8 @@ public class CpuKernelFamilyArchitectureTest {
             assertFalse(kernel instanceof TypedCpuKernel,
                     opType + " must not route through the legacy TypedCpuKernel tensor-array executor.");
             for (DataType dtype : DataType.values()) {
-                assertFalse(CpuNativeStorageSupport.nativeRegionSupported(opType, dtype),
-                        opType + " must not be promoted to CPU_NATIVE region support in the nn forward slice.");
+                assertFalse(CpuNativeStorageSupport.nativePartitionSupported(opType, dtype),
+                        opType + " must not be promoted to CPU_NATIVE partition support in the nn forward slice.");
             }
         }
         assertFalse(Files.exists(Path.of("src/main/java/backend/cpu/kernels/nn/Conv2dExecutor.java")),

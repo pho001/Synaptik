@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Scoring helpers for accelerator-oriented partition search.
  *
- * <p>Structural score rewards larger, internally connected regions and penalizes boundary inputs. Accepted score adds
+ * <p>Structural score rewards larger, internally connected partitions and penalizes boundary inputs. Accepted score adds
  * backend work estimates so planners can prefer candidates that amortize launch or transfer costs.
  */
 public final class AcceleratorPartitionScoreModel {
@@ -52,8 +52,8 @@ public final class AcceleratorPartitionScoreModel {
     /**
      * Scores an accepted candidate while accounting for accelerator transfer pressure.
      *
-     * <p>This is intended for device ownership regions such as Metal. Larger
-     * device regions are useful when they reduce intermediate materialization,
+     * <p>This is intended for device ownership partitions such as Metal. Larger
+     * device partitions are useful when they reduce intermediate materialization,
      * but expensive when they require large CPU/device boundary transfers. The
      * transfer model is deliberately explicit so graph autotune can later vary
      * the policy without changing legality rules.</p>
@@ -188,9 +188,9 @@ public final class AcceleratorPartitionScoreModel {
     /**
      * Estimated accelerator boundary transfer metrics for one candidate.
      *
-     * @param inputBytes bytes that must cross into the accelerator region
-     * @param outputBytes bytes that must leave the accelerator region
-     * @param avoidedIntermediateBytes bytes of selected internal intermediates kept inside the region
+     * @param inputBytes bytes that must cross into the accelerator partition
+     * @param outputBytes bytes that must leave the accelerator partition
+     * @param avoidedIntermediateBytes bytes of selected internal intermediates kept inside the partition
      */
     public record TransferMetrics(
             long inputBytes,
@@ -216,9 +216,9 @@ public final class AcceleratorPartitionScoreModel {
     /**
      * Weights used by transfer-aware accelerator scoring.
      *
-     * @param inputBytePenalty score penalty per input byte copied into a device region
-     * @param outputBytePenalty score penalty per output byte copied out of a device region
-     * @param avoidedIntermediateByteCredit score credit per intermediate byte kept inside a device region
+     * @param inputBytePenalty score penalty per input byte copied into a device partition
+     * @param outputBytePenalty score penalty per output byte copied out of a device partition
+     * @param avoidedIntermediateByteCredit score credit per intermediate byte kept inside a device partition
      */
     public record TransferPolicy(
             double inputBytePenalty,
@@ -250,11 +250,11 @@ public final class AcceleratorPartitionScoreModel {
      * Static materialization and fallback signals used by the accelerator score model.
      *
      * @param boundaryCount number of CPU/accelerator boundaries
-     * @param uploadBytes estimated bytes copied into the accelerator region
-     * @param downloadBytes estimated bytes copied out of the accelerator region
+     * @param uploadBytes estimated bytes copied into the accelerator partition
+     * @param downloadBytes estimated bytes copied out of the accelerator partition
      * @param tensorArrayFallbackBytes bytes exposed to tensor-array fallback paths
      * @param layoutFallbackBytes bytes affected by layout fallback
-     * @param avoidedIntermediateBytes bytes kept inside the accelerator region
+     * @param avoidedIntermediateBytes bytes kept inside the accelerator partition
      * @param fallbackMode fallback mode name
      * @param layoutClass layout class name
      */
@@ -353,7 +353,7 @@ public final class AcceleratorPartitionScoreModel {
         }
 
         /**
-         * Returns the aggressive static preset for exploring longer accelerator regions.
+         * Returns the aggressive static preset for exploring longer accelerator partitions.
          *
          * @return aggressive preset
          */
@@ -385,7 +385,7 @@ public final class AcceleratorPartitionScoreModel {
      * @param estimatedTransferBytes upload plus download bytes
      * @param layoutFallbackBytes bytes affected by layout fallback or GPU-side dense materialization
      * @param estimatedComputeWork backend work estimate
-     * @param avoidedIntermediateBytes bytes kept inside the accelerator region
+     * @param avoidedIntermediateBytes bytes kept inside the accelerator partition
      * @param dispatchCost fixed dispatch cost applied
      * @param finalScore final static score
      * @param reasonCode stable accepted/rejected reason code
@@ -444,7 +444,7 @@ public final class AcceleratorPartitionScoreModel {
                             CostComponent.higherIsBetter(
                                     "avoidedIntermediateBytes",
                                     avoidedIntermediateBytes,
-                                    "intermediate bytes retained inside the accelerator region"
+                                    "intermediate bytes retained inside the accelerator partition"
                             ),
                             CostComponent.lowerIsBetter(
                                     "boundaryCount",
@@ -493,7 +493,7 @@ public final class AcceleratorPartitionScoreModel {
      * @param maxVisitedCandidates maximum candidates to visit during scored search
      * @param nodeWeight score weight per selected node
      * @param internalEdgeWeight score weight per internal edge
-     * @param mergeNodeBonus score bonus for merge-heavy regions
+     * @param mergeNodeBonus score bonus for merge-heavy partitions
      * @param tailDepthWeight score weight for tail depth
      * @param externalInputPenalty score penalty per external input
      * @param workWeight score weight for estimated backend work

@@ -151,7 +151,7 @@ public class PreparedExecutionBuildTest {
         CompiledGraph compiled = CompiledGraph.compile(out, partitionOnly, backendIntentPlan);
 
         assertFalse(compiled.program().plannedPartitions().isEmpty());
-        assertFalse(compiled.program().plannedRegions().isEmpty());
+        assertFalse(compiled.program().executablePartitions().isEmpty());
         assertNotNull(compiled.program().memoryPlan());
     }
 
@@ -215,7 +215,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void metalSelectionKeepsLinearLogSoftmaxInGpuRegion() {
+    void metalSelectionKeepsLinearLogSoftmaxInGpuPartition() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "metalLinearLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "metalLinearLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
@@ -238,7 +238,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void cudaSelectionKeepsLinearLogSoftmaxInGpuRegion() {
+    void cudaSelectionKeepsLinearLogSoftmaxInGpuPartition() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cudaLinearLogSoftmaxInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f}, new int[]{3, 3}, null, "cudaLinearLogSoftmaxWeight", DataType.FLOAT32);
         Tensor matmul = input.matmul(weight);
@@ -573,7 +573,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void cudaRequiredModeSelectsPhaseTwentyFourNormalizationRegion() {
+    void cudaRequiredModeSelectsPhaseTwentyFourNormalizationPartition() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{2, 2}, null, "cudaRequiredPhase17NormInput", DataType.FLOAT32);
         Tensor gamma = new Tensor(new float[]{1f, 1f}, new int[]{2}, null, "cudaRequiredPhase17NormGamma", DataType.FLOAT32);
         Tensor beta = new Tensor(new float[]{0f, 0f}, new int[]{2}, null, "cudaRequiredPhase17NormBeta", DataType.FLOAT32);
@@ -627,11 +627,11 @@ public class PreparedExecutionBuildTest {
         var manifest = execution.prepareTrace().backendSelection().decisions().stream()
                 .filter(decision -> decision.selected() && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend()))
                 .filter(decision -> decision.nodeIds().contains(logSoftmaxNodeId))
-                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredRegionManifest)
+                .map(trace.prepare.BackendSelectionDecisionTrace::gpuLoweredPartitionManifest)
                 .filter(candidate -> candidate != null)
                 .findFirst()
                 .orElseThrow();
-        String manifestText = tuning.benchmark.report.GpuLoweredRegionTraceRenderer.renderCompact(manifest);
+        String manifestText = tuning.benchmark.report.GpuLoweredPartitionTraceRenderer.renderCompact(manifest);
 
         assertArrayEquals(cpuOut.toDoubleArrayCopy(), out.toDoubleArrayCopy(), 1.0e-5);
         assertFalse(manifestText.isBlank());
@@ -662,7 +662,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void phaseThirtyTwoTakeAlongAxisCanStayInsideMetalRegionAfterLogSoftmax() {
+    void phaseThirtyTwoTakeAlongAxisCanStayInsideMetalPartitionAfterLogSoftmax() {
         Tensor input = new Tensor(new float[]{0.25f, -0.5f, 1.25f, 2f, -1f, 0.75f}, new int[]{2, 3}, null, "phase26GpuIndexInput", DataType.FLOAT32);
         Tensor weight = new Tensor(new float[]{
                 1f, 0.5f, -0.25f,
@@ -691,12 +691,12 @@ public class PreparedExecutionBuildTest {
                         .anyMatch(decision -> decision.selected()
                                 && ComputeBackend.GPU_METAL.name().equals(decision.selectedBackend())
                                 && decision.nodeIds().containsAll(List.of(logSoftmaxNodeId, takeNodeId))),
-                "LOG_SOFTMAX producer and TAKE_ALONG_AXIS should be admitted into one Metal-owned region");
+                "LOG_SOFTMAX producer and TAKE_ALONG_AXIS should be admitted into one Metal-owned partition");
         assertEquals("", takeReason);
     }
 
     @Test
-    void phaseTwentyFourLayerNormGpuRegionMatchesCpuAndReportsNormalizationDag() {
+    void phaseTwentyFourLayerNormGpuPartitionMatchesCpuAndReportsNormalizationDag() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f}, new int[]{2, 2}, null, "phase17CpuLayerNormInput", DataType.FLOAT32);
         Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f}, new int[]{2}, null, "phase17CpuLayerNormGamma", DataType.FLOAT32);
         Tensor cpuBeta = new Tensor(new float[]{0.5f, -0.25f}, new int[]{2}, null, "phase17CpuLayerNormBeta", DataType.FLOAT32);
@@ -733,7 +733,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void phaseTwentyFourRmsNormGpuRegionMatchesCpuAndReportsNormalizationDag() {
+    void phaseTwentyFourRmsNormGpuPartitionMatchesCpuAndReportsNormalizationDag() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 4f, 8f, 16f, 32f}, new int[]{2, 3}, null, "phase24CpuRmsNormInput", DataType.FLOAT32);
         Tensor cpuGamma = new Tensor(new float[]{1.25f, 0.75f, 1.5f}, new int[]{3}, null, "phase24CpuRmsNormGamma", DataType.FLOAT32);
         Tensor cpuOut = cpuInput.rmsNorm(cpuGamma, 1.0e-5);
@@ -768,7 +768,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalLinearBiasReluCompilesAsOneCompoundRegion() {
+    void gpuMetalLinearBiasReluCompilesAsOneCompoundPartition() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuMetalLinearInput", DataType.FLOAT32);
         Tensor cpuWeight = new Tensor(new float[]{
                 1f, 0f, 0f, 1f,
@@ -816,7 +816,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuCudaLinearBiasReluCompilesAsOneCompoundRegion() {
+    void gpuCudaLinearBiasReluCompilesAsOneCompoundPartition() {
         Tensor cpuInput = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "cpuCudaLinearInput", DataType.FLOAT32);
         Tensor cpuWeight = new Tensor(new float[]{
                 1f, 0f, 0f, 1f,
@@ -929,7 +929,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+        assertTrue(executable.gpuLoweredPartitionManifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
                         && subpattern.detail().contains("epilogue")));
         var trace = execution.executeTraced(ExecutionMode.FORWARD);
@@ -975,7 +975,7 @@ public class PreparedExecutionBuildTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+        assertTrue(executable.gpuLoweredPartitionManifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION
                         && subpattern.detail().contains("epilogue")));
         var trace = execution.executeTraced(ExecutionMode.FORWARD);
@@ -1057,9 +1057,9 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
-        assertNotNull(executable.gpuLoweredRegionManifest());
-        assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
-        assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
+        assertNotNull(executable.gpuLoweredPartitionManifest());
+        assertTrue(executable.gpuLoweredPartitionManifest().selectedPartitionLength() > 1);
+        assertTrue(executable.gpuLoweredPartitionManifest().loweredPrimitives().size() > 1);
         assertEquals(runtime.device.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().path());
     }
@@ -1112,9 +1112,9 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertEquals(GpuCompoundPatternType.ELEMENTWISE_CHAIN, executable.compoundSummary().patternType());
-        assertNotNull(executable.gpuLoweredRegionManifest());
-        assertTrue(executable.gpuLoweredRegionManifest().selectedRegionLength() > 1);
-        assertTrue(executable.gpuLoweredRegionManifest().loweredPrimitives().size() > 1);
+        assertNotNull(executable.gpuLoweredPartitionManifest());
+        assertTrue(executable.gpuLoweredPartitionManifest().selectedPartitionLength() > 1);
+        assertTrue(executable.gpuLoweredPartitionManifest().loweredPrimitives().size() > 1);
         assertEquals(runtime.device.buffer.AcceleratorBufferExecutionPath.UNAVAILABLE,
                 executable.lastAcceleratorBufferDecision().path());
     }
@@ -1144,7 +1144,7 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertNotNull(executable);
-        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+        assertTrue(executable.gpuLoweredPartitionManifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN
                         && subpattern.originalOperationNodeIds().equals(List.of(reluNodeId, expNodeId, logNodeId))
                         && subpattern.loweredPrimitiveCount() == 3));
@@ -1184,7 +1184,7 @@ public class PreparedExecutionBuildTest {
                 .orElseThrow();
 
         assertNotNull(executable);
-        assertTrue(executable.gpuLoweredRegionManifest().fusedSubpatterns().stream()
+        assertTrue(executable.gpuLoweredPartitionManifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN
                         && subpattern.originalOperationNodeIds().equals(List.of(reluNodeId, expNodeId, logNodeId))
                         && subpattern.loweredPrimitiveCount() == 3));
@@ -1206,7 +1206,7 @@ public class PreparedExecutionBuildTest {
         Tensor out = a.matmul(b).relu();
 
         CompileConfig optimizerConfig = CompileConfig.inference()
-                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED));
+                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.PartitionOwnershipPlannerStrategy.SCORED));
         CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig);
 
         var scoredDecision = compiled.compileTrace().partitionPlanning().decisions().stream()
@@ -1236,7 +1236,7 @@ public class PreparedExecutionBuildTest {
         backendIntentPlan = backendIntentPlan.withBackend(contiguous, ComputeBackend.GPU_METAL);
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
         CompileConfig optimizerConfig = CompileConfig.inference()
-                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED));
+                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(config.compile.PartitionOwnershipPlannerStrategy.SCORED));
         CompiledGraph compiled = CompiledGraph.compile(out, optimizerConfig, backendIntentPlan);
 
         var layoutDecision = compiled.compileTrace().partitionPlanning().decisions().stream()
@@ -1636,7 +1636,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalPartitionPrepareBuildsSingleRegionStepForMatmulAddReluChain() {
+    void gpuMetalPartitionPrepareBuildsSinglePartitionStepForMatmulAddReluChain() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor bias = new Tensor(new float[]{1f, -1f}, new int[]{2}, null, "bias", DataType.FLOAT32);
@@ -2115,7 +2115,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalPureElementwiseChainUsesMpsGraphRegionLoweringWhenOptimizerRegionsExist() {
+    void gpuMetalPureElementwiseChainUsesMpsGraphPartitionLoweringWhenOptimizerPartitionsExist() {
         Tensor cpuA = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "cpuAOpt", DataType.FLOAT32);
         Tensor cpuB = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "cpuBOpt", DataType.FLOAT32);
         Tensor cpuOut = cpuA.add(cpuB).relu().exp();
@@ -2141,7 +2141,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
-        assertEquals(backend.lowering.LoweringFamily.METAL_GRAPH_REGION, executable.loweringFamily());
+        assertEquals(backend.lowering.LoweringFamily.METAL_GRAPH_PARTITION, executable.loweringFamily());
         assertTrue(executable.plan().manifest().fusedSubpatterns().stream()
                 .anyMatch(subpattern -> subpattern.patternType() == GpuCompoundPatternType.ELEMENTWISE_CHAIN));
 
@@ -2177,7 +2177,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedCudaExecutable executable = (PreparedCudaExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
-        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_REGION, executable.loweringFamily());
+        assertEquals(backend.lowering.LoweringFamily.CUDA_GRAPH_PARTITION, executable.loweringFamily());
 
         execution.execute(ExecutionMode.FORWARD);
 
@@ -2535,18 +2535,34 @@ public class PreparedExecutionBuildTest {
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         Tensor softmaxInput = trainable("metalBackwardTraceSoftmax", 2, 3);
-        Tensor softmax = softmaxInput.exp().softmax(1);
-        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
-        backendIntentPlan = backendIntentPlan.withBackend(softmax, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"), Operation.OpType.MUL, 1);
+        Tensor softmaxExp = softmaxInput.exp();
+        Tensor softmax = softmaxExp.softmax(1);
+        BackendIntentPlan softmaxPlan = BackendIntentPlan.empty()
+                .withBackend(softmaxExp, ComputeBackend.GPU_METAL)
+                .withBackend(softmax, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(
+                weightedSum(softmax, "metalBackwardTraceSoftmaxWeight"),
+                softmaxPlan,
+                Operation.OpType.MUL,
+                1
+        );
 
         Tensor logSoftmaxInput = trainable("metalBackwardTraceLogSoftmax", 2, 3);
-        Tensor logSoftmax = logSoftmaxInput.exp().logSoftmax(1);
-        backendIntentPlan = backendIntentPlan.withBackend(logSoftmax, ComputeBackend.GPU_METAL);
-        assertMetalBackwardBufferBinding(weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"), Operation.OpType.EXP, 1);
+        Tensor logSoftmaxExp = logSoftmaxInput.exp();
+        Tensor logSoftmax = logSoftmaxExp.logSoftmax(1);
+        BackendIntentPlan logSoftmaxPlan = BackendIntentPlan.empty()
+                .withBackend(logSoftmaxExp, ComputeBackend.GPU_METAL)
+                .withBackend(logSoftmax, ComputeBackend.GPU_METAL);
+        assertMetalBackwardBufferBinding(
+                weightedSum(logSoftmax, "metalBackwardTraceLogSoftmaxWeight"),
+                logSoftmaxPlan,
+                Operation.OpType.MUL,
+                1
+        );
 
         Tensor minInput = trainable("metalBackwardTraceReduceMin", 2, 3);
         Tensor reduceMin = minInput.min(1, true);
+        BackendIntentPlan backendIntentPlan = BackendIntentPlan.empty();
         backendIntentPlan = backendIntentPlan.withBackend(reduceMin, ComputeBackend.GPU_METAL);
         Tensor maxInput = trainable("metalBackwardTraceReduceMax", 2, 4);
         Tensor reduceMax = maxInput.max(0, true);
@@ -2725,7 +2741,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalPartitionPrepareBuildsSingleRegionStepForMatmulNegChain() {
+    void gpuMetalPartitionPrepareBuildsSinglePartitionStepForMatmulNegChain() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{3, 2}, null, "b", DataType.FLOAT32);
         Tensor matmul = a.matmul(b);
@@ -2961,7 +2977,7 @@ public class PreparedExecutionBuildTest {
         backendIntentPlan = backendIntentPlan.withBackend(out, ComputeBackend.GPU_METAL);
         CompileConfig optimizer = CompileConfig.noGraphOptimizationBaseline()
                 .withBackendPlanning(CompileConfig.noGraphOptimizationBaseline().backendPlanning()
-                        .withOwnershipPlanner(config.compile.RegionOwnershipPlannerStrategy.SCORED)
+                        .withOwnershipPlanner(config.compile.PartitionOwnershipPlannerStrategy.SCORED)
                         .withSearch(new config.compile.PartitionSearchConfig(
                                 1,
                                 4,
@@ -3154,7 +3170,7 @@ public class PreparedExecutionBuildTest {
     }
 
     @Test
-    void gpuMetalWhereCanKeepComparePredicateInsideGpuRegion() {
+    void gpuMetalWhereCanKeepComparePredicateInsideGpuPartition() {
         Tensor left = new Tensor(new float[]{1f, 3f, 2f, 4f}, new int[]{2, 2}, null, "phase27CompareLeft", DataType.FLOAT32);
         Tensor right = new Tensor(new float[]{2f, 2f, 2f, 2f}, new int[]{2, 2}, null, "phase27CompareRight", DataType.FLOAT32);
         Tensor trueBranch = new Tensor(new float[]{10f, 20f, 30f, 40f}, new int[]{2, 2}, null, "phase27True", DataType.FLOAT32);
@@ -3178,7 +3194,7 @@ public class PreparedExecutionBuildTest {
                 .toList();
         assertEquals(1, gpuSteps.size());
         PreparedMetalExecutable executable = (PreparedMetalExecutable) testsupport.MetadataArtifacts.acceleratorExecutable(gpuSteps.getFirst().metadata());
-        var manifest = executable.gpuLoweredRegionManifest();
+        var manifest = executable.gpuLoweredPartitionManifest();
 
         assertTrue(executable.plan().lowering().dagSpec().externalInputs().stream()
                 .noneMatch(input -> input.dataType() == DataType.BOOL));
@@ -4613,14 +4629,27 @@ public class PreparedExecutionBuildTest {
         return value.mul(new Tensor(data, shape, null, label, DataType.FLOAT32)).sum();
     }
 
-    private static void assertMetalBackwardBufferBinding(Tensor loss, Operation.OpType opType, int minSteps) {
-        PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training())
+    private static void assertMetalBackwardBufferBinding(
+            Tensor loss,
+            BackendIntentPlan backendIntentPlan,
+            Operation.OpType opType,
+            int minSteps
+    ) {
+        PreparedExecution execution = CompiledGraph.compile(loss, CompileConfig.training(), backendIntentPlan)
                 .prepare(runtimeWithRequiredAcceleratorBufferNoThreshold(ComputeBackend.GPU_METAL));
         var preparedSteps = execution.backwardSteps().stream()
                 .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
                 .filter(step -> step.compiledNode().operation() != null && step.compiledNode().operation().opType() == opType)
                 .toList();
-        assertTrue(preparedSteps.size() >= minSteps, opType.name());
+        assertTrue(
+                preparedSteps.size() >= minSteps,
+                () -> opType.name() + " Metal backward steps=" + execution.backwardSteps().stream()
+                        .filter(step -> step.metadata().backend() == ComputeBackend.GPU_METAL)
+                        .map(step -> step.compiledNode().operation() == null
+                                ? "INPUT"
+                                : step.compiledNode().operation().opType().name())
+                        .toList()
+        );
 
         var trace = execution.executeTraced(ExecutionMode.FORWARD_BACKWARD);
         var tracedSteps = trace.steps().stream()

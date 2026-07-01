@@ -5,8 +5,8 @@ package tuning.benchmark.report;
  *
  * @param backend backend name to check
  * @param minGpuCoverageRatio minimum executed accelerator-step ratio
- * @param minMaxSelectedRegionLength minimum selected region length
- * @param minMultiOpGpuRegionCount minimum selected multi-op GPU regions
+ * @param minMaxSelectedPartitionLength minimum selected partition length
+ * @param minMultiOpGpuPartitionCount minimum selected multi-op GPU partitions
  * @param minLoweredPrimitiveCount minimum lowered primitive count
  * @param minGpuFusedSubpatternCount minimum GPU fused subpattern count
  * @param maxCpuMaterializationCount maximum allowed CPU materialization boundaries
@@ -21,8 +21,8 @@ package tuning.benchmark.report;
 public record GpuCoverageGatePolicy(
         String backend,
         double minGpuCoverageRatio,
-        int minMaxSelectedRegionLength,
-        int minMultiOpGpuRegionCount,
+        int minMaxSelectedPartitionLength,
+        int minMultiOpGpuPartitionCount,
         int minLoweredPrimitiveCount,
         int minGpuFusedSubpatternCount,
         int maxCpuMaterializationCount,
@@ -37,8 +37,8 @@ public record GpuCoverageGatePolicy(
     public GpuCoverageGatePolicy(
             String backend,
             double minGpuCoverageRatio,
-            int minMaxSelectedRegionLength,
-            int minMultiOpGpuRegionCount,
+            int minMaxSelectedPartitionLength,
+            int minMultiOpGpuPartitionCount,
             int minLoweredPrimitiveCount,
             int minGpuFusedSubpatternCount,
             int maxCpuMaterializationCount,
@@ -50,8 +50,8 @@ public record GpuCoverageGatePolicy(
         this(
                 backend,
                 minGpuCoverageRatio,
-                minMaxSelectedRegionLength,
-                minMultiOpGpuRegionCount,
+                minMaxSelectedPartitionLength,
+                minMultiOpGpuPartitionCount,
                 minLoweredPrimitiveCount,
                 minGpuFusedSubpatternCount,
                 maxCpuMaterializationCount,
@@ -68,8 +68,8 @@ public record GpuCoverageGatePolicy(
     public GpuCoverageGatePolicy {
         backend = backend == null ? "" : backend;
         minGpuCoverageRatio = Math.max(0.0d, minGpuCoverageRatio);
-        minMaxSelectedRegionLength = Math.max(0, minMaxSelectedRegionLength);
-        minMultiOpGpuRegionCount = Math.max(0, minMultiOpGpuRegionCount);
+        minMaxSelectedPartitionLength = Math.max(0, minMaxSelectedPartitionLength);
+        minMultiOpGpuPartitionCount = Math.max(0, minMultiOpGpuPartitionCount);
         minLoweredPrimitiveCount = Math.max(0, minLoweredPrimitiveCount);
         minGpuFusedSubpatternCount = Math.max(0, minGpuFusedSubpatternCount);
         maxCpuMaterializationCount = Math.max(0, maxCpuMaterializationCount);
@@ -84,12 +84,12 @@ public record GpuCoverageGatePolicy(
     public static GpuCoverageGatePolicy nativeBufferTarget(
             String backend,
             double minGpuCoverageRatio,
-            int minMaxSelectedRegionLength
+            int minMaxSelectedPartitionLength
     ) {
         return new GpuCoverageGatePolicy(
                 backend,
                 minGpuCoverageRatio,
-                minMaxSelectedRegionLength,
+                minMaxSelectedPartitionLength,
                 0,
                 0,
                 0,
@@ -132,16 +132,16 @@ public record GpuCoverageGatePolicy(
     public static GpuCoverageGatePolicy hotPathTarget(
             String backend,
             double minGpuCoverageRatio,
-            int minMaxSelectedRegionLength,
-            int minMultiOpGpuRegionCount,
+            int minMaxSelectedPartitionLength,
+            int minMultiOpGpuPartitionCount,
             int minLoweredPrimitiveCount,
             int minGpuFusedSubpatternCount
     ) {
         return new GpuCoverageGatePolicy(
                 backend,
                 minGpuCoverageRatio,
-                minMaxSelectedRegionLength,
-                minMultiOpGpuRegionCount,
+                minMaxSelectedPartitionLength,
+                minMultiOpGpuPartitionCount,
                 minLoweredPrimitiveCount,
                 minGpuFusedSubpatternCount,
                 0,
@@ -158,8 +158,8 @@ public record GpuCoverageGatePolicy(
     public static GpuCoverageGatePolicy trainingHotPathTarget(
             String backend,
             double minGpuCoverageRatio,
-            int minMaxSelectedRegionLength,
-            int minMultiOpGpuRegionCount,
+            int minMaxSelectedPartitionLength,
+            int minMultiOpGpuPartitionCount,
             int minLoweredPrimitiveCount,
             int minGpuFusedSubpatternCount,
             int maxGradientPublicationMaterializationCount
@@ -168,8 +168,8 @@ public record GpuCoverageGatePolicy(
         return new GpuCoverageGatePolicy(
                 backend,
                 minGpuCoverageRatio,
-                minMaxSelectedRegionLength,
-                minMultiOpGpuRegionCount,
+                minMaxSelectedPartitionLength,
+                minMultiOpGpuPartitionCount,
                 minLoweredPrimitiveCount,
                 minGpuFusedSubpatternCount,
                 gradientBudget,
@@ -187,8 +187,8 @@ public record GpuCoverageGatePolicy(
         return new GpuCoverageGatePolicy(
                 backend,
                 minGpuCoverageRatio,
-                minMaxSelectedRegionLength,
-                minMultiOpGpuRegionCount,
+                minMaxSelectedPartitionLength,
+                minMultiOpGpuPartitionCount,
                 minLoweredPrimitiveCount,
                 minGpuFusedSubpatternCount,
                 maxCpuMaterializationCount,

@@ -5,11 +5,11 @@ import config.compile.BackendPlanningCostConfig;
 import config.compile.CompileConfig;
 import config.compile.MemoryPlanningConfig;
 import config.compile.PlanningCostProfile;
-import config.compile.RegionOptimizationConfig;
-import config.compile.RegionOwnershipPlannerStrategy;
+import config.compile.PartitionExecutionConfig;
+import config.compile.PartitionOwnershipPlannerStrategy;
 import config.optimizer.CseConfig;
 import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.optimizer.MemoryConfig;
 import config.compile.TransferCostPreset;
 import config.optimizer.PiecewiseLoweringConfig;
@@ -55,50 +55,50 @@ public final class GraphPolicyMutators {
                         base
                 ),
                 new GraphPolicyVariant(
-                        "backendDiscovery=cpu-only+cpuRegion=natural+cpuFusion=balanced",
-                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        "backendDiscovery=cpu-only+cpuPartition=natural+cpuFusion=balanced",
+                        GraphAutotuneParameter.CPU_PARTITION_POLICY,
                         GraphExecutionPolicy.of(compile
-                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuRegions(CpuRegionConfig.defaults()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()))),
-                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuRegionConfig.defaults(), CpuFusionConfig.defaults())
+                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuPartitions(CpuPartitionConfig.defaults()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()))),
+                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuPartitionConfig.defaults(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
-                        "backendDiscovery=cpu-only+cpuRegion=elementwise-islands+cpuFusion=balanced",
-                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        "backendDiscovery=cpu-only+cpuPartition=elementwise-islands+cpuFusion=balanced",
+                        GraphAutotuneParameter.CPU_PARTITION_POLICY,
                         GraphExecutionPolicy.of(compile
-                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuRegions(CpuRegionConfig.elementwiseIslands()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()))),
-                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuRegionConfig.elementwiseIslands(), CpuFusionConfig.defaults())
+                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuPartitions(CpuPartitionConfig.elementwiseIslands()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()))),
+                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuPartitionConfig.elementwiseIslands(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
-                        "backendDiscovery=cpu-only+cpuRegion=natural+cpuFusion=aggressive",
+                        "backendDiscovery=cpu-only+cpuPartition=natural+cpuFusion=aggressive",
                         GraphAutotuneParameter.CPU_FUSION_POLICY,
                         GraphExecutionPolicy.of(compile
-                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuRegions(CpuRegionConfig.defaults()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.aggressive()))),
-                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuRegionConfig.defaults(), CpuFusionConfig.aggressive())
+                                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuPartitions(CpuPartitionConfig.defaults()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.aggressive()))),
+                        graphKnobs(BackendPlanningConfig.cpuOnly(), CpuPartitionConfig.defaults(), CpuFusionConfig.aggressive())
                 ),
                 new GraphPolicyVariant(
-                        "backendDiscovery=auto+ownershipPlanner=anchor+cpuRegion=natural+cpuFusion=balanced",
+                        "backendDiscovery=auto+ownershipPlanner=anchor+cpuPartition=natural+cpuFusion=balanced",
                         GraphAutotuneParameter.BACKEND_DISCOVERY_POLICY,
                         GraphExecutionPolicy.of(compile
                                 .withBackendPlanning(BackendPlanningConfig.autoAccelerator()
-                                        .withOwnershipPlanner(RegionOwnershipPlannerStrategy.ANCHOR)
-                                        .withCpuRegions(CpuRegionConfig.defaults()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()))),
-                        graphKnobs(BackendPlanningConfig.autoAccelerator(), CpuRegionConfig.defaults(), CpuFusionConfig.defaults())
+                                        .withOwnershipPlanner(PartitionOwnershipPlannerStrategy.ANCHOR)
+                                        .withCpuPartitions(CpuPartitionConfig.defaults()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()))),
+                        graphKnobs(BackendPlanningConfig.autoAccelerator(), CpuPartitionConfig.defaults(), CpuFusionConfig.defaults())
                 ),
                 new GraphPolicyVariant(
-                        "backendDiscovery=auto+ownershipPlanner=scored+cpuRegion=natural+cpuFusion=balanced",
+                        "backendDiscovery=auto+ownershipPlanner=scored+cpuPartition=natural+cpuFusion=balanced",
                         GraphAutotuneParameter.OWNERSHIP_PLANNER_POLICY,
                         GraphExecutionPolicy.of(compile
                                 .withBackendPlanning(BackendPlanningConfig.autoAccelerator()
-                                        .withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED)
-                                        .withCpuRegions(CpuRegionConfig.defaults()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.defaults()))),
+                                        .withOwnershipPlanner(PartitionOwnershipPlannerStrategy.SCORED)
+                                        .withCpuPartitions(CpuPartitionConfig.defaults()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.defaults()))),
                         graphKnobs(
-                                BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED),
-                                CpuRegionConfig.defaults(),
+                                BackendPlanningConfig.autoAccelerator().withOwnershipPlanner(PartitionOwnershipPlannerStrategy.SCORED),
+                                CpuPartitionConfig.defaults(),
                                 CpuFusionConfig.defaults())
                 )
         );
@@ -160,52 +160,52 @@ public final class GraphPolicyMutators {
                         "planningCost=metal-transfer-measured+ownershipPlanner=scored",
                         GraphAutotuneParameter.PLANNING_COST_PROFILE,
                         GraphExecutionPolicy.of(compile.withBackendPlanning(BackendPlanningConfig.autoAccelerator()
-                                .withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED)
+                                .withOwnershipPlanner(PartitionOwnershipPlannerStrategy.SCORED)
                                 .withCost(new BackendPlanningCostConfig(PlanningCostProfile.measuredTransfer())))),
-                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, TransferCostPreset.MEASURED)
+                        transferKnobs(PartitionOwnershipPlannerStrategy.SCORED, TransferCostPreset.MEASURED)
                 ),
                 new GraphPolicyVariant(
                         "planningCost=metal-transfer-aggressive+ownershipPlanner=scored",
                         GraphAutotuneParameter.PLANNING_COST_PROFILE,
                         GraphExecutionPolicy.of(compile.withBackendPlanning(BackendPlanningConfig.autoAccelerator()
-                                .withOwnershipPlanner(RegionOwnershipPlannerStrategy.SCORED)
+                                .withOwnershipPlanner(PartitionOwnershipPlannerStrategy.SCORED)
                                 .withCost(new BackendPlanningCostConfig(PlanningCostProfile.aggressiveTransfer())))),
-                        transferKnobs(RegionOwnershipPlannerStrategy.SCORED, TransferCostPreset.AGGRESSIVE)
+                        transferKnobs(PartitionOwnershipPlannerStrategy.SCORED, TransferCostPreset.AGGRESSIVE)
                 ),
                 new GraphPolicyVariant(
-                        "research:cpuRegion=off+cpuFusion=off",
-                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        "research:cpuPartition=off+cpuFusion=off",
+                        GraphAutotuneParameter.CPU_PARTITION_POLICY,
                         GraphExecutionPolicy.of(compile
-                                .withBackendPlanning(compile.backendPlanning().withCpuRegions(CpuRegionConfig.off()))
-                                .withRegionOptimization(RegionOptimizationConfig.disabled())),
-                        cpuKnobs(CpuRegionConfig.off(), CpuFusionConfig.off())
+                                .withBackendPlanning(compile.backendPlanning().withCpuPartitions(CpuPartitionConfig.off()))
+                                .withPartitionExecution(PartitionExecutionConfig.disabled())),
+                        cpuKnobs(CpuPartitionConfig.off(), CpuFusionConfig.off())
                 ),
                 new GraphPolicyVariant(
-                        "research:cpuRegion=aggressive+cpuFusion=aggressive",
-                        GraphAutotuneParameter.CPU_REGION_POLICY,
+                        "research:cpuPartition=aggressive+cpuFusion=aggressive",
+                        GraphAutotuneParameter.CPU_PARTITION_POLICY,
                         GraphExecutionPolicy.of(compile
-                                .withBackendPlanning(compile.backendPlanning().withCpuRegions(CpuRegionConfig.aggressive()))
-                                .withRegionOptimization(compile.regionOptimization().withCpuFusion(CpuFusionConfig.aggressive()))),
-                        cpuKnobs(CpuRegionConfig.aggressive(), CpuFusionConfig.aggressive())
+                                .withBackendPlanning(compile.backendPlanning().withCpuPartitions(CpuPartitionConfig.aggressive()))
+                                .withPartitionExecution(compile.partitionExecution().withCpuFusion(CpuFusionConfig.aggressive()))),
+                        cpuKnobs(CpuPartitionConfig.aggressive(), CpuFusionConfig.aggressive())
                 )
         );
     }
 
     private static Map<String, String> graphKnobs(
             BackendPlanningConfig backendPlanning,
-            CpuRegionConfig cpuRegion,
+            CpuPartitionConfig cpuPartition,
             CpuFusionConfig cpuFusion
     ) {
         return Map.of(
                 "compile.backendPlanning.discoveryMode", backendPlanning.discoveryMode().name(),
                 "compile.backendPlanning.ownershipPlanner", backendPlanning.ownershipPlanner().name(),
-                "compile.backendPlanning.cpuRegion.policy", cpuRegion.policy().name(),
-                "compile.regionOptimization.cpuFusion.mode", cpuFusion.mode().name()
+                "compile.backendPlanning.cpuPartition.policy", cpuPartition.policy().name(),
+                "compile.partitionExecution.cpuFusion.mode", cpuFusion.mode().name()
         );
     }
 
     private static Map<String, String> transferKnobs(
-            RegionOwnershipPlannerStrategy ownershipPlanner,
+            PartitionOwnershipPlannerStrategy ownershipPlanner,
             TransferCostPreset transferModel
     ) {
         return Map.of(
@@ -214,10 +214,10 @@ public final class GraphPolicyMutators {
         );
     }
 
-    private static Map<String, String> cpuKnobs(CpuRegionConfig cpuRegion, CpuFusionConfig cpuFusion) {
+    private static Map<String, String> cpuKnobs(CpuPartitionConfig cpuPartition, CpuFusionConfig cpuFusion) {
         return Map.of(
-                "compile.backendPlanning.cpuRegion.policy", cpuRegion.policy().name(),
-                "compile.regionOptimization.cpuFusion.mode", cpuFusion.mode().name()
+                "compile.backendPlanning.cpuPartition.policy", cpuPartition.policy().name(),
+                "compile.partitionExecution.cpuFusion.mode", cpuFusion.mode().name()
         );
     }
 }

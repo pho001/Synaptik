@@ -2,10 +2,10 @@ package backend.cuda.lowering;
 
 import backend.contract.ComputeBackend;
 import backend.accelerator.dag.AcceleratorDagNode;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
-import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredPartitionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import backend.accelerator.lowering.AcceleratorPartitionPlan;
 import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorSubgraphSpec;
@@ -23,22 +23,22 @@ import java.util.Objects;
  * @param dagSpec lowered DAG consumed by the CUDA bridge
  * @param estimatedWork planner work estimate used by backend selection
  * @param compoundSummary stable compound GPU pattern summary for trace and preparation metadata
- * @param manifest Java-side lowered-region manifest used for trace/report metadata
+ * @param manifest Java-side lowered-partition manifest used for trace/report metadata
  */
 public record CudaGpuPartitionPlan(
         int anchorNodeId,
         AcceleratorSubgraphSpec subgraph,
         AcceleratorDagSpec dagSpec,
         long estimatedWork,
-        GpuCompoundRegionSummary compoundSummary,
-        GpuLoweredRegionManifest manifest
+        GpuCompoundPartitionSummary compoundSummary,
+        GpuLoweredPartitionManifest manifest
 ) implements AcceleratorPartitionPlan {
     public CudaGpuPartitionPlan {
         Objects.requireNonNull(subgraph, "subgraph cannot be null");
         Objects.requireNonNull(dagSpec, "dagSpec cannot be null");
         estimatedWork = Math.max(0L, estimatedWork);
         compoundSummary = compoundSummary == null
-                ? GpuCompoundRegionSummary.none(ComputeBackend.GPU_CUDA, subgraph.orderedNodeIds())
+                ? GpuCompoundPartitionSummary.none(ComputeBackend.GPU_CUDA, subgraph.orderedNodeIds())
                 : compoundSummary;
         manifest = manifest == null
                 ? defaultManifest(anchorNodeId, subgraph, dagSpec, compoundSummary)
@@ -53,7 +53,7 @@ public record CudaGpuPartitionPlan(
             AcceleratorSubgraphSpec subgraph,
             AcceleratorDagSpec dagSpec,
             long estimatedWork,
-            GpuCompoundRegionSummary compoundSummary
+            GpuCompoundPartitionSummary compoundSummary
     ) {
         this(anchorNodeId, subgraph, dagSpec, estimatedWork, compoundSummary, null);
     }
@@ -100,18 +100,18 @@ public record CudaGpuPartitionPlan(
     }
 
     @Override
-    public GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+    public GpuLoweredPartitionManifest gpuLoweredPartitionManifest() {
         return manifest;
     }
 
-    private static GpuLoweredRegionManifest defaultManifest(
+    private static GpuLoweredPartitionManifest defaultManifest(
             int anchorNodeId,
             AcceleratorSubgraphSpec subgraph,
             AcceleratorDagSpec dagSpec,
-            GpuCompoundRegionSummary compoundSummary
+            GpuCompoundPartitionSummary compoundSummary
     ) {
-        return new GpuLoweredRegionManifest(
-                "gpu-gpu_cuda-region-" + subgraph.computeNodeId(),
+        return new GpuLoweredPartitionManifest(
+                "gpu-gpu_cuda-partition-" + subgraph.computeNodeId(),
                 ComputeBackend.GPU_CUDA,
                 anchorNodeId,
                 subgraph.orderedNodeIds(),
@@ -124,7 +124,7 @@ public record CudaGpuPartitionPlan(
                 List.of(),
                 compoundSummary,
                 List.of(),
-                GpuLoweredRegionCandidateSpan.none(subgraph.orderedNodeIds()),
+                GpuLoweredPartitionCandidateSpan.none(subgraph.orderedNodeIds()),
                 Map.of("dagNodeCount", Integer.toString(dagSpec.nodes().size()))
         );
     }

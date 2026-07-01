@@ -26,6 +26,7 @@ import java.util.Objects;
  * @param blas BLAS dispatch policy; {@code null} disables BLAS
  * @param conv2d legacy conv2d dispatch policy; {@code null} derives from BLAS config
  * @param fused fused execution backend policy; {@code null} uses training defaults
+ * @param cpuExecutionPolicy direct CPU execution route policy; {@code null} keeps cpu1 direct routing disabled
  * @param accelerator accelerator backend policy; {@code null} uses training defaults
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@link CpuStorageProfile#CPU_ARRAY}
  * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses
@@ -42,6 +43,7 @@ public record RuntimeConfig(
         BlasConfig blas,
         Conv2dConfig conv2d,
         FusedExecutionPolicy fused,
+        CpuExecutionPolicy cpuExecutionPolicy,
         AcceleratorConfig accelerator,
         CpuStorageProfile cpuStorageProfile,
         NativeCpuFailurePolicy nativeCpuFailurePolicy,
@@ -55,6 +57,7 @@ public record RuntimeConfig(
         blas = blas == null ? BlasConfig.disabled() : blas;
         conv2d = conv2d == null ? Conv2dConfig.fromBlasConfig(blas) : conv2d;
         fused = fused == null ? FusedExecutionPolicy.defaultsTraining() : fused;
+        cpuExecutionPolicy = cpuExecutionPolicy == null ? CpuExecutionPolicy.defaults() : cpuExecutionPolicy;
         accelerator = accelerator == null ? AcceleratorConfig.defaultsTraining() : accelerator;
         cpuStorageProfile = cpuStorageProfile == null ? CpuStorageProfile.CPU_ARRAY : cpuStorageProfile;
         nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
@@ -67,6 +70,64 @@ public record RuntimeConfig(
         bfloat16TrainingPolicy = bfloat16TrainingPolicy == null
                 ? BFloat16TrainingPolicy.ACTIVATIONS_ONLY
                 : bfloat16TrainingPolicy;
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            AcceleratorConfig accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            DeviceTransferPolicy deviceTransferPolicy,
+            NativeCpuMemoryConfig nativeCpuMemory,
+            BFloat16TrainingPolicy bfloat16TrainingPolicy
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                CpuExecutionPolicy.defaults(),
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
+        );
+    }
+
+    public RuntimeConfig(
+            KernelTuningConfig kernel,
+            ApproximationConfig approximation,
+            BlasConfig blas,
+            Conv2dConfig conv2d,
+            FusedExecutionPolicy fused,
+            CpuExecutionPolicy cpuExecutionPolicy,
+            AcceleratorConfig accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            DeviceTransferPolicy deviceTransferPolicy,
+            NativeCpuMemoryConfig nativeCpuMemory
+    ) {
+        this(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                cpuExecutionPolicy,
+                accelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory,
+                BFloat16TrainingPolicy.ACTIVATIONS_ONLY
+        );
     }
 
     public RuntimeConfig(
@@ -432,7 +493,31 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 newAccelerator,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy,
+                nativeCpuMemory,
+                bfloat16TrainingPolicy
+        );
+    }
+
+    /**
+     * Returns a copy with a different direct CPU execution policy.
+     *
+     * @param newCpuExecutionPolicy replacement direct CPU execution policy; {@code null} disables cpu1 direct routing
+     * @return runtime config with the same kernel, approximation, BLAS, conv2d, fused, and accelerator settings
+     */
+    public RuntimeConfig withCpuExecutionPolicy(CpuExecutionPolicy newCpuExecutionPolicy) {
+        return new RuntimeConfig(
+                kernel,
+                approximation,
+                blas,
+                conv2d,
+                fused,
+                newCpuExecutionPolicy,
+                accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 deviceTransferPolicy,
@@ -454,6 +539,7 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 accelerator,
                 newCpuStorageProfile,
                 nativeCpuFailurePolicy,
@@ -476,6 +562,7 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 accelerator,
                 cpuStorageProfile,
                 newNativeCpuFailurePolicy,
@@ -498,6 +585,7 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
@@ -520,6 +608,7 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
@@ -542,6 +631,7 @@ public record RuntimeConfig(
                 blas,
                 conv2d,
                 fused,
+                cpuExecutionPolicy,
                 accelerator,
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,

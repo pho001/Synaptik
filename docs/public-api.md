@@ -31,9 +31,9 @@ This document describes the Java API surfaces that are usable from application c
 | Public | `tensor.CompileMode` | `src/main/java/tensor/CompileMode.java` | Compile intent for convenience execution. |
 | Public | `tensor.AutotunePolicy` | `src/main/java/tensor/AutotunePolicy.java` | Autotune behavior for `ComputeOptions`. |
 | Public | `graph.CompiledGraph` | `src/main/java/graph/CompiledGraph.java` | Compiled graph artifact and explicit prepare/execute entry point. |
-| Public | `graph.execution.PreparedExecution` | `src/main/java/graph/execution/PreparedExecution.java` | Prepared runtime plan that can be executed repeatedly. |
-| Public | `graph.execution.PublicationPolicy` | `src/main/java/graph/execution/PublicationPolicy.java` | Execution side-effect policy for output/intermediate/gradient publication. |
-| Public | `config.compile.*` | `src/main/java/config/compile/*.java` | Compile-time semantic, graph optimization, backend planning, region optimization, and memory planning records. |
+| Public | `runtime.execution.PreparedExecution` | `src/main/java/runtime/execution/PreparedExecution.java` | Prepared runtime plan that can be executed repeatedly. |
+| Public | `runtime.execution.PublicationPolicy` | `src/main/java/runtime/execution/PublicationPolicy.java` | Execution side-effect policy for output/intermediate/gradient publication. |
+| Public | `config.compile.*` | `src/main/java/config/compile/*.java` | Compile-time semantic, graph optimization, backend planning, partition optimization, and memory planning records. |
 | Public | `config.runtime.*` | `src/main/java/config/runtime/*.java` | Runtime backend, BLAS, approximation, fused, and accelerator configuration records. |
 | Public | `config.profile.*` | `src/main/java/config/profile/*.java` | Persistable execution and platform runtime profile records plus profile IO. |
 | Public | `onnx.Onnx`, `OnnxModel`, `ImportedOnnxModel`, ONNX option records | `src/main/java/onnx/*.java` | Static dense ONNX import/export facade, in-memory model wrapper, imported model wrapper, and interchange policies. |
@@ -41,8 +41,8 @@ This document describes the Java API surfaces that are usable from application c
 | Public | `synaptik.app.TuningCli` | `src/main/java/synaptik/app/TuningCli.java` | Gradle application CLI entry point for tuning workflows. |
 | Public | `synaptik.app.Main` | `src/main/java/synaptik/app/Main.java` | Programmatic calibration and benchmark entry point using regular Java calls. |
 | Probably internal | `tensor.TensorOps`, `tensor.internal.TensorPrimitiveBuilder`, `tensor.storage.TensorStorage*`, `tensor.TensorInternalAccess` | `src/main/java/tensor/**/*.java` | Public or package-visible support for operation construction and storage plumbing; prefer `Tensor` methods. |
-| Probably internal | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Legacy and implementation-adjacent optimizer/region helper records that are currently composed through `config.compile.*`; prefer `CompileConfig` for application code. |
-| Probably internal | `backend.ComputeEngine`, backend kernel classes, backend bridge classes | `src/main/java/backend/**/*.java` | Runtime dispatch and kernel implementation details. |
+| Probably internal | `config.optimizer.*` | `src/main/java/config/optimizer/*.java` | Legacy and implementation-adjacent optimizer/partition helper records that are currently composed through `config.compile.*`; prefer `CompileConfig` for application code. |
+| Probably internal | `runtime.runner.PreparedExecutionRunner`, backend kernel classes, backend bridge classes | `src/main/java/backend/**/*.java` | Runtime dispatch and kernel implementation details. |
 | Probably internal | Most `tuning.*` candidate/search/measurement classes | `src/main/java/tuning/**/*.java` | Useful for extending the tuning system, but not the shortest supported application API. Prefer CLI/profile APIs first. |
 
 ## Tensor
@@ -459,7 +459,7 @@ Option behavior:
 | `autotune(AutotunePolicy.NEVER)` | default | Executes the resolved profile directly. |
 | `autotune(AutotunePolicy.IF_MISSING)` | cache first | Reuses a matching generic best profile from `build/tuning/tensor/...` or runs one standard graph-autotune pass and persists the winner. |
 | `autotune(AutotunePolicy.FORCE)` | always measure | Reruns generic graph autotune before execution and persists the new evidence. |
-| `compile(CompileConfig)` | explicit config | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated execution profile. |
+| `compile(CompileConfig)` | explicit config | Overrides semantic canonicalization, graph optimization, backend planning, partition optimization, and memory planning in the generated execution profile. |
 | `runtime(RuntimeConfig)` | explicit config | Overrides the runtime config used during prepare. |
 
 Failure modes:
@@ -513,13 +513,17 @@ Signatures:
 ```java
 static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig)
 static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode)
+static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, BackendIntentPlan backendIntentPlan)
+static CompiledGraph compile(Tensor rootTensor, CompileConfig compileConfig, CompileMode compileMode, BackendIntentPlan backendIntentPlan)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer)
 static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode)
+static CompiledGraph compile(Tensor rootTensor, GraphOptimizer optimizer, CompileMode compileMode, BackendIntentPlan backendIntentPlan)
 boolean supportsBackward()
 CompileMode compileMode()
 PreparedExecution prepare()
 PreparedExecution prepare(RuntimeConfig runtimeConfig)
 PreparedExecution prepare(ExecutionProfile profile)
+List<Tensor> trainableParameters()
 CompileTrace compileTrace()
 CompiledProgram program()
 PublicationPlan publication()
@@ -528,7 +532,7 @@ PublicationPlan publication()
 Parameters:
 
 - `rootTensor`: graph root to compile.
-- `compileConfig`: semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning settings.
+- `compileConfig`: semantic canonicalization, graph optimization, backend planning, partition optimization, and memory planning settings.
 - `runtimeConfig`: kernel/backend runtime choices; `null` selects training or inference defaults based on backward support.
 - `profile`: combines compile policy, runtime policy, dtype, and execution mode.
 
@@ -552,12 +556,14 @@ Side effects:
 Performance and concurrency notes:
 
 - Compile and prepare are distinct. Reuse a `PreparedExecution` when running the same compiled graph repeatedly with the same runtime config.
-- `CompiledGraph` holds mutable compile artifacts; avoid recompiling the same instance concurrently.
+- `CompiledGraph` is an immutable compile result and may be prepared for more than one runtime configuration. The root and
+  publication targets are still mutable tensors, so execution concurrency is governed by `PreparedExecution`, not by
+  recompiling a `CompiledGraph` instance.
 
 Example:
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
@@ -581,7 +587,7 @@ Expected output:
 
 ## PreparedExecution
 
-**Source:** `src/main/java/graph/execution/PreparedExecution.java`
+**Source:** `src/main/java/runtime/execution/PreparedExecution.java`
 
 **Purpose:** represent an executable runtime plan built from compiled graph artifacts and a `RuntimeConfig`.
 
@@ -628,11 +634,12 @@ Side effects:
 Performance and concurrency notes:
 
 - A prepared execution avoids repeating compile and prepare work.
-- Prepared execution instances reference mutable tensors and runtime memory state during execution; do not execute the same instance concurrently unless the call sites coordinate access.
+- Prepared execution instances reference shared user-visible tensors and backend workspaces. Concurrent calls on the same
+  prepared instance are not supported.
 
 ## PublicationPolicy
 
-**Source:** `src/main/java/graph/execution/PublicationPolicy.java`
+**Source:** `src/main/java/runtime/execution/PublicationPolicy.java`
 
 Purpose: control which run-scoped values are synchronized back to user-visible tensors after execution.
 
@@ -680,7 +687,7 @@ Use `ALL` when a test or debug session needs intermediate tensor values. Use `OU
 
 **Source:** `src/main/java/config/compile/CompileConfig.java`
 
-Purpose: configure compile-time semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning.
+Purpose: configure compile-time semantic canonicalization, graph optimization, backend ownership planning, partition execution planning, and memory planning.
 
 Signatures:
 
@@ -698,14 +705,14 @@ static CompileConfig cpuOnlyBaseline()
 CompileConfig withSemanticCanonicalization(SemanticCanonicalizationConfig newConfig)
 CompileConfig withGraphOptimization(GraphOptimizationConfig newConfig)
 CompileConfig withBackendPlanning(BackendPlanningConfig newConfig)
-CompileConfig withRegionOptimization(RegionOptimizationConfig newConfig)
+CompileConfig withPartitionExecution(PartitionExecutionConfig newConfig)
 CompileConfig withMemoryPlanning(MemoryPlanningConfig newConfig)
 ```
 
 Failure modes:
 
 - Null sub-configs are normalized to defaults by the record constructor.
-- Backend planning rejects impossible combinations such as `CPU_ONLY` plus required accelerator regions.
+- Backend planning rejects impossible combinations such as `CPU_ONLY` plus required accelerator partitions.
 - Lower-level configs such as `FuseConfig` and `MemoryConfig` validate their own numeric constraints.
 
 Side effects: records and `with...` methods create new config objects.
@@ -714,7 +721,7 @@ Performance notes:
 
 - `training()` and `inference()` both use backend-neutral graph optimization plus explicit backend intent planning.
 - `noGraphOptimization()` disables graph simplification/lowering only; it does not disable backend planning or runtime backend selection.
-- `cpuOnlyBaseline()` disables graph optimization, accelerator planning, CPU natural regions, region optimization, and optional memory reuse for strict baseline comparisons.
+- `cpuOnlyBaseline()` disables graph optimization, accelerator planning, CPU natural partitions, partition optimization, and optional memory reuse for strict baseline comparisons.
 
 ### RuntimeConfig
 
@@ -726,10 +733,18 @@ Signatures:
 
 ```java
 static RuntimeConfig trainingDefaults()
+static RuntimeConfig trainingDefaults(DataType dataType)
 static RuntimeConfig inferenceDefaults()
+static RuntimeConfig inferenceDefaults(DataType dataType)
 static RuntimeConfig noOptNoVecNoPar()
 CpuKernelConfig cpuKernelConfig()
 RuntimeConfig withAccelerator(AcceleratorConfig newAccelerator)
+RuntimeConfig withCpuExecutionPolicy(CpuExecutionPolicy newCpuExecutionPolicy)
+RuntimeConfig withCpuStorageProfile(CpuStorageProfile newCpuStorageProfile)
+RuntimeConfig withNativeCpuFailurePolicy(NativeCpuFailurePolicy newNativeCpuFailurePolicy)
+RuntimeConfig withDeviceTransferPolicy(DeviceTransferPolicy newDeviceTransferPolicy)
+RuntimeConfig withNativeCpuMemory(NativeCpuMemoryConfig newNativeCpuMemory)
+RuntimeConfig withBFloat16TrainingPolicy(BFloat16TrainingPolicy newBFloat16TrainingPolicy)
 ```
 
 Failure modes:
@@ -738,7 +753,7 @@ Failure modes:
 - Constructor overloads requiring `CpuKernelConfig` reject null CPU config.
 - Sub-config records normalize nulls and non-positive thresholds as defined in their constructors.
 
-Side effects: none; `RuntimeConfig` is a record and `withAccelerator` returns a new record.
+Side effects: none; `RuntimeConfig` is a record and every `with...` method returns a new record.
 
 Performance notes:
 
@@ -1024,9 +1039,9 @@ These APIs are visible in Java but are implementation-oriented. Prefer the publi
 | `tensor.internal.TensorPrimitiveBuilder` | `src/main/java/tensor/internal/TensorPrimitiveBuilder.java` | Constructs primitive graph nodes and operation descriptors directly. |
 | `tensor.storage.TensorStorage`, `Float64Storage`, `Float32Storage`, `BFloat16Storage`, `Int32Storage`, `BoolStorage` | `src/main/java/tensor/storage/*.java` | Backing storage implementation, exposes mutable arrays. |
 | `tensor.TensorInternalAccess` | `src/main/java/tensor/TensorInternalAccess.java` | Internal access helper for backend/graph packages. |
-| `backend.ComputeEngine` | `src/main/java/backend/ComputeEngine.java` | Dispatches prepared compiled nodes; callers should use `Tensor`, `CompiledGraph`, or `PreparedExecution`. |
-| `backend.memory.StorageResidency`, `backend.memory.TensorResidencyState`, `backend.memory.CpuMaterializationReason`, `backend.memory.CpuMaterializationResult`, `backend.memory.DeviceBufferBinding`, `backend.memory.DeviceToCpuMaterializer`, `backend.memory.ExecutionResource` | `src/main/java/backend/memory/*.java` | Public Java types because execution/trace code crosses packages, but they describe per-run runtime storage state rather than an application-facing tensor storage API. `CpuMaterializationReason` is diagnostic; it names why CPU storage is required. `DeviceBufferBinding` is the backend-neutral handle contract used by shared-buffer execution paths. `DeviceToCpuMaterializer` synchronizes an active device binding into CPU storage; `ExecutionResource` scopes native resource cleanup to one execution run. |
-| `graph.execution.trace.CpuMaterializationTrace` | `src/main/java/graph/execution/trace/CpuMaterializationTrace.java` | Run-trace record for CPU-readable storage requests. It is observability for residency/materialization decisions, not a public tensor materialization API. |
+| `runtime.runner.PreparedExecutionRunner` | `src/main/java/runtime/runner/PreparedExecutionRunner.java` | Applies runtime residency rules and invokes prepared executable contracts; callers should use `Tensor`, `CompiledGraph`, or `PreparedExecution`. |
+| `runtime.contract.StorageResidency`, `runtime.residency.TensorResidencyState`, `runtime.contract.CpuMaterializationReason`, `runtime.memory.CpuMaterializationResult`, `runtime.device.buffer.DeviceBufferBinding`, `runtime.memory.DeviceToCpuMaterializer`, `runtime.memory.ExecutionResource` | `src/main/java/runtime/**` | Public Java types because execution and backend implementations cross packages, but they describe per-run runtime storage state rather than an application-facing tensor storage API. `CpuMaterializationReason` is diagnostic; `DeviceBufferBinding` is the backend-neutral device-buffer contract; materializers synchronize prepared device/native routes into required runtime storage. |
+| `trace.execution.CpuMaterializationTrace` | `src/main/java/trace/execution/CpuMaterializationTrace.java` | Run-trace record for CPU-readable storage requests. It is observability for residency/materialization decisions, not a public tensor materialization API. |
 | `backend.metal.buffer.MetalBufferAccess`, `MetalBufferHandle`, `MetalBufferBinding`, `MetalBufferAllocator`, `MetalDeviceToCpuMaterializer`, `MetalBufferResource` | `src/main/java/backend/metal/buffer/*.java` | Java-side contract for native shared-buffer Metal execution. These remain internal/SPI-oriented rather than application APIs: they are tied to compiled node ids, run-scoped native handles, and execution-state ownership. See [Metal Backend: Buffer Residency And Materialization](metal-backend.md#buffer-residency-and-materialization). |
 | `backend.metal.bridge.MetalMpsBridgeExecutionStats`, `MetalMpsBridgeExecutionPath` | `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java`, `src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java` | Trace/report diagnostics for Metal bridge executions and fallbacks, surfaced through run trace attributes and benchmark reports rather than through normal tensor APIs. |
 | `backend.cpu.*`, `backend.metal.*`, `backend.cuda.*` | `src/main/java/backend/**/*.java` | Kernel implementations and native bridge plumbing. |

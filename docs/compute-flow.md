@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Compute Flow
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#execution-pipeline) | [Tensor API](tensor-api.md#compute-convenience-api) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#matmul-dispatch-flow) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Mechanisms](mechanisms.md#prepared-execution) | [Troubleshooting](troubleshooting.md#performance-regressions)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#execution-pipeline) | [Tensor API](tensor-api.md#compute-convenience-api) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-partitions.md#backend-planning-and-partitions) | [Native Bridges & BLAS](native-bridges-and-blas.md#matmul-dispatch-flow) | [Metal Backend](metal-backend.md#buffer-residency-and-materialization) | [Mechanisms](mechanisms.md#prepared-execution) | [Troubleshooting](troubleshooting.md#performance-regressions)
 
 Chapters: [Lifecycle Map](#lifecycle-map) | [Primary Artifacts](#primary-artifacts) | [Artifact Lifetimes And Storage](#artifact-lifetimes-and-storage) | [Graph Building](#graph-building) | [Tensor Compute API](#tensor-compute-api) | [Compile](#compile) | [Prepare](#prepare) | [Execution](#execution) | [Runtime State And Tracking](#runtime-state-and-tracking) | [Worked Example](#worked-example) | [Reuse Rules](#reuse-rules) | [Traces](#traces) | [Failure Modes](#failure-modes) | [Source Map](#source-map)
 
@@ -26,7 +26,7 @@ This guide follows a tensor graph from user code through graph construction, com
 
 ## Lifecycle Map
 
-The compute path is staged. `Tensor` builds a semantic graph, `CompiledGraph` freezes and optimizes it, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps against per-run state.
+The compute path is staged. `Tensor` builds a semantic graph, `CompiledGraph` freezes and optimizes it, `PreparedExecution` attaches runtime/backend metadata, and `PreparedExecutionRunner` dispatches prepared steps against per-run state.
 
 ```mermaid
 flowchart TD
@@ -43,13 +43,13 @@ flowchart TD
     Prepared["PreparedExecution"]
     State["ExecutionState\nper-run tensors/workspaces"]
     Binder["RuntimeMemoryBinder"]
-    Engine["ComputeEngine"]
-    Backend["CpuBackend / Metal / CUDA / OpenCL"]
+    Runner["PreparedExecutionRunner"]
+    Executable["PreparedStepExecutable"]
     Publish["Publish output + gradients"]
 
     User --> TensorOps --> SemanticGraph --> Compile --> Compiler --> Artifacts
     Artifacts --> Prepare --> Selection --> Lowering --> Dispatcher --> Prepared
-    Prepared --> State --> Binder --> Engine --> Backend --> Publish
+    Prepared --> State --> Binder --> Runner --> Executable --> Publish
 ```
 
 ```mermaid
@@ -61,8 +61,8 @@ sequenceDiagram
     participant PB as PreparedExecutionBuilder
     participant PE as PreparedExecution
     participant ES as ExecutionState
-    participant CE as ComputeEngine
-    participant B as Backend
+    participant PR as PreparedExecutionRunner
+    participant EX as PreparedStepExecutable
 
     U->>T: a.add(b).relu().sum()
     U->>T: compute() or compile()
@@ -76,8 +76,8 @@ sequenceDiagram
     PE->>ES: create runtime tensors and workspaces
     PE->>ES: bind memory plan
     loop prepared steps
-        PE->>CE: compute(node, metadata, context)
-        CE->>B: execute(node, metadata, context)
+        PE->>PR: executeSteps(...)
+        PR->>EX: execute(node, metadata, context)
     end
     PE-->>U: root tensor data is published
 ```
@@ -88,9 +88,9 @@ sequenceDiagram
 |---|---|---|---|---|
 | Semantic tensor graph | `Tensor` constructors and `tensor.ops.*` builders | [`Tensor.java`](../src/main/java/tensor/Tensor.java), [`TensorPrimitiveBuilder.java`](../src/main/java/tensor/internal/TensorPrimitiveBuilder.java) | Shape, dtype, storage/layout, operation descriptor, predecessor tensors, backward lambda | User-owned mutable graph |
 | Compile artifact | `CompiledGraph.compile(...)` and `GraphCompiler.compile()` | [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java) | Immutable `CompiledNode` snapshots, final graph order, gradient bindings, partition plans, optimizer state, memory plan | Reusable for prepares with compatible runtime configs |
-| Prepared artifact | `CompiledGraph.prepare(...)` | [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java) | Ordered executable steps, backend metadata, CPU plans, fused/accelerator executables, prepare trace | Reusable for repeated runs with the same graph contract |
-| Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, residency/storage bindings, materialization traces, runtime trace side channels | New for each execute call |
-| Backend dispatch | `ComputeEngine.compute(...)` | [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java), [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java) | Backend selection at execution time from prepared metadata | Stateless dispatcher |
+| Prepared artifact | `CompiledGraph.prepare(...)` | [`PreparedExecutionBuilder.java`](../src/main/java/prepare/orchestration/PreparedExecutionBuilder.java), [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java) | Ordered executable steps, backend metadata, CPU plans, fused/accelerator executables, prepare trace | Reusable for repeated runs with the same graph contract |
+| Per-run state | `PreparedExecution.execute(...)` | [`ExecutionState.java`](../src/main/java/runtime/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/runtime/execution/ExecutionContext.java) | Runtime tensors, runtime input links, forked workspaces, residency/storage bindings, materialization traces, runtime trace side channels | New for each execute call |
+| Prepared step invocation | `PreparedExecutionRunner.executeSteps(...)` | [`PreparedExecutionRunner.java`](../src/main/java/runtime/runner/PreparedExecutionRunner.java), [`PreparedStepExecutable.java`](../src/main/java/runtime/execution/PreparedStepExecutable.java) | Runtime residency guards followed by direct invocation of the executable selected during prepare | Stateless runner |
 
 ## Artifact Lifetimes And Storage
 
@@ -106,7 +106,7 @@ The compute flow has several kinds of "storage". Some are Java objects kept in m
 | Prepare artifacts | Fields inside a `PreparedExecution` instance | As long as the `PreparedExecution` object is retained | `PreparedExecutionBuilder.prepare(...)` | Stores executable step order, backend metadata, prepared kernels/executables, workspaces templates, and prepare trace. |
 | Per-run tensors | `RuntimeTensorStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Isolates runtime mutation from reusable prepared metadata. |
 | Per-run workspaces | `RuntimeWorkspaceStore` behind `ExecutionState` | One `execute(...)` call | `ExecutionState.create(...)` | Prevents repeated runs from sharing mutable workspace buffers. |
-| Memory-plan slot buffers | Local maps inside `RuntimeMemoryBinder.bind(...)`, then attached to runtime tensors | One `execute(...)` call | `RuntimeMemoryBinder` | Reuses storage across compatible optimized-region intermediates. |
+| Memory-plan slot buffers | Local maps inside `RuntimeMemoryBinder.bind(...)`, then attached to runtime tensors | One `execute(...)` call | `RuntimeMemoryBinder` | Reuses storage across compatible optimized-partition intermediates. |
 | Execution context side state | `ExecutionContext.runtimeStateIndex` and `convTraceIndex` | One `execute(...)` call | `ExecutionContext.fromRuntimeConfig(...)`, kernels | Lets kernels publish runtime state and trace metadata while the run is in progress. |
 | Compile/prepare/run traces | `CompileTrace`, `PrepareTrace`, `RunTrace` objects | Returned or accessible through graph/prepared objects | Compile, prepare, `executeTraced(...)` | Explains what happened without changing execution semantics. |
 | Generic tensor autotune profiles | Files under `build/tuning/tensor/...` | Until build directory is cleaned | `compute(new ComputeOptions().autotune(...))` | Caches graph-specific best profiles for convenience `compute(...)` autotune. |
@@ -224,13 +224,13 @@ The prepared schedule is reused, but the runtime state is fresh. This is why rep
 | Layer | Responsibility | Not responsible for |
 |---|---|---|
 | `Tensor` | User-facing graph and data object. | Choosing backend kernels directly. |
-| `TensorExecutionSupport` | Resolve convenience defaults and profiles for `compute(...)`. | Owning long-lived runtime buffers. |
+| `TensorExecution` | Resolve convenience defaults and profiles for `compute(...)`. | Owning long-lived runtime buffers. |
 | `CompiledGraph` | Hold compile artifacts and compile trace. | Runtime backend-specific execution state. |
 | `PreparedExecutionBuilder` | Convert compile artifacts plus runtime config into prepared executable steps. | Mutating user tensors. |
 | `PreparedExecution` | Execute prepared steps, publish root data, publish gradients, optionally return `RunTrace`. | Persisting traces to disk automatically. |
 | `ExecutionState` | Expose per-run runtime tensors, workspaces, residency/storage bindings, materialization, traces, and resources through one execution entrypoint. | Surviving across runs or becoming public tensor API. |
 | `ExecutionContext` | Provide kernels with runtime config flags, metadata lookup, runtime tensors, workspaces, and trace side channels. | Owning compile artifacts. |
-| `ComputeEngine` | Dispatch one prepared step to the selected backend. | Deciding graph optimization or memory planning. |
+| `PreparedExecutionRunner` | Dispatch one prepared step to the selected backend. | Deciding graph optimization or memory planning. |
 
 ## Graph Building
 
@@ -276,12 +276,12 @@ Without `compute(...)`, every caller would need to manually choose a compile con
 ### Where it lives in the code
 
 - Public methods: `src/main/java/tensor/Tensor.java`
-- Convenience execution logic: `src/main/java/tensor/internal/TensorExecutionSupport.java`
+- Convenience execution logic: `src/main/java/tensor/internal/TensorExecution.java`
 - Options: `src/main/java/tensor/ComputeOptions.java`
 - Compile intent: `src/main/java/tensor/CompileMode.java`
 - Autotune policy: `src/main/java/tensor/AutotunePolicy.java`
 - Low-level execution profile: `src/main/java/config/profile/ExecutionProfile.java`
-- Prepared execution: `src/main/java/graph/execution/PreparedExecution.java`
+- Prepared execution: `src/main/java/runtime/execution/PreparedExecution.java`
 
 ### Public overloads
 
@@ -328,7 +328,7 @@ Tensor returned = root.compute();
 Internally this calls:
 
 ```java
-TensorExecutionSupport.compute(root, CompileMode.INFERENCE_ONLY)
+TensorExecution.compute(root, CompileMode.INFERENCE_ONLY)
 ```
 
 Default profile resolution:
@@ -461,7 +461,7 @@ Available options:
 |---|---|---|---|
 | `.compileMode(...)` | `CompileMode` | `INFERENCE_ONLY` | Selects inference/training/auto compile intent. Passing `null` resets to `INFERENCE_ONLY`. |
 | `.autotune(...)` | `AutotunePolicy` | `NEVER` | Decides whether the convenience path should use generic graph autotune before execution. Passing `null` resets to `NEVER`. |
-| `.compile(...)` | `CompileConfig` | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated `ExecutionProfile`. |
+| `.compile(...)` | `CompileConfig` | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, partition optimization, and memory planning in the generated `ExecutionProfile`. |
 | `.runtime(...)` | `RuntimeConfig` | inferred from compile mode | Overrides runtime config in the generated `ExecutionProfile`. |
 
 If `optimizer` or `runtime` is null, defaults are chosen from the effective compile mode:
@@ -609,7 +609,7 @@ loss.compute(prepared, ExecutionMode.FORWARD_BACKWARD);
 // The passed PreparedExecution runs in FORWARD_BACKWARD mode.
 ```
 
-Important detail: the receiver tensor is not used to decide what executes. The method delegates to `TensorExecutionSupport.compute(execution, mode)`, which calls `execution.execute(mode)`. If the prepared execution belongs to another graph, that other graph runs.
+Important detail: the receiver tensor is not used to decide what executes. The method delegates to `TensorExecution.compute(execution, mode)`, which calls `execution.execute(mode)`. If the prepared execution belongs to another graph, that other graph runs.
 
 Use this overload only when:
 
@@ -638,10 +638,10 @@ Compile does the structural work:
 Default compile flow for both inference and training is:
 
 ```text
-semantic canonicalization -> graph optimization -> backend planning -> region optimization -> memory planning
+semantic canonicalization -> graph optimization -> backend planning -> partition optimization -> memory planning
 ```
 
-`CompileConfig.noGraphOptimization()` disables graph rewrite/simplification only. It does not disable backend planning, region optimization, memory planning required by prepare invariants, or runtime backend selection.
+`CompileConfig.noGraphOptimization()` disables graph rewrite/simplification only. It does not disable backend planning, partition optimization, memory planning required by prepare invariants, or runtime backend selection.
 
 ```mermaid
 flowchart TD
@@ -675,9 +675,9 @@ Prepare performs runtime-dependent work:
 2. Create a `BackendPrepareContext` with runtime config, backward support, compiled nodes, and consumers.
 3. Select non-CPU planned partitions with `DefaultBackendSelectionPolicy`.
 4. Publish selected backend plans into the prepare context.
-5. Run `LoweringPipeline` when optimized regions and a memory plan exist.
+5. Run `LoweringPipeline` when optimized partitions and a memory plan exist.
 6. Create a `BackendPrepareDispatcher` from the runtime config.
-7. Prepare executable `PreparedExecutionStep` entries for single nodes, CPU fused units, native CPU regions, and accelerator graph regions.
+7. Prepare executable `PreparedExecutionStep` entries for single nodes, CPU fused units, native CPU partitions, and accelerator graph partitions.
 8. Split prepared steps into forward and backward step lists by `forwardBoundaryNodeId`.
 9. Return `PreparedExecution` with a `PrepareTrace`.
 
@@ -688,7 +688,7 @@ flowchart TD
     Select["DefaultBackendSelectionPolicy"]
     Plans["selected PartitionPlans"]
     Lower["LoweringPipeline"]
-    Regions["LoweredRegionIndex"]
+    Partitions["LoweredPartitionIndex"]
     Dispatch["BackendPrepareDispatcher"]
     CPU["CpuNodePreparer"]
     Metal["MetalNodePreparer"]
@@ -698,7 +698,7 @@ flowchart TD
 
     Artifacts --> Context
     Context --> Select --> Plans --> Context
-    Context --> Lower --> Regions --> Context
+    Context --> Lower --> Partitions --> Context
     Context --> Dispatch
     Dispatch --> CPU
     Dispatch --> Metal
@@ -718,49 +718,51 @@ non-CPU planned partitions are active for this runtime:
 - Rejects incompatible plans as `backend-not-compatible`.
 - Rejects disabled accelerators as `backend-disabled`.
 - Rejects unavailable required runtimes as `runtime-unavailable`.
-- Applies `AcceleratorPlanCostModel` and can reject small regions as `estimated-work-below-minimum`.
+- Applies `AcceleratorPlanCostModel` and can reject small partitions as `estimated-work-below-minimum`.
 - CPU planned partitions are not selected by accelerator policy; CPU execution remains the fallback path.
 
 ### Lowering
 
-`LoweringPipeline` takes `LoweringInput` with optimized regions, the memory plan, and selected partition plans. It tries registered `RegionLowerer` implementations until one returns a `LoweredRegion`.
+`LoweringPipeline` takes `LoweringInput` with finalized `ExecutablePartitionPlan` values and the memory plan. Each
+executable partition already pairs its accepted `PlannedPartition` with its `PartitionExecutionPlan`. The pipeline tries
+registered `PartitionLowerer` implementations until one returns a `LoweredPartition`.
 
 Current lowerer roles:
 
-- `CpuRegionLowerer` lowers CPU regions to `DIRECT_KERNEL`, `BLAS`, or `FUSED_NATIVE` units.
-- `MetalRegionLowerer` lowers selected Metal regions to `METAL_GRAPH_REGION`; fused elementwise subpatterns stay as region-internal metadata.
-- `CudaRegionLowerer` lowers selected CUDA regions to `CUDA_GRAPH_REGION`; fused elementwise subpatterns stay as region-internal metadata.
+- `CpuPartitionLowerer` lowers CPU partitions to `DIRECT_KERNEL`, `BLAS`, or `FUSED_NATIVE` units.
+- `MetalPartitionLowerer` lowers selected Metal partitions to `METAL_GRAPH_PARTITION`; fused elementwise subpatterns stay as partition-internal metadata.
+- `CudaPartitionLowerer` lowers selected CUDA partitions to `CUDA_GRAPH_PARTITION`; fused elementwise subpatterns stay as partition-internal metadata.
 
-GPU compound region lowering is the Metal/CUDA path for named multi-node accelerator regions. It currently reports supported `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN` summaries, while `REDUCTION_ADJACENT` candidates reject explicitly until a verified reduction-adjacent GPU subset exists. `Operation.OpType.FUSED remains CPU-only`; GPU compound lowering does not consume CPU fused ASM/vector operation nodes.
+GPU compound partition lowering is the Metal/CUDA path for named multi-node accelerator partitions. It currently reports supported `LINEAR_BIAS_ACTIVATION` and `ELEMENTWISE_CHAIN` summaries, while `REDUCTION_ADJACENT` candidates reject explicitly until a verified reduction-adjacent GPU subset exists. `Operation.OpType.FUSED` remains CPU-only; GPU compound lowering does not consume CPU fused ASM/vector operation nodes.
 
-`GPU fusion is region-internal lowering/fusion, not CPU fused ASM reuse`. Partitioning selects a device-owned region, lowering expands that region into backend primitives, and fusion metadata describes supported subpatterns inside the lowered region. The run trace can expose `gpuFusedSubpatternCount`, `gpuFusedSubpatternTypes`, `gpuFusedSubpatternOriginalNodeIds`, `gpuFusedSubpatternLoweredPrimitiveCount`, and `gpuFusedSubpatternReasons` next to existing accelerator buffer and fallback fields.
+`GPU fusion is partition-internal lowering/fusion, not CPU fused ASM reuse`. Partitioning selects a device-owned partition, lowering expands that partition into backend primitives, and fusion metadata describes supported subpatterns inside the lowered partition. The run trace can expose `gpuFusedSubpatternCount`, `gpuFusedSubpatternTypes`, `gpuFusedSubpatternOriginalNodeIds`, `gpuFusedSubpatternLoweredPrimitiveCount`, and `gpuFusedSubpatternReasons` next to existing accelerator buffer and fallback fields.
 
-The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. A prepared GPU executable may keep intermediate values device-owned inside a selected region, but public `Tensor` objects still publish CPU-readable data at graph output, CPU consumer, or gradient publication boundaries. Metal and CUDA coverage is backend-specific, so the shared compound summary does not override backend capability, ABI, dtype, layout, or buffer-binding gates.
+The public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. A prepared GPU executable may keep intermediate values device-owned inside a selected partition, but public `Tensor` objects still publish CPU-readable data at graph output, CPU consumer, or gradient publication boundaries. Metal and CUDA coverage is backend-specific, so the shared compound summary does not override backend capability, ABI, dtype, layout, or buffer-binding gates.
 
-Phase 19 multi-op GPU region execution makes the same boundary explicit for longer regions: a `selected GPU partition can execute as one backend-owned lowered region` after backend selection and lowering accept the region. `ExecutionState and device buffer bindings carry supported internal values` across supported internal steps, so supported layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, and fused subpattern metadata can stay inside the backend-owned execution path until a real CPU boundary is reached.
+Phase 19 multi-op GPU partition execution makes the same boundary explicit for longer partitions: a `selected GPU partition can execute as one backend-owned lowered partition` after backend selection and lowering accept the partition. `ExecutionState and device buffer bindings carry supported internal values` across supported internal steps, so supported layout/view, matmul/linear, elementwise, softmax/log-softmax-ish, and fused subpattern metadata can stay inside the backend-owned execution path until a real CPU boundary is reached.
 
-`tensor-array bridge execution is not native buffer GPU coverage`. Trace and report fields keep tensor-array bridge steps separate from native buffer steps, and `GPU fusion remains region-internal lowering/fusion, not CPU fused ASM reuse`. Unsupported normalization, reduction, conv, and loss-adjacent blockers still reject or fall back visibly; `vendor library routing is deferred to GPULIB-*`. Local benchmark calibration files are not closure evidence, and `profiles/platform/.../tuning/abc/* remained unstaged` during Phase 19 closure.
+`tensor-array bridge execution is not native buffer GPU coverage`. Trace and report fields keep tensor-array bridge steps separate from native buffer steps, and `GPU fusion remains partition-internal lowering/fusion, not CPU fused ASM reuse`. Unsupported normalization, reduction, conv, and loss-adjacent blockers still reject or fall back visibly; `vendor library routing is deferred to GPULIB-*`. Local benchmark calibration files are not closure evidence, and `profiles/platform/.../tuning/abc/* remained unstaged` during Phase 19 closure.
 
-Prepared GPU anchors require both a selected partition plan and a lowered region. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
+Prepared GPU anchors require both a selected partition plan and a lowered partition. Metal and CUDA preparers also prepare CPU fallback steps for the partition.
 
-### GPU lowered-region manifest
+### GPU lowered-partition manifest
 
-Selected GPU regions can be described as lowered DAG manifests. The manifest records the selected backend, region id,
+Selected GPU partitions can be described as lowered DAG manifests. The manifest records the selected backend, partition id,
 original graph operations, lowered backend primitives, dtype/layout/storage assumptions, fused subpattern metadata,
-rejection evidence, candidate-shortening evidence, and selected region length.
+rejection evidence, candidate-shortening evidence, and selected partition length.
 
-The manifest is attached during prepare/backend selection through the selected `PartitionPlan` and
+The manifest is attached during prepare/backend selection through the selected `AcceleratorPartitionPlan` and
 `BackendSelectionDecisionTrace`. Prepare/backend selection is the structured source of truth for the full manifest.
 
-Run trace keeps only compact region id/runtime evidence. A prepared accelerator step may publish `gpuLoweredRegionId`
+Run trace keeps only compact partition id/runtime evidence. A prepared accelerator step may publish `gpuLoweredPartitionId`
 beside buffer decision, fallback, and backend runtime attributes, but it does not duplicate the full manifest object.
 
-CPU `Operation.OpType.FUSED remains CPU-only`.
+CPU `Operation.OpType.FUSED` remains CPU-only.
 
 The native Metal/CUDA ABI is unchanged by Phase 15.
 
 `BLAS` here means the CPU path may call an external GEMM implementation such as OpenBLAS through Java FFM. It is still
-prepared and executed as a CPU runtime path, not as an accelerator region. The detailed BLAS/GEMM and Java FFM model is
+prepared and executed as a CPU runtime path, not as an accelerator partition. The detailed BLAS/GEMM and Java FFM model is
 in [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matmul-dispatch-flow).
 
 ### BackendPrepareDispatcher
@@ -770,9 +772,9 @@ in [Native Bridges & BLAS: Matmul Dispatch Flow](native-bridges-and-blas.md#matm
 - `CPU` -> `CpuNodePreparer.prepare(...)`
 - `GPU_METAL` -> `MetalNodePreparer.prepare(...)`
 - `GPU_CUDA` -> `CudaGpuNodePreparer.prepare(...)`
-- `GPU_OPENCL` -> metadata with no prepared kernel/plan
+- `GPU_OPENCL` -> `OpenClDirectPreparedExecutable.prepare(...)`
 
-For CPU nodes, `CpuNodePreparer` resolves the kernel, CPU execution plan, fused executable when applicable, and any workspace. For Metal/CUDA anchors, the preparer builds a `PreparedMetalExecutable` or `PreparedCudaExecutable`; non-anchor GPU nodes fall back to CPU preparation unless they are partition interiors.
+For CPU nodes, `CpuNodePreparer` resolves the kernel, CPU execution plan, fused executable when applicable, and any workspace. For Metal/CUDA anchors, the preparer builds a `PreparedMetalExecutable` or `PreparedCudaExecutable`; non-anchor GPU nodes fall back to CPU preparation unless they are partition interiors. OpenCL resolves its registry entry during prepare; only `NOOP` is currently registered, so any other OpenCL operation fails during prepare rather than entering the hot path without an executable.
 
 ## Execution
 
@@ -807,18 +809,12 @@ flowchart TD
 
 - Skips when no memory plan exists.
 - Skips leaves.
-- Respects `runtimeBindingPolicyOf(...).regionBindingAllowed()`.
+- Respects `runtimeBindingPolicyOf(...).partitionBindingAllowed()`.
 - Preserves alias-view ops such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
-- Reuses typed storage slots only when the region slot is used at least twice and the slot size matches the runtime tensor flat size.
+- Reuses typed storage slots only when the partition slot is used at least twice and the slot size matches the runtime tensor flat size.
 - Binds reusable slots for `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL` without changing public tensor semantics.
 
-`ComputeEngine.compute(...)` is the final dispatcher. It ignores partition-interior metadata and otherwise calls:
-
-- `CpuBackend.execute(...)`
-- `MetalBackend.execute(...)`
-- `CudaGpuBackend.execute(...)` when a prepared accelerator executable exists
-- legacy `CudaBackend.execute(...)` when no CUDA accelerator executable is present
-- `OpenClBackend.execute(...)`
+`PreparedExecutionRunner.executeSteps(...)` is the runtime loop. It applies each step's prepared input-residency requirement, invokes `metadata.executable()`, applies the prepared output-residency effect, and optionally records a step trace. Concrete backend selection happened during prepare; the runner imports no concrete backend.
 
 `CpuBackend.execute(...)` resolves runtime inputs by node id, applies the prepared CPU layout plan, chooses strided elementwise execution when planned, and dispatches to dtype-specific kernel methods.
 
@@ -833,9 +829,9 @@ The important implementation detail is that tracking is split between `PreparedE
 
 ### DType residency and materialization boundaries
 
-`BFLOAT16`, `INT32`, `INT64`, and `BOOL` can be represented in runtime storage residency through typed runtime slots and accelerator-visible residency diagnostics. That means a prepared GPU region can carry dtype residency evidence for inputs, internal values, and outputs without requiring the public `Tensor` API to become a device tensor API.
+`BFLOAT16`, `INT32`, `INT64`, and `BOOL` can be represented in runtime storage residency through typed runtime slots and accelerator-visible residency diagnostics. That means a prepared GPU partition can carry dtype residency evidence for inputs, internal values, and outputs without requiring the public `Tensor` API to become a device tensor API.
 
-This is still a runtime ownership contract, not a promise that every dtype has native arithmetic on every backend. True CPU consumers, graph outputs, gradient publication, validation snapshots, and explicit CPU-readable APIs can still materialize values back to host storage. Those boundaries must remain visible as `CpuMaterializationTrace` entries or benchmark coverage fields instead of being hidden behind a selected GPU region.
+This is still a runtime ownership contract, not a promise that every dtype has native arithmetic on every backend. True CPU consumers, graph outputs, gradient publication, validation snapshots, and explicit CPU-readable APIs can still materialize values back to host storage. Those boundaries must remain visible as `CpuMaterializationTrace` entries or benchmark coverage fields instead of being hidden behind a selected GPU partition.
 
 ### What PreparedExecution tracks
 
@@ -1218,7 +1214,7 @@ That does not mean Metal failed; it means the legacy bridge path copied outputs 
 
 #### Native buffer-binding Metal path
 
-The native buffer-binding path uses explicit `MTLBuffer` handles instead of Java tensor arrays between Metal regions:
+The native buffer-binding path uses explicit `MTLBuffer` handles instead of Java tensor arrays between Metal partitions:
 
 ```text
 nodeId = 42
@@ -1268,7 +1264,7 @@ device-to-CPU materializer, which reads the buffer into the runtime tensor's Jav
 ownership in the Metal package:
 
 ```text
-backend.accelerator.buffer.*
+runtime.device.buffer.*
   decides OFF/AUTO/REQUIRE, reason codes, selected path, and prepared-input diagnostics
 
 backend.metal.buffer.MetalAcceleratorBufferBinder
@@ -1278,7 +1274,7 @@ PreparedMetalExecutable
   resolves inputs once, asks the binder, then calls executeBuffers(...), execute(...), or CPU fallback
 ```
 
-The policy lives in `RuntimeConfig.accelerator().metal().buffer()`:
+The policy lives in `RuntimeConfig.accelerator().metal().buffer()`.
 
 | Mode | Runtime meaning | Typical use |
 |---|---|---|
@@ -1315,7 +1311,7 @@ back to `MetalMpsGraphBridge.execute(...)`, which still consumes Java tensor arr
 Allocation failure, wrong access intent, unavailable handle, mismatched dtype/shape/element count, or a bridge that
 reports `supportsBufferBindings() == false` does not pretend zero-copy happened. The step records
 `metalBufferBindingDecision` and then tries the tensor-array path. If the tensor-array path also cannot satisfy its
-contiguous/direct-array contract, the selected Metal region is replayed through CPU fallback with an explicit
+contiguous/direct-array contract, the selected Metal partition is replayed through CPU fallback with an explicit
 `metalFallbackReason`.
 
 Prepared contiguous inputs are now shared by the tensor-array path and the buffer path. This matters for layout views:
@@ -1345,11 +1341,11 @@ Tensor y = p.relu();
 The native executable still identifies the external input by the semantic compiled node id for `p`, but the bytes
 passed to `executeBuffers(...)` may come from `p'`. Because `p'` is an execution-local prepared input, the binder does
 not attach the input upload as the device-current value of semantic node `p`. Only true semantic bindings, such as an
-output produced by a previous Metal region, are reusable through `ExecutionState.deviceBufferBindingForNodeId(...)`.
+output produced by a previous Metal partition, are reusable through `ExecutionState.deviceBufferBindingForNodeId(...)`.
 
 Runtime bridge failures follow the same rule. If `executeBuffers(...)` throws, the output reservation is not promoted
-to an active binding and the region falls back to CPU with a `buffer binding execution failed: ...` reason. If the
-tensor-array bridge call throws, the region falls back with a `tensor-array bridge execution failed: ...` reason. This
+to an active binding and the partition falls back to CPU with a `buffer binding execution failed: ...` reason. If the
+tensor-array bridge call throws, the partition falls back with a `tensor-array bridge execution failed: ...` reason. This
 keeps native failures visible in traces instead of either crashing without context or pretending a device buffer now
 contains a valid current output.
 
@@ -1444,37 +1440,31 @@ CpuMaterializationTrace:
 
 #### Post-step residency rule
 
-`PreparedExecution.executeSteps(...)` applies one central rule after `ComputeEngine.compute(...)` returns:
+`PreparedExecutionRunner` applies the `OutputResidencyEffect` attached during prepare after the executable returns:
 
 ```text
-if backend == CPU:
-  mark output CPU_ARRAY/current
-else if backend did not publish any current CPU/device residency:
-  mark output CPU_ARRAY/current
-else:
-  preserve backend-published residency
+if effect == CPU_CURRENT_PRESERVE_NATIVE and native storage is already current:
+  preserve native-current residency
+else if effect == CPU_CURRENT_PRESERVE_NATIVE:
+  mark output CPU-current
+else if effect == NONE:
+  preserve residency published by the executable
 ```
 
-The second branch preserves behavior for copy-back Metal and any other accelerator executable that writes Java arrays
-but does not publish explicit residency. The third branch is what makes the buffer path possible: if
-`PreparedMetalExecutable` attaches a `DEVICE_OWNED` binding, the execution loop will not overwrite that state with
-`CPU_ARRAY`.
+Accelerator executables use `NONE` and publish their own current device/host state; the runner does not reinterpret that prepared policy.
 
 ```mermaid
 flowchart TD
     Step["PreparedExecution step"]
-    Compute["ComputeEngine.compute(...)"]
-    CPU{"Selected backend is CPU?"}
-    Published{"Backend published\ncurrent residency?"}
+    Compute["PreparedStepExecutable.execute(...)"]
+    Effect{"Prepared output\nresidency effect"}
     CpuCurrent["markCpuCurrent\nCPU_ARRAY"]
     Preserve["Preserve backend state\nHOST_SHARED_DEVICE_BUFFER\nor DEVICE_OWNED"]
     Trace["Build step trace\nstorage + deviceBuffer attrs"]
 
-    Step --> Compute --> CPU
-    CPU -- yes --> CpuCurrent --> Trace
-    CPU -- no --> Published
-    Published -- no --> CpuCurrent
-    Published -- yes --> Preserve --> Trace
+    Step --> Compute --> Effect
+    Effect -- CPU current --> CpuCurrent --> Trace
+    Effect -- none/device --> Preserve --> Trace
 ```
 
 #### Materialization reasons in practice
@@ -1522,12 +1512,12 @@ Inputs:
 Local tracking maps:
 
 ```text
-regionF64Slots: slot id -> double[] buffer
-regionF32Slots: slot id -> float[] buffer
-regionBF16Slots: slot id -> short[] buffer
-regionI32Slots: slot id -> int[] buffer
-regionI64Slots: slot id -> long[] buffer
-regionBoolSlots: slot id -> byte[] buffer
+partitionF64Slots: slot id -> double[] buffer
+partitionF32Slots: slot id -> float[] buffer
+partitionBF16Slots: slot id -> short[] buffer
+partitionI32Slots: slot id -> int[] buffer
+partitionI64Slots: slot id -> long[] buffer
+partitionBoolSlots: slot id -> byte[] buffer
 compiled node id -> runtime Tensor lookup through ExecutionState
 ```
 
@@ -1535,10 +1525,10 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 
 1. Skip if there is no memory plan.
 2. Skip leaves.
-3. Skip nodes whose memory binding policy disallows region binding.
+3. Skip nodes whose memory binding policy disallows partition binding.
 4. Preserve runtime alias views such as `NOOP`, `EXPAND`, `SELECT`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and contiguous `RESHAPE`.
 5. Look up the node's `GraphValueRef` through the memory plan's node-id mapping.
-6. Look up the `RegionMemoryBinding`.
+6. Look up the `PartitionMemoryBinding`.
 7. Require a non-`NONE` binding kind.
 8. Require a slot id.
 9. Require slot use count >= 2.
@@ -1548,7 +1538,7 @@ The binder walks compiled nodes and decides whether a runtime tensor can share a
 Illustrative example:
 
 ```text
-optimized region:
+optimized partition:
   n2 = a + b      shape=[1024], dtype=FLOAT64
   n3 = relu(n2)   shape=[1024], dtype=FLOAT64
   n4 = n3 * 0.5   shape=[1024], dtype=FLOAT64
@@ -1770,7 +1760,7 @@ Using `CompiledGraph.compile(out, CompileConfig.inference())` kept the same six 
 | `forwardNodeCount` | `6` |
 | `forwardBoundaryNodeId` | `5` |
 | `memoryPlan != null` | `true` |
-| optimized regions | `1` |
+| optimized partitions | `1` |
 | partitions | `1` |
 | non-CPU backend selection candidates | `0` |
 
@@ -1782,7 +1772,7 @@ Prepare then collapsed the elementwise `ADD -> RELU` hot path into an explicit f
 | 1 | 4 | `[4]` | `SUM` | `false` | `[]` | `CPU_REDUCTION` |
 | 2 | 5 | `[5]` | `NOOP` | `false` | `[]` | `CPU_GENERIC` |
 
-The key point is that compile preserved compiled node identity while prepare changed the executable schedule. Node `2` still exists in the compiled graph, but it is not a standalone prepared step in the optimized schedule because the fused step with boundary output node `3` executes the elementwise region.
+The key point is that compile preserved compiled node identity while prepare changed the executable schedule. Node `2` still exists in the compiled graph, but it is not a standalone prepared step in the optimized schedule because the fused step with boundary output node `3` executes the elementwise partition.
 
 ## Reuse Rules
 
@@ -1871,17 +1861,17 @@ Partition planning trace tracks:
 
 | Field | Meaning |
 |---|---|
-| `strategy` | Partition planner strategy, for example greedy max region. |
+| `strategy` | Partition planner strategy, for example greedy max partition. |
 | `target` | Partition target, such as CPU/accelerator target or none. |
-| `totalConsidered` | Number of candidate regions considered. |
+| `totalConsidered` | Number of candidate partitions considered. |
 | `acceptedCount` | Number of accepted partition decisions. |
 | `rejectedCount` | Number of rejected partition decisions. |
 | `decisions` | Detailed `PartitionDecisionTrace` entries. |
 
-`PartitionDecisionTrace` explains why a candidate region was accepted or rejected:
+`PartitionDecisionTrace` explains why a candidate partition was accepted or rejected:
 
 ```text
-strategy=GREEDY_MAX_REGION
+strategy=GREEDY_MAX_PARTITION
 target=METAL
 startNodeId=12
 accepted=false
@@ -1895,7 +1885,7 @@ searchBudgetHit=false
 rejectedNodeId=14
 ```
 
-This is useful when a graph did not produce the accelerator or fused region you expected.
+This is useful when a graph did not produce the accelerator or fused partition you expected.
 
 ### Prepare trace
 
@@ -1931,7 +1921,7 @@ reason=estimated-work-below-minimum
 estimatedWork=4096
 ```
 
-This tells you the accelerator path was structurally possible but rejected because the runtime cost model decided the region was too small.
+This tells you the accelerator path was structurally possible but rejected because the runtime cost model decided the partition was too small.
 
 ### Run trace
 
@@ -2083,13 +2073,13 @@ Storage residency appears in the same attributes map:
 
 These fields prevent a common debugging mistake: `backend=GPU_METAL` does not imply zero-copy or long-lived GPU
 residency. In the current bridge, a real Metal execution can still report large copy-in/copy-out time and
-`storageResidency=CPU_ARRAY` because outputs are copied back at the region boundary.
+`storageResidency=CPU_ARRAY` because outputs are copied back at the partition boundary.
 
 ## GPU coverage summary
 
 Benchmark reports include a backend-neutral GPU coverage summary derived from prepare and run traces. The summary is an
 evidence contract for coverage/materialization behavior, not raw timing: timing can explain a result, but the regression
-gate reads selected region length, native buffer execution, fallback paths, CPU materialization boundaries, and device
+gate reads selected partition length, native buffer execution, fallback paths, CPU materialization boundaries, and device
 handoffs.
 
 Key fields:
@@ -2097,19 +2087,19 @@ Key fields:
 | Field | Meaning |
 |---|---|
 | `gpuCoverageRatio` | Executed accelerator-buffer steps divided by total traced run steps for that backend. |
-| `selectedRegionCount` | Number of backend-selection regions selected for the accelerator backend during prepare. |
-| `maxSelectedRegionLength` | Largest selected accelerator region size, measured in graph node ids. |
+| `selectedPartitionCount` | Number of backend-selection partitions selected for the accelerator backend during prepare. |
+| `maxSelectedPartitionLength` | Largest selected accelerator partition size, measured in graph node ids. |
 | `rejectedCandidateReasonCounts` | Count of rejected accelerator-compatible candidates by stable planner reason. |
 | `cpuMaterializationReasonCounts` | Count of CPU materialization boundaries by reason, such as graph output or CPU consumer. |
 | `deviceHandoffCount` | Run-step backend transitions involving the accelerator backend, plus CPU materialization exits. |
-| `gpuFusedSubpatternCount` | Count of region-internal fused GPU subpatterns recorded by selected lowered-region manifests. |
+| `gpuFusedSubpatternCount` | Count of partition-internal fused GPU subpatterns recorded by selected lowered-partition manifests. |
 | `gpuFusedSubpatternLoweredPrimitiveCount` | Total lowered primitive count represented by those fused subpatterns. |
 
 The portable coverage gate fails on lost GPU coverage, unexpected CPU materialization, hidden tensor-array fallback, and
 unexpected device handoff. Native Metal and CUDA runs provide native capability-gated evidence when the local host can
 execute those tasks; portable Java tests still prove the report schema and fallback semantics when a native task skips.
 
-Phase 20 coverage regression hardening extends the summary into a hard v1.3 gate contract. `hot path stayed on GPU is trace/report evidence, not timing-only`: the gate reads selected region length, multi-op region count, lowered
+Phase 20 coverage regression hardening extends the summary into a hard v1.3 gate contract. `hot path stayed on GPU is trace/report evidence, not timing-only`: the gate reads selected partition length, multi-op partition count, lowered
 primitive count, fused subpattern count, fallback/materialization counters, native buffer binding, and handoff counts.
 Benchmark reports render `targetCoverageGates`, `nativeEvidence`, and `capabilitySkipped` so reviewers can separate
 portable Java proof from capability-gated native Metal/CUDA pass or skip evidence.
@@ -2153,43 +2143,43 @@ Phase 25 applies the same rule to forward SDPA. Metal direct unmasked `SCALED_DO
 | Stale prepared assumptions | No single public stale-check guard found | Wrong schedule or metadata if graph contract changes after prepare | Needs verification: compile/prepare again after topology, shape, dtype, layout, backend intent, or runtime-policy changes. |
 | Backend disabled at runtime | `DefaultBackendSelectionPolicy` | Prepare trace decision reason `backend-disabled`; GPU steps absent | Enable the accelerator in `RuntimeConfig` or accept CPU fallback. |
 | Required accelerator runtime unavailable | `DefaultBackendSelectionPolicy` | Prepare trace decision reason `runtime-unavailable` | Install/configure the runtime or disable the requirement. |
-| Accelerator region too small | `AcceleratorPlanCostModel` through backend selection | Prepare trace decision reason `estimated-work-below-minimum` | Lower the minimum-work threshold or accept CPU execution. |
-| Missing accelerator lowering/plan for selected anchor | Metal/CUDA preparers | `IllegalStateException` such as missing lowered region or partition plan | Recompile with compatible partition/lowering settings; inspect compile and prepare traces. |
+| Accelerator partition too small | `AcceleratorPlanCostModel` through backend selection | Prepare trace decision reason `estimated-work-below-minimum` | Lower the minimum-work threshold or accept CPU execution. |
+| Missing accelerator lowering/plan for selected anchor | Metal/CUDA preparers | `IllegalStateException` such as missing lowered partition or partition plan | Recompile with compatible partition/lowering settings; inspect compile and prepare traces. |
 | Missing CPU kernel | `CpuNodePreparer` or `CpuBackend` | `IllegalStateException` during prepare or `UnsupportedOperationException` during execute | Add/register the CPU kernel or avoid that operation/backend combination. |
 | Missing prepared fused executable | Fused CPU execution | `IllegalStateException: Missing prepared fused executable in prepared metadata` | Prepare with a runtime config that supports the fused path, or disable/adjust fusion. |
 | Memory binding mistake | `RuntimeMemoryBinder` and `MemoryPlan` | Incorrect output if live ranges alias incorrectly | Inspect memory plan and binding policy. Binder intentionally refuses many unsafe bindings, including mismatched slot sizes and unsupported dtypes. |
 | Device-current value read by CPU without materialization | `ExecutionState.requireCpuReadable(...)`, `PreparedExecution.syncRootData(...)`, `PreparedExecution.publishCompiledGradients(...)`, CPU input guard in `executeSteps(...)` | `IllegalStateException` mentioning `reason=graph_output`, `reason=gradient_publication`, or `reason=cpu_consumer` and no device-to-CPU materializer | Add a real materializer before enabling device-owned execution, or keep the current copy-back path. This failure prevents stale Java arrays from being published. |
 | Invalid device buffer binding | `ExecutionState.attachDeviceBufferBinding(...)` | `IllegalArgumentException` when node ids mismatch, residency is `CPU_ARRAY`, or `binding.available()` is false | Fix the backend binding construction. The binding must represent the same compiled node and cover the logical payload before it can update residency. |
-| OpenCL preparation gap | `BackendPrepareDispatcher` and `OpenClBackend` | Prepared metadata has no CPU plan; execute relies on OpenCL registry | Needs verification: OpenCL appears to be a minimal registry-backed path, not a full prepare/lowering path. |
+| Unsupported OpenCL operation | `BackendPrepareDispatcher`, `OpenClDirectPreparedExecutable`, and `OpenClKernelRegistry` | `UnsupportedOperationException: Missing OpenCL kernel for opType=...` during prepare | Use the currently registered `NOOP`, add a backend-owned prepared OpenCL kernel route, or select a supported backend. OpenCL does not currently have partition lowering. |
 | Native bridge availability | `PreparedMetalExecutable` / `PreparedCudaExecutable` | Accelerator executable falls back to CPU when bridge/context/executable is unavailable | Check runtime config, bridge availability, and trace attributes. |
 
 ## Source Map
 
 - [`Tensor.java`](../src/main/java/tensor/Tensor.java): public compute/compile/prepare entry points, graph node fields, operation methods, `forwardOutput()`.
-- [`TensorExecutionSupport.java`](../src/main/java/tensor/internal/TensorExecutionSupport.java): default compile/runtime/profile selection for `Tensor.compute(...)`.
+- [`TensorExecution.java`](../src/main/java/tensor/internal/TensorExecution.java): default compile/runtime/profile selection for `Tensor.compute(...)`.
 - [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java): compile facade, prepare facade, trace access, execute convenience methods.
 - [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java): compile session, backward decision, optimizer invocation, snapshots, partition planning, memory planning.
 - [`CompileArtifacts.java`](../src/main/java/graph/compile/CompileArtifacts.java): immutable compile output record.
-- [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java): compile-time node snapshot.
-- [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java): prepare orchestration, backend selection, lowering, step construction.
-- [`BackendPrepareDispatcher.java`](../src/main/java/backend/prepare/BackendPrepareDispatcher.java): backend-specific prepare switch.
+- [`CompiledNode.java`](../src/main/java/graph/model/CompiledNode.java): compile-time node snapshot.
+- [`PreparedExecutionBuilder.java`](../src/main/java/prepare/orchestration/PreparedExecutionBuilder.java): prepare orchestration, backend selection, lowering, step construction.
+- [`BackendPrepareDispatcher.java`](../src/main/java/prepare/orchestration/BackendPrepareDispatcher.java): backend-specific prepare switch.
 - [`DefaultBackendSelectionPolicy.java`](../src/main/java/backend/select/DefaultBackendSelectionPolicy.java): runtime accelerator selection and rejection reasons.
-- [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java): optimized region lowering.
+- [`LoweringPipeline.java`](../src/main/java/backend/lowering/LoweringPipeline.java): optimized partition lowering.
 - [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java): CPU kernel/plan/workspace/fused metadata preparation.
-- [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java): run loop, tracing, root publishing, gradient publishing.
-- [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java): public per-run runtime state entrypoint used by execution, publication, and backend contexts.
-- [`RuntimeTensorStore.java`](../src/main/java/graph/execution/state/RuntimeTensorStore.java): runtime tensors, runtime input links, and tensor/node-id lookup.
-- [`RuntimeWorkspaceStore.java`](../src/main/java/graph/execution/state/RuntimeWorkspaceStore.java): forked CPU workspaces and prepared input tensors.
-- [`RuntimeMaterializationService.java`](../src/main/java/graph/execution/state/RuntimeMaterializationService.java): CPU/native/device materialization flow and transfer trace recording.
-- [`RuntimeResourceRegistry.java`](../src/main/java/graph/execution/state/RuntimeResourceRegistry.java): run-owned resources, native CPU storage allocation, and native memory trace counters.
-- [`RuntimeResidencyStore.java`](../src/main/java/graph/execution/residency/RuntimeResidencyStore.java): per-node residency, backend materializers, and residency-related traces.
-- [`TensorResidencyState.java`](../src/main/java/backend/memory/TensorResidencyState.java): CPU/device current flags and residency transitions.
-- [`CpuMaterializationReason.java`](../src/main/java/backend/memory/CpuMaterializationReason.java): explicit reasons for forced CPU-readable storage.
-- [`CpuMaterializationTrace.java`](../src/main/java/graph/execution/trace/CpuMaterializationTrace.java): run-trace entries for CPU materialization requests and completed synchronizations.
-- [`DeviceBufferBinding.java`](../src/main/java/backend/memory/DeviceBufferBinding.java): backend-neutral runtime contract for device-visible buffers.
+- [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java): run loop, tracing, root publishing, gradient publishing.
+- [`ExecutionState.java`](../src/main/java/runtime/execution/ExecutionState.java): public per-run runtime state entrypoint used by execution, publication, and backend contexts.
+- [`RuntimeTensorStore.java`](../src/main/java/runtime/state/RuntimeTensorStore.java): runtime tensors, runtime input links, and tensor/node-id lookup.
+- [`RuntimeWorkspaceStore.java`](../src/main/java/runtime/execution/RuntimeWorkspaceStore.java): forked CPU workspaces and prepared input tensors.
+- [`RuntimeMaterializationService.java`](../src/main/java/runtime/state/RuntimeMaterializationService.java): CPU/native/device materialization flow and transfer trace recording.
+- [`RuntimeResourceRegistry.java`](../src/main/java/runtime/state/RuntimeResourceRegistry.java): run-owned resources, native CPU storage allocation, and native memory trace counters.
+- [`RuntimeResidencyStore.java`](../src/main/java/runtime/residency/RuntimeResidencyStore.java): per-node residency, backend materializers, and residency-related traces.
+- [`TensorResidencyState.java`](../src/main/java/runtime/residency/TensorResidencyState.java): CPU/device current flags and residency transitions.
+- [`CpuMaterializationReason.java`](../src/main/java/runtime/contract/CpuMaterializationReason.java): explicit reasons for forced CPU-readable storage.
+- [`CpuMaterializationTrace.java`](../src/main/java/trace/execution/CpuMaterializationTrace.java): run-trace entries for CPU materialization requests and completed synchronizations.
+- [`DeviceBufferBinding.java`](../src/main/java/runtime/device/buffer/DeviceBufferBinding.java): backend-neutral runtime contract for device-visible buffers.
 - [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java): Metal-specific device buffer binding descriptor.
-- [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.
-- [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java): execution-time backend dispatcher.
+- [`RuntimeMemoryBinder.java`](../src/main/java/runtime/residency/RuntimeMemoryBinder.java): runtime storage aliasing from memory plan.
+- [`PreparedExecutionRunner.java`](../src/main/java/runtime/runner/PreparedExecutionRunner.java): residency guards, prepared executable invocation, and per-step trace coordination.
 - [`CpuBackend.java`](../src/main/java/backend/cpu/CpuBackend.java): CPU runtime input resolution, layout plan application, dtype kernel dispatch.
 - [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java): prepared execution, backend selection, accelerator lowering, fused metadata coverage.
 - [`CompiledGraphTraceTest.java`](../src/test/java/CompiledGraphTraceTest.java): compile/prepare/run trace coverage.

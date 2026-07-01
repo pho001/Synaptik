@@ -39,15 +39,23 @@ public final class Cpu1AttentionLoops {
     private Cpu1AttentionLoops() {
     }
 
-    public static void runAttention(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+    public static void runAttentionArray(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
         if (unit.dataType() == DataType.FLOAT64) {
-            runF64Attention(unit, context);
+            runF64AttentionArray(unit, context);
         } else {
-            runF32OrBf16Attention(unit, context);
+            runF32OrBf16AttentionArray(unit, context);
         }
     }
 
-    public static void runAttentionWeights(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+    public static void runAttentionSegment(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+        if (unit.dataType() == DataType.FLOAT64) {
+            runF64AttentionSegment(unit, context);
+        } else {
+            runF32OrBf16AttentionSegment(unit, context);
+        }
+    }
+
+    public static void runAttentionWeightsArray(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
@@ -59,22 +67,6 @@ public final class Cpu1AttentionLoops {
                     + "weights on attention output nodeId=" + unit.attentionOutputNodeId());
         }
         requireShape("attention weights output", outputTensor.getShapeUnsafe(), cache.shape());
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
-                    unit.nodeId(),
-                    unit.dataType(),
-                    unit.outputElementCount(),
-                    "cpu1-attention-weights-node-" + unit.nodeId()
-            );
-            publishWeightsToSegment(unit, cache, nativeOutput.segment());
-            nativeOutput.markModified();
-            context.attachNativeStorage(
-                    unit.nodeId(),
-                    nativeOutput,
-                    "cpu1 SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS wrote native CPU segment"
-            );
-            return;
-        }
         Cpu1TensorView output = Cpu1TensorView.fromTensor(outputTensor);
         requireDenseNoOffset("attention weights output", output, Cpu1StorageKind.JAVA_ARRAY);
         publishWeightsToArray(unit, cache, output);
@@ -82,7 +74,34 @@ public final class Cpu1AttentionLoops {
         context.markCpuCurrent(unit.nodeId(), "cpu1 SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS wrote CPU array");
     }
 
-    private static void runF32OrBf16Attention(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+    public static void runAttentionWeightsSegment(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        Tensor attentionOutput = context.runtimeTensorForNodeId(unit.attentionOutputNodeId());
+        Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
+        Cpu1AttentionWeightsCache cache = context.runtimeStateFor(attentionOutput, Cpu1AttentionWeightsCache.class);
+        if (cache == null) {
+            throw new IllegalStateException("cpu1 SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS requires cached forward "
+                    + "weights on attention output nodeId=" + unit.attentionOutputNodeId());
+        }
+        requireShape("attention weights output", outputTensor.getShapeUnsafe(), cache.shape());
+        NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
+                unit.nodeId(),
+                unit.dataType(),
+                unit.outputElementCount(),
+                "cpu1-attention-weights-node-" + unit.nodeId()
+        );
+        publishWeightsToSegment(unit, cache, nativeOutput.segment());
+        nativeOutput.markModified();
+        context.attachNativeStorage(
+                unit.nodeId(),
+                nativeOutput,
+                "cpu1 SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS wrote native CPU segment"
+        );
+    }
+
+    private static void runF32OrBf16AttentionArray(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
@@ -90,24 +109,6 @@ public final class Cpu1AttentionLoops {
         Cpu1AttentionWeightsCache cache = prepareRuntimeCache(unit, context, outputTensor);
         Cpu1ScratchBuffer scratchBuffer = requireScratch(unit, context);
         float[] rowScores = scratchBuffer.requireF32Array(Math.multiplyExact(unit.scratchSlotCount(), unit.keyLen()));
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            F32SegmentInputs inputs = f32SegmentInputs(unit, context);
-            NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
-                    unit.nodeId(),
-                    unit.dataType(),
-                    unit.outputElementCount(),
-                    "cpu1-attention-node-" + unit.nodeId()
-            );
-            MemorySegment output = nativeOutput.segment();
-            if (unit.dataType() == DataType.BFLOAT16) {
-                runBf16SegmentRows(unit, inputs, output, cache, rowScores);
-            } else {
-                runF32SegmentRows(unit, inputs, output, cache, rowScores);
-            }
-            nativeOutput.markModified();
-            context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 attention wrote native CPU segment");
-            return;
-        }
         F32ArrayInputs inputs = f32ArrayInputs(unit, context);
         Cpu1TensorView output = Cpu1TensorView.fromTensor(outputTensor);
         requireDenseNoOffset("output", output, Cpu1StorageKind.JAVA_ARRAY);
@@ -121,7 +122,32 @@ public final class Cpu1AttentionLoops {
         context.markCpuCurrent(unit.nodeId(), "cpu1 attention wrote CPU array");
     }
 
-    private static void runF64Attention(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+    private static void runF32OrBf16AttentionSegment(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
+        Cpu1AttentionWeightsCache cache = prepareRuntimeCache(unit, context, outputTensor);
+        Cpu1ScratchBuffer scratchBuffer = requireScratch(unit, context);
+        float[] rowScores = scratchBuffer.requireF32Array(Math.multiplyExact(unit.scratchSlotCount(), unit.keyLen()));
+        F32SegmentInputs inputs = f32SegmentInputs(unit, context);
+        NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
+                unit.nodeId(),
+                unit.dataType(),
+                unit.outputElementCount(),
+                "cpu1-attention-node-" + unit.nodeId()
+        );
+        MemorySegment output = nativeOutput.segment();
+        if (unit.dataType() == DataType.BFLOAT16) {
+            runBf16SegmentRows(unit, inputs, output, cache, rowScores);
+        } else {
+            runF32SegmentRows(unit, inputs, output, cache, rowScores);
+        }
+        nativeOutput.markModified();
+        context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 attention wrote native CPU segment");
+    }
+
+    private static void runF64AttentionArray(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
         if (context == null) {
             throw new IllegalArgumentException("context cannot be null");
         }
@@ -129,19 +155,6 @@ public final class Cpu1AttentionLoops {
         Cpu1AttentionWeightsCache cache = prepareRuntimeCache(unit, context, outputTensor);
         Cpu1ScratchBuffer scratchBuffer = requireScratch(unit, context);
         double[] rowScores = scratchBuffer.requireF64Array(Math.multiplyExact(unit.scratchSlotCount(), unit.keyLen()));
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            F64SegmentInputs inputs = f64SegmentInputs(unit, context);
-            NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
-                    unit.nodeId(),
-                    unit.dataType(),
-                    unit.outputElementCount(),
-                    "cpu1-attention-node-" + unit.nodeId()
-            );
-            runF64SegmentRows(unit, inputs, nativeOutput.segment(), cache, rowScores);
-            nativeOutput.markModified();
-            context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 attention wrote native CPU segment");
-            return;
-        }
         F64ArrayInputs inputs = f64ArrayInputs(unit, context);
         Cpu1TensorView output = Cpu1TensorView.fromTensor(outputTensor);
         requireDenseNoOffset("output", output, Cpu1StorageKind.JAVA_ARRAY);
@@ -149,6 +162,26 @@ public final class Cpu1AttentionLoops {
         runF64ArrayRows(unit, inputs, output.float64Array(), cache, rowScores);
         output.markStorageModified();
         context.markCpuCurrent(unit.nodeId(), "cpu1 attention wrote CPU array");
+    }
+
+    private static void runF64AttentionSegment(Cpu1PreparedAttentionUnit unit, ExecutionContext context) {
+        if (context == null) {
+            throw new IllegalArgumentException("context cannot be null");
+        }
+        Tensor outputTensor = context.runtimeTensorForNodeId(unit.nodeId());
+        Cpu1AttentionWeightsCache cache = prepareRuntimeCache(unit, context, outputTensor);
+        Cpu1ScratchBuffer scratchBuffer = requireScratch(unit, context);
+        double[] rowScores = scratchBuffer.requireF64Array(Math.multiplyExact(unit.scratchSlotCount(), unit.keyLen()));
+        F64SegmentInputs inputs = f64SegmentInputs(unit, context);
+        NativeTensorStorage nativeOutput = context.requireNativeOutputStorage(
+                unit.nodeId(),
+                unit.dataType(),
+                unit.outputElementCount(),
+                "cpu1-attention-node-" + unit.nodeId()
+        );
+        runF64SegmentRows(unit, inputs, nativeOutput.segment(), cache, rowScores);
+        nativeOutput.markModified();
+        context.attachNativeStorage(unit.nodeId(), nativeOutput, "cpu1 attention wrote native CPU segment");
     }
 
     private static void runF32ArrayRows(

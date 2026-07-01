@@ -23,7 +23,7 @@ final class TraceCostScoreAdapter {
                         CostComponent.higherIsBetter("estimatedComputeWork", trace.estimatedComputeWork(),
                                 "larger accelerator work can amortize dispatch and transfer cost"),
                         CostComponent.higherIsBetter("avoidedIntermediateBytes", trace.avoidedIntermediateBytes(),
-                                "intermediate bytes retained inside the accelerator region"),
+                                "intermediate bytes retained inside the accelerator partition"),
                         CostComponent.lowerIsBetter("boundaryCount", trace.boundaryCount(),
                                 "CPU/accelerator boundaries introduce handoff cost"),
                         CostComponent.lowerIsBetter("estimatedTransferBytes", trace.estimatedTransferBytes(),

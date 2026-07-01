@@ -5,13 +5,13 @@ import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
 import runtime.execution.ExecutionContext;
 
 /**
- * Runtime wrapper for a prepared cpu1 reduction node.
+ * Base runtime wrapper for a prepared cpu1 reduction node.
  */
-public final class Cpu1ReductionExecutableUnit implements Cpu1ExecutableUnit {
+public abstract class Cpu1ReductionExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedReductionUnit preparedUnit;
     private final Cpu1ReductionKernel kernel;
 
-    public Cpu1ReductionExecutableUnit(Cpu1PreparedReductionUnit preparedUnit) {
+    protected Cpu1ReductionExecutableUnit(Cpu1PreparedReductionUnit preparedUnit) {
         if (preparedUnit == null) {
             throw new IllegalArgumentException("preparedUnit cannot be null");
         }
@@ -28,8 +28,7 @@ public final class Cpu1ReductionExecutableUnit implements Cpu1ExecutableUnit {
         return preparedUnit.scratchBufferSpec();
     }
 
-    @Override
-    public void run(ExecutionContext context) {
+    protected void runKernel(ExecutionContext context) {
         kernel.run(preparedUnit, context);
     }
 }

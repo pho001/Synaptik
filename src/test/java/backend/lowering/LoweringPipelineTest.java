@@ -10,6 +10,8 @@ import planning.memory.MemoryPlan;
 import planning.memory.MemoryPlanner;
 import planning.memory.MemoryPlannerPolicy;
 import planning.partition.Partition;
+import planning.partition.ExecutablePartitionPlan;
+import planning.partition.PlannedPartition;
 import planning.partition.PartitionBoundaryReason;
 import planning.partition.PartitionEdge;
 import planning.partition.PartitionPlannerStrategy;
@@ -17,9 +19,9 @@ import planning.partition.PartitionPlan;
 import planning.partition.PartitionTarget;
 import planning.partition.PartitionValue;
 import planning.value.GraphValueRef;
-import planning.region.DefaultRegionPlanner;
-import planning.region.PlannedRegion;
-import planning.region.RegionPlanningContext;
+import planning.partition.execution.PartitionExecutionPlanner;
+import planning.partition.execution.PartitionExecutionPlan;
+import planning.partition.execution.PartitionExecutionPlanningContext;
 import org.junit.jupiter.api.Test;
 import tensor.DataType;
 import tensor.Tensor;
@@ -36,12 +38,12 @@ class LoweringPipelineTest {
     @Test
     void loweringInputRequiresMemoryPlan() {
         assertThrows(NullPointerException.class, () ->
-                new LoweringInput(List.of(), null, java.util.Map.of())
+                new LoweringInput(List.of(), null)
         );
     }
 
     @Test
-    void loweringPipelineBuildsLoweringStateFromPlannedRegions() {
+    void loweringPipelineBuildsLoweringStateFromPartitionExecutionPlans() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor add = a.add(b);
@@ -57,18 +59,19 @@ class LoweringPipelineTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        PlannedRegion region = new DefaultRegionPlanner().planRegion(
+        PartitionExecutionPlan executionPlan = new PartitionExecutionPlanner().planPartition(
                 partition,
-                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new PartitionExecutionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
-        LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
+        ExecutablePartitionPlan executablePartition = new ExecutablePartitionPlan(
+                new PlannedPartition(partition, null, Set.of(ComputeBackend.CPU)), executionPlan);
+        LoweringInput input = new LoweringInput(List.of(executablePartition), memoryPlan);
 
-        RegionLowerer lowerer = request -> new LoweringResult(
-                new LoweredRegion(
-                        request.region().regionId(),
-                        request.region().target(),
-                        request.region().executionUnits().stream()
+        PartitionLowerer lowerer = request -> new LoweringResult(
+                new LoweredPartition(
+                        request.executablePartition(),
+                        request.executablePartition().executionPlan().executionUnits().stream()
                                 .map(unit -> new LoweredExecutionUnit(
                                         unit.unitId(),
                                         LoweringFamily.DIRECT_KERNEL,
@@ -83,11 +86,11 @@ class LoweringPipelineTest {
         LoweringState lowered = pipeline.lower(
                 input,
                 new BackendCapabilities(Set.of(ComputeBackend.CPU)),
-                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of())
+                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes))
         );
 
         assertEquals(input, lowered.input());
-        assertEquals(1, lowered.lowered().loweredRegions().size());
+        assertEquals(1, lowered.lowered().loweredPartitions().size());
         assertEquals(1, lowered.lowered().workspaceRequirements().size());
         assertFalse(lowered.trace().events().isEmpty());
     }
@@ -108,13 +111,11 @@ class LoweringPipelineTest {
                 List.of(GraphValueRef.node(3)),
                 List.of(GraphValueRef.node(3))
         );
-        PlannedRegion region = new DefaultRegionPlanner().planRegion(
+        PartitionExecutionPlan executionPlan = new PartitionExecutionPlanner().planPartition(
                 partition,
-                new RegionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
+                new PartitionExecutionPlanningContext(compiledNodes, FuseConfig.inferenceDefaults())
         );
         MemoryPlan memoryPlan = MemoryPlanner.plan(graph, MemoryPlannerPolicy.defaults());
-        LoweringInput input = new LoweringInput(List.of(region), memoryPlan, java.util.Map.of());
-
         PartitionPlan selectedPlan = new PartitionPlan() {
             @Override
             public ComputeBackend backend() {
@@ -147,11 +148,15 @@ class LoweringPipelineTest {
             }
         };
 
-        RegionLowerer lowerer = request -> request.context().partitionPlanFor("metal-partition") == null
+        ExecutablePartitionPlan executablePartition = new ExecutablePartitionPlan(
+                new PlannedPartition(partition, selectedPlan, Set.of(ComputeBackend.GPU_METAL)), executionPlan);
+        LoweringInput input = new LoweringInput(List.of(executablePartition), memoryPlan);
+
+        PartitionLowerer lowerer = request -> request.executablePartition().backendPlan() == null
                 ? null
                 : new LoweringResult(
-                        new LoweredRegion(request.region().regionId(), request.region().target(), List.of(
-                                new LoweredExecutionUnit("gpu-unit", LoweringFamily.METAL_GRAPH_REGION, List.of(2, 3))
+                        new LoweredPartition(request.executablePartition(), List.of(
+                                new LoweredExecutionUnit("gpu-unit", LoweringFamily.METAL_GRAPH_PARTITION, List.of(2, 3))
                         )),
                         List.of()
                 );
@@ -160,11 +165,11 @@ class LoweringPipelineTest {
         LoweringState lowered = pipeline.lower(
                 input,
                 new BackendCapabilities(Set.of(ComputeBackend.GPU_METAL)),
-                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes), java.util.Map.of("metal-partition", selectedPlan))
+                new LoweringContext(null, compiledNodes, CompiledTensorDescriptorBuilder.build(compiledNodes))
         );
 
-        assertEquals(1, lowered.lowered().loweredRegions().size());
-        assertEquals(LoweringFamily.METAL_GRAPH_REGION, lowered.lowered().loweredRegions().getFirst().units().getFirst().loweringFamily());
+        assertEquals(1, lowered.lowered().loweredPartitions().size());
+        assertEquals(LoweringFamily.METAL_GRAPH_PARTITION, lowered.lowered().loweredPartitions().getFirst().units().getFirst().loweringFamily());
     }
 
     private static Partition partition(
@@ -197,9 +202,9 @@ class LoweringPipelineTest {
                 List.of(PartitionBoundaryReason.NONE),
                 orderedNodeIds.size(),
                 new planning.partition.cost.AcceleratorPartitionScoreModel.CandidateMetrics(orderedNodeIds.size(), internalEdges.size(), externalInputNodeIds.size(), 0, Math.max(0, orderedNodeIds.size() - 1)),
-                PartitionPlannerStrategy.GREEDY_MAX_REGION,
+                PartitionPlannerStrategy.GREEDY_MAX_PARTITION,
                 new PartitionDecisionTrace(
-                        PartitionPlannerStrategy.GREEDY_MAX_REGION.name(),
+                        PartitionPlannerStrategy.GREEDY_MAX_PARTITION.name(),
                         target.name(),
                         orderedNodeIds.getFirst(),
                         true,

@@ -6,8 +6,8 @@ import backend.cpu.fused.numeric.FusedApproximationContract;
 import backend.cpu.fused.numeric.FusedNumericContract;
 import backend.cpu.fused.numeric.FusedNumericContractResolver;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.region.CpuFusedRegionPayload;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.CpuFusedPartitionPayload;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 
@@ -32,8 +32,8 @@ public final class FusedOperationBuilder {
         if (loweredUnit.artifact() instanceof FusedOperationPreparation preparation) {
             return preparation;
         }
-        if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
-                && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
+        if (loweredUnit.artifact() instanceof BackendPartitionExecutionPlan plan
+                && plan.backendPayload() instanceof CpuFusedPartitionPayload payload) {
             return payload.requirePreparation(FusedOperationPreparation.class);
         }
         return build(loweredUnit.orderedNodeIds(), compiledNodeResolver, descriptorIndex);

@@ -7,6 +7,7 @@ import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.runtime.ApproximationConfig;
 import config.runtime.BlasConfig;
+import config.runtime.CpuExecutionPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
@@ -40,6 +41,8 @@ import java.util.Objects;
  * @param materialization calibrated layout/materialization thresholds
  * @param numerics numerical approximation policy copied into runtime config
  * @param accelerator accelerator backend selection policy; {@code null} uses defaults
+ * @param fusedExecutionPolicy fused execution route policy; {@code null} uses mode-specific defaults
+ * @param cpuExecutionPolicy direct CPU execution route policy; {@code null} keeps cpu1 direct routing disabled
  * @param cpuStorageProfile runtime-level CPU storage policy; {@code null} uses {@code CPU_ARRAY}
  * @param nativeCpuFailurePolicy native CPU fallback policy; {@code null} uses {@code FALLBACK_TO_ARRAY}
  * @param deviceTransferPolicy host/device transfer fallback policy; {@code null} uses {@code ALLOW_ARRAY_BRIDGE}
@@ -55,6 +58,8 @@ public record PlatformRuntimeProfile(
         MaterializationPlatformProfile materialization,
         NumericsPlatformProfile numerics,
         AcceleratorPlatformProfile accelerator,
+        FusedExecutionPolicy fusedExecutionPolicy,
+        CpuExecutionPolicy cpuExecutionPolicy,
         CpuStorageProfile cpuStorageProfile,
         NativeCpuFailurePolicy nativeCpuFailurePolicy,
         DeviceTransferPolicy deviceTransferPolicy
@@ -70,6 +75,8 @@ public record PlatformRuntimeProfile(
         Objects.requireNonNull(materialization, "materialization cannot be null");
         Objects.requireNonNull(numerics, "numerics cannot be null");
         accelerator = accelerator == null ? AcceleratorPlatformProfile.defaults() : accelerator;
+        fusedExecutionPolicy = fusedExecutionPolicy == null ? defaultFusedExecutionPolicy(metadata) : fusedExecutionPolicy;
+        cpuExecutionPolicy = cpuExecutionPolicy == null ? CpuExecutionPolicy.defaults() : cpuExecutionPolicy;
         cpuStorageProfile = cpuStorageProfile == null ? CpuStorageProfile.CPU_ARRAY : cpuStorageProfile;
         nativeCpuFailurePolicy = nativeCpuFailurePolicy == null
                 ? NativeCpuFailurePolicy.FALLBACK_TO_ARRAY
@@ -77,6 +84,75 @@ public record PlatformRuntimeProfile(
         deviceTransferPolicy = deviceTransferPolicy == null
                 ? DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
                 : deviceTransferPolicy;
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            Conv2dPlatformProfile conv2d,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics,
+            AcceleratorPlatformProfile accelerator,
+            CpuExecutionPolicy cpuExecutionPolicy,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            DeviceTransferPolicy deviceTransferPolicy
+    ) {
+        this(
+                metadata,
+                matmul,
+                conv2d,
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                accelerator,
+                null,
+                cpuExecutionPolicy,
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy
+        );
+    }
+
+    public PlatformRuntimeProfile(
+            PlatformProfileMetadata metadata,
+            MatmulPlatformProfile matmul,
+            Conv2dPlatformProfile conv2d,
+            FusedPlatformProfile fused,
+            ElementwiseDispatchPlatformProfile elementwiseDispatch,
+            ReductionPlatformProfile reduction,
+            SchedulerPlatformProfile scheduler,
+            MaterializationPlatformProfile materialization,
+            NumericsPlatformProfile numerics,
+            AcceleratorPlatformProfile accelerator,
+            CpuStorageProfile cpuStorageProfile,
+            NativeCpuFailurePolicy nativeCpuFailurePolicy,
+            DeviceTransferPolicy deviceTransferPolicy
+    ) {
+        this(
+                metadata,
+                matmul,
+                conv2d,
+                fused,
+                elementwiseDispatch,
+                reduction,
+                scheduler,
+                materialization,
+                numerics,
+                accelerator,
+                null,
+                CpuExecutionPolicy.defaults(),
+                cpuStorageProfile,
+                nativeCpuFailurePolicy,
+                deviceTransferPolicy
+        );
     }
 
     public PlatformRuntimeProfile(
@@ -104,6 +180,8 @@ public record PlatformRuntimeProfile(
                 materialization,
                 numerics,
                 accelerator,
+                null,
+                CpuExecutionPolicy.defaults(),
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
                 DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
@@ -133,6 +211,8 @@ public record PlatformRuntimeProfile(
                 materialization,
                 numerics,
                 accelerator,
+                null,
+                CpuExecutionPolicy.defaults(),
                 CpuStorageProfile.CPU_ARRAY,
                 NativeCpuFailurePolicy.FALLBACK_TO_ARRAY,
                 DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE
@@ -325,6 +405,8 @@ public record PlatformRuntimeProfile(
                         profile.runtime().approximation().forceExactTranscendentals()
                 ),
                 AcceleratorPlatformProfile.fromRuntimeConfig(profile.runtime().accelerator()),
+                profile.runtime().fused(),
+                profile.runtime().cpuExecutionPolicy(),
                 profile.runtime().cpuStorageProfile(),
                 profile.runtime().nativeCpuFailurePolicy(),
                 profile.runtime().deviceTransferPolicy()
@@ -413,9 +495,8 @@ public record PlatformRuntimeProfile(
                         conv2d.bf16RequireMgeK(),
                         conv2d.bf16MaxNOverK()
                 ),
-                metadata.executionMode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD
-                        ? FusedExecutionPolicy.defaultsTraining()
-                        : FusedExecutionPolicy.defaultsInference(),
+                fusedExecutionPolicy,
+                cpuExecutionPolicy,
                 accelerator.toRuntimeConfig(),
                 cpuStorageProfile,
                 nativeCpuFailurePolicy,
@@ -431,5 +512,11 @@ public record PlatformRuntimeProfile(
      */
     public DataType dataType() {
         return metadata.dataType();
+    }
+
+    private static FusedExecutionPolicy defaultFusedExecutionPolicy(PlatformProfileMetadata metadata) {
+        return metadata.executionMode() == runtime.contract.ExecutionMode.FORWARD_BACKWARD
+                ? FusedExecutionPolicy.defaultsTraining()
+                : FusedExecutionPolicy.defaultsInference();
     }
 }

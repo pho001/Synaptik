@@ -113,7 +113,7 @@ public final class NativeDeviceBridgeBenchmark {
                 name,
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD,
-                CompileConfig.inference().withBackendPlanning(BackendPlanningConfig.requireAnyAcceleratorRegion()),
+                CompileConfig.inference().withBackendPlanning(BackendPlanningConfig.requireAnyAcceleratorPartition()),
                 RuntimeConfig.inferenceDefaults()
                         .withAccelerator(metalBufferRequired())
                         .withCpuStorageProfile(cpuStorageProfile)

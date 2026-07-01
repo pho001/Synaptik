@@ -23,7 +23,7 @@ import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.exec.ResolvedAcceleratorInputs;
 import backend.accelerator.lowering.AcceleratorSubgraphLoweringResult;
 import backend.accelerator.lowering.GpuCompoundPatternType;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.cpu.plan.CpuNodeExecutionPlan;
 import backend.cpu.plan.CpuLayoutPlan;
 import backend.cpu.plan.layout.StridedLayoutDecision;
@@ -257,7 +257,7 @@ class PreparedMetalExecutableBufferBindingTest {
         assertEquals(MetalExecutionRoute.CUSTOM_KERNEL, executable.routeDecision().selectedRoute());
         assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, executable.routeDecision().reasonCode());
         assertTrue(executable.routeDecision().customKernelAvailable());
-        assertTrue(executable.routeDecision().detail().contains("metalRegionLowering=CUSTOM_KERNEL_DAG"));
+        assertTrue(executable.routeDecision().detail().contains("metalPartitionLowering=CUSTOM_KERNEL_DAG"));
         assertTrue(executable.routeDecision().detail().contains("metalExecutionRoute=CUSTOM_KERNEL"));
         assertFalse(executable.routeDecision().rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
         assertFalse(executable.routeDecision().rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));
@@ -1216,7 +1216,7 @@ class PreparedMetalExecutableBufferBindingTest {
     ) {
         return new PreparedMetalExecutable(
                 elementwiseChainPlan(fixture),
-                backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
+                backend.lowering.LoweringFamily.METAL_GRAPH_PARTITION,
                 bridge,
                 List.of(),
                 AcceleratorBackendConfig.defaults(),
@@ -1261,7 +1261,7 @@ class PreparedMetalExecutableBufferBindingTest {
     ) {
         return new PreparedMetalExecutable(
                 plan(inputNode, outputNode),
-                backend.lowering.LoweringFamily.METAL_GRAPH_REGION,
+                backend.lowering.LoweringFamily.METAL_GRAPH_PARTITION,
                 bridge,
                 cpuFallbackSteps,
                 backendConfig,
@@ -1633,7 +1633,7 @@ class PreparedMetalExecutableBufferBindingTest {
                 externalInputIds,
                 outputNodeIds
         );
-        GpuCompoundRegionSummary summary = GpuCompoundRegionSummary.supported(
+        GpuCompoundPartitionSummary summary = GpuCompoundPartitionSummary.supported(
                 ComputeBackend.GPU_METAL,
                 GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                 orderedNodeIds,

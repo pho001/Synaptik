@@ -440,11 +440,11 @@ Important terms:
 For examples and small tests, `compute()` is enough. For real application code, repeated execution, backend diagnostics, and benchmarks, use the explicit lifecycle.
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import tensor.CompileMode;
 import tensor.DataType;
 import tensor.Tensor;
@@ -531,8 +531,8 @@ Why this exists:
 Example:
 
 ```java
-import backend.runtime.ExecutionMode;
-import graph.execution.PublicationPolicy;
+import runtime.contract.ExecutionMode;
+import runtime.execution.PublicationPolicy;
 
 prepared.execute(ExecutionMode.FORWARD, PublicationPolicy.OUTPUT_ONLY);
 ```
@@ -554,7 +554,7 @@ An `ExecutionProfile` is the complete runnable policy object. It combines:
 Example:
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.runtime.RuntimeConfig;
@@ -641,7 +641,7 @@ Why `OnnxLeafTensorPolicy.INPUTS` matters: normal leaf tensors become ONNX model
 Minimal import and execute:
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import onnx.ImportedOnnxModel;
@@ -684,13 +684,13 @@ Terms:
 
 - **Backend**: an execution target such as CPU, Metal, CUDA, or OpenCL.
 - **Accelerator**: a non-CPU backend such as Metal or CUDA.
-- **Backend planning**: compile-time ownership planning. It decides which graph regions are CPU-owned or accelerator-owned.
+- **Backend planning**: compile-time ownership planning. It decides which graph partitions are CPU-owned or accelerator-owned.
 - **Runtime accelerator policy**: prepare/execute-time hardware policy, such as availability checks and buffer binding mode.
 - **Fallback**: using CPU or another path because the requested accelerator path is unavailable, illegal, or unsupported.
 
 Do not assume "ONNX supported" means "GPU native supported." ONNX import/export support says Synaptik can represent the graph. GPU support says a specific backend can lower and execute it natively.
 
-Use accelerator profiles when you want accelerator region discovery:
+Use accelerator profiles when you want accelerator partition discovery:
 
 ```java
 ExecutionProfile profile = ExecutionProfile.inferenceAutoAccelerator();
@@ -743,7 +743,7 @@ Do not commit local benchmark/calibration artifacts unless the plan explicitly p
 | `getGradient()` is `null` | No backward execution or no trainable leaf | Call `setRequiresGrad(true)` on leaves and execute with `CompileMode.TRAINING` or `FORWARD_BACKWARD`. |
 | Output tensor still has old values | Execution did not publish that value | Check `PublicationPolicy`; `NONE` intentionally publishes nothing. |
 | ONNX import rejects a model | Model crosses the static dense subset boundary | Read the exception message and [ONNX Coverage](onnx-coverage.md). |
-| GPU path did not run | Planner rejected the region or runtime unavailable | Inspect compile/prepare/run traces and backend coverage docs. |
+| GPU path did not run | Planner rejected the partition or runtime unavailable | Inspect compile/prepare/run traces and backend coverage docs. |
 | BF16 on CPU is not faster than F32 | BF16 storage often promotes to wider compute and pays conversion costs | Read [CPU BF16 Runtime](cpu-bf16.md). |
 | Benchmark changed after calibration | Benchmark may be loading current platform profiles or local profile artifacts changed | Check `profiles/platform/...` and the benchmark profile resolution path. |
 
@@ -754,7 +754,7 @@ Use these paths based on what you are doing:
 - Learn public tensor operations: [Tensor API](tensor-api.md).
 - Understand the full lifecycle: [Compute Flow](compute-flow.md).
 - Understand compile-time rewrite stages: [Graph Optimizer](graph-optimizer.md).
-- Understand backend ownership and regions: [Backend Planning And Regions](backend-planning-and-regions.md).
+- Understand backend ownership and partitions: [Backend Planning And Partitions](backend-planning-and-partitions.md).
 - Understand execution profiles and runtime knobs: [Configuration](configuration.md).
 - Add a new primitive operation: [Adding A Tensor Operation](adding-tensor-operation.md).
 - Work on ONNX: [ONNX](onnx.md) and [ONNX Coverage](onnx-coverage.md).

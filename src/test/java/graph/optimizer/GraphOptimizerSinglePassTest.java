@@ -35,7 +35,7 @@ public class GraphOptimizerSinglePassTest {
     }
 
     @Test
-    void compilerPreservesBackendPlanningRegionAndMemoryArtifacts() {
+    void compilerPreservesBackendPlanningPartitionAndMemoryArtifacts() {
         Tensor a = new Tensor(new float[]{1f, 2f, 3f, 4f}, new int[]{4}, null, "a", DataType.FLOAT32);
         Tensor b = new Tensor(new float[]{5f, 6f, 7f, 8f}, new int[]{4}, null, "b", DataType.FLOAT32);
         Tensor out = a.add(b).relu();
@@ -43,9 +43,9 @@ public class GraphOptimizerSinglePassTest {
         CompiledGraph compiled = CompiledGraph.compile(out, CompileConfig.inference());
 
         assertEquals(1, compiled.program().partitions().size());
-        assertEquals(1, compiled.program().plannedRegions().size());
+        assertEquals(1, compiled.program().executablePartitions().size());
         assertEquals(PartitionTarget.CPU, compiled.program().partitions().getFirst().target());
-        assertEquals(1, compiled.program().memoryPlan().structuralView().plannedRegionIds().size());
+        assertEquals(1, compiled.program().memoryPlan().structuralView().plannedPartitionIds().size());
     }
 
     private static List<Tensor> buildGraph() {

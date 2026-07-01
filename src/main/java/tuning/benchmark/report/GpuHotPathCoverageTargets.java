@@ -48,7 +48,7 @@ public final class GpuHotPathCoverageTargets {
                         "conv",
                         List.of("GPUNATIVE", "GPUCONVBOOL", "GPUCLOSE", "METALCONVPOOL", "CUDANN"),
                         35,
-                        "Exercises Conv2D/Conv2D_GEMM lowering and longer device-owned region coverage."
+                        "Exercises Conv2D/Conv2D_GEMM lowering and longer device-owned partition coverage."
                 ),
                 new GpuHotPathCoverageTarget(
                         "max_pool2d_small",

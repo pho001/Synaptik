@@ -1,8 +1,8 @@
 import backend.contract.ComputeBackend;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.accelerator.lowering.GpuLoweredPrimitiveManifest;
-import backend.accelerator.lowering.GpuLoweredRegionCandidateSpan;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
+import backend.accelerator.lowering.GpuLoweredPartitionCandidateSpan;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
 import runtime.contract.CpuMaterializationReason;
 import runtime.contract.StorageResidency;
 import runtime.contract.ExecutionMode;
@@ -69,7 +69,7 @@ public class CrossBackendRouterEvidenceTest {
                 .get("GPU_METAL");
 
         assertEquals(1, evidence.bufferBindingStepCount());
-        assertEquals(2, evidence.maxSelectedRegionLength());
+        assertEquals(2, evidence.maxSelectedPartitionLength());
         assertEquals(2, evidence.loweredPrimitiveCount());
         assertEquals(Map.of("BUFFER_BINDING", 1), evidence.acceleratorPathCounts());
         assertEquals(Map.of("MPS_GRAPH", 1), evidence.backendRouteCounts());
@@ -297,9 +297,9 @@ public class CrossBackendRouterEvidenceTest {
         );
     }
 
-    private static GpuLoweredRegionManifest manifest(ComputeBackend backend) {
-        return new GpuLoweredRegionManifest(
-                "router-evidence-region",
+    private static GpuLoweredPartitionManifest manifest(ComputeBackend backend) {
+        return new GpuLoweredPartitionManifest(
+                "router-evidence-partition",
                 backend,
                 1,
                 List.of(1, 2),
@@ -313,9 +313,9 @@ public class CrossBackendRouterEvidenceTest {
                 ),
                 List.of(),
                 List.of(),
-                GpuCompoundRegionSummary.none(backend, List.of(1, 2)),
+                GpuCompoundPartitionSummary.none(backend, List.of(1, 2)),
                 List.of(),
-                GpuLoweredRegionCandidateSpan.none(List.of(1, 2)),
+                GpuLoweredPartitionCandidateSpan.none(List.of(1, 2)),
                 Map.of("dtypeResidency.compute.1", "backend=" + backend + " role=compute dtype=FLOAT32 supported")
         );
     }

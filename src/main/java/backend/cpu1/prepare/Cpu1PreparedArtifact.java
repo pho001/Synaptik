@@ -1,24 +1,26 @@
 package backend.cpu1.prepare;
 
 import backend.cpu1.exec.Cpu1ExecutableUnit;
+import backend.cpu1.exec.Cpu1AttentionBackwardExecutableUnits;
 import backend.cpu1.exec.Cpu1AttentionBackwardExecutableUnit;
-import backend.cpu1.exec.Cpu1AttentionExecutableUnit;
-import backend.cpu1.exec.Cpu1AvgPool2dExecutableUnit;
-import backend.cpu1.exec.Cpu1Conv2dExecutableUnit;
-import backend.cpu1.exec.Cpu1DTypeExecutableUnit;
+import backend.cpu1.exec.Cpu1AttentionExecutableUnits;
+import backend.cpu1.exec.Cpu1AvgPool2dExecutableUnits;
+import backend.cpu1.exec.Cpu1Conv2dExecutableUnits;
+import backend.cpu1.exec.Cpu1DTypeExecutableUnits;
 import backend.cpu1.exec.Cpu1ElementwiseExecutableUnits;
 import backend.cpu1.exec.Cpu1FusedElementwiseExecutableUnits;
-import backend.cpu1.exec.Cpu1IndexExecutableUnit;
+import backend.cpu1.exec.Cpu1IndexExecutableUnits;
 import backend.cpu1.exec.Cpu1LayoutExecutableUnits;
-import backend.cpu1.exec.Cpu1LayerNormExecutableUnit;
+import backend.cpu1.exec.Cpu1LayerNormExecutableUnits;
 import backend.cpu1.exec.Cpu1LossExecutableUnit;
 import backend.cpu1.exec.Cpu1MatmulExecutableUnit;
-import backend.cpu1.exec.Cpu1MaxPool2dExecutableUnit;
-import backend.cpu1.exec.Cpu1MseLossExecutableUnit;
-import backend.cpu1.exec.Cpu1ReductionExecutableUnit;
-import backend.cpu1.exec.Cpu1RmsNormExecutableUnit;
+import backend.cpu1.exec.Cpu1MaxPool2dExecutableUnits;
+import backend.cpu1.exec.Cpu1MseLossExecutableUnits;
+import backend.cpu1.exec.Cpu1ReductionExecutableUnits;
+import backend.cpu1.exec.Cpu1RmsNormExecutableUnits;
 import backend.cpu1.exec.Cpu1ScratchBuffer;
 import backend.cpu1.exec.Cpu1ScratchBufferSpec;
+import backend.cpu1.storage.Cpu1StorageKind;
 import backend.cpu1.trace.Cpu1TraceContributor;
 import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
@@ -123,7 +125,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1DTypeExecutableUnit(preparedDTypeUnit);
+        this.executableUnit = Cpu1DTypeExecutableUnits.create(preparedDTypeUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedReductionUnit preparedReductionUnit) {
@@ -148,7 +150,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1ReductionExecutableUnit(preparedReductionUnit);
+        this.executableUnit = Cpu1ReductionExecutableUnits.create(preparedReductionUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedMatmulUnit preparedMatmulUnit) {
@@ -198,7 +200,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1MseLossExecutableUnit(preparedMseLossUnit);
+        this.executableUnit = Cpu1MseLossExecutableUnits.create(preparedMseLossUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedCrossEntropyLossUnit preparedCrossEntropyLossUnit) {
@@ -323,7 +325,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1IndexExecutableUnit(preparedIndexUnit);
+        this.executableUnit = Cpu1IndexExecutableUnits.create(preparedIndexUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedLayerNormUnit preparedLayerNormUnit) {
@@ -348,7 +350,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1LayerNormExecutableUnit(preparedLayerNormUnit);
+        this.executableUnit = Cpu1LayerNormExecutableUnits.create(preparedLayerNormUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedRmsNormUnit preparedRmsNormUnit) {
@@ -373,7 +375,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1RmsNormExecutableUnit(preparedRmsNormUnit);
+        this.executableUnit = Cpu1RmsNormExecutableUnits.create(preparedRmsNormUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedMaxPool2dUnit preparedMaxPool2dUnit) {
@@ -398,7 +400,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1MaxPool2dExecutableUnit(preparedMaxPool2dUnit);
+        this.executableUnit = Cpu1MaxPool2dExecutableUnits.create(preparedMaxPool2dUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedAvgPool2dUnit preparedAvgPool2dUnit) {
@@ -423,7 +425,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1AvgPool2dExecutableUnit(preparedAvgPool2dUnit);
+        this.executableUnit = Cpu1AvgPool2dExecutableUnits.create(preparedAvgPool2dUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedConv2dUnit preparedConv2dUnit) {
@@ -448,7 +450,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = preparedConv2dUnit;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1Conv2dExecutableUnit(preparedConv2dUnit);
+        this.executableUnit = Cpu1Conv2dExecutableUnits.create(preparedConv2dUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedAttentionUnit preparedAttentionUnit) {
@@ -473,7 +475,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = preparedAttentionUnit;
         this.preparedAttentionBackwardUnit = null;
-        this.executableUnit = new Cpu1AttentionExecutableUnit(preparedAttentionUnit);
+        this.executableUnit = Cpu1AttentionExecutableUnits.create(preparedAttentionUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1PreparedAttentionBackwardUnit preparedAttentionBackwardUnit) {
@@ -498,7 +500,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         this.preparedConv2dUnit = null;
         this.preparedAttentionUnit = null;
         this.preparedAttentionBackwardUnit = preparedAttentionBackwardUnit;
-        this.executableUnit = new Cpu1AttentionBackwardExecutableUnit(preparedAttentionBackwardUnit);
+        this.executableUnit = Cpu1AttentionBackwardExecutableUnits.create(preparedAttentionBackwardUnit);
     }
 
     public Cpu1PreparedArtifact(Cpu1ExecutableUnit executableUnit) {
@@ -658,6 +660,64 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
         return executableUnit;
     }
 
+    public Cpu1StorageKind storageKind() {
+        if (preparedUnit != null) {
+            return preparedUnit.storageKind();
+        }
+        if (preparedLayoutUnit != null) {
+            return preparedLayoutUnit.storageKind();
+        }
+        if (preparedDTypeUnit != null) {
+            return preparedDTypeUnit.storageKind();
+        }
+        if (preparedReductionUnit != null) {
+            return preparedReductionUnit.storageKind();
+        }
+        if (preparedMatmulUnit != null) {
+            return preparedMatmulUnit.storageKind();
+        }
+        if (preparedMseLossUnit != null) {
+            return preparedMseLossUnit.storageKind();
+        }
+        if (preparedCrossEntropyLossUnit != null) {
+            return preparedCrossEntropyLossUnit.storageKind();
+        }
+        if (preparedDenseCrossEntropyLossUnit != null) {
+            return preparedDenseCrossEntropyLossUnit.storageKind();
+        }
+        if (preparedNllLossUnit != null) {
+            return preparedNllLossUnit.storageKind();
+        }
+        if (preparedFusedElementwiseUnit != null) {
+            return preparedFusedElementwiseUnit.storageKind();
+        }
+        if (preparedIndexUnit != null) {
+            return preparedIndexUnit.storageKind();
+        }
+        if (preparedLayerNormUnit != null) {
+            return preparedLayerNormUnit.storageKind();
+        }
+        if (preparedRmsNormUnit != null) {
+            return preparedRmsNormUnit.storageKind();
+        }
+        if (preparedMaxPool2dUnit != null) {
+            return preparedMaxPool2dUnit.storageKind();
+        }
+        if (preparedAvgPool2dUnit != null) {
+            return preparedAvgPool2dUnit.storageKind();
+        }
+        if (preparedConv2dUnit != null) {
+            return preparedConv2dUnit.storageKind();
+        }
+        if (preparedAttentionUnit != null) {
+            return preparedAttentionUnit.storageKind();
+        }
+        if (preparedAttentionBackwardUnit != null) {
+            return preparedAttentionBackwardUnit.storageKind();
+        }
+        throw new IllegalStateException("This cpu1 artifact does not expose a prepared storage kind");
+    }
+
     public Cpu1ScratchBufferSpec scratchBufferSpec() {
         return executableUnit.scratchBufferSpec();
     }
@@ -684,6 +744,7 @@ public final class Cpu1PreparedArtifact implements PreparedStepExecutable {
     ) {
         return Cpu1TraceContributor.traceContribution(
                 node,
+                preparedUnit,
                 preparedLayoutUnit,
                 preparedDTypeUnit,
                 preparedReductionUnit,

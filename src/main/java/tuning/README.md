@@ -48,7 +48,7 @@ Typical use:
 Current production graph autotune intentionally starts from a small standard graph-policy candidate set:
 
 - `graphPolicy=current`
-- CPU region policy variants
+- CPU partition policy variants
 - CPU fusion policy variants
 - accelerator ownership policy variants
 
@@ -135,7 +135,7 @@ It contains:
 - semantic canonicalization policy
 - graph optimization policy
 - backend planning policy
-- region optimization policy
+- partition optimization policy
 - memory planning policy
 
 ## Typical Flow

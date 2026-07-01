@@ -12,7 +12,7 @@ import java.util.Set;
  * @param maxInternalCpuMaterializationCount maximum allowed avoidable internal CPU materializations
  * @param maxDeviceHandoffCount maximum allowed device handoffs
  * @param requireNativeBufferBinding whether at least one native buffer-binding step is required
- * @param minMaxSelectedRegionLength minimum selected region length
+ * @param minMaxSelectedPartitionLength minimum selected partition length
  * @param minLoweredPrimitiveCount minimum lowered primitive count
  * @param requiredRoutes required backend route or common accelerator path names
  * @param requiredVisibleReasons required visible reason substrings across rejected routes/fallbacks/reasons
@@ -30,7 +30,7 @@ public record CrossBackendRouterGatePolicy(
         int maxInternalCpuMaterializationCount,
         int maxDeviceHandoffCount,
         boolean requireNativeBufferBinding,
-        int minMaxSelectedRegionLength,
+        int minMaxSelectedPartitionLength,
         int minLoweredPrimitiveCount,
         Set<String> requiredRoutes,
         Set<String> requiredVisibleReasons,
@@ -47,7 +47,7 @@ public record CrossBackendRouterGatePolicy(
         maxCpuMaterializationCount = Math.max(0, maxCpuMaterializationCount);
         maxInternalCpuMaterializationCount = Math.max(0, maxInternalCpuMaterializationCount);
         maxDeviceHandoffCount = Math.max(0, maxDeviceHandoffCount);
-        minMaxSelectedRegionLength = Math.max(0, minMaxSelectedRegionLength);
+        minMaxSelectedPartitionLength = Math.max(0, minMaxSelectedPartitionLength);
         minLoweredPrimitiveCount = Math.max(0, minLoweredPrimitiveCount);
         requiredRoutes = clean(requiredRoutes);
         requiredVisibleReasons = clean(requiredVisibleReasons);
@@ -87,7 +87,7 @@ public record CrossBackendRouterGatePolicy(
                 maxInternalCpuMaterializationCount,
                 maxDeviceHandoffCount,
                 requireNativeBufferBinding,
-                minMaxSelectedRegionLength,
+                minMaxSelectedPartitionLength,
                 minLoweredPrimitiveCount,
                 routes,
                 requiredVisibleReasons,
@@ -108,7 +108,7 @@ public record CrossBackendRouterGatePolicy(
                 maxInternalCpuMaterializationCount,
                 maxDeviceHandoffCount,
                 requireNativeBufferBinding,
-                minMaxSelectedRegionLength,
+                minMaxSelectedPartitionLength,
                 minLoweredPrimitiveCount,
                 requiredRoutes,
                 reasons,
@@ -129,7 +129,7 @@ public record CrossBackendRouterGatePolicy(
                 maxInternalCpuMaterializationCount,
                 maxDeviceHandoffCount,
                 requireNativeBufferBinding,
-                minMaxSelectedRegionLength,
+                minMaxSelectedPartitionLength,
                 minLoweredPrimitiveCount,
                 requiredRoutes,
                 requiredVisibleReasons,
@@ -150,7 +150,7 @@ public record CrossBackendRouterGatePolicy(
                 maxInternalCpuMaterializationCount,
                 maxDeviceHandoffCount,
                 requireNativeBufferBinding,
-                minMaxSelectedRegionLength,
+                minMaxSelectedPartitionLength,
                 minLoweredPrimitiveCount,
                 requiredRoutes,
                 requiredVisibleReasons,

@@ -58,7 +58,7 @@ public final class GpuCompoundPatternDetector {
     /**
      * Detects the compound pattern represented by a lowered accelerator subgraph.
      */
-    public static GpuCompoundRegionSummary detect(
+    public static GpuCompoundPartitionSummary detect(
             ComputeBackend backend,
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context,
@@ -66,7 +66,7 @@ public final class GpuCompoundPatternDetector {
             AcceleratorMatMulSpec matMulSpec
     ) {
         if (subgraph == null) {
-            return GpuCompoundRegionSummary.none(backend, List.of());
+            return GpuCompoundPartitionSummary.none(backend, List.of());
         }
         if (containsOpType(subgraph, Operation.OpType.FUSED)) {
             return unsupported(
@@ -79,7 +79,7 @@ public final class GpuCompoundPatternDetector {
             );
         }
         if (isLinearBiasActivation(matMulSpec)) {
-            return GpuCompoundRegionSummary.supported(
+            return GpuCompoundPartitionSummary.supported(
                     backend,
                     GpuCompoundPatternType.LINEAR_BIAS_ACTIVATION,
                     subgraph.orderedNodeIds(),
@@ -91,7 +91,7 @@ public final class GpuCompoundPatternDetector {
             );
         }
         if (isElementwiseChain(dagSpec)) {
-            return GpuCompoundRegionSummary.supported(
+            return GpuCompoundPartitionSummary.supported(
                     backend,
                     GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                     subgraph.orderedNodeIds(),
@@ -103,7 +103,7 @@ public final class GpuCompoundPatternDetector {
             );
         }
         if (isNormalizationSubdag(subgraph, dagSpec)) {
-            return GpuCompoundRegionSummary.supported(
+            return GpuCompoundPartitionSummary.supported(
                     backend,
                     GpuCompoundPatternType.NORMALIZATION,
                     subgraph.orderedNodeIds(),
@@ -111,7 +111,7 @@ public final class GpuCompoundPatternDetector {
                     subgraph.outputNodeIds(),
                     dagNodeTypes(dagSpec),
                     List.of(),
-                    "normalization lowered as region-internal reduction and elementwise DAG"
+                    "normalization lowered as partition-internal reduction and elementwise DAG"
             );
         }
         if (containsReductionAdjacent(subgraph, context)) {
@@ -124,13 +124,13 @@ public final class GpuCompoundPatternDetector {
                     "REDUCTION_ADJACENT compound candidate is not supported by the Phase 12 minimal subset"
             );
         }
-        return GpuCompoundRegionSummary.none(backend, subgraph.orderedNodeIds());
+        return GpuCompoundPartitionSummary.none(backend, subgraph.orderedNodeIds());
     }
 
     /**
      * Detects using source operation metadata when no planning context is needed.
      */
-    public static GpuCompoundRegionSummary detect(
+    public static GpuCompoundPartitionSummary detect(
             ComputeBackend backend,
             AcceleratorSubgraphSpec subgraph,
             AcceleratorDagSpec dagSpec,
@@ -140,7 +140,7 @@ public final class GpuCompoundPatternDetector {
     }
 
     /**
-     * Detects maximal region-internal elementwise primitive chains in a lowered DAG.
+     * Detects maximal partition-internal elementwise primitive chains in a lowered DAG.
      *
      * <p>The returned spans are original compiled node ids, not primitive indexes, so trace metadata stays tied to the
      * public graph even when a backend lowers one operation into multiple primitives.</p>
@@ -246,7 +246,7 @@ public final class GpuCompoundPatternDetector {
         };
     }
 
-    private static GpuCompoundRegionSummary unsupported(
+    private static GpuCompoundPartitionSummary unsupported(
             ComputeBackend backend,
             AcceleratorSubgraphSpec subgraph,
             AcceleratorDagSpec dagSpec,
@@ -254,7 +254,7 @@ public final class GpuCompoundPatternDetector {
             GpuLoweringUnsupportedReason reason,
             String detail
     ) {
-        return GpuCompoundRegionSummary.unsupported(
+        return GpuCompoundPartitionSummary.unsupported(
                 backend,
                 patternType,
                 reason,

@@ -51,7 +51,7 @@ Where it lives in the code:
 
 - Constructors and public methods: `src/main/java/tensor/Tensor.java`
 - Data factories: `src/main/java/tensor/factory/TensorDataFactory.java`
-- Storage conversion: `src/main/java/tensor/storage/TensorStorageSupport.java`
+- Storage conversion: `src/main/java/tensor/storage/TensorStorageAccess.java`
 - Metadata and dtype defaults: `src/main/java/tensor/TensorMetadata.java`, `src/main/java/tensor/DataType.java`
 
 ### Signatures
@@ -163,7 +163,7 @@ Tensor mask = new Tensor(new byte[]{1, 0, 1, 0}, new int[]{2, 2}, null, "mask", 
 Where it lives in the code:
 
 - Accessors and mutators: `src/main/java/tensor/Tensor.java`
-- Logical copy/debug helpers: `src/main/java/tensor/TensorDebugSupport.java`
+- Logical copy/debug helpers: `src/main/java/tensor/TensorInspection.java`
 - Metadata: `src/main/java/tensor/TensorMetadata.java`
 - Remapping/copy behavior: `src/main/java/tensor/layout/TensorRemap.java`
 
@@ -266,8 +266,8 @@ Tensor seq = Tensor.randn(new int[]{2, 3, 4}, 0.0, 1.0, DataType.FLOAT64, "seq")
 Where it lives in the code:
 
 - Graph lifecycle entrypoints: `src/main/java/tensor/Tensor.java`
-- Execution support: `src/main/java/tensor/internal/TensorExecutionSupport.java`
-- Compiled graph runtime: `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/execution/PreparedExecution.java`
+- Execution support: `src/main/java/tensor/internal/TensorExecution.java`
+- Compiled graph runtime: `src/main/java/graph/CompiledGraph.java`, `src/main/java/runtime/execution/PreparedExecution.java`
 
 ### Methods
 
@@ -286,7 +286,7 @@ Tensor forwardOutput()
 
 ### Behavior
 
-`topologicalSort()` walks the graph ending at the current tensor. `compute()` and `compile()` route through `TensorExecutionSupport`; training-capable graphs use `CompileMode` or runtime execution modes that include backward support. Gradients are attached to source tensors through backward functions registered by operation builders.
+`topologicalSort()` walks the graph ending at the current tensor. `compute()` and `compile()` route through `TensorExecution`; training-capable graphs use `CompileMode` or runtime execution modes that include backward support. Gradients are attached to source tensors through backward functions registered by operation builders.
 
 `forwardOutput()` wraps a tensor in a `noop` operation with label `System_Forward_Output`. It is a graph boundary marker, not a numeric transform.
 
@@ -306,7 +306,7 @@ y.compute();
 
 ## Compute Convenience API
 
-This section documents how to execute a graph rooted at a `Tensor`. The public methods live on `src/main/java/tensor/Tensor.java`; the behavior is implemented in `src/main/java/tensor/internal/TensorExecutionSupport.java`.
+This section documents how to execute a graph rooted at a `Tensor`. The public methods live on `src/main/java/tensor/Tensor.java`; the behavior is implemented in `src/main/java/tensor/internal/TensorExecution.java`.
 
 ### Method catalog
 
@@ -495,7 +495,7 @@ Available parameters:
 |---|---|---|---|
 | `.compileMode(CompileMode)` | `AUTO`, `INFERENCE_ONLY`, `TRAINING` | `INFERENCE_ONLY` | Selects compile intent and default compile/runtime family. |
 | `.autotune(AutotunePolicy)` | `NEVER`, `IF_MISSING`, `FORCE` | `NEVER` | Controls generic graph autotune for this tensor graph. |
-| `.compile(CompileConfig)` | compile config | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning in the generated execution profile. |
+| `.compile(CompileConfig)` | compile config | inferred from compile mode | Overrides semantic canonicalization, graph optimization, backend planning, partition optimization, and memory planning in the generated execution profile. |
 | `.runtime(RuntimeConfig)` | runtime config | inferred from compile mode | Overrides backend/runtime policy in the generated execution profile. |
 
 Example with explicit defaults:
@@ -617,11 +617,11 @@ The profile supplies:
 |---|---|
 | `dataType` | Profile identity and dtype contract. |
 | `mode` | Runtime execution mode: `FORWARD` or `FORWARD_BACKWARD`. |
-| `compile` | Compile-time semantic, graph optimization, backend planning, region optimization, and memory planning policy. |
+| `compile` | Compile-time semantic, graph optimization, backend planning, partition optimization, and memory planning policy. |
 | `runtime` | Prepare-time runtime/backend config. |
 | `workload` | Profile metadata; not a separate execution graph. |
 
-`TensorExecutionSupport` derives compile mode from the profile mode:
+`TensorExecution` derives compile mode from the profile mode:
 
 ```text
 profile.mode() == FORWARD_BACKWARD -> CompileMode.TRAINING
@@ -719,7 +719,7 @@ Gradient notation:
 
 ## Layout And View Operations
 
-Implementation: concrete layout/index builders under `src/main/java/tensor/ops/layout/*Op.java` and `src/main/java/tensor/ops/index/SelectOp.java`, plus `src/main/java/tensor/ops/layout/LayoutSupport.java`, `src/main/java/tensor/layout/TensorLayoutTransform.java`, `src/main/java/tensor/internal/TensorPrimitiveBuilder.java`, `src/main/java/tensor/layout/TensorRemap.java`, and `src/main/java/backend/cpu/kernels/layout/LayoutExecutor.java`.
+Implementation: concrete layout/index builders under `src/main/java/tensor/ops/layout/*Op.java` and `src/main/java/tensor/ops/index/SelectOp.java`, plus `src/main/java/tensor/ops/layout/LayoutGeometryRules.java`, `src/main/java/tensor/layout/TensorLayoutTransform.java`, `src/main/java/tensor/internal/TensorPrimitiveBuilder.java`, `src/main/java/tensor/layout/TensorRemap.java`, and `src/main/java/backend/cpu/kernels/layout`.
 
 Mental model: a tensor is not just a flat data array. It is `(storage, shape, strides, storageOffset)`.
 
@@ -2540,7 +2540,7 @@ Tensor y = query.scaledDotProductAttention(key, value, AttentionOptions.defaults
 
 ## Convolution And Pooling
 
-Implementation: `src/main/java/tensor/ops/conv/TensorConvOps.java`, `src/main/java/tensor/ops/pool/TensorPoolOps.java`, `src/main/java/tensor/options/*.java`
+Implementation: `src/main/java/tensor/ops/conv/Conv2dOp.java`, `src/main/java/tensor/ops/pool/AvgPool2dOp.java`, `src/main/java/tensor/ops/pool/MaxPool2dOp.java`, and `src/main/java/tensor/options/*.java`.
 
 ### `conv2d`
 
@@ -2658,7 +2658,7 @@ Tensor y = x.avgPool2d(Pool2dOptions.square(2));
 
 ## Normalization
 
-Implementation: `src/main/java/tensor/ops/normalization/TensorNormalizationOps.java`, `src/main/java/operations/normalization/*.java`
+Implementation: `src/main/java/tensor/ops/normalization`, `src/main/java/operations/normalization/*.java`
 
 ### `batchNorm`
 
@@ -2757,7 +2757,7 @@ Tensor y = input.rmsNorm(gamma, 1e-5);
 
 ## Loss Functions
 
-Implementation: concrete loss builders under `src/main/java/tensor/ops/loss/*Op.java`, `src/main/java/tensor/ops/loss/LossSupport.java`, and `src/main/java/tensor/loss/LossReduction.java`.
+Implementation: concrete loss builders under `src/main/java/tensor/ops/loss/*Op.java`, `src/main/java/tensor/ops/loss/LossShapeRules.java`, and `src/main/java/tensor/loss/LossReduction.java`.
 
 `LossReduction` values are `MEAN`, `SUM`, and `NONE`. Index target losses use target tensors with shape equal to the input shape with the class dimension removed.
 
@@ -2919,13 +2919,13 @@ Tensor loss = logits.crossEntropyLossFromIndices(target, 1);
 
 | Area | Public methods | Primary implementation | Runtime/tests |
 |---|---|---|---|
-| Constructors/storage/dtype | constructors, `scalar`, `zeros`, `ones`, `randn`, `arange`, `onesLike`, `zerosLike`, `TensorDataFactory.*` | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/factory/TensorDataFactory.java`, `src/main/java/tensor/storage/TensorStorageSupport.java` | `src/test/java/TensorConstructorDataTypeTest.java`, `src/test/java/TensorStorageDataTypeTest.java`, `src/test/java/TensorDataFactoryTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
+| Constructors/storage/dtype | constructors, `scalar`, `zeros`, `ones`, `randn`, `arange`, `onesLike`, `zerosLike`, `TensorDataFactory.*` | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/factory/TensorDataFactory.java`, `src/main/java/tensor/storage/TensorStorageAccess.java` | `src/test/java/TensorConstructorDataTypeTest.java`, `src/test/java/TensorStorageDataTypeTest.java`, `src/test/java/TensorDataFactoryTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Shape helpers | `rank`, `size`, `lastDim`, `shapeEquals`, `shapeCopy` | `src/main/java/tensor/Tensor.java` | `src/test/java/NdTensorSequencePrimitivesTest.java` |
-| Graph lifecycle | `compile`, `prepare`, `compute`, `topologicalSort`, `forwardOutput` | `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/execution/PreparedExecution.java` | `src/test/java/TensorComputeConvenienceApiTest.java`, `src/test/java/PreparedExecutionBuildTest.java`, `src/test/java/PreparedExecutionTrainingCapabilityTest.java` |
+| Graph lifecycle | `compile`, `prepare`, `compute`, `topologicalSort`, `forwardOutput` | `src/main/java/tensor/internal/TensorExecution.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/runtime/execution/PreparedExecution.java` | `src/test/java/TensorComputeConvenienceApiTest.java`, `src/test/java/PreparedExecutionBuildTest.java`, `src/test/java/PreparedExecutionTrainingCapabilityTest.java` |
 | Layout/views | `contiguous`, `reshape`, `expand`, `permute`, `transpose`, `expandDims`, `squeeze`, `sliceAxis`, `stack`, `unstack`, `select`, `unfold`, `unfold2d`, `fold2d` | `src/main/java/tensor/ops/layout/*Op.java`, `src/main/java/tensor/ops/index/SelectOp.java` | `src/test/java/TransformOpsTest.java`, `src/test/java/NonContiguousExecutionTest.java`, `src/test/java/SelectExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java`, `src/test/java/UnfoldAxisExecutionTest.java`, `src/test/java/UnfoldFold2dExecutionTest.java` |
 | Binary broadcasting | `add`, `sub`, `mul`, `div`, `min`, `max`, `minimum`, `maximum`, `mul(double)` | `src/main/java/tensor/ops/binary/*Op.java`, `src/main/java/tensor/TensorBroadcastOps.java`, `src/main/java/tensor/internal/TensorPiecewiseOps.java` | `src/test/java/BroadcastBinaryOpsTest.java`, `src/test/java/AddBroadcastTest.java`, `src/test/java/BroadcastContractMatrixTest.java`, `src/test/java/CompareSelectExecutionTest.java` |
 | Comparisons/logic/select | `greaterThan`, `lessThan`, `greaterOrEqual`, `lessOrEqual`, `equalTo`, `notEqualTo`, `logicalAnd`, `logicalOr`, `logicalNot`, `where` | `src/main/java/tensor/ops/compare/*Op.java`, `src/main/java/tensor/ops/bool/*Op.java`, `src/main/java/tensor/ops/select/WhereOp.java` | `src/test/java/CompareSelectExecutionTest.java`, `src/test/java/BoolTensorInfrastructureTest.java`, `src/test/java/SelectExecutionTest.java` |
-| Indexing | `gather`, `gatherAxis`, `gatherNd`, `take`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, `scatterNd` | `src/main/java/tensor/ops/index/*Op.java`, `src/main/java/operations/index/*.java` | `src/test/java/GatherExecutionTest.java`, `src/test/java/GatherAxisExecutionTest.java`, `src/test/java/GatherNdExecutionTest.java`, `src/test/java/ScatterAddExecutionTest.java`, `src/test/java/ScatterElementsExecutionTest.java`, `src/test/java/ScatterNdExecutionTest.java`, `src/test/java/TakeAlongAxisExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
+| Indexing | `gather`, `gatherAxis`, `gatherNd`, `take`, `takeAlongAxis`, `scatterAdd`, `scatterElements`, `scatterNd` | `src/main/java/tensor/ops/index/*Op.java`, `src/main/java/operations/index/*.java` | `src/test/java/GatherExecutionTest.java`, `src/test/java/GatherExecutionTest.java`, `src/test/java/GatherNdExecutionTest.java`, `src/test/java/ScatterAddExecutionTest.java`, `src/test/java/ScatterElementsExecutionTest.java`, `src/test/java/ScatterNdExecutionTest.java`, `src/test/java/TakeAlongAxisExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Unary math | `neg`, `abs`, `log`, `exp`, `fastExp`, `pow`, `inv`, `sqrt`, `sigmoid`, `tanh`, `fastTanh`, `relu`, `clamp*` | `src/main/java/tensor/ops/unary/*Op.java`, `src/main/java/operations/elementwise/unary/*.java` | `src/test/java/AbsExecutionTest.java`, `src/test/java/ClampExecutionTest.java`, `src/test/java/FastExpTest.java`, `src/test/java/FastTanhTest.java` |
 | Reductions/softmax | `sum`, masked `sum`, `mean`, masked `mean`, `min`, `max`, `all`, `any`, `softmax`, `logSoftmax` | `src/main/java/tensor/ops/reduction/*Op.java`, `src/main/java/operations/reduction/*.java` | `src/test/java/SumExecutionModesTest.java`, `src/test/java/MeanPrimitiveTest.java`, `src/test/java/ReductionBroadcastContractTest.java`, `src/test/java/SoftmaxExecutionTest.java`, `src/test/java/LogSoftmaxExecutionTest.java`, `src/test/java/MinMaxReductionExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |
 | Matrix/linear/attention | `matmul`, N-D last-dimension `linear`, `scaledDotProductAttention` | `src/main/java/tensor/ops/linalg/*.java`, `src/main/java/operations/linalg/*.java` | `src/test/java/MatMulTest.java`, `src/test/java/LinearExecutionTest.java`, `src/test/java/AttentionExecutionTest.java`, `src/test/java/NdTensorSequencePrimitivesTest.java` |

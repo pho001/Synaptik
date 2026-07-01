@@ -5,7 +5,7 @@ import tensor.DataType;
 import java.util.List;
 
 /**
- * One lowered backend primitive inside a selected GPU region manifest.
+ * One lowered backend primitive inside a selected GPU partition manifest.
  *
  * @param primitiveId stable primitive id inside the manifest
  * @param primitiveType lowered backend primitive type

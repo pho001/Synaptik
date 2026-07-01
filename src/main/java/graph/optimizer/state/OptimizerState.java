@@ -11,7 +11,7 @@ import java.util.Objects;
  * Immutable state passed between backend-neutral graph optimizer stages.
  *
  * <p>The graph and forward output are the primary contract. Compile-planning artifacts such as backend partitions,
- * optimized regions, and memory plans live outside optimizer state so graph rewrites cannot carry stale backend
+ * optimized partitions, and memory plans live outside optimizer state so graph rewrites cannot carry stale backend
  * planning metadata.
  *
  * @param graph tensors in topological order

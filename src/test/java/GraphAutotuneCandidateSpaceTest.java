@@ -42,7 +42,7 @@ public class GraphAutotuneCandidateSpaceTest {
                 .filter(candidate -> !candidate.name().equals("graphPolicy=current"))
                 .anyMatch(candidate -> candidate.metadata().graphPolicyMutated()));
         assertTrue(candidates.stream().anyMatch(candidate ->
-                "CPU_REGION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
+                "CPU_PARTITION_POLICY".equals(candidate.metadata().attributes().get("graphParameter"))));
     }
 
     @Test

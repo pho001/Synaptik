@@ -23,8 +23,8 @@ It also does not decide prepared-execution dispatch knobs such as vector width, 
 - dead-code elimination
 - optional backend-neutral lowering
 
-Backend ownership planning, region optimization, and memory planning are compile-flow responsibilities owned by
-`CompileConfig`, `BackendPlanningConfig`, `RegionOptimizationConfig`, and `MemoryPlanningConfig`.
+Backend ownership planning, partition optimization, and memory planning are compile-flow responsibilities owned by
+`CompileConfig`, `BackendPlanningConfig`, `PartitionExecutionConfig`, and `MemoryPlanningConfig`.
 
 The contiguous simplification block `AR -> CF -> CSE -> DCE` is executed by `SimplificationFixpointRule`, not as four one-shot
 passes. The loop stops when the graph fingerprint is stable, when the max iteration count is reached, or when the next
@@ -44,7 +44,7 @@ Typical examples:
 The optimizer does not own:
 
 - backend ownership/partition planning
-- region fusion/execution-unit planning
+- partition fusion/execution-unit planning
 - memory reuse planning
 - vector widths
 - worker counts
@@ -52,7 +52,7 @@ The optimizer does not own:
 - BLAS provider thread behavior
 - approximation policy
 
-Those belong to compile backend planning, region optimization, memory planning, runtime profiles, backend preparers, and the tuning layer.
+Those belong to compile backend planning, partition optimization, memory planning, runtime profiles, backend preparers, and the tuning layer.
 
 ## Current Execution Model
 
@@ -70,9 +70,9 @@ is executed as:
 2. run `LOWER`
 
 Heavy executable/decomposition lowering is not part of `AR`. Backend-neutral operation lowering runs in `LOWER`;
-backend-specific executable lowering still happens later, where the target backend and region contract are known.
+backend-specific executable lowering still happens later, where the target backend and partition contract are known.
 
-Backend planning, region optimization, and memory planning run later in the compile flow. They are not `GraphOptimizer`
+Backend planning, partition optimization, and memory planning run later in the compile flow. They are not `GraphOptimizer`
 rules.
 
 ## Snapshot Boundary
@@ -169,16 +169,16 @@ Owns:
 Does not own:
 
 - selecting CUDA/Metal/CPU executable primitives
-- region-internal backend fusion
+- partition-internal backend fusion
 - device buffer/layout planning
 
-### Region optimization
+### Partition optimization
 
 Compile phase outside `GraphOptimizer`.
 
 Owns:
 
-- choose safe and worthwhile execution units inside already owned regions
+- choose safe and worthwhile execution units inside already owned partitions
 - group compatible elementwise chains
 - preserve unit-kernel boundaries for reductions, matmul, and other barriers
 
@@ -193,7 +193,7 @@ Owns:
 - view aliasing at runtime
 - temporary slot reuse
 - reusable interval planning
-- region handoff planning
+- partition handoff planning
 
 See [MEM.md](./MEM.md).
 
@@ -216,12 +216,12 @@ After that, later stages can act on the already simplified graph:
 - `CSE` can collapse duplicates that remain after rewriting
 - `DCE` can remove nodes made unreachable by replacements
 - `LOWER` can create backend-neutral specialized operation surfaces
-- backend planning can create CPU or accelerator ownership regions
-- region optimization can group surviving elementwise chains inside owned regions
+- backend planning can create CPU or accelerator ownership partitions
+- partition optimization can group surviving elementwise chains inside owned partitions
 - memory planning can plan reuse on the final graph shape
 
 The simplification stages are replayed by `SimplificationFixpointRule` until stable or no longer improving. `LOWER` runs after simplification
-when enabled. Backend planning, region optimization, and memory planning are later compile phases.
+when enabled. Backend planning, partition optimization, and memory planning are later compile phases.
 
 ## What To Change When
 
@@ -238,10 +238,10 @@ Use this rule of thumb:
 - backend-neutral op surface lowering:
   - `LOWER`
 - backend ownership policy:
-  - `BackendPlanningConfig` and `graph.compile.planning.BackendPlanningService`
-- elementwise cluster profitability inside regions:
-  - `RegionOptimizationConfig` and `graph.compile.planning.region`
+  - `BackendPlanningConfig` and `planning.backend.BackendPlanningService`
+- elementwise cluster profitability inside partitions:
+  - `PartitionExecutionConfig` and `planning.partition.execution`
 - allocation/reuse policy:
-  - `MemoryPlanningConfig` and `graph.compile.planning.memory`
+  - `MemoryPlanningConfig` and `planning.memory`
 
 If a change depends on runtime sizes, thresholds, or hardware policy, it probably belongs outside the optimizer.

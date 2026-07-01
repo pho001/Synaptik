@@ -208,9 +208,9 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
             String backend,
             int totalStepCount,
             int acceleratorStepCount,
-            int selectedRegionCount,
-            int multiOpGpuRegionCount,
-            int maxSelectedRegionLength,
+            int selectedPartitionCount,
+            int multiOpGpuPartitionCount,
+            int maxSelectedPartitionLength,
             int loweredPrimitiveCount,
             int gpuFusedSubpatternCount,
             int bufferBindingStepCount,
@@ -318,9 +318,9 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
         private final String backend;
         private int totalStepCount;
         private int acceleratorStepCount;
-        private int selectedRegionCount;
-        private int multiOpGpuRegionCount;
-        private int maxSelectedRegionLength;
+        private int selectedPartitionCount;
+        private int multiOpGpuPartitionCount;
+        private int maxSelectedPartitionLength;
         private int loweredPrimitiveCount;
         private int gpuFusedSubpatternCount;
         private int bufferBindingStepCount;
@@ -358,9 +358,9 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
         private void addCoverage(GpuCoverageSummary.BackendCoverage coverage) {
             totalStepCount = Math.max(totalStepCount, coverage.totalStepCount());
             acceleratorStepCount = Math.max(acceleratorStepCount, coverage.acceleratorStepCount());
-            selectedRegionCount = Math.max(selectedRegionCount, coverage.selectedRegionCount());
-            multiOpGpuRegionCount = Math.max(multiOpGpuRegionCount, coverage.multiOpGpuRegionCount());
-            maxSelectedRegionLength = Math.max(maxSelectedRegionLength, coverage.maxSelectedRegionLength());
+            selectedPartitionCount = Math.max(selectedPartitionCount, coverage.selectedPartitionCount());
+            multiOpGpuPartitionCount = Math.max(multiOpGpuPartitionCount, coverage.multiOpGpuPartitionCount());
+            maxSelectedPartitionLength = Math.max(maxSelectedPartitionLength, coverage.maxSelectedPartitionLength());
             loweredPrimitiveCount = Math.max(loweredPrimitiveCount, coverage.loweredPrimitiveCount());
             gpuFusedSubpatternCount = Math.max(gpuFusedSubpatternCount, coverage.gpuFusedSubpatternCount());
             bufferBindingStepCount = Math.max(bufferBindingStepCount, coverage.bufferBindingStepCount());
@@ -404,9 +404,9 @@ public record CrossBackendRouterEvidence(Map<String, BackendEvidence> backends) 
                     backend,
                     totalStepCount,
                     acceleratorStepCount,
-                    selectedRegionCount,
-                    multiOpGpuRegionCount,
-                    maxSelectedRegionLength,
+                    selectedPartitionCount,
+                    multiOpGpuPartitionCount,
+                    maxSelectedPartitionLength,
                     loweredPrimitiveCount,
                     gpuFusedSubpatternCount,
                     bufferBindingStepCount,

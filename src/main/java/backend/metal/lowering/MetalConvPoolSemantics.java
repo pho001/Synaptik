@@ -183,7 +183,7 @@ final class MetalConvPoolSemantics {
 
     private static String commonForwardReason(String opName, CompiledNode node, PartitionPlanningContext context) {
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opName + " nodes are not legal inside Metal backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opName + " nodes are not legal inside Metal backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opName + " requires planning context";

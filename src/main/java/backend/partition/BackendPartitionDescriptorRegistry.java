@@ -1,12 +1,12 @@
 package backend.partition;
 
 import backend.metal.lowering.MetalBackendPartitionCapability;
-import backend.metal.lowering.MetalRegionLowerer;
-import backend.cpu.lowering.CpuRegionLowerer;
+import backend.metal.lowering.MetalPartitionLowerer;
+import backend.cpu.lowering.CpuPartitionLowerer;
 import backend.cpu.partition.CpuBackendPartitionCapability;
 import backend.cuda.lowering.CudaGpuBackendPartitionCapability;
-import backend.cuda.lowering.CudaRegionLowerer;
-import backend.lowering.RegionLowerer;
+import backend.cuda.lowering.CudaPartitionLowerer;
+import backend.lowering.PartitionLowerer;
 import planning.partition.BackendPartitionCapability;
 import planning.backend.BackendPartitionCapabilityRegistry;
 import planning.partition.PartitionTarget;
@@ -17,9 +17,9 @@ import java.util.function.Supplier;
 
 public final class BackendPartitionDescriptorRegistry implements BackendPartitionCapabilityRegistry {
     private static final BackendPartitionDescriptorRegistry DEFAULTS = new BackendPartitionDescriptorRegistry(List.of(
-            descriptor(PartitionTarget.CPU, CpuBackendPartitionCapability::new, List.of(CpuRegionLowerer::new)),
-            descriptor(PartitionTarget.GPU_METAL, MetalBackendPartitionCapability::new, List.of(MetalRegionLowerer::new)),
-            descriptor(PartitionTarget.GPU_CUDA, CudaGpuBackendPartitionCapability::new, List.of(CudaRegionLowerer::new))
+            descriptor(PartitionTarget.CPU, CpuBackendPartitionCapability::new, List.of(CpuPartitionLowerer::new)),
+            descriptor(PartitionTarget.GPU_METAL, MetalBackendPartitionCapability::new, List.of(MetalPartitionLowerer::new)),
+            descriptor(PartitionTarget.GPU_CUDA, CudaGpuBackendPartitionCapability::new, List.of(CudaPartitionLowerer::new))
     ));
 
     private final List<BackendPartitionDescriptor> descriptors;
@@ -47,7 +47,7 @@ public final class BackendPartitionDescriptorRegistry implements BackendPartitio
         return descriptorFor(target).partitionCapability();
     }
 
-    public List<RegionLowerer> lowerers() {
+    public List<PartitionLowerer> lowerers() {
         return descriptors.stream()
                 .flatMap(descriptor -> descriptor.lowerers().stream())
                 .toList();
@@ -56,7 +56,7 @@ public final class BackendPartitionDescriptorRegistry implements BackendPartitio
     private static BackendPartitionDescriptor descriptor(
             PartitionTarget target,
             Supplier<BackendPartitionCapability> partitionCapability,
-            List<Supplier<RegionLowerer>> lowerers
+            List<Supplier<PartitionLowerer>> lowerers
     ) {
         return new DefaultBackendPartitionDescriptor(target, partitionCapability, lowerers);
     }
@@ -64,12 +64,12 @@ public final class BackendPartitionDescriptorRegistry implements BackendPartitio
     private static final class DefaultBackendPartitionDescriptor implements BackendPartitionDescriptor {
         private final PartitionTarget target;
         private final Supplier<BackendPartitionCapability> partitionCapabilitySupplier;
-        private final List<Supplier<RegionLowerer>> lowererSuppliers;
+        private final List<Supplier<PartitionLowerer>> lowererSuppliers;
 
         private DefaultBackendPartitionDescriptor(
                 PartitionTarget target,
                 Supplier<BackendPartitionCapability> partitionCapability,
-                List<Supplier<RegionLowerer>> lowerers
+                List<Supplier<PartitionLowerer>> lowerers
         ) {
             this.target = target == null ? PartitionTarget.NONE : target;
             this.partitionCapabilitySupplier = partitionCapability == null
@@ -89,7 +89,7 @@ public final class BackendPartitionDescriptorRegistry implements BackendPartitio
         }
 
         @Override
-        public List<RegionLowerer> lowerers() {
+        public List<PartitionLowerer> lowerers() {
             return lowererSuppliers.stream()
                     .map(Supplier::get)
                     .toList();

@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Partition capability for CUDA accelerator graph regions.
+ * Partition capability for CUDA accelerator graph partitions.
  */
 public final class CudaGpuBackendPartitionCapability implements BackendPartitionCapability {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();

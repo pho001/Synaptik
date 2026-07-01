@@ -6,6 +6,8 @@ import config.profile.PlatformRuntimeProfileIO;
 import config.profile.PlatformRuntimeProfileResolver;
 import config.profile.WorkloadProfile;
 import config.runtime.BlasConfig;
+import config.runtime.CpuExecutionPolicy;
+import config.runtime.FusedExecutionPolicy;
 import config.runtime.RuntimeConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,6 +17,7 @@ import tuning.store.HardwareFingerprint;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,6 +49,8 @@ public class PlatformRuntimeProfileResolverTest {
             assertEquals(BlasProvider.OPENBLAS_FFM, runtime.blas().provider());
             assertEquals(123_456L, runtime.blas().matmulMinWork());
             assertEquals(2, runtime.blas().threads());
+            assertEquals(new CpuExecutionPolicy(true, false), runtime.cpuExecutionPolicy());
+            assertEquals(new FusedExecutionPolicy(false, true), runtime.fused());
         } finally {
             restoreProperty(previous);
         }
@@ -101,6 +106,8 @@ public class PlatformRuntimeProfileResolverTest {
 
             assertEquals(BlasProvider.OPENBLAS_FFM, runtime.blas().provider());
             assertEquals(123_456L, runtime.blas().matmulMinWork());
+            assertEquals(new CpuExecutionPolicy(true, false), runtime.cpuExecutionPolicy());
+            assertEquals(new FusedExecutionPolicy(false, true), runtime.fused());
         } finally {
             restoreProperty(previous);
         }
@@ -116,6 +123,23 @@ public class PlatformRuntimeProfileResolverTest {
         );
     }
 
+    @Test
+    void canonicalCalibrationProfilesEnableCpu1DefaultRoutePolicy() throws Exception {
+        for (DataType dataType : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16)) {
+            Path profilePath = canonicalProfilePath(dataType);
+            assertTrue(Files.exists(profilePath), () -> "missing canonical profile fixture: " + profilePath);
+
+            PlatformRuntimeProfile profile = PlatformRuntimeProfileIO.fromJsonStrict(
+                    Files.readString(profilePath),
+                    fallbackProfileWithHardcodedDefaults(dataType)
+            );
+            RuntimeConfig runtime = profile.toRuntimeConfig();
+
+            assertEquals(new CpuExecutionPolicy(true, true), runtime.cpuExecutionPolicy(), dataType.name());
+            assertEquals(new FusedExecutionPolicy(true, true), runtime.fused(), dataType.name());
+        }
+    }
+
     private static PlatformRuntimeProfile calibratedProfile(
             String platformId,
             String hardwareKey,
@@ -125,7 +149,16 @@ public class PlatformRuntimeProfileResolverTest {
         RuntimeConfig runtime = new RuntimeConfig(
                 config.backend.KernelTuningConfig.defaultsTraining(),
                 config.runtime.ApproximationConfig.defaults(),
-                new BlasConfig(BlasProvider.OPENBLAS_FFM, 123_456L, false, 1.0d, false, 2)
+                new BlasConfig(BlasProvider.OPENBLAS_FFM, 123_456L, false, 1.0d, false, 2),
+                config.runtime.Conv2dConfig.fromBlasConfig(new BlasConfig(BlasProvider.OPENBLAS_FFM, 123_456L, false, 1.0d, false, 2)),
+                new FusedExecutionPolicy(false, true),
+                new CpuExecutionPolicy(true, false),
+                config.runtime.AcceleratorConfig.defaultsTraining(),
+                config.runtime.CpuStorageProfile.CPU_ARRAY,
+                config.runtime.NativeCpuFailurePolicy.FALLBACK_TO_ARRAY,
+                config.runtime.DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE,
+                config.runtime.NativeCpuMemoryConfig.disabled(),
+                config.runtime.BFloat16TrainingPolicy.ACTIVATIONS_ONLY
         );
         return PlatformRuntimeProfile.fromExecutionProfile(
                 platformId,
@@ -143,6 +176,46 @@ public class PlatformRuntimeProfileResolverTest {
                         WorkloadProfile.none()
                 )
         );
+    }
+
+    private static PlatformRuntimeProfile fallbackProfileWithHardcodedDefaults(DataType dataType) {
+        return PlatformRuntimeProfile.fromExecutionProfile(
+                "macos-arm64",
+                "test-fallback",
+                "TEST_DEFAULTS",
+                new ExecutionProfile(
+                        "fallback",
+                        "fallback",
+                        dataType,
+                        ExecutionMode.FORWARD_BACKWARD,
+                        config.compile.CompileConfig.training(),
+                        RuntimeConfig.trainingDefaults(),
+                        WorkloadProfile.none()
+                )
+        );
+    }
+
+    private static Path canonicalProfilePath(DataType dataType) {
+        return Path.of(
+                "profiles",
+                "platform",
+                "macos-arm64",
+                "calibration",
+                "schema-v2",
+                "latest",
+                dtypePath(dataType),
+                "forward-backward",
+                "profile.json"
+        );
+    }
+
+    private static String dtypePath(DataType dataType) {
+        return switch (dataType) {
+            case FLOAT32 -> "f32";
+            case FLOAT64 -> "f64";
+            case BFLOAT16 -> "bf16";
+            default -> throw new IllegalArgumentException("No canonical cpu1 default-route profile for " + dataType);
+        };
     }
 
     private static void restoreProperty(String previous) {

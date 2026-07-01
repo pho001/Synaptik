@@ -1,7 +1,7 @@
 package config.optimizer;
 
 /**
- * Graph optimizer configuration for CPU fused-loop planning inside CPU execution regions.
+ * Graph optimizer configuration for CPU fused-loop planning inside CPU execution partitions.
  *
  * @param mode high-level fused-loop mode
  * @param maxChainNodes maximum nodes in one fused loop

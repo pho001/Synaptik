@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Region-internal GPU fusion subpattern metadata.
+ * Partition-internal GPU fusion subpattern metadata.
  *
  * <p>This is trace and lowering metadata. It is not a public operation model and
  * does not represent CPU {@code Operation.OpType.FUSED}.</p>

@@ -2,7 +2,6 @@ package backend.cpu1.kernels.reduction;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -20,18 +19,22 @@ public final class Cpu1BoolReductionLoops {
     }
 
     public static void allBoolDenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBool(unit, context, true);
+        reduceBoolArray(unit, context, true);
+    }
+
+    public static void allBoolDenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBoolSegment(unit, context, true);
     }
 
     public static void anyBoolDenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBool(unit, context, false);
+        reduceBoolArray(unit, context, false);
     }
 
-    private static void reduceBool(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean all) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceBoolSegment(unit, context, all);
-            return;
-        }
+    public static void anyBoolDenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBoolSegment(unit, context, false);
+    }
+
+    private static void reduceBoolArray(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean all) {
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         byte[] inputArray = input.boolArray();

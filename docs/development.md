@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Modules](modules.md#package-map) | [Adding Tensor Operation](adding-tensor-operation.md#implementation-checklist) | [Native Bridges & BLAS](native-bridges-and-blas.md#java-ffm-step-by-step) | [Metal Backend](metal-backend.md#tests) | [Testing](testing.md#exact-commands) | [Configuration](configuration.md#build-requirements) | [Troubleshooting](troubleshooting.md#generated-artifacts-in-source-tree)
 
-Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-optimizer-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
+Chapters: [Local Setup](#local-setup) | [Repository Structure](#repository-structure) | [Coding Patterns](#coding-patterns) | [Adding Tensor Ops](#adding-tensor-ops) | [Adding Backend Kernels](#adding-backend-kernels) | [Adding Optimizer Rules](#adding-graph-optimization-or-planning-rules) | [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families) | [Documentation Workflow](#documentation-workflow) | [Operational Risks](#operational-risks)
 
 Synaptik is a Java tensor and compiled-graph runtime. The public tensor API builds semantic graph nodes, the graph layer compiles and optimizes them, and backend packages prepare and execute concrete kernels.
 
@@ -14,7 +14,7 @@ Synaptik is a Java tensor and compiled-graph runtime. The public tensor API buil
 - [Coding Patterns](#coding-patterns)
 - [Adding Tensor Ops](#adding-tensor-ops)
 - [Adding Backend Kernels](#adding-backend-kernels)
-- [Adding Optimizer Rules](#adding-optimizer-rules)
+- [Adding Optimizer Rules](#adding-graph-optimization-or-planning-rules)
 - [Adding Tuning Knobs And Families](#adding-tuning-knobs-and-families)
 - [Documentation Workflow](#documentation-workflow)
 - [Operational Risks](#operational-risks)
@@ -56,7 +56,7 @@ The main code is under `src/main/java`:
 | `src/main/java/operations` | Immutable primitive descriptors implementing `operations.Operation` |
 | `src/main/java/graph` | Immutable compiled model, backend-neutral graph rewrites, compile coordination, and the sole `CompiledGraph` lifecycle facade |
 | `src/main/java/graph/optimizer` | Backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
-| `src/main/java/planning` | Backend-neutral compile-time descriptors, intents, partitions, regions, values, materialization, and memory plans |
+| `src/main/java/planning` | Backend-neutral compile-time descriptors, intents, partitions, execution plans, values, materialization, and memory plans |
 | `src/main/java/prepare` | Shared immutable prepare context/validation and cross-backend prepare orchestration |
 | `src/main/java/runtime` | Prepared execution contracts, per-run state, memory, residency, transfers, and publication |
 | `src/main/java/trace` | Producer-independent diagnostic DTO snapshots |
@@ -74,7 +74,7 @@ The main code is under `src/main/java`:
 | `scripts/build-metal-mps-shim.sh` | Builds `build/native/apple/libsynaptik_apple_mps.dylib` on macOS; packaging copies it into generated JAR resources |
 | `profiles/platform/...` | Checked-in platform calibration/report artifacts for the current known platform |
 
-Root-level backend dispatch is intentionally absent. Backend identity is in `backend.contract`, backend-specific prepare packages compile immutable executable artifacts, and `runtime` invokes their prepared contracts directly without `ComputeEngine`.
+Root-level backend dispatch is intentionally absent. Backend identity is in `backend.contract`, backend-specific prepare packages compile immutable executable artifacts, and `runtime` invokes their prepared contracts directly without `PreparedExecutionRunner`.
 
 ## Coding Patterns
 
@@ -103,7 +103,7 @@ Keep these boundaries intact:
 - Primitive descriptors live in `src/main/java/operations/<family>/` and should carry immutable semantic parameters only.
 - Backend kernel selection for CPU is centralized in `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`.
 - CPU preparation and workspace decisions live in `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`.
-- Runtime threshold interpretation lives in CPU planning classes such as `src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java`.
+- Runtime threshold interpretation lives in CPU planning classes such as `src/main/java/backend/cpu/prepare/CpuExecutionPlanner.java`.
 - Optimizer stage wiring lives in `src/main/java/graph/optimizer/OptimizerFactory.java`.
 - Graph autotune candidates must stay graph-policy-only; `SourceTreeHygieneTest.graphAutotuneCandidatePackageDoesNotImportRuntimeOrBackendConfig` rejects runtime/backend config imports from `src/main/java/tuning/candidate/graph`.
 
@@ -250,7 +250,7 @@ Use these focused gates after changing GPU operation coverage, shared accelerato
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalPartitionLowererTest --tests backend.cuda.lowering.CudaPartitionLowererTest
 ./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest
 ./gradlew metalTest
 ./gradlew buildCudaGraphShim cudaTest
@@ -267,27 +267,27 @@ Native CUDA tests skip when nvcc or CUDA hardware is unavailable. Do not commit 
 For Phase 17 normalization, reduction, and loss-adjacent closure, use the focused portable command below. It proves that `LOG_SOFTMAX remains lowered as SOFTMAX followed by LOG`, `loss-adjacent fallback remained visible`, `CPU parity remained the correctness oracle`, and `native reduction and normalization support is not implied by a fallback row`.
 
 ```bash
-./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest
+./gradlew test --tests backend.accelerator.lowering.GpuLoweringCoverageMatrixTest --tests backend.metal.lowering.MetalPartitionLowererTest --tests backend.cuda.lowering.CudaPartitionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest
 ```
 
-### GPU compound region checks
+### GPU compound partition checks
 
-Use these focused gates after changing GPU compound region lowering, including `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, `REDUCTION_ADJACENT`, or CPU fused rejection behavior. `Operation.OpType.FUSED remains CPU-only`; the public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. Metal and CUDA coverage is backend-specific, so run both portable backend tests and optional native gates when the toolchain is available.
+Use these focused gates after changing GPU compound partition lowering, including `LINEAR_BIAS_ACTIVATION`, `ELEMENTWISE_CHAIN`, `REDUCTION_ADJACENT`, or CPU fused rejection behavior. `Operation.OpType.FUSED` remains CPU-only; the public Tensor remains logical and device residency stays in ExecutionState and DeviceBufferBinding. Metal and CUDA coverage is backend-specific, so run both portable backend tests and optional native gates when the toolchain is available.
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests backend.accelerator.lowering.* --tests backend.metal.lowering.MetalPartitionLowererTest --tests backend.cuda.lowering.CudaPartitionLowererTest
 ./gradlew test --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest
 ./gradlew test --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
 ./gradlew metalTest
 ./gradlew buildCudaGraphShim cudaTest
 ```
 
-For Phase 18 fused elementwise and epilogue subregions, `GPU fusion is region-internal lowering/fusion, not CPU fused ASM reuse`. Trace and benchmark coverage changes must preserve fallback/materialization evidence and render `gpuFusedSubpatternCount`, `gpuFusedSubpatternTypes`, `gpuFusedSubpatternOriginalNodeIds`, `gpuFusedSubpatternLoweredPrimitiveCount`, and `gpuFusedSubpatternReasons`.
+For Phase 18 fused elementwise and epilogue subpartitions, `GPU fusion is partition-internal lowering/fusion, not CPU fused ASM reuse`. Trace and benchmark coverage changes must preserve fallback/materialization evidence and render `gpuFusedSubpatternCount`, `gpuFusedSubpatternTypes`, `gpuFusedSubpatternOriginalNodeIds`, `gpuFusedSubpatternLoweredPrimitiveCount`, and `gpuFusedSubpatternReasons`.
 
 Phase 18 closure also expects source hygiene gates proving accelerator, Metal, and CUDA packages do not import CPU fused internals. Local tuning files are not closure evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
 
-For Phase 19 multi-op GPU region execution, a `selected GPU partition can execute as one backend-owned lowered region`
+For Phase 19 multi-op GPU partition execution, a `selected GPU partition can execute as one backend-owned lowered partition`
 only when shared lowering, backend legality, dtype/layout, capability, and native-buffer binding gates accept the
 candidate. `ExecutionState and device buffer bindings carry supported internal values`, while public `Tensor` remains a
 logical API and CPU-readable publication stays at graph output, CPU consumer, or gradient publication boundaries.
@@ -296,11 +296,11 @@ Use the same gates plus coverage/report checks for Phase 19 changes:
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest --tests runtime.device.DeviceLayoutViewPropagationTest --tests SourceTreeHygieneTest
+./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalPartitionLowererTest --tests backend.cuda.lowering.CudaPartitionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest --tests runtime.device.DeviceLayoutViewPropagationTest --tests SourceTreeHygieneTest
 ```
 
 `tensor-array bridge execution is not native buffer GPU coverage`; preserve separate `nativeBufferStepCount` and
-`tensorArrayStepCount` evidence in reports. `GPU fusion remains region-internal lowering/fusion, not CPU fused ASM
+`tensorArrayStepCount` evidence in reports. `GPU fusion remains partition-internal lowering/fusion, not CPU fused ASM
 reuse`, and `vendor library routing is deferred to GPULIB-*`. Do not imply universal Metal/CUDA op support:
 normalization, reduction, conv, and loss-adjacent blockers must continue to report visible support/rejection outcomes.
 Local tuning files are not Phase 19 evidence; `profiles/platform/.../tuning/abc/* remained unstaged`.
@@ -345,14 +345,14 @@ rendering:
 These checks prove the portable triage/report contract. Native Metal and CUDA execution remains capability-gated and
 does not replace the checked target list in `.planning/phases/14-coverage-gap-triage-and-hot-path-targets/14-HOT-PATH-TARGETS.md`.
 
-### GPU lowered-region manifest checks
+### GPU lowered-partition manifest checks
 
-Use these focused Phase 15 gates after changing `GpuLoweredRegionManifest`, shared accelerator lowering manifests,
+Use these focused Phase 15 gates after changing `GpuLoweredPartitionManifest`, shared accelerator lowering manifests,
 prepare/backend-selection trace metadata, benchmark manifest rendering, or source hygiene around local tuning output:
 
 ```bash
-./gradlew test --tests backend.accelerator.lowering.GpuLoweredRegionManifestTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests CompiledGraphTraceTest
-./gradlew test --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests backend.accelerator.lowering.GpuLoweredPartitionManifestTest --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests CompiledGraphTraceTest
+./gradlew test --tests backend.metal.lowering.MetalPartitionLowererTest --tests backend.cuda.lowering.CudaPartitionLowererTest
 ./gradlew test --tests BenchmarkSessionTest --tests GpuCoverageSummaryTest
 ./gradlew test --tests SourceTreeHygieneTest
 ```
@@ -362,7 +362,7 @@ backend-owned, and CPU `Operation.OpType.FUSED` remains CPU-only.
 
 ### GPU dtype residency checks
 
-Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/CUDA dtype residency policy, lowered-region dtype evidence, or benchmark dtype residency report fields:
+Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/CUDA dtype residency policy, lowered-partition dtype evidence, or benchmark dtype residency report fields:
 
 ```bash
 ./gradlew test --tests runtime.residency.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
@@ -383,7 +383,7 @@ Current ownership:
 - `GraphOptimizationConfig.trainingDefaults()` enables `AR`, `CF`, `CSE`, `DCE`, and `LOWER` with strict CSE.
 - `GraphOptimizationConfig.inferenceDefaults()` enables the same graph stages with inference CSE defaults.
 - `GraphOptimizationConfig.noGraphOptimization()` disables graph optimization only.
-- Backend planning, region optimization, and memory planning are owned by `CompileConfig`, not the graph optimizer.
+- Backend planning, partition optimization, and memory planning are owned by `CompileConfig`, not the graph optimizer.
 
 Add changes by ownership:
 
@@ -393,7 +393,7 @@ Add changes by ownership:
 | Constant folding | `src/main/java/graph/optimizer/simplify` |
 | Common subexpression behavior | `src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java` |
 | Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/planning/partition` |
-| Region/fused execution units | `src/main/java/planning/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
+| Partition/fused execution units | `src/main/java/planning/partition/execution` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
 | Memory reuse or binding policy | `src/main/java/planning/memory` |
 
 `OptimizerFactory.create(...)` maps graph optimization config to concrete rules:
@@ -412,8 +412,8 @@ Use focused tests:
 ./gradlew test --no-daemon --tests AlgebraicRewritingPowTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests planning.region.DefaultRegionPlannerServiceTest
-./gradlew test --no-daemon --tests planning.memory.MemoryPlannerRegionViewTest
+./gradlew test --no-daemon --tests planning.partition.execution.PartitionExecutionPlannerServiceTest
+./gradlew test --no-daemon --tests planning.memory.MemoryPlannerPartitionViewTest
 ```
 
 ## Adding Tuning Knobs And Families
@@ -425,7 +425,7 @@ Primary files:
 - `src/main/java/config/backend/CpuKernelConfig.java`
 - `src/main/java/config/runtime/RuntimeConfig.java`
 - `src/main/java/config/profile/PlatformRuntimeProfile.java`
-- `src/main/java/backend/cpu/kernels/plan/CpuExecutionPlanner.java`
+- `src/main/java/backend/cpu/prepare/CpuExecutionPlanner.java`
 - `src/main/java/tuning/calibration/family/CalibrationFamilyRegistry.java`
 - `src/main/java/tuning/calibration/PlatformCalibrationDefaults.java`
 - `src/main/java/tuning/autotune/TuningDefaults.java`

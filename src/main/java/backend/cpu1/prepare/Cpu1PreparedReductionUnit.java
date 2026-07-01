@@ -77,7 +77,7 @@ public final class Cpu1PreparedReductionUnit {
         this.dataType = Objects.requireNonNull(dataType, "dataType cannot be null");
         this.storageKind = Objects.requireNonNull(storageKind, "storageKind cannot be null");
         this.kernelId = Objects.requireNonNull(kernelId, "kernelId cannot be null");
-        this.kernel = Cpu1ReductionKernelDispatch.kernelFor(kernelId);
+        this.kernel = Cpu1ReductionKernelDispatch.kernelFor(kernelId, storageKind);
         this.axis = axis;
         this.axisSize = axisSize;
         this.innerSize = innerSize;

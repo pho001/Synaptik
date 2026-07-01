@@ -19,7 +19,7 @@ import java.util.Objects;
  *
  * <p>The canonicalizer runs before backward graph construction. It creates replacement tensors for forward expressions
  * that are safe to canonicalize before autograd, preserving a publication map so later compile artifacts can publish
- * data and gradients back to user-visible tensors. Heavy executable lowering belongs to backend-owned region lowering,
+ * data and gradients back to user-visible tensors. Heavy executable lowering belongs to backend-owned partition lowering,
  * not this pre-partition graph simplification phase.
  */
 public final class SemanticForwardCanonicalizer {

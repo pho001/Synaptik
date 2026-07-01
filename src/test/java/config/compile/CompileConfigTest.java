@@ -1,6 +1,6 @@
 package config.compile;
 
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.optimizer.MemoryConfig;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +17,7 @@ class CompileConfigTest {
         assertTrue(config.semanticCanonicalization().enabled());
         assertTrue(config.graphOptimization().commonSubexpressionElimination());
         assertEquals(BackendDiscoveryMode.EXPLICIT, config.backendPlanning().discoveryMode());
-        assertTrue(config.regionOptimization().enabled());
+        assertTrue(config.partitionExecution().enabled());
         assertTrue(config.memoryPlanning().enabled());
     }
 
@@ -38,7 +38,7 @@ class CompileConfigTest {
         assertFalse(config.graphOptimization().algebraicRewrite());
         assertFalse(config.graphOptimization().commonSubexpressionElimination());
         assertEquals(BackendDiscoveryMode.EXPLICIT, config.backendPlanning().discoveryMode());
-        assertTrue(config.regionOptimization().enabled());
+        assertTrue(config.partitionExecution().enabled());
         assertTrue(config.memoryPlanning().enabled());
     }
 
@@ -46,12 +46,12 @@ class CompileConfigTest {
     void backendPlanningValidationRejectsInvalidRequiredCpuOnlyMode() {
         assertThrows(IllegalArgumentException.class, () -> new BackendPlanningConfig(
                 BackendDiscoveryMode.CPU_ONLY,
-                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_REGION,
+                BackendPlanningFailurePolicy.REQUIRE_ACCELERATOR_PARTITION,
                 BackendPlanningRequirementScope.ANY_TARGET,
                 java.util.Set.of(),
-                RegionOwnershipPlannerStrategy.ANCHOR,
+                PartitionOwnershipPlannerStrategy.ANCHOR,
                 PartitionSearchConfig.defaults(),
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 BackendPlanningCostConfig.conservative()
         ));
     }

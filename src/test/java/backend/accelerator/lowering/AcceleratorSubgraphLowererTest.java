@@ -275,7 +275,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
-    void manifestRegionIdBackendAndLengthAreStable() {
+    void manifestPartitionIdBackendAndLengthAreStable() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "stableManifestInput", DataType.FLOAT32);
         Tensor out = specialLogSoftmax(input, 1);
         PartitionPlanningContext context = planningContext(out);
@@ -284,9 +284,9 @@ class AcceleratorSubgraphLowererTest {
         AcceleratorSubgraphLoweringResult result = new AcceleratorSubgraphLowerer().tryLower(ComputeBackend.GPU_CUDA, spec(node), context);
 
         assertNotNull(result);
-        assertEquals("gpu-gpu_cuda-region-" + node.id(), result.manifest().regionId());
+        assertEquals("gpu-gpu_cuda-partition-" + node.id(), result.manifest().partitionId());
         assertEquals(ComputeBackend.GPU_CUDA, result.manifest().backend());
-        assertEquals(1, result.manifest().selectedRegionLength());
+        assertEquals(1, result.manifest().selectedPartitionLength());
         assertEquals("2", result.manifest().backendExtensions().get("dagNodeCount"));
     }
 
@@ -318,7 +318,7 @@ class AcceleratorSubgraphLowererTest {
         assertNotNull(boolResult);
         assertNotNull(bf16Result);
         String boolEvidence = String.join("\n", boolResult.manifest().backendExtensions().values());
-        String bf16Rendered = GpuLoweredRegionManifestRenderer.renderCompact(bf16Result.manifest());
+        String bf16Rendered = GpuLoweredPartitionManifestRenderer.renderCompact(bf16Result.manifest());
         assertTrue(boolResult.manifest().backendExtensions().keySet().stream()
                 .anyMatch(key -> key.startsWith("dtypeResidency.")));
         assertTrue(boolEvidence.contains("backend=GPU_METAL"));
@@ -520,7 +520,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
-    void phaseNineteenLowersMultiOpRegionWithLayoutElementwiseAndSoftmaxPrimitives() {
+    void phaseNineteenLowersMultiOpPartitionWithLayoutElementwiseAndSoftmaxPrimitives() {
         Tensor input = new Tensor(new float[]{1f, 2f, 3f, 4f, 5f, 6f}, new int[]{2, 3}, null, "phase19LayoutInput", DataType.FLOAT32);
         Tensor permuted = input.permute(1, 0);
         Tensor relu = permuted.relu();
@@ -548,7 +548,7 @@ class AcceleratorSubgraphLowererTest {
         );
 
         assertNotNull(result);
-        assertTrue(result.manifest().selectedRegionLength() > 1);
+        assertTrue(result.manifest().selectedPartitionLength() > 1);
         assertTrue(result.manifest().loweredPrimitives().size() > 1);
         assertEquals("4", result.manifest().backendExtensions().get("dagNodeCount"));
         List<String> primitiveTypes = result.manifest().loweredPrimitives().stream()
@@ -606,7 +606,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
-    void specializedSdpaDoesNotLiftInternalRegionValuesToExternalInputs() {
+    void specializedSdpaDoesNotLiftInternalPartitionExecutionValuesToExternalInputs() {
         Tensor qSource = new Tensor(new float[]{
                 1f, 0f,
                 0f, 1f
@@ -760,7 +760,7 @@ class AcceleratorSubgraphLowererTest {
     }
 
     @Test
-    void valueSdpaBackwardLowersToRegionInternalWeightsDag() {
+    void valueSdpaBackwardLowersToPartitionInternalWeightsDag() {
         Tensor query = new Tensor(new float[]{
                 1f, 0f,
                 0f, 1f

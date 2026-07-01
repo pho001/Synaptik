@@ -4,7 +4,7 @@ import runtime.device.buffer.AcceleratorBufferExecutionPath;
 import runtime.device.buffer.AcceleratorLayoutTransformDecision;
 import runtime.device.buffer.AcceleratorLayoutTransformKind;
 import backend.accelerator.lowering.GpuCompoundPatternType;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import runtime.execution.ExecutionContext;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
@@ -59,17 +59,19 @@ public record AcceleratorExecutionArtifact(
             attrs.put("deviceHandoffCount", decision.path() == AcceleratorBufferExecutionPath.BUFFER_BINDING
                     ? decision.inputs().size() + decision.outputs().size()
                     : 0);
-            RegionExecutionPlan regionPlan = executable.regionExecutionPlan();
-            if (regionPlan != null) {
-                addRegionPlanAttrs(attrs, regionPlan);
+            BackendPartitionExecutionPlan partitionPlan = executable.partitionExecutionPlan();
+            if (partitionPlan != null) {
+                addPartitionPlanAttrs(attrs, partitionPlan);
             }
-            var manifest = executable.gpuLoweredRegionManifest();
-            if (manifest != null && !manifest.regionId().isBlank()) {
-                attrs.put("gpuRegionId", manifest.regionId());
-                attrs.put("gpuLoweredRegionId", manifest.regionId());
+            var manifest = executable.gpuLoweredPartitionManifest();
+            if (manifest != null && !manifest.partitionId().isBlank()) {
+                attrs.put("gpuPartitionId", manifest.partitionId());
+                attrs.put("gpuLoweredPartitionId", manifest.partitionId());
+                attrs.put("partitionId", manifest.partitionId());
+                attrs.put("partitionTarget", manifest.backend().name());
             }
             if (manifest != null) {
-                attrs.put("selectedRegionLength", manifest.selectedRegionLength());
+                attrs.put("selectedPartitionLength", manifest.selectedPartitionLength());
                 attrs.put("loweredPrimitiveCount", manifest.loweredPrimitives().size());
                 attrs.put("gpuFusedSubpatternCount", manifest.fusedSubpatterns().size());
                 attrs.put("gpuFusedSubpatternTypes", manifest.fusedSubpatterns().stream()
@@ -144,21 +146,20 @@ public record AcceleratorExecutionArtifact(
                 || decision.kind() == AcceleratorLayoutTransformKind.BROADCAST_GPU_MATERIALIZATION;
     }
 
-    private static void addRegionPlanAttrs(LinkedHashMap<String, Object> attrs, RegionExecutionPlan regionPlan) {
-        attrs.put("regionId", regionPlan.regionId());
-        attrs.put("regionTarget", regionPlan.target().name());
-        attrs.put("loweringFamily", regionPlan.loweringFamily().name());
-        attrs.put("anchorNodeId", regionPlan.anchorNodeId());
-        attrs.put("orderedNodeIds", regionPlan.orderedNodeIds());
-        attrs.put("boundaryOutputNodeIds", regionPlan.boundaryOutputNodeIds());
-        attrs.put("regionNodeCount", regionPlan.orderedNodeIds().size());
-        attrs.put("regionDecision", regionPlan.decision().selected() ? "SELECTED" : "REJECTED");
-        attrs.put("regionReason", regionPlan.decision().reason());
-        attrs.put("regionExecutionKindSummary", regionPlan.executionGroups().stream()
+    private static void addPartitionPlanAttrs(LinkedHashMap<String, Object> attrs, BackendPartitionExecutionPlan partitionPlan) {
+        attrs.put("partitionExecutionPlanId", partitionPlan.executionPlanId());
+        attrs.put("loweringFamily", partitionPlan.loweringFamily().name());
+        attrs.put("anchorNodeId", partitionPlan.anchorNodeId());
+        attrs.put("orderedNodeIds", partitionPlan.orderedNodeIds());
+        attrs.put("boundaryOutputNodeIds", partitionPlan.boundaryOutputNodeIds());
+        attrs.put("partitionNodeCount", partitionPlan.orderedNodeIds().size());
+        attrs.put("partitionDecision", partitionPlan.decision().selected() ? "SELECTED" : "REJECTED");
+        attrs.put("partitionReason", partitionPlan.decision().reason());
+        attrs.put("partitionExecutionKindSummary", partitionPlan.executionGroups().stream()
                 .map(group -> group.executionKind().name())
                 .distinct()
                 .toList());
-        attrs.put("regionStorageContractSummary", regionPlan.executionGroups().stream()
+        attrs.put("partitionStorageContractSummary", partitionPlan.executionGroups().stream()
                 .map(group -> group.storageContract().name())
                 .distinct()
                 .toList());

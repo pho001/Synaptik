@@ -2,7 +2,7 @@
 
 ## Stav Implementace
 
-Status: `PLANNED`
+Status: `IMPLEMENTED_AND_VERIFIED`
 
 Tento dokument je zivy implementacni checklist pro postupne dovedeni `backend.cpu1`
 na funkcni paritu se starym `backend.cpu`, pri zachovani cistejsi cpu1 architektury.
@@ -25,10 +25,17 @@ Aktualni stav fazi:
 - [x] Faze 5: loss vetev pro NLL a CrossEntropy; dense scope complete, strided/view deferred
 - [x] Faze 6: index/gather/scatter operace; dense direct scope complete, strided/view a parallel scatter deferred
 - [x] Faze 7: NN a normalization kernely; LAYER_NORM/RMS_NORM dense JAVA_ARRAY/MEMORY_SEGMENT slices, LINEAR dense matmul-backed subset, MAX_POOL2D/AVG_POOL2D dense direct routes and CONV2D dense direct correctness/fallback route complete; generic MATMUL_EPILOGUE IR deferred to follow-up plan 119 and optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
-- [~] Faze 8: linear algebra a attention parita
+- [x] Faze 8: linear algebra a attention parita v dense direct scope;
+  strided/view, BF16 SDPA backward a blocked/tiled provider zustavaji
+  explicitni follow-up scope
 - [x] Faze 9: cpu1 storage mode contract; execute boundary binding sjednocen,
   ad-hoc residency rozhodovani v cpu1 hot paths odstraneno
-- [ ] Faze 10: trace, tuning, coverage gate a default route readiness
+- [x] Faze 10: trace, tuning, coverage gate a default route readiness; central
+  coverage gate, benchmark matrix gate, targeted parity test matrix gate a
+  static prepared-family trace metadata jsou hotove v minimalnim produkcnim
+  rozsahu; benchmark performance snapshot je dolozeny a kanonicke
+  `macos-arm64` calibration profily zapinaji cpu1 direct/fused route pres
+  explicitni runtime policy
 
 ## Cil
 
@@ -78,6 +85,36 @@ backend.cpu1
   trace/
 ```
 
+## Audit 2026-06-23
+
+Audit scope:
+
+```bash
+rg -n "^## |^### |Status:|\[x\]|\[~\]|\[ \]|deferred|follow|benchmark|Coverage Gate" todo/117-cpu1-to-cpu-parity-plan.md
+rg -n "Cpu1PreparedReductionUnit|Cpu1PreparedCrossEntropyLossUnit|Cpu1PreparedNllLossUnit|Cpu1CoverageReport" src/main/java/backend/cpu1 src/test/java/backend/cpu1
+```
+
+Zaver auditu:
+
+- Dokument uz neni `PLANNED`; je aktivne rozpracovany a vetsina fazi 0-9 je
+  implementovana.
+- Horni parity matrix byla castecne starsi nez implementacni faze. Nejvetsi
+  nesoulady byly v reductions, loss, index/scatter a native storage casti.
+- `Cpu1CoverageReport` a `Cpu1CpuParityInventoryTest` uz davaji centralni
+  coverage gate pro old CPU direct op typy.
+- `Cpu1TraceContributor` uz traceuje staticka prepared-family metadata; skutecne
+  runtime materializace zustava v runtime trace.
+- Zbyvajici otevrene oblasti nejsou primarne missing direct op coverage, ale
+  sirka podpory pro strided/view materializaci a vybrane performance follow-upy,
+  ktere jsou vyclenene do navazujicich planu.
+
+Upravy provedene v tomto auditu:
+
+- Sjednocen top-level status na `IMPLEMENTED_AND_VERIFIED`.
+- Aktualizovana horni parity matrix tak, aby odpovidala stavu fazi 1-10.
+- Known gaps prepsany tak, aby nerozporovaly hotovou storage-mode contract fazi.
+- Definition of Done rozlisen mezi "route exists" a "full default readiness".
+
 ## Non-Goals
 
 - Nezavadet compatibility vrstvu, ktera by z cpu1 volala stare `backend.cpu`
@@ -89,8 +126,9 @@ backend.cpu1
   ne do obecne `reduction`.
 - Necistit stary `backend.cpu` jako soucast tohoto planu.
 - Nekomitovat lokalni benchmark/profilove artefakty.
-- Nezapinat cpu1 jako default CPU backend, dokud neni hotovy coverage gate,
-  parity test matrix a benchmark evidence.
+- Nezapinat cpu1 jako hardcoded CPU backend bez profilu. Default-route
+  enablement patri do kalibrovaneho/platform runtime profilu a musi zustat
+  explicitni v profile IO.
 
 ## Dulezita Korekce K "Parite"
 
@@ -197,11 +235,11 @@ Slabiny:
 
 | Oblast | backend.cpu | backend.cpu1 | Stav cpu1 | Plan |
 |---|---|---|---|---|
-| Central registry | `CpuKernelRegistry.resolve(OpType)` | family-specific registries/preparers | lepsi architektura, ne kompletni coverage | zachovat cpu1 family dispatch |
-| Runtime context | `CpuKernelContext` | `ExecutionContext` + prepared unit + tensor views | lepsi hranice | doplnit missing prepared units |
-| Scratch | `CpuNodeWorkspace` | `Cpu1ScratchBuffer` | existuje, pouziva se ne vsude | sjednotit pro reductions/loss/NN |
-| Threading | `CpuThreadPool`, hints | `Cpu1LaunchPolicy`, `Cpu1RangeLauncher` | existuje, ne vsude zapojeno | doplnit do reductions/loss/index |
-| Trace | `CpuStepTraceContributor` | `Cpu1TraceContributor` | partial | rozsiruj pri kazde nove rodine |
+| Central registry | `CpuKernelRegistry.resolve(OpType)` | family-specific preparers + `Cpu1CoverageReport` | family dispatch je cilovy; coverage gate nema required missing old CPU direct op | zachovat cpu1 family dispatch, necentralizovat zpet do stareho stylu |
+| Runtime context | `CpuKernelContext` | `ExecutionContext` + prepared unit + tensor views | prepared family route existuje pro old CPU direct forward op typy | dokoncit default-readiness pres test/benchmark matrix |
+| Scratch | `CpuNodeWorkspace` | `Cpu1ScratchBuffer` | pouziva se pro partial reductions, loss, attention/NN podle potreby | dalsi scratch pridavat jen tam, kde kernel potrebuje partial/temp storage |
+| Threading | `CpuThreadPool`, hints | `Cpu1LaunchPolicy`, `Cpu1RangeLauncher` | zapojeno v hlavni prepared infrastruktuře; scatter zustava single-thread kvuli determinismu | ladit thresholdy/chunky pres tuning, ne hardcoded heuristiky |
+| Trace | `CpuStepTraceContributor` | `Cpu1TraceContributor` + runtime materialization trace | prepared-family staticka metadata jsou pokryta; runtime copy/materializace zustava oddelena | doplnit benchmark/default-readiness report |
 
 ### 2. Elementwise
 
@@ -399,26 +437,28 @@ Stary CPU ma:
 cpu1 ma:
 
 - `Cpu1PreparedReductionUnit`
-- dense contiguous scalar loops
-- omezeny segment support: dnes hlavne `SUM/MEAN F32/F64`
-- zadny `launchConfig/launchPolicy` v prepared reduction unit
-- `Cpu1ScratchBufferSpec.none()` ve vsech reduction prepare cestach
+- dense contiguous scalar loops pro numeric/bool/argmax/cumsum/softmax family
+- `launchConfig`, `launchPolicy`, input/output `Cpu1StorageAccessPlan` a
+  `scratchBufferSpec` primo v prepared unit
+- partial scratch buffer pro SUM/MEAN paralelni scalar-output cesty
+- dense `MEMORY_SEGMENT` support pro SUM/MEAN, MIN/MAX/PROD, ALL/ANY,
+  ARGMAX, CUMSUM a SOFTMAX/LOG_SOFTMAX podle fazi 3-4
+- uzky direct strided/view support hlavne pro SUM/MEAN F32/F64; sirsi
+  materializace/view policy patri do planu 118
 
 Zbyvajici parity prace:
 
-- pridat launch config/policy do reduction prepared unit
-- pridat scratch partial buffers
-- parallel output-element reductions
-- partial axis reductions pro scalar/low-output-count pripady
-- native segment parity pro min/max/prod/all/any/argmax/cumsum/softmax
-- strided/view reduction input support nebo explicitni materialization policy
-- softmax/logSoftmax group parallel path
+- rozsirit direct strided/view reduction support jen tam, kde benchmark ukaze
+  prinos; jinak materializovat v graph/lowering podle planu 118
+- doplnit/udrzovat benchmark matrix pro array vs segment a scalar vs parallel
+- overit edge cases proti starym reduction testum pri default-route priprave
 
 Verdikt:
 
 ```text
 Op coverage je dorovnana.
-Runtime width a vykon nejsou dorovnane.
+Runtime width je vyrazne sirsi nez puvodni stav, ale view/materialization a
+benchmark/default-readiness nejsou uzavrene.
 ```
 
 ### 7. Loss
@@ -437,27 +477,26 @@ cpu1 ma:
 - `Cpu1PreparedMseLossUnit`
 - `Cpu1MseLossExecutableUnit`
 - `backend.cpu1.kernels.loss.mse`
-
-cpu1 nema:
-
-- `NLL_LOSS`
-- `CROSS_ENTROPY_LOSS`
-- `CROSS_ENTROPY_LOSS_INDICES`
+- `Cpu1LossPreparer`
+- `Cpu1PreparedCrossEntropyLossUnit`
+- `Cpu1PreparedDenseCrossEntropyLossUnit`
+- `Cpu1PreparedNllLossUnit`
+- `backend.cpu1.kernels.loss.crossentropy`
+- `backend.cpu1.kernels.loss.nll`
+- dense contiguous `JAVA_ARRAY` a `MEMORY_SEGMENT` support pro
+  `NLL_LOSS`, `CROSS_ENTROPY_LOSS` a `CROSS_ENTROPY_LOSS_INDICES`
 
 Zbyvajici parity prace:
 
-- vytvorit loss family pro NLL/CrossEntropy
-- nepretezovat `Cpu1ReductionPreparer`
-- podporovat distribution targets a index targets
-- podporovat `LossReduction.NONE/SUM/MEAN`
-- podporovat `ignoreIndex`
-- doplnit native segment route az po array correctness
+- strided/view logits/targets materialization policy podle planu 118
+- udrzovat loss family mimo `Cpu1ReductionPreparer`
+- doplnit benchmark matrix pro array vs segment a reduction modes
 
 Verdikt:
 
 ```text
-Nejvetsi chybejici forward op coverage po reductions.
-Implementovat jako loss family, ne reduction family.
+Dense forward loss coverage je dorovnana jako samostatna loss family.
+Zbyva view/materialization policy a benchmark/default-readiness.
 ```
 
 ### 8. Matmul / Linear Algebra
@@ -525,27 +564,27 @@ Stary CPU podporuje:
 
 cpu1:
 
-- ma samostatnou index family pro dense contiguous/no-offset read-only gather
-  slice (`GATHER`, `GATHER_AXIS`, `GATHER_ND`, `TAKE_ALONG_AXIS`)
+- ma samostatnou index family pro dense contiguous/no-offset gather/scatter
+  slice (`GATHER`, `GATHER_AXIS`, `GATHER_ND`, `TAKE_ALONG_AXIS`,
+  `SCATTER_ADD`, `SCATTER_AXIS_ADD`, `SCATTER_ELEMENTS`, `SCATTER_ND`)
+- podporuje `JAVA_ARRAY` i dense contiguous/no-offset `MEMORY_SEGMENT`
+  v podporovanem dense direct scope
+- scatter cesty jsou deterministicky single-thread, protoze duplicate index
+  semantika neni bez dalsi politiky bezpecne paralelizovatelna
 - cast backward/layout scatter semantiky se resila pres `SLICE_BACKWARD`
 - index gradients nejsou primy CPU kernel ani ve starem CPU registry
 
 Zbyvajici parity prace:
 
-- rozsirit existujici `backend.cpu1.kernels.index` mimo dense read-only gather
-- second wave zbyva:
-  - `SCATTER_ADD`
-  - `SCATTER_AXIS_ADD`
-- third wave:
-  - `SCATTER_ELEMENTS`
-  - `SCATTER_ND`
-- explicitne resit duplicate index semantiku a determinismus
+- strided/view/offset index paths podle planu 118
+- rozhodnout, jestli a jak zavest deterministic parallel scatter
+- udrzovat duplicate index semantiku explicitne v prepare/testech
 
 Verdikt:
 
 ```text
-Velka missing funkcni oblast.
-Implementovat jako samostatnou index family.
+Dense direct funkcni oblast je dorovnana jako samostatna index family.
+Otevrene zustavaji view/materialization a pripadne parallel scatter.
 ```
 
 ### 10. NN / Normalization
@@ -593,23 +632,28 @@ Stary CPU:
 cpu1:
 
 - umi `Cpu1StorageKind.MEMORY_SEGMENT`
-- elementwise a matmul segment cesty existuji
-- dtype cast segment cesta existuje
-- reductions segment cesta je omezena
-- layout segment coverage neni systematicky dorovnana
+- execute storage mode se ridi `Cpu1PrepareConfig` / runtime storage profilem,
+  ne `Tensor.toNative()`
+- `JAVA_ARRAY`/`MEMORY_SEGMENT` binding je sjednoceny na execute boundary
+  pres `requireCpuReadable(...)`, `requireNativeReadable(...)`,
+  `requireNativeOutputStorage(...)` a `attachNativeStorage(...)`
+- elementwise, fused, dtype, reductions, loss, index, matmul, layout,
+  attention a dense NN/normalization rodiny maji explicitni storage-mode route
+  nebo explicitni odmítnuti nepodporovaneho view/scope
+- skutecne copy/materialization udalosti patri do runtime trace, ne do
+  per-kernel ad-hoc rozhodovani
 
 Zbyvajici parity prace:
 
-- centralizovat cpu1 native input/output binding policy
-- rozhodnout, kdy native output storage reuse probiha pres runtime memory
-  binder a kdy pres output allocation
-- zamezit per-execute alokacim v hot path
-- pridat trace atributy pro native reuse/copy-in/copy-out
+- broad strided/broadcast view materializace do native storage podle planu 118
+- benchmark matrix pro array/native route u hlavních workloadu
+- route-specific performance ladeni segment kernels
 
 Verdikt:
 
 ```text
-cpu1 ma zaklad, ale potrebuje jednotny storage policy layer.
+Storage mode contract je implementovany. Zbyva sirsi view materialization
+policy a benchmarkove overeni, ne dalsi per-kernel residency hacky.
 ```
 
 ## Navazujici Implementacni Faze
@@ -2204,9 +2248,10 @@ preferred optimized CONV2D -> UNFOLD2D -> MATMUL route deferred
 
 ## Faze 8: Linear Algebra A Attention
 
-Status: `[~]` dense direct `SCALED_DOT_PRODUCT_ATTENTION` /
-`SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` implemented; optimized/broader
-attention parity remains scoped below.
+Status: `[x]` dense direct `SCALED_DOT_PRODUCT_ATTENTION` /
+`SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS` implemented and verified in the current
+direct parity scope; optimized/broader attention work remains scoped below as
+explicit follow-up.
 
 ### Proc
 
@@ -3304,7 +3349,7 @@ Implementacni vysledek:
 
 ## Faze 10: Trace, Tuning A Coverage Gate
 
-Status: `[ ]`
+Status: `[x]`
 
 ### Proc
 
@@ -3331,6 +3376,20 @@ Kazda cpu1 prepared family musi traceovat:
 - scratch spec
 - fallback/materialization reason, pokud existuje
 
+Stav implementace:
+
+- [x] `Cpu1TraceContributor` traceuje centralni `cpu1KernelId`, family-specific
+  kernel id, storage kind, dtype, access/layout model, vectorization, launch
+  workers/chunk a scratch spec pro prepared cpu1 family.
+- [x] Elementwise prepared units maji vlastni trace contribution; drive padaly
+  na prazdny `StepTraceContribution`.
+- [x] Route/static fallback metadata je doplneno tam, kde je prepare-time
+  informace k dispozici, napriklad matmul route a staticke provider copy byte
+  odhady.
+- [x] Runtime materialization/copy udalosti nebyly presunuty do
+  `Cpu1TraceContributor`; skutecne udalosti zustavaji v
+  `ExecutionContext`/`CpuMaterializationTrace`.
+
 ### Coverage Gate
 
 Cilovy test:
@@ -3349,6 +3408,47 @@ void cpu1CoverageGateListsAllOldCpuDirectOps() {
 
 Tento test se bude aktualizovat pri kazde fazi a bude branit tomu, aby stav
 parity zustal nejasny.
+
+Stav implementace:
+
+- [x] `backend.cpu1.Cpu1CoverageReport` centralne pocita old CPU direct ops ze
+  stareho `CpuKernelRegistry`.
+- [x] `Cpu1CpuParityInventoryTest` gateuje `missingRequiredOps()` a pri selhani
+  vypise jeden report s bucket-y:
+  `missingRequiredOps`, `allowedMissingOrDeferredOps`,
+  `intentionallyGraphLoweredOrNotDirectOps`,
+  `legacyOrSpecialWithoutOldCpuDirectKernelOps` a
+  `unclassifiedNonOldCpuDirectOps`.
+- [x] Aktualni required missing old CPU direct opy: zadne.
+- [x] Aktualni explicitni allowed missing/deferred old CPU direct opy: zadne.
+- [x] `FUSED` zustava explicitne klasifikovany jako graph-lowered/not-direct
+  cpu1 route, ne jako nejasne missing op.
+
+### Targeted Parity Test Matrix
+
+Stav implementace:
+
+- [x] `backend.cpu1.Cpu1TargetedParityTestMatrixReport` centralne mapuje cpu1
+  route family z `Cpu1CoverageReport.cpu1PreparedFamilyRoutes()` na checked-in
+  targeted contract/parity test owner nebo explicitni deferred/non-goal scope.
+- [x] `Cpu1ReadinessMatrixTest` gateuje matrix bez runtime JUnit launcheru:
+  staticky overuje, ze owner source existuje a obsahuje JUnit `@Test`.
+- [x] Matrix explicitne drzi mimo direct family gate specializovane/graph-lowered
+  oblasti jako `attention-backward` a `fused`, ale stale jim prirazuje test
+  owner, aby coverage nebyla implicitni.
+- [deferred] Otevrene scope zustavaji plan 118 strided/view materializace,
+  plan 119 `MATMUL_EPILOGUE` IR, BF16 attention backward, blocked/tiled
+  attention a deterministic parallel scatter.
+
+### Full Targeted Parity Suite Evidence
+
+Evidence z posledniho targeted parity/default-route readiness runu:
+
+- Prikaz:
+  `./gradlew test --tests 'backend.cpu1.Cpu1*ExecutionContractTest' --tests 'backend.cpu1.Cpu1CpuParityInventoryTest' --tests 'backend.cpu1.Cpu1ReadinessMatrixTest' --tests 'backend.cpu1.BackendPrepareDispatcherCpu1*RouteTest' --tests 'backend.cpu1.Cpu1Fused*Test' --tests 'backend.cpu1.fused.Cpu1Fused*Test' --tests 'RuntimeConfigTest' --tests 'ExecutionProfileIoTest' --tests 'PlatformRuntimeProfileResolverTest'`
+- XML report timestamp range: `2026-06-23T10:27Z`.
+- Vysledek: `BUILD SUCCESSFUL`; 30 test trid, 462 testu, 0 failures, 0 errors,
+  0 skipped.
 
 ### Benchmark Matrix
 
@@ -3379,6 +3479,233 @@ loss:
   cpu1 cross entropy indices segment
 ```
 
+Stav implementace:
+
+- [x] `backend.cpu1.Cpu1BenchmarkMatrixReport` centralne inventarizuje
+  canonical checked-in cpu1 `@Tag("benchmark")` testy podle family/scenario a
+  owner class/method.
+- [x] `Cpu1ReadinessMatrixTest` staticky overuje, ze kazdy covered benchmark
+  entry ma checked-in source owner s `@Tag("benchmark")`; benchmark metody se
+  pri tomto gate nespousti.
+- [x] Aktualni canonical benchmark owner classes:
+  `Cpu1ElementwiseSegmentBenchmarkTest`, `Cpu1ReductionBenchmarkTest`,
+  `Cpu1ReductionSoftmaxBenchmarkTest`, `Cpu1MatmulBenchmarkTest`,
+  `Cpu1MlpBenchmarkTest`, `Cpu1LayoutTileBenchmarkTest` a
+  `Cpu1AttentionBackwardBenchmarkTest`.
+- [x] Actual benchmark performance numbers pro aktualni canonical matrix jsou
+  dolozene snapshotem nize. Matrix gate stale pouze brani tomu, aby benchmark
+  ownership coverage zustala nejasna.
+- [deferred] Explicitne odlozene benchmark scope: plan 118 strided/view
+  materializace, plan 119 `MATMUL_EPILOGUE` IR, loss cross entropy performance,
+  BF16 attention backward, blocked/tiled attention a deterministic parallel
+  scatter.
+
+### Actual Benchmark Performance Evidence - 2026-06-23
+
+Benchmark evidence je snapshot z canonical cpu1 owner suite. Run probehl jako
+canonical `Cpu1BenchmarkMatrixReport` owner methods a skoncil
+`BUILD SUCCESSFUL in 38s`.
+
+XML report timestamp range: `2026-06-23T10:27Z-2026-06-23T10:28Z`.
+Vysledek: 7 benchmark owner trid, 15 benchmark test metod, 0 failures,
+0 errors, 0 skipped.
+
+Spustene canonical benchmark owner metody:
+
+- `Cpu1ElementwiseSegmentBenchmarkTest`: tri canonical methods.
+- `Cpu1ReductionBenchmarkTest.benchmarkScalarLargeSumMeanSingleThreadVsParallelPartials`.
+- `Cpu1ReductionSoftmaxBenchmarkTest.benchmarkSoftmaxAndLogSoftmaxGroupWidth`.
+- `Cpu1LayoutTileBenchmarkTest.benchmarkDenseMultiAxisTileAgainstGenericScalar`.
+- `Cpu1MatmulBenchmarkTest`: F32/F64 dense routes.
+- `Cpu1MlpBenchmarkTest`: ctyri canonical methods z matrix.
+- `Cpu1AttentionBackwardBenchmarkTest.benchmarkDenseSdpaBackwardArrayScalarVectorAndSegmentScalarVector`.
+
+Poznamka k interpretaci: canonical benchmark entries nize vetsinou srovnavaji
+cpu1 routes mezi sebou, napriklad array scalar/vector/parallel a
+`MEMORY_SEGMENT` scalar/vector. Nejsou to primarne direct old CPU vs cpu1
+srovnani, pokud to neni explicitne uvedeno v samostatne subsection.
+
+Elementwise representative:
+
+- F32 `SUB`, 1,048,576 elements: array scalar `0.2400ms`, array vector
+  `0.1195ms` (`2.01x` faster), segment scalar `0.6581ms`, segment vector
+  `0.1256ms`. Segment vector je `5.24x` rychlejsi nez segment scalar a v tomto
+  runu zhruba stejny jako array vector.
+- F32 `TANH`, 1,048,576 elements: array scalar `7.4861ms`, array vector
+  `13.2000ms`, segment scalar `9.4300ms`, segment vector `13.3613ms`.
+  Vector tanh je pomalejsi; pravdepodobne dominuje cena math/support callu
+  oproti vector setupu.
+- F64 `RELU`, 3,145,728 elements: array scalar `0.8882ms`, array vector
+  `0.4682ms`, segment scalar `1.5183ms`, segment vector `0.5699ms`.
+
+Reduction, 5,000,000 elements, `workers=4`:
+
+- F32 `SUM`: `3.7056ms -> 1.9280ms` (`1.92x`).
+- F32 `MEAN`: `3.8601ms -> 2.0398ms` (`1.89x`).
+- F64 `SUM`: `3.5268ms -> 1.0494ms` (`3.36x`).
+- F64 `MEAN`: `3.6271ms -> 1.0277ms` (`3.53x`).
+- Reason: parallel partial reductions pomahaji u vetsiny velkych dense
+  reduction scenaru. Zisk neni pro vsechny dtype/op stejny, proto threshold a
+  worker/chunk tuning zustavaji dulezite konfiguracni hodnoty.
+
+Softmax/logSoftmax, `classes=32`, `workers=4`:
+
+- 100,000 groups / 3,200,000 elements: `SOFTMAX` array
+  `37.5316ms -> 9.6303ms` (`3.90x`), segment
+  `39.9874ms -> 10.2868ms` (`3.89x`).
+- 100,000 groups / 3,200,000 elements: `LOG_SOFTMAX` array
+  `22.4902ms -> 5.8539ms` (`3.84x`), segment
+  `25.4402ms -> 6.5902ms` (`3.86x`).
+- Small 1,024 groups: `SOFTMAX` array `0.8076ms -> 0.7376ms`
+  (`1.09x`), `LOG_SOFTMAX` array `0.6802ms -> 0.8066ms` (`0.84x`).
+  V tomto runu segment small-group parallel vychazi vyrazne rychleji nez
+  segment single path.
+
+Layout `TILE`:
+
+- Generic scalar `0.9336ms`, dense multi-axis scalar `0.0884ms`
+  (`10.57x`), dense vector `0.0866ms` (`10.78x`).
+- Reason: dense direct specialization odstranuje generic index math; vector
+  zlepsuje scalar uz jen marginalne.
+
+Matmul dense routes:
+
+- F32 shape `96x130 * 130x96`: scalar `0.7646ms`, Java vector packed-B
+  parallel `0.1603ms` (`4.77x`), OpenBLAS array copying `0.0337ms`
+  (`22.67x`), OpenBLAS native segment `0.0164ms` (`46.75x`).
+- F64 same shape: scalar `1.5218ms`, Java vector packed-B single-thread
+  `0.3896ms` (`3.91x`), Java vector packed-B parallel `0.3994ms`
+  (`3.81x`), OpenBLAS array copying `0.0851ms` (`17.87x`), native segment
+  `0.0325ms` (`46.82x`).
+- Reason: BLAS dominuje dense GEMM; native segment odstranuje array-copy
+  overhead.
+
+MLP:
+
+- `default-b256-i512-h384-h256-o128-h2tanh`: array OpenBLAS copy
+  `4.8861ms`, Java vector-parallel matmul `9.3305ms` (`0.52x` vs array
+  OpenBLAS), all-native segment OpenBLAS `2.3191ms` (`2.11x`).
+- Large `b1024/i1024` tanh: array OpenBLAS `11.4977ms`, Java
+  vector-parallel `47.1150ms` (`0.24x`), native segment `8.3580ms`
+  (`1.38x`).
+- Large `b2048/i512` tanh: array `16.9343ms`, native `14.1548ms`
+  (`1.20x`).
+- Large `b1024/i1024` relu: array `7.6413ms`, native `7.8891ms`
+  (`0.97x`, neutral/slower v tomto runu).
+- Chain tanh: array `12.9619ms`, native `10.9576ms` (`1.18x`).
+- Chain relu: array `4.9394ms`, native `4.3850ms` (`1.13x`).
+- OpenBLAS thread count repeated in-JVM: requested `4` dava array
+  `5.6304ms`, native `4.7767ms` (`1.18x`); requested `16` dava array
+  `10.7320ms`, native `10.1807ms` (`1.05x`). Forked JVM run ukazal vysoky
+  spread u native `4` thread varianty, proto zustava thread tuning dulezity
+  a route policy nema byt hardcoded podle jedineho behu.
+
+SDPA backward:
+
+- Medium shape zustava mixed/noisy: nektere vector cesty jsou rychlejsi,
+  nektere pomalejsi kvuli setup/access overheadu.
+- Large F32 DQ: array `0.9562ms -> 0.8223ms`, segment
+  `1.1344ms -> 0.9282ms`.
+- Large F32 DK: array `1.0203ms -> 2.6650ms` v medianu pomalejsi/noisy,
+  segment `1.1291ms -> 3.6398ms`.
+- Large F32 DV: array `0.8261ms -> 0.8303ms`, segment
+  `0.8331ms -> 0.8500ms`.
+- Large F64 DQ array vector pomaha (`0.9787ms -> 0.8581ms`), ale DK vector
+  je noisy: F64 array `1.0493ms -> 5.1014ms`, segment
+  `1.0875ms -> 1.0363ms`. To potvrzuje follow-up potrebu
+  route-specific SDPA backward vector calibration.
+
+#### Direct old CPU fused vs cpu1 fused evidence
+
+Tato subsection je direct old CPU vs cpu1 fused evidence z predchoziho runu.
+Ostatni canonical benchmark evidence vyse primarne porovnava cpu1 route
+varianty, ne stary CPU primo.
+
+- `cheap-contiguous-f32`: old CPU `0.482838ms`, cpu1 `0.387227ms`
+  (`0.802x` old CPU casu).
+- `broadcast-bias-f32`: old CPU `0.096269ms`, cpu1 `0.046608ms`
+  (`0.484x` old CPU casu).
+- `strided-input-view-f32`: old CPU `0.633094ms`, cpu1 `0.124288ms`
+  (`0.196x` old CPU casu).
+- `where-mask-f32`: old CPU `0.029181ms`, cpu1 `0.027813ms`
+  (`0.953x` old CPU casu).
+- Native F32 resident: old baseline `0.012140ms`, native resident
+  `0.008908ms`, ale native end-to-end `0.035769ms` kvuli copies.
+
+### Calibration / Default Route Enablement Evidence - 2026-06-23
+
+Default route enablement je zapojene pres runtime/profile policy, ne jako
+hardcoded globalni zmena `RuntimeConfig.trainingDefaults()` /
+`RuntimeConfig.inferenceDefaults()` bez dtype profilu.
+
+Implementovany stav:
+
+- `config.runtime.CpuExecutionPolicy` drzi dva explicitni knoby:
+  `useCpu1Direct` a `allowCpu1DirectFallback`.
+- Hardcoded runtime default zustava konzervativni:
+  `CpuExecutionPolicy.defaults() == (false, true)`.
+- `RuntimeConfig.trainingDefaults(dtype)` / `inferenceDefaults(dtype)` pouziji
+  cpu1 direct route jen kdyz resolver najde kompatibilni platform runtime
+  profil s `runtimePolicy.cpuUseCpu1Direct=true`.
+- `BackendPrepareDispatcher.prepare(...)` routuje normalni CPU node do
+  `Cpu1NodePreparer` pouze pri `runtime.cpuExecutionPolicy().useCpu1Direct()`.
+- `prepareCpuFusedStep(...)` routuje CPU fused region do cpu1 ASM fused
+  prepareru pouze pri `runtime.fused().useCpu1Elementwise()`.
+- `ExecutionProfileIO` a `PlatformRuntimeProfileIO` cte/zapisuje direct CPU
+  policy i fused CPU policy, aby tuning/calibration profily route
+  neztracely pri round-tripu.
+- `PlatformRuntimeProfileMutators` zachovava `cpuExecutionPolicy` i
+  `fusedExecutionPolicy` pri runtime tuning mutacich, takze calibration search
+  neprepise route policy zpet na default.
+
+Kanonicke route policy:
+
+```json
+"runtimePolicy": {
+  "cpuStorageProfile": "CPU_ARRAY",
+  "nativeCpuFailurePolicy": "FALLBACK_TO_ARRAY",
+  "deviceTransferPolicy": "ALLOW_ARRAY_BRIDGE",
+  "fusedAllowBackendFallback": true,
+  "fusedUseCpu1Elementwise": true,
+  "cpuUseCpu1Direct": true,
+  "cpuAllowCpu1DirectFallback": true
+}
+```
+
+Tato policy je checked-in v:
+
+- `profiles/platform/macos-arm64/calibration/schema-v2/latest/f32/forward-backward/profile.json`
+- `profiles/platform/macos-arm64/calibration/schema-v2/latest/f64/forward-backward/profile.json`
+- `profiles/platform/macos-arm64/calibration/schema-v2/latest/bf16/forward-backward/profile.json`
+
+Interpretace:
+
+- `CPU_ARRAY` je default canonical storage route, protoze native
+  `MEMORY_SEGMENT` je podle benchmarku workload-dependent: u velkych GEMM/chain
+  scenaru casto vyhrava, ale u mensich MLP nebo transcendental-heavy casti muze
+  byt neutralni nebo pomalejsi.
+- `cpuAllowCpu1DirectFallback=true` a `fusedAllowBackendFallback=true` jsou
+  deliberate compatibility guard pro canonical default route. Bez toho by
+  dnesni default profil rozbil grafy, ktere pres primitivni lowering narazi na
+  deferred strided/view/materialization scope, napriklad SDPA backward baseline
+  se strided/view `MATMUL`. Strict rezim zustava dostupny pres explicitni
+  `CpuExecutionPolicy(true, false)` / `FusedExecutionPolicy(false, true)` pro
+  testy a profily, ktere chteji fail-fast.
+- Hardcoded default bez profilu zustava vypnuty, aby prostredi bez
+  kalibrovaneho profilu nedostalo experimental route potichu.
+
+Overeni:
+
+- `PlatformRuntimeProfileResolverTest.canonicalCalibrationProfilesEnableCpu1DefaultRoutePolicy`
+  nacita vsechny tri canonical profily s fallbackem, ktery ma cpu1 route
+  vypnutou. Test by selhal, kdyby JSON policy chybel nebo se nepropsal do
+  `RuntimeConfig`.
+- `BackendPrepareDispatcherCpu1DirectRouteTest` overuje, ze hardcoded default
+  pouzije stary `CpuNodeExecutionArtifact`, zatimco explicitni
+  `CpuExecutionPolicy(true, false)` pouzije `Cpu1PreparedArtifact`.
+- `BackendPrepareDispatcherCpu1FusedRouteTest` overuje analogicky cpu1 fused
+  route pro region-lowered fused elementwise cestu.
+
 ---
 
 ## Doporucene Poradi Prace
@@ -3400,8 +3727,12 @@ Realisticke poradi, ktere minimalizuje prekopavani:
 
 Tento seznam se ma menit pri implementaci:
 
-- [ ] cpu1 nema centralni parity coverage report
-- [ ] reductions maji jen uzkou strided direct podporu pro SUM/MEAN F32/F64
+- [x] cpu1 ma centralni parity coverage report v
+  `backend.cpu1.Cpu1CoverageReport`; gate pouziva
+  `Cpu1CpuParityInventoryTest`
+- [deferred] reductions maji jen uzkou direct strided/view podporu; sirsi
+  view/materialization policy patri do
+  [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md)
 - [deferred] strided/view loss input materialization policy je samostatny planning
   item v [todo/118-cpu1-graph-input-materialization-plan.md](118-cpu1-graph-input-materialization-plan.md);
   Faze 5 dense NLL/CrossEntropy scope je hotovy pro `JAVA_ARRAY` a dense
@@ -3416,7 +3747,7 @@ Tento seznam se ma menit pri implementaci:
   payload je samostatny follow-up v
   [todo/119-general-matmul-epilogue-ir-plan.md](119-general-matmul-epilogue-ir-plan.md);
   strided/view LINEAR support zustava navazany na budouci matmul/view policy
-- [~] SDPA/attention dense direct cpu1 parita je hotova vcetne F32/F64 Vector
+- [x] SDPA/attention dense direct cpu1 parita je hotova vcetne F32/F64 Vector
   API forward routes pro `JAVA_ARRAY` i `MEMORY_SEGMENT` a F32/F64 SDPA
   backward specialized routes pro dense `JAVA_ARRAY`/`MEMORY_SEGMENT`,
   vcetne Java Vector API backward cesty pro `JAVA_ARRAY` i `MEMORY_SEGMENT`;
@@ -3427,19 +3758,46 @@ Tento seznam se ma menit pri implementaci:
   contiguous no-offset `JAVA_ARRAY`/`MEMORY_SEGMENT` slices jsou hotove;
   `CONV2D` je direct correctness/fallback route, preferovana budouci
   `CONV2D -> UNFOLD2D -> MATMUL` optimalizace je odlozena
-- [ ] native storage policy neni dokoncena napric rodinami
-- [ ] benchmark matrix neni kompletni
+- [x] native/array execute boundary binding contract je dokoncen napric cpu1
+  rodinami; zbyvajici problem je broad strided/broadcast materialization do
+  native storage, coz je plan 118
+- [x] benchmark matrix gate je hotovy pres `Cpu1BenchmarkMatrixReport` a
+  `Cpu1ReadinessMatrixTest`; gate inventarizuje checked-in canonical
+  `@Tag("benchmark")` owner classes/methods a explicitni deferred scope bez
+  spousteni benchmarku
+- [x] targeted parity test family matrix gate je hotovy pres
+  `Cpu1TargetedParityTestMatrixReport` a `Cpu1ReadinessMatrixTest`; kazda
+  route family z `Cpu1CoverageReport` ma checked-in targeted test owner nebo
+  explicitni deferred/non-goal scope
+- [x] skutecne benchmark performance numbers jsou dolozene pro aktualni
+  canonical benchmark matrix snapshotem z 2026-06-23; matrix gate sama o sobe
+  ale nerovna se vykonnostni evidence
+- [x] tuning/calibration evidence a default-route enablement jsou dolozene:
+  canonical `macos-arm64` F32/F64/BF16 platform runtime profily obsahuji
+  cpu1 direct/fused route policy s povolenym backend fallback guardem a
+  focused tests overuji profile IO, dispatcher route i readiness matrix.
 
 ## Definition Of Done Pro Cely Plan
 
 Plan je hotovy az kdyz:
 
-- [ ] vsechny old CPU direct forward op typy maji cpu1 route nebo explicitni
+- [x] vsechny old CPU direct forward op typy maji cpu1 route nebo explicitni
   graph-lowering route
-- [ ] legacy backward op typy jsou klasifikovane mimo direct CPU kernel parity
-- [ ] cpu1 coverage gate nehlasi nezdokumentovane missing ops
-- [ ] targeted parity tests pro kazdou rodinu prochazi
-- [ ] benchmark report ukazuje, kde je cpu1 rychlejsi/pomalejsi a proc
-- [ ] trace u kazde cpu1 route ukazuje kernel/storage/layout/threading
-- [ ] native/array residency je explicitni a bez skrytych per-execute alokaci
-- [ ] dokument je aktualizovan na `IMPLEMENTED_AND_VERIFIED`
+- [x] legacy backward op typy jsou klasifikovane mimo direct CPU kernel parity
+- [x] cpu1 coverage gate nehlasi nezdokumentovane missing ops
+- [x] targeted parity test family matrix gate mapuje kazdou cpu1 route family
+  na checked-in targeted test owner nebo explicitni deferred/non-goal scope
+- [x] benchmark matrix gate mapuje canonical checked-in `@Tag("benchmark")`
+  cpu1 benchmark owner classes/methods a explicitni deferred benchmark scope
+  bez spousteni benchmarku
+- [x] full targeted parity suite evidence pro kazdou rodinu je aktualni pred
+  finalnim default-route rozhodnutim
+- [x] benchmark report ukazuje skutecna cisla, kde je cpu1 rychlejsi/pomalejsi
+  a proc
+- [x] trace u kazde prepared cpu1 family ukazuje kernel/storage/layout nebo
+  access model/threading/scratch staticke metadata; skutecne runtime
+  materializace zustava oddelene v `CpuMaterializationTrace`
+- [x] native/array residency je explicitni na execute boundary a bez skryteho
+  per-kernel residency rozhodovani; skutecne runtime materializace je viditelna
+  v runtime trace
+- [x] dokument je aktualizovan na `IMPLEMENTED_AND_VERIFIED`

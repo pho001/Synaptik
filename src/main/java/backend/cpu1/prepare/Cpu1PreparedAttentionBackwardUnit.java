@@ -10,14 +10,14 @@ import backend.cpu1.launch.Cpu1LaunchPolicy;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
 import backend.cpu1.storage.Cpu1StorageAccessPlan;
 import backend.cpu1.storage.Cpu1StorageKind;
-import planning.region.specialization.SdpaBackwardOutputKind;
+import planning.partition.specialization.SdpaBackwardOutputKind;
 import tensor.DataType;
 
 import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Immutable prepare-time contract for one dense cpu1 SDPA backward specialized region.
+ * Immutable prepare-time contract for one dense cpu1 SDPA backward specialized partition.
  */
 public final class Cpu1PreparedAttentionBackwardUnit {
     private final int nodeId;

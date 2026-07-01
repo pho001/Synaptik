@@ -2,7 +2,7 @@
 
 ## Purpose And Current Status
 
-The CUDA backend executes selected accelerator DAG regions through the optional native CUDA graph shim when the local native library, CUDA runtime, graph ABI, and buffer ABI are available. It is not a public eager GPU tensor API.
+The CUDA backend executes selected accelerator DAG partitions through the optional native CUDA graph shim when the local native library, CUDA runtime, graph ABI, and buffer ABI are available. It is not a public eager GPU tensor API.
 
 CUDA parity means matching the Metal support-or-rejection evidence standard, not copying Metal support rows.
 
@@ -122,7 +122,7 @@ CUDA fallback interpretation starts with:
 
 Native buffer execution is separate from tensor-array bridge execution. Tensor-array execution and CPU fallback must remain visible in traces and benchmark reports. The generic `fallback*` fields are the first place to look when a step fell back because they normalize shared accelerator-buffer, CUDA execution-path, and CUDA CPU-fallback evidence into one reason summary. The CUDA-specific fields remain available when you need to know which part of the CUDA bridge produced the fallback.
 
-Phase 46 adds `CrossBackendRouterEvidence` to keep CUDA route decisions auditable next to Metal. The evidence model records common transport path counts, `cudaExecutionPath`, `cudaFallbackReason`, selected region length, lowered primitive count, dtype/layout residency evidence, and CPU exits. Representative gates can require an explicit `CAPABILITY_MISSING` reason for unsupported CUDA rows, but a capability skip still cannot count as native support. If a CUDA report contains capability-missing evidence while also claiming a native support route for the same gated workload, the router gate reports an unsupported route overclaim.
+Phase 46 adds `CrossBackendRouterEvidence` to keep CUDA route decisions auditable next to Metal. The evidence model records common transport path counts, `cudaExecutionPath`, `cudaFallbackReason`, selected partition length, lowered primitive count, dtype/layout residency evidence, and CPU exits. Representative gates can require an explicit `CAPABILITY_MISSING` reason for unsupported CUDA rows, but a capability skip still cannot count as native support. If a CUDA report contains capability-missing evidence while also claiming a native support route for the same gated workload, the router gate reports an unsupported route overclaim.
 
 ## Verification Commands
 
@@ -131,7 +131,7 @@ Portable CUDA parity baseline checks:
 ```bash
 ./gradlew test --tests backend.accelerator.lowering.GpuBackendParityReportTest
 ./gradlew test --tests backend.cuda.bridge.CudaCapabilityReportTest --tests backend.cuda.bridge.CudaFfmBridgeTest
-./gradlew test --tests backend.cuda.CudaDTypeRolePolicyTest --tests backend.cuda.buffer.CudaDeviceLayoutMaterializerTest --tests backend.cuda.lowering.CudaRegionLowererTest
+./gradlew test --tests backend.cuda.CudaDTypeRolePolicyTest --tests backend.cuda.buffer.CudaDeviceLayoutMaterializerTest --tests backend.cuda.lowering.CudaPartitionLowererTest
 ./gradlew test --tests GpuCoverageTriageReportTest --tests GpuHotPathCoverageTargetsTest
 ./gradlew test --tests CrossBackendRouterEvidenceTest
 ./gradlew classes

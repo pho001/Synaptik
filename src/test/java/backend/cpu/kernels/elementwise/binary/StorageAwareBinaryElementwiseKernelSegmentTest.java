@@ -2,7 +2,7 @@ package backend.cpu.kernels.elementwise.binary;
 
 import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
-import config.compile.RegionOptimizationConfig;
+import config.compile.PartitionExecutionConfig;
 import config.compile.SemanticCanonicalizationConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.NativeCpuFailurePolicy;
@@ -131,7 +131,7 @@ class StorageAwareBinaryElementwiseKernelSegmentTest {
     private static CompileConfig compileConfig() {
         return CompileConfig.noGraphOptimizationBaseline()
                 .withSemanticCanonicalization(SemanticCanonicalizationConfig.disabled())
-                .withRegionOptimization(RegionOptimizationConfig.disabled());
+                .withPartitionExecution(PartitionExecutionConfig.disabled());
     }
 
     private static RuntimeConfig nativeRuntime() {

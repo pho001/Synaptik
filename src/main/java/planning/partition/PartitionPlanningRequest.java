@@ -2,7 +2,7 @@ package planning.partition;
 
 import planning.value.GraphValueRef;
 
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import graph.model.CompiledNode;
 import planning.partition.cost.AcceleratorPartitionScoreModel;
 
@@ -19,9 +19,9 @@ import java.util.Set;
  * @param policy scoring and search policy
  * @param capability backend partition capability
  * @param sourcePolicy backend-intent eligibility for candidate source nodes
- * @param requiredMaterializedValueRefs values that must remain materialized across region boundaries
- * @param cpuRegionConfig CPU region policy when {@link #strategy()} is
- *                        {@link PartitionPlannerStrategy#CPU_NATURAL_EXECUTION_REGION}
+ * @param requiredMaterializedValueRefs values that must remain materialized across partition boundaries
+ * @param cpuPartitionConfig CPU partition policy when {@link #strategy()} is
+ *                        {@link PartitionPlannerStrategy#CPU_NATURAL_EXECUTION_PARTITION}
  * @param costPreset static materialization cost preset for scored planning
  */
 public record PartitionPlanningRequest(
@@ -32,7 +32,7 @@ public record PartitionPlanningRequest(
         BackendPartitionCapability capability,
         PartitionSourcePolicy sourcePolicy,
         Set<GraphValueRef> requiredMaterializedValueRefs,
-        CpuRegionConfig cpuRegionConfig,
+        CpuPartitionConfig cpuPartitionConfig,
         AcceleratorPartitionScoreModel.StaticCostPreset costPreset
 ) {
     public PartitionPlanningRequest(
@@ -51,7 +51,7 @@ public record PartitionPlanningRequest(
                 capability,
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                 requiredMaterializedValueRefs,
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
@@ -64,7 +64,7 @@ public record PartitionPlanningRequest(
             BackendPartitionCapability capability,
             PartitionSourcePolicy sourcePolicy,
             Set<GraphValueRef> requiredMaterializedValueRefs,
-            CpuRegionConfig cpuRegionConfig
+            CpuPartitionConfig cpuPartitionConfig
     ) {
         this(
                 strategy,
@@ -74,7 +74,7 @@ public record PartitionPlanningRequest(
                 capability,
                 sourcePolicy,
                 requiredMaterializedValueRefs,
-                cpuRegionConfig,
+                cpuPartitionConfig,
                 AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
@@ -86,7 +86,7 @@ public record PartitionPlanningRequest(
             AcceleratorPartitionScoreModel.PlannerPolicy policy,
             BackendPartitionCapability capability,
             Set<GraphValueRef> requiredMaterializedValueRefs,
-            CpuRegionConfig cpuRegionConfig
+            CpuPartitionConfig cpuPartitionConfig
     ) {
         this(
                 strategy,
@@ -96,20 +96,20 @@ public record PartitionPlanningRequest(
                 capability,
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
                 requiredMaterializedValueRefs,
-                cpuRegionConfig,
+                cpuPartitionConfig,
                 AcceleratorPartitionScoreModel.StaticCostPreset.conservative()
         );
     }
 
     public PartitionPlanningRequest {
-        strategy = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : strategy;
+        strategy = strategy == null ? PartitionPlannerStrategy.GREEDY_MAX_PARTITION : strategy;
         target = target == null ? PartitionTarget.NONE : target;
         context = Objects.requireNonNull(context, "context cannot be null");
         policy = policy == null ? AcceleratorPartitionScoreModel.PlannerPolicy.defaults() : policy;
         capability = Objects.requireNonNull(capability, "capability cannot be null");
         sourcePolicy = sourcePolicy == null ? PartitionSourcePolicy.TARGET_BACKEND_ONLY : sourcePolicy;
         requiredMaterializedValueRefs = Set.copyOf(requiredMaterializedValueRefs == null ? Set.of() : new LinkedHashSet<>(requiredMaterializedValueRefs));
-        cpuRegionConfig = cpuRegionConfig == null ? CpuRegionConfig.defaults() : cpuRegionConfig;
+        cpuPartitionConfig = cpuPartitionConfig == null ? CpuPartitionConfig.defaults() : cpuPartitionConfig;
         costPreset = costPreset == null ? AcceleratorPartitionScoreModel.StaticCostPreset.conservative() : costPreset;
     }
 

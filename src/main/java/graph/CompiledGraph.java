@@ -72,7 +72,7 @@ public final class CompiledGraph {
      * {@link CompileMode#AUTO}.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, partition, and memory planning configuration
      * @param compileMode requested forward/backward compilation mode, or {@code null} for automatic mode
      * @return compiled graph facade ready for preparation or direct execution
      * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
@@ -85,7 +85,7 @@ public final class CompiledGraph {
      * Compiles {@code rootTensor} using a compile configuration and explicit backend intent plan.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, partition, and memory planning configuration
      * @param backendIntentPlan compile-local backend intent plan, or {@code null} for CPU-default
      * @return compiled graph facade ready for preparation or direct execution
      * @throws IllegalArgumentException if {@code rootTensor} or {@code compileConfig} is {@code null}
@@ -102,7 +102,7 @@ public final class CompiledGraph {
      * Compiles {@code rootTensor} using a compile configuration and explicit backend intent plan.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, partition, and memory planning configuration
      * @param compileMode requested forward/backward compilation mode, or {@code null} for automatic mode
      * @param backendIntentPlan compile-local backend intent plan, or {@code null} for CPU-default
      * @return compiled graph facade ready for preparation or direct execution
@@ -136,7 +136,7 @@ public final class CompiledGraph {
      * Compiles {@code rootTensor} using a compile configuration and automatic compile mode.
      *
      * @param rootTensor output tensor that anchors the graph to compile
-     * @param compileConfig compile-time semantic, graph, backend, region, and memory planning configuration
+     * @param compileConfig compile-time semantic, graph, backend, partition, and memory planning configuration
      * @return compiled graph facade ready for preparation or direct execution
      * @throws IllegalArgumentException if either argument is {@code null}
      */

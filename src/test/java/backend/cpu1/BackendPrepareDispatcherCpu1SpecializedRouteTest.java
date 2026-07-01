@@ -5,10 +5,10 @@ import backend.cpu1.provider.matmul.Cpu1MatmulRoute;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.lowering.LoweredExecutionUnit;
 import backend.lowering.LoweringFamily;
-import backend.lowering.region.CpuSpecializedPrimitivePayload;
-import backend.lowering.region.RegionCost;
-import backend.lowering.region.RegionDecision;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.CpuSpecializedPrimitivePayload;
+import backend.lowering.partition.PartitionCost;
+import backend.lowering.partition.PartitionDecision;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import prepare.context.BackendPrepareContext;
 import prepare.orchestration.BackendPrepareDispatcher;
 import config.runtime.CpuStorageProfile;
@@ -19,8 +19,8 @@ import planning.descriptor.CompiledTensorDescriptorBuilder;
 import planning.descriptor.CompiledTensorDescriptorIndex;
 import planning.intent.BackendIntentPlan;
 import planning.partition.PartitionTarget;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
 import planning.value.GraphValueRef;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
@@ -67,7 +67,7 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
                 nodes,
                 List.of(matmulNodeId, reluNodeId),
                 reluNodeId,
-                RegionSpecializationKind.MATMUL_RELU
+                PartitionSpecializationKind.MATMUL_RELU
         );
     }
 
@@ -84,7 +84,7 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
                 nodes,
                 List.of(matmulNodeId, addNodeId),
                 addNodeId,
-                RegionSpecializationKind.MATMUL_ADD_BIAS
+                PartitionSpecializationKind.MATMUL_ADD_BIAS
         );
     }
 
@@ -92,11 +92,11 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
             List<CompiledNode> nodes,
             List<Integer> orderedNodeIds,
             int outputNodeId,
-            RegionSpecializationKind kind
+            PartitionSpecializationKind kind
     ) {
         CompiledTensorDescriptorIndex descriptorIndex = CompiledTensorDescriptorBuilder.build(nodes);
         List<Integer> inputNodeIds = externalInputNodeIds(nodes, orderedNodeIds);
-        RegionSpecializationCandidate candidate = new RegionSpecializationCandidate(
+        PartitionSpecializationCandidate candidate = new PartitionSpecializationCandidate(
                 kind,
                 orderedNodeIds,
                 inputNodeIds.stream().map(GraphValueRef::node).toList(),
@@ -104,9 +104,8 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
                 outputNodeId,
                 kind.name()
         );
-        RegionExecutionPlan plan = new RegionExecutionPlan(
+        BackendPartitionExecutionPlan plan = new BackendPartitionExecutionPlan(
                 "cpu1-specialized-" + kind.name(),
-                PartitionTarget.CPU,
                 LoweringFamily.DIRECT_KERNEL,
                 outputNodeId,
                 orderedNodeIds,
@@ -114,8 +113,8 @@ class BackendPrepareDispatcherCpu1SpecializedRouteTest {
                 List.of(outputNodeId),
                 List.of(),
                 List.of(),
-                RegionCost.ofWork(0L),
-                RegionDecision.selected("cpu1", kind.name()),
+                PartitionCost.ofWork(0L),
+                PartitionDecision.selected("cpu1", kind.name()),
                 new CpuSpecializedPrimitivePayload(candidate)
         );
         LoweredExecutionUnit loweredUnit = new LoweredExecutionUnit(

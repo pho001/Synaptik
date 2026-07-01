@@ -100,13 +100,13 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
-    void phaseTwentyFailsWhenMultiOpRegionCoverageIsLost() {
+    void phaseTwentyFailsWhenMultiOpPartitionCoverageIsLost() {
         var summary = summary("GPU_METAL", coverage(0.75d, 3, 0, 0, 0, 1, 1, 0, 3, 1, 0));
         var policy = GpuCoverageGatePolicy.hotPathTarget("GPU_METAL", 0.5d, 3, 1, 3, 1);
 
         var result = GpuCoverageRegressionGate.evaluate(summary, policy);
 
-        assertTrue(result.failures().contains("lost multi-op GPU region coverage"));
+        assertTrue(result.failures().contains("lost multi-op GPU partition coverage"));
     }
 
     @Test
@@ -139,7 +139,7 @@ public class GpuCoverageRegressionGateTest {
         assertEquals(List.of(
                 "lost GPU coverage",
                 "lost GPU coverage",
-                "lost multi-op GPU region coverage",
+                "lost multi-op GPU partition coverage",
                 "lost lowered primitive coverage",
                 "lost fused subpattern coverage",
                 "unexpected CPU materialization",
@@ -210,7 +210,7 @@ public class GpuCoverageRegressionGateTest {
     }
 
     @Test
-    void phaseTwentyEightSupportedTargetPoliciesRejectLostPrimitiveOrRegionEvidence() {
+    void phaseTwentyEightSupportedTargetPoliciesRejectLostPrimitiveOrPartitionEvidence() {
         GpuCoverageHotPathExpectation reduction = GpuHotPathCoverageTargets.defaultExpectations()
                 .stream()
                 .filter(item -> item.workloadName().equals("reduction_chain_small"))
@@ -609,16 +609,16 @@ public class GpuCoverageRegressionGateTest {
 
     private static trace.ExecutionTrace traceWithCoverage(GpuCoverageSummary.BackendCoverage coverage) {
         tensor.DataType evidenceDType = evidenceDType(coverage);
-        var manifest = new backend.accelerator.lowering.GpuLoweredRegionManifest(
-                "dtype-region",
+        var manifest = new backend.accelerator.lowering.GpuLoweredPartitionManifest(
+                "dtype-partition",
                 backend.contract.ComputeBackend.GPU_METAL,
                 1,
-                java.util.stream.IntStream.range(0, Math.max(1, coverage.maxSelectedRegionLength()))
+                java.util.stream.IntStream.range(0, Math.max(1, coverage.maxSelectedPartitionLength()))
                         .boxed()
                         .toList(),
                 List.of(1),
                 List.of(2),
-                Math.max(1, coverage.maxSelectedRegionLength()),
+                Math.max(1, coverage.maxSelectedPartitionLength()),
                 List.of(),
                 java.util.stream.IntStream.range(0, coverage.loweredPrimitiveCount())
                         .mapToObj(index -> new backend.accelerator.lowering.GpuLoweredPrimitiveManifest(
@@ -635,8 +635,8 @@ public class GpuCoverageRegressionGateTest {
                 List.of(),
                 List.of(),
                 coverage.gpuFusedSubpatternCount() == 0
-                        ? backend.accelerator.lowering.GpuCompoundRegionSummary.none(backend.contract.ComputeBackend.GPU_METAL, List.of(1))
-                        : backend.accelerator.lowering.GpuCompoundRegionSummary.supported(
+                        ? backend.accelerator.lowering.GpuCompoundPartitionSummary.none(backend.contract.ComputeBackend.GPU_METAL, List.of(1))
+                        : backend.accelerator.lowering.GpuCompoundPartitionSummary.supported(
                                 backend.contract.ComputeBackend.GPU_METAL,
                                 backend.accelerator.lowering.GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                                 List.of(1, 2),
@@ -647,7 +647,7 @@ public class GpuCoverageRegressionGateTest {
                                 "bf16 synthetic fused subpattern"
                         ),
                 List.of(),
-                backend.accelerator.lowering.GpuLoweredRegionCandidateSpan.none(List.of(1)),
+                backend.accelerator.lowering.GpuLoweredPartitionCandidateSpan.none(List.of(1)),
                 coverage.dtypeResidencyReasons().isEmpty()
                         ? Map.of()
                         : Map.of("dtypeResidency.compute.1", "backend=GPU_METAL role=compute dtype=" + evidenceDType + " supported")
@@ -771,7 +771,7 @@ public class GpuCoverageRegressionGateTest {
 
     private static GpuCoverageSummary.BackendCoverage coverage(
             double ratio,
-            int maxSelectedRegionLength,
+            int maxSelectedPartitionLength,
             int cpuMaterializationCount,
             int tensorArrayStepCount,
             int fallbackCount,
@@ -780,14 +780,14 @@ public class GpuCoverageRegressionGateTest {
     ) {
         return coverage(
                 ratio,
-                maxSelectedRegionLength,
+                maxSelectedPartitionLength,
                 cpuMaterializationCount,
                 tensorArrayStepCount,
                 fallbackCount,
                 deviceHandoffCount,
                 bufferBindingStepCount,
                 1,
-                maxSelectedRegionLength,
+                maxSelectedPartitionLength,
                 0,
                 0
         );
@@ -795,13 +795,13 @@ public class GpuCoverageRegressionGateTest {
 
     private static GpuCoverageSummary.BackendCoverage coverage(
             double ratio,
-            int maxSelectedRegionLength,
+            int maxSelectedPartitionLength,
             int cpuMaterializationCount,
             int tensorArrayStepCount,
             int fallbackCount,
             int deviceHandoffCount,
             int bufferBindingStepCount,
-            int multiOpGpuRegionCount,
+            int multiOpGpuPartitionCount,
             int loweredPrimitiveCount,
             int gpuFusedSubpatternCount,
             int cpuFallbackStepCount
@@ -811,9 +811,9 @@ public class GpuCoverageRegressionGateTest {
                 3,
                 ratio,
                 1,
-                multiOpGpuRegionCount,
-                maxSelectedRegionLength,
-                maxSelectedRegionLength,
+                multiOpGpuPartitionCount,
+                maxSelectedPartitionLength,
+                maxSelectedPartitionLength,
                 loweredPrimitiveCount,
                 0,
                 Map.of(),
@@ -846,8 +846,8 @@ public class GpuCoverageRegressionGateTest {
 
     private static GpuCoverageSummary.BackendCoverage coverageWithDTypeEvidence(
             double ratio,
-            int maxSelectedRegionLength,
-            int multiOpGpuRegionCount,
+            int maxSelectedPartitionLength,
+            int multiOpGpuPartitionCount,
             int loweredPrimitiveCount,
             int gpuFusedSubpatternCount,
             tensor.DataType dataType
@@ -857,9 +857,9 @@ public class GpuCoverageRegressionGateTest {
                 3,
                 ratio,
                 1,
-                multiOpGpuRegionCount,
-                maxSelectedRegionLength,
-                maxSelectedRegionLength,
+                multiOpGpuPartitionCount,
+                maxSelectedPartitionLength,
+                maxSelectedPartitionLength,
                 loweredPrimitiveCount,
                 0,
                 Map.of(),

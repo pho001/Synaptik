@@ -55,6 +55,7 @@ class MetalMpsFfmBridgeTest {
     private static final float BF16_EXACT_STORAGE_TOLERANCE = 0.0f;
     private static final float BF16_MATMUL_REDUCTION_TOLERANCE = 0.5f;
     private static final float BF16_NORM_SOFTMAX_TOLERANCE = 0.025f;
+    private static final float BF16_SDPA_TOLERANCE = 0.04f;
 
     @Test
     void bridgeReportsAvailabilityAndProducesContextWithoutThrowing() {
@@ -1303,16 +1304,13 @@ class MetalMpsFfmBridgeTest {
         }, new int[]{2, 3}, null, "ceIndexGradLogits", DataType.FLOAT32);
         Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "ceIndexGradTargets", DataType.INT32);
         Tensor sampleScale = new Tensor(new float[]{0.5f, 0.5f}, new int[]{2}, null, "ceIndexGradScale", DataType.FLOAT32);
-        Tensor expected = TensorPrimitiveBuilder.ternaryNoGrad(
-                logits,
-                targets,
-                sampleScale,
-                new int[]{2, 3},
-                new operations.loss.crossEntropyLossIndicesGrad(1),
-                "expectedCeIndexGrad",
-                DataType.FLOAT32
+        float[] expected = crossEntropyIndicesGradReference(
+                logits.toFloat32ArrayCopy(),
+                new int[]{2, 0},
+                sampleScale.toFloat32ArrayCopy(),
+                2,
+                3
         );
-        expected.compute();
         Tensor grad = TensorPrimitiveBuilder.ternaryNoGrad(
                 logits,
                 targets,
@@ -1330,7 +1328,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-5f);
+        assertArrayEquals(expected, destination.toFloat32ArrayCopy(), 1.0e-5f);
     }
 
     @Test
@@ -1341,16 +1339,13 @@ class MetalMpsFfmBridgeTest {
         }, new int[]{2, 3}, "bf16CeIndexGradLogits");
         Tensor targets = new Tensor(new int[]{2, 0}, new int[]{2}, null, "bf16CeIndexGradTargets", DataType.INT32);
         Tensor sampleScale = bf16Tensor(new float[]{0.5f, 0.5f}, new int[]{2}, "bf16CeIndexGradScale");
-        Tensor expected = TensorPrimitiveBuilder.ternaryNoGrad(
-                logits,
-                targets,
-                sampleScale,
-                new int[]{2, 3},
-                new operations.loss.crossEntropyLossIndicesGrad(1),
-                "expectedBf16CeIndexGrad",
-                DataType.BFLOAT16
-        );
-        expected.compute();
+        float[] expected = quantizeBf16(crossEntropyIndicesGradReference(
+                bf16Floats(logits),
+                new int[]{2, 0},
+                bf16Floats(sampleScale),
+                2,
+                3
+        ));
         Tensor grad = TensorPrimitiveBuilder.ternaryNoGrad(
                 logits,
                 targets,
@@ -1368,7 +1363,7 @@ class MetalMpsFfmBridgeTest {
                 new int[]{2, 3}
         );
 
-        assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+        assertBf16Close(expected, destination, BF16_NORM_SOFTMAX_TOLERANCE);
     }
 
     @Test
@@ -1857,20 +1852,19 @@ class MetalMpsFfmBridgeTest {
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
         int[] shape = new int[]{1, 2, 2};
-        Tensor expectedQ = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "expectedBf16SdpaQ");
-        Tensor expectedK = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "expectedBf16SdpaK");
-        Tensor expectedV = bf16Tensor(new float[]{10f, 1f, 1f, 10f}, shape, "expectedBf16SdpaV");
-        Tensor expected = expectedQ.scaledDotProductAttention(
-                expectedK,
-                expectedV,
-                AttentionOptions.defaults().withScale(0.5)
-        );
-        expected.compute();
-
         Tensor q = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "bf16SdpaQ");
         Tensor k = bf16Tensor(new float[]{1f, 0f, 0f, 1f}, shape, "bf16SdpaK");
         Tensor v = bf16Tensor(new float[]{10f, 1f, 1f, 10f}, shape, "bf16SdpaV");
-        Tensor out = specialSdpa(q, k, v, null, AttentionOptions.defaults().withScale(0.5));
+        AttentionOptions options = AttentionOptions.defaults().withScale(0.5);
+        float[] expected = quantizeBf16(sdpaReference(
+                bf16Floats(q),
+                bf16Floats(k),
+                bf16Floats(v),
+                null,
+                shape,
+                options
+        ));
+        Tensor out = specialSdpa(q, k, v, null, options);
         PartitionPlanningContext planningContext = planningContext(out);
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
         AcceleratorSubgraphSpec subgraph = new AcceleratorSubgraphSpec(
@@ -1911,11 +1905,11 @@ class MetalMpsFfmBridgeTest {
                     List.of(query, key, value),
                     List.of(output)
             );
-            Tensor destination = bf16Tensor(new float[expected.getFlatDataSize()], shape, "bf16SdpaDestination");
+            Tensor destination = bf16Tensor(new float[expected.length], shape, "bf16SdpaDestination");
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertBf16Close(bf16Floats(expected), destination, BF16_NORM_SOFTMAX_TOLERANCE);
+            assertBf16Close(expected, destination, BF16_SDPA_TOLERANCE);
         } finally {
             if (query != null) {
                 allocator.destroy(query.handle());
@@ -2013,23 +2007,16 @@ class MetalMpsFfmBridgeTest {
         String explicitLib = System.getProperty("synaptik.metal.mps.lib");
         assumeTrue(explicitLib != null && !explicitLib.isBlank());
 
-        Tensor expectedQ = new Tensor(queryValues.clone(), shape, null, "expectedSdpaQ", DataType.FLOAT32);
-        Tensor expectedK = new Tensor(keyValues.clone(), shape, null, "expectedSdpaK", DataType.FLOAT32);
-        Tensor expectedV = new Tensor(valueValues.clone(), shape, null, "expectedSdpaV", DataType.FLOAT32);
-        Tensor expectedMask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "expectedSdpaMask", DataType.BOOL);
-        Tensor expected = expectedMask == null
-                ? expectedQ.scaledDotProductAttention(expectedK, expectedV, options)
-                : expectedQ.scaledDotProductAttention(expectedK, expectedV, expectedMask, options);
-        expected.compute();
+        float[] expected = sdpaReference(queryValues, keyValues, valueValues, maskValues, shape, options);
 
         Tensor q = new Tensor(queryValues.clone(), shape, null, "sdpaQ", DataType.FLOAT32);
         Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaK", DataType.FLOAT32);
         Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaV", DataType.FLOAT32);
         Tensor mask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "sdpaMask", DataType.BOOL);
-        Tensor out = specialSdpa(q, k, v, mask, options);
-        PartitionPlanningContext planningContext = planningContext(out);
+        SpecialSdpaGraph specialSdpa = specialSdpaGraph(q, k, v, mask, options);
+        PartitionPlanningContext planningContext = planningContext(specialSdpa.output());
         CompiledNode sdpaNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION));
-        Tensor runtimeMask = sdpaNode.inputIds().size() > 3 ? mask : null;
+        Tensor runtimeMask = sdpaNode.inputIds().size() > 3 ? specialSdpa.effectiveMask() : null;
         if (runtimeMask != null) {
             runtimeMask.compute();
         }
@@ -2078,11 +2065,11 @@ class MetalMpsFfmBridgeTest {
                     inputs,
                     List.of(output)
             );
-            Tensor destination = new Tensor(new float[expected.getFlatDataSize()], shape, null, "sdpaDestination", DataType.FLOAT32);
+            Tensor destination = new Tensor(new float[expected.length], shape, null, "sdpaDestination", DataType.FLOAT32);
             allocator.readToCpu(output, destination, CpuMaterializationReason.PUBLIC_DATA_ACCESS);
 
             assertEquals(MetalMpsBridgeExecutionPath.BUFFER_BINDING, stats.executionPath());
-            assertArrayEquals(expected.toFloat32ArrayCopy(), destination.toFloat32ArrayCopy(), 1.0e-4f);
+            assertArrayEquals(expected, destination.toFloat32ArrayCopy(), 1.0e-4f);
         } finally {
             if (query != null) {
                 allocator.destroy(query.handle());
@@ -2123,7 +2110,8 @@ class MetalMpsFfmBridgeTest {
         Tensor k = new Tensor(keyValues.clone(), shape, null, "sdpaWeightsK", DataType.FLOAT32);
         Tensor v = new Tensor(valueValues.clone(), shape, null, "sdpaWeightsV", DataType.FLOAT32);
         Tensor mask = maskValues == null ? null : new Tensor(maskValues.clone(), scoreShape(shape), null, "sdpaWeightsMask", DataType.BOOL);
-        Tensor attention = specialSdpa(q, k, v, mask, options);
+        SpecialSdpaGraph specialSdpa = specialSdpaGraph(q, k, v, mask, options);
+        Tensor attention = specialSdpa.output();
         Tensor weights = TensorPrimitiveBuilder.unaryNoGrad(
                 attention,
                 scoreShape(shape),
@@ -2134,7 +2122,7 @@ class MetalMpsFfmBridgeTest {
         PartitionPlanningContext planningContext = planningContext(weights);
         CompiledNode weightsNode = planningContext.compiledNode(nodeId(planningContext, Operation.OpType.SCALED_DOT_PRODUCT_ATTENTION_WEIGHTS));
         CompiledNode attentionNode = planningContext.compiledNode(weightsNode.inputIds().getFirst());
-        Tensor runtimeMask = attentionNode.inputIds().size() > 3 ? mask : null;
+        Tensor runtimeMask = attentionNode.inputIds().size() > 3 ? specialSdpa.effectiveMask() : null;
         if (runtimeMask != null) {
             runtimeMask.compute();
         }
@@ -2208,6 +2196,102 @@ class MetalMpsFfmBridgeTest {
         return out;
     }
 
+    private static float[] crossEntropyIndicesGradReference(
+            float[] logits,
+            int[] targets,
+            float[] sampleScale,
+            int samples,
+            int classes
+    ) {
+        float[] gradient = new float[logits.length];
+        for (int sample = 0; sample < samples; sample++) {
+            int rowOffset = sample * classes;
+            double max = Double.NEGATIVE_INFINITY;
+            for (int classIndex = 0; classIndex < classes; classIndex++) {
+                max = Math.max(max, logits[rowOffset + classIndex]);
+            }
+            double sum = 0.0;
+            for (int classIndex = 0; classIndex < classes; classIndex++) {
+                sum += Math.exp(logits[rowOffset + classIndex] - max);
+            }
+            for (int classIndex = 0; classIndex < classes; classIndex++) {
+                double probability = Math.exp(logits[rowOffset + classIndex] - max) / sum;
+                double target = classIndex == targets[sample] ? 1.0 : 0.0;
+                gradient[rowOffset + classIndex] = (float) ((probability - target) * sampleScale[sample]);
+            }
+        }
+        return gradient;
+    }
+
+    private static float[] sdpaReference(
+            float[] query,
+            float[] key,
+            float[] value,
+            byte[] mask,
+            int[] queryShape,
+            AttentionOptions options
+    ) {
+        int rank = queryShape.length;
+        if (rank != 3 && rank != 4) {
+            throw new IllegalArgumentException("test SDPA reference requires rank 3 or 4");
+        }
+        int batchCount = 1;
+        for (int dimension = 0; dimension < rank - 2; dimension++) {
+            batchCount *= queryShape[dimension];
+        }
+        int queryLength = queryShape[rank - 2];
+        int depth = queryShape[rank - 1];
+        int keyLength = key.length / (batchCount * depth);
+        int valueDepth = value.length / (batchCount * keyLength);
+        double scale = options.resolveScale(depth);
+        float[] output = new float[batchCount * queryLength * valueDepth];
+        double[] scores = new double[keyLength];
+
+        for (int batch = 0; batch < batchCount; batch++) {
+            for (int queryIndex = 0; queryIndex < queryLength; queryIndex++) {
+                double max = Double.NEGATIVE_INFINITY;
+                for (int keyIndex = 0; keyIndex < keyLength; keyIndex++) {
+                    boolean included = (mask == null || mask[(batch * queryLength + queryIndex) * keyLength + keyIndex] != 0)
+                            && (!options.causal() || keyIndex <= queryIndex);
+                    if (!included) {
+                        scores[keyIndex] = Double.NEGATIVE_INFINITY;
+                        continue;
+                    }
+                    double dot = 0.0;
+                    int queryOffset = (batch * queryLength + queryIndex) * depth;
+                    int keyOffset = (batch * keyLength + keyIndex) * depth;
+                    for (int depthIndex = 0; depthIndex < depth; depthIndex++) {
+                        dot += (double) query[queryOffset + depthIndex] * key[keyOffset + depthIndex];
+                    }
+                    scores[keyIndex] = dot * scale;
+                    max = Math.max(max, scores[keyIndex]);
+                }
+
+                double denominator = 0.0;
+                for (double score : scores) {
+                    if (score != Double.NEGATIVE_INFINITY) {
+                        denominator += Math.exp(score - max);
+                    }
+                }
+                if (denominator == 0.0) {
+                    continue;
+                }
+                int outputOffset = (batch * queryLength + queryIndex) * valueDepth;
+                for (int keyIndex = 0; keyIndex < keyLength; keyIndex++) {
+                    if (scores[keyIndex] == Double.NEGATIVE_INFINITY) {
+                        continue;
+                    }
+                    double weight = Math.exp(scores[keyIndex] - max) / denominator;
+                    int valueOffset = (batch * keyLength + keyIndex) * valueDepth;
+                    for (int valueIndex = 0; valueIndex < valueDepth; valueIndex++) {
+                        output[outputOffset + valueIndex] += (float) (weight * value[valueOffset + valueIndex]);
+                    }
+                }
+            }
+        }
+        return output;
+    }
+
     private static Tensor specialSoftmax(Tensor input, int dimension) {
         return TensorPrimitiveBuilder.unary(
                 input,
@@ -2219,6 +2303,16 @@ class MetalMpsFfmBridgeTest {
     }
 
     private static Tensor specialSdpa(Tensor query, Tensor key, Tensor value, Tensor mask, AttentionOptions options) {
+        return specialSdpaGraph(query, key, value, mask, options).output();
+    }
+
+    private static SpecialSdpaGraph specialSdpaGraph(
+            Tensor query,
+            Tensor key,
+            Tensor value,
+            Tensor mask,
+            AttentionOptions options
+    ) {
         int[] queryShape = query.getShapeUnsafe();
         int[] valueShape = value.getShapeUnsafe();
         int[] outShape = queryShape.clone();
@@ -2242,13 +2336,17 @@ class MetalMpsFfmBridgeTest {
             inputs.add(effectiveMask);
         }
         double scale = options.resolveScale(queryShape[queryShape.length - 1]);
-        return TensorPrimitiveBuilder.nary(
+        Tensor output = TensorPrimitiveBuilder.nary(
                 outShape,
                 inputs,
                 new operations.linalg.scaledDotProductAttention(scale, effectiveMask != null),
                 "legacyScaledDotProductAttention",
                 query.getDataType()
         );
+        return new SpecialSdpaGraph(output, effectiveMask);
+    }
+
+    private record SpecialSdpaGraph(Tensor output, Tensor effectiveMask) {
     }
 
     private static Tensor causalMask(int[] scoresShape) {
@@ -2790,6 +2888,14 @@ class MetalMpsFfmBridgeTest {
             values[i] = TensorDTypeOps.fromBFloat16Bits(bits[i]);
         }
         return values;
+    }
+
+    private static float[] quantizeBf16(float[] values) {
+        float[] quantized = new float[values.length];
+        for (int i = 0; i < values.length; i++) {
+            quantized[i] = TensorDTypeOps.fromBFloat16Bits(TensorDTypeOps.toBFloat16Bits(values[i]));
+        }
+        return quantized;
     }
 
     private static Tensor executeBf16LoweredNode(

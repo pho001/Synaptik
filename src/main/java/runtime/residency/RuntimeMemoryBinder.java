@@ -1,8 +1,8 @@
 package runtime.residency;
 
 import planning.memory.MemoryPlan;
-import planning.memory.RegionMemoryBinding;
-import planning.memory.RegionMemoryBindingKind;
+import planning.memory.PartitionMemoryBinding;
+import planning.memory.PartitionMemoryBindingKind;
 import planning.value.GraphValueRef;
 import runtime.execution.ExecutionState;
 import runtime.state.RuntimeStorageSlotKey;
@@ -30,14 +30,14 @@ public final class RuntimeMemoryBinder {
             if (node.operation() == null) {
                 continue;
             }
-            if (!memoryPlan.runtimeBindingPolicyOfNodeId(node.id()).regionBindingAllowed()) {
+            if (!memoryPlan.runtimeBindingPolicyOfNodeId(node.id()).partitionBindingAllowed()) {
                 continue;
             }
             Tensor runtimeTensor = executionState.runtimeTensorForNodeId(node.id());
             if (bindAliasView(node, executionState, runtimeTensor)) {
                 continue;
             }
-            tryBindRegionMapped(
+            tryBindPartitionMapped(
                     runtimeTensor,
                     node.id(),
                     memoryPlan,
@@ -61,7 +61,7 @@ public final class RuntimeMemoryBinder {
         return true;
     }
 
-    private static boolean tryBindRegionMapped(
+    private static boolean tryBindPartitionMapped(
             Tensor runtimeTensor,
             int nodeId,
             MemoryPlan memoryPlan,
@@ -71,25 +71,25 @@ public final class RuntimeMemoryBinder {
         if (valueRef == null) {
             return false;
         }
-        RegionMemoryBinding binding = memoryPlan.regionMemoryBindingOf(valueRef);
-        if (binding.kind() == RegionMemoryBindingKind.NONE) {
+        PartitionMemoryBinding binding = memoryPlan.partitionMemoryBindingOf(valueRef);
+        if (binding.kind() == PartitionMemoryBindingKind.NONE) {
             return false;
         }
-        Integer slotId = memoryPlan.regionSlotIdOf(valueRef);
+        Integer slotId = memoryPlan.partitionSlotIdOf(valueRef);
         if (slotId == null) {
             return false;
         }
-        int slotSize = memoryPlan.regionSlotSize(slotId);
+        int slotSize = memoryPlan.partitionSlotSize(slotId);
         if (slotSize != runtimeTensor.getFlatDataSize()) {
             return false;
         }
-        RuntimeStorageSlotKey slotKey = executionState.registerRegionRuntimeStorageSlot(
+        RuntimeStorageSlotKey slotKey = executionState.registerPartitionRuntimeStorageSlot(
                 nodeId,
                 runtimeTensor.getDataType(),
                 slotId,
                 slotSize
         );
-        if (memoryPlan.regionSlotUseCount(slotId) < 2) {
+        if (memoryPlan.partitionSlotUseCount(slotId) < 2) {
             return false;
         }
         executionState.bindJavaStorageSlot(nodeId, slotKey);

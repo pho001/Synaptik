@@ -34,7 +34,7 @@ That split is useful because runtime binding can consume compile-time memory art
 
 ## Step 1: Find The Forward Boundary
 
-The planner needs to distinguish forward and backward lifetime regions.
+The planner needs to distinguish forward and backward lifetime partitions.
 
 Current rule:
 

@@ -7,7 +7,7 @@ import graph.model.CompiledNode;
 import java.util.Set;
 
 /**
- * Null-object partition capability for targets that have no region lowerer.
+ * Null-object partition capability for targets that have no partition lowerer.
  *
  * <p>Every support and lowering check rejects the candidate, allowing planners to run without special casing missing
  * backend support.

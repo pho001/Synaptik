@@ -14,7 +14,8 @@ public final class Cpu1DTypeKernelDispatch {
             throw new IllegalArgumentException("kernelId cannot be null");
         }
         return switch (kernelId) {
-            case CAST_ARRAY_SCALAR, CAST_SEGMENT_SCALAR -> Cpu1CastLoops::cast;
+            case CAST_ARRAY_SCALAR -> Cpu1CastLoops::castArray;
+            case CAST_SEGMENT_SCALAR -> Cpu1CastLoops::castSegment;
         };
     }
 }

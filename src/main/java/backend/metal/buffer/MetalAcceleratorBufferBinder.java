@@ -195,7 +195,7 @@ public final class MetalAcceleratorBufferBinder {
      * Attempts GPU-side dense materialization for non-contiguous external inputs before native buffer execution.
      *
      * <p>MPSGraph buffer execution consumes dense logical tensors. Metadata-only view bindings are safe to propagate
-     * between layout nodes, but a compute region boundary must either receive a dense binding or perform an explicit
+     * between layout nodes, but a compute partition boundary must either receive a dense binding or perform an explicit
      * device-side layout legalization. This method performs that repair without making the Java tensor CPU-current.</p>
      */
     public boolean repairRuntimeInputLayouts(

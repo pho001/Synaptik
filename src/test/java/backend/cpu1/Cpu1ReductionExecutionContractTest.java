@@ -1073,6 +1073,13 @@ class Cpu1ReductionExecutionContractTest {
                 1L,
                 context
         );
+        assertEquals(DataType.FLOAT32.name(), trace.metadata().attributes().get("cpu1DType"));
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY.name(), trace.metadata().attributes().get("cpu1StorageKind"));
+        assertEquals("SCALAR", trace.metadata().attributes().get("cpu1VectorizationKind"));
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name(), trace.metadata().attributes().get("cpu1InputAccessKind"));
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name(), trace.metadata().attributes().get("cpu1OutputAccessKind"));
+        assertEquals(4, trace.metadata().attributes().get("cpu1LaunchWorkers"));
+        assertEquals(0, trace.metadata().attributes().get("cpu1ScratchF32"));
         assertEquals(4, trace.metadata().attributes().get("cpu1ReductionLaunchWorkers"));
         assertEquals(0, trace.metadata().attributes().get("cpu1ReductionLaunchChunkSize"));
         assertEquals(0, trace.metadata().attributes().get("cpu1ReductionScratchF32"));

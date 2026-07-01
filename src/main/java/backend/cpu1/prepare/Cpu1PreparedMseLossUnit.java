@@ -73,7 +73,7 @@ public final class Cpu1PreparedMseLossUnit {
         this.dataType = dataType;
         this.storageKind = storageKind;
         this.kernelId = kernelId;
-        this.kernel = Cpu1MseLossKernelDispatch.kernelFor(kernelId);
+        this.kernel = Cpu1MseLossKernelDispatch.kernelFor(kernelId, storageKind);
         this.reductionOpType = reductionOpType;
         this.elementCount = elementCount;
         this.reductionDivisor = reductionDivisor;

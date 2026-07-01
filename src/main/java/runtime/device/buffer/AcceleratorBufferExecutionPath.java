@@ -15,7 +15,7 @@ public enum AcceleratorBufferExecutionPath {
     TENSOR_ARRAY,
 
     /**
-     * The accelerator executable replays the region on CPU.
+     * The accelerator executable replays the partition on CPU.
      */
     CPU_FALLBACK,
 

@@ -7,16 +7,16 @@ import backend.cpu1.launch.Cpu1LaunchConfig;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.storage.Cpu1StorageKind;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.region.CpuSpecializedPrimitivePayload;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.CpuSpecializedPrimitivePayload;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import prepare.context.BackendPrepareContext;
 import config.backend.CpuKernelConfig;
 import config.runtime.CpuStorageProfile;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
 import planning.value.GraphValueRef;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.InputResidencyRequirement;
@@ -52,8 +52,8 @@ public final class Cpu1MseLossPreparer {
             throw new IllegalArgumentException("context cannot be null");
         }
 
-        RegionExecutionPlan plan = loweredUnit.requireRegionPlan();
-        RegionSpecializationCandidate candidate = requireMseCandidate(plan);
+        BackendPartitionExecutionPlan plan = loweredUnit.requirePartitionPlan();
+        PartitionSpecializationCandidate candidate = requireMseCandidate(plan);
         if (candidate.outputValueRef().nodeId() != outputNode.id()) {
             throw new IllegalStateException("MSE specialization output node mismatch. candidate="
                     + candidate.outputValueRef().nodeId() + ", outputNode=" + outputNode.id());
@@ -97,12 +97,12 @@ public final class Cpu1MseLossPreparer {
         );
     }
 
-    private static RegionSpecializationCandidate requireMseCandidate(RegionExecutionPlan plan) {
+    private static PartitionSpecializationCandidate requireMseCandidate(BackendPartitionExecutionPlan plan) {
         if (!(plan.backendPayload() instanceof CpuSpecializedPrimitivePayload payload)) {
             throw new IllegalStateException("CPU specialized MSE prepare requires CpuSpecializedPrimitivePayload.");
         }
-        RegionSpecializationCandidate candidate = payload.candidate();
-        if (candidate.kind() != RegionSpecializationKind.MSE_LOSS) {
+        PartitionSpecializationCandidate candidate = payload.candidate();
+        if (candidate.kind() != PartitionSpecializationKind.MSE_LOSS) {
             throw new UnsupportedOperationException("cpu1 specialized preparer does not support " + candidate.kind());
         }
         if (candidate.inputValueRefs().size() != 2) {
@@ -113,7 +113,7 @@ public final class Cpu1MseLossPreparer {
     }
 
     private static MseReductionPlan validateStructure(
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context
     ) {
         if (candidate.orderedNodeIds().size() < 3) {

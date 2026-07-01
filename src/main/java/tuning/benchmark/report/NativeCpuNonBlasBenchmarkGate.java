@@ -12,7 +12,7 @@ import java.util.Map;
  *
  * <p>{@code CPU_NATIVE} remains an explicit diagnostic/forced storage mode and may use
  * correctness-first segment scalar kernels. {@code AUTO} must not select those slow native
- * non-BLAS kernels without a future region-level benchmark proof encoded in the planner.</p>
+ * non-BLAS kernels without a future partition-level benchmark proof encoded in the planner.</p>
  */
 public final class NativeCpuNonBlasBenchmarkGate {
     private NativeCpuNonBlasBenchmarkGate() {
@@ -40,27 +40,27 @@ public final class NativeCpuNonBlasBenchmarkGate {
                     continue;
                 }
                 Map<String, Object> attrs = step.metadata().attributes();
-                if (!"SELECTED".equals(String.valueOf(attrs.getOrDefault("nativeCpuRegionDecision", "")))) {
+                if (!"SELECTED".equals(String.valueOf(attrs.getOrDefault("nativeCpuPartitionDecision", "")))) {
                     continue;
                 }
                 int segmentScalarNodes = segmentScalarNodeCount(attrs);
-                boolean measuredWinProof = NativeCpuRegionMeasuredWinEvidence.proven(attrs);
+                boolean measuredWinProof = NativeCpuPartitionMeasuredWinEvidence.proven(attrs);
                 if (segmentScalarNodes > 0 && !measuredWinProof) {
-                    failures.add("AUTO native CPU region selected slow segment scalar kernels for "
+                    failures.add("AUTO native CPU partition selected slow segment scalar kernels for "
                             + candidate.entry().name() + " count=" + segmentScalarNodes
-                            + " kernels=" + evidence(attrs, "nativeCpuRegionSegmentKernelFamilies")
+                            + " kernels=" + evidence(attrs, "nativeCpuPartitionSegmentKernelFamilies")
                             + " layouts=" + evidence(attrs, "nativeCpuLayoutClassCounts")
-                            + " nodes=" + evidence(attrs, "nativeCpuRegionSegmentScalarNodes")
-                            + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
+                            + " nodes=" + evidence(attrs, "nativeCpuPartitionSegmentScalarNodes")
+                            + " measuredWinProof=" + NativeCpuPartitionMeasuredWinEvidence.describe(attrs));
                 }
-                int nonEligibleNodes = regionNonAutoEligibleNodeCount(attrs);
+                int nonEligibleNodes = partitionNonAutoEligibleNodeCount(attrs);
                 if (nonEligibleNodes > 0 && !measuredWinProof) {
-                    failures.add("AUTO native CPU region selected non-auto-eligible nodes for "
+                    failures.add("AUTO native CPU partition selected non-auto-eligible nodes for "
                             + candidate.entry().name() + " count=" + nonEligibleNodes
-                            + " autoEligible=" + evidence(attrs, "nativeCpuRegionAutoEligible")
+                            + " autoEligible=" + evidence(attrs, "nativeCpuPartitionAutoEligible")
                             + " layouts=" + evidence(attrs, "nativeCpuLayoutClassCounts")
-                            + " resultResidencies=" + evidence(attrs, "nativeCpuRegionResultResidencies")
-                            + " measuredWinProof=" + NativeCpuRegionMeasuredWinEvidence.describe(attrs));
+                            + " resultResidencies=" + evidence(attrs, "nativeCpuPartitionResultResidencies")
+                            + " measuredWinProof=" + NativeCpuPartitionMeasuredWinEvidence.describe(attrs));
                 }
             }
         }
@@ -75,11 +75,11 @@ public final class NativeCpuNonBlasBenchmarkGate {
     }
 
     private static int segmentScalarNodeCount(Map<String, Object> attrs) {
-        int explicit = collectionSize(attrs.get("nativeCpuRegionSegmentScalarNodes"));
+        int explicit = collectionSize(attrs.get("nativeCpuPartitionSegmentScalarNodes"));
         if (explicit > 0) {
             return explicit;
         }
-        Object kernels = attrs.get("nativeCpuRegionPhysicalKernels");
+        Object kernels = attrs.get("nativeCpuPartitionPhysicalKernels");
         int count = 0;
         if (kernels instanceof Collection<?> collection) {
             for (Object kernel : collection) {
@@ -94,7 +94,7 @@ public final class NativeCpuNonBlasBenchmarkGate {
         if (count > 0) {
             return count;
         }
-        Object families = attrs.get("nativeCpuRegionSegmentKernelFamilies");
+        Object families = attrs.get("nativeCpuPartitionSegmentKernelFamilies");
         if (families instanceof Collection<?> familyCollection) {
             for (Object family : familyCollection) {
                 String value = String.valueOf(family);
@@ -110,8 +110,8 @@ public final class NativeCpuNonBlasBenchmarkGate {
         return value instanceof Collection<?> collection ? collection.size() : 0;
     }
 
-    private static int regionNonAutoEligibleNodeCount(Map<String, Object> attrs) {
-        Object values = attrs.get("nativeCpuRegionAutoEligible");
+    private static int partitionNonAutoEligibleNodeCount(Map<String, Object> attrs) {
+        Object values = attrs.get("nativeCpuPartitionAutoEligible");
         if (!(values instanceof Collection<?> collection)) {
             return 0;
         }

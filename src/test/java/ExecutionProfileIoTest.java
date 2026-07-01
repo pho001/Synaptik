@@ -18,8 +18,8 @@ import config.compile.GraphOptimizationConfig;
 import config.compile.MemoryPlanningConfig;
 import config.compile.PartitionScoreWeights;
 import config.compile.PartitionSearchConfig;
-import config.compile.RegionOptimizationConfig;
-import config.compile.RegionOwnershipPlannerStrategy;
+import config.compile.PartitionExecutionConfig;
+import config.compile.PartitionOwnershipPlannerStrategy;
 import config.compile.TransferCostPreset;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.CseConfig;
@@ -31,10 +31,10 @@ import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuFusionFanoutPolicy;
 import config.optimizer.CpuFusionLayoutPolicy;
 import config.optimizer.CpuFusionMode;
-import config.optimizer.CpuRegionBoundaryPolicy;
-import config.optimizer.CpuRegionConfig;
-import config.optimizer.CpuRegionFanoutPolicy;
-import config.optimizer.CpuRegionPolicy;
+import config.optimizer.CpuPartitionBoundaryPolicy;
+import config.optimizer.CpuPartitionConfig;
+import config.optimizer.CpuPartitionFanoutPolicy;
+import config.optimizer.CpuPartitionPolicy;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
 import config.optimizer.MemoryConfig;
@@ -50,6 +50,7 @@ import config.runtime.AcceleratorBufferConfig;
 import config.runtime.AcceleratorConfig;
 import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
+import config.runtime.CpuExecutionPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
@@ -109,21 +110,21 @@ public class ExecutionProfileIoTest {
                                 BackendPlanningFailurePolicy.OPTIONAL,
                                 BackendPlanningRequirementScope.ANY_TARGET,
                                 Set.of(BackendTarget.GPU_METAL),
-                                RegionOwnershipPlannerStrategy.SCORED,
+                                PartitionOwnershipPlannerStrategy.SCORED,
                                 new PartitionSearchConfig(
                                 9,
                                 77,
                                         new PartitionScoreWeights(11.0, 22.0, 33.0, 44.0, 55.0, 66.0)
                         ),
-                                new CpuRegionConfig(
-                                CpuRegionPolicy.AGGRESSIVE_CPU_REGIONS,
+                                new CpuPartitionConfig(
+                                CpuPartitionPolicy.AGGRESSIVE_CPU_PARTITIONS,
                                 123,
-                                CpuRegionFanoutPolicy.INCLUDE_AND_SPLIT_EXECUTION_UNITS,
-                                CpuRegionBoundaryPolicy.INCLUDE_SAFE_LAYOUT_PASSTHROUGH
+                                CpuPartitionFanoutPolicy.INCLUDE_AND_SPLIT_EXECUTION_UNITS,
+                                CpuPartitionBoundaryPolicy.INCLUDE_SAFE_LAYOUT_PASSTHROUGH
                         ),
                                 BackendPlanningCostConfig.measuredTransfer()
                         ),
-                        new RegionOptimizationConfig(
+                        new PartitionExecutionConfig(
                                 true,
                                 FuseConfig.inferenceDefaults(),
                                 new CpuFusionConfig(
@@ -196,7 +197,7 @@ public class ExecutionProfileIoTest {
         assertFalse(actual.compile().graphOptimization().cse().strictSafety());
         assertEquals(expected.compile().memoryPlanning(), actual.compile().memoryPlanning());
         assertEquals(expected.compile().backendPlanning(), actual.compile().backendPlanning());
-        assertEquals(expected.compile().regionOptimization(), actual.compile().regionOptimization());
+        assertEquals(expected.compile().partitionExecution(), actual.compile().partitionExecution());
         assertEquals(expected.runtime().kernel().cpu().cheapVectorMinSize(), actual.runtime().kernel().cpu().cheapVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().nativeF32CheapVectorMinSize(), actual.runtime().kernel().cpu().nativeF32CheapVectorMinSize());
         assertEquals(expected.runtime().kernel().cpu().nativeF64CheapVectorMinSize(), actual.runtime().kernel().cpu().nativeF64CheapVectorMinSize());
@@ -250,6 +251,7 @@ public class ExecutionProfileIoTest {
                                 true
                         ))
                         .withBFloat16TrainingPolicy(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER)
+                        .withCpuExecutionPolicy(new CpuExecutionPolicy(true, false))
         );
 
         Path path = Files.createTempFile("execution-profile-cpu-storage-", ".json");
@@ -265,6 +267,7 @@ public class ExecutionProfileIoTest {
         assertEquals(true, actual.runtime().nativeCpuMemory().debugPoisonReleasedBuffers());
         assertEquals(true, actual.runtime().nativeCpuMemory().traceAllocations());
         assertEquals(BFloat16TrainingPolicy.PARAMS_WITH_F32_MASTER, actual.runtime().bfloat16TrainingPolicy());
+        assertEquals(new CpuExecutionPolicy(true, false), actual.runtime().cpuExecutionPolicy());
     }
 
     @Test
@@ -288,6 +291,7 @@ public class ExecutionProfileIoTest {
         assertEquals(DeviceTransferPolicy.ALLOW_ARRAY_BRIDGE, actual.runtime().deviceTransferPolicy());
         assertEquals(NativeMemoryPoolPolicy.DISABLED, actual.runtime().nativeCpuMemory().poolPolicy());
         assertEquals(BFloat16TrainingPolicy.ACTIVATIONS_ONLY, actual.runtime().bfloat16TrainingPolicy());
+        assertEquals(CpuExecutionPolicy.defaults(), actual.runtime().cpuExecutionPolicy());
     }
 
     @Test
@@ -331,6 +335,14 @@ public class ExecutionProfileIoTest {
         String json = ExecutionProfileIO.toJson(defaultProfile());
 
         assertTrue(json.contains("\"fusedUseCpu1Elementwise\""));
+    }
+
+    @Test
+    void executionProfileIoWritesCpu1DirectRouteKeys() {
+        String json = ExecutionProfileIO.toJson(defaultProfile());
+
+        assertTrue(json.contains("\"cpuUseCpu1Direct\""));
+        assertTrue(json.contains("\"cpuAllowCpu1DirectFallback\""));
     }
 
     @Test

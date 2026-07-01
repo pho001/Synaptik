@@ -2,20 +2,16 @@ package backend.cpu1.exec;
 
 import backend.cpu1.prepare.Cpu1PreparedLayerNormUnit;
 import backend.cpu1.storage.Cpu1StorageKind;
-import runtime.contract.CpuMaterializationReason;
-import runtime.execution.ExecutionContext;
-import tensor.Tensor;
-import tensor.storage.NativeTensorStorage;
 
 import java.util.Arrays;
 
 /**
- * Runtime wrapper for a prepared cpu1 LayerNorm node.
+ * Base runtime wrapper for a prepared cpu1 LayerNorm node.
  */
-public final class Cpu1LayerNormExecutableUnit implements Cpu1ExecutableUnit {
+public abstract class Cpu1LayerNormExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedLayerNormUnit preparedUnit;
 
-    public Cpu1LayerNormExecutableUnit(Cpu1PreparedLayerNormUnit preparedUnit) {
+    protected Cpu1LayerNormExecutableUnit(Cpu1PreparedLayerNormUnit preparedUnit) {
         if (preparedUnit == null) {
             throw new IllegalArgumentException("preparedUnit cannot be null");
         }
@@ -31,87 +27,16 @@ public final class Cpu1LayerNormExecutableUnit implements Cpu1ExecutableUnit {
         return preparedUnit.scratchBufferSpec();
     }
 
-    @Override
-    public void run(ExecutionContext context) {
-        if (context == null) {
-            throw new IllegalArgumentException("context cannot be null");
-        }
-        Tensor inputTensor = context.runtimeTensorForNodeId(preparedUnit.inputNodeId());
-        Tensor gammaTensor = context.runtimeTensorForNodeId(preparedUnit.gammaNodeId());
-        Tensor betaTensor = context.runtimeTensorForNodeId(preparedUnit.betaNodeId());
-        Tensor outputTensor = context.runtimeTensorForNodeId(preparedUnit.nodeId());
-
-        NativeTensorStorage nativeOutput = null;
-        Cpu1TensorView input;
-        Cpu1TensorView gamma;
-        Cpu1TensorView beta;
-        Cpu1TensorView output;
-        if (preparedUnit.storageKind() == Cpu1StorageKind.JAVA_ARRAY) {
-            context.requireCpuReadable(preparedUnit.inputNodeId(), CpuMaterializationReason.CPU_CONSUMER);
-            context.requireCpuReadable(preparedUnit.gammaNodeId(), CpuMaterializationReason.CPU_CONSUMER);
-            context.requireCpuReadable(preparedUnit.betaNodeId(), CpuMaterializationReason.CPU_CONSUMER);
-            input = Cpu1TensorView.fromTensor(inputTensor);
-            gamma = Cpu1TensorView.fromTensor(gammaTensor);
-            beta = Cpu1TensorView.fromTensor(betaTensor);
-            output = Cpu1TensorView.fromTensor(outputTensor);
-            requireDenseNoOffset("input", input, Cpu1StorageKind.JAVA_ARRAY);
-            requireDenseNoOffset("gamma", gamma, Cpu1StorageKind.JAVA_ARRAY);
-            requireDenseNoOffset("beta", beta, Cpu1StorageKind.JAVA_ARRAY);
-            requireDenseNoOffset("output", output, Cpu1StorageKind.JAVA_ARRAY);
-        } else if (preparedUnit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            NativeTensorStorage nativeInput = context.requireNativeReadable(
-                    preparedUnit.inputNodeId(),
-                    CpuMaterializationReason.CPU_CONSUMER
-            );
-            NativeTensorStorage nativeGamma = context.requireNativeReadable(
-                    preparedUnit.gammaNodeId(),
-                    CpuMaterializationReason.CPU_CONSUMER
-            );
-            NativeTensorStorage nativeBeta = context.requireNativeReadable(
-                    preparedUnit.betaNodeId(),
-                    CpuMaterializationReason.CPU_CONSUMER
-            );
-            nativeOutput = context.requireNativeOutputStorage(
-                    preparedUnit.nodeId(),
-                    preparedUnit.dataType(),
-                    preparedUnit.outputElementCount(),
-                    "cpu1-layernorm-node-" + preparedUnit.nodeId()
-            );
-            input = Cpu1TensorView.fromNativeStorage(inputTensor, nativeInput);
-            gamma = Cpu1TensorView.fromNativeStorage(gammaTensor, nativeGamma);
-            beta = Cpu1TensorView.fromNativeStorage(betaTensor, nativeBeta);
-            output = Cpu1TensorView.fromNativeStorage(outputTensor, nativeOutput);
-            requireDenseNoOffset("input", input, Cpu1StorageKind.MEMORY_SEGMENT);
-            requireDenseNoOffset("gamma", gamma, Cpu1StorageKind.MEMORY_SEGMENT);
-            requireDenseNoOffset("beta", beta, Cpu1StorageKind.MEMORY_SEGMENT);
-            requireDenseNoOffset("output", output, Cpu1StorageKind.MEMORY_SEGMENT);
-        } else {
-            throw new UnsupportedOperationException("cpu1 LAYER_NORM executable does not support storage "
-                    + preparedUnit.storageKind());
-        }
+    protected void validateViews(Cpu1TensorView input, Cpu1TensorView output) {
         requireShape("input", input.shape(), preparedUnit.inputShape());
         requireShape("output", output.shape(), preparedUnit.inputShape());
         if (output.elementCount() != preparedUnit.outputElementCount()) {
             throw new UnsupportedOperationException("cpu1 LAYER_NORM output element count mismatch. expected="
                     + preparedUnit.outputElementCount() + ", actual=" + output.elementCount());
         }
-
-        preparedUnit.kernel().run(preparedUnit, input, gamma, beta, output);
-
-        if (nativeOutput == null) {
-            output.markStorageModified();
-            context.markCpuCurrent(preparedUnit.nodeId(), "cpu1 LAYER_NORM wrote CPU array");
-        } else {
-            nativeOutput.markModified();
-            context.attachNativeStorage(
-                    preparedUnit.nodeId(),
-                    nativeOutput,
-                    "cpu1 LAYER_NORM wrote native CPU segment"
-            );
-        }
     }
 
-    private static void requireDenseNoOffset(
+    protected static void requireDenseNoOffset(
             String role,
             Cpu1TensorView view,
             Cpu1StorageKind expectedStorageKind

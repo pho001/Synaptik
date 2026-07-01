@@ -1233,6 +1233,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1251,6 +1253,8 @@ public final class PlatformRuntimeProfileMutators {
                 materialization,
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1269,6 +1273,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1287,6 +1293,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1308,6 +1316,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1326,6 +1336,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1348,6 +1360,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1366,6 +1380,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1384,6 +1400,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 numerics,
                 baseProfile.accelerator(),
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()
@@ -1405,6 +1423,8 @@ public final class PlatformRuntimeProfileMutators {
                 baseProfile.materialization(),
                 baseProfile.numerics(),
                 accelerator,
+                baseProfile.fusedExecutionPolicy(),
+                baseProfile.cpuExecutionPolicy(),
                 baseProfile.cpuStorageProfile(),
                 baseProfile.nativeCpuFailurePolicy(),
                 baseProfile.deviceTransferPolicy()

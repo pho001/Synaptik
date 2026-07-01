@@ -7,8 +7,8 @@ import backend.lowering.LoweringInput;
 import backend.lowering.LoweringContext;
 import backend.lowering.LoweringPipeline;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.LoweredRegion;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.LoweredPartition;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import backend.partition.BackendPartitionDescriptorRegistry;
 import graph.model.CompiledNode;
 import graph.compile.CompiledProgram;
@@ -19,6 +19,7 @@ import runtime.execution.PreparedExecution;
 import runtime.execution.PreparedExecutionStep;
 import trace.prepare.PrepareTrace;
 import planning.partition.PartitionPlan;
+import planning.partition.ExecutablePartitionPlan;
 import planning.partition.PlannedPartition;
 import prepare.context.BackendPrepareContext;
 
@@ -55,7 +56,7 @@ public final class PreparedExecutionBuilder {
         );
         context.publishBackendPlans(selection.selectedPlans());
         LoweringInput loweringInput = artifacts.loweringInput();
-        publishLoweredRegions(artifacts, compiledNodes, context, runtimeConfig, selection, loweringInput);
+        publishLoweredPartitions(artifacts, compiledNodes, context, runtimeConfig, selection, loweringInput);
         BackendPrepareDispatcher dispatcher = BackendPrepareDispatcher.from(runtimeConfig);
 
         List<PreparedExecutionStep> executionSteps = new ArrayList<>();
@@ -68,7 +69,7 @@ public final class PreparedExecutionBuilder {
             }
             LoweredExecutionUnit fusedUnit = context.cpuFusedUnitForStart(node.id());
             if (fusedUnit != null) {
-                addPreparedRegionStep(
+                addPreparedPartitionStep(
                         prepareCpuFusedStep(fusedUnit, context, dispatcher),
                         context,
                         program.forwardBoundaryNodeId(),
@@ -81,7 +82,7 @@ public final class PreparedExecutionBuilder {
             }
             LoweredExecutionUnit specializedUnit = context.cpuSpecializedUnitForStart(node.id());
             if (specializedUnit != null) {
-                addPreparedRegionStep(
+                addPreparedPartitionStep(
                         prepareCpuSpecializedStep(specializedUnit, context, dispatcher),
                         context,
                         program.forwardBoundaryNodeId(),
@@ -92,10 +93,10 @@ public final class PreparedExecutionBuilder {
                 );
                 continue;
             }
-            LoweredRegion metalRegion = context.metalLoweredRegionForStart(node.id());
-            if (metalRegion != null) {
-                addPreparedRegionStep(
-                        prepareAcceleratorRegionStep(metalRegion, context, dispatcher, AcceleratorRegionBackend.METAL),
+            LoweredPartition metalPartition = context.metalLoweredPartitionForStart(node.id());
+            if (metalPartition != null) {
+                addPreparedPartitionStep(
+                        prepareAcceleratorPartitionStep(metalPartition, context, dispatcher, AcceleratorPartitionBackend.METAL),
                         context,
                         program.forwardBoundaryNodeId(),
                         executionSteps,
@@ -105,10 +106,10 @@ public final class PreparedExecutionBuilder {
                 );
                 continue;
             }
-            LoweredRegion cudaRegion = context.cudaLoweredRegionForStart(node.id());
-            if (cudaRegion != null) {
-                addPreparedRegionStep(
-                        prepareAcceleratorRegionStep(cudaRegion, context, dispatcher, AcceleratorRegionBackend.CUDA),
+            LoweredPartition cudaPartition = context.cudaLoweredPartitionForStart(node.id());
+            if (cudaPartition != null) {
+                addPreparedPartitionStep(
+                        prepareAcceleratorPartitionStep(cudaPartition, context, dispatcher, AcceleratorPartitionBackend.CUDA),
                         context,
                         program.forwardBoundaryNodeId(),
                         executionSteps,
@@ -148,7 +149,7 @@ public final class PreparedExecutionBuilder {
         );
     }
 
-    private enum AcceleratorRegionBackend {
+    private enum AcceleratorPartitionBackend {
         METAL,
         CUDA
     }
@@ -158,12 +159,12 @@ public final class PreparedExecutionBuilder {
             BackendPrepareContext context,
             BackendPrepareDispatcher dispatcher
     ) {
-        var regionPlan = fusedUnit.requireRegionPlan();
-        if (regionPlan.boundaryOutputNodeIds().size() != 1) {
+        var partitionPlan = fusedUnit.requirePartitionPlan();
+        if (partitionPlan.boundaryOutputNodeIds().size() != 1) {
             throw new IllegalStateException("CPU fused prepared step requires exactly one boundary output. unit="
-                    + fusedUnit.unitId() + ", boundaryOutputs=" + regionPlan.boundaryOutputNodeIds());
+                    + fusedUnit.unitId() + ", boundaryOutputs=" + partitionPlan.boundaryOutputNodeIds());
         }
-        int outputNodeId = regionPlan.boundaryOutputNodeIds().getFirst();
+        int outputNodeId = partitionPlan.boundaryOutputNodeIds().getFirst();
         if (fusedUnit.orderedNodeIds().isEmpty() || fusedUnit.orderedNodeIds().getLast() != outputNodeId) {
             throw new IllegalStateException("CPU fused prepared step output must be the last ordered node. unit="
                     + fusedUnit.unitId() + ", outputNodeId=" + outputNodeId
@@ -178,7 +179,7 @@ public final class PreparedExecutionBuilder {
                 outputNode,
                 metadata,
                 fusedUnit.orderedNodeIds(),
-                regionPlan.boundaryOutputNodeIds()
+                partitionPlan.boundaryOutputNodeIds()
         );
     }
 
@@ -187,12 +188,12 @@ public final class PreparedExecutionBuilder {
             BackendPrepareContext context,
             BackendPrepareDispatcher dispatcher
     ) {
-        var regionPlan = requireBoundaryStepNode(
-                specializedUnit.requireRegionPlan(),
+        var partitionPlan = requireBoundaryStepNode(
+                specializedUnit.requirePartitionPlan(),
                 context,
                 "CPU specialized"
         );
-        int outputNodeId = representativeBoundaryNodeId(regionPlan);
+        int outputNodeId = representativeBoundaryNodeId(partitionPlan);
         if (specializedUnit.orderedNodeIds().isEmpty() || specializedUnit.orderedNodeIds().getLast() != outputNodeId) {
             throw new IllegalStateException("CPU specialized prepared step output must be the last ordered node. unit="
                     + specializedUnit.unitId() + ", outputNodeId=" + outputNodeId
@@ -203,55 +204,55 @@ public final class PreparedExecutionBuilder {
         return new PreparedExecutionStep(
                 outputNode,
                 metadata,
-                regionPlan.orderedNodeIds(),
-                regionPlan.boundaryOutputNodeIds()
+                partitionPlan.orderedNodeIds(),
+                partitionPlan.boundaryOutputNodeIds()
         );
     }
 
-    private static PreparedExecutionStep prepareAcceleratorRegionStep(
-            LoweredRegion region,
+    private static PreparedExecutionStep prepareAcceleratorPartitionStep(
+            LoweredPartition partition,
             BackendPrepareContext context,
             BackendPrepareDispatcher dispatcher,
-            AcceleratorRegionBackend backend
+            AcceleratorPartitionBackend backend
     ) {
-        RegionExecutionPlan regionPlan = requireBoundaryStepNode(region.units().getFirst().requireRegionPlan(), context, backend.name());
-        CompiledNode outputNode = context.compiledNode(representativeBoundaryNodeId(regionPlan));
+        BackendPartitionExecutionPlan partitionPlan = requireBoundaryStepNode(partition.units().getFirst().requirePartitionPlan(), context, backend.name());
+        CompiledNode outputNode = context.compiledNode(representativeBoundaryNodeId(partitionPlan));
         PreparedStepMetadata metadata = switch (backend) {
-            case METAL -> dispatcher.prepareMetalRegionStep(region, context);
-            case CUDA -> dispatcher.prepareCudaRegionStep(region, context);
+            case METAL -> dispatcher.prepareMetalPartitionStep(partition, context);
+            case CUDA -> dispatcher.prepareCudaPartitionStep(partition, context);
         };
         return new PreparedExecutionStep(
                 outputNode,
                 metadata,
-                regionPlan.orderedNodeIds(),
-                regionPlan.boundaryOutputNodeIds()
+                partitionPlan.orderedNodeIds(),
+                partitionPlan.boundaryOutputNodeIds()
         );
     }
 
-    private static RegionExecutionPlan requireBoundaryStepNode(
-            RegionExecutionPlan regionPlan,
+    private static BackendPartitionExecutionPlan requireBoundaryStepNode(
+            BackendPartitionExecutionPlan partitionPlan,
             BackendPrepareContext context,
             String label
     ) {
-        if (regionPlan.boundaryOutputNodeIds().isEmpty()) {
-            throw new IllegalStateException(label + " prepared region step requires at least one boundary output. region="
-                    + regionPlan.regionId() + ", boundaryOutputs=" + regionPlan.boundaryOutputNodeIds());
+        if (partitionPlan.boundaryOutputNodeIds().isEmpty()) {
+            throw new IllegalStateException(label + " prepared partition step requires at least one boundary output. partition="
+                    + partitionPlan.executionPlanId() + ", boundaryOutputs=" + partitionPlan.boundaryOutputNodeIds());
         }
-        int representativeNodeId = representativeBoundaryNodeId(regionPlan);
+        int representativeNodeId = representativeBoundaryNodeId(partitionPlan);
         if (context.compiledNode(representativeNodeId) == null) {
-            throw new IllegalStateException("Missing " + label + " region boundary node id=" + representativeNodeId);
+            throw new IllegalStateException("Missing " + label + " partition boundary node id=" + representativeNodeId);
         }
-        return regionPlan;
+        return partitionPlan;
     }
 
-    private static int representativeBoundaryNodeId(RegionExecutionPlan regionPlan) {
-        if (regionPlan.boundaryOutputNodeIds().contains(regionPlan.anchorNodeId())) {
-            return regionPlan.anchorNodeId();
+    private static int representativeBoundaryNodeId(BackendPartitionExecutionPlan partitionPlan) {
+        if (partitionPlan.boundaryOutputNodeIds().contains(partitionPlan.anchorNodeId())) {
+            return partitionPlan.anchorNodeId();
         }
-        return regionPlan.boundaryOutputNodeIds().getFirst();
+        return partitionPlan.boundaryOutputNodeIds().getFirst();
     }
 
-    private static void addPreparedRegionStep(
+    private static void addPreparedPartitionStep(
             PreparedExecutionStep step,
             BackendPrepareContext context,
             int forwardBoundaryNodeId,
@@ -280,7 +281,7 @@ public final class PreparedExecutionBuilder {
         }
     }
 
-    private static void publishLoweredRegions(
+    private static void publishLoweredPartitions(
             CompileArtifacts artifacts,
             List<CompiledNode> compiledNodes,
             BackendPrepareContext context,
@@ -288,12 +289,17 @@ public final class PreparedExecutionBuilder {
             BackendSelectionResult selection,
             LoweringInput loweringInput
     ) {
-        if (loweringInput == null || loweringInput.plannedRegions().isEmpty() || loweringInput.memoryPlan() == null) {
+        if (loweringInput == null || loweringInput.executablePartitions().isEmpty() || loweringInput.memoryPlan() == null) {
             return;
         }
         LoweringPipeline pipeline = new LoweringPipeline(BackendPartitionDescriptorRegistry.defaults().lowerers());
         Map<String, PartitionPlan> selectedPlansByPartitionId =
                 selectedPlansByPartitionId(selection);
+        List<ExecutablePartitionPlan> selectedExecutablePartitions = loweringInput.executablePartitions().stream()
+                .filter(executablePartition -> executablePartition.partition().target() == planning.partition.PartitionTarget.CPU
+                        || selectedPlansByPartitionId.containsKey(executablePartition.partition().partitionId()))
+                .toList();
+        LoweringInput selectedInput = new LoweringInput(selectedExecutablePartitions, loweringInput.memoryPlan());
         Set<backend.contract.ComputeBackend> supportedBackends = new java.util.LinkedHashSet<>();
         supportedBackends.add(backend.contract.ComputeBackend.CPU);
         for (PartitionPlan plan : selectedPlansByPartitionId.values()) {
@@ -302,16 +308,15 @@ public final class PreparedExecutionBuilder {
             }
         }
         var lowered = pipeline.lower(
-                loweringInput,
+                selectedInput,
                 new BackendCapabilities(supportedBackends),
                 new LoweringContext(
                         runtimeConfig,
                         compiledNodes,
-                        artifacts.descriptorIndex(),
-                        selectedPlansByPartitionId
+                        artifacts.descriptorIndex()
                 )
         );
-        context.publishLoweredRegions(lowered.lowered().loweredRegions());
+        context.publishLoweredPartitions(lowered.lowered().loweredPartitions());
     }
 
     private static Map<String, PartitionPlan> selectedPlansByPartitionId(BackendSelectionResult selection) {

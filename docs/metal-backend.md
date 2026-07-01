@@ -1,7 +1,7 @@
 <!-- generated-by: gsd-doc-writer -->
 # Metal Backend
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#metal-mps-buffer-execution-and-copy-chain) | [Compute Flow](compute-flow.md#native-buffer-binding-metal-path) | [Backend Planning](backend-planning-and-regions.md#accelerator-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) | [Modules](modules.md#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [Troubleshooting](troubleshooting.md#metal-mps-shim-missing)
+Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#metal-mps-buffer-execution-and-copy-chain) | [Compute Flow](compute-flow.md#native-buffer-binding-metal-path) | [Backend Planning](backend-planning-and-partitions.md#accelerator-partitions) | [Native Bridges & BLAS](native-bridges-and-blas.md#how-this-differs-from-metal-ffm) | [Modules](modules.md#accelerator-scaffolding-backendaccelerator-backendmetal-backendcuda-backendopencl) | [Troubleshooting](troubleshooting.md#metal-mps-shim-missing)
 
 Chapters: [Purpose And Current Status](#purpose-and-current-status) | [Mental Model](#mental-model) | [Source Map](#source-map) | [End-To-End Flow](#end-to-end-flow) | [Partition Legality And Lowering](#partition-legality-and-lowering) | [Java FFM Bridge](#java-ffm-bridge) | [Objective-C Native Shim](#objective-c-native-shim) | [Native Buffer ABI](#native-buffer-abi) | [Buffer Residency And Materialization](#buffer-residency-and-materialization) | [Worked Example](#worked-example) | [Trace Reading](#trace-reading) | [Supported Operations And DTypes](#supported-operations-and-dtypes) | [Fallbacks And Failure Modes](#fallbacks-and-failure-modes) | [Performance Model](#performance-model) | [Tests](#tests) | [Implementation Checklist](#implementation-checklist)
 
@@ -28,7 +28,7 @@ This document explains the current Metal MPS backend in Synaptik, including the 
 
 ## Purpose And Current Status
 
-The Metal backend exists to execute selected `FLOAT32` graph regions, scoped `BFLOAT16` operation families, scoped BOOL-producing mask operations, and scoped forward `INT32` index gather/take paths through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a region can be owned by `GPU_METAL`.
+The Metal backend exists to execute selected `FLOAT32` graph partitions, scoped `BFLOAT16` operation families, scoped BOOL-producing mask operations, and scoped forward `INT32` index gather/take paths through Apple's MPSGraph runtime instead of replaying every primitive through Java CPU kernels. It is not a separate eager tensor device API. User code still builds normal `Tensor` graphs; graph optimization and preparation decide whether a partition can be owned by `GPU_METAL`.
 
 The current implementation has a real native buffer execution path:
 
@@ -37,10 +37,10 @@ The current implementation has a real native buffer execution path:
 - `MetalMpsFfmBridge.supportsBufferBindings()` returns `true` only when all buffer ABI symbols are present.
 - `PreparedMetalExecutable` tries `executeBuffers(...)` before the legacy tensor-array copy path.
 - `MetalMpsFfmCustomKernelBridge` can execute the first scoped custom kernel: dense contiguous `FLOAT32` single-node `RELU` through `synaptik_apple_mps_custom_relu_f32_buffer`.
-- Adjacent Metal regions can pass intermediate values through `MetalBufferBinding` without first copying them into Java tensor arrays.
+- Adjacent Metal partitions can pass intermediate values through `MetalBufferBinding` without first copying them into Java tensor arrays.
 - A CPU boundary still materializes data back into Java storage through `MetalDeviceToCpuMaterializer`.
 
-The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal regions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. Phase 45 adds an internal no-copy probe symbol, `synaptik_apple_mps_probe_output_buffer_write_f32_buffers`, so tests can inspect caller output buffers before the explicit `readBytes` copy. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
+The important limitation is that this is not long-lived public GPU tensor storage. Public `Tensor` results are CPU-readable after `compute()` or `PreparedExecution.execute(...)` returns. The MPSGraph buffer path avoids Java-array round trips between adjacent Metal partitions, but the Objective-C shim still conservatively copies MPSGraph result storage into caller-provided `MTLBuffer` contents with `readBytes:strideBytes:`. That native copy is measured as `metalNativeDeviceCopyNs`. Phase 45 adds an internal no-copy probe symbol, `synaptik_apple_mps_probe_output_buffer_write_f32_buffers`, so tests can inspect caller output buffers before the explicit `readBytes` copy. The scoped custom RELU route is different: it writes directly into the caller output buffer and reports `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, but that proof applies only to the custom kernel route, not to MPSGraph generally.
 
 Phase 46 makes that boundary gateable in benchmark reports through `CrossBackendRouterEvidence`. Metal MPSGraph executions must show `metalExecutionRoute=MPS_GRAPH`, `metalNativeCopyStrategy=MPSGRAPH_RESULT_COPY`, and `metalOutputBufferWriteStatus=COPY_REQUIRED`. The scoped custom-kernel route must show `metalExecutionRoute=CUSTOM_KERNEL`, `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`, and `metalOutputBufferWriteStatus=PROVEN_TRUE_WRITE`. A report that combines `MPS_GRAPH` with true-output-write status is treated as an unsupported route overclaim.
 
@@ -77,8 +77,8 @@ The second path is the important architectural improvement. It does not yet make
 flowchart LR
     Tensor["User Tensor graph"]
     Compile["CompiledGraph.compile"]
-    Part["Backend planning selects GPU_METAL region"]
-    Lower["MetalRegionLowerer"]
+    Part["Backend planning selects GPU_METAL partition"]
+    Lower["MetalPartitionLowerer"]
     Prepare["MetalNodePreparer"]
     Exec["PreparedMetalExecutable"]
     Bridge["MetalMpsFfmBridge"]
@@ -106,8 +106,8 @@ flowchart LR
 |---|---|
 | Metal capability and dtype boundary | [`MetalMpsCapabilities.java`](../src/main/java/backend/metal/MetalMpsCapabilities.java) |
 | Planner allowlist and unsupported reasons | [`MetalPartitionSupport.java`](../src/main/java/backend/metal/lowering/MetalPartitionSupport.java) |
-| Region legality | [`MetalBackendPartitionCapability.java`](../src/main/java/backend/metal/lowering/MetalBackendPartitionCapability.java) |
-| Region lowering | [`MetalRegionLowerer.java`](../src/main/java/backend/metal/lowering/MetalRegionLowerer.java) |
+| Partition legality | [`MetalBackendPartitionCapability.java`](../src/main/java/backend/metal/lowering/MetalBackendPartitionCapability.java) |
+| Partition lowering | [`MetalPartitionLowerer.java`](../src/main/java/backend/metal/lowering/MetalPartitionLowerer.java) |
 | Prepare step | [`MetalNodePreparer.java`](../src/main/java/backend/metal/prepare/MetalNodePreparer.java) |
 | Runtime executable and fallback policy | [`PreparedMetalExecutable.java`](../src/main/java/backend/metal/exec/PreparedMetalExecutable.java) |
 | Java FFM bridge | [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) |
@@ -115,7 +115,7 @@ flowchart LR
 | Bridge stats | [`MetalMpsBridgeExecutionStats.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionStats.java), [`MetalMpsBridgeExecutionPath.java`](../src/main/java/backend/metal/bridge/MetalMpsBridgeExecutionPath.java) |
 | Java buffer contract | [`MetalBufferBinding.java`](../src/main/java/backend/metal/buffer/MetalBufferBinding.java), [`MetalBufferHandle.java`](../src/main/java/backend/metal/buffer/MetalBufferHandle.java), [`MetalBufferAccess.java`](../src/main/java/backend/metal/buffer/MetalBufferAccess.java) |
 | Buffer allocation and CPU readback | [`MetalBufferAllocator.java`](../src/main/java/backend/metal/buffer/MetalBufferAllocator.java), [`MetalDeviceToCpuMaterializer.java`](../src/main/java/backend/metal/buffer/MetalDeviceToCpuMaterializer.java) |
-| Resource lifetime | [`MetalBufferResource.java`](../src/main/java/backend/metal/buffer/MetalBufferResource.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`RuntimeResourceRegistry.java`](../src/main/java/graph/execution/state/RuntimeResourceRegistry.java) |
+| Resource lifetime | [`MetalBufferResource.java`](../src/main/java/backend/metal/buffer/MetalBufferResource.java), [`ExecutionState.java`](../src/main/java/runtime/execution/ExecutionState.java), [`RuntimeResourceRegistry.java`](../src/main/java/runtime/state/RuntimeResourceRegistry.java) |
 | Native shim | [`synaptik_apple_mps_stub.m`](../src/main/native/apple/synaptik_apple_mps_stub.m) |
 | Build task | [`build.gradle`](../build.gradle), [`scripts/build-metal-mps-shim.sh`](../scripts/build-metal-mps-shim.sh) |
 
@@ -123,29 +123,29 @@ Related higher-level docs:
 
 - [Architecture: Metal MPS Buffer Execution And Copy Chain](architecture.md#metal-mps-buffer-execution-and-copy-chain)
 - [Compute Flow: Native buffer-binding Metal path](compute-flow.md#native-buffer-binding-metal-path)
-- [Backend Planning And Regions: Accelerator Regions](backend-planning-and-regions.md#accelerator-regions)
+- [Backend Planning And Partitions: Accelerator Partitions](backend-planning-and-partitions.md#accelerator-partitions)
 - [Troubleshooting: Metal MPS Shim Missing](troubleshooting.md#metal-mps-shim-missing)
 
 ## End-To-End Flow
 
 ### What problem this solves
 
-Without a backend-owned graph region, a workload such as:
+Without a backend-owned graph partition, a workload such as:
 
 ```java
 Tensor y = x.matmul(w).add(b).tanh();
 ```
 
-would run as separate CPU operations unless the CPU fusion path could fuse the elementwise tail. Metal wants a larger unit: one backend-owned region that can be lowered to an accelerator DAG and compiled into one MPSGraph executable. That reduces Java dispatch overhead and gives MPSGraph a chance to schedule the region as a native graph.
+would run as separate CPU operations unless the CPU fusion path could fuse the elementwise tail. Metal wants a larger unit: one backend-owned partition that can be lowered to an accelerator DAG and compiled into one MPSGraph executable. That reduces Java dispatch overhead and gives MPSGraph a chance to schedule the partition as a native graph.
 
 ### Step-by-step walkthrough
 
 1. User code builds a semantic graph with `Tensor` operations.
 2. `CompiledGraph.compile(...)` snapshots the graph, runs backend-neutral graph optimization, and then runs backend planning.
-3. Backend planning may select a `GPU_METAL` ownership region if the compile policy allows accelerator ownership and the Metal planner says the nodes are legal.
-4. Region optimization may annotate fusable structure inside the region. For Metal this is trace/manifest metadata only; the default lowering family stays the MPSGraph region path.
-5. `MetalRegionLowerer` converts the selected region into a lowered Metal unit:
-   - `METAL_GRAPH_REGION` for MPSGraph-first execution, including regions that contain fused elementwise subpatterns
+3. Backend planning may select a `GPU_METAL` ownership partition if the compile policy allows accelerator ownership and the Metal planner says the nodes are legal.
+4. Partition optimization may annotate fusable structure inside the partition. For Metal this is trace/manifest metadata only; the default lowering family stays the MPSGraph partition path.
+5. `MetalPartitionLowerer` converts the selected partition into a lowered Metal unit:
+   - `METAL_GRAPH_PARTITION` for MPSGraph-first execution, including partitions that contain fused elementwise subpatterns
    - CPU `Operation.OpType.FUSED` is never consumed by Metal lowering
 6. `MetalNodePreparer` creates a `PreparedMetalExecutable`.
 7. The executable compiles the lowered DAG through `MetalMpsFfmBridge.compile(...)`.
@@ -157,14 +157,14 @@ would run as separate CPU operations unless the CPU fusion path could fuse the e
     `PreparedMetalExecutable` calls `MetalMpsFfmBridge.executeBuffers(...)`.
 11. If the buffer path is unavailable in `AUTO`, it tries the legacy tensor-array bridge. In `REQUIRE`, it throws with
     a stable `AcceleratorBufferReasonCode`.
-12. If both Metal paths are unavailable or fail, CPU fallback steps replay the region through CPU kernels.
+12. If both Metal paths are unavailable or fail, CPU fallback steps replay the partition through CPU kernels.
 
 ```mermaid
 sequenceDiagram
     participant U as User code
     participant CG as CompiledGraph
     participant PART as Backend planner
-    participant Lower as MetalRegionLowerer
+    participant Lower as MetalPartitionLowerer
     participant Prep as MetalNodePreparer
     participant PME as PreparedMetalExecutable
     participant Resolver as AcceleratorPreparedInputResolver
@@ -175,10 +175,10 @@ sequenceDiagram
     participant ES as ExecutionState
 
     U->>CG: compile tensor graph
-    CG->>PART: select backend ownership regions
-    PART-->>CG: GPU_METAL ownership region
-    CG->>Lower: lower selected region
-    Lower-->>CG: METAL_GRAPH_REGION
+    CG->>PART: select backend ownership partitions
+    PART-->>CG: GPU_METAL ownership partition
+    CG->>Lower: lower selected partition
+    Lower-->>CG: METAL_GRAPH_PARTITION
     CG->>Prep: prepare backend step
     Prep->>PME: create prepared executable
     PME->>FFM: compile lowered DAG
@@ -213,7 +213,7 @@ Metal partition legality is intentionally separate from runtime availability. A 
 
 | Category | Current behavior |
 |---|---|
-| Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal region. |
+| Leaves | Rejected as compute nodes. Leaves become external inputs to a Metal partition. |
 | DType | Floating compute and output nodes must be dtype-matched `FLOAT32` or `BFLOAT16` for Metal-supported floating operation families, or `BOOL` for scoped compare/logical/reduction mask families. |
 | Forward ops | Allows `MATMUL`, `LINEAR`, arithmetic elementwise ops, common activations, `ERF`, `FLOOR`, `CEIL`, `SIGN`, `WHERE`, `SOFTMAX`, shape/layout ops such as `RESHAPE`, `CONTIGUOUS`, `PERMUTE`, `EXPAND`, `EXPAND_DIMS`, and `SQUEEZE`. |
 | Backward layout writes | Allows scoped `SLICE_BACKWARD` for static dense `FLOAT32/BFLOAT16` `step=1` slice backward writes by lowering the gradient slice to a zero-filled pad. This is a write-back gradient operation, not a metadata-only forward view. |
@@ -228,7 +228,7 @@ External input legality is role-sensitive. `MetalMpsCapabilities.supportsExterna
 - `BOOL` for `WHERE` input 0 and direct SDPA input 3
 - internal `BOOL` mask values produced by supported Metal compare/logical/reduction ops feeding legal GPU consumers
 
-Lowering itself is deliberately thin. `MetalRegionLowerer.lower(...)` does not emit Objective-C code. It marks the region with a `LoweringFamily` and leaves the accelerator DAG to the shared `AcceleratorSubgraphLowerer` and bridge compile step.
+Lowering itself is deliberately thin. `MetalPartitionLowerer.lower(...)` does not emit Objective-C code. It marks the partition with a `LoweringFamily` and leaves the accelerator DAG to the shared `AcceleratorSubgraphLowerer` and bridge compile step.
 
 ## Java FFM Bridge
 
@@ -443,7 +443,7 @@ Phase 44 adds a separate custom-kernel route beside MPSGraph. The route is selec
 3. `MetalMpsFfmCustomKernelBridge` finds `synaptik_apple_mps_custom_relu_f32_buffer`.
 4. Execute-time bindings are dense contiguous `FLOAT32` input/output buffers with readable input and writable output access.
 
-Unsupported custom candidates do not become custom kernels. Multi-node regions, BF16/BOOL/INT32/FLOAT64 candidates, non-RELU operations, unavailable custom symbols, tensor-array transport, and non-dense runtime bindings stay on MPSGraph or the existing explicit fallback path. This keeps custom kernels region-internal and scoped; it does not reuse CPU `Operation.OpType.FUSED` nodes and does not replace the MPSGraph lowering route for broader operation coverage.
+Unsupported custom candidates do not become custom kernels. Multi-node partitions, BF16/BOOL/INT32/FLOAT64 candidates, non-RELU operations, unavailable custom symbols, tensor-array transport, and non-dense runtime bindings stay on MPSGraph or the existing explicit fallback path. This keeps custom kernels partition-internal and scoped; it does not reuse CPU `Operation.OpType.FUSED` nodes and does not replace the MPSGraph lowering route for broader operation coverage.
 
 The custom RELU native function writes directly into the caller-provided output `MTLBuffer`, so this route reports `metalExecutionPath=CUSTOM_KERNEL` and `metalNativeCopyStrategy=TRUE_OUTPUT_BUFFER_WRITE`. MPSGraph buffer execution still reports `MPSGRAPH_RESULT_COPY` unless a route-specific no-copy proof is promoted into the normal execution path.
 
@@ -542,17 +542,17 @@ metadata-only view nodes.
 Training coverage gates report `internalCpuMaterializationCount` separately from
 `gradientPublicationMaterializationCount`. A supported Metal training target may publish gradients to public `.grad()`
 tensors, but it must not hide a `CPU_CONSUMER`, `CPU_FALLBACK`, `PUBLIC_DATA_ACCESS`, or prepared-input materialization
-inside the device-owned region.
+inside the device-owned partition.
 
 ## Worked Example
 
-Consider two adjacent Metal regions inside one prepared execution:
+Consider two adjacent Metal partitions inside one prepared execution:
 
 ```text
-Region A:
+Partition A:
   x -> relu(x)
 
-Region B:
+Partition B:
   relu(x) -> neg(relu(x))
 ```
 
@@ -569,21 +569,21 @@ Tensor x = new Tensor(
 // x = [-2, 3]
 
 Tensor y = x.relu().neg();
-// region A computes mid = relu(x)
+// partition A computes mid = relu(x)
 // mid = [0, 3]
-// region B computes y = -mid
+// partition B computes y = -mid
 // y = [0, -3]
 ```
 
 Runtime flow with buffer bindings:
 
-1. Region A sees `x` as CPU-current and creates an input binding:
+1. Partition A sees `x` as CPU-current and creates an input binding:
 
 ```text
 nodeId=1, dtype=FLOAT32, shape=[2], bytes=8, access=READ
 ```
 
-2. Region A reserves an output buffer for `mid`:
+2. Partition A reserves an output buffer for `mid`:
 
 ```text
 nodeId=2, dtype=FLOAT32, shape=[2], bytes=8, access=READ_WRITE
@@ -599,11 +599,11 @@ nodeId=2
   binding=MetalBufferBinding(nodeId=2, access=READ_WRITE)
 ```
 
-4. Region B uses node `2` as an external input. Because a readable Metal binding already exists, it does not materialize `mid` to Java.
-5. Region B reserves and writes an output buffer for `y`.
+4. Partition B uses node `2` as an external input. Because a readable Metal binding already exists, it does not materialize `mid` to Java.
+5. Partition B reserves and writes an output buffer for `y`.
 6. At graph output publication, `y` is `DEVICE_OWNED`, so `MetalDeviceToCpuMaterializer` reads it into the public output tensor's `float[]`.
 
-The key point is that `mid = [0, 3]` never has to pass through a Java array between Region A and Region B.
+The key point is that `mid = [0, 3]` never has to pass through a Java array between Partition A and Partition B.
 
 ## Trace Reading
 
@@ -619,7 +619,7 @@ Metal trace fields are emitted through `PreparedExecution` run traces. The most 
 | `metalSupportsBufferBindings` | Whether all buffer ABI symbols were discovered. |
 | `metalExecutionRoute` | Prepare-time Metal route: `MPS_GRAPH`, `CUSTOM_KERNEL`, `TENSOR_ARRAY`, `CPU_FALLBACK`, or `UNAVAILABLE_REQUIRED`. |
 | `metalRouteRejectedRoutes` / `metalRouteRejectedReasonCodes` | Alternatives rejected during route selection, for example `CUSTOM_KERNEL_UNAVAILABLE` or `MPS_GRAPH_SELECTED`. |
-| `metalRouteCustomKernelAvailable` | Whether a scoped custom-kernel executable was available for the prepared region. |
+| `metalRouteCustomKernelAvailable` | Whether a scoped custom-kernel executable was available for the prepared partition. |
 | `metalBufferBindingDecision` | Why the buffer path was used or why it fell back to tensor arrays. |
 | `metalOutputBufferWriteProbeSupported` | Whether the native shim exports the internal no-copy MPSGraph output-buffer proof symbol. This is diagnostic support only, not a true-write claim. |
 | `metalExecutionPath` | `BUFFER_BINDING`, `TENSOR_ARRAY_COPY`, or `CPU_FALLBACK`. |
@@ -703,7 +703,7 @@ Do not infer execution path from `backend=GPU_METAL` alone. A prepared step can 
 
 BF16 support requires the dtype ABI v3 compile path and follows the same operation-family coverage as Metal `FLOAT32` for floating tensors. It does not expand shape/layout semantics beyond the current Metal contract.
 
-BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered region with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
+BOOL support is also real but deliberately narrow. Metal can produce and consume device-resident BOOL outputs for dense scoped compare ops (`GT`, `GE`, `LT`, `LE`, `EQ`, `NE`), logical ops (`LOGICAL_AND`, `LOGICAL_OR`, `LOGICAL_NOT`), and BOOL reductions (`REDUCE_ALL`, `REDUCE_ANY`). A supported `compare -> WHERE -> elementwise` chain should remain a single Metal-owned lowered partition with `dtypeResidency` evidence for `dtype=BOOL` and no CPU materialization between the mask producer and `WHERE`.
 
 Unary math support is value-preserving with respect to shape and dtype. `ERF`, `FLOOR`, `CEIL`, and `SIGN` are admitted for dense or GPU-produced `FLOAT32/BFLOAT16` tensors. `FLOOR` and `CEIL` return floating tensors with rounded values; they are not casts to `INT32`, and they do not widen generic integer compute support.
 
@@ -771,7 +771,7 @@ Notable current exclusions:
 
 | Failure mode | Where detected | Behavior |
 |---|---|---|
-| Native library missing | `MetalMpsFfmBridge.init()` | Bridge unavailable; selected Metal region falls back to CPU. |
+| Native library missing | `MetalMpsFfmBridge.init()` | Bridge unavailable; selected Metal partition falls back to CPU. |
 | Older `.dylib` without buffer symbols | `supportsBufferBindings()` | Legacy tensor-array path may still run; no `BUFFER_BINDING` claim. |
 | Illegal dtype | `MetalPartitionSupport`, `MetalMpsCapabilities`, runtime checks | Planner rejects or runtime falls back with unsupported dtype reason. FLOAT64, generic INT32/INT64 compute/output, dtype-mismatched floating inputs, and BOOL outside scoped operation families remain illegal. |
 | Illegal external `BOOL` role | `MetalMpsCapabilities.supportsExternalInputRole(...)` | Planner rejects candidate. |
@@ -795,14 +795,14 @@ Notable current exclusions:
 
 Metal performance depends on three separate things:
 
-1. Region shape: larger regions amortize bridge overhead better than tiny regions.
-2. Transfer behavior: buffer bindings avoid Java-array copy-back between adjacent Metal regions, but CPU boundaries still require materialization.
+1. Partition shape: larger partitions amortize bridge overhead better than tiny partitions.
+2. Transfer behavior: buffer bindings avoid Java-array copy-back between adjacent Metal partitions, but CPU boundaries still require materialization.
 3. Native MPSGraph execution quality: MPSGraph may or may not outperform the CPU path for a given operation size and shape.
 
-The current buffer path removes these costs between adjacent Metal regions:
+The current buffer path removes these costs between adjacent Metal partitions:
 
-- Java `float[]` output copy after Region A
-- Java `float[]` input upload before Region B
+- Java `float[]` output copy after Partition A
+- Java `float[]` input upload before Partition B
 - accidental CPU materialization of intermediate values
 
 It does not remove:
@@ -812,7 +812,7 @@ It does not remove:
 - the conservative native `MPSNDArray.readBytes(...)` copy into caller output buffers
 - MPSGraph launch/compile/runtime overhead
 
-This is why graph autotune and benchmarks must look at trace fields, not just wall time. A workload can correctly use `BUFFER_BINDING` and still fail to beat CPU if the region is too small, if it materializes after every region, or if MPSGraph overhead dominates.
+This is why graph autotune and benchmarks must look at trace fields, not just wall time. A workload can correctly use `BUFFER_BINDING` and still fail to beat CPU if the partition is too small, if it materializes after every partition, or if MPSGraph overhead dominates.
 
 ## Tests
 
@@ -827,8 +827,8 @@ Relevant tests include:
 | [`MetalBufferResourceTest`](../src/test/java/backend/metal/buffer/MetalBufferResourceTest.java) | Run-scoped native resource cleanup. |
 | [`MetalLayoutAwareDeviceFlowTest`](../src/test/java/backend/metal/MetalLayoutAwareDeviceFlowTest.java) | End-to-end `LINEAR -> RESHAPE -> PERMUTE` CPU parity, visible broadcast-layout fallback, and forward-backward gradient publication behavior. |
 | [`MetalBufferTraceSmokeTest`](../src/test/java/backend/metal/MetalBufferTraceSmokeTest.java) | Trace attributes for buffer-backed Metal execution, custom RELU route execution, logical materialization, CPU consumer materialization, and unsupported layout fallback. |
-| [`PreparedExecutionBuildTest`](../src/test/java/PreparedExecutionBuildTest.java) | Region selection evidence for multi-op Metal regions, including `compare -> WHERE -> elementwise` mask chains with internal BOOL residency evidence. |
-| [`MetalRegionLowererTest`](../src/test/java/backend/metal/lowering/MetalRegionLowererTest.java) | Lowering family selection for Metal regions. |
+| [`PreparedExecutionBuildTest`](../src/test/java/PreparedExecutionBuildTest.java) | Partition selection evidence for multi-op Metal partitions, including `compare -> WHERE -> elementwise` mask chains with internal BOOL residency evidence. |
+| [`MetalPartitionLowererTest`](../src/test/java/backend/metal/lowering/MetalPartitionLowererTest.java) | Lowering family selection for Metal partitions. |
 
 Run the native slice on macOS:
 

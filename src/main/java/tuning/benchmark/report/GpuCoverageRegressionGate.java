@@ -24,11 +24,11 @@ public final class GpuCoverageRegressionGate {
         if (coverage.gpuCoverageRatio() < policy.minGpuCoverageRatio()) {
             failures.add("lost GPU coverage");
         }
-        if (coverage.maxSelectedRegionLength() < policy.minMaxSelectedRegionLength()) {
+        if (coverage.maxSelectedPartitionLength() < policy.minMaxSelectedPartitionLength()) {
             failures.add("lost GPU coverage");
         }
-        if (coverage.multiOpGpuRegionCount() < policy.minMultiOpGpuRegionCount()) {
-            failures.add("lost multi-op GPU region coverage");
+        if (coverage.multiOpGpuPartitionCount() < policy.minMultiOpGpuPartitionCount()) {
+            failures.add("lost multi-op GPU partition coverage");
         }
         if (coverage.loweredPrimitiveCount() < policy.minLoweredPrimitiveCount()) {
             failures.add("lost lowered primitive coverage");

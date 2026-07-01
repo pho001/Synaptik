@@ -24,10 +24,10 @@ import runtime.execution.PreparedStepMetadata;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
 import runtime.execution.ExecutionState;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
-import planning.region.specialization.SdpaBackwardOutputKind;
-import planning.region.specialization.SdpaBackwardSpecializationPayload;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
+import planning.partition.specialization.SdpaBackwardOutputKind;
+import planning.partition.specialization.SdpaBackwardSpecializationPayload;
 import planning.value.GraphValueRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -187,7 +187,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
                 true,
                 prepared.execution().runtimeConfig().cpuKernelConfig()
         );
-        RegionSpecializationCandidate candidate = candidateFromUnit(original, originalStep.orderedNodeIds());
+        PartitionSpecializationCandidate candidate = candidateFromUnit(original, originalStep.orderedNodeIds());
         Cpu1PreparedArtifact artifact = new Cpu1AttentionBackwardPreparer().prepare(
                 originalStep.compiledNode(),
                 candidate,
@@ -217,7 +217,7 @@ final class Cpu1AttentionBackwardBenchmarkTest {
         );
     }
 
-    private static RegionSpecializationCandidate candidateFromUnit(
+    private static PartitionSpecializationCandidate candidateFromUnit(
             Cpu1PreparedAttentionBackwardUnit unit,
             List<Integer> orderedNodeIds
     ) {
@@ -232,8 +232,8 @@ final class Cpu1AttentionBackwardBenchmarkTest {
                 unit.valueNodeId(),
                 unit.maskNodeId()
         );
-        return new RegionSpecializationCandidate(
-                RegionSpecializationKind.SDPA_BACKWARD,
+        return new PartitionSpecializationCandidate(
+                PartitionSpecializationKind.SDPA_BACKWARD,
                 orderedNodeIds,
                 inputRefs(unit),
                 GraphValueRef.node(unit.nodeId()),

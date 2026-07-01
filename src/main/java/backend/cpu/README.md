@@ -5,7 +5,7 @@
 Target layout:
 
 - `backend.cpu.prepare` owns CPU node preparation.
-- `backend.cpu.lowering` owns CPU region lowering.
+- `backend.cpu.lowering` owns CPU partition lowering.
 - `backend.cpu.partition` owns CPU partition legality and plans.
 - `backend.cpu.kernels` owns CPU kernel resolution and runtime kernels.
 - `backend.cpu.fused` owns fused planning, codegen, generated executable preparation, and generated ASM support.

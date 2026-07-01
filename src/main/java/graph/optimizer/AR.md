@@ -294,8 +294,8 @@ gradient descriptors such as `CROSS_ENTROPY_LOSS_INDICES_GRAD`.
 Attention is intentionally not lowered by this graph rewrite stage. The public
 `scaledDotProductAttention` API builds a primitive DAG from matmul, permute,
 stable softmax, optional masking, and value projection. Backend-specific SDPA
-recognition belongs in accelerator region lowering, where a backend may lower
-that primitive region to an SDPA DAG primitive without changing the compiled
+recognition belongs in accelerator partition lowering, where a backend may lower
+that primitive partition to an SDPA DAG primitive without changing the compiled
 semantic graph.
 - `QUERY`
 - `KEY`

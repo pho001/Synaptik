@@ -7,6 +7,7 @@ import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageAccessKind;
+import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.execution.ExecutionContext;
 import runtime.contract.ExecutionMode;
 import config.runtime.RuntimeConfig;
@@ -99,6 +100,18 @@ final class Cpu1AttentionExecutionContractTest {
         assertEquals(Cpu1AttentionKernelId.ATTENTION_F64_ARRAY_DENSE_VECTOR, artifact.preparedAttentionUnit().kernelId());
         assertEquals(Cpu1VectorizationKind.VECTOR.name(), trace.dispatch().mode());
         assertEquals(Cpu1VectorizationKind.VECTOR.name(), trace.attributes().get("cpu1AttentionVectorizationKind"));
+        assertEquals(Cpu1VectorizationKind.VECTOR.name(), trace.attributes().get("cpu1VectorizationKind"));
+        assertEquals(DataType.FLOAT64.name(), trace.attributes().get("cpu1DType"));
+        assertEquals(Cpu1StorageKind.JAVA_ARRAY.name(), trace.attributes().get("cpu1StorageKind"));
+        assertEquals(3, trace.attributes().get("cpu1LaunchWorkers"));
+        assertEquals(artifact.preparedAttentionUnit().scratchBufferSpec().f64ArrayElements(),
+                trace.attributes().get("cpu1ScratchF64"));
+        assertEquals(Cpu1StorageAccessKind.DENSE_CONTIGUOUS.name(),
+                trace.attributes().get("cpu1OutputAccessKind"));
+        assertEquals(
+                "DENSE_CONTIGUOUS+DENSE_CONTIGUOUS+DENSE_CONTIGUOUS->DENSE_CONTIGUOUS",
+                trace.attributes().get("cpu1AccessModel")
+        );
         assertEquals(3, trace.dispatch().plannedWorkers());
         assertArrayEquals(
                 expectedAttentionF64(

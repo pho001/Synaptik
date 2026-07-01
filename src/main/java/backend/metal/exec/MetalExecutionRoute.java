@@ -1,7 +1,7 @@
 package backend.metal.exec;
 
 /**
- * Prepare-time execution route selected inside an already chosen Metal GPU region.
+ * Prepare-time execution route selected inside an already chosen Metal GPU partition.
  */
 public enum MetalExecutionRoute {
     MPS_GRAPH,

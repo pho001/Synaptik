@@ -306,7 +306,7 @@ public class GpuHotPathCoverageTargetsTest {
             assertEquals(0, policy.maxCpuMaterializationCount());
             assertEquals(0, policy.maxFallbackCount());
             assertEquals(0, policy.maxTensorArrayStepCount());
-            assertTrue(policy.minMaxSelectedRegionLength() >= 1);
+            assertTrue(policy.minMaxSelectedPartitionLength() >= 1);
             assertTrue(policy.minLoweredPrimitiveCount() >= 1);
         }
     }

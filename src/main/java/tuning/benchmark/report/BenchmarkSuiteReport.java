@@ -137,7 +137,7 @@ public record BenchmarkSuiteReport(
             GpuCoverageSummary.BackendCoverage left,
             GpuCoverageSummary.BackendCoverage right
     ) {
-        int selected = Integer.compare(left.maxSelectedRegionLength(), right.maxSelectedRegionLength());
+        int selected = Integer.compare(left.maxSelectedPartitionLength(), right.maxSelectedPartitionLength());
         if (selected != 0) {
             return selected > 0 ? left : right;
         }

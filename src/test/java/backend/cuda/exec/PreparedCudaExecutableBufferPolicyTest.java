@@ -14,7 +14,7 @@ import backend.accelerator.dag.AcceleratorDagSpec;
 import backend.accelerator.dag.AcceleratorDagValueRef;
 import backend.accelerator.exec.PreparedAcceleratorExecutionSupport;
 import backend.accelerator.lowering.GpuCompoundPatternType;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
 import backend.cuda.bridge.CudaBridgeContext;
 import backend.cuda.bridge.CudaBridgeExecutable;
 import backend.cuda.bridge.CudaGraphBridge;
@@ -372,7 +372,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     @Test
-    void adjacentCudaRegionsReuseDeviceBufferBinding() {
+    void adjacentCudaPartitionsReuseDeviceBufferBinding() {
         TwoStageFixture fixture = twoStageFixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         PreparedCudaExecutable first = executable(
@@ -403,7 +403,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     @Test
-    void adjacentCudaRegionRejectsDifferentBackendBinding() {
+    void adjacentCudaPartitionRejectsDifferentBackendBinding() {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         fixture.state().attachDeviceBufferBinding(
@@ -431,7 +431,7 @@ class PreparedCudaExecutableBufferPolicyTest {
     }
 
     @Test
-    void adjacentCudaRegionRejectsMismatchedLayoutBinding() {
+    void adjacentCudaPartitionRejectsMismatchedLayoutBinding() {
         Fixture fixture = fixture();
         FakeCudaBridge bridge = new FakeCudaBridge(true);
         fixture.state().attachDeviceBufferBinding(
@@ -480,11 +480,11 @@ class PreparedCudaExecutableBufferPolicyTest {
         AcceleratorDagSpec dag = elementwiseChainDag(fixture);
         return new PreparedCudaExecutable(
                 dag,
-                LoweringFamily.CUDA_GRAPH_REGION,
+                LoweringFamily.CUDA_GRAPH_PARTITION,
                 bridge,
                 List.of(),
                 backendConfig,
-                GpuCompoundRegionSummary.supported(
+                GpuCompoundPartitionSummary.supported(
                         backend.contract.ComputeBackend.GPU_CUDA,
                         GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                         List.of(fixture.addNode().id(), fixture.reluNode().id(), fixture.expNode().id()),
@@ -510,7 +510,7 @@ class PreparedCudaExecutableBufferPolicyTest {
         );
         return new PreparedCudaExecutable(
                 dag(inputNode, outputNode),
-                LoweringFamily.CUDA_GRAPH_REGION,
+                LoweringFamily.CUDA_GRAPH_PARTITION,
                 bridge,
                 List.of(new PreparedAcceleratorExecutionSupport.CpuFallbackStep(
                         outputNode,

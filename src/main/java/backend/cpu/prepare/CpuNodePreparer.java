@@ -14,8 +14,8 @@ import backend.cpu.plan.elementwise.ResolvedDispatchHints;
 import backend.cpu.plan.fused.PreparedFusedDispatch;
 import backend.cpu.prepare.CpuExecutionPlanner;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.region.CpuFusedRegionPayload;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.CpuFusedPartitionPayload;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import prepare.context.BackendPrepareContext;
 import prepare.context.PartitionExecutionRole;
 import graph.model.CompiledNode;
@@ -68,13 +68,13 @@ public final class CpuNodePreparer {
             LoweredExecutionUnit loweredUnit,
             BackendPrepareContext context
     ) {
-        RegionExecutionPlan regionPlan = loweredUnit.requireRegionPlan();
-        if (regionPlan.boundaryOutputNodeIds().size() != 1
-                || regionPlan.boundaryOutputNodeIds().getFirst() != outputNode.id()
+        BackendPartitionExecutionPlan partitionPlan = loweredUnit.requirePartitionPlan();
+        if (partitionPlan.boundaryOutputNodeIds().size() != 1
+                || partitionPlan.boundaryOutputNodeIds().getFirst() != outputNode.id()
                 || loweredUnit.orderedNodeIds().getLast() != outputNode.id()) {
             throw new IllegalStateException("CPU fused prepared step requires a single final boundary output. unit="
                     + loweredUnit.unitId() + ", outputNodeId=" + outputNode.id()
-                    + ", boundaryOutputs=" + regionPlan.boundaryOutputNodeIds()
+                    + ", boundaryOutputs=" + partitionPlan.boundaryOutputNodeIds()
                     + ", orderedNodeIds=" + loweredUnit.orderedNodeIds());
         }
         FusedOperationPreparation fusedPreparation = fusedPreparation(loweredUnit);
@@ -135,8 +135,8 @@ public final class CpuNodePreparer {
     }
 
     private FusedOperationPreparation fusedPreparation(LoweredExecutionUnit loweredUnit) {
-        if (loweredUnit.artifact() instanceof RegionExecutionPlan plan
-                && plan.backendPayload() instanceof CpuFusedRegionPayload payload) {
+        if (loweredUnit.artifact() instanceof BackendPartitionExecutionPlan plan
+                && plan.backendPayload() instanceof CpuFusedPartitionPayload payload) {
             return payload.requirePreparation(FusedOperationPreparation.class);
         }
         return loweredUnit.requireArtifact(FusedOperationPreparation.class);

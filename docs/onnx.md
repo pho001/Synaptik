@@ -13,7 +13,7 @@ The ONNX layer owns:
 
 The ONNX layer does not own:
 
-- `CompileConfig`, backend planning, region ownership, or memory planning;
+- `CompileConfig`, backend planning, partition ownership, or memory planning;
 - `RuntimeConfig`, accelerator availability, buffer binding, BLAS, or publication policy;
 - CPU kernels, Metal MPSGraph routing, CUDA routing, or fallback decisions;
 - calibration, benchmark persistence, or autotune search.
@@ -25,7 +25,7 @@ ONNX ModelProto
   -> ONNX import mapper
   -> regular Synaptik Tensor graph
   -> CompileConfig
-  -> backend planning / region optimization / memory planning
+  -> backend planning / partition optimization / memory planning
   -> RuntimeConfig
   -> execution
 ```

@@ -471,7 +471,7 @@ public final class GpuLoweringCoverageMatrix {
         add(entries, backend, Operation.OpType.FUSED, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.CPU_FUSED_OPERATION_UNSUPPORTED,
-                "CPU Operation.OpType.FUSED remains CPU-only for Phase 12; GPU compound regions lower from normal graph operations");
+                "CPU Operation.OpType.FUSED remains CPU-only for Phase 12; GPU compound partitions lower from normal graph operations");
         add(entries, backend, Operation.OpType.CONST_SCALAR, GpuLoweringOperationFamily.ELEMENTWISE_CHAIN,
                 GpuLoweringCoverageStatus.UNSUPPORTED,
                 GpuLoweringUnsupportedReason.UNSUPPORTED_OPERATION,

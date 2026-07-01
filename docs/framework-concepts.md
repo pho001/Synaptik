@@ -3,7 +3,7 @@
 
 Navigation: [Index](index.md#recommended-reading-paths) | [Architecture](architecture.md#system-overview) | [Compute Flow](compute-flow.md#lifecycle-map) | [Tensor API](tensor-api.md#api-surface-and-conventions) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Metal Backend](metal-backend.md#mental-model) | [Glossary](glossary.md#a)
 
-Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
+Chapters: [Tensors As Graph Nodes](#tensors-as-graph-nodes) | [Operation Descriptors](#operation-descriptors) | [Storage And Layout](#storage-and-layout) | [Broadcasting](#broadcasting) | [Compile, Prepare, Execute](#compile-prepare-execute) | [Autodiff](#autodiff) | [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-graph-optimization-and-planning) | [Profiles](#profiles) | [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence) | [Common Mental Pitfalls](#common-mental-pitfalls)
 
 Synaptik core is a Java autograd engine and compiled tensor runtime. The main mental model is: user code builds a semantic tensor graph, compile snapshots and rewrites that graph, prepare binds runtime/backend policy, and execute runs prepared node steps against per-run runtime tensors. Higher-level neural-network layers can be built above this core, but the core API should remain primitive tensor and graph oriented.
 
@@ -13,9 +13,9 @@ flowchart TD
     B --> C[CompiledGraph]
     C --> D[Optimizer stages]
     D --> E[PreparedExecution]
-    E --> F[ComputeEngine]
+    E --> F[PreparedExecutionRunner]
     F --> G[CPU backend and kernels]
-    F --> J[Metal backend for selected FLOAT32 regions]
+    F --> J[Metal backend for selected FLOAT32 partitions]
     H[ExecutionProfile] --> C
     H --> E
     I[Tuning and calibration] --> H
@@ -29,7 +29,7 @@ flowchart TD
 - [Broadcasting](#broadcasting)
 - [Compile, Prepare, Execute](#compile-prepare-execute)
 - [Autodiff](#autodiff)
-- [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-and-optimizer-stages)
+- [Semantic Canonicalization And Optimizer Stages](#semantic-canonicalization-graph-optimization-and-planning)
 - [Profiles](#profiles)
 - [Tuning, Calibration, And Persistence](#tuning-calibration-and-persistence)
 - [Common Mental Pitfalls](#common-mental-pitfalls)
@@ -44,7 +44,7 @@ The graph is a DAG over object references, not a separate IR object during const
 
 ## Operation Descriptors
 
-`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `arityClass()`, `isFusable()`, semantic/cost/result metadata, `getExpression()`, and the legacy `isCheap()` compatibility hint. `Operation.OpType` is only the stable primitive identity. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
+`operations.Operation` describes what a node means, not how to execute it. Its core fields are `opType()`, `arityClass()`, `isFusable()`, semantic/cost/result metadata, and `getExpression()`. `Operation.OpType` is only the stable primitive identity. Source: [`Operation.java`](../src/main/java/operations/Operation.java), [`operations/README.md`](../src/main/java/operations/README.md#core-contract).
 
 Examples:
 
@@ -69,7 +69,7 @@ Layout operations are explicit API calls rather than one generic view call:
 - `permute`, `transpose`, `select`, `expandDims`, and `squeeze` remap layout.
 - `contiguous` materializes dense storage when needed.
 
-At runtime, alias-like nodes are repaired after execution so semantic view tensors still reflect the source storage chain. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`RuntimeMemoryBinder.java`](../src/main/java/graph/execution/residency/RuntimeMemoryBinder.java).
+At runtime, alias-like nodes are repaired after execution so semantic view tensors still reflect the source storage chain. Source: [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java), [`RuntimeMemoryBinder.java`](../src/main/java/runtime/residency/RuntimeMemoryBinder.java).
 
 ## Broadcasting
 
@@ -99,7 +99,7 @@ flowchart LR
 
 ### Compile
 
-`CompiledGraph.compile(rootTensor, compileConfig, compileMode)` snapshots graph structure and runs compile-time transformations. It does not execute kernels. `GraphCompiler` normalizes the semantic root through `forwardOutput()`, optionally runs semantic forward canonicalization, decides whether backward is needed from `CompileMode` and trainable leaves, builds backward graph when needed, optimizes a snapshot, captures `CompiledNode` metadata, collects gradient bindings, and creates partition/memory planning artifacts. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/CompiledNode.java).
+`CompiledGraph.compile(rootTensor, compileConfig, compileMode)` snapshots graph structure and runs compile-time transformations. It does not execute kernels. `GraphCompiler` normalizes the semantic root through `forwardOutput()`, optionally runs semantic forward canonicalization, decides whether backward is needed from `CompileMode` and trainable leaves, builds backward graph when needed, optimizes a snapshot, captures `CompiledNode` metadata, collects gradient bindings, and creates partition/memory planning artifacts. Source: [`CompiledGraph.java`](../src/main/java/graph/CompiledGraph.java), [`GraphCompiler.java`](../src/main/java/graph/compile/GraphCompiler.java), [`CompiledNode.java`](../src/main/java/graph/model/CompiledNode.java).
 
 `CompileMode` means:
 
@@ -109,13 +109,13 @@ flowchart LR
 
 ### Prepare
 
-`CompiledGraph.prepare(runtimeConfig)` turns compile-time structure into executable metadata. It selects backend plans, lowers optimized regions, dispatches backend-specific preparers, resolves CPU kernels, creates CPU execution plans, prepares fused executables, assigns workspaces, and splits prepared steps into forward and backward lists. Source: [`PreparedExecutionBuilder.java`](../src/main/java/backend/prepare/PreparedExecutionBuilder.java), [`BackendPrepareDispatcher.java`](../src/main/java/backend/prepare/BackendPrepareDispatcher.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java), [`CompiledNodeExecutionMetadata.java`](../src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java).
+`CompiledGraph.prepare(runtimeConfig)` turns compile-time structure into executable metadata. It selects backend plans, lowers optimized partitions, dispatches backend-specific preparers, resolves CPU kernels, creates CPU execution plans, prepares fused executables, assigns workspaces, and splits prepared steps into forward and backward lists. Source: [`PreparedExecutionBuilder.java`](../src/main/java/prepare/orchestration/PreparedExecutionBuilder.java), [`BackendPrepareDispatcher.java`](../src/main/java/prepare/orchestration/BackendPrepareDispatcher.java), [`CpuNodePreparer.java`](../src/main/java/backend/cpu/prepare/CpuNodePreparer.java), [`PreparedStepMetadata.java`](../src/main/java/runtime/execution/PreparedStepMetadata.java).
 
 Prepare is the stage to reuse in hot loops when graph structure and runtime policy stay stable. Tests verify repeated prepare creates independent prepared executions with independent step views and detached gradient publication. Source: [`PreparedExecutionBuildTest.java`](../src/test/java/PreparedExecutionBuildTest.java).
 
 ### Execute
 
-`PreparedExecution.execute(mode)` creates a per-run `ExecutionState`, binds memory reuse slots, builds an `ExecutionContext`, runs prepared forward and optional backward steps through `ComputeEngine`, publishes forward data back to the semantic root, and publishes detached gradient tensors back to trainable semantic tensors. Source: [`PreparedExecution.java`](../src/main/java/graph/execution/PreparedExecution.java), [`ExecutionState.java`](../src/main/java/graph/execution/state/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/backend/runtime/ExecutionContext.java), [`ComputeEngine.java`](../src/main/java/backend/ComputeEngine.java).
+`PreparedExecution.execute(mode)` creates a per-run `ExecutionState`, binds memory reuse slots, builds an `ExecutionContext`, runs prepared forward and optional backward steps through `PreparedExecutionRunner`, publishes forward data back to the semantic root, and publishes detached gradient tensors back to trainable semantic tensors. Source: [`PreparedExecution.java`](../src/main/java/runtime/execution/PreparedExecution.java), [`ExecutionState.java`](../src/main/java/runtime/execution/ExecutionState.java), [`ExecutionContext.java`](../src/main/java/runtime/execution/ExecutionContext.java), [`PreparedExecutionRunner.java`](../src/main/java/runtime/runner/PreparedExecutionRunner.java).
 
 ## Autodiff
 
@@ -137,7 +137,7 @@ The forward value is `1 + 4 + 9 = 14`. The gradient is `2x`, so `x.getGradient()
 
 Synaptik has two related but distinct compile-time rewrite layers.
 
-Semantic forward canonicalization happens before autograd construction. It rebuilds forward-safe canonical forms without mutating the original user graph, so backward lambdas are still valid. It can canonicalize patterns such as decomposed sigmoid, relu-like `where`, `matmul + bias` into `linear`, log-softmax plus indexed NLL into indexed cross-entropy, and attention-style score/softmax/value patterns into scaled-dot-product attention. Source: [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/SemanticForwardCanonicalizer.java), [`SemanticForwardCanonicalizationCompileTest.java`](../src/test/java/graph/SemanticForwardCanonicalizationCompileTest.java).
+Semantic forward canonicalization happens before autograd construction. It rebuilds forward-safe canonical forms without mutating the original user graph, so backward lambdas are still valid. It can canonicalize patterns such as decomposed sigmoid, relu-like `where`, `matmul + bias` into `linear`, log-softmax plus indexed NLL into indexed cross-entropy, and attention-style score/softmax/value patterns into scaled-dot-product attention. Source: [`SemanticForwardCanonicalizer.java`](../src/main/java/graph/compile/canonical/SemanticForwardCanonicalizer.java), [`SemanticForwardCanonicalizationCompileTest.java`](../src/test/java/graph/SemanticForwardCanonicalizationCompileTest.java).
 
 Graph optimization is backend-neutral. `OptimizerFactory.create(GraphOptimizationConfig)` builds:
 
@@ -153,7 +153,7 @@ Stage ownership:
 - `DCE`: removes nodes that are not reachable from observable roots.
 - `LOWER`: optional backend-neutral operation lowering.
 
-Backend planning, region optimization, and memory planning are later compile phases, not graph optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`CompileConfig.java`](../src/main/java/config/compile/CompileConfig.java), [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
+Backend planning, partition optimization, and memory planning are later compile phases, not graph optimizer stages. Source: [`GraphOptimizationConfig.java`](../src/main/java/config/compile/GraphOptimizationConfig.java), [`CompileConfig.java`](../src/main/java/config/compile/CompileConfig.java), [`BackendPlanningConfig.java`](../src/main/java/config/compile/BackendPlanningConfig.java), [`OptimizerFactory.java`](../src/main/java/graph/optimizer/OptimizerFactory.java).
 
 The canonical Tensor DAG is the semantic source of truth. Public APIs should not create or reintroduce opaque gradient descriptors when the gradient is expressible through ordinary primitives. For example, softmax, log-softmax, min/max, gather, take-along-axis, gather-nd, and slice gradients are built from visible primitive nodes and indexed-write primitives. Legacy `*_GRAD` operation descriptors can remain in the codebase as direct backend-test fixtures or future CPU/backend specialization targets, but they are not the default graph form emitted by Tensor API calls.
 

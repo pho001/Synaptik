@@ -100,15 +100,15 @@ public final class GraphAutotuneCandidateSpace implements CandidateSpace {
                 );
         var compile = variant.policy().compile();
         var backendPlanning = compile.backendPlanning();
-        var regionOptimization = compile.regionOptimization();
+        var partitionExecution = compile.partitionExecution();
         CandidateMetadata enriched = metadata.withAttribute("graphParameter", variant.parameter().name())
                 .withAttribute("knobOwner", "GRAPH_WORKLOAD")
                 .withAttribute("backendDiscoveryMode", backendPlanning.discoveryMode().name())
                 .withAttribute("backendFailurePolicy", backendPlanning.failurePolicy().name())
                 .withAttribute("ownershipPlanner", backendPlanning.ownershipPlanner().name())
                 .withAttribute("transferCostPreset", backendPlanning.cost().planningCostProfile().transferCostPreset().name())
-                .withAttribute("cpuRegionPolicy", backendPlanning.cpuRegions().policy().name())
-                .withAttribute("cpuFusionPolicy", regionOptimization.cpuFusion().mode().name())
+                .withAttribute("cpuPartitionPolicy", backendPlanning.cpuPartitions().policy().name())
+                .withAttribute("cpuFusionPolicy", partitionExecution.cpuFusion().mode().name())
                 .withAttribute("productionEligible", Boolean.toString(standard));
         if (!variant.knobAssignments().isEmpty()) {
             enriched = enriched.withAttribute("knobAssignments", variant.knobAssignments().keySet().stream()

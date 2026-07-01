@@ -23,8 +23,8 @@ public final class Cpu1AttentionBackwardKernelDispatch {
                  SDPA_BACKWARD_DK_F64_ARRAY_DENSE_SCALAR,
                  SDPA_BACKWARD_DK_F64_ARRAY_DENSE_VECTOR,
                  SDPA_BACKWARD_DV_F64_ARRAY_DENSE_SCALAR,
-                 SDPA_BACKWARD_DV_F64_ARRAY_DENSE_VECTOR,
-                 SDPA_BACKWARD_DQ_F32_SEGMENT_DENSE_SCALAR,
+                 SDPA_BACKWARD_DV_F64_ARRAY_DENSE_VECTOR -> Cpu1AttentionBackwardLoops::runArray;
+            case SDPA_BACKWARD_DQ_F32_SEGMENT_DENSE_SCALAR,
                  SDPA_BACKWARD_DQ_F32_SEGMENT_DENSE_VECTOR,
                  SDPA_BACKWARD_DK_F32_SEGMENT_DENSE_SCALAR,
                  SDPA_BACKWARD_DK_F32_SEGMENT_DENSE_VECTOR,
@@ -35,7 +35,7 @@ public final class Cpu1AttentionBackwardKernelDispatch {
                  SDPA_BACKWARD_DK_F64_SEGMENT_DENSE_SCALAR,
                  SDPA_BACKWARD_DK_F64_SEGMENT_DENSE_VECTOR,
                  SDPA_BACKWARD_DV_F64_SEGMENT_DENSE_SCALAR,
-                 SDPA_BACKWARD_DV_F64_SEGMENT_DENSE_VECTOR -> Cpu1AttentionBackwardLoops::run;
+                 SDPA_BACKWARD_DV_F64_SEGMENT_DENSE_VECTOR -> Cpu1AttentionBackwardLoops::runSegment;
         };
     }
 }

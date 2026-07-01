@@ -6,7 +6,7 @@ import backend.cpu.CpuFusedExecutionArtifact;
 import backend.cpu.CpuNodeExecutionArtifact;
 import backend.cpu.prepare.CpuNodePreparer;
 import backend.cpu.plan.CpuNodeExecutionPlan;
-import backend.lowering.LoweredRegion;
+import backend.lowering.LoweredPartition;
 import backend.lowering.LoweringFamily;
 import prepare.context.BackendPrepareContext;
 import graph.model.CompiledNode;
@@ -44,23 +44,23 @@ public final class GpuAcceleratorPrepareSupport {
     }
 
     /**
-     * Requires a lowered region to be present for an accelerator anchor node.
+     * Requires a lowered partition to be present for an accelerator anchor node.
      */
-    public static LoweredRegion requireLoweredRegion(LoweredRegion loweredRegion, String backendName, int anchorNodeId) {
-        if (loweredRegion == null) {
-            throw new IllegalStateException("Missing " + backendName + " lowered region for anchor node " + anchorNodeId);
+    public static LoweredPartition requireLoweredPartition(LoweredPartition loweredPartition, String backendName, int anchorNodeId) {
+        if (loweredPartition == null) {
+            throw new IllegalStateException("Missing " + backendName + " lowered partition for anchor node " + anchorNodeId);
         }
-        return loweredRegion;
+        return loweredPartition;
     }
 
     /**
-     * Resolves the lowering family from a region, using the supplied fallback when none is present.
+     * Resolves the lowering family from a partition, using the supplied fallback when none is present.
      */
-    public static LoweringFamily resolveLoweringFamily(LoweredRegion loweredRegion, LoweringFamily fallback) {
-        if (loweredRegion == null || loweredRegion.units().isEmpty()) {
+    public static LoweringFamily resolveLoweringFamily(LoweredPartition loweredPartition, LoweringFamily fallback) {
+        if (loweredPartition == null || loweredPartition.units().isEmpty()) {
             return fallback;
         }
-        return loweredRegion.units().getFirst().loweringFamily();
+        return loweredPartition.units().getFirst().loweringFamily();
     }
 
     /**

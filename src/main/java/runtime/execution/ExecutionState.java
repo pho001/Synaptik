@@ -239,15 +239,15 @@ public final class ExecutionState {
     }
 
     /**
-     * Registers a planned region runtime storage slot for a node output.
+     * Registers a planned partition runtime storage slot for a node output.
      *
      * @param nodeId compiled node id
      * @param dataType storage dtype
-     * @param slotId memory-plan region slot id
-     * @param elements region slot size in elements
-     * @return Java-array slot key for the registered region slot
+     * @param slotId memory-plan partition slot id
+     * @param elements partition slot size in elements
+     * @return Java-array slot key for the registered partition slot
      */
-    public RuntimeStorageSlotKey registerRegionRuntimeStorageSlot(
+    public RuntimeStorageSlotKey registerPartitionRuntimeStorageSlot(
             int nodeId,
             DataType dataType,
             int slotId,
@@ -262,7 +262,7 @@ public final class ExecutionState {
             throw new IllegalArgumentException("Runtime slot size mismatch for nodeId=" + nodeId
                     + ". tensorElements=" + tensor.getFlatDataSize() + ", slotElements=" + elements);
         }
-        RuntimeStorageSlotKey key = RuntimeStorageSlotKey.regionSlot(
+        RuntimeStorageSlotKey key = RuntimeStorageSlotKey.partitionSlot(
                 RuntimeStorageKind.JAVA_ARRAY,
                 dataType,
                 slotId,
@@ -286,7 +286,7 @@ public final class ExecutionState {
      * Returns the planned runtime storage slot registered for a node.
      *
      * @param nodeId compiled node id
-     * @return registered Java-array region slot key, or {@code null}
+     * @return registered Java-array partition slot key, or {@code null}
      */
     public RuntimeStorageSlotKey runtimeStorageSlotKeyForNodeId(int nodeId) {
         return runtimeStorageSlotByNodeId.get(nodeId);
@@ -295,7 +295,7 @@ public final class ExecutionState {
     /**
      * Returns writable native CPU output storage for a node and reserves it without marking it current.
      *
-     * <p>When the memory plan registered a region slot for the node, the native output reuses that slot id.
+     * <p>When the memory plan registered a partition slot for the node, the native output reuses that slot id.
      * Otherwise the storage is scoped to the node output.</p>
      *
      * @param nodeId compiled node id
@@ -338,15 +338,15 @@ public final class ExecutionState {
     }
 
     private RuntimeStorageSlotKey nativeOutputSlotKey(int nodeId, DataType dataType, int elements) {
-        RuntimeStorageSlotKey regionKey = runtimeStorageSlotByNodeId.get(nodeId);
-        if (regionKey == null) {
+        RuntimeStorageSlotKey partitionKey = runtimeStorageSlotByNodeId.get(nodeId);
+        if (partitionKey == null) {
             return RuntimeStorageSlotKey.nodeOutput(RuntimeStorageKind.NATIVE_CPU, dataType, nodeId, elements);
         }
-        if (regionKey.dataType() != dataType || regionKey.elements() != elements) {
+        if (partitionKey.dataType() != dataType || partitionKey.elements() != elements) {
             throw new IllegalStateException("Registered runtime slot does not match native output request for nodeId="
-                    + nodeId + ". slot=" + regionKey + ", requested=" + dataType + "[" + elements + "]");
+                    + nodeId + ". slot=" + partitionKey + ", requested=" + dataType + "[" + elements + "]");
         }
-        return regionKey.withKind(RuntimeStorageKind.NATIVE_CPU);
+        return partitionKey.withKind(RuntimeStorageKind.NATIVE_CPU);
     }
 
     /**

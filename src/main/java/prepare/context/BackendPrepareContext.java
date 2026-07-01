@@ -1,6 +1,7 @@
 package prepare.context;
+
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.LoweredRegion;
+import backend.lowering.LoweredPartition;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import planning.descriptor.CompiledTensorDescriptor;
@@ -16,7 +17,7 @@ public final class BackendPrepareContext {
     private final PreparedMetadataIndex metadataIndex;
     private final BackendPlanIndex backendPlanIndex;
     private final PartitionRoleIndex roleIndex;
-    private final LoweredRegionIndex loweredRegionIndex;
+    private final LoweredPartitionIndex loweredPartitionIndex;
 
     public BackendPrepareContext(
             RuntimeConfig runtimeConfig,
@@ -30,7 +31,7 @@ public final class BackendPrepareContext {
                 new PreparedMetadataIndex(),
                 new BackendPlanIndex(),
                 new PartitionRoleIndex(),
-                new LoweredRegionIndex()
+                new LoweredPartitionIndex()
         );
     }
 
@@ -39,13 +40,13 @@ public final class BackendPrepareContext {
             PreparedMetadataIndex metadataIndex,
             BackendPlanIndex backendPlanIndex,
             PartitionRoleIndex roleIndex,
-            LoweredRegionIndex loweredRegionIndex
+            LoweredPartitionIndex loweredPartitionIndex
     ) {
         this.inputs = inputs;
         this.metadataIndex = metadataIndex;
         this.backendPlanIndex = backendPlanIndex;
         this.roleIndex = roleIndex;
-        this.loweredRegionIndex = loweredRegionIndex;
+        this.loweredPartitionIndex = loweredPartitionIndex;
     }
 
     public RuntimeConfig runtimeConfig() {
@@ -92,36 +93,36 @@ public final class BackendPrepareContext {
         return backendPlanIndex.planForAnchor(nodeId);
     }
 
-    public void publishLoweredRegions(List<LoweredRegion> loweredRegions) {
-        loweredRegionIndex.publish(loweredRegions, roleIndex);
+    public void publishLoweredPartitions(List<LoweredPartition> loweredPartitions) {
+        loweredPartitionIndex.publish(loweredPartitions, roleIndex);
     }
 
     public LoweredExecutionUnit cpuLoweredUnitForAnchor(int nodeId) {
-        return loweredRegionIndex.cpuUnitForAnchor(nodeId);
+        return loweredPartitionIndex.cpuUnitForAnchor(nodeId);
     }
 
     public LoweredExecutionUnit cpuFusedUnitForStart(int nodeId) {
-        return loweredRegionIndex.cpuFusedUnitForStart(nodeId);
+        return loweredPartitionIndex.cpuFusedUnitForStart(nodeId);
     }
 
     public LoweredExecutionUnit cpuSpecializedUnitForStart(int nodeId) {
-        return loweredRegionIndex.cpuSpecializedUnitForStart(nodeId);
+        return loweredPartitionIndex.cpuSpecializedUnitForStart(nodeId);
     }
 
-    public LoweredRegion metalLoweredRegionForAnchor(int nodeId) {
-        return loweredRegionIndex.metalRegionForAnchor(nodeId);
+    public LoweredPartition metalLoweredPartitionForAnchor(int nodeId) {
+        return loweredPartitionIndex.metalPartitionForAnchor(nodeId);
     }
 
-    public LoweredRegion metalLoweredRegionForStart(int nodeId) {
-        return loweredRegionIndex.metalRegionForStart(nodeId);
+    public LoweredPartition metalLoweredPartitionForStart(int nodeId) {
+        return loweredPartitionIndex.metalPartitionForStart(nodeId);
     }
 
-    public LoweredRegion cudaLoweredRegionForAnchor(int nodeId) {
-        return loweredRegionIndex.cudaRegionForAnchor(nodeId);
+    public LoweredPartition cudaLoweredPartitionForAnchor(int nodeId) {
+        return loweredPartitionIndex.cudaPartitionForAnchor(nodeId);
     }
 
-    public LoweredRegion cudaLoweredRegionForStart(int nodeId) {
-        return loweredRegionIndex.cudaRegionForStart(nodeId);
+    public LoweredPartition cudaLoweredPartitionForStart(int nodeId) {
+        return loweredPartitionIndex.cudaPartitionForStart(nodeId);
     }
 
     public PartitionExecutionRole partitionRoleFor(int nodeId) {
@@ -134,7 +135,7 @@ public final class BackendPrepareContext {
                 metadataIndex.fork(),
                 backendPlanIndex.fork(),
                 roleIndex.fork(),
-                loweredRegionIndex.fork()
+                loweredPartitionIndex.fork()
         );
     }
 }

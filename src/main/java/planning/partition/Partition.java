@@ -11,11 +11,11 @@ import java.util.List;
  * Accepted backend partition in a compiled graph.
  *
  * <p>A partition groups ordered node ids for one {@link PartitionTarget}, records value boundaries, structural scoring
- * inputs, and carries the debug decision that accepted or rejected the candidate. Region optimization consumes accepted
+ * inputs, and carries the debug decision that accepted or rejected the candidate. Partition execution planning consumes accepted
  * partitions to build execution units and memory planning consumes value boundary metadata.
  *
  * @param partitionId stable identifier for this partition
- * @param regionKind semantic region kind
+ * @param partitionKind semantic partition kind
  * @param target backend target selected for the partition
  * @param orderedNodeIds graph node ids included in execution order
  * @param values values produced inside the partition
@@ -33,7 +33,7 @@ import java.util.List;
  */
 public record Partition(
         String partitionId,
-        ExecutionRegionKind regionKind,
+        PartitionKind partitionKind,
         PartitionTarget target,
         List<Integer> orderedNodeIds,
         List<PartitionValue> values,
@@ -52,7 +52,7 @@ public record Partition(
     public Partition {
         partitionId = partitionId == null ? "" : partitionId;
         target = target == null ? PartitionTarget.NONE : target;
-        regionKind = regionKind == null ? defaultRegionKind(target) : regionKind;
+        partitionKind = partitionKind == null ? defaultPartitionKind(target) : partitionKind;
         orderedNodeIds = List.copyOf(orderedNodeIds == null ? List.of() : orderedNodeIds);
         values = List.copyOf(values == null ? List.of() : values);
         internalEdges = List.copyOf(internalEdges == null ? List.of() : internalEdges);
@@ -65,14 +65,14 @@ public record Partition(
         structuralMetrics = structuralMetrics == null
                 ? new AcceleratorPartitionScoreModel.CandidateMetrics(0, 0, 0, 0, 0)
                 : structuralMetrics;
-        plannerStrategy = plannerStrategy == null ? PartitionPlannerStrategy.GREEDY_MAX_REGION : plannerStrategy;
+        plannerStrategy = plannerStrategy == null ? PartitionPlannerStrategy.GREEDY_MAX_PARTITION : plannerStrategy;
         if (anchorSeedNodeId < 0) {
             throw new IllegalArgumentException("anchorSeedNodeId must be >= 0");
         }
     }
 
     /**
-     * Creates an accepted partition using the default semantic region kind for its target.
+     * Creates an accepted partition using the default semantic partition kind for its target.
      */
     public Partition(
             String partitionId,
@@ -93,7 +93,7 @@ public record Partition(
     ) {
         this(
                 partitionId,
-                defaultRegionKind(target),
+                defaultPartitionKind(target),
                 target,
                 orderedNodeIds,
                 values,
@@ -111,9 +111,9 @@ public record Partition(
         );
     }
 
-    private static ExecutionRegionKind defaultRegionKind(PartitionTarget target) {
+    private static PartitionKind defaultPartitionKind(PartitionTarget target) {
         return target == PartitionTarget.CPU
-                ? ExecutionRegionKind.CPU_EXECUTION
-                : ExecutionRegionKind.ACCELERATOR_OWNERSHIP;
+                ? PartitionKind.CPU_EXECUTION
+                : PartitionKind.ACCELERATOR_OWNERSHIP;
     }
 }

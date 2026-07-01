@@ -75,7 +75,7 @@ public final class GpuCoverageGapTriage {
         }
         return switch (category == null ? GpuCoverageGapCategory.REJECTED_CANDIDATE : category) {
             case CPU_MATERIALIZATION, STORAGE_RESIDENCY -> "GPUSTORAGE";
-            case TENSOR_ARRAY_FALLBACK, CPU_FALLBACK, LOW_REGION_LENGTH -> "GPUMULTI";
+            case TENSOR_ARRAY_FALLBACK, CPU_FALLBACK, LOW_PARTITION_LENGTH -> "GPUMULTI";
             case DEVICE_HANDOFF, LOW_GPU_COVERAGE -> "GPUHARDEN";
             case REJECTED_CANDIDATE -> "GPUDAG";
         };
@@ -108,9 +108,9 @@ public final class GpuCoverageGapTriage {
             addGap(gaps, workloadName, candidateName, backend, GpuCoverageGapCategory.DEVICE_HANDOFF,
                     "device handoff", coverage.deviceHandoffCount(), coverage);
         }
-        if (coverage.maxSelectedRegionLength() < 3) {
-            addGap(gaps, workloadName, candidateName, backend, GpuCoverageGapCategory.LOW_REGION_LENGTH,
-                    "short selected region", 1, coverage);
+        if (coverage.maxSelectedPartitionLength() < 3) {
+            addGap(gaps, workloadName, candidateName, backend, GpuCoverageGapCategory.LOW_PARTITION_LENGTH,
+                    "short selected partition", 1, coverage);
         }
         if (coverage.gpuCoverageRatio() < 0.5d) {
             addGap(gaps, workloadName, candidateName, backend, GpuCoverageGapCategory.LOW_GPU_COVERAGE,
@@ -142,7 +142,7 @@ public final class GpuCoverageGapTriage {
                 reason,
                 count,
                 severityScore(category, count),
-                coverage.maxSelectedRegionLength(),
+                coverage.maxSelectedPartitionLength(),
                 coverage.cpuMaterializationCount(),
                 coverage.fallbackCount(),
                 coverage.deviceHandoffCount(),
@@ -157,7 +157,7 @@ public final class GpuCoverageGapTriage {
             case CPU_FALLBACK -> 850 * count;
             case DEVICE_HANDOFF -> 700 * count;
             case REJECTED_CANDIDATE -> 500 * count;
-            case LOW_REGION_LENGTH -> 300;
+            case LOW_PARTITION_LENGTH -> 300;
             case LOW_GPU_COVERAGE -> 250;
             case STORAGE_RESIDENCY -> 200 * count;
         };

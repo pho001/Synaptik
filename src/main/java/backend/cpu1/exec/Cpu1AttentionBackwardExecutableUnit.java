@@ -4,12 +4,12 @@ import backend.cpu1.prepare.Cpu1PreparedAttentionBackwardUnit;
 import runtime.execution.ExecutionContext;
 
 /**
- * Runtime wrapper for a prepared cpu1 attention backward specialized region.
+ * Base runtime wrapper for a prepared cpu1 attention backward specialized partition.
  */
-public final class Cpu1AttentionBackwardExecutableUnit implements Cpu1ExecutableUnit {
+public abstract class Cpu1AttentionBackwardExecutableUnit implements Cpu1ExecutableUnit {
     private final Cpu1PreparedAttentionBackwardUnit preparedUnit;
 
-    public Cpu1AttentionBackwardExecutableUnit(Cpu1PreparedAttentionBackwardUnit preparedUnit) {
+    protected Cpu1AttentionBackwardExecutableUnit(Cpu1PreparedAttentionBackwardUnit preparedUnit) {
         if (preparedUnit == null) {
             throw new IllegalArgumentException("preparedUnit cannot be null");
         }
@@ -25,11 +25,7 @@ public final class Cpu1AttentionBackwardExecutableUnit implements Cpu1Executable
         return preparedUnit.scratchBufferSpec();
     }
 
-    @Override
-    public void run(ExecutionContext context) {
-        if (context == null) {
-            throw new IllegalArgumentException("context cannot be null");
-        }
+    protected void runKernel(ExecutionContext context) {
         preparedUnit.kernel().run(preparedUnit, context);
     }
 }

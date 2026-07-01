@@ -1,7 +1,7 @@
 package config.compile;
 
 /**
- * Backend-neutral transfer-cost preset for scored accelerator region planning.
+ * Backend-neutral transfer-cost preset for scored accelerator partition planning.
  *
  * <p>The preset changes profitability scoring only. It does not change backend legality, dtype support,
  * native bridge availability, or tensor storage synchronization rules.</p>
@@ -18,7 +18,7 @@ public enum TransferCostPreset {
     MEASURED(0.025d, 0.05d, 0.05d),
 
     /**
-     * Low-penalty research preset for exploring larger accelerator regions.
+     * Low-penalty research preset for exploring larger accelerator partitions.
      */
     AGGRESSIVE(0.01d, 0.02d, 0.10d);
 
@@ -33,7 +33,7 @@ public enum TransferCostPreset {
     }
 
     /**
-     * Returns the score penalty per byte entering an accelerator region.
+     * Returns the score penalty per byte entering an accelerator partition.
      *
      * @return non-negative input byte penalty
      */
@@ -42,7 +42,7 @@ public enum TransferCostPreset {
     }
 
     /**
-     * Returns the score penalty per byte leaving an accelerator region.
+     * Returns the score penalty per byte leaving an accelerator partition.
      *
      * @return non-negative output byte penalty
      */
@@ -51,7 +51,7 @@ public enum TransferCostPreset {
     }
 
     /**
-     * Returns the score credit per internal intermediate byte kept inside an accelerator region.
+     * Returns the score credit per internal intermediate byte kept inside an accelerator partition.
      *
      * @return non-negative avoided intermediate byte credit
      */

@@ -3,7 +3,6 @@ package backend.cpu1.kernels.reduction;
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.launch.Cpu1RangeLauncher;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -24,34 +23,54 @@ public final class Cpu1SoftmaxReductionLoops {
     }
 
     public static void softmaxF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeF32(unit, context, false);
+        computeF32Array(unit, context, false);
+    }
+
+    public static void softmaxF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeF32Segment(unit, context, false);
     }
 
     public static void softmaxF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeF64(unit, context, false);
+        computeF64Array(unit, context, false);
+    }
+
+    public static void softmaxF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeF64Segment(unit, context, false);
     }
 
     public static void softmaxBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeBf16(unit, context, false);
+        computeBf16Array(unit, context, false);
+    }
+
+    public static void softmaxBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeBf16Segment(unit, context, false);
     }
 
     public static void logSoftmaxF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeF32(unit, context, true);
+        computeF32Array(unit, context, true);
+    }
+
+    public static void logSoftmaxF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeF32Segment(unit, context, true);
     }
 
     public static void logSoftmaxF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeF64(unit, context, true);
+        computeF64Array(unit, context, true);
+    }
+
+    public static void logSoftmaxF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeF64Segment(unit, context, true);
     }
 
     public static void logSoftmaxBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        computeBf16(unit, context, true);
+        computeBf16Array(unit, context, true);
     }
 
-    private static void computeF32(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            computeF32Segment(unit, context, log);
-            return;
-        }
+    public static void logSoftmaxBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        computeBf16Segment(unit, context, true);
+    }
+
+    private static void computeF32Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         float[] inputArray = input.float32Array();
@@ -68,11 +87,7 @@ public final class Cpu1SoftmaxReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void computeF64(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            computeF64Segment(unit, context, log);
-            return;
-        }
+    private static void computeF64Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         double[] inputArray = input.float64Array();
@@ -89,11 +104,7 @@ public final class Cpu1SoftmaxReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void computeBf16(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            computeBf16Segment(unit, context, log);
-            return;
-        }
+    private static void computeBf16Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, boolean log) {
         Cpu1TensorView input = inputArrayView(unit, context);
         Cpu1TensorView output = outputArrayView(unit, context);
         short[] inputArray = input.bfloat16Array();

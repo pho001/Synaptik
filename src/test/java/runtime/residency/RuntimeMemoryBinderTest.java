@@ -22,9 +22,9 @@ import runtime.state.RuntimeStorageSlotScope;
 import planning.memory.MemoryPlan;
 import planning.memory.MemoryPlanSummary;
 import planning.memory.MemoryPlannerPolicy;
-import planning.memory.RegionMemoryBinding;
-import planning.memory.RegionMemoryBindingKind;
-import planning.memory.RegionMemoryPlan;
+import planning.memory.PartitionMemoryBinding;
+import planning.memory.PartitionMemoryBindingKind;
+import planning.memory.PartitionMemoryPlan;
 import planning.memory.RuntimeBindingPlan;
 import planning.memory.StructuralMemoryView;
 import planning.memory.TensorMemoryPlan;
@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RuntimeMemoryBinderTest {
     @Test
-    void bindsReusableBFLOAT16RegionSlots() {
+    void bindsReusableBFLOAT16PartitionSlots() {
         RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.BFLOAT16, new TestOperation(Operation.OpType.ADD));
 
         short[] firstBefore = TensorInternalAccess.bfloat16Data(fixture.runtimeTensor("first"));
@@ -66,7 +66,7 @@ class RuntimeMemoryBinderTest {
     }
 
     @Test
-    void bindsReusableINT32RegionSlots() {
+    void bindsReusableINT32PartitionSlots() {
         RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.INT32, new TestOperation(Operation.OpType.ADD));
 
         int[] firstBefore = TensorInternalAccess.int32Data(fixture.runtimeTensor("first"));
@@ -79,7 +79,7 @@ class RuntimeMemoryBinderTest {
     }
 
     @Test
-    void bindsReusableBOOLRegionSlots() {
+    void bindsReusableBOOLPartitionSlots() {
         RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.BOOL, new TestOperation(Operation.OpType.LOGICAL_OR));
 
         byte[] firstBefore = TensorInternalAccess.boolData(fixture.runtimeTensor("first"));
@@ -153,7 +153,7 @@ class RuntimeMemoryBinderTest {
     }
 
     @Test
-    void registersPlannedRegionSlotAndReusesItForNativeOutputReservation() {
+    void registersPartitionExecutionPlanSlotAndReusesItForNativeOutputReservation() {
         RuntimeBindingFixture fixture = runtimeBindingFixture(DataType.FLOAT32, new TestOperation(Operation.OpType.ADD));
         int firstNodeId = nodeByLabel(fixture.nodes(), "first").id();
         int secondNodeId = nodeByLabel(fixture.nodes(), "second").id();
@@ -163,7 +163,7 @@ class RuntimeMemoryBinderTest {
         RuntimeStorageSlotKey firstKey = fixture.state().runtimeStorageSlotKeyForNodeId(firstNodeId);
         RuntimeStorageSlotKey secondKey = fixture.state().runtimeStorageSlotKeyForNodeId(secondNodeId);
         assertEquals(RuntimeStorageKind.JAVA_ARRAY, firstKey.kind());
-        assertEquals(RuntimeStorageSlotScope.REGION_SLOT, firstKey.scope());
+        assertEquals(RuntimeStorageSlotScope.PARTITION_SLOT, firstKey.scope());
         assertEquals(firstKey, secondKey);
 
         NativeTensorStorage firstStorage = fixture.state().requireNativeOutputStorage(
@@ -212,7 +212,7 @@ class RuntimeMemoryBinderTest {
     }
 
     @Test
-    void workspaceSensitiveNodesDoNotDisableBindingForIndependentRegionValues() {
+    void workspaceSensitiveNodesDoNotDisableBindingForIndependentPartitionExecutionValues() {
         Tensor image = new Tensor(new float[]{
                 1f, 2f, 3f, 4f,
                 5f, 6f, 7f, 8f,
@@ -250,7 +250,7 @@ class RuntimeMemoryBinderTest {
                 .filter(node -> node.operation() != null && node.operation().opType() == Operation.OpType.MAX_POOL2D)
                 .findFirst()
                 .orElseThrow();
-        assertTrue(!memoryPlan.runtimeBindingPolicyOfNodeId(maxPoolNode.id()).regionBindingAllowed());
+        assertTrue(!memoryPlan.runtimeBindingPolicyOfNodeId(maxPoolNode.id()).partitionBindingAllowed());
         float[] maxPoolStorageBefore = TensorInternalAccess.float32Data(state.runtimeTensorForNodeId(maxPoolNode.id()));
 
         Map<Integer, float[]> storageBefore = new HashMap<>();
@@ -267,7 +267,7 @@ class RuntimeMemoryBinderTest {
             if (node.id() != maxPoolNode.id()
                     && node.operation() != null
                     && node.dataType() == DataType.FLOAT32
-                    && hasSingleUseRegionBinding(memoryPlan, node)) {
+                    && hasSingleUsePartitionBinding(memoryPlan, node)) {
                 assertSame(storageBefore.get(node.id()), TensorInternalAccess.float32Data(state.runtimeTensorForNodeId(node.id())));
             }
         }
@@ -276,18 +276,18 @@ class RuntimeMemoryBinderTest {
         assertArrayEquals(new double[]{6 + 8 + 14 + 16 + 6 + 8 + 10 + 12}, out.toDoubleArrayCopy(), 1e-6);
     }
 
-    private static boolean hasSingleUseRegionBinding(MemoryPlan memoryPlan, CompiledNode node) {
+    private static boolean hasSingleUsePartitionBinding(MemoryPlan memoryPlan, CompiledNode node) {
         GraphValueRef valueRef = memoryPlan.graphValueRefOfNodeId(node.id());
         if (valueRef == null) {
             return false;
         }
-        if (memoryPlan.regionMemoryBindingOf(valueRef).kind() == RegionMemoryBindingKind.NONE) {
+        if (memoryPlan.partitionMemoryBindingOf(valueRef).kind() == PartitionMemoryBindingKind.NONE) {
             return false;
         }
-        Integer slotId = memoryPlan.regionSlotIdOf(valueRef);
+        Integer slotId = memoryPlan.partitionSlotIdOf(valueRef);
         return slotId != null
-                && memoryPlan.regionSlotSize(slotId) == node.flatDataSize()
-                && memoryPlan.regionSlotUseCount(slotId) < 2;
+                && memoryPlan.partitionSlotSize(slotId) == node.flatDataSize()
+                && memoryPlan.partitionSlotUseCount(slotId) < 2;
     }
 
     private static RuntimeBindingFixture runtimeBindingFixture(DataType dataType, Operation operation) {
@@ -319,8 +319,8 @@ class RuntimeMemoryBinderTest {
     }
 
     private static MemoryPlan memoryPlanFor(List<CompiledNode> nodes, List<String> labels, DataType dataType) {
-        Map<GraphValueRef, RegionMemoryBinding> regionMemoryBindings = new HashMap<>();
-        Map<GraphValueRef, Integer> regionSlotByValueRef = new HashMap<>();
+        Map<GraphValueRef, PartitionMemoryBinding> partitionMemoryBindings = new HashMap<>();
+        Map<GraphValueRef, Integer> partitionSlotByValueRef = new HashMap<>();
         Map<Integer, GraphValueRef> nodeIdToGraphValueRef = new HashMap<>();
         int slotId = 7;
         int slotSize = 0;
@@ -328,25 +328,25 @@ class RuntimeMemoryBinderTest {
             CompiledNode node = nodeByLabel(nodes, label);
             slotSize = Math.max(slotSize, node.flatDataSize());
             GraphValueRef valueRef = GraphValueRef.node(node.id());
-            regionMemoryBindings.put(valueRef, new RegionMemoryBinding(
+            partitionMemoryBindings.put(valueRef, new PartitionMemoryBinding(
                     valueRef,
-                    RegionMemoryBindingKind.MATERIALIZED,
+                    PartitionMemoryBindingKind.MATERIALIZED,
                     slotId,
                     dataType,
                     dataType,
                     true
             ));
-            regionSlotByValueRef.put(valueRef, slotId);
+            partitionSlotByValueRef.put(valueRef, slotId);
             nodeIdToGraphValueRef.put(node.id(), valueRef);
         }
         return new MemoryPlan(
                 TensorMemoryPlan.empty(),
-                new RegionMemoryPlan(
+                new PartitionMemoryPlan(
                         StructuralMemoryView.empty(),
                         Map.of(),
                         Map.of(),
-                        regionMemoryBindings,
-                        regionSlotByValueRef,
+                        partitionMemoryBindings,
+                        partitionSlotByValueRef,
                         Map.of(slotId, slotSize),
                         Map.of(),
                         nodeIdToGraphValueRef,
@@ -402,11 +402,6 @@ class RuntimeMemoryBinderTest {
         @Override
         public OpComputationalCost computationalCost() {
             return OpComputationalCost.CHEAP;
-        }
-
-        @Override
-        public OpControlTrait controlTrait() {
-            return opType == Operation.OpType.LOGICAL_OR ? OpControlTrait.BOOL_LOGIC : OpControlTrait.NONE;
         }
 
         @Override

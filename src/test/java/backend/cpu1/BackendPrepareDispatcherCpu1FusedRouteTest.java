@@ -55,7 +55,7 @@ class BackendPrepareDispatcherCpu1FusedRouteTest {
                 )
         );
 
-        assertTrue(thrown.getMessage().contains("requires artifact RegionExecutionPlan"));
+        assertTrue(thrown.getMessage().contains("requires artifact BackendPartitionExecutionPlan"));
     }
 
     @Test

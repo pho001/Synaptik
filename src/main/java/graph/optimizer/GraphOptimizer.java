@@ -11,7 +11,7 @@ import java.util.Objects;
  * Ordered optimizer pipeline for compiled tensor graphs.
  *
  * <p>Rules are applied sequentially to an immutable {@link OptimizerState} value. Each rule may replace the graph,
- * adjust graph-level compile metadata, or append optimization trace entries. Backend ownership, region planning, and
+ * adjust graph-level compile metadata, or append optimization trace entries. Backend ownership, partition planning, and
  * memory planning are compile-planning stages outside this package. The standard optimizer pipeline is configured by
  * {@link OptimizerFactory}: semantic simplification, algebraic rewrite, operation lowering, and simplification fixpoint passes.
  *

@@ -6,23 +6,23 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Structural view of region value memory flow.
+ * Structural view of partition value memory flow.
  *
- * @param plannedRegionIds planned region ids in order
- * @param materializedValues region values that require storage
- * @param continuationValues region values continued between execution units
- * @param virtualValues region values represented without storage
- * @param valueFlows producer and consumer flow for region values
+ * @param plannedPartitionIds planned partition ids in order
+ * @param materializedValues partition values that require storage
+ * @param continuationValues partition values continued between execution units
+ * @param virtualValues partition values represented without storage
+ * @param valueFlows producer and consumer flow for partition values
  */
 public record StructuralMemoryView(
-        List<String> plannedRegionIds,
+        List<String> plannedPartitionIds,
         List<GraphValueRef> materializedValues,
         List<GraphValueRef> continuationValues,
         List<GraphValueRef> virtualValues,
         List<StructuralValueFlow> valueFlows
 ) {
     public StructuralMemoryView {
-        plannedRegionIds = List.copyOf(plannedRegionIds == null ? List.of() : plannedRegionIds);
+        plannedPartitionIds = List.copyOf(plannedPartitionIds == null ? List.of() : plannedPartitionIds);
         materializedValues = List.copyOf(materializedValues == null ? List.of() : materializedValues);
         continuationValues = List.copyOf(continuationValues == null ? List.of() : continuationValues);
         virtualValues = List.copyOf(virtualValues == null ? List.of() : virtualValues);
@@ -32,22 +32,22 @@ public record StructuralMemoryView(
     /**
      * Creates a structural view without explicit value-flow records.
      *
-     * @param plannedRegionIds planned region ids
+     * @param plannedPartitionIds planned partition ids
      * @param materializedValues materialized values
      * @param continuationValues continuation values
      * @param virtualValues virtual values
      */
     public StructuralMemoryView(
-            List<String> plannedRegionIds,
+            List<String> plannedPartitionIds,
             List<GraphValueRef> materializedValues,
             List<GraphValueRef> continuationValues,
             List<GraphValueRef> virtualValues
     ) {
-        this(plannedRegionIds, materializedValues, continuationValues, virtualValues, List.of());
+        this(plannedPartitionIds, materializedValues, continuationValues, virtualValues, List.of());
     }
 
     /**
-     * Finds flow metadata for a region value.
+     * Finds flow metadata for a partition value.
      *
      * @param valueRef graph value reference
      * @return matching flow, or {@code null} when absent
@@ -63,14 +63,14 @@ public record StructuralMemoryView(
     }
 
     /**
-     * Counts values consumed by a different region than their producer.
+     * Counts values consumed by a different partition than their producer.
      *
-     * @return cross-region dependency count
+     * @return cross-partition dependency count
      */
-    public int crossRegionDependencyCount() {
+    public int crossPartitionDependencyCount() {
         int count = 0;
         for (StructuralValueFlow flow : valueFlows) {
-            if (flow.hasCrossRegionConsumer()) {
+            if (flow.hasCrossPartitionConsumer()) {
                 count++;
             }
         }

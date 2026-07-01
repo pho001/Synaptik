@@ -21,6 +21,10 @@ import tuning.workload.TensorRootWorkloadSpec;
 import tuning.workload.WorkloadCatalog;
 import tuning.workload.WorkloadKind;
 import tuning.workload.StandardWorkloads;
+import trace.ExecutionTrace;
+import trace.prepare.BackendSelectionDecisionTrace;
+import trace.prepare.BackendSelectionTrace;
+import trace.prepare.PrepareTrace;
 
 import java.util.List;
 
@@ -230,7 +234,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(text.contains("coverageSummary:"));
         assertTrue(text.contains("backend=GPU_METAL"));
         assertTrue(text.contains("gpuCoverageRatio=0.500000"));
-        assertTrue(text.contains("maxSelectedRegionLength=3"));
+        assertTrue(text.contains("maxSelectedPartitionLength=3"));
         assertTrue(text.contains("cpuMaterializationCount=1"));
         assertTrue(text.contains("fallbackCount=0"));
         assertTrue(text.contains("deviceHandoffCount=2"));
@@ -240,7 +244,7 @@ public class BenchmarkSuiteSessionTest {
         assertTrue(json.contains("\"coverageSummary\""));
         assertTrue(json.contains("\"backend\": \"GPU_METAL\""));
         assertTrue(json.contains("\"gpuCoverageRatio\": 0.500000"));
-        assertTrue(json.contains("\"maxSelectedRegionLength\": 3"));
+        assertTrue(json.contains("\"maxSelectedPartitionLength\": 3"));
         assertTrue(json.contains("\"dtypeResidencyEvidence\""));
         assertTrue(json.contains("\"candidateSummaries\": ["));
         assertTrue(json.contains("\"hotspots\": ["));
@@ -334,7 +338,11 @@ public class BenchmarkSuiteSessionTest {
 
     @Test
     void phaseTwentyPartialTargetsRequireVisibleBlockerEvidence() {
-        BenchmarkSuiteReport report = suiteReportFor("conv2d_resnet_3x3", "GPU_CUDA");
+        BenchmarkSuiteReport report = suiteReportFor(
+                "conv2d_resnet_3x3",
+                "GPU_CUDA",
+                "CAPABILITY_MISSING: CONV2D requires CONV_POOL capability"
+        );
         GpuCoverageHotPathExpectation expectation = GpuHotPathCoverageTargets.expectationsForBackend("GPU_CUDA")
                 .stream()
                 .filter(target -> target.workloadName().equals("conv2d_resnet_3x3"))
@@ -345,7 +353,10 @@ public class BenchmarkSuiteSessionTest {
 
         assertEquals(1, results.size());
         assertTrue(results.getFirst().passed());
-        assertTrue(expectation.expectedVisibleReasons().contains("unsupported-layout"));
+        assertEquals(
+                List.of("CAPABILITY_MISSING", "CONV2D", "CONV_POOL"),
+                expectation.expectedVisibleReasons()
+        );
 
         List<GpuCoverageGateResult> missing = GpuCoverageRegressionGate.evaluateTargets(
                 new BenchmarkSuiteReport(null, List.of()),
@@ -397,6 +408,14 @@ public class BenchmarkSuiteSessionTest {
     }
 
     private static BenchmarkSuiteReport suiteReportFor(String workloadName, String backendName) {
+        return suiteReportFor(workloadName, backendName, null);
+    }
+
+    private static BenchmarkSuiteReport suiteReportFor(
+            String workloadName,
+            String backendName,
+            String rejectedReason
+    ) {
         ExecutionProfile profile = new ExecutionProfile(
                 "phase20-target-profile",
                 "phase20-target-coverage",
@@ -406,12 +425,48 @@ public class BenchmarkSuiteSessionTest {
                 config.runtime.RuntimeConfig.inferenceDefaults(),
                 WorkloadProfile.transformerHotPathDefaults()
         );
+        ExecutionTrace trace = GpuCoverageSummaryTest.traceFor(
+                backendName,
+                backend.contract.ComputeBackend.valueOf(backendName)
+        );
+        if (rejectedReason != null) {
+            BackendSelectionTrace selection = new BackendSelectionTrace(
+                    2,
+                    1,
+                    1,
+                    List.of(
+                            new BackendSelectionDecisionTrace(
+                                    10,
+                                    List.of(10, 11, 12),
+                                    List.of(backendName),
+                                    true,
+                                    backendName,
+                                    "selected",
+                                    4096L
+                            ),
+                            new BackendSelectionDecisionTrace(
+                                    20,
+                                    List.of(20),
+                                    List.of(backendName),
+                                    false,
+                                    null,
+                                    rejectedReason,
+                                    1024L
+                            )
+                    )
+            );
+            trace = new ExecutionTrace(
+                    trace.compile(),
+                    new PrepareTrace(true, 1L, 0, 0, selection),
+                    trace.run()
+            );
+        }
         BenchmarkCandidateReport candidate = BenchmarkCandidateReport.success(
                 BenchmarkEntry.candidate("phase20-target-coverage", profile),
                 tuning.validate.ValidationResult.skipped(),
                 new tuning.measure.MeasurementResult(
                         MeasurementPolicy.defaults(),
-                        GpuCoverageSummaryTest.traceFor(backendName, backend.contract.ComputeBackend.valueOf(backendName)),
+                        trace,
                         new tuning.measure.MeasurementStatistics(2.0, 2.0, 2.0)
                 )
         );

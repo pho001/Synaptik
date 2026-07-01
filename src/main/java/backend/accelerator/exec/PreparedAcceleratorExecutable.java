@@ -3,9 +3,9 @@ package backend.accelerator.exec;
 import backend.contract.ComputeBackend;
 import runtime.device.buffer.AcceleratorBufferDecision;
 import runtime.device.buffer.AcceleratorBufferExecutionPath;
-import backend.accelerator.lowering.GpuCompoundRegionSummary;
-import backend.accelerator.lowering.GpuLoweredRegionManifest;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.accelerator.lowering.GpuCompoundPartitionSummary;
+import backend.accelerator.lowering.GpuLoweredPartitionManifest;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import runtime.execution.ExecutionContext;
 
 import java.util.LinkedHashMap;
@@ -71,27 +71,27 @@ public interface PreparedAcceleratorExecutable {
     }
 
     /**
-     * Returns compound GPU region metadata for this executable.
+     * Returns compound GPU partition metadata for this executable.
      *
      * <p>The default is a non-compound summary so existing accelerator executables can opt in
      * without changing their runtime behavior.</p>
      *
      * @return compound summary, or a non-compound summary when none was lowered
      */
-    default GpuCompoundRegionSummary compoundSummary() {
-        return GpuCompoundRegionSummary.none(backend(), List.of());
+    default GpuCompoundPartitionSummary compoundSummary() {
+        return GpuCompoundPartitionSummary.none(backend(), List.of());
     }
 
     /**
-     * Returns lowered-region manifest metadata for this executable, if available.
+     * Returns lowered-partition manifest metadata for this executable, if available.
      *
-     * @return lowered-region manifest, or {@code null} when absent
+     * @return lowered-partition manifest, or {@code null} when absent
      */
-    default GpuLoweredRegionManifest gpuLoweredRegionManifest() {
+    default GpuLoweredPartitionManifest gpuLoweredPartitionManifest() {
         return null;
     }
 
-    default RegionExecutionPlan regionExecutionPlan() {
+    default BackendPartitionExecutionPlan partitionExecutionPlan() {
         return null;
     }
 

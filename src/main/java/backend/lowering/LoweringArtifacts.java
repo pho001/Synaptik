@@ -3,11 +3,11 @@ package backend.lowering;
 import java.util.List;
 
 public record LoweringArtifacts(
-        List<LoweredRegion> loweredRegions,
+        List<LoweredPartition> loweredPartitions,
         List<BackendWorkspaceRequirement> workspaceRequirements
 ) {
     public LoweringArtifacts {
-        loweredRegions = List.copyOf(loweredRegions == null ? List.of() : loweredRegions);
+        loweredPartitions = List.copyOf(loweredPartitions == null ? List.of() : loweredPartitions);
         workspaceRequirements = List.copyOf(workspaceRequirements == null ? List.of() : workspaceRequirements);
     }
 

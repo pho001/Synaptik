@@ -7,7 +7,7 @@ Package ownership:
 
 - `prepare.context` owns `BackendPrepareContext`, immutable prepare inputs, and
   package-private indexes over prepared metadata, selected plans, partition roles,
-  and lowered regions.
+  and lowered partitions.
 - `prepare.validation` owns backend-neutral validation shared by backend preparers.
 - `prepare.orchestration` owns `PreparedExecutionBuilder`, backend dispatch, and
   prepare trace contribution.

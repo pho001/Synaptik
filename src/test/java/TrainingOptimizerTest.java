@@ -152,7 +152,7 @@ class TrainingOptimizerTest {
         Tensor x = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
         w.setTrainableParameter(true);
         x.setRequiresGrad(true);
-        Tensor loss = w.mul(x).sum();
+        Tensor loss = w.mul(x);
         PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(nativeTrainingRuntime(NativeCpuFailurePolicy.REQUIRE_NATIVE));
         SgdOptimizer optimizer = new SgdOptimizer(0.1f);
@@ -184,7 +184,7 @@ class TrainingOptimizerTest {
         Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
         w.setTrainableParameter(true);
         x.setRequiresGrad(true);
-        PreparedExecution bf16 = CompiledGraph.compile(w.mul(x).sum(), CompileConfig.training())
+        PreparedExecution bf16 = CompiledGraph.compile(w.mul(x), CompileConfig.training())
                 .prepare(nativeTrainingRuntime(NativeCpuFailurePolicy.REQUIRE_NATIVE));
         IllegalStateException bf16Failure = assertThrows(
                 IllegalStateException.class,
@@ -389,7 +389,7 @@ class TrainingOptimizerTest {
         Tensor x = new Tensor(new float[]{2.0f, 3.0f}, new int[]{2}, null, "x", DataType.FLOAT32);
         w.setTrainableParameter(true);
         x.setRequiresGrad(true);
-        Tensor loss = w.mul(x).sum();
+        Tensor loss = w.mul(x);
         PreparedExecution prepared = CompiledGraph.compile(loss, CompileConfig.training())
                 .prepare(nativeTrainingRuntime(NativeCpuFailurePolicy.REQUIRE_NATIVE));
         AdamOptimizer optimizer = new AdamOptimizer(0.1f);
@@ -422,7 +422,7 @@ class TrainingOptimizerTest {
         Tensor x = bf16Tensor(new float[]{2.0f, 3.0f}, "x");
         w.setTrainableParameter(true);
         x.setRequiresGrad(true);
-        PreparedExecution bf16 = CompiledGraph.compile(w.mul(x).sum(), CompileConfig.training())
+        PreparedExecution bf16 = CompiledGraph.compile(w.mul(x), CompileConfig.training())
                 .prepare(nativeTrainingRuntime(NativeCpuFailurePolicy.REQUIRE_NATIVE));
         IllegalStateException bf16Failure = assertThrows(
                 IllegalStateException.class,
@@ -563,7 +563,7 @@ class TrainingOptimizerTest {
         Tensor x = new Tensor(new double[]{2.0, 3.0}, new int[]{2}, null, "x", DataType.FLOAT64);
         w.setTrainableParameter(true);
         x.setRequiresGrad(true);
-        return w.mul(x).sum();
+        return w.mul(x);
     }
 
     private static Tensor bf16Tensor(float[] values, String label) {

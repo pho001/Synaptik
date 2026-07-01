@@ -61,7 +61,7 @@ public record MetalRouteDecision(
                         CostComponent.informational(
                                 "estimatedWork",
                                 estimatedWork,
-                                "backend work estimate for the selected Metal region"
+                                "backend work estimate for the selected Metal partition"
                         ),
                         CostComponent.lowerIsBetter(
                                 "estimatedCopyCost",
@@ -76,7 +76,7 @@ public record MetalRouteDecision(
                         CostComponent.lowerIsBetter(
                                 "cpuFallback",
                                 selectedRoute == MetalExecutionRoute.CPU_FALLBACK ? 1.0d : 0.0d,
-                                "selected route exits the Metal region to CPU fallback"
+                                "selected route exits the Metal partition to CPU fallback"
                         ),
                         CostComponent.lowerIsBetter(
                                 "unavailableRequired",

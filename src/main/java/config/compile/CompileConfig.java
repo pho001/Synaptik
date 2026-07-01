@@ -1,15 +1,15 @@
 package config.compile;
 
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 
 /**
- * Source-of-truth compile policy split across semantic, graph, backend, region, and memory planning layers.
+ * Source-of-truth compile policy split across semantic, graph, backend, partition, and memory planning layers.
  */
 public record CompileConfig(
         SemanticCanonicalizationConfig semanticCanonicalization,
         GraphOptimizationConfig graphOptimization,
         BackendPlanningConfig backendPlanning,
-        RegionOptimizationConfig regionOptimization,
+        PartitionExecutionConfig partitionExecution,
         MemoryPlanningConfig memoryPlanning
 ) {
     public CompileConfig {
@@ -20,9 +20,9 @@ public record CompileConfig(
                 ? GraphOptimizationConfig.trainingDefaults()
                 : graphOptimization;
         backendPlanning = backendPlanning == null ? BackendPlanningConfig.cpuOnly() : backendPlanning;
-        regionOptimization = regionOptimization == null
-                ? RegionOptimizationConfig.trainingDefaults()
-                : regionOptimization;
+        partitionExecution = partitionExecution == null
+                ? PartitionExecutionConfig.trainingDefaults()
+                : partitionExecution;
         memoryPlanning = memoryPlanning == null ? MemoryPlanningConfig.defaults() : memoryPlanning;
     }
 
@@ -31,7 +31,7 @@ public record CompileConfig(
                 SemanticCanonicalizationConfig.defaults(),
                 GraphOptimizationConfig.trainingDefaults(),
                 BackendPlanningConfig.explicitOnly(),
-                RegionOptimizationConfig.trainingDefaults(),
+                PartitionExecutionConfig.trainingDefaults(),
                 MemoryPlanningConfig.trainingDefaults()
         );
     }
@@ -41,7 +41,7 @@ public record CompileConfig(
                 SemanticCanonicalizationConfig.defaults(),
                 GraphOptimizationConfig.inferenceDefaults(),
                 BackendPlanningConfig.explicitOnly(),
-                RegionOptimizationConfig.inferenceDefaults(),
+                PartitionExecutionConfig.inferenceDefaults(),
                 MemoryPlanningConfig.defaults()
         );
     }
@@ -79,29 +79,29 @@ public record CompileConfig(
     public static CompileConfig cpuOnlyBaseline() {
         return training()
                 .withGraphOptimization(GraphOptimizationConfig.noGraphOptimization())
-                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuRegions(CpuRegionConfig.off()))
-                .withRegionOptimization(RegionOptimizationConfig.disabled())
+                .withBackendPlanning(BackendPlanningConfig.cpuOnly().withCpuPartitions(CpuPartitionConfig.off()))
+                .withPartitionExecution(PartitionExecutionConfig.disabled())
                 .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired());
     }
 
     public CompileConfig withSemanticCanonicalization(SemanticCanonicalizationConfig newConfig) {
-        return new CompileConfig(newConfig, graphOptimization, backendPlanning, regionOptimization, memoryPlanning);
+        return new CompileConfig(newConfig, graphOptimization, backendPlanning, partitionExecution, memoryPlanning);
     }
 
     public CompileConfig withGraphOptimization(GraphOptimizationConfig newConfig) {
-        return new CompileConfig(semanticCanonicalization, newConfig, backendPlanning, regionOptimization, memoryPlanning);
+        return new CompileConfig(semanticCanonicalization, newConfig, backendPlanning, partitionExecution, memoryPlanning);
     }
 
     public CompileConfig withBackendPlanning(BackendPlanningConfig newConfig) {
-        return new CompileConfig(semanticCanonicalization, graphOptimization, newConfig, regionOptimization, memoryPlanning);
+        return new CompileConfig(semanticCanonicalization, graphOptimization, newConfig, partitionExecution, memoryPlanning);
     }
 
-    public CompileConfig withRegionOptimization(RegionOptimizationConfig newConfig) {
+    public CompileConfig withPartitionExecution(PartitionExecutionConfig newConfig) {
         return new CompileConfig(semanticCanonicalization, graphOptimization, backendPlanning, newConfig, memoryPlanning);
     }
 
     public CompileConfig withMemoryPlanning(MemoryPlanningConfig newConfig) {
-        return new CompileConfig(semanticCanonicalization, graphOptimization, backendPlanning, regionOptimization, newConfig);
+        return new CompileConfig(semanticCanonicalization, graphOptimization, backendPlanning, partitionExecution, newConfig);
     }
 
     public static CompileConfig defaultsForMode(runtime.contract.ExecutionMode mode) {

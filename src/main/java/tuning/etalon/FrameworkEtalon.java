@@ -6,7 +6,7 @@ import config.backend.CpuKernelConfig;
 import config.backend.KernelTuningConfig;
 import config.compile.CompileConfig;
 import config.compile.MemoryPlanningConfig;
-import config.compile.RegionOptimizationConfig;
+import config.compile.PartitionExecutionConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
 import config.runtime.BlasConfig;
@@ -105,8 +105,8 @@ public final class FrameworkEtalon {
                 entry("f64_infer_default", DataType.FLOAT64, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
                 entry("f32_infer_default", DataType.FLOAT32, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
                 entry("bf16_infer_default", DataType.BFLOAT16, ExecutionMode.FORWARD, CompileConfig.inference(), RuntimeConfig.inferenceDefaults()),
-                entry("f64_infer_no_fuse", DataType.FLOAT64, ExecutionMode.FORWARD, noRegionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
-                entry("f32_infer_no_fuse", DataType.FLOAT32, ExecutionMode.FORWARD, noRegionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
+                entry("f64_infer_no_fuse", DataType.FLOAT64, ExecutionMode.FORWARD, noPartitionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
+                entry("f32_infer_no_fuse", DataType.FLOAT32, ExecutionMode.FORWARD, noPartitionOptimization(CompileConfig.inference()), RuntimeConfig.inferenceDefaults()),
                 entry("f64_infer_blas", DataType.FLOAT64, ExecutionMode.FORWARD, CompileConfig.inference(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0)),
                 entry("f32_infer_blas", DataType.FLOAT32, ExecutionMode.FORWARD, CompileConfig.inference(), withRuntime(RuntimeConfig.inferenceDefaults(), 100000, BlasProvider.OPENBLAS_FFM, 1_000_000L, 0))
         );
@@ -124,9 +124,9 @@ public final class FrameworkEtalon {
         );
     }
 
-    private static CompileConfig noRegionOptimization(CompileConfig base) {
+    private static CompileConfig noPartitionOptimization(CompileConfig base) {
         return base
-                .withRegionOptimization(RegionOptimizationConfig.disabled())
+                .withPartitionExecution(PartitionExecutionConfig.disabled())
                 .withMemoryPlanning(MemoryPlanningConfig.disabledUnlessRequired());
     }
 

@@ -7,6 +7,7 @@ import backend.cpu1.prepare.Cpu1FusedElementwisePreparer;
 import backend.cpu1.prepare.Cpu1MatmulPostOp;
 import backend.cpu1.prepare.Cpu1MatmulPreparer;
 import backend.cpu1.prepare.Cpu1MseLossPreparer;
+import backend.cpu1.prepare.Cpu1NodePreparer;
 import backend.cpu1.prepare.Cpu1PrepareConfig;
 import backend.cpu1.prepare.Cpu1PreparedArtifact;
 import backend.cpu1.storage.Cpu1StorageKind;
@@ -14,16 +15,16 @@ import backend.cuda.prepare.CudaGpuNodePreparer;
 import backend.opencl.exec.OpenClDirectPreparedExecutable;
 import backend.metal.prepare.MetalNodePreparer;
 import backend.lowering.LoweredExecutionUnit;
-import backend.lowering.region.CpuSpecializedPrimitivePayload;
-import backend.lowering.region.RegionExecutionPlan;
+import backend.lowering.partition.CpuSpecializedPrimitivePayload;
+import backend.lowering.partition.BackendPartitionExecutionPlan;
 import config.runtime.RuntimeConfig;
 import graph.model.CompiledNode;
 import runtime.execution.PreparedStepMetadata;
 import runtime.execution.InputResidencyRequirement;
 import runtime.execution.OutputResidencyEffect;
 import planning.partition.PartitionPlan;
-import planning.region.specialization.RegionSpecializationCandidate;
-import planning.region.specialization.RegionSpecializationKind;
+import planning.partition.specialization.PartitionSpecializationCandidate;
+import planning.partition.specialization.PartitionSpecializationKind;
 import planning.value.GraphValueRef;
 import operations.Operation;
 import prepare.context.BackendPrepareContext;
@@ -35,6 +36,7 @@ import java.util.Objects;
 public final class BackendPrepareDispatcher {
     private final RuntimeConfig runtimeConfig;
     private final CpuNodePreparer cpuPreparer;
+    private final Cpu1NodePreparer cpu1NodePreparer;
     private final Cpu1FusedElementwisePreparer cpu1FusedElementwisePreparer;
     private final Cpu1MseLossPreparer cpu1MseLossPreparer;
     private final Cpu1MatmulPreparer cpu1MatmulPreparer;
@@ -45,6 +47,7 @@ public final class BackendPrepareDispatcher {
     private BackendPrepareDispatcher(RuntimeConfig runtimeConfig) {
         this.runtimeConfig = runtimeConfig;
         this.cpuPreparer = new CpuNodePreparer(runtimeConfig);
+        this.cpu1NodePreparer = new Cpu1NodePreparer();
         this.cpu1FusedElementwisePreparer = new Cpu1FusedElementwisePreparer(runtimeConfig);
         this.cpu1MseLossPreparer = new Cpu1MseLossPreparer(runtimeConfig);
         this.cpu1MatmulPreparer = new Cpu1MatmulPreparer();
@@ -59,7 +62,7 @@ public final class BackendPrepareDispatcher {
         Objects.requireNonNull(node, "node cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
         return switch (executionBackendFor(node, context)) {
-            case CPU -> cpuPreparer.prepare(node, context);
+            case CPU -> prepareCpuNode(node, context);
             case GPU_METAL -> metalPreparer().prepare(node, context);
             case GPU_CUDA -> cudaGpuPreparer().prepare(node, context);
             case GPU_OPENCL -> new PreparedStepMetadata(
@@ -71,6 +74,29 @@ public final class BackendPrepareDispatcher {
                     OutputResidencyEffect.cpuCurrentPreserveNative()
             );
         };
+    }
+
+    private PreparedStepMetadata prepareCpuNode(CompiledNode node, BackendPrepareContext context) {
+        if (context.partitionRoleFor(node.id()) == PartitionExecutionRole.INTERIOR) {
+            throw new IllegalStateException("Interior partition node must be covered before backend prepare: nodeId="
+                    + node.id());
+        }
+        if (!runtimeConfig.cpuExecutionPolicy().useCpu1Direct()) {
+            return cpuPreparer.prepare(node, context);
+        }
+        try {
+            Cpu1PreparedArtifact artifact = cpu1NodePreparer.prepare(
+                    node,
+                    context.descriptorIndex(),
+                    automaticCpu1PrepareConfig()
+            );
+            return cpu1Metadata(node.inputIds(), artifact);
+        } catch (UnsupportedOperationException e) {
+            if (runtimeConfig.cpuExecutionPolicy().allowCpu1DirectFallback()) {
+                return cpuPreparer.prepare(node, context);
+            }
+            throw e;
+        }
     }
 
     public PreparedStepMetadata prepareCpuFusedStep(
@@ -95,7 +121,7 @@ public final class BackendPrepareDispatcher {
         Objects.requireNonNull(outputNode, "outputNode cannot be null");
         Objects.requireNonNull(loweredUnit, "loweredUnit cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
-        RegionSpecializationCandidate candidate = requireSpecializationCandidate(loweredUnit);
+        PartitionSpecializationCandidate candidate = requireSpecializationCandidate(loweredUnit);
         return switch (candidate.kind()) {
             case MSE_LOSS -> cpu1MseLossPreparer.prepare(outputNode, loweredUnit, context);
             case SDPA_BACKWARD -> prepareCpu1SdpaBackward(outputNode, candidate, context);
@@ -117,7 +143,7 @@ public final class BackendPrepareDispatcher {
 
     private PreparedStepMetadata prepareCpu1SdpaBackward(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context
     ) {
         Cpu1PrepareConfig config = automaticCpu1PrepareConfig();
@@ -135,14 +161,14 @@ public final class BackendPrepareDispatcher {
                 null,
                 inputNodeIds,
                 artifact,
-                inputResidencyRequirement(artifact.preparedAttentionBackwardUnit().storageKind()),
-                outputResidencyEffect(artifact.preparedAttentionBackwardUnit().storageKind())
+                inputResidencyRequirement(artifact.storageKind()),
+                outputResidencyEffect(artifact.storageKind())
         );
     }
 
     private PreparedStepMetadata prepareCpu1MatmulRelu(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context
     ) {
         validateMatmulReluCandidate(outputNode, candidate, context);
@@ -162,14 +188,14 @@ public final class BackendPrepareDispatcher {
                 null,
                 inputNodeIds,
                 artifact,
-                inputResidencyRequirement(artifact.preparedMatmulUnit().storageKind()),
-                outputResidencyEffect(artifact.preparedMatmulUnit().storageKind())
+                inputResidencyRequirement(artifact.storageKind()),
+                outputResidencyEffect(artifact.storageKind())
         );
     }
 
     private PreparedStepMetadata prepareCpu1MatmulBiasEpilogue(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context,
             Cpu1MatmulPostOp postOp
     ) {
@@ -200,8 +226,22 @@ public final class BackendPrepareDispatcher {
                 null,
                 inputNodeIds,
                 artifact,
-                inputResidencyRequirement(artifact.preparedMatmulUnit().storageKind()),
-                outputResidencyEffect(artifact.preparedMatmulUnit().storageKind())
+                inputResidencyRequirement(artifact.storageKind()),
+                outputResidencyEffect(artifact.storageKind())
+        );
+    }
+
+    private static PreparedStepMetadata cpu1Metadata(
+            List<Integer> inputNodeIds,
+            Cpu1PreparedArtifact artifact
+    ) {
+        return new PreparedStepMetadata(
+                ComputeBackend.CPU,
+                null,
+                inputNodeIds,
+                artifact,
+                inputResidencyRequirement(artifact.storageKind()),
+                outputResidencyEffect(artifact.storageKind())
         );
     }
 
@@ -231,8 +271,8 @@ public final class BackendPrepareDispatcher {
                 : OutputResidencyEffect.cpuCurrentPreserveNative();
     }
 
-    private static RegionSpecializationCandidate requireSpecializationCandidate(LoweredExecutionUnit loweredUnit) {
-        RegionExecutionPlan plan = loweredUnit.requireRegionPlan();
+    private static PartitionSpecializationCandidate requireSpecializationCandidate(LoweredExecutionUnit loweredUnit) {
+        BackendPartitionExecutionPlan plan = loweredUnit.requirePartitionPlan();
         if (!(plan.backendPayload() instanceof CpuSpecializedPrimitivePayload payload)) {
             throw new IllegalStateException("CPU specialized prepare requires CpuSpecializedPrimitivePayload.");
         }
@@ -241,10 +281,10 @@ public final class BackendPrepareDispatcher {
 
     private static void validateMatmulReluCandidate(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context
     ) {
-        if (candidate.kind() != RegionSpecializationKind.MATMUL_RELU) {
+        if (candidate.kind() != PartitionSpecializationKind.MATMUL_RELU) {
             throw new UnsupportedOperationException("cpu1 MATMUL_RELU preparer does not support " + candidate.kind());
         }
         if (candidate.outputValueRef().nodeId() != outputNode.id()) {
@@ -273,13 +313,13 @@ public final class BackendPrepareDispatcher {
 
     private static void validateMatmulBiasEpilogueCandidate(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context,
             Cpu1MatmulPostOp postOp
     ) {
-        RegionSpecializationKind expectedKind = switch (postOp) {
-            case ADD_BIAS -> RegionSpecializationKind.MATMUL_ADD_BIAS;
-            case ADD_BIAS_RELU -> RegionSpecializationKind.MATMUL_ADD_BIAS_RELU;
+        PartitionSpecializationKind expectedKind = switch (postOp) {
+            case ADD_BIAS -> PartitionSpecializationKind.MATMUL_ADD_BIAS;
+            case ADD_BIAS_RELU -> PartitionSpecializationKind.MATMUL_ADD_BIAS_RELU;
             default -> throw new UnsupportedOperationException("cpu1 matmul bias epilogue does not support " + postOp);
         };
         if (candidate.kind() != expectedKind) {
@@ -341,9 +381,9 @@ public final class BackendPrepareDispatcher {
 
     private static void validateLinearBiasEpilogueCandidate(
             CompiledNode outputNode,
-            RegionSpecializationCandidate candidate,
+            PartitionSpecializationCandidate candidate,
             BackendPrepareContext context,
-            RegionSpecializationKind expectedKind,
+            PartitionSpecializationKind expectedKind,
             Cpu1MatmulPostOp postOp
     ) {
         if (candidate.inputValueRefs().size() != 3) {
@@ -387,22 +427,22 @@ public final class BackendPrepareDispatcher {
         return node == null || node.operation() == null ? Operation.OpType.UNKNOWN : node.operation().opType();
     }
 
-    public PreparedStepMetadata prepareMetalRegionStep(
-            backend.lowering.LoweredRegion loweredRegion,
+    public PreparedStepMetadata prepareMetalPartitionStep(
+            backend.lowering.LoweredPartition loweredPartition,
             BackendPrepareContext context
     ) {
-        Objects.requireNonNull(loweredRegion, "loweredRegion cannot be null");
+        Objects.requireNonNull(loweredPartition, "loweredPartition cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
-        return metalPreparer().prepareRegionStep(loweredRegion, context);
+        return metalPreparer().preparePartitionStep(loweredPartition, context);
     }
 
-    public PreparedStepMetadata prepareCudaRegionStep(
-            backend.lowering.LoweredRegion loweredRegion,
+    public PreparedStepMetadata prepareCudaPartitionStep(
+            backend.lowering.LoweredPartition loweredPartition,
             BackendPrepareContext context
     ) {
-        Objects.requireNonNull(loweredRegion, "loweredRegion cannot be null");
+        Objects.requireNonNull(loweredPartition, "loweredPartition cannot be null");
         Objects.requireNonNull(context, "context cannot be null");
-        return cudaGpuPreparer().prepareRegionStep(loweredRegion, context);
+        return cudaGpuPreparer().preparePartitionStep(loweredPartition, context);
     }
 
     private MetalNodePreparer metalPreparer() {

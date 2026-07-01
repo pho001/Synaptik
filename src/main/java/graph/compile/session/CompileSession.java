@@ -18,11 +18,11 @@ import planning.memory.MemoryPlan;
 import planning.memory.MemoryPlanner;
 import planning.memory.MemoryPlannerPolicy;
 import planning.memory.MemoryPlanningInput;
-import planning.partition.PartitionPlan;
+import planning.partition.ExecutablePartitionPlan;
 import planning.partition.PlannedPartition;
-import planning.region.DefaultRegionPlanner;
-import planning.region.PlannedRegion;
-import planning.region.RegionPlanningContext;
+import planning.partition.execution.PartitionExecutionPlanner;
+import planning.partition.execution.PartitionExecutionPlan;
+import planning.partition.execution.PartitionExecutionPlanningContext;
 import graph.compile.publication.PublicationPlan;
 import trace.compile.PartitionCompileTrace;
 import graph.model.CompiledGradientBinding;
@@ -36,7 +36,6 @@ import tensor.Tensor;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,13 +105,13 @@ public final class CompileSession {
         }
     }
 
-    private record PlannedRegionsAndMemory(
-            List<PlannedRegion> plannedRegions,
+    private record ExecutablePartitionsAndMemory(
+            List<ExecutablePartitionPlan> executablePartitions,
             OptimizerState optimizerState,
             MemoryPlan memoryPlan
     ) {
-        private PlannedRegionsAndMemory {
-            plannedRegions = List.copyOf(plannedRegions == null ? List.of() : plannedRegions);
+        private ExecutablePartitionsAndMemory {
+            executablePartitions = List.copyOf(executablePartitions == null ? List.of() : executablePartitions);
             optimizerState = Objects.requireNonNull(optimizerState, "optimizerState cannot be null");
         }
     }
@@ -202,7 +201,7 @@ public final class CompileSession {
             );
             partitionPlanningTrace = backendPlanning.trace();
 
-            PlannedRegionsAndMemory planning = planRegionsAndMemory(
+            ExecutablePartitionsAndMemory planning = planExecutablePartitionsAndMemory(
                     backendPlanning.plannedPartitions(),
                     snapshot.compiledNodes(),
                     optimized.optimizerState(),
@@ -232,8 +231,8 @@ public final class CompileSession {
                             snapshot.forwardOutput().id(),
                             snapshot.forwardBoundaryNodeId(),
                             backward.supportsBackward(),
-                            backendPlanning.plannedPartitions(),
-                            planning.plannedRegions(),
+                            compileConfig.partitionExecution().enabled(),
+                            planning.executablePartitions(),
                             planning.memoryPlan()
                     ),
                     publicationPlan
@@ -345,7 +344,7 @@ public final class CompileSession {
         return new BackendOwnershipPlan(planning.plannedPartitions(), planning.trace());
     }
 
-    private PlannedRegionsAndMemory planRegionsAndMemory(
+    private ExecutablePartitionsAndMemory planExecutablePartitionsAndMemory(
             List<PlannedPartition> plannedPartitions,
             List<CompiledNode> compiledNodes,
             OptimizerState optimizerState,
@@ -356,7 +355,7 @@ public final class CompileSession {
     ) {
         List<PlannedPartition> partitions = List.copyOf(plannedPartitions == null ? List.of() : plannedPartitions);
         List<CompiledNode> nodes = List.copyOf(compiledNodes == null ? List.of() : compiledNodes);
-        List<PlannedRegion> plannedRegions = plannedRegions(partitions, nodes);
+        List<ExecutablePartitionPlan> executablePartitions = executablePartitions(partitions, nodes);
         OptimizerState base = optimizerState == null
                 ? OptimizerState.ofGraph(graph, forwardOutput)
                 : optimizerState;
@@ -364,39 +363,36 @@ public final class CompileSession {
                 supportsBackward,
                 forwardBoundaryNodeId
         );
-        Map<String, PartitionPlan> partitionPlansById = planByPartitionId(partitions);
         boolean memoryRequired = !partitions.isEmpty();
         MemoryPlan memoryPlan = (compileConfig.memoryPlanning().enabled() || memoryRequired)
                 ? MemoryPlanner.plan(
                         new MemoryPlanningInput(
                                 nodes,
-                                plannedRegions,
-                                partitionPlansById,
+                                compileConfig.partitionExecution().enabled() ? executablePartitions : List.of(),
                                 supportsBackward,
                                 forwardBoundaryNodeId
                         ),
                         MemoryPlannerPolicy.fromConfig(compileConfig.memoryPlanning().memory())
                 )
                 : null;
-        return new PlannedRegionsAndMemory(plannedRegions, withMetadata, memoryPlan);
+        return new ExecutablePartitionsAndMemory(executablePartitions, withMetadata, memoryPlan);
     }
 
-    private List<PlannedRegion> plannedRegions(
+    private List<ExecutablePartitionPlan> executablePartitions(
             List<PlannedPartition> plannedPartitions,
             List<CompiledNode> compiledNodes
     ) {
-        if (!compileConfig.regionOptimization().enabled()) {
-            return List.of();
-        }
-        DefaultRegionPlanner planner = new DefaultRegionPlanner();
-        RegionPlanningContext context = new RegionPlanningContext(
+        PartitionExecutionPlanner planner = new PartitionExecutionPlanner();
+        PartitionExecutionPlanningContext context = new PartitionExecutionPlanningContext(
                 compiledNodes,
-                compileConfig.regionOptimization().fuse(),
-                compileConfig.regionOptimization().cpuFusion()
+                compileConfig.partitionExecution().fuse(),
+                compileConfig.partitionExecution().cpuFusion()
         );
         return plannedPartitions.stream()
-                .map(PlannedPartition::partition)
-                .map(partition -> planner.planRegion(partition, context))
+                .map(plannedPartition -> new ExecutablePartitionPlan(
+                        plannedPartition,
+                        planner.planPartition(plannedPartition.partition(), context)
+                ))
                 .toList();
     }
 
@@ -493,17 +489,6 @@ public final class CompileSession {
             composed.put(entry.getKey(), sources.getOrDefault(original, original));
         }
         return composed;
-    }
-
-    private static Map<String, PartitionPlan> planByPartitionId(List<PlannedPartition> plannedPartitions) {
-        HashMap<String, PartitionPlan> out = new HashMap<>();
-        for (PlannedPartition plannedPartition : plannedPartitions) {
-            if (plannedPartition == null || plannedPartition.partition() == null || plannedPartition.plan() == null) {
-                continue;
-            }
-            out.put(plannedPartition.partition().partitionId(), plannedPartition.plan());
-        }
-        return out;
     }
 
     private void mapComputedForwardRootForPublish(

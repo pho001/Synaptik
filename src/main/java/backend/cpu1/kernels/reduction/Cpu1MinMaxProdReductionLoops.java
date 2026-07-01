@@ -2,7 +2,6 @@ package backend.cpu1.kernels.reduction;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -23,46 +22,78 @@ public final class Cpu1MinMaxProdReductionLoops {
     }
 
     public static void minF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32(unit, context, NumericOp.MIN);
+        reduceF32Array(unit, context, NumericOp.MIN);
+    }
+
+    public static void minF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context, NumericOp.MIN);
     }
 
     public static void maxF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32(unit, context, NumericOp.MAX);
+        reduceF32Array(unit, context, NumericOp.MAX);
+    }
+
+    public static void maxF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context, NumericOp.MAX);
     }
 
     public static void prodF32DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF32(unit, context, NumericOp.PROD);
+        reduceF32Array(unit, context, NumericOp.PROD);
+    }
+
+    public static void prodF32DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context, NumericOp.PROD);
     }
 
     public static void minF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64(unit, context, NumericOp.MIN);
+        reduceF64Array(unit, context, NumericOp.MIN);
+    }
+
+    public static void minF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context, NumericOp.MIN);
     }
 
     public static void maxF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64(unit, context, NumericOp.MAX);
+        reduceF64Array(unit, context, NumericOp.MAX);
+    }
+
+    public static void maxF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context, NumericOp.MAX);
     }
 
     public static void prodF64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceF64(unit, context, NumericOp.PROD);
+        reduceF64Array(unit, context, NumericOp.PROD);
+    }
+
+    public static void prodF64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context, NumericOp.PROD);
     }
 
     public static void minBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBf16(unit, context, NumericOp.MIN);
+        reduceBf16Array(unit, context, NumericOp.MIN);
+    }
+
+    public static void minBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context, NumericOp.MIN);
     }
 
     public static void maxBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBf16(unit, context, NumericOp.MAX);
+        reduceBf16Array(unit, context, NumericOp.MAX);
+    }
+
+    public static void maxBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context, NumericOp.MAX);
     }
 
     public static void prodBf16DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        reduceBf16(unit, context, NumericOp.PROD);
+        reduceBf16Array(unit, context, NumericOp.PROD);
     }
 
-    private static void reduceF32(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF32Segment(unit, context, op);
-            return;
-        }
+    public static void prodBf16DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context, NumericOp.PROD);
+    }
+
+    private static void reduceF32Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         float[] inputArray = input.float32Array();
@@ -82,11 +113,7 @@ public final class Cpu1MinMaxProdReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceF64(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF64Segment(unit, context, op);
-            return;
-        }
+    private static void reduceF64Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         double[] inputArray = input.float64Array();
@@ -106,11 +133,7 @@ public final class Cpu1MinMaxProdReductionLoops {
         markOutputWritten(unit, output, context);
     }
 
-    private static void reduceBf16(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceBf16Segment(unit, context, op);
-            return;
-        }
+    private static void reduceBf16Array(Cpu1PreparedReductionUnit unit, ExecutionContext context, NumericOp op) {
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         short[] inputArray = input.bfloat16Array();

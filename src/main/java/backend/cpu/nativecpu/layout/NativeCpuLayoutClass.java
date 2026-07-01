@@ -1,7 +1,7 @@
 package backend.cpu.nativecpu.layout;
 
 /**
- * CPU-native layout classes used by region planning before selecting a physical segment kernel.
+ * CPU-native layout classes used by partition planning before selecting a physical segment kernel.
  */
 public enum NativeCpuLayoutClass {
     DENSE_CONTIGUOUS,

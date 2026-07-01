@@ -140,7 +140,7 @@ public class TuningStoreTest {
     void bestProfileRecordRebasesGraphPolicyOntoCurrentRuntimeProfile() {
         ExecutionProfile measuredWinner = new ExecutionProfile(
                 "abc-f32-graph-autotune",
-                "offload=cpu-only+cpuRegion=natural+cpuFusion=balanced",
+                "offload=cpu-only+cpuPartition=natural+cpuFusion=balanced",
                 tensor.DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
                 config.compile.CompileConfig.training(),

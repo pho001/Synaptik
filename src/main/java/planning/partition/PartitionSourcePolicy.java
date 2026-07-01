@@ -20,7 +20,7 @@ public enum PartitionSourcePolicy {
      * CPU nodes and nodes already assigned to the requested target may be considered.
      *
      * <p>This is used by graph-level offload planning: the graph remains CPU-owned by default, while accelerator
-     * planning evaluates legal accelerator ownership regions as candidates.</p>
+     * planning evaluates legal accelerator ownership partitions as candidates.</p>
      */
     CPU_OR_TARGET_BACKEND;
 

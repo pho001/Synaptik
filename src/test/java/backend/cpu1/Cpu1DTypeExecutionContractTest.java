@@ -144,7 +144,7 @@ class Cpu1DTypeExecutionContractTest {
                 new Cpu1SingleThreadLaunch()
         );
 
-        Cpu1CastLoops.cast(unit, Cpu1TensorView.fromTensor(input), Cpu1TensorView.fromTensor(output));
+        Cpu1CastLoops.castArray(unit, Cpu1TensorView.fromTensor(input), Cpu1TensorView.fromTensor(output));
 
         assertArrayEquals(new double[]{1.0, 4.0, 2.0, 5.0, 3.0, 6.0}, output.toFloat64ArrayCopy(), 0.0d);
     }

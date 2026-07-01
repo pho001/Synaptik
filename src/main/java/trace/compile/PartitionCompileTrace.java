@@ -34,7 +34,7 @@ public record PartitionCompileTrace(
             int rejectedCount
     ) {
         public JobTrace {
-            strategy = strategy == null ? "GREEDY_MAX_REGION" : strategy;
+            strategy = strategy == null ? "GREEDY_MAX_PARTITION" : strategy;
             target = target == null ? "NONE" : target;
             totalConsidered = Math.max(0, totalConsidered);
             acceptedCount = Math.max(0, acceptedCount);

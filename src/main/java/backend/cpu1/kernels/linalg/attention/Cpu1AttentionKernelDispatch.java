@@ -16,18 +16,18 @@ public final class Cpu1AttentionKernelDispatch {
                  ATTENTION_F32_ARRAY_DENSE_VECTOR,
                  ATTENTION_F64_ARRAY_DENSE_SCALAR,
                  ATTENTION_F64_ARRAY_DENSE_VECTOR,
-                 ATTENTION_BF16_ARRAY_DENSE_SCALAR,
-                 ATTENTION_F32_SEGMENT_DENSE_SCALAR,
+                 ATTENTION_BF16_ARRAY_DENSE_SCALAR -> Cpu1AttentionLoops::runAttentionArray;
+            case ATTENTION_F32_SEGMENT_DENSE_SCALAR,
                  ATTENTION_F32_SEGMENT_DENSE_VECTOR,
                  ATTENTION_F64_SEGMENT_DENSE_SCALAR,
                  ATTENTION_F64_SEGMENT_DENSE_VECTOR,
-                 ATTENTION_BF16_SEGMENT_DENSE_SCALAR -> Cpu1AttentionLoops::runAttention;
+                 ATTENTION_BF16_SEGMENT_DENSE_SCALAR -> Cpu1AttentionLoops::runAttentionSegment;
             case ATTENTION_WEIGHTS_F32_ARRAY_DENSE_SCALAR,
                  ATTENTION_WEIGHTS_F64_ARRAY_DENSE_SCALAR,
-                 ATTENTION_WEIGHTS_BF16_ARRAY_DENSE_SCALAR,
-                 ATTENTION_WEIGHTS_F32_SEGMENT_DENSE_SCALAR,
+                 ATTENTION_WEIGHTS_BF16_ARRAY_DENSE_SCALAR -> Cpu1AttentionLoops::runAttentionWeightsArray;
+            case ATTENTION_WEIGHTS_F32_SEGMENT_DENSE_SCALAR,
                  ATTENTION_WEIGHTS_F64_SEGMENT_DENSE_SCALAR,
-                 ATTENTION_WEIGHTS_BF16_SEGMENT_DENSE_SCALAR -> Cpu1AttentionLoops::runAttentionWeights;
+                 ATTENTION_WEIGHTS_BF16_SEGMENT_DENSE_SCALAR -> Cpu1AttentionLoops::runAttentionWeightsSegment;
         };
     }
 }

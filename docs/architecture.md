@@ -1,11 +1,11 @@
 <!-- generated-by: gsd-doc-writer -->
 # Synaptik Architecture
 
-Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-regions.md#backend-planning-and-regions) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Modules](modules.md#package-map)
+Navigation: [Index](index.md#recommended-reading-paths) | [Tensor API](tensor-api.md#graph-lifecycle-and-execution) | [Compute Flow](compute-flow.md#lifecycle-map) | [Graph Optimizer](graph-optimizer.md#graph-optimizer) | [Backend Planning](backend-planning-and-partitions.md#backend-planning-and-partitions) | [Native Bridges & BLAS](native-bridges-and-blas.md#term-map-at-a-glance) | [Metal Backend](metal-backend.md#end-to-end-flow) | [Calibration & Autotune](calibration-autotune.md#runtime-and-graph-artifacts) | [Modules](modules.md#package-map)
 
-Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-partitioning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
+Chapters: [System Overview](#system-overview) | [Core Artifact Boundaries](#core-artifact-boundaries) | [Graph Construction](#graph-construction) | [Compile Pipeline](#compile-pipeline) | [Optimizer And Partitioning](#optimizer-and-backend-planning) | [Prepare Pipeline](#prepare-pipeline) | [Execution Pipeline](#execution-pipeline) | [CPU Backend](#cpu-backend) | [Accelerator Scaffolding](#accelerator-scaffolding) | [Configuration, Profiles, And Tuning](#configuration-profiles-and-tuning) | [Memory And Layout Model](#memory-and-layout-model) | [Tracing And Observability](#tracing-and-observability) | [Numerics Harness](#numerics-harness) | [Verification Anchors](#verification-anchors)
 
-Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, `PreparedExecution` attaches runtime/backend metadata, and `ComputeEngine` dispatches prepared steps to backend implementations. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested operation-scoped subset, including native buffer binding between adjacent Metal regions, BF16 parity for Metal-supported floating operation families, scoped BOOL/index support, direct SDPA, and dense FLOAT32/BFLOAT16 conv/pool execution; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
+Synaptik is a layered Java tensor runtime built around a compiled graph lifecycle rather than eager-only execution. User code builds semantic `Tensor` graphs, `CompiledGraph` snapshots and optimizes those graphs, prepare attaches immutable executable contracts to `PreparedExecutionStep` metadata, and `PreparedExecutionRunner` invokes those contracts without a central concrete-backend switch. CPU is the broadest backend. Metal has a real MPSGraph FFM path for a tested operation-scoped subset, including native buffer binding between adjacent Metal partitions, BF16 parity for Metal-supported floating operation families, scoped BOOL/index support, direct SDPA, and dense FLOAT32/BFLOAT16 conv/pool execution; CUDA has a narrow dense `FLOAT32` native-buffer path with explicit fallback, trace, and benchmark-report evidence; OpenCL currently exposes only a minimal no-op registry path.
 
 ## Table Of Contents
 
@@ -13,7 +13,7 @@ Synaptik is a layered Java tensor runtime built around a compiled graph lifecycl
 - [Core Artifact Boundaries](#core-artifact-boundaries)
 - [Graph Construction](#graph-construction)
 - [Compile Pipeline](#compile-pipeline)
-- [Optimizer And Partitioning](#optimizer-and-partitioning)
+- [Optimizer And Partitioning](#optimizer-and-backend-planning)
 - [Prepare Pipeline](#prepare-pipeline)
 - [Execution Pipeline](#execution-pipeline)
 - [CPU Backend](#cpu-backend)
@@ -41,9 +41,10 @@ flowchart TD
     Operation["operations.Operation descriptors"]
     Compiler["graph.CompiledGraph / graph.compile.GraphCompiler"]
     Optimizer["graph.optimizer simplification/lowering"]
-    Prepare["backend.prepare.PreparedExecutionBuilder"]
-    Execution["graph.execution.PreparedExecution"]
-    Engine["backend.ComputeEngine"]
+    Prepare["prepare.orchestration.PreparedExecutionBuilder"]
+    Execution["runtime.execution.PreparedExecution"]
+    Runner["runtime.runner.PreparedExecutionRunner"]
+    Executable["runtime.execution.PreparedStepExecutable"]
     CPU["backend.cpu.CpuBackend"]
     Accel["Metal/CUDA accelerator scaffolding"]
 
@@ -53,9 +54,10 @@ flowchart TD
     Compiler --> Optimizer
     Optimizer --> Prepare
     Prepare --> Execution
-    Execution --> Engine
-    Engine --> CPU
-    Engine --> Accel
+    Execution --> Runner
+    Runner --> Executable
+    Executable --> CPU
+    Executable --> Accel
 ```
 
 ## Core Artifact Boundaries
@@ -67,14 +69,14 @@ The most important architectural rule is that each lifecycle artifact owns diffe
 | Semantic tensor graph | `src/main/java/tensor/Tensor.java`, `src/main/java/tensor/TensorNode.java`, `src/main/java/tensor/TensorOps.java`, `src/main/java/tensor/ops/*` | Public logical tensor API, shape, dtype, storage, internal graph-node facts, typed gradient rules | CPU dispatch hints, compiled node ids, runtime workspaces |
 | Primitive descriptor | `src/main/java/operations/Operation.java`, `src/main/java/operations/**` | Immutable operation identity and semantic parameters | Kernel code, mutable runtime state, compile/runtime policy |
 | Compile artifact | `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/CompileArtifacts.java` | Compiled node snapshots, forward/backward boundary, optimizer state, memory plan, partition plans | Per-run execution state |
-| Prepared artifact | `src/main/java/graph/execution/PreparedExecution.java`, `src/main/java/graph/execution/plan/CompiledNodeExecutionMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
-| Runtime context | `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/state/ExecutionState.java` | Per-run tensors, metadata index, workspaces, residency/storage bindings, auxiliary runtime caches | Semantic graph ownership |
+| Prepared artifact | `src/main/java/runtime/execution/PreparedExecution.java`, `src/main/java/runtime/execution/PreparedStepMetadata.java` | Ordered execution steps, prepared backend metadata, prepared fused/accelerator executables | Graph rewriting |
+| Runtime context | `src/main/java/runtime/execution/ExecutionContext.java`, `src/main/java/runtime/execution/ExecutionState.java` | Per-run tensors, metadata index, workspaces, residency/storage bindings, auxiliary runtime caches | Semantic graph ownership |
 
 ## Graph Construction
 
 Public graph construction starts in `src/main/java/tensor/Tensor.java`, whose fluent methods delegate through the static `TensorOps` facade. `TensorOps` delegates family-specific work into `src/main/java/tensor/ops/*`. For example, binary operations are implemented by concrete classes such as `tensor.ops.binary.AddOp`, reductions by classes such as `tensor.ops.reduction.SumOp`, layout by classes such as `tensor.ops.layout.ReshapeOp`, and linalg through `tensor.ops.linalg.*`.
 
-The public convenience execution methods are centralized in `src/main/java/tensor/internal/TensorExecutionSupport.java`:
+The public convenience execution methods are centralized in `src/main/java/tensor/internal/TensorExecution.java`:
 
 - `Tensor.compile()` and `Tensor.compile(CompileMode)` call `CompiledGraph.compile(...)`.
 - `Tensor.compute()` defaults to `CompileMode.INFERENCE_ONLY`.
@@ -101,7 +103,7 @@ double[] gradient = x.getGradient().toDoubleArrayCopy();
 
 - a semantic forward canonicalizer from `graph.optimizer.OptimizerFactory.createSemanticForwardCanonicalizer(...)`
 - a backend-neutral `GraphOptimizer` built from `config.compile.GraphOptimizationConfig`
-- a `CompileConfig` that also owns backend planning, region optimization, and memory planning
+- a `CompileConfig` that also owns backend planning, partition optimization, and memory planning
 - a `CompileMode`
 
 The actual compile session in `src/main/java/graph/compile/GraphCompiler.java` performs these steps:
@@ -116,7 +118,7 @@ The actual compile session in `src/main/java/graph/compile/GraphCompiler.java` p
 8. Rebuild `CompiledNode` snapshots.
 9. Capture gradient bindings through `GradientBindingCollector`.
 10. Run backend planning through `BackendPlanningService`.
-11. Run region optimization and memory planning from the compile policy.
+11. Run partition optimization and memory planning from the compile policy.
 12. Return immutable `CompileArtifacts`.
 
 ```mermaid
@@ -163,18 +165,18 @@ Execution planning is separate:
 
 | Phase | Owner | Responsibility |
 |---|---|---|
-| Backend planning | `BackendPlanningConfig`, `BackendPlanningService`, `BackendPlanningJobResolver` | CPU-only, explicit accelerator, or automatic accelerator ownership regions. |
-| Region optimization | `RegionOptimizationConfig`, `DefaultRegionOptimizer` | Fused/unit execution units inside owned regions. |
-| Memory planning | `MemoryPlanningConfig`, `MemoryPlanner`, package-local memory planners | Lifetimes, reusable slots, region value flow, region bindings, handoff requirements, runtime binding policy, and summary metrics. |
+| Backend planning | `BackendPlanningConfig`, `BackendPlanningService`, `BackendPlanningJobResolver` | CPU-only, explicit accelerator, or automatic accelerator ownership partitions. |
+| Partition optimization | `PartitionExecutionConfig`, `PartitionExecutionPlanner` | Fused/unit execution units inside owned partitions. |
+| Memory planning | `MemoryPlanningConfig`, `MemoryPlanner`, package-local memory planners | Lifetimes, reusable slots, partition value flow, partition bindings, handoff requirements, runtime binding policy, and summary metrics. |
 | Runtime selection | `RuntimeConfig`, backend preparers | Runtime availability, BLAS/vector/parallel thresholds, buffer binding, fallback. |
 
-This split is the reason `CompileConfig.noGraphOptimization()` disables graph simplification only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Regions](backend-planning-and-regions.md#backend-planning-and-regions).
+This split is the reason `CompileConfig.noGraphOptimization()` disables graph simplification only. It does not mean "skip backend planning", "ignore explicit accelerator intent", or "disable runtime backend selection." For detailed examples, see [Graph Optimizer](graph-optimizer.md#graph-optimizer) and [Backend Planning And Partitions](backend-planning-and-partitions.md#backend-planning-and-partitions).
 
-Backend planning bridges graph optimization and backend preparation. `src/main/java/graph/compile/planning/BackendPlanningService.java` creates backend candidate regions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
+Backend planning bridges graph optimization and backend preparation. `src/main/java/planning/backend/BackendPlanningService.java` creates backend candidate partitions from `BackendPlanningConfig`, and backend descriptors are registered in `src/main/java/backend/partition/BackendPartitionDescriptorRegistry.java`. The default registry includes CPU plus Metal and CUDA accelerator partition descriptors.
 
-### Materialization-aware region planning
+### Materialization-aware partition planning
 
-Phase 3 uses static named presets only. The accelerator planner scores candidate regions with boundary count, estimated transfer bytes, estimated compute work, avoided intermediate bytes, dispatch cost, fallback mode, layout class, final score, and a stable reason code. These values are internal static constants selected through named presets, not profile- or calibration-derived runtime evidence.
+Phase 3 uses static named presets only. The accelerator planner scores candidate partitions with boundary count, estimated transfer bytes, estimated compute work, avoided intermediate bytes, dispatch cost, fallback mode, layout class, final score, and a stable reason code. These values are internal static constants selected through named presets, not profile- or calibration-derived runtime evidence.
 
 Planner summaries live in compile partition traces. `CompileTrace.partitionPlanning()` exposes selected candidates and bounded top rejected finalists through `PartitionDecisionTrace` cost summaries, so planner acceptance, rejection, split, and CPU fallback decisions can be diagnosed without replaying the graph.
 
@@ -188,16 +190,16 @@ Profile-derived accelerator costs now enter prepare-time backend selection throu
 
 ## Prepare Pipeline
 
-`src/main/java/backend/prepare/PreparedExecutionBuilder.java` turns compile artifacts into a `PreparedExecution`. Prepare is where runtime policy becomes concrete backend metadata. It does not rewrite graph semantics.
+`src/main/java/prepare/orchestration/PreparedExecutionBuilder.java` turns compile artifacts into a `PreparedExecution`. Prepare is where runtime policy becomes concrete backend metadata. It does not rewrite graph semantics.
 
 Prepare performs these main steps:
 
 1. Build a consumer map for compiled nodes.
 2. Create `BackendPrepareContext`.
 3. Select backend plans with `backend.select.DefaultBackendSelectionPolicy`.
-4. Lower selected regions through `backend.lowering.LoweringPipeline`.
+4. Lower selected partitions through `backend.lowering.LoweringPipeline`.
 5. Create `BackendPrepareDispatcher` from `RuntimeConfig`.
-6. Prepare each executable node into `CompiledNodeExecutionMetadata`.
+6. Prepare each executable node into `PreparedStepMetadata`.
 7. Split prepared steps into forward and backward lists.
 8. Return `PreparedExecution` with a `PrepareTrace`.
 
@@ -223,11 +225,15 @@ flowchart TD
     CudaPrep --> Prepared
 ```
 
-`BackendPrepareDispatcher` switches by `CompiledNode.backend()`. CPU nodes go to `CpuNodePreparer`. Metal and CUDA nodes go to accelerator preparers. OpenCL currently receives metadata without a prepared kernel or executable in the dispatcher.
+`BackendPrepareDispatcher` resolves the effective execution backend from the selected partition plan (falling back to
+`CompiledNode.backend()` when no selected plan applies). CPU nodes go to `CpuNodePreparer` or, when explicitly enabled,
+the cpu1 direct preparer. Metal and CUDA nodes go to accelerator preparers. OpenCL prepare resolves an
+`OpenClDirectPreparedExecutable` and therefore succeeds only for operations present in `OpenClKernelRegistry`; the
+current registry contains only `NOOP`.
 
 ## Execution Pipeline
 
-`src/main/java/graph/execution/PreparedExecution.java` owns runtime execution. For each run it:
+`src/main/java/runtime/execution/PreparedExecution.java` owns the reusable prepared artifact and delegates each run to runtime-owned helpers. For each run it:
 
 1. Creates an `ExecutionState`.
 2. Binds memory through `RuntimeMemoryBinder`.
@@ -236,20 +242,13 @@ flowchart TD
 5. Publishes output data back to the semantic root.
 6. Publishes detached gradients back to semantic tensors when running backward.
 
-Step execution is intentionally simple:
+Step execution is intentionally simple: the runner applies runtime residency guards, invokes the executable selected during prepare, records residency effects, and optionally contributes trace data.
 
 ```java
-ComputeEngine.compute(step.compiledNode(), step.metadata(), context);
+step.metadata().executable().execute(step.compiledNode(), step.metadata(), context);
 ```
 
-`src/main/java/backend/ComputeEngine.java` switches on prepared backend metadata:
-
-- `CPU` -> `backend.cpu.CpuBackend`
-- `GPU_CUDA` -> `backend.cuda.CudaGpuBackend` when an accelerator executable exists, otherwise `backend.cuda.CudaBackend`
-- `GPU_OPENCL` -> `backend.opencl.OpenClBackend`
-- `GPU_METAL` -> `backend.metal.MetalBackend`
-
-This is why backend selection and metadata preparation must be complete before execution begins.
+`src/main/java/runtime/runner/PreparedExecutionRunner.java` does not import or select CPU, Metal, CUDA, or OpenCL. Concrete backend preparers attach a `PreparedStepExecutable`; runtime only applies that already compiled decision. This is why backend selection and metadata preparation must be complete before execution begins.
 
 ## CPU Backend
 
@@ -258,7 +257,7 @@ The CPU implementation is rooted at `src/main/java/backend/cpu`. Its package REA
 CPU preparation happens in `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`. It resolves:
 
 - `CpuKernel` from `backend.cpu.kernels.CpuKernelRegistry`
-- `CpuNodeExecutionPlan` from `backend.cpu.kernels.plan.CpuExecutionPlanner` and `CpuPlanAssembler`
+- `CpuNodeExecutionPlan` from `backend.cpu.prepare.CpuExecutionPlanner` and `CpuPlanAssembler`
 - dtype compute/storage/accumulation contracts
 - elementwise dispatch hints
 - fused dispatch and prepared fused executables
@@ -326,9 +325,9 @@ Accelerator support is present but not equivalent to the CPU backend.
 | Area | Files | Verified status |
 |---|---|---|
 | Shared accelerator DAG/lowering contracts | `src/main/java/backend/accelerator/**` | Shared specs for accelerator subgraphs, post-ops, prepared executable support, runtime availability, and cost modeling |
-| Metal | `src/main/java/backend/metal/**` | Has region legality, lowering, prepare, prepared executable, and FFM bridge classes |
-| CUDA | `src/main/java/backend/cuda/**` | Has region legality, lowering, prepare, prepared executable, and FFM bridge classes |
-| OpenCL | `src/main/java/backend/opencl/**` | Has backend and registry classes, but the registry currently exposes only `NOOP` |
+| Metal | `src/main/java/backend/metal/**` | Has partition legality, lowering, prepare, prepared executable, and FFM bridge classes |
+| CUDA | `src/main/java/backend/cuda/**` | Has partition legality, lowering, prepare, prepared executable, and FFM bridge classes |
+| OpenCL | `src/main/java/backend/opencl/**` | Has prepared direct execution, kernel, and registry classes, but the registry currently exposes only `NOOP` |
 
 Needs verification: native Metal/CUDA runtime availability depends on machine-specific bridge loading and external native libraries, which cannot be proven from Java source alone. The source-level integration points are `backend.metal.bridge.*`, `backend.cuda.bridge.*`, and `backend.accelerator.select.AcceleratorRuntimeAvailability`.
 
@@ -350,7 +349,7 @@ The current Metal path is intentionally narrower than the full tensor dtype mode
 - Dense `FLOAT32` `CONV2D`, `MAX_POOL2D`, and `AVG_POOL2D` forward paths are supported through MPSGraph when their operation-specific rank, layout, stride/padding, group/dilation, and divisor gates pass.
 - `FLOAT64`, generic `INT32`/`INT64` compute/output, unsupported `BOOL` consumers, grouped/dilated conv, dtype-mismatched floating inputs, and `AVG_POOL2D countIncludePad=true` remain explicit rejection/fallback cases.
 
-That boundary is checked in two places for different reasons. `MetalBackendPartitionCapability` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal region for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
+That boundary is checked in two places for different reasons. `MetalBackendPartitionCapability` and `MetalPartitionSupport` reject illegal candidates during partition planning so traces do not claim a Metal partition for a dtype the bridge cannot execute. `PreparedMetalExecutable` repeats cheap runtime checks for contiguity, storage offset, and direct Java array availability because legal compile-time dtype does not guarantee that a particular runtime tensor layout can be handed to the FFM bridge.
 
 Direct FLOAT32/BFLOAT16 rank-3/4 `SCALED_DOT_PRODUCT_ATTENTION` can be selected for Metal partitions after native scale and mask parity verification. The lowerer encodes the operation scale into the accelerator DAG scalar bits and the native bridge executes the SDPA node as a primitive MPSGraph DAG: `Q * K^T`, scale, optional BOOL mask select using public mask polarity, softmax, and `* V`. External BOOL masks, causal masks, and external+causal effective masks use SDPA input 3 when the effective mask layout is dense.
 
@@ -363,7 +362,7 @@ The source-level SDPA support matrix is:
 | Generic lowered attention-like `matmul -> scale -> softmax -> matmul` fragments | Legal only for operations already in the Metal allowlist | This keeps tested primitive pieces available without pretending native direct SDPA is equivalent. |
 | `SCALED_DOT_PRODUCT_ATTENTION_BACKWARD` fragments | Present in the backward allowlist | Metal buffer execution can now attempt the native MPSGraph SDPA backward DAG in training flow; runtime fallback remains explicit when another transport or layout gate fails. |
 
-This remains intentionally conservative. The planner can explain why direct SDPA did not enter a Metal region, while
+This remains intentionally conservative. The planner can explain why direct SDPA did not enter a Metal partition, while
 `AcceleratorSubgraphLowerer` contains the DAG encoding path used by the verified native primitive implementation without
 redesigning the accelerator DAG format.
 
@@ -378,7 +377,7 @@ execution moves data through these ownership domains:
 4. Java copies the native output memory back into the destination tensor `float[]`.
 5. The tensor marks its data view stale so later Java reads see the updated storage state.
 
-The native buffer-binding path avoids that Java-array round-trip between adjacent Metal regions. `MetalMpsFfmBridge`
+The native buffer-binding path avoids that Java-array round-trip between adjacent Metal partitions. `MetalMpsFfmBridge`
 discovers `synaptik_apple_mps_create_buffer`, `synaptik_apple_mps_read_buffer`,
 `synaptik_apple_mps_destroy_buffer`, and `synaptik_apple_mps_execute_partition_f32_buffers` before reporting
 `supportsBufferBindings() == true`. `PreparedMetalExecutable` then allocates run-scoped shared `MTLBuffer` handles for
@@ -407,7 +406,7 @@ buckets around the bridge boundary:
 | `executionPath` | One of `CPU_FALLBACK`, `TENSOR_ARRAY_COPY`, or `BUFFER_BINDING`. Current buffer-capable FFM executions report `BUFFER_BINDING`; fallback paths remain explicit. |
 
 `PreparedMetalExecutable` publishes those stats into run trace attributes through
-`src/main/java/graph/execution/PreparedExecution.java`. Benchmark reports can therefore answer the
+`src/main/java/runtime/execution/PreparedExecution.java`. Benchmark reports can therefore answer the
 question "did this step actually run through Metal, and how much of its time was boundary transfer?"
 without guessing from the selected backend label alone.
 
@@ -446,7 +445,7 @@ Java tensor arrays
 ```
 
 That ABI is simple and safe because the Java side always ends with CPU-current arrays. It is also expensive because
-every Metal region pays input upload and output download costs.
+every Metal partition pays input upload and output download costs.
 
 The shared-buffer ABI is buffer-oriented:
 
@@ -459,8 +458,7 @@ Java execution state owns or references a Metal-compatible buffer
   -> Java records residency instead of immediately copying bytes back
 ```
 
-The repository has the Java-side pieces of that contract under `src/main/java/backend/memory` and
-`src/main/java/backend/metal/buffer`:
+The repository has backend-neutral buffer contracts under `src/main/java/runtime/device/buffer`, residency and materialization state under `src/main/java/runtime`, and Metal adapters under `src/main/java/backend/metal/buffer`:
 
 - `MetalBufferHandle` is an opaque native handle plus byte length, storage mode, owner label, and lifetime flag. Only
   an explicit `shared` storage mode is treated as host-shared; private, managed, blank, or unknown modes are
@@ -532,7 +530,7 @@ ExecutionState records after a Metal output write:
 ```
 
 The output reservation is writable before native execution, but the active binding is promoted as readable after the
-write succeeds. This matters for adjacent Metal regions: region A writes node `42`, region B can then consume node `42`
+write succeeds. This matters for adjacent Metal partitions: partition A writes node `42`, partition B can then consume node `42`
 as a Metal input without first materializing the value into a Java array.
 
 Even if the underlying `MTLBuffer` uses shared storage, the Java tensor's `float[]` is not automatically current.
@@ -569,7 +567,7 @@ If all six conditions hold, it calls `MetalMpsGraphBridge.executeBuffers(...)` a
 `MetalMpsBridgeExecutionStats` to report `MetalMpsBridgeExecutionPath.BUFFER_BINDING`. If any binding condition is
 missing, the executable tries the tensor-array copy path. Only that fallback path requires contiguous CPU-visible tensor
 arrays with no storage offset and dtypes supported by the current FFM bridge. If the tensor-array contract also fails,
-the selected Metal region is replayed through CPU fallback with explicit trace reasons. Runtime bridge exceptions are
+the selected Metal partition is replayed through CPU fallback with explicit trace reasons. Runtime bridge exceptions are
 also converted into explicit CPU fallback diagnostics, and failed buffer execution does not promote reserved output
 buffers to current residency.
 
@@ -577,8 +575,8 @@ buffers to current residency.
 
 Configuration is split by lifecycle ownership:
 
-- `src/main/java/config/compile` controls semantic canonicalization, graph optimization, backend planning, region optimization, and memory planning.
-- `src/main/java/config/optimizer` contains lower-level graph, CPU-region, fusion, memory, and cost helper configs consumed by compile policies.
+- `src/main/java/config/compile` controls semantic canonicalization, graph optimization, backend planning, partition optimization, and memory planning.
+- `src/main/java/config/optimizer` contains lower-level graph, CPU-partition, fusion, memory, and cost helper configs consumed by compile policies.
 - `src/main/java/config/runtime` controls execution-time policy such as CPU kernel tuning, approximation, BLAS, conv2d, fused execution, and accelerators.
 - `src/main/java/config/profile` combines compile and runtime policy into executable/profile artifacts.
 
@@ -586,7 +584,7 @@ Configuration is split by lifecycle ownership:
 
 - profile and candidate names
 - dtype
-- `backend.runtime.ExecutionMode`
+- `runtime.contract.ExecutionMode`
 - `CompileConfig`
 - `RuntimeConfig`
 - workload metadata
@@ -623,14 +621,14 @@ The no-argument CLI default is `full f64`.
 
 Layout is first-class in both semantic tensors and runtime execution. `TensorMetadata` stores shape, strides, storage offset, dtype, and label. Layout operations such as reshape, permute, expand, squeeze, select, and contiguous are explicit operation descriptors under `src/main/java/operations/layout` and public builders under `src/main/java/tensor/ops/layout`.
 
-The memory planning compile phase produces a `MemoryPlan` under `src/main/java/graph/compile/planning/memory`. `MemoryPlanner` is the public entry point, while package-local classes own tensor lifetime planning, reusable interval filtering, slot allocation, region value flow, region binding allocation, handoff requirements, runtime binding policy, and summary metrics. `PreparedExecution` passes the final plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
+The memory planning compile phase produces a `MemoryPlan` under `src/main/java/planning/memory`. `MemoryPlanner` is the public entry point, while package-local classes own tensor lifetime planning, reusable interval filtering, slot allocation, partition value flow, partition binding allocation, handoff requirements, runtime binding policy, and summary metrics. `PreparedExecution` passes the final plan to `RuntimeMemoryBinder` before running steps. This keeps allocation/reuse decisions tied to compile artifacts while per-run storage lives behind `ExecutionState`.
 
 `ExecutionState` is the public per-run entrypoint; it does not keep every runtime concern inline. Runtime tensor identity and input rewiring live in `RuntimeTensorStore`, CPU workspaces and prepared inputs live in `RuntimeWorkspaceStore`, CPU/native/device materialization lives in `RuntimeMaterializationService`, run-owned resources and native CPU allocation live in `RuntimeResourceRegistry`, and residency/binding state is split between `RuntimeResidencyStore`, `DeviceBindingRegistry`, and `NativeCpuStorageRegistry`. These concrete run-scoped classes are not new lifecycle artifacts, not public user API, and not places to store compile-time topology or optimizer decisions.
 
 The architecture supports view-like behavior without treating every layout operation as a dense copy. The CPU layout kernels under `src/main/java/backend/cpu/kernels/layout` include alias/view, expand, permute, contiguous, reshape-like, and noop paths.
 
 Runtime storage residency is represented separately from semantic tensor storage. `ExecutionState` creates a
-`backend.memory.TensorResidencyState` for each compiled node. That state records whether the CPU array representation
+`runtime.residency.TensorResidencyState` for each compiled node. That state records whether the CPU array representation
 is current, whether a device representation is current, which backend owns the device representation, and why the last
 transition happened. The residency enum is:
 
@@ -718,10 +716,10 @@ flowchart LR
     Run --> RunTrace
 ```
 
-- `CompileTrace` in `src/main/java/graph/execution/trace/CompileTrace.java`
-- `PrepareTrace` in `src/main/java/graph/execution/trace/PrepareTrace.java`
-- `RunTrace` in `src/main/java/graph/execution/trace/RunTrace.java`
-- `ExecutionTrace` in `src/main/java/graph/execution/trace/ExecutionTrace.java`
+- `CompileTrace` in `src/main/java/trace/compile/CompileTrace.java`
+- `PrepareTrace` in `src/main/java/trace/prepare/PrepareTrace.java`
+- `RunTrace` in `src/main/java/trace/execution/RunTrace.java`
+- `ExecutionTrace` in `src/main/java/trace/ExecutionTrace.java`
 
 For a step-by-step trace walkthrough, see [compute-flow.md#traces](compute-flow.md#traces). That
 document expands the field-level schema and shows example access code. This architecture section
@@ -757,13 +755,13 @@ Tensor graph
   -> CompileTrace(partitionPlanning=...)
 ```
 
-If an accelerator region is not selected, compile trace can explain whether there were no candidates,
-whether candidate legality failed, or whether search/cost scoring rejected the region. It does not say
+If an accelerator partition is not selected, compile trace can explain whether there were no candidates,
+whether candidate legality failed, or whether search/cost scoring rejected the partition. It does not say
 which CPU kernel eventually ran; that belongs to prepare/run tracing.
 
 ### Prepare-Time Trace
 
-`PrepareTrace` is produced by `src/main/java/backend/prepare/PreparedExecutionBuilder.java`. Prepare
+`PrepareTrace` is produced by `src/main/java/prepare/orchestration/PreparedExecutionBuilder.java`. Prepare
 is the point where runtime policy becomes concrete executable metadata. The trace records:
 
 - preparation duration
@@ -778,7 +776,7 @@ acceptance reason, and estimated work.
 
 This means prepare trace is the right artifact when debugging questions such as:
 
-- "Why did this region stay on CPU even though Metal/CUDA support exists?"
+- "Why did this partition stay on CPU even though Metal/CUDA support exists?"
 - "How many forward and backward steps will execute after partition interiors are hidden behind anchors?"
 - "Did runtime config reject a backend because availability or minimum-work policy failed?"
 
@@ -823,7 +821,7 @@ time. Kernels can publish per-run convolution details into `ExecutionContext` vi
 
 ### Runtime State Side Channels
 
-`ExecutionContext` in `src/main/java/backend/runtime/ExecutionContext.java` carries synchronized
+`ExecutionContext` in `src/main/java/runtime/execution/ExecutionContext.java` carries synchronized
 side maps plus per-node residency state:
 
 - `runtimeStateIndex`, keyed by tensor identity, for backend-specific temporary state
@@ -1113,10 +1111,10 @@ reports drift, not median/p95 runtime. Use `tuning.benchmark` for performance me
 
 The claims in this document were checked against source files and tests including:
 
-- lifecycle: `src/main/java/tensor/internal/TensorExecutionSupport.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/backend/prepare/PreparedExecutionBuilder.java`, `src/main/java/graph/execution/PreparedExecution.java`
-- graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/graph/compile/planning/BackendPlanningService.java`
-- backend dispatch: `src/main/java/backend/ComputeEngine.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
-- tracing: `src/main/java/graph/execution/trace/*.java`, `src/main/java/backend/runtime/ExecutionContext.java`, `src/main/java/graph/execution/PreparedExecution.java`
+- lifecycle: `src/main/java/tensor/internal/TensorExecution.java`, `src/main/java/graph/CompiledGraph.java`, `src/main/java/graph/compile/GraphCompiler.java`, `src/main/java/prepare/orchestration/PreparedExecutionBuilder.java`, `src/main/java/runtime/execution/PreparedExecution.java`
+- graph optimization and compile planning: `src/main/java/config/compile/CompileConfig.java`, `src/main/java/config/compile/GraphOptimizationConfig.java`, `src/main/java/config/compile/BackendPlanningConfig.java`, `src/main/java/graph/optimizer/OptimizerFactory.java`, `src/main/java/planning/backend/BackendPlanningService.java`
+- backend dispatch: `src/main/java/runtime/runner/PreparedExecutionRunner.java`, `src/main/java/backend/cpu/CpuBackend.java`, `src/main/java/backend/cpu/prepare/CpuNodePreparer.java`, `src/main/java/backend/cpu/kernels/CpuKernelRegistry.java`
+- tracing: `src/main/java/trace/**/*.java`, `src/main/java/runtime/execution/ExecutionContext.java`, `src/main/java/runtime/execution/PreparedExecution.java`
 - numerics: `src/main/java/numerics/NumericsCli.java`, `src/main/java/numerics/NumericsHarness.java`, `src/main/java/numerics/NumericsGraphFactory.java`, `src/main/java/numerics/NumericsMetrics.java`, `src/main/java/numerics/NumericsPolicy.java`, `src/main/java/numerics/NumericsReport.java`
 - CLI and build: `src/main/java/synaptik/app/TuningCli.java`, `src/main/java/synaptik/app/Main.java`, `build.gradle`, `settings.gradle`
 - representative tests: `src/test/java/PreparedExecutionBuildTest.java`, `src/test/java/CompiledGraphTraceTest.java`, `src/test/java/TensorComputeConvenienceApiTest.java`, `src/test/java/CpuKernelFamilyArchitectureTest.java`, `src/test/java/SourceTreeHygieneTest.java`

@@ -46,7 +46,7 @@ class MetalExecutionRouterTest {
         assertEquals(MetalRouteReasonCode.CUSTOM_KERNEL_SELECTED, decision.reasonCode());
         assertTrue(decision.customKernelAvailable());
         assertTrue(decision.detail().contains("kernelId=" + MetalCustomKernelCandidate.RELU_F32_KERNEL_ID));
-        assertTrue(decision.detail().contains("metalRegionLowering=CUSTOM_KERNEL_DAG"));
+        assertTrue(decision.detail().contains("metalPartitionLowering=CUSTOM_KERNEL_DAG"));
         assertTrue(decision.detail().contains("metalExecutionRoute=CUSTOM_KERNEL"));
         assertFalse(decision.rejectedRoutes().contains(MetalExecutionRoute.CUSTOM_KERNEL));
         assertFalse(decision.rejectedReasonCodes().contains(MetalRouteReasonCode.CUSTOM_KERNEL_NOT_PROFITABLE));

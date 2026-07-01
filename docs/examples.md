@@ -310,7 +310,7 @@ Expected output:
 ## Explicit Compile And Runtime Config
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
@@ -349,11 +349,11 @@ Expected output:
 Use `PreparedExecution` when graph structure and runtime config are stable and only input storage changes between runs.
 
 ```java
-import backend.runtime.ExecutionMode;
+import runtime.contract.ExecutionMode;
 import config.compile.CompileConfig;
 import config.runtime.RuntimeConfig;
 import graph.CompiledGraph;
-import graph.execution.PreparedExecution;
+import runtime.execution.PreparedExecution;
 import tensor.DataType;
 import tensor.Tensor;
 

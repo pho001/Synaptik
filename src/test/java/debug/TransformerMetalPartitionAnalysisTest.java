@@ -4,7 +4,7 @@ import backend.contract.ComputeBackend;
 import backend.metal.lowering.MetalPartitionPlan;
 import runtime.contract.ExecutionMode;
 import config.optimizer.CpuFusionConfig;
-import config.optimizer.CpuRegionConfig;
+import config.optimizer.CpuPartitionConfig;
 import config.compile.CompileConfig;
 import config.profile.ExecutionProfile;
 import config.profile.WorkloadProfile;
@@ -38,8 +38,8 @@ final class TransformerMetalPartitionAnalysisTest {
     @Test
     void printGreedyTransformerMetalPartitions() {
         var optimizer = CompileConfig.training()
-                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults()));
+                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults()));
         var profile = new ExecutionProfile(
                 "debug-transformer-metal",
                 "debug-transformer-metal",
@@ -72,15 +72,15 @@ final class TransformerMetalPartitionAnalysisTest {
                 .forEach(decision -> System.out.println("anchor=" + decision.anchorNodeId()
                         + " nodes=" + decision.nodeIds()
                         + " reason=" + decision.reason()
-                        + " outputs=" + (decision.gpuLoweredRegionManifest() == null
+                        + " outputs=" + (decision.gpuLoweredPartitionManifest() == null
                         ? "n/a"
-                        : decision.gpuLoweredRegionManifest().outputNodeIds())
-                        + " external=" + (decision.gpuLoweredRegionManifest() == null
+                        : decision.gpuLoweredPartitionManifest().outputNodeIds())
+                        + " external=" + (decision.gpuLoweredPartitionManifest() == null
                         ? "n/a"
-                        : decision.gpuLoweredRegionManifest().externalInputNodeIds())
-                        + " primitives=" + (decision.gpuLoweredRegionManifest() == null
+                        : decision.gpuLoweredPartitionManifest().externalInputNodeIds())
+                        + " primitives=" + (decision.gpuLoweredPartitionManifest() == null
                         ? "n/a"
-                        : decision.gpuLoweredRegionManifest().loweredPrimitives().stream()
+                        : decision.gpuLoweredPartitionManifest().loweredPrimitives().stream()
                                 .map(primitive -> primitive.primitiveType() + primitive.sourceOriginalNodeIds())
                                 .toList())));
 
@@ -101,8 +101,8 @@ final class TransformerMetalPartitionAnalysisTest {
     @Test
     void printGreedyTransformerMetalRuntimeTrace() {
         var optimizer = CompileConfig.training()
-                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults()));
+                .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults()));
         var profile = new ExecutionProfile(
                 "debug-transformer-metal-runtime",
                 "debug-transformer-metal-runtime",
@@ -131,7 +131,7 @@ final class TransformerMetalPartitionAnalysisTest {
                 .count();
 
         System.out.println("RUNTIME TRACE SUMMARY");
-        System.out.println("selectedGpuRegions=" + gpuSelected
+        System.out.println("selectedGpuPartitions=" + gpuSelected
                 + " totalSteps=" + trace.steps().size()
                 + " gpuSteps=" + gpuSteps
                 + " cpuSteps=" + cpuSteps
@@ -208,8 +208,8 @@ final class TransformerMetalPartitionAnalysisTest {
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
                 CompileConfig.training()
-                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                        .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults())),
+                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                        .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults())),
                 RuntimeConfig.trainingDefaults(),
                 workloadProfile
         );
@@ -270,8 +270,8 @@ final class TransformerMetalPartitionAnalysisTest {
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
                 CompileConfig.training()
-                        .withBackendPlanning(config.compile.BackendPlanningConfig.cpuOnly().withCpuRegions(CpuRegionConfig.defaults()))
-                        .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults())),
+                        .withBackendPlanning(config.compile.BackendPlanningConfig.cpuOnly().withCpuPartitions(CpuPartitionConfig.defaults()))
+                        .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults())),
                 RuntimeConfig.trainingDefaults(),
                 workloadProfile
         );
@@ -334,8 +334,8 @@ final class TransformerMetalPartitionAnalysisTest {
                 DataType.FLOAT32,
                 ExecutionMode.FORWARD_BACKWARD,
                 CompileConfig.training()
-                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuRegions(CpuRegionConfig.defaults()))
-                        .withRegionOptimization(CompileConfig.training().regionOptimization().withCpuFusion(CpuFusionConfig.defaults())),
+                        .withBackendPlanning(config.compile.BackendPlanningConfig.autoAccelerator().withCpuPartitions(CpuPartitionConfig.defaults()))
+                        .withPartitionExecution(CompileConfig.training().partitionExecution().withCpuFusion(CpuFusionConfig.defaults())),
                 RuntimeConfig.trainingDefaults(),
                 WorkloadProfile.transformerHotPathMedium()
         );
@@ -353,9 +353,9 @@ final class TransformerMetalPartitionAnalysisTest {
                                 + " backend=" + decision.selectedBackend()
                                 + " nodes=" + decision.nodeIds()
                                 + " reason=" + decision.reason()
-                                + " outputs=" + (decision.gpuLoweredRegionManifest() == null
+                                + " outputs=" + (decision.gpuLoweredPartitionManifest() == null
                                 ? "n/a"
-                                : decision.gpuLoweredRegionManifest().outputNodeIds())
+                                : decision.gpuLoweredPartitionManifest().outputNodeIds())
                 ));
         metalPrepared.execute(metalProfile.mode());
 
@@ -480,7 +480,7 @@ final class TransformerMetalPartitionAnalysisTest {
                                 + " backend=" + decision.selectedBackend()
                                 + " nodes=" + decision.nodeIds()
                                 + " reason=" + decision.reason()
-                                + " manifest=" + decision.gpuLoweredRegionManifest()
+                                + " manifest=" + decision.gpuLoweredPartitionManifest()
                 ));
         metalPrepared.execute(metalProfile.mode());
 
@@ -552,9 +552,9 @@ final class TransformerMetalPartitionAnalysisTest {
                                 + " backend=" + decision.selectedBackend()
                                 + " nodes=" + decision.nodeIds()
                                 + " reason=" + decision.reason()
-                                + " outputs=" + (decision.gpuLoweredRegionManifest() == null
+                                + " outputs=" + (decision.gpuLoweredPartitionManifest() == null
                                 ? "n/a"
-                                : decision.gpuLoweredRegionManifest().outputNodeIds())
+                                : decision.gpuLoweredPartitionManifest().outputNodeIds())
                 ));
         metalPrepared.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -653,9 +653,9 @@ final class TransformerMetalPartitionAnalysisTest {
                                 + " backend=" + decision.selectedBackend()
                                 + " nodes=" + decision.nodeIds()
                                 + " reason=" + decision.reason()
-                                + " outputs=" + (decision.gpuLoweredRegionManifest() == null
+                                + " outputs=" + (decision.gpuLoweredPartitionManifest() == null
                                 ? "n/a"
-                                : decision.gpuLoweredRegionManifest().outputNodeIds())
+                                : decision.gpuLoweredPartitionManifest().outputNodeIds())
                 ));
         metalPrepared.execute(ExecutionMode.FORWARD_BACKWARD);
 
@@ -761,9 +761,9 @@ final class TransformerMetalPartitionAnalysisTest {
                                 + " backend=" + decision.selectedBackend()
                                 + " nodes=" + decision.nodeIds()
                                 + " reason=" + decision.reason()
-                                + " outputs=" + (decision.gpuLoweredRegionManifest() == null
+                                + " outputs=" + (decision.gpuLoweredPartitionManifest() == null
                                 ? "n/a"
-                                : decision.gpuLoweredRegionManifest().outputNodeIds())
+                                : decision.gpuLoweredPartitionManifest().outputNodeIds())
                 ));
         metalPrepared.execute(ExecutionMode.FORWARD_BACKWARD);
 

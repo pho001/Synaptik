@@ -2,7 +2,6 @@ package backend.cpu1.kernels.reduction;
 
 import backend.cpu1.exec.Cpu1TensorView;
 import backend.cpu1.prepare.Cpu1PreparedReductionUnit;
-import backend.cpu1.storage.Cpu1StorageKind;
 import runtime.contract.CpuMaterializationReason;
 import runtime.execution.ExecutionContext;
 import tensor.Tensor;
@@ -25,58 +24,58 @@ public final class Cpu1ArgMaxReductionLoops {
     }
 
     public static void argMaxF32ToI64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF32Segment(unit, context);
-            return;
-        }
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         reduceF32(input.float32Array(), output.int64Array(), input.storageOffset(), output.storageOffset(), unit);
         markOutputWritten(unit, output, context);
     }
 
+    public static void argMaxF32ToI64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF32Segment(unit, context);
+    }
+
     public static void argMaxF64ToI64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceF64Segment(unit, context);
-            return;
-        }
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         reduceF64(input.float64Array(), output.int64Array(), input.storageOffset(), output.storageOffset(), unit);
         markOutputWritten(unit, output, context);
     }
 
+    public static void argMaxF64ToI64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceF64Segment(unit, context);
+    }
+
     public static void argMaxBf16ToI64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceBf16Segment(unit, context);
-            return;
-        }
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         reduceBf16(input.bfloat16Array(), output.int64Array(), input.storageOffset(), output.storageOffset(), unit);
         markOutputWritten(unit, output, context);
     }
 
+    public static void argMaxBf16ToI64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceBf16Segment(unit, context);
+    }
+
     public static void argMaxI32ToI64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceI32Segment(unit, context);
-            return;
-        }
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         reduceI32(input.int32Array(), output.int64Array(), input.storageOffset(), output.storageOffset(), unit);
         markOutputWritten(unit, output, context);
     }
 
+    public static void argMaxI32ToI64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceI32Segment(unit, context);
+    }
+
     public static void argMaxI64ToI64DenseScalar(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
-        if (unit.storageKind() == Cpu1StorageKind.MEMORY_SEGMENT) {
-            reduceI64Segment(unit, context);
-            return;
-        }
         Cpu1TensorView input = inputView(unit, context);
         Cpu1TensorView output = outputView(unit, context);
         reduceI64(input.int64Array(), output.int64Array(), input.storageOffset(), output.storageOffset(), unit);
         markOutputWritten(unit, output, context);
+    }
+
+    public static void argMaxI64ToI64DenseScalarSegment(Cpu1PreparedReductionUnit unit, ExecutionContext context) {
+        reduceI64Segment(unit, context);
     }
 
     private static void reduceF32(

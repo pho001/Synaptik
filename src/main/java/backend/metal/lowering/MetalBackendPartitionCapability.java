@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Partition capability for Metal accelerator graph regions.
+ * Partition capability for Metal accelerator graph partitions.
  */
 public final class MetalBackendPartitionCapability implements BackendPartitionCapability {
     private final AcceleratorSubgraphLowerer lowerer = new AcceleratorSubgraphLowerer();
@@ -246,7 +246,7 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
         if (requiredMaterializedValueRefs != null) {
             for (int nodeId : orderedNodeIds) {
                 if (requiredMaterializedValueRefs.contains(GraphValueRef.node(nodeId))
-                        && requiredMaterializationMustLeaveRegion(nodeId, selectedNodeIds, context)) {
+                        && requiredMaterializationMustLeavePartition(nodeId, selectedNodeIds, context)) {
                     outputs.add(nodeId);
                 }
             }
@@ -255,7 +255,7 @@ public final class MetalBackendPartitionCapability implements BackendPartitionCa
         return outputs;
     }
 
-    private boolean requiredMaterializationMustLeaveRegion(
+    private boolean requiredMaterializationMustLeavePartition(
             int nodeId,
             Set<Integer> selectedNodeIds,
             PartitionPlanningContext context

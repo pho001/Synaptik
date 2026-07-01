@@ -53,14 +53,14 @@ class AcceleratorPartitionScoreModelTest {
         var planner = AcceleratorPartitionScoreModel.PlannerPolicy.defaults();
         var transferPolicy = new AcceleratorPartitionScoreModel.TransferPolicy(1.0, 1.0, 0.5);
 
-        double smallRegion = AcceleratorPartitionScoreModel.acceptedScore(
+        double smallPartition = AcceleratorPartitionScoreModel.acceptedScore(
                 metrics,
                 100L,
                 new AcceleratorPartitionScoreModel.TransferMetrics(200L, 200L, 0L),
                 planner,
                 transferPolicy
         );
-        double largerRegion = AcceleratorPartitionScoreModel.acceptedScore(
+        double largerPartition = AcceleratorPartitionScoreModel.acceptedScore(
                 metrics,
                 100L,
                 new AcceleratorPartitionScoreModel.TransferMetrics(200L, 200L, 1000L),
@@ -68,8 +68,8 @@ class AcceleratorPartitionScoreModelTest {
                 transferPolicy
         );
 
-        assertTrue(largerRegion > smallRegion);
-        assertEquals(500.0, largerRegion - smallRegion, 0.0001);
+        assertTrue(largerPartition > smallPartition);
+        assertEquals(500.0, largerPartition - smallPartition, 0.0001);
     }
 
     @Test
@@ -137,7 +137,7 @@ class AcceleratorPartitionScoreModelTest {
     }
 
     @Test
-    void avoidedIntermediateBytesCanMakeLongerRegionWin() {
+    void avoidedIntermediateBytesCanMakeLongerPartitionWin() {
         var metrics = new AcceleratorPartitionScoreModel.CandidateMetrics(2, 1, 1, 0, 1);
         var planner = AcceleratorPartitionScoreModel.PlannerPolicy.defaults();
         var preset = new AcceleratorPartitionScoreModel.StaticCostPreset(
@@ -152,14 +152,14 @@ class AcceleratorPartitionScoreModelTest {
                 1.0
         );
 
-        var smallRegion = AcceleratorPartitionScoreModel.scoreMaterializationAware(
+        var smallPartition = AcceleratorPartitionScoreModel.scoreMaterializationAware(
                 metrics,
                 100L,
                 new AcceleratorPartitionScoreModel.MaterializationSignals(0, 200L, 200L, 0L, 0L, 0L, "BUFFER", "DENSE"),
                 planner,
                 preset
         );
-        var largerRegion = AcceleratorPartitionScoreModel.scoreMaterializationAware(
+        var largerPartition = AcceleratorPartitionScoreModel.scoreMaterializationAware(
                 metrics,
                 100L,
                 new AcceleratorPartitionScoreModel.MaterializationSignals(0, 200L, 200L, 0L, 0L, 1000L, "BUFFER", "DENSE"),
@@ -167,9 +167,9 @@ class AcceleratorPartitionScoreModelTest {
                 preset
         );
 
-        assertTrue(largerRegion.finalScore() > smallRegion.finalScore());
-        assertEquals(500.0, largerRegion.finalScore() - smallRegion.finalScore(), 0.0001);
-        assertEquals(1000L, largerRegion.avoidedIntermediateBytes());
+        assertTrue(largerPartition.finalScore() > smallPartition.finalScore());
+        assertEquals(500.0, largerPartition.finalScore() - smallPartition.finalScore(), 0.0001);
+        assertEquals(1000L, largerPartition.avoidedIntermediateBytes());
     }
 
     @Test

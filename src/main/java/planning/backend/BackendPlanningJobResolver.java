@@ -4,8 +4,8 @@ import config.compile.BackendDiscoveryMode;
 import config.compile.BackendPlanningConfig;
 import config.compile.BackendTarget;
 import config.compile.PartitionSearchConfig;
-import config.optimizer.CpuRegionConfig;
-import config.optimizer.CpuRegionPolicy;
+import config.optimizer.CpuPartitionConfig;
+import config.optimizer.CpuPartitionPolicy;
 import graph.model.CompiledNode;
 import planning.partition.PartitionPlannerStrategy;
 import planning.partition.PartitionSourcePolicy;
@@ -55,7 +55,7 @@ public final class BackendPlanningJobResolver {
             }
         }
 
-        if (cpuSeen && resolved.cpuRegions().policy() != CpuRegionPolicy.OFF) {
+        if (cpuSeen && resolved.cpuPartitions().policy() != CpuPartitionPolicy.OFF) {
             jobs.add(cpuJob(resolved));
         }
         return List.copyOf(jobs);
@@ -95,7 +95,7 @@ public final class BackendPlanningJobResolver {
                 config.ownershipPlanner().toPartitionPlannerStrategy(),
                 acceleratorPlannerPolicy(config.search(), nodes),
                 sourcePolicy,
-                CpuRegionConfig.defaults(),
+                CpuPartitionConfig.defaults(),
                 reason
         );
     }
@@ -103,11 +103,11 @@ public final class BackendPlanningJobResolver {
     private BackendPlanningJob cpuJob(BackendPlanningConfig config) {
         return new BackendPlanningJob(
                 PartitionTarget.CPU,
-                PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_REGION,
-                cpuPlannerPolicy(config.search(), config.cpuRegions()),
+                PartitionPlannerStrategy.CPU_NATURAL_EXECUTION_PARTITION,
+                cpuPlannerPolicy(config.search(), config.cpuPartitions()),
                 PartitionSourcePolicy.TARGET_BACKEND_ONLY,
-                config.cpuRegions(),
-                "cpu-natural-region"
+                config.cpuPartitions(),
+                "cpu-natural-partition"
         );
     }
 
@@ -134,11 +134,11 @@ public final class BackendPlanningJobResolver {
 
     private static AcceleratorPartitionScoreModel.PlannerPolicy cpuPlannerPolicy(
             PartitionSearchConfig search,
-            CpuRegionConfig cpuRegionConfig
+            CpuPartitionConfig cpuPartitionConfig
     ) {
         var weights = search.scoreWeights();
         return new AcceleratorPartitionScoreModel.PlannerPolicy(
-                cpuRegionConfig.maxRegionNodes(),
+                cpuPartitionConfig.maxPartitionNodes(),
                 search.maxVisitedCandidates(),
                 weights.nodeWeight(),
                 weights.internalEdgeWeight(),

@@ -98,7 +98,7 @@ public final class AcceleratorSubgraphLowerer {
     /**
      * Attempts to lower a candidate subgraph into an accelerator DAG for a concrete backend.
      *
-     * @param backend backend that owns the selected accelerator region
+     * @param backend backend that owns the selected accelerator partition
      * @param subgraph candidate partition produced by accelerator legality planning
      * @param context compiled graph lookup used to inspect shapes, dtypes, and inputs
      * @return lowered DAG result, or {@code null} when the candidate is unsupported
@@ -122,7 +122,7 @@ public final class AcceleratorSubgraphLowerer {
         }
         AcceleratorMatMulSpec matMulSpec = tryBuildLegacyMatMulSpec(subgraph, context, compute);
         long estimatedWork = estimateWork(subgraph, context, matMulSpec, dagSpec);
-        GpuCompoundRegionSummary compoundSummary = GpuCompoundPatternDetector.detect(
+        GpuCompoundPartitionSummary compoundSummary = GpuCompoundPatternDetector.detect(
                 backend,
                 subgraph,
                 context,
@@ -193,16 +193,16 @@ public final class AcceleratorSubgraphLowerer {
             List<Integer> acceptedNodeIds,
             int rejectedNodeId
     ) {
-        GpuLoweredRegionManifest manifest = result.manifest();
-        GpuLoweredRegionCandidateSpan candidateSpan = new GpuLoweredRegionCandidateSpan(
+        GpuLoweredPartitionManifest manifest = result.manifest();
+        GpuLoweredPartitionCandidateSpan candidateSpan = new GpuLoweredPartitionCandidateSpan(
                 originalNodeIds,
                 acceptedNodeIds,
                 rejectedNodeId,
                 "p" + acceptedNodeIds.size(),
                 GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED
         );
-        List<GpuLoweredRegionRejection> rejections = new ArrayList<>(manifest.rejections());
-        rejections.add(new GpuLoweredRegionRejection(
+        List<GpuLoweredPartitionRejection> rejections = new ArrayList<>(manifest.rejections());
+        rejections.add(new GpuLoweredPartitionRejection(
                 "candidate_span",
                 rejectedNodeId,
                 candidateSpan.rejectedPrimitiveId(),
@@ -210,8 +210,8 @@ public final class AcceleratorSubgraphLowerer {
                 GpuLoweringUnsupportedReason.DAG_CANDIDATE_SHORTENED,
                 "candidate shortened before execution because node " + rejectedNodeId + " is not lowerable inside the GPU DAG"
         ));
-        GpuLoweredRegionManifest shortenedManifest = new GpuLoweredRegionManifest(
-                manifest.regionId(),
+        GpuLoweredPartitionManifest shortenedManifest = new GpuLoweredPartitionManifest(
+                manifest.partitionId(),
                 manifest.backend(),
                 manifest.anchorNodeId(),
                 manifest.orderedNodeIds(),
@@ -254,15 +254,15 @@ public final class AcceleratorSubgraphLowerer {
         return List.copyOf(out);
     }
 
-    private GpuLoweredRegionManifest buildManifest(
+    private GpuLoweredPartitionManifest buildManifest(
             ComputeBackend backend,
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context,
             AcceleratorDagSpec dagSpec,
-            GpuCompoundRegionSummary compoundSummary
+            GpuCompoundPartitionSummary compoundSummary
     ) {
         ComputeBackend selectedBackend = backend == null ? ComputeBackend.CPU : backend;
-        List<GpuLoweredRegionRejection> rejections = new ArrayList<>();
+        List<GpuLoweredPartitionRejection> rejections = new ArrayList<>();
         Map<String, String> backendExtensions = buildDTypeResidencyEvidence(
                 selectedBackend,
                 subgraph,
@@ -270,8 +270,8 @@ public final class AcceleratorSubgraphLowerer {
                 rejections
         );
         backendExtensions.put("dagNodeCount", Integer.toString(dagSpec.nodes().size()));
-        return new GpuLoweredRegionManifest(
-                "gpu-" + selectedBackend.name().toLowerCase(Locale.ROOT) + "-region-" + subgraph.computeNodeId(),
+        return new GpuLoweredPartitionManifest(
+                "gpu-" + selectedBackend.name().toLowerCase(Locale.ROOT) + "-partition-" + subgraph.computeNodeId(),
                 selectedBackend,
                 subgraph.computeNodeId(),
                 subgraph.orderedNodeIds(),
@@ -285,7 +285,7 @@ public final class AcceleratorSubgraphLowerer {
                 compoundSummary,
                 buildFusionSubpatterns(subgraph, dagSpec, compoundSummary),
                 rejections,
-                GpuLoweredRegionCandidateSpan.none(subgraph.orderedNodeIds()),
+                GpuLoweredPartitionCandidateSpan.none(subgraph.orderedNodeIds()),
                 backendExtensions
         );
     }
@@ -293,7 +293,7 @@ public final class AcceleratorSubgraphLowerer {
     private List<GpuFusionSubpatternSummary> buildFusionSubpatterns(
             AcceleratorSubgraphSpec subgraph,
             AcceleratorDagSpec dagSpec,
-            GpuCompoundRegionSummary compoundSummary
+            GpuCompoundPartitionSummary compoundSummary
     ) {
         if (subgraph == null) {
             return List.of();
@@ -327,7 +327,7 @@ public final class AcceleratorSubgraphLowerer {
                     GpuCompoundPatternType.ELEMENTWISE_CHAIN,
                     chain,
                     primitiveIdsFor(chain, subgraph, dagSpec),
-                    "region-internal elementwise subchain lowered through accelerator DAG"
+                    "partition-internal elementwise subchain lowered through accelerator DAG"
             ));
         }
         return List.copyOf(out);
@@ -367,7 +367,7 @@ public final class AcceleratorSubgraphLowerer {
             ComputeBackend backend,
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context,
-            List<GpuLoweredRegionRejection> rejections
+            List<GpuLoweredPartitionRejection> rejections
     ) {
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         for (int nodeId : subgraph.externalInputNodeIds()) {
@@ -424,7 +424,7 @@ public final class AcceleratorSubgraphLowerer {
 
     private void addDTypeResidencyDecision(
             Map<String, String> backendExtensions,
-            List<GpuLoweredRegionRejection> rejections,
+            List<GpuLoweredPartitionRejection> rejections,
             String role,
             int nodeId,
             String primitiveId,
@@ -435,7 +435,7 @@ public final class AcceleratorSubgraphLowerer {
         if (!decision.rejected()) {
             return;
         }
-        rejections.add(new GpuLoweredRegionRejection(
+        rejections.add(new GpuLoweredPartitionRejection(
                 "dtype_residency." + role,
                 nodeId,
                 primitiveId,
@@ -450,13 +450,13 @@ public final class AcceleratorSubgraphLowerer {
         return index < 0 ? "" : "p" + index;
     }
 
-    private List<GpuLoweredRegionOriginalOp> buildOriginalOps(
+    private List<GpuLoweredPartitionOriginalOp> buildOriginalOps(
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context,
             AcceleratorDagSpec dagSpec
     ) {
         List<GpuLoweredPrimitiveManifest> primitives = buildLoweredPrimitives(dagSpec);
-        List<GpuLoweredRegionOriginalOp> out = new ArrayList<>(subgraph.orderedNodeIds().size());
+        List<GpuLoweredPartitionOriginalOp> out = new ArrayList<>(subgraph.orderedNodeIds().size());
         for (int nodeId : subgraph.orderedNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node == null || node.operation() == null) {
@@ -466,7 +466,7 @@ public final class AcceleratorSubgraphLowerer {
                     .filter(primitive -> primitive.sourceOriginalNodeIds().contains(nodeId))
                     .map(GpuLoweredPrimitiveManifest::primitiveId)
                     .toList();
-            out.add(new GpuLoweredRegionOriginalOp(
+            out.add(new GpuLoweredPartitionOriginalOp(
                     nodeId,
                     node.operation().opType().name(),
                     node.inputIds(),
@@ -498,11 +498,11 @@ public final class AcceleratorSubgraphLowerer {
         return List.copyOf(out);
     }
 
-    private List<GpuLoweredRegionValueAssumption> buildInputAssumptions(
+    private List<GpuLoweredPartitionValueAssumption> buildInputAssumptions(
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context
     ) {
-        List<GpuLoweredRegionValueAssumption> out = new ArrayList<>(subgraph.externalInputNodeIds().size());
+        List<GpuLoweredPartitionValueAssumption> out = new ArrayList<>(subgraph.externalInputNodeIds().size());
         for (int nodeId : subgraph.externalInputNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node != null) {
@@ -512,11 +512,11 @@ public final class AcceleratorSubgraphLowerer {
         return List.copyOf(out);
     }
 
-    private List<GpuLoweredRegionValueAssumption> buildOutputAssumptions(
+    private List<GpuLoweredPartitionValueAssumption> buildOutputAssumptions(
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context
     ) {
-        List<GpuLoweredRegionValueAssumption> out = new ArrayList<>(subgraph.outputNodeIds().size());
+        List<GpuLoweredPartitionValueAssumption> out = new ArrayList<>(subgraph.outputNodeIds().size());
         for (int nodeId : subgraph.outputNodeIds()) {
             CompiledNode node = context.compiledNode(nodeId);
             if (node != null) {
@@ -526,9 +526,9 @@ public final class AcceleratorSubgraphLowerer {
         return List.copyOf(out);
     }
 
-    private GpuLoweredRegionValueAssumption valueAssumption(CompiledNode node, String role) {
+    private GpuLoweredPartitionValueAssumption valueAssumption(CompiledNode node, String role) {
         int[] shape = node.shape();
-        return new GpuLoweredRegionValueAssumption(
+        return new GpuLoweredPartitionValueAssumption(
                 node.id(),
                 role,
                 node.dataType(),
@@ -1639,7 +1639,7 @@ public final class AcceleratorSubgraphLowerer {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
             return null;
         }
-        if (!hasSingleRegionOutput(subgraph)) {
+        if (!hasSinglePartitionOutput(subgraph)) {
             return null;
         }
         List<Integer> nodeIds = subgraph.orderedNodeIds();
@@ -1735,7 +1735,7 @@ public final class AcceleratorSubgraphLowerer {
             AcceleratorSubgraphSpec subgraph,
             PartitionPlanningContext context
     ) {
-        if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1 || !hasSingleRegionOutput(subgraph)) {
+        if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1 || !hasSinglePartitionOutput(subgraph)) {
             return null;
         }
         int outputNodeId = subgraph.outputNodeIds().isEmpty()
@@ -1967,7 +1967,7 @@ public final class AcceleratorSubgraphLowerer {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().isEmpty()) {
             return null;
         }
-        if (!hasSingleRegionOutput(subgraph)) {
+        if (!hasSinglePartitionOutput(subgraph)) {
             return null;
         }
         int outputNodeId = subgraph.outputNodeIds().isEmpty()
@@ -2043,7 +2043,7 @@ public final class AcceleratorSubgraphLowerer {
         if (subgraph == null || context == null || subgraph.orderedNodeIds().size() != 1) {
             return null;
         }
-        if (!hasSingleRegionOutput(subgraph)) {
+        if (!hasSinglePartitionOutput(subgraph)) {
             return null;
         }
         int outputNodeId = subgraph.outputNodeIds().isEmpty() ? subgraph.orderedNodeIds().getFirst() : subgraph.outputNodeIds().getFirst();
@@ -2195,7 +2195,7 @@ public final class AcceleratorSubgraphLowerer {
         return new AcceleratorDagSpec(externalInputs, List.of(backwardNode), List.of(0), List.of(outputNode.id()));
     }
 
-    private boolean hasSingleRegionOutput(AcceleratorSubgraphSpec subgraph) {
+    private boolean hasSinglePartitionOutput(AcceleratorSubgraphSpec subgraph) {
         return subgraph.outputNodeIds().isEmpty() || subgraph.outputNodeIds().size() == 1;
     }
 

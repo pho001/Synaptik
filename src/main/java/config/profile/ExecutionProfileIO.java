@@ -22,8 +22,8 @@ import config.compile.MemoryPlanningConfig;
 import config.compile.PartitionScoreWeights;
 import config.compile.PartitionSearchConfig;
 import config.compile.PlanningCostProfile;
-import config.compile.RegionOptimizationConfig;
-import config.compile.RegionOwnershipPlannerStrategy;
+import config.compile.PartitionExecutionConfig;
+import config.compile.PartitionOwnershipPlannerStrategy;
 import config.optimizer.AlgebraicRewriteConfig;
 import config.optimizer.Conv2dLoweringConfig;
 import config.optimizer.Conv2dDagLoweringProfile;
@@ -33,10 +33,10 @@ import config.optimizer.CpuFusionConfig;
 import config.optimizer.CpuFusionFanoutPolicy;
 import config.optimizer.CpuFusionLayoutPolicy;
 import config.optimizer.CpuFusionMode;
-import config.optimizer.CpuRegionBoundaryPolicy;
-import config.optimizer.CpuRegionConfig;
-import config.optimizer.CpuRegionFanoutPolicy;
-import config.optimizer.CpuRegionPolicy;
+import config.optimizer.CpuPartitionBoundaryPolicy;
+import config.optimizer.CpuPartitionConfig;
+import config.optimizer.CpuPartitionFanoutPolicy;
+import config.optimizer.CpuPartitionPolicy;
 import config.optimizer.CseConfig;
 import config.optimizer.FuseConfig;
 import config.optimizer.LinearLoweringConfig;
@@ -53,6 +53,7 @@ import config.runtime.BFloat16TrainingPolicy;
 import config.runtime.BlasConfig;
 import config.runtime.BlasStorageMode;
 import config.runtime.Conv2dConfig;
+import config.runtime.CpuExecutionPolicy;
 import config.runtime.CpuStorageProfile;
 import config.runtime.DeviceTransferPolicy;
 import config.runtime.FusedExecutionPolicy;
@@ -181,7 +182,7 @@ public final class ExecutionProfileIO {
                     "strictSafety",
                     defaultCompile.graphOptimization().cse().strictSafety()
             );
-            FuseConfig defaultFuse = defaultCompile.regionOptimization().fuse();
+            FuseConfig defaultFuse = defaultCompile.partitionExecution().fuse();
             FuseConfig fuse = new FuseConfig(
                     findInt(json, "maxClusterNodes", defaultFuse.maxClusterNodes()),
                     findDouble(json, "scoreThreshold", defaultFuse.scoreThreshold()),
@@ -216,14 +217,14 @@ public final class ExecutionProfileIO {
                     json,
                     defaultCompile.backendPlanning().cost().planningCostProfile().transferCostPreset()
             );
-            CpuRegionConfig defaultCpuRegion = defaultCompile.backendPlanning().cpuRegions();
-            CpuRegionConfig cpuRegion = new CpuRegionConfig(
-                    findEnum(json, "cpuRegionPolicy", defaultCpuRegion.policy(), CpuRegionPolicy.class),
-                    findInt(json, "cpuRegionMaxRegionNodes", defaultCpuRegion.maxRegionNodes()),
-                    findEnum(json, "cpuRegionFanoutPolicy", defaultCpuRegion.fanoutPolicy(), CpuRegionFanoutPolicy.class),
-                    findEnum(json, "cpuRegionBoundaryPolicy", defaultCpuRegion.boundaryPolicy(), CpuRegionBoundaryPolicy.class)
+            CpuPartitionConfig defaultCpuPartition = defaultCompile.backendPlanning().cpuPartitions();
+            CpuPartitionConfig cpuPartition = new CpuPartitionConfig(
+                    findEnum(json, "cpuPartitionPolicy", defaultCpuPartition.policy(), CpuPartitionPolicy.class),
+                    findInt(json, "cpuPartitionMaxPartitionNodes", defaultCpuPartition.maxPartitionNodes()),
+                    findEnum(json, "cpuPartitionFanoutPolicy", defaultCpuPartition.fanoutPolicy(), CpuPartitionFanoutPolicy.class),
+                    findEnum(json, "cpuPartitionBoundaryPolicy", defaultCpuPartition.boundaryPolicy(), CpuPartitionBoundaryPolicy.class)
             );
-            CpuFusionConfig defaultCpuFusion = defaultCompile.regionOptimization().cpuFusion();
+            CpuFusionConfig defaultCpuFusion = defaultCompile.partitionExecution().cpuFusion();
             CpuFusionConfig cpuFusion = new CpuFusionConfig(
                     findEnum(json, "cpuFusionMode", defaultCpuFusion.mode(), CpuFusionMode.class),
                     findInt(json, "cpuFusionMaxChainNodes", defaultCpuFusion.maxChainNodes()),
@@ -391,6 +392,18 @@ public final class ExecutionProfileIO {
                     findBoolean(json, "fusedAllowBackendFallback", defaultProfile.runtime().fused().allowBackendFallback()),
                     findBoolean(json, "fusedUseCpu1Elementwise", defaultProfile.runtime().fused().useCpu1Elementwise())
             );
+            CpuExecutionPolicy cpuExecutionPolicy = new CpuExecutionPolicy(
+                    findBoolean(
+                            json,
+                            "cpuUseCpu1Direct",
+                            defaultProfile.runtime().cpuExecutionPolicy().useCpu1Direct()
+                    ),
+                    findBoolean(
+                            json,
+                            "cpuAllowCpu1DirectFallback",
+                            defaultProfile.runtime().cpuExecutionPolicy().allowCpu1DirectFallback()
+                    )
+            );
             AcceleratorConfig accelerator = new AcceleratorConfig(
                     new AcceleratorBackendConfig(
                             findBoolean(json, "cudaEnabled", defaultProfile.runtime().accelerator().cuda().enabled()),
@@ -441,6 +454,7 @@ public final class ExecutionProfileIO {
                     blas,
                     conv2d,
                     fused,
+                    cpuExecutionPolicy,
                     accelerator,
                     findEnum(json, "cpuStorageProfile", defaultProfile.runtime().cpuStorageProfile(), CpuStorageProfile.class),
                     findEnum(
@@ -524,17 +538,17 @@ public final class ExecutionProfileIO {
                             json,
                             "ownershipPlanner",
                             defaultCompile.backendPlanning().ownershipPlanner(),
-                            RegionOwnershipPlannerStrategy.class
+                            PartitionOwnershipPlannerStrategy.class
                     ))
                     .withSearch(search)
-                    .withCpuRegions(cpuRegion)
+                    .withCpuPartitions(cpuPartition)
                     .withCost(new BackendPlanningCostConfig(new PlanningCostProfile(transferCostPreset)));
             CompileConfig compile = new CompileConfig(
                     defaultCompile.semanticCanonicalization(),
                     graphOptimization,
                     backendPlanning,
-                    new RegionOptimizationConfig(
-                            findBoolean(json, "regionOptimizationEnabled", defaultCompile.regionOptimization().enabled()),
+                    new PartitionExecutionConfig(
+                            findBoolean(json, "partitionExecutionEnabled", defaultCompile.partitionExecution().enabled()),
                             fuse,
                             cpuFusion
                     ),
@@ -574,6 +588,7 @@ public final class ExecutionProfileIO {
         var conv2d = runtime.conv2d();
         var approximation = runtime.approximation();
         var fused = runtime.fused();
+        var cpuExecutionPolicy = runtime.cpuExecutionPolicy();
         var accelerator = runtime.accelerator();
         var workload = profile.workload();
         var conv2dDag = compile.graphOptimization().rewrite().conv2dLowering().profile();
@@ -612,15 +627,15 @@ public final class ExecutionProfileIO {
                 "    \"cse\": {\n" +
                 "      \"strictSafety\": " + compile.graphOptimization().cse().strictSafety() + "\n" +
                 "    },\n" +
-                "    \"regionOptimization\": {\n" +
-                "      \"regionOptimizationEnabled\": " + compile.regionOptimization().enabled() + ",\n" +
-                "      \"maxClusterNodes\": " + compile.regionOptimization().fuse().maxClusterNodes() + ",\n" +
-                "      \"scoreThreshold\": " + compile.regionOptimization().fuse().scoreThreshold() + ",\n" +
-                "      \"internalEdgeBonus\": " + compile.regionOptimization().fuse().internalEdgeBonus() + ",\n" +
-                "      \"externalInputPenalty\": " + compile.regionOptimization().fuse().externalInputPenalty() + ",\n" +
-                "      \"sharedExpensivePenalty\": " + compile.regionOptimization().fuse().sharedExpensivePenalty() + ",\n" +
-                "      \"nonCheapBonus\": " + compile.regionOptimization().fuse().nonCheapBonus() + ",\n" +
-                "      \"preserveSharedExpensiveNodes\": " + compile.regionOptimization().fuse().preserveSharedExpensiveNodes() + "\n" +
+                "    \"partitionExecution\": {\n" +
+                "      \"partitionExecutionEnabled\": " + compile.partitionExecution().enabled() + ",\n" +
+                "      \"maxClusterNodes\": " + compile.partitionExecution().fuse().maxClusterNodes() + ",\n" +
+                "      \"scoreThreshold\": " + compile.partitionExecution().fuse().scoreThreshold() + ",\n" +
+                "      \"internalEdgeBonus\": " + compile.partitionExecution().fuse().internalEdgeBonus() + ",\n" +
+                "      \"externalInputPenalty\": " + compile.partitionExecution().fuse().externalInputPenalty() + ",\n" +
+                "      \"sharedExpensivePenalty\": " + compile.partitionExecution().fuse().sharedExpensivePenalty() + ",\n" +
+                "      \"nonCheapBonus\": " + compile.partitionExecution().fuse().nonCheapBonus() + ",\n" +
+                "      \"preserveSharedExpensiveNodes\": " + compile.partitionExecution().fuse().preserveSharedExpensiveNodes() + "\n" +
                 "    },\n" +
                 "    \"memoryPlanning\": {\n" +
                 "      \"memoryPlanningEnabled\": " + compile.memoryPlanning().enabled() + ",\n" +
@@ -644,17 +659,17 @@ public final class ExecutionProfileIO {
                 "      \"partitionExternalInputPenalty\": " + compile.backendPlanning().search().scoreWeights().externalInputPenalty() + ",\n" +
                 "      \"partitionWorkWeight\": " + compile.backendPlanning().search().scoreWeights().workWeight() + ",\n" +
                 "      \"partitionTransferCostPreset\": \"" + compile.backendPlanning().cost().planningCostProfile().transferCostPreset().name() + "\",\n" +
-                "      \"cpuRegionPolicy\": \"" + compile.backendPlanning().cpuRegions().policy().name() + "\",\n" +
-                "      \"cpuRegionMaxRegionNodes\": " + compile.backendPlanning().cpuRegions().maxRegionNodes() + ",\n" +
-                "      \"cpuRegionFanoutPolicy\": \"" + compile.backendPlanning().cpuRegions().fanoutPolicy().name() + "\",\n" +
-                "      \"cpuRegionBoundaryPolicy\": \"" + compile.backendPlanning().cpuRegions().boundaryPolicy().name() + "\"\n" +
+                "      \"cpuPartitionPolicy\": \"" + compile.backendPlanning().cpuPartitions().policy().name() + "\",\n" +
+                "      \"cpuPartitionMaxPartitionNodes\": " + compile.backendPlanning().cpuPartitions().maxPartitionNodes() + ",\n" +
+                "      \"cpuPartitionFanoutPolicy\": \"" + compile.backendPlanning().cpuPartitions().fanoutPolicy().name() + "\",\n" +
+                "      \"cpuPartitionBoundaryPolicy\": \"" + compile.backendPlanning().cpuPartitions().boundaryPolicy().name() + "\"\n" +
                 "    },\n" +
                 "    \"cpuFusion\": {\n" +
-                "      \"cpuFusionMode\": \"" + compile.regionOptimization().cpuFusion().mode().name() + "\",\n" +
-                "      \"cpuFusionMaxChainNodes\": " + compile.regionOptimization().cpuFusion().maxChainNodes() + ",\n" +
-                "      \"cpuFusionFanoutPolicy\": \"" + compile.regionOptimization().cpuFusion().fanoutPolicy().name() + "\",\n" +
-                "      \"cpuFusionLayoutPolicy\": \"" + compile.regionOptimization().cpuFusion().layoutPolicy().name() + "\",\n" +
-                "      \"cpuFusionCheapProducerPolicy\": \"" + compile.regionOptimization().cpuFusion().cheapProducerPolicy().name() + "\"\n" +
+                "      \"cpuFusionMode\": \"" + compile.partitionExecution().cpuFusion().mode().name() + "\",\n" +
+                "      \"cpuFusionMaxChainNodes\": " + compile.partitionExecution().cpuFusion().maxChainNodes() + ",\n" +
+                "      \"cpuFusionFanoutPolicy\": \"" + compile.partitionExecution().cpuFusion().fanoutPolicy().name() + "\",\n" +
+                "      \"cpuFusionLayoutPolicy\": \"" + compile.partitionExecution().cpuFusion().layoutPolicy().name() + "\",\n" +
+                "      \"cpuFusionCheapProducerPolicy\": \"" + compile.partitionExecution().cpuFusion().cheapProducerPolicy().name() + "\"\n" +
                 "    }\n" +
                 "  },\n" +
                 "  \"runtime\": {\n" +
@@ -752,6 +767,10 @@ public final class ExecutionProfileIO {
                 "    \"fused\": {\n" +
                 "      \"fusedAllowBackendFallback\": " + fused.allowBackendFallback() + ",\n" +
                 "      \"fusedUseCpu1Elementwise\": " + fused.useCpu1Elementwise() + "\n" +
+                "    },\n" +
+                "    \"cpuExecution\": {\n" +
+                "      \"cpuUseCpu1Direct\": " + cpuExecutionPolicy.useCpu1Direct() + ",\n" +
+                "      \"cpuAllowCpu1DirectFallback\": " + cpuExecutionPolicy.allowCpu1DirectFallback() + "\n" +
                 "    },\n" +
                 "    \"accelerator\": {\n" +
                 "      \"cudaEnabled\": " + accelerator.cuda().enabled() + ",\n" +

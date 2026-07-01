@@ -61,8 +61,8 @@ public final class TuningKnobOwnership {
                 "compile.backendPlanning.failurePolicy",
                 "compile.backendPlanning.ownershipPlanner",
                 "compile.backendPlanning.cost.transferCostPreset",
-                "compile.backendPlanning.cpuRegion.policy",
-                "compile.regionOptimization.cpuFusion.mode"
+                "compile.backendPlanning.cpuPartition.policy",
+                "compile.partitionExecution.cpuFusion.mode"
         );
         add(owners, TuningKnobOwner.PLATFORM_DTYPE,
                 "cpu.lowCostTargetChunksPerWorker",

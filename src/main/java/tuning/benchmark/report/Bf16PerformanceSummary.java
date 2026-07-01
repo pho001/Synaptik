@@ -16,7 +16,7 @@ public record Bf16PerformanceSummary(
         int sbgemmContinuationCount,
         int promotedF32Count,
         int promotedNonBlasStepCount,
-        int promotedNonBlasRegionNodeCount,
+        int promotedNonBlasPartitionNodeCount,
         int promotedNonBlasSegmentScalarCount,
         int promotedNonBlasArrayFallbackCount,
         int javaRouteCount,
@@ -83,7 +83,7 @@ public record Bf16PerformanceSummary(
         int sbgemm = 0;
         int promoted = 0;
         int promotedNonBlasSteps = 0;
-        int promotedNonBlasRegionNodes = 0;
+        int promotedNonBlasPartitionNodes = 0;
         int promotedNonBlasSegmentScalar = 0;
         int promotedNonBlasArrayFallback = 0;
         int javaRoute = 0;
@@ -106,10 +106,10 @@ public record Bf16PerformanceSummary(
                     promotedNonBlasArrayFallback++;
                 }
             }
-            int regionPromotedNodes = collectionSize(attrs.get("nativeCpuRegionBf16PromotedNodes"));
-            if (regionPromotedNodes > 0) {
-                promotedNonBlasRegionNodes += regionPromotedNodes;
-                promotedNonBlasSegmentScalar += collectionSize(attrs.get("nativeCpuRegionBf16PromotedSegmentScalarNodes"));
+            int partitionPromotedNodes = collectionSize(attrs.get("nativeCpuPartitionBf16PromotedNodes"));
+            if (partitionPromotedNodes > 0) {
+                promotedNonBlasPartitionNodes += partitionPromotedNodes;
+                promotedNonBlasSegmentScalar += collectionSize(attrs.get("nativeCpuPartitionBf16PromotedSegmentScalarNodes"));
             }
             MatMulTraceMetadata matMul = step.metadata().matMul();
             if (matMul == null || !isBf16MatMul(matMul)) {
@@ -183,14 +183,14 @@ public record Bf16PerformanceSummary(
         }
 
         boolean present = matMulSteps > 0 || optimizerCount > 0;
-        present = present || promotedNonBlasSteps > 0 || promotedNonBlasRegionNodes > 0;
+        present = present || promotedNonBlasSteps > 0 || promotedNonBlasPartitionNodes > 0;
         return new Bf16PerformanceSummary(
                 matMulSteps,
                 bgemm,
                 sbgemm,
                 promoted,
                 promotedNonBlasSteps,
-                promotedNonBlasRegionNodes,
+                promotedNonBlasPartitionNodes,
                 promotedNonBlasSegmentScalar,
                 promotedNonBlasArrayFallback,
                 javaRoute,

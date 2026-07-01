@@ -42,7 +42,7 @@ The project has 163 `*Test.java` files, including 31 files under `src/test/java/
 | `src/test/java/backend/cuda` | CUDA bridge and lowering scaffolding tests |
 | `src/test/java/backend/metal` | Metal bridge and lowering scaffolding tests |
 | `src/test/java/config` | Optimizer/config behavior |
-| `src/test/java/graph` | Graph execution, codegen, optimizer, memory, region behavior |
+| `src/test/java/graph` | Graph execution, codegen, optimizer, memory, partition behavior |
 | `src/test/java/synaptik/app` | CLI parsing and app entry point tests |
 | `src/test/java/tuning` | Tuning integration and workload isolation |
 | `src/test/java/debug` | JUnit-driven benchmark and profile comparison tests |
@@ -191,7 +191,7 @@ Use these after changing specific areas:
 | Conv/pool | `./gradlew test --no-daemon --tests Conv2dExecutionTest --tests Conv2dLoweringRuleTest --tests Pool2dExecutionTest` |
 | Losses | `./gradlew test --no-daemon --tests CrossEntropyLossExecutionTest --tests IndexTargetCrossEntropyLossExecutionTest --tests NllLossExecutionTest` |
 | Gradients | `./gradlew test --no-daemon --tests GradientEngineRegressionTest --tests BroadcastContractMatrixTest` |
-| Optimizer rewrite/CSE/fusion/memory | `./gradlew test --no-daemon --tests AlgebraicRewritingPowTest --tests CommonSubexpressionEliminationRuleTest --tests graph.optimizer.GraphOptimizerSinglePassTest --tests planning.region.DefaultRegionPlannerServiceTest --tests planning.memory.MemoryPlannerRegionViewTest` |
+| Optimizer rewrite/CSE/fusion/memory | `./gradlew test --no-daemon --tests AlgebraicRewritingPowTest --tests CommonSubexpressionEliminationRuleTest --tests graph.optimizer.GraphOptimizerSinglePassTest --tests planning.partition.execution.PartitionExecutionPlannerServiceTest --tests planning.memory.MemoryPlannerPartitionViewTest` |
 | Backend boundaries | `./gradlew test --no-daemon --tests SourceTreeHygieneTest --tests ComputeBackendTest` |
 | Metal layout-aware device flow | `./gradlew test --no-daemon --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest`<br>`./gradlew test --no-daemon --tests backend.metal.buffer.MetalBufferAllocatorTest --tests backend.metal.bridge.MetalMpsFfmBridgeTest`<br>`./gradlew test --no-daemon --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.metal.MetalBufferTraceSmokeTest`<br>`./gradlew classes`<br>`./gradlew metalTest` |
 | CPU planning | `./gradlew test --no-daemon --tests CpuExecutionPlannerDispatchHeuristicsTest --tests backend.cpu.kernels.ElementwiseDispatchPlanningTest --tests backend.cpu.kernels.FusedDispatchPlanningTest` |
@@ -277,7 +277,7 @@ Preferred Metal slice for day-to-day native verification:
 
 The task filters to Metal-specific tests, including `backend.metal.*` and `PreparedExecutionBuildTest.gpuMetal*`, and injects the `synaptik.metal.mps.lib` system property. If you need one isolated class or method, keep using `./gradlew test --tests ... -Dsynaptik.metal.mps.lib=...`.
 
-For what each Metal test proves, including the native buffer ABI and adjacent-region buffer handoff, see
+For what each Metal test proves, including the native buffer ABI and adjacent-partition buffer handoff, see
 [Metal Backend: Tests](metal-backend.md#tests).
 
 Build and run the optional CUDA graph shim tests when `nvcc` and CUDA hardware are available:
@@ -303,7 +303,7 @@ Use `GpuCoverageSummaryTest`, `GpuCoverageRegressionGateTest`, `BenchmarkSession
 `CompiledGraphTraceTest` to prove report schema, fallback visibility, and gate failures even when native CUDA is
 capability-skipped.
 
-The coverage report fields include `gpuCoverageRatio`, `selectedRegionCount`, `maxSelectedRegionLength`,
+The coverage report fields include `gpuCoverageRatio`, `selectedPartitionCount`, `maxSelectedPartitionLength`,
 `rejectedCandidateReasonCounts`, `cpuMaterializationReasonCounts`, and `deviceHandoffCount`. These fields are the
 checked-in evidence contract for coverage/materialization behavior, not raw timing. Native Metal and CUDA tasks add
 native capability-gated evidence, but portable coverage gate behavior must not depend on local GPU availability.
@@ -347,7 +347,7 @@ coverage regression logic, benchmark-suite rendering, or representative workload
 
 Supported v1.4 targets must require native buffer evidence and fail hidden tensor-array/CPU fallback. Unsupported or
 capability-gated targets must retain expected visible reasons. Suite reports must render `coverageDeltaVsBaseline`,
-target policies, native evidence, selected region length, lowered primitive count, fallback counters, CPU materialization
+target policies, native evidence, selected partition length, lowered primitive count, fallback counters, CPU materialization
 count, and device handoff count.
 
 ### Phase 14 GPU coverage triage
@@ -366,6 +366,16 @@ CUDA results are capability-gated native evidence and should be treated as addit
 the portable Java tests.
 
 ## Source Hygiene Tests
+
+For the opt-in cpu1 direct route, the focused contract gates include:
+
+```bash
+./gradlew test --tests 'backend.cpu1.BackendPrepareDispatcherCpu1DirectRouteTest' \
+  --tests 'backend.cpu1.Cpu1ReadinessMatrixTest' \
+  --tests 'backend.cpu1.Cpu1CpuParityInventoryTest'
+```
+
+These tests cover route selection/fallback policy and the checked-in parity/readiness inventories. Storage-specific execution contracts remain under `src/test/java/backend/cpu1`; benchmark-tagged tests are evidence runs, not part of ordinary correctness validation.
 
 `SourceTreeHygieneTest` checks architecture and migration boundaries. Notable checks include:
 

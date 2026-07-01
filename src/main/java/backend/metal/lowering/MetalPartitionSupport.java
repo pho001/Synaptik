@@ -226,7 +226,7 @@ public final class MetalPartitionSupport {
 
     private static String sdpaUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward SDPA nodes are not legal inside Metal backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward SDPA nodes are not legal inside Metal backward partitions";
         }
         if (!(node.operation() instanceof scaledDotProductAttention attention)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA descriptor is unavailable";
@@ -293,7 +293,7 @@ public final class MetalPartitionSupport {
 
     private static String sdpaBackwardUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         if (!node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: GPU_METAL SDPA backward nodes must live in a backward region";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: GPU_METAL SDPA backward nodes must live in a backward partition";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL SDPA backward requires planning context";
@@ -395,7 +395,7 @@ public final class MetalPartitionSupport {
     private static String indexGatherUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         Operation.OpType opType = node.operation().opType();
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";
@@ -489,7 +489,7 @@ public final class MetalPartitionSupport {
     private static String gatherNdUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         Operation.OpType opType = Operation.OpType.GATHER_ND;
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward GATHER_ND nodes are not legal inside Metal backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward GATHER_ND nodes are not legal inside Metal backward partitions";
         }
         if (!(node.operation() instanceof gatherNd gatherOp)) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL GATHER_ND descriptor is unavailable";
@@ -1033,7 +1033,7 @@ public final class MetalPartitionSupport {
     private static String reductionScanUnsupportedReason(CompiledNode node, PartitionPlanningContext context) {
         Operation.OpType opType = node.operation().opType();
         if (node.backwardNode()) {
-            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward regions";
+            return "BACKWARD_CONTEXT_UNSUPPORTED: forward " + opType + " nodes are not legal inside Metal backward partitions";
         }
         if (context == null) {
             return "UNSUPPORTED_RANK_OR_SHAPE: GPU_METAL " + opType + " requires planning context";

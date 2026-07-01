@@ -8,9 +8,9 @@ import backend.metal.bridge.MetalMpsBridgeExecutionStats;
 import java.util.List;
 
 /**
- * Optional SPI for custom Metal kernels inside selected Metal GPU regions.
+ * Optional SPI for custom Metal kernels inside selected Metal GPU partitions.
  *
- * <p>This seam is backend-internal. It consumes lowered Metal region metadata and deliberately
+ * <p>This seam is backend-internal. It consumes lowered Metal partition metadata and deliberately
  * does not expose or require public Tensor device-residency APIs.</p>
  */
 public interface MetalCustomKernelBridge {
