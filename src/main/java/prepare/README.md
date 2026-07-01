@@ -19,4 +19,9 @@ Concrete preparation logic remains backend-owned:
 - `backend.metal.prepare`
 - `backend.cuda.prepare`
 
+These backend-specific prepare packages are backend compilers: they consume backend-neutral
+plans and shared context, resolve concrete storage, kernel, provider and launch choices, and
+emit immutable executable artifacts. They never import `prepare.orchestration`. Runtime applies
+the compiled choice and does not redo static prepare decisions.
+
 Shared accelerator preparation helpers belong under `backend.accelerator.prepare`.

@@ -32,8 +32,8 @@ Related docs:
 
 ## Target Package Ownership
 
-The root `backend` package is a facade/API boundary only.
-It should contain backend-neutral contracts such as `ComputeEngine`, `ComputeBackend`, and shared execution modes.
+The root `backend` package does not own runtime dispatch. Backend-neutral identities live in
+`backend.contract`, while prepared execution contracts live in `runtime.execution`.
 
 Concrete implementation belongs under backend-owned roots:
 
@@ -45,43 +45,50 @@ Concrete implementation belongs under backend-owned roots:
 Shared accelerator-only artifacts belong under `backend.accelerator`.
 Generic backend selection belongs under `backend.select`.
 Generic lowering contracts belong under `backend.lowering`.
-Generic prepare orchestration belongs under `backend.prepare`.
+Generic prepare orchestration belongs under `prepare.orchestration`; shared prepare
+inputs and validation belong under `prepare.context` and `prepare.validation`.
 Backend-specific registries and kernels belong under their backend root.
+
+Each `backend.<name>.prepare` package is a backend compiler. It resolves operation support,
+storage/layout, kernel specialization, provider route, launch policy, workspace, and fallback
+eligibility once, producing immutable state that runtime can execute directly.
+
+Shared external providers live under `backend.provider`. In particular,
+`backend.provider.blas.openblas` is a JDK/FFM-only low-level provider; it does not read
+configuration or choose routes. `config.runtime.BlasProvider` is only the declarative provider
+selection value, while CPU and cpu1 prepare code own route and policy decisions.
 
 Root-level concrete backend implementations and CPU-specific helper types have been removed.
 Do not add root wrappers for backend-specific implementation classes.
 
 ## Main Components
 
-- backend dispatch facade:
-  - [ComputeEngine.java](../backend/ComputeEngine.java)
-  - [ComputeBackend.java](../backend/ComputeBackend.java)
+- backend identity:
+  - `backend.contract.ComputeBackend`
 - concrete backends:
-  - target: `backend.cpu.CpuBackend`
-  - target: `backend.metal.MetalBackend`
-  - target: `backend.cuda.CudaBackend`
-  - target: `backend.opencl.OpenClBackend`
+  - `backend.cpu.CpuBackend` is the backend-internal CPU executor used by prepared CPU artifacts
+  - accelerator partitions execute through `backend.accelerator.exec.AcceleratorExecutionArtifact`
+  - direct CUDA/OpenCL nodes use backend-owned prepared executables
 - backend prepare layer:
-  - [prepare/BackendPrepareDispatcher.java](../backend/prepare/BackendPrepareDispatcher.java)
+  - [../prepare/README.md](../prepare/README.md)
 - backend-specific preparers live under backend roots
 - CPU kernel resolution:
   - target: `backend.cpu.kernels.CpuKernelRegistry`
 - runtime context:
-  - [runtime/ExecutionContext.java](../backend/runtime/ExecutionContext.java)
+  - [ExecutionContext.java](../runtime/execution/ExecutionContext.java)
 
 ## Execution Path
 
 The normal execution path is:
 
 1. `PreparedExecution` iterates prepared steps
-2. each step calls `ComputeEngine.compute(compiledNode, metadata, context)`
-3. `ComputeEngine` switches on backend
-4. `backend.cpu.CpuBackend.execute(...)` receives:
+2. each step invokes its non-null `PreparedStepExecutable`
+3. the backend-owned executable receives:
    - semantic node
    - compiled node snapshot
    - prepared metadata
    - execution context
-5. the resolved CPU kernel executes the node
+4. the already resolved kernel or accelerator executable executes the step
 
 This means the backend consumes prepared metadata rather than rediscovering policy.
 

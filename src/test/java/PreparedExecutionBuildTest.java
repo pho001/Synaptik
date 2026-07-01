@@ -1485,6 +1485,8 @@ public class PreparedExecutionBuildTest {
 
     @Test
     void float64MatmulPrepareBuildsBlasExecutableWhenEligible() {
+        assumeTrue(OpenBlasRuntime.isFloat64GemmAvailable(), OpenBlasRuntime.unavailableReason());
+
         Tensor a = new Tensor(new double[64 * 64], new int[]{64, 64}, null, "a", DataType.FLOAT64);
         Tensor b = new Tensor(new double[64 * 96], new int[]{64, 96}, null, "b", DataType.FLOAT64);
         Tensor out = a.matmul(b);

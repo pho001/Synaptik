@@ -191,8 +191,8 @@ Use these after changing specific areas:
 | Conv/pool | `./gradlew test --no-daemon --tests Conv2dExecutionTest --tests Conv2dLoweringRuleTest --tests Pool2dExecutionTest` |
 | Losses | `./gradlew test --no-daemon --tests CrossEntropyLossExecutionTest --tests IndexTargetCrossEntropyLossExecutionTest --tests NllLossExecutionTest` |
 | Gradients | `./gradlew test --no-daemon --tests GradientEngineRegressionTest --tests BroadcastContractMatrixTest` |
-| Optimizer rewrite/CSE/fusion/memory | `./gradlew test --no-daemon --tests AlgebraicRewritingPowTest --tests CommonSubexpressionEliminationRuleTest --tests graph.optimizer.GraphOptimizerSinglePassTest --tests graph.compile.planning.region.DefaultRegionOptimizerServiceTest --tests graph.compile.planning.memory.MemoryPlannerRegionViewTest` |
-| Backend boundaries | `./gradlew test --no-daemon --tests SourceTreeHygieneTest --tests backend.ComputeBackendTest` |
+| Optimizer rewrite/CSE/fusion/memory | `./gradlew test --no-daemon --tests AlgebraicRewritingPowTest --tests CommonSubexpressionEliminationRuleTest --tests graph.optimizer.GraphOptimizerSinglePassTest --tests planning.region.DefaultRegionPlannerServiceTest --tests planning.memory.MemoryPlannerRegionViewTest` |
+| Backend boundaries | `./gradlew test --no-daemon --tests SourceTreeHygieneTest --tests ComputeBackendTest` |
 | Metal layout-aware device flow | `./gradlew test --no-daemon --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest`<br>`./gradlew test --no-daemon --tests backend.metal.buffer.MetalBufferAllocatorTest --tests backend.metal.bridge.MetalMpsFfmBridgeTest`<br>`./gradlew test --no-daemon --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.metal.MetalBufferTraceSmokeTest`<br>`./gradlew classes`<br>`./gradlew metalTest` |
 | CPU planning | `./gradlew test --no-daemon --tests CpuExecutionPlannerDispatchHeuristicsTest --tests backend.cpu.kernels.ElementwiseDispatchPlanningTest --tests backend.cpu.kernels.FusedDispatchPlanningTest` |
 | Tuning/calibration | `./gradlew test --no-daemon --tests CalibrationFamilyRegistryTest --tests PlatformCalibrationDefaultsTest --tests TuningStoreTest --tests tuning.integration.SessionWorkloadIsolationTest` |
@@ -253,7 +253,10 @@ OPENBLAS_LIB
 openblas
 ```
 
-OpenBLAS tests validate an optional Java FFM bridge. A skipped OpenBLAS test usually means the local library or symbols
+Native test setup must provide OpenBLAS through the explicit `openblas.lib` property, the
+`OPENBLAS_LIB` environment path, or an installation discoverable as the system library name
+`openblas`; no packaged OpenBLAS runtime is assumed. OpenBLAS tests validate an optional Java
+FFM bridge. A skipped OpenBLAS test usually means the local library or symbols
 were not available; it does not mean the Java fallback path is broken. For the exact BLAS/GEMM dispatch model, bridge
 symbol lookup, and fallback behavior, see [Native Bridges & BLAS: OpenBLAS Bridge Lifecycle](native-bridges-and-blas.md#openblas-bridge-lifecycle).
 

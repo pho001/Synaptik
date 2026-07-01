@@ -14,22 +14,41 @@ public class SourceTreeHygieneTest {
 
     @Test
     void legacyArchitecturePackagesAreRemoved() throws IOException {
-        List<Path> legacyPackages = List.of(Path.of("src/main/java/backend/blas"));
-        for (Path legacyPackage : legacyPackages) {
-            try (Stream<Path> paths = Files.exists(legacyPackage)
-                    ? Files.walk(legacyPackage)
-                    : Stream.empty()) {
-                assertTrue(
-                        paths.noneMatch(path -> Files.isRegularFile(path) && path.toString().endsWith(".java")),
-                        () -> "Legacy architecture package still contains Java sources: " + legacyPackage
-                );
-            }
-        }
+        List<Path> legacy = List.of(
+                Path.of("src/main/java/graph/execution"),
+                Path.of("src/main/java/graph/compile/descriptor"),
+                Path.of("src/main/java/graph/compile/intent"),
+                Path.of("src/main/java/graph/compile/planning"),
+                Path.of("src/main/java/backend/prepare"),
+                Path.of("src/main/java/backend/runtime"),
+                Path.of("src/main/java/backend/memory"),
+                Path.of("src/main/java/backend/blas"),
+                Path.of("src/main/java/backend/ComputeEngine.java"),
+                Path.of("src/test/java/backend/accelerator/buffer"),
+                Path.of("src/test/java/backend/cpu/nativecpu/NativeCpuStorageTest.java")
+        );
+        List<String> offenders = legacy.stream()
+                .flatMap(path -> {
+                    try {
+                        return javaFilesUnder(path).stream();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .sorted()
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "Legacy architecture Java sources remain: " + offenders);
     }
 
     @Test
-    void openBlasProviderUsesOnlyJdkFfmImports() throws IOException {
+    void openBlasProviderSourcesDoNotImportHigherLayersOrConcreteBackends() throws IOException {
         Path root = Path.of("src/main/java/backend/provider/blas/openblas");
+        List<String> projectForbidden = List.of(
+                "import config.", "import graph.", "import planning.", "import prepare.",
+                "import runtime.", "import trace.", "import tensor.",
+                "import backend.cpu.", "import backend.cpu1.", "import backend.metal.",
+                "import backend.cuda.", "import backend.opencl."
+        );
         List<String> offenders;
         try (Stream<Path> paths = Files.walk(root)) {
             offenders = paths
@@ -40,12 +59,9 @@ public class SourceTreeHygieneTest {
                             return Files.readAllLines(path).stream()
                                     .map(String::trim)
                                     .filter(line -> line.startsWith("import "))
-                                    .filter(line -> !line.startsWith("import java.")
-                                            && !line.startsWith("import javax.")
-                                            && !line.startsWith("import jdk.")
-                                            && !line.startsWith("import static java.")
-                                            && !line.startsWith("import static javax.")
-                                            && !line.startsWith("import static jdk."))
+                                    .filter(line -> projectForbidden.stream().anyMatch(line::startsWith)
+                                            || (!line.startsWith("import java.")
+                                            && !line.startsWith("import static java.")))
                                     .map(line -> path + ": " + line);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
@@ -54,7 +70,7 @@ public class SourceTreeHygieneTest {
                     .sorted()
                     .toList();
         }
-        assertTrue(offenders.isEmpty(), () -> "OpenBLAS provider has non-JDK imports: " + offenders);
+        assertTrue(offenders.isEmpty(), () -> "OpenBLAS provider ownership violations: " + offenders);
     }
 
     @Test

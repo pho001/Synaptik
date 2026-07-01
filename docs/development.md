@@ -54,9 +54,13 @@ The main code is under `src/main/java`:
 | `src/main/java/tensor` | Public tensor API, graph-building helpers, dtype/storage/layout support |
 | `src/main/java/tensor/ops` | Family-specific public operation builders and backward formulas |
 | `src/main/java/operations` | Immutable primitive descriptors implementing `operations.Operation` |
-| `src/main/java/graph` | Compilation, compile planning, optimizer state, prepared graph artifacts, execution trace metadata |
+| `src/main/java/graph` | Immutable compiled model, backend-neutral graph rewrites, compile coordination, and the sole `CompiledGraph` lifecycle facade |
 | `src/main/java/graph/optimizer` | Backend-neutral graph optimization: `AR`, `CF`, `CSE`, `DCE`, optional `LOWER` |
-| `src/main/java/backend` | Backend-neutral contracts and backend-specific CPU/Metal/CUDA/OpenCL roots |
+| `src/main/java/planning` | Backend-neutral compile-time descriptors, intents, partitions, regions, values, materialization, and memory plans |
+| `src/main/java/prepare` | Shared immutable prepare context/validation and cross-backend prepare orchestration |
+| `src/main/java/runtime` | Prepared execution contracts, per-run state, memory, residency, transfers, and publication |
+| `src/main/java/trace` | Producer-independent diagnostic DTO snapshots |
+| `src/main/java/backend` | Backend-neutral contracts/providers and backend-specific CPU/cpu1/Metal/CUDA/OpenCL roots |
 | `src/main/java/backend/cpu` | Complete CPU backend implementation, registry, prepare, lowering, kernels, fused execution |
 | `src/main/java/backend/metal` | Metal bridge/lowering/prepare scaffolding using the local MPS shim |
 | `src/main/java/backend/cuda` | CUDA bridge/lowering/prepare scaffolding |
@@ -70,7 +74,7 @@ The main code is under `src/main/java`:
 | `scripts/build-metal-mps-shim.sh` | Builds `build/native/apple/libsynaptik_apple_mps.dylib` on macOS; packaging copies it into generated JAR resources |
 | `profiles/platform/...` | Checked-in platform calibration/report artifacts for the current known platform |
 
-Root-level backend implementation classes are intentionally limited. `SourceTreeHygieneTest.backendRootContainsOnlyFacadeFiles` allows only `ApproxMode.java`, `ComputeBackend.java`, and `ComputeEngine.java` directly under `src/main/java/backend`.
+Root-level backend dispatch is intentionally absent. Backend identity is in `backend.contract`, backend-specific prepare packages compile immutable executable artifacts, and `runtime` invokes their prepared contracts directly without `ComputeEngine`.
 
 ## Coding Patterns
 
@@ -81,10 +85,16 @@ Tensor / TensorOps
   -> tensor.ops.*
   -> operations.*
   -> graph / graph.optimizer
-  -> backend.prepare and backend.<target>.prepare
+  -> prepare.orchestration and backend.<target>.prepare
   -> backend.<target>.registry
   -> backend.<target>.kernels
 ```
+
+`CompiledGraph` is the only lifecycle facade in `graph`. Planning remains a compile-time model;
+`prepare.context` and `prepare.validation` are backend-neutral inputs, while
+`prepare.orchestration` is the composition root. Backend-specific prepare is a backend compiler,
+not runtime dispatch. Trace DTOs live under top-level `trace`; their graph, prepare, runtime, and
+backend producers remain in their owning layers. Runtime owns memory and residency.
 
 Keep these boundaries intact:
 
@@ -168,7 +178,7 @@ For numeric binary elementwise kernels, use `CpuAddKernel` as the reference shap
 
 For native or accelerator-adjacent paths:
 
-- OpenBLAS FFM lookup checks `-Dopenblas.lib=<path>`, then `OPENBLAS_LIB`, then bundled JavaCPP OpenBLAS, then library name `openblas`.
+- OpenBLAS FFM lookup checks `-Dopenblas.lib=<path>`, then `OPENBLAS_LIB`, then the system library name `openblas`.
 - Metal MPS lookup checks `-Dsynaptik.metal.mps.lib=<path>`, then `SYNAPTIK_METAL_MPS_LIB`, then the bundled classpath resource `native/<platform>/libsynaptik_apple_mps.dylib`, then library name `synaptik_apple_mps`.
 - CUDA lookup checks `-Dsynaptik.cuda.graph.lib=<path>`, then `SYNAPTIK_CUDA_GRAPH_LIB`, then library name `synaptik_cuda_graph`.
 - macOS Metal shim build commands:
@@ -189,7 +199,7 @@ For native or accelerator-adjacent paths:
 `buildCudaGraphShim` calls `scripts/build-cuda-graph-shim.sh` and writes the optional native shim to `build/native/cuda/libsynaptik_cuda_graph.*`. Use it with `-Dsynaptik.cuda.graph.lib=<path>`, `SYNAPTIK_CUDA_GRAPH_LIB`, or the default library name `synaptik_cuda_graph`. CUDA native build is optional; default Java lifecycle tasks stay portable and do not require CUDA toolkit, CUDA hardware, or `nvcc`.
 
 The general native-bridge model, including BLAS/GEMM terminology and Java FFM symbol binding, is documented in
-[Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.blas`, `OpenBlasRuntime`, `OpenBlasArrayGemm`, `OpenBlasSegmentGemm`,
+[Native Bridges & BLAS: Java FFM Step-By-Step](native-bridges-and-blas.md#java-ffm-step-by-step). Read it before changing `backend.provider.blas.openblas`, `OpenBlasRuntime`, `OpenBlasArrayGemm`, `OpenBlasSegmentGemm`,
 or native dispatch thresholds.
 
 `buildMetalMpsShim` is the low-level task that calls `scripts/build-metal-mps-shim.sh` and writes `build/native/apple/libsynaptik_apple_mps.dylib`. `refreshMetalMacosArm64Resource` rebuilds that shim on Apple Silicon and refreshes the committed native resource in `synaptik-metal-macos-arm64/src/main/resources/native/macos-arm64/`. `nativeBuild` is the user-facing optional-native lifecycle task. `metalTest` builds the shim, sets `-Dsynaptik.metal.mps.lib` to the freshly built dylib, and runs only Metal/MPS-focused tests.
@@ -222,7 +232,7 @@ For the GPU layout transform and view path, use the shared planner and trace che
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutTransformPlannerTest --tests graph.execution.DeviceLayoutViewPropagationTest
+./gradlew test --tests runtime.device.buffer.AcceleratorLayoutTransformPlannerTest --tests runtime.device.DeviceLayoutViewPropagationTest
 ./gradlew test --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.cuda.exec.CudaLayoutTransformDeviceFlowTest
 ./gradlew metalTest
 ./gradlew buildCudaGraphShim cudaTest
@@ -286,7 +296,7 @@ Use the same gates plus coverage/report checks for Phase 19 changes:
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest --tests graph.execution.DeviceLayoutViewPropagationTest --tests SourceTreeHygieneTest
+./gradlew test --tests backend.accelerator.lowering.AcceleratorSubgraphLowererTest --tests backend.metal.lowering.MetalRegionLowererTest --tests backend.cuda.lowering.CudaRegionLowererTest --tests PreparedExecutionBuildTest --tests CompiledGraphTraceTest --tests GpuCoverageSummaryTest --tests BenchmarkSessionTest --tests BenchmarkSuiteSessionTest --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest --tests runtime.device.DeviceLayoutViewPropagationTest --tests SourceTreeHygieneTest
 ```
 
 `tensor-array bridge execution is not native buffer GPU coverage`; preserve separate `nativeBufferStepCount` and
@@ -355,7 +365,7 @@ backend-owned, and CPU `Operation.OpType.FUSED` remains CPU-only.
 Use this focused Phase 16 gate after changing runtime typed slot binding, Metal/CUDA dtype residency policy, lowered-region dtype evidence, or benchmark dtype residency report fields:
 
 ```bash
-./gradlew test --tests graph.execution.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
+./gradlew test --tests runtime.residency.RuntimeMemoryBinderTest --tests backend.accelerator.residency.AcceleratorDTypeResidencyPolicyTest --tests GpuCoverageSummaryTest
 ```
 
 `dtype residency is not native dtype compute`: `BFLOAT16`, `INT32`, `INT64`, and `BOOL` may be represented in runtime storage residency or trace evidence while Metal/CUDA still reject unsupported native compute/output roles with `UNSUPPORTED_DTYPE`. Metal BF16 is now native only for scoped operation families; generic INT32/INT64 compute, BOOL-producing compute outside scoped BOOL families, FLOAT64, and unsupported BF16 families remain explicit fallback/rejection cases.
@@ -382,9 +392,9 @@ Add changes by ownership:
 | Algebraic identity or lowering | `src/main/java/graph/optimizer/rewrite` |
 | Constant folding | `src/main/java/graph/optimizer/simplify` |
 | Common subexpression behavior | `src/main/java/graph/optimizer/simplify/CommonSubexpressionEliminationRule.java` |
-| Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/graph/compile/planning/partition` |
-| Region/fused execution units | `src/main/java/graph/compile/planning/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
-| Memory reuse or binding policy | `src/main/java/graph/compile/planning/memory` |
+| Backend ownership planning | `src/main/java/graph/compile` and `src/main/java/planning/partition` |
+| Region/fused execution units | `src/main/java/planning/region` and CPU-specific fused policy under `src/main/java/backend/cpu/fused` |
+| Memory reuse or binding policy | `src/main/java/planning/memory` |
 
 `OptimizerFactory.create(...)` maps graph optimization config to concrete rules:
 
@@ -402,8 +412,8 @@ Use focused tests:
 ./gradlew test --no-daemon --tests AlgebraicRewritingPowTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests graph.compile.planning.region.DefaultRegionOptimizerServiceTest
-./gradlew test --no-daemon --tests graph.compile.planning.memory.MemoryPlannerRegionViewTest
+./gradlew test --no-daemon --tests planning.region.DefaultRegionPlannerServiceTest
+./gradlew test --no-daemon --tests planning.memory.MemoryPlannerRegionViewTest
 ```
 
 ## Adding Tuning Knobs And Families
@@ -472,7 +482,7 @@ Update docs next to the code being changed:
 - Primitive descriptors: `src/main/java/operations/README.md`
 - Graph lifecycle: `src/main/java/graph/README.md`
 - Optimizer stages: `src/main/java/graph/optimizer/*.md`
-- Backend architecture: `src/main/java/backend/README.md`, `src/main/java/backend/cpu/README.md`, `src/main/java/backend/prepare/README.md`, `src/main/java/backend/lowering/README.md`, `src/main/java/backend/partition/README.md`
+- Backend architecture: `src/main/java/backend/README.md`, `src/main/java/backend/cpu/README.md`, `src/main/java/prepare/README.md`, `src/main/java/backend/lowering/README.md`, `src/main/java/backend/partition/README.md`
 - Tuning: `src/main/java/tuning/*.md`
 - Contributor-facing docs: `docs/development.md`, `docs/testing.md`, `docs/troubleshooting.md`
 

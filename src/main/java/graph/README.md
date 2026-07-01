@@ -1,6 +1,6 @@
 # Graph Package
 
-The `graph` package turns the public `Tensor` DAG into explicit executable artifacts.
+The `graph` package owns the immutable compiled graph model and graph compilation workflow.
 
 Its job is not to build graphs and not to execute kernels directly.
 Its job is to manage the lifecycle between those two moments:
@@ -8,8 +8,13 @@ Its job is to manage the lifecycle between those two moments:
 1. take the public tensor graph built by `tensor`
 2. canonicalize and optimize it
 3. snapshot compile-time structure
-4. prepare backend/runtime metadata
-5. expose an executable artifact to the backend
+4. hand immutable compile artifacts to prepare orchestration
+5. expose compile and prepare through the single `graph.CompiledGraph` lifecycle facade
+
+Backend-specific preparation is not graph work. Each `backend.<name>.prepare` package is
+that backend's compiler; it turns backend-neutral plans into immutable executable state.
+Runtime then invokes the prepared executable contract directly, without a central
+`ComputeEngine` switch.
 
 ## Mental Model
 
@@ -34,9 +39,10 @@ Does not contain:
 - prepared matmul or conv2d plans
 - prepared fused executable objects
 
-### 2. Compile artifact: `CompiledGraph`
+### 2. Lifecycle facade: `CompiledGraph`
 
-Built from a semantic graph and a `CompileConfig`.
+Built from a semantic graph and a `CompileConfig`. It is the only class in `graph` that
+bridges compilation to prepare orchestration and public runtime execution types.
 
 Contains:
 
@@ -72,28 +78,28 @@ Contains:
   - [compile/session/BackwardGraphBuilder.java](../graph/compile/session/BackwardGraphBuilder.java)
   - [compile/session/GradientBindingCollector.java](../graph/compile/session/GradientBindingCollector.java)
   - [compile/session/OptimizerGraphSnapshot.java](../graph/compile/session/OptimizerGraphSnapshot.java)
-  - [compile/planning/BackendPlanningService.java](../graph/compile/planning/BackendPlanningService.java)
-  - [compile/planning/BackendPlanningJobResolver.java](../graph/compile/planning/BackendPlanningJobResolver.java)
-  - [SemanticForwardCanonicalizer.java](../graph/SemanticForwardCanonicalizer.java)
+  - [planning/backend/BackendPlanningService.java](../planning/backend/BackendPlanningService.java)
+  - [planning/backend/BackendPlanningJobResolver.java](../planning/backend/BackendPlanningJobResolver.java)
+  - [compile/canonical/SemanticForwardCanonicalizer.java](../graph/compile/canonical/SemanticForwardCanonicalizer.java)
 - prepare pipeline:
-  - [backend/prepare/PreparedExecutionBuilder.java](../backend/prepare/PreparedExecutionBuilder.java)
-  - [execution/PreparedExecution.java](../graph/execution/PreparedExecution.java)
-  - [execution/PreparedExecutionStep.java](../graph/execution/PreparedExecutionStep.java)
-  - [execution/plan/CompiledNodeExecutionMetadata.java](../graph/execution/plan/CompiledNodeExecutionMetadata.java)
-  - [execution/state/ExecutionState.java](../graph/execution/state/ExecutionState.java)
-  - [execution/state/RuntimeTensorStore.java](../graph/execution/state/RuntimeTensorStore.java)
-  - [execution/state/RuntimeWorkspaceStore.java](../graph/execution/state/RuntimeWorkspaceStore.java)
-  - [execution/state/RuntimeNativeCpuMemoryState.java](../graph/execution/state/RuntimeNativeCpuMemoryState.java)
-  - [execution/state/RuntimeDeviceMemoryState.java](../graph/execution/state/RuntimeDeviceMemoryState.java)
-  - [execution/state/RuntimeMaterializationService.java](../graph/execution/state/RuntimeMaterializationService.java)
-  - [execution/state/RuntimeResourceRegistry.java](../graph/execution/state/RuntimeResourceRegistry.java)
-  - [execution/residency/RuntimeResidencyStore.java](../graph/execution/residency/RuntimeResidencyStore.java)
-  - [execution/residency/RuntimeMemoryBinder.java](../graph/execution/residency/RuntimeMemoryBinder.java)
-  - [execution/publication/ExecutionPublisher.java](../graph/execution/publication/ExecutionPublisher.java)
+  - [prepare/orchestration/PreparedExecutionBuilder.java](../prepare/orchestration/PreparedExecutionBuilder.java)
+  - [runtime/execution/PreparedExecution.java](../runtime/execution/PreparedExecution.java)
+  - [runtime/execution/PreparedExecutionStep.java](../runtime/execution/PreparedExecutionStep.java)
+  - [runtime/execution/PreparedStepMetadata.java](../runtime/execution/PreparedStepMetadata.java)
+  - [runtime/execution/ExecutionState.java](../runtime/execution/ExecutionState.java)
+  - [runtime/state/RuntimeTensorStore.java](../runtime/state/RuntimeTensorStore.java)
+  - [runtime/execution/RuntimeWorkspaceStore.java](../runtime/execution/RuntimeWorkspaceStore.java)
+  - [runtime/state/RuntimeNativeCpuMemoryState.java](../runtime/state/RuntimeNativeCpuMemoryState.java)
+  - [runtime/state/RuntimeDeviceMemoryState.java](../runtime/state/RuntimeDeviceMemoryState.java)
+  - [runtime/state/RuntimeMaterializationService.java](../runtime/state/RuntimeMaterializationService.java)
+  - [runtime/state/RuntimeResourceRegistry.java](../runtime/state/RuntimeResourceRegistry.java)
+  - [runtime/residency/RuntimeResidencyStore.java](../runtime/residency/RuntimeResidencyStore.java)
+  - [runtime/residency/RuntimeMemoryBinder.java](../runtime/residency/RuntimeMemoryBinder.java)
+  - [runtime/publication/ExecutionPublisher.java](../runtime/publication/ExecutionPublisher.java)
 - traces:
-  - [execution/trace/CompileTrace.java](../graph/execution/trace/CompileTrace.java)
-  - [execution/trace/PrepareTrace.java](../graph/execution/trace/PrepareTrace.java)
-  - [execution/trace/RunTrace.java](../graph/execution/trace/RunTrace.java)
+  - [trace/compile/CompileTrace.java](../trace/compile/CompileTrace.java)
+  - [trace/prepare/PrepareTrace.java](../trace/prepare/PrepareTrace.java)
+  - [trace/execution/RunTrace.java](../trace/execution/RunTrace.java)
 - fused preparation now lives under backend CPU ownership:
   - [../backend/cpu/fused/plan/FusedExecutionPlan.java](../backend/cpu/fused/plan/FusedExecutionPlan.java)
   - [../backend/cpu/fused/exec/FusedExecutablePreparer.java](../backend/cpu/fused/exec/FusedExecutablePreparer.java)
@@ -236,7 +242,7 @@ What prepare does not do:
 - rerun graph optimization or backend planning
 - mutate tensor formulas
 
-`backend.prepare.PreparedExecutionBuilder` performs prepare orchestration from compile artifacts and delegates backend-specific node preparation through the backend prepare layer.
+`prepare.orchestration.PreparedExecutionBuilder` performs prepare orchestration from compile artifacts and delegates backend-specific node preparation to backend-owned preparers.
 
 ## Execution Model
 
@@ -258,7 +264,9 @@ Two details matter:
 
 ## Traces
 
-There are three trace layers:
+Trace DTOs live in the top-level `trace` package and do not depend back on their producers.
+Graph compilation, prepare orchestration, runtime, and backends snapshot their own diagnostics.
+There are three lifecycle trace layers:
 
 - `CompileTrace`
   - total compile duration

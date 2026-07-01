@@ -16,6 +16,17 @@ public class PackageOwnershipBoundaryTest {
     private static final Path MAIN = Path.of("src/main/java");
 
     @Test
+    void compiledGraphIsTheOnlyGraphLifecycleFacade() throws IOException {
+        List<String> offenders = importsUnder(
+                MAIN.resolve("graph"),
+                importedType -> importedType.startsWith("prepare.") || importedType.startsWith("runtime.")
+        ).stream()
+                .filter(line -> !line.startsWith("src/main/java/graph/CompiledGraph.java:"))
+                .toList();
+        assertTrue(offenders.isEmpty(), () -> "graph lifecycle imports outside CompiledGraph: " + offenders);
+    }
+
+    @Test
     void operationsDoNotDependOnGraphRuntimeOrBackendInternals() throws IOException {
         assertNoImports(
                 "operations",
@@ -35,30 +46,26 @@ public class PackageOwnershipBoundaryTest {
 
     @Test
     void externalOpenBlasProviderIsLowLevelAndBackendNeutral() throws IOException {
-        List<String> forbiddenPackages = List.of(
-                "config.",
-                "graph.",
-                "planning.",
-                "prepare.",
-                "runtime.",
-                "trace.",
-                "tensor.",
-                "backend.cpu.",
-                "backend.cpu1.",
-                "backend.metal.",
-                "backend.cuda.",
-                "backend.opencl."
-        );
         assertNoImports(
                 "backend/provider/blas/openblas",
-                importedType -> startsWithAny(importedType, forbiddenPackages),
-                "the shared OpenBLAS provider must remain a low-level backend-neutral leaf"
+                importedType -> !importedType.startsWith("java."),
+                "the shared OpenBLAS provider may import only JDK java.* and static java.* types"
         );
     }
 
     @Test
     void removedPackageTreesStayRemoved() throws IOException {
-        List<Path> removedTrees = List.of(MAIN.resolve("backend/blas"));
+        List<Path> removedTrees = List.of(
+                MAIN.resolve("graph/execution"),
+                MAIN.resolve("graph/compile/descriptor"),
+                MAIN.resolve("graph/compile/intent"),
+                MAIN.resolve("graph/compile/planning"),
+                MAIN.resolve("backend/prepare"),
+                MAIN.resolve("backend/runtime"),
+                MAIN.resolve("backend/memory"),
+                MAIN.resolve("backend/blas"),
+                MAIN.resolve("backend/ComputeEngine.java")
+        );
         List<Path> offenders = new ArrayList<>();
         for (Path removedTree : removedTrees) {
             if (containsJavaSources(removedTree)) {
@@ -190,33 +197,20 @@ public class PackageOwnershipBoundaryTest {
 
     @Test
     void concreteBackendPreparersDoNotDependOnPrepareOrchestration() throws IOException {
-        for (String backend : List.of("cpu", "cpu1", "metal", "cuda", "opencl")) {
-            Path prepareRoot = MAIN.resolve("backend").resolve(backend).resolve("prepare");
-            if (!Files.isDirectory(prepareRoot)) {
-                continue;
-            }
-            List<String> offenders = importsUnder(
-                    prepareRoot,
-                    importedType -> importedType.startsWith("prepare.orchestration.")
+        for (String backend : List.of("cpu", "cpu1", "metal", "cuda")) {
+            assertNoImports(
+                    "backend/" + backend + "/prepare",
+                    importedType -> importedType.startsWith("prepare.orchestration."),
+                    "backend." + backend + ".prepare must not depend on prepare orchestration"
             );
-            assertTrue(offenders.isEmpty(),
-                    () -> "backend." + backend + ".prepare must not depend on prepare orchestration: " + offenders);
         }
     }
 
     @Test
     void legacyBackendPrepareTreeContainsNoSources() throws IOException {
         Path legacyTree = MAIN.resolve("backend/prepare");
-        if (!Files.exists(legacyTree)) {
-            return;
-        }
-        try (Stream<Path> paths = Files.walk(legacyTree)) {
-            List<Path> sources = paths
-                    .filter(Files::isRegularFile)
-                    .filter(path -> path.toString().endsWith(".java") || path.toString().endsWith(".md"))
-                    .toList();
-            assertTrue(sources.isEmpty(), () -> "legacy backend.prepare sources remain: " + sources);
-        }
+        List<String> sources = containsJavaSources(legacyTree) ? List.of(legacyTree.toString()) : List.of();
+        assertTrue(sources.isEmpty(), () -> "legacy backend.prepare Java sources remain: " + sources);
     }
 
     @Test

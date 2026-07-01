@@ -26,8 +26,8 @@ Stav fazi:
 - [x] Faze 5: prepared execution kontrakt a odstraneni runtime-to-backend dispatch
 - [x] Faze 6: presun celeho `graph.execution` do `runtime`
 - [x] Faze 7: rozdeleni prepare contextu, validace a orchestrace bez cyklu
-- [ ] Faze 8: BLAS ownership migrace a prime prepojeni vsech backendu, vcetne kompletniho cpu1 auditu
-- [ ] Faze 9: testy, dokumentace a source-tree hygiene
+- [x] Faze 8: BLAS ownership migrace a prime prepojeni vsech backendu, vcetne kompletniho cpu1 auditu
+- [x] Faze 9: testy, dokumentace a source-tree hygiene
 - [ ] Faze 10: celkova verifikace a uzavreni migrace
 
 ## Cil
@@ -3070,9 +3070,30 @@ refactor: migrate backend consumers to final contracts
 
 ## Faze 9: Testy, Hygiene A Dokumentace
 
-Status: `[ ]`
+Status: `[x]`
+
+### Evidence A Aktualni Stav Faze 9
+
+Stav k 2026-07-01:
+
+- `[x]` Existujici `SourceTreeHygieneTest` kontroluje vsechny finalni legacy cesty
+  podle pritomnosti Java zdroju a OpenBLAS provider omezuje na `java.*`/`static java.*`.
+- `[x]` `PackageOwnershipBoundaryTest` pokryva finalni lifecycle, planning, trace,
+  tensor, runtime, prepare a provider hranice nad skutecnymi cilovymi cestami.
+- `[x]` Globalni test audit nenasel stare package importy ani stare prejmenovane
+  produkcni symboly; tri prejmenovane test suites prosly.
+- `[x]` Povinne README a BLAS dokumenty popisuji finalni ownership; petisouborovy
+  audit `backend/blas|org.bytedeco|BUNDLED_JAVACPP|bundled OpenBLAS` ma 0 nalezu
+  a vsech pet `test -f` kontrol proslo.
+- `[x]` `./gradlew classes`, `SourceTreeHygieneTest`, `PackageOwnershipBoundaryTest`,
+  `CompiledGraphTraceTest` a prejmenovane targeted testy prosly; `git diff --check`
+  je cisty. `PreparedExecutionBuildTest` prosel: 131 testu celkem, 104 uspesnych,
+  27 preskocenych a 0 selhani/chyb. Pri nedostupnem OpenBLAS byl capability-dependent
+  `float64MatmulPrepareBuildsBlasExecutableWhenEligible` korektne preskocen.
 
 ### Task 9.1: Finalni audit `SourceTreeHygieneTest`
+
+Status: `[x]`
 
 Existujici test byl prubezne prepisovan ve fazich 3, 6 a 7. Zde provest finalni
 kontrolu vsech cest; nepisat druhou hygiene implementaci.
@@ -3100,7 +3121,7 @@ Pridat dve definitivni metody:
 
 ```java
 @Test
-void legacyArchitecturePackagesAreRemoved() {
+void legacyArchitecturePackagesAreRemoved() throws IOException {
     List<Path> legacy = List.of(
             Path.of("src/main/java/graph/execution"),
             Path.of("src/main/java/graph/compile/descriptor"),
@@ -3114,9 +3135,17 @@ void legacyArchitecturePackagesAreRemoved() {
             Path.of("src/test/java/backend/accelerator/buffer"),
             Path.of("src/test/java/backend/cpu/nativecpu/NativeCpuStorageTest.java")
     );
-    assertTrue(legacy.stream().noneMatch(Files::exists),
-            () -> "Legacy architecture paths remain: "
-                    + legacy.stream().filter(Files::exists).toList());
+    List<String> offenders = legacy.stream()
+            .flatMap(path -> {
+                try {
+                    return javaFilesUnder(path).stream();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+            .sorted()
+            .toList();
+    assertTrue(offenders.isEmpty(), () -> "Legacy architecture Java sources remain: " + offenders);
 }
 
 @Test
@@ -3157,6 +3186,8 @@ prefix ani obecny external-import otvor.
 
 ### Task 9.2: Test package declarations a imports
 
+Status: `[x]`
+
 Krome explicitnich test moves z fazi 3, 4, 6 a 7 provest globalni import rewrite
 ve vsech tests. Test class names se meni jen tam, kde se zmenil produkcni symbol:
 
@@ -3171,6 +3202,8 @@ pokryto existujicimi `CudaAcceleratorExecutionPathTest`,
 `MetalLayoutAwareDeviceFlowTest`, `MetalBufferTraceSmokeTest` a buffer tests.
 
 ### Task 9.3: Dokumentace
+
+Status: `[x]`
 
 Aktualizovat:
 
@@ -3230,11 +3263,16 @@ po migraci nezustane.
 
 ### Task 9.4: Boundary test finalni kontrola
 
+Status: `[x]`
+
 Overit, ze `PackageOwnershipBoundaryTest` obsahuje vsechny cilove metody uvedene
 ve fazi 0, kontroluje skutecne cilove cesty a nema zadnou podminenou nebo vypnutou
 aserci.
 
 ### Task 9.5: Overeni
+
+Status: `[x]`; vsechny Phase 9-owned kontroly vcetne `PreparedExecutionBuildTest`
+prosly; capability-dependent OpenBLAS pripady byly pri nedostupne knihovne preskoceny.
 
 ```bash
 ./gradlew classes

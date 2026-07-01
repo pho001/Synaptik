@@ -148,19 +148,17 @@ OpenBLAS FFM is unavailable
 OpenBLAS FFM bridge unavailable: ...
 ```
 
-Lookup order in `src/main/java/backend/blas/OpenBlasSymbols.java`:
+Lookup order in `src/main/java/backend/provider/blas/openblas/OpenBlasSymbols.java`:
 
 ```text
 -Dopenblas.lib=<path>
 OPENBLAS_LIB
-bundled org.bytedeco:openblas-platform
 openblas
 ```
 
 Fix:
 
-Usually no native path configuration is needed because Synaptik publishes a bundled OpenBLAS runtime dependency.
-Use an explicit path only when you want to override that bundled library with a locally installed OpenBLAS build:
+Install OpenBLAS so the system loader can resolve `openblas`, or provide an explicit path:
 
 ```bash
 ./gradlew test --no-daemon --tests MatMulTest -Dopenblas.lib=/absolute/path/to/libopenblas.dylib
@@ -172,10 +170,15 @@ or:
 OPENBLAS_LIB=/absolute/path/to/libopenblas.dylib ./gradlew test --no-daemon --tests MatMulTest
 ```
 
+An invalid non-blank `openblas.lib` value fails that explicit lookup; it does not silently
+continue to `OPENBLAS_LIB` or the system name. Likewise, an invalid non-blank
+`OPENBLAS_LIB` value does not silently continue to `openblas`. Clear or correct the selected
+location input before retrying.
+
 If OpenBLAS is not part of the change, run the Java fallback path with `BlasConfig.disabled()` in the test or choose tests that do not force `BlasProvider.OPENBLAS_FFM`.
 
-Bundled OpenBLAS enables FLOAT32/FLOAT64 GEMM automatically. It also enables BF16 native `cblas_sbgemm` when that symbol
-is present. BF16 correctness should be checked against Synaptik's Java BF16 reference path, not a FLOAT64 reference,
+The resolved OpenBLAS build enables FLOAT32/FLOAT64 GEMM when the required symbols are
+present and may expose native BF16 `cblas_sbgemm`. BF16 correctness should be checked against Synaptik's Java BF16 reference path, not a FLOAT64 reference,
 because BF16 storage intentionally quantizes inputs and outputs.
 
 Important distinction: selecting `OPENBLAS_FFM` only makes BLAS eligible. A specific matmul still needs to pass dtype,
@@ -455,7 +458,7 @@ Fix path:
 ./gradlew test --no-daemon --tests AlgebraicRewritingSigmoidTest
 ./gradlew test --no-daemon --tests CommonSubexpressionEliminationRuleTest
 ./gradlew test --no-daemon --tests graph.optimizer.GraphOptimizerSinglePassTest
-./gradlew test --no-daemon --tests graph.compile.planning.region.DefaultRegionOptimizerServiceTest
+./gradlew test --no-daemon --tests planning.region.DefaultRegionPlannerServiceTest
 ```
 
 If a new operation has parameters, update `CommonSubexpressionEliminationRule.parameterKey(...)`; otherwise CSE may treat parameterized nodes incorrectly.
@@ -463,7 +466,7 @@ If a new operation has parameters, update `CommonSubexpressionEliminationRule.pa
 For memory-related compile failures, isolate memory planning by running the focused memory tests. Memory planning is controlled through `CompileConfig.memoryPlanning()` and `MemoryPlanningConfig`; it is not toggled by a JVM system property.
 
 ```bash
-./gradlew test --no-daemon --tests MemoryPlannerSummaryTest --tests graph.compile.planning.memory.MemoryPlannerRegionViewTest
+./gradlew test --no-daemon --tests MemoryPlannerSummaryTest --tests planning.memory.MemoryPlannerRegionViewTest
 ```
 
 ## Gradients Missing Or Wrong
@@ -649,9 +652,9 @@ Fix by moving code to the owner package:
 | CPU fused planning/codegen | `src/main/java/backend/cpu/fused` |
 | Generic backend selection | `src/main/java/backend/select` |
 | Generic lowering contracts | `src/main/java/backend/lowering` |
-| Generic prepare orchestration | `src/main/java/backend/prepare` |
+| Generic prepare orchestration | `src/main/java/prepare/orchestration` |
 | Optimizer rewrite | `src/main/java/graph/optimizer/rewrite` |
-| Optimizer region policy | `src/main/java/graph/compile/planning/region` plus CPU-specific policy under `backend.cpu.fused` |
+| Optimizer region policy | `src/main/java/planning/region` plus CPU-specific policy under `backend.cpu.fused` |
 | Graph autotune policy candidates | `src/main/java/tuning/candidate/graph` without runtime/backend imports |
 
 Run:

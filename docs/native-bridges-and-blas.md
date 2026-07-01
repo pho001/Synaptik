@@ -371,8 +371,8 @@ arrays between calls, and the native buffer exists only for the duration of that
 ## Java FFM Step-By-Step
 
 The OpenBLAS implementation follows a repeatable FFM pattern. Library lookup and downcall binding map directly to
-[`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java); availability queries are exposed through
-[`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java).
+[`OpenBlasSymbols.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSymbols.java); availability queries are exposed through
+[`OpenBlasRuntime.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasRuntime.java).
 
 ### 1. Choose a library lookup
 
@@ -381,18 +381,22 @@ The OpenBLAS implementation follows a repeatable FFM pattern. Library lookup and
 ```java
 String explicit = System.getProperty("openblas.lib");
 if (explicit != null && !explicit.isBlank()) {
-    return SymbolLookup.libraryLookup(explicit.trim(), arena);
+    return new LookupResolution(
+            SymbolLookup.libraryLookup(explicit.trim(), arena),
+            LookupSource.EXPLICIT_PROPERTY
+    );
 }
-String envLib = System.getenv("OPENBLAS_LIB");
-if (envLib != null && !envLib.isBlank()) {
-    return SymbolLookup.libraryLookup(envLib.trim(), arena);
+String environment = System.getenv("OPENBLAS_LIB");
+if (environment != null && !environment.isBlank()) {
+    return new LookupResolution(
+            SymbolLookup.libraryLookup(environment.trim(), arena),
+            LookupSource.ENVIRONMENT
+    );
 }
-try {
-    return SymbolLookup.libraryLookup(Loader.load(openblas.class), arena);
-} catch (Throwable bundledFailure) {
-    // fall through to the platform loader name
-}
-return SymbolLookup.libraryLookup("openblas", arena);
+return new LookupResolution(
+        SymbolLookup.libraryLookup("openblas", arena),
+        LookupSource.SYSTEM_LIBRARY
+);
 ```
 
 Term explanations:
@@ -401,9 +405,8 @@ Term explanations:
 |---|---|
 | System property | JVM-level key/value passed with `-Dkey=value`, for example `-Dopenblas.lib=/opt/lib/libopenblas.dylib`. |
 | Environment variable | Process environment key/value, for example `OPENBLAS_LIB=/opt/lib/libopenblas.dylib`. |
-| Bundled JavaCPP preset | The transitive `org.bytedeco:openblas-platform` dependency packaged with Synaptik. This lets consumer projects use OpenBLAS without setting a native library path. |
 | Library name | Platform loader name. `"openblas"` lets the operating system search configured library paths. |
-| Lookup order | Priority rule. Explicit JVM property wins over environment variable; environment variable wins over bundled JavaCPP; bundled JavaCPP wins over the platform loader name. |
+| Lookup order | Priority rule. Explicit JVM property wins over environment variable; environment variable wins over the system library name. |
 
 ### 2. Find native symbols
 
@@ -525,10 +528,15 @@ This keeps the public tensor storage model Java-owned while still allowing the n
 
 The OpenBLAS FFM implementation is split by responsibility:
 
-- [`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java) owns native library lookup and downcall handles.
-- [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java) exposes availability, capability, lookup-source, and thread-policy queries.
-- [`OpenBlasArrayGemm.java`](../src/main/java/backend/blas/OpenBlasArrayGemm.java) owns Java primitive-array GEMM calls and their temporary native call buffers.
-- [`OpenBlasSegmentGemm.java`](../src/main/java/backend/blas/OpenBlasSegmentGemm.java) owns no-copy `MemorySegment` GEMM calls for native CPU storage.
+- [`OpenBlasSymbols.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSymbols.java) owns native library lookup and downcall handles.
+- [`OpenBlasRuntime.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasRuntime.java) exposes direct availability, capability, lookup-source, and thread-control queries.
+- [`OpenBlasArrayGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasArrayGemm.java) owns Java primitive-array GEMM calls and their temporary native call buffers.
+- [`OpenBlasSegmentGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSegmentGemm.java) owns no-copy `MemorySegment` GEMM calls for native CPU storage.
+
+These five provider sources, including `OpenBlasGemmLayout`, form the shared
+`backend.provider.blas.openblas` low-level leaf. They use only JDK/FFM APIs. Provider
+selection, shape/threshold/debug policy, fallback eligibility, and prepared artifacts remain
+owned by CPU/cpu1 prepare code and configuration/profile inputs.
 
 It discovers these symbols:
 
@@ -607,7 +615,7 @@ sequenceDiagram
 |---|---|
 | `available` | Whether required symbols were found and handles were created. |
 | `reason` | Failure reason when unavailable. |
-| `source` | Which lookup source won: explicit property, environment variable, bundled JavaCPP preset, or system library name. |
+| `source` | Which lookup source won: explicit property, environment variable, or system library name. |
 | `arenaRef` | Shared arena kept alive so library lookup resources remain valid. |
 | `sgemm` | Downcall handle for `cblas_sgemm`. |
 | `dgemm` | Downcall handle for `cblas_dgemm`. |
@@ -659,7 +667,8 @@ OpenBLAS library lacks bgemm:
   BF16-output matmul planning must not claim native OpenBLAS BF16-output
 ```
 
-Bundled JavaCPP OpenBLAS enables the symbols that its packaged native build actually exports. On a given machine that may include `cblas_sbgemm` but not `cblas_bgemm`. Tests therefore gate BF16 continuation and BF16-output coverage separately.
+The configured or system OpenBLAS build may include `cblas_sbgemm` but not `cblas_bgemm`.
+Tests therefore gate BF16 continuation and BF16-output coverage separately.
 
 ## Matmul Dispatch Flow
 
@@ -805,7 +814,7 @@ Even with OPENBLAS_FFM selected:
 | Try method | Wrapper that attempts BLAS and returns success/failure. | `MatMulBlasBackend.tryBlasF32/F64/BF16` |
 | Bridge availability | Whether native symbols are available in this JVM. | `OpenBlasRuntime.isAvailable()` |
 | Java fallback | Built-in CPU implementation used when BLAS is unavailable or fails. | Dtype-specific Java matmul executable path |
-| Debug log | Optional stderr message explaining BLAS unavailability/failure. | `BlasRuntime.debug()` |
+| Debug log | Optional stderr message explaining a BLAS call failure. | Prepared `BlasConfig.debug()` value passed to `MatMulBlasBackend` |
 
 This split avoids putting native availability checks into graph optimization. The optimizer should not need to know
 whether a developer's shell happens to have OpenBLAS installed today. The runtime profile and prepare stage decide the
@@ -972,8 +981,7 @@ OpenBLAS library lookup order:
 ```text
 1. JVM property: -Dopenblas.lib=/absolute/path/to/libopenblas.dylib
 2. Environment variable: OPENBLAS_LIB=/absolute/path/to/libopenblas.dylib
-3. Bundled JavaCPP OpenBLAS from the Synaptik runtime classpath
-4. Library name: openblas
+3. System library name: openblas
 ```
 
 Example explicit runtime config:
@@ -1002,7 +1010,7 @@ The runtime can expose BLAS decisions in two places: prepared metadata traces an
 ### Matmul trace fields
 
 When a run is traced, `metadata.matMul` records the prepared matmul decision. The exact structure is represented by
-trace metadata classes under `graph.execution.trace`, but conceptually you should read it as:
+trace metadata classes under `trace.backend`, but conceptually you should read it as:
 
 ```text
 matMul:
@@ -1049,7 +1057,8 @@ Direct conv execution can publish conv-specific trace metadata. Conv lowered to 
 
 ### Debug logging
 
-`BlasRuntime.debug()` reads `cg.cpu.blas.debug`. When enabled, failed or unavailable BLAS attempts can print messages
+The debug flag is resolved from `BlasConfig` during prepare and stored with the prepared matmul
+route. When enabled, failed BLAS calls can print messages
 such as:
 
 ```text
@@ -1068,7 +1077,7 @@ Expected fallback behavior:
 - If the provider is `NONE`, the planner does not select BLAS.
 - If the provider is `OPENBLAS_FFM` but work/shape/contiguity gates fail, the planner chooses Java execution.
 - If a matmul BLAS call throws or the bridge is unavailable at execution time, `MatMulBlasBackend` returns `false` and the Java matmul fallback runs.
-- If `BlasRuntime.debug()` is true, unavailable/failed BLAS calls emit diagnostic messages.
+- If the prepared debug flag is true, failed BLAS calls emit diagnostic messages.
 
 This distinction matters for debugging: "BLAS provider selected" does not mean "this node ran through BLAS." The trace and prepared metadata are the source of truth.
 
@@ -1185,7 +1194,7 @@ Focused verification commands:
 
 ```bash
 ./gradlew classes
-./gradlew test --tests backend.accelerator.buffer.AcceleratorLayoutTransformPlannerTest --tests graph.execution.DeviceLayoutViewPropagationTest
+./gradlew test --tests runtime.device.buffer.AcceleratorLayoutTransformPlannerTest --tests runtime.device.DeviceLayoutViewPropagationTest
 ./gradlew test --tests backend.metal.exec.PreparedMetalExecutableBufferBindingTest --tests backend.cuda.exec.PreparedCudaExecutableBufferPolicyTest
 ./gradlew test --tests backend.metal.MetalLayoutAwareDeviceFlowTest --tests backend.cuda.exec.CudaLayoutTransformDeviceFlowTest
 ./gradlew metalTest
@@ -1222,7 +1231,7 @@ No. BF16 is stored in `short[]`. OpenBLAS exposes distinct BF16 contracts when t
 - `cblas_sbgemm`: BF16 inputs and F32 output. This is a continuation/promoted-compute route, not BF16-output GEMM.
 - `cblas_bgemm`: BF16 inputs and BF16 output. This is the route needed for true OpenBLAS BF16-output matmul/linear.
 
-If the bundled or configured OpenBLAS has `sbgemm` but not `bgemm`, Synaptik can still use BF16-to-F32 continuation where legal, but it must not claim a BF16-output native BLAS route.
+If the configured or system OpenBLAS has `sbgemm` but not `bgemm`, Synaptik can still use BF16-to-F32 continuation where legal, but it must not claim a BF16-output native BLAS route.
 
 ### "A native bridge failure means the graph is invalid"
 
@@ -1233,17 +1242,17 @@ likely when a prepared profile explicitly requires a native path that is unavail
 
 | Topic | Source |
 |---|---|
-| BLAS provider enum | [`BlasProvider.java`](../src/main/java/backend/blas/BlasProvider.java) |
-| Runtime BLAS system properties | [`BlasRuntime.java`](../src/main/java/backend/blas/BlasRuntime.java) |
-| OpenBLAS symbol lookup | [`OpenBlasSymbols.java`](../src/main/java/backend/blas/OpenBlasSymbols.java) |
-| OpenBLAS runtime capabilities | [`OpenBlasRuntime.java`](../src/main/java/backend/blas/OpenBlasRuntime.java) |
-| OpenBLAS Java array GEMM | [`OpenBlasArrayGemm.java`](../src/main/java/backend/blas/OpenBlasArrayGemm.java) |
-| OpenBLAS native segment GEMM | [`OpenBlasSegmentGemm.java`](../src/main/java/backend/blas/OpenBlasSegmentGemm.java) |
+| BLAS provider enum | [`BlasProvider.java`](../src/main/java/config/runtime/BlasProvider.java) |
+| OpenBLAS symbol lookup | [`OpenBlasSymbols.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSymbols.java) |
+| OpenBLAS runtime capabilities | [`OpenBlasRuntime.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasRuntime.java) |
+| OpenBLAS layout conversion | [`OpenBlasGemmLayout.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasGemmLayout.java) |
+| OpenBLAS Java array GEMM | [`OpenBlasArrayGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasArrayGemm.java) |
+| OpenBLAS native segment GEMM | [`OpenBlasSegmentGemm.java`](../src/main/java/backend/provider/blas/openblas/OpenBlasSegmentGemm.java) |
 | Runtime BLAS config record | [`BlasConfig.java`](../src/main/java/config/runtime/BlasConfig.java) |
 | Matmul BLAS planner gates | [`MatMulPlanner.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/plan/MatMulPlanner.java) |
 | Matmul BLAS execution wrapper | [`MatMulBlasBackend.java`](../src/main/java/backend/cpu/kernels/linalg/matmul/blas/MatMulBlasBackend.java) |
-| Matmul execution trace metadata | [`MatMulTraceMetadata.java`](../src/main/java/graph/execution/trace/MatMulTraceMetadata.java) |
-| Conv execution trace metadata | [`ConvTraceMetadata.java`](../src/main/java/graph/execution/trace/ConvTraceMetadata.java) |
+| Matmul execution trace metadata | [`MatMulTraceMetadata.java`](../src/main/java/trace/backend/MatMulTraceMetadata.java) |
+| Conv execution trace metadata | [`ConvTraceMetadata.java`](../src/main/java/trace/backend/ConvTraceMetadata.java) |
 | Metal FFM bridge | [`MetalMpsFfmBridge.java`](../src/main/java/backend/metal/bridge/MetalMpsFfmBridge.java) |
 | CUDA FFM bridge | [`CudaFfmBridge.java`](../src/main/java/backend/cuda/bridge/CudaFfmBridge.java) |
 | Native access JVM flags | [`build.gradle`](../build.gradle) |

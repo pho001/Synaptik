@@ -155,22 +155,31 @@ double[] grad = x.getGradient().toDoubleArrayCopy();
 
 ## What This Repository Contains
 
-The repository is organized around five main layers.
+The repository is organized around lifecycle and ownership layers.
 
 | Layer | Main package | Responsibility |
 |---|---|---|
 | Public modeling surface | `src/main/java/tensor` | Build tensor graphs, expose ergonomic API |
 | Primitive descriptors | `src/main/java/operations` | Describe what each graph node means |
-| Graph compile/prepare pipeline | `src/main/java/graph` | Canonicalize, optimize graph structure, plan backend ownership, prepare runtime artifacts |
-| Runtime/backend execution | `src/main/java/backend` | Resolve kernels and execute prepared steps |
+| Graph model and compile facade | `src/main/java/graph` | Snapshot and optimize graph structure; `CompiledGraph` is the only graph lifecycle facade |
+| Compile-time planning | `src/main/java/planning` | Describe backend intents, partitions, regions, values, materialization, and memory reuse |
+| Prepare composition | `src/main/java/prepare` | Share immutable context/validation and orchestrate backend compilers |
+| Prepared runtime | `src/main/java/runtime` | Own execution contracts, per-run state, memory, residency, transfers, and publication |
+| Diagnostic snapshots | `src/main/java/trace` | Define producer-independent compile, prepare, execution, and backend trace DTOs |
+| Backend implementation | `src/main/java/backend` | Compile backend-specific prepared artifacts and execute concrete kernels |
 | Benchmark/autotune/calibration | `src/main/java/tuning` | Measure, compare, search, and persist execution profiles |
 
 That split is intentional:
 
 - `tensor` decides what graph to build
 - `operations` decides what primitive a node represents
-- `graph` decides how that graph can be rewritten, planned into backend regions, optimized inside those regions, and prepared
-- `backend` decides how to execute the prepared region or node
+- `graph` owns the immutable compiled model, graph rewrites, compile coordination, and the `CompiledGraph` lifecycle facade
+- `planning` describes compile-time backend-neutral execution and memory requirements
+- `prepare` separates shared context/validation from cross-backend orchestration
+- `backend.<name>.prepare` is the backend compiler that resolves kernels, storage, launch policy, and executable artifacts
+- `runtime` applies those prepared artifacts and owns dynamic state, memory, residency, transfers, and publication
+- `trace` owns immutable diagnostic DTOs while each lifecycle layer remains responsible for producing its snapshots
+- `backend` owns concrete execution and low-level providers; runtime does not dispatch through a central backend switch
 - `tuning` decides which executable profile is faster on a real workload
 
 ## Reading Guide
@@ -344,7 +353,7 @@ PreparedExecution prepared = y.prepare(
 ```
 
 Prepare does not rebuild graph semantics.
-It resolves backend/runtime policy into concrete prepared metadata:
+It resolves backend and runtime policy into concrete prepared metadata:
 
 - dispatch hints
 - reduction hints
@@ -570,13 +579,13 @@ Use this rule of thumb:
 - graph optimizer shape or backend-neutral pattern lowering:
   - start in `graph/optimizer`
 - backend ownership, CPU natural regions, accelerator regions, or region optimization:
-  - start in `graph/compile`, `graph/optimizer/partition`, `graph/optimizer/region`, and [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
+  - start in `graph/compile`, `planning/partition`, `planning/region`, and [docs/backend-planning-and-regions.md](docs/backend-planning-and-regions.md)
 - CPU dispatch thresholds, tiles, microkernels, fused widths:
-  - start in `config`, `backend/kernels/cpu`, and `tuning`
+  - start in `config`, `backend/cpu/prepare`, `backend/cpu/kernels`, and `tuning`
 - new public API surface:
   - start in `tensor/ops/*`, then add/update `operations/*`
 - runtime execution traces and benchmark reports:
-  - start in `graph/execution/trace`, `tuning/benchmark/report`, `tuning/autotune/report`, `tuning/calibration/report`, and `tuning/reporting`
+  - start in `trace`, `runtime`, `tuning/benchmark/report`, `tuning/autotune/report`, `tuning/calibration/report`, and `tuning/reporting`
 
 ## Current Design Boundaries
 
@@ -587,6 +596,7 @@ These constraints are deliberate and repeatedly enforced in the current architec
 - tuning does not invent a second execution model outside `ExecutionProfile`
 - graph optimization transforms graph structure, not runtime dispatch knobs
 - backend planning is compile-time execution planning, not execute-time offload
-- backend `prepare(...)` resolves runtime policy; execution consumes the prepared recipe
+- backend-specific prepare is a compiler: it resolves runtime policy into an immutable executable artifact
+- runtime invokes the prepared executable contract directly; there is no central `ComputeEngine` dispatch
 
 If a proposed change violates one of those boundaries, it is probably pushing logic into the wrong layer.
