@@ -2589,7 +2589,7 @@ refactor: separate prepare context from orchestration
 
 ## Faze 8: Backend Consumer Migrace
 
-Status: `[ ]`
+Status: `[x]`
 
 Tato faze nejdrive dokonci BLAS ownership migraci a pak prepise shared imports ve
 vsech backend rodinach. Je to uplny audit; po fazi nezustane puvodni BLAS package,
@@ -2896,7 +2896,7 @@ protoze Git prazdne adresare neeviduje a takovy stav neni soucasti repository.
 ./gradlew test --tests SourceTreeHygieneTest
 
 test -z "$(find src/main/java/backend/blas -type f -name '*.java' -print 2>/dev/null)"
-rg -n "backend\\.blas|BlasRuntime" src/main/java src/test/java \
+rg -n "backend\\.blas|\\bBlasRuntime\\b" src/main/java src/test/java \
   --glob '!SourceTreeHygieneTest.java' --glob '!PackageOwnershipBoundaryTest.java'
 rg -n '^import (config|graph|planning|prepare|runtime|trace|tensor|backend\\.(cpu|cpu1|metal|cuda|opencl))\\.' \
   src/main/java/backend/provider/blas/openblas
@@ -2912,6 +2912,19 @@ refactor: assign blas configuration and provider ownership
 ```
 
 ### Task 8.2: Cpu1 import a ownership mapa
+
+Status: `[x]`
+
+Evidence (2026-07-01): audit covered all 273 production and 41 test Java files
+under `backend.cpu1`, including all 17 named preparers/components, all 66 production
+and 24 test `ExecutionContext` consumers, and all 37 production and 3 test
+`CpuMaterializationReason` consumers. The explicit legacy-prefix audit for
+`backend.runtime`, `backend.memory`, `graph.execution.plan`,
+`graph.execution.trace`, `graph.compile.descriptor`, `graph.compile.intent`,
+`graph.compile.planning.region.specialization`, `graph.compile.planning.value`, and
+`backend.prepare` returned no matches. All consumers already use the final shared
+contracts, so no cpu1 kernel body, dispatch policy, launch policy, threshold, or hot
+path required an additional Task 8.2 edit.
 
 `backend.cpu1.prepare`, `backend.cpu1.exec`, `backend.cpu1.kernels`, storage,
 launch, provider a trace zustavaji backend-owned. Meni se pouze konzumovane
@@ -2973,6 +2986,10 @@ zadnou dalsi cpu1 kernel ani hot-path zmenu nad ramec Task 8.1.
 
 ### Task 8.3: Cpu1 targeted validation
 
+Status: `[x]`
+
+Evidence (2026-07-01): all nine commands below completed with `BUILD SUCCESSFUL`.
+
 ```bash
 ./gradlew test --tests backend.cpu1.Cpu1ExecutionContractTest
 ./gradlew test --tests backend.cpu1.Cpu1LayoutExecutionContractTest
@@ -2986,6 +3003,22 @@ zadnou dalsi cpu1 kernel ani hot-path zmenu nad ramec Task 8.1.
 ```
 
 ### Task 8.4: CPU, Metal, CUDA, OpenCL a accelerator audit
+
+Status: `[x]`
+
+Evidence (2026-07-01): exhaustive audit covered all 477 production and 78 test
+Java files under the seven named backend trees: CPU 304/40, Metal 52/16, CUDA
+34/13, OpenCL 4/1, accelerator 50/6, partition 2/0, and lowering 31/2. The
+corrected legacy shared-contract audit, including the exact standalone
+`\bBlasRuntime\b` symbol alternative, returned no matches. All consumers use the
+final contracts, so no backend source or test migration edit was required. Direct
+source inspection confirmed the Metal/CUDA buffer bindings, all present Metal/CUDA
+device materializers, all four named prepared executable artifacts, backend trace
+contributions, and backend preparer context/validation imports. No production
+backend preparer imports `prepare.orchestration`. `./gradlew classes` and the
+focused cross-family test command covering CPU, Metal, CUDA, OpenCL, accelerator,
+shared lowering, `PackageOwnershipBoundaryTest`, and `SourceTreeHygieneTest` both
+completed with `BUILD SUCCESSFUL`.
 
 Prepsat stejne shared imports v:
 
@@ -3011,8 +3044,18 @@ Specialni kontroly:
 
 ### Task 8.5: Global symbol audit
 
+Status: `[x]`
+
+Evidence (2026-07-01): the full command below ran over `src/main/java` and
+`src/test/java` with only the two documented hygiene-test exclusions and returned
+no matches (`rg` exit code 1). Replacing the broad `BlasRuntime` alternative with
+the exact symbol regex `\bBlasRuntime\b` is not an audit weakening: it still catches
+the removed standalone legacy class/symbol while correctly excluding the valid
+Task 8.1 low-level provider contract `OpenBlasRuntime` and helper identifiers such
+as `bfloat16BlasRuntime`.
+
 ```bash
-rg -n "graph\.execution|graph\.compile\.(descriptor|intent|planning)|backend\.prepare|backend\.runtime|backend\.memory|backend\.blas|BlasRuntime|backend\.accelerator\.buffer|backend\.ComputeBackend|CompiledNodeExecutionMetadata|PreparedExecutionArtifact|OptimizedRegion|DefaultRegionOptimizer|RegionOptimizationContext|RegionOptimizationTrace|CpuRegionOptimizationPolicy" \
+rg -n "graph\.execution|graph\.compile\.(descriptor|intent|planning)|backend\.prepare|backend\.runtime|backend\.memory|backend\.blas|\bBlasRuntime\b|backend\.accelerator\.buffer|backend\.ComputeBackend|CompiledNodeExecutionMetadata|PreparedExecutionArtifact|OptimizedRegion|DefaultRegionOptimizer|RegionOptimizationContext|RegionOptimizationTrace|CpuRegionOptimizationPolicy" \
   src/main/java src/test/java \
   --glob '!SourceTreeHygieneTest.java' --glob '!PackageOwnershipBoundaryTest.java'
 ```
@@ -3276,7 +3319,7 @@ test ! -e src/main/java/backend/ComputeEngine.java
 test ! -e src/test/java/backend/accelerator/buffer
 test ! -e src/test/java/backend/cpu/nativecpu/NativeCpuStorageTest.java
 
-rg -n "graph\.execution|graph\.compile\.(descriptor|intent|planning)|backend\.prepare|backend\.runtime|backend\.memory|backend\.blas|BlasRuntime|backend\.accelerator\.buffer|backend\.ComputeBackend|CompiledNodeExecutionMetadata|PreparedExecutionArtifact|OptimizedRegion|DefaultRegionOptimizer|RegionOptimizationContext|RegionOptimizationTrace|CpuRegionOptimizationPolicy" \
+rg -n "graph\.execution|graph\.compile\.(descriptor|intent|planning)|backend\.prepare|backend\.runtime|backend\.memory|backend\.blas|\bBlasRuntime\b|backend\.accelerator\.buffer|backend\.ComputeBackend|CompiledNodeExecutionMetadata|PreparedExecutionArtifact|OptimizedRegion|DefaultRegionOptimizer|RegionOptimizationContext|RegionOptimizationTrace|CpuRegionOptimizationPolicy" \
   src/main/java src/test/java \
   --glob '!SourceTreeHygieneTest.java' --glob '!PackageOwnershipBoundaryTest.java'
 
