@@ -34,11 +34,6 @@ public final class abs implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.BRANCHLESS;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.NUMERIC;
     }

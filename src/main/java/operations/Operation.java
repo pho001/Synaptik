@@ -43,14 +43,6 @@ public interface Operation {
         UNKNOWN
     }
 
-    enum OpControlTrait {
-        NONE,
-        BRANCHLESS,
-        SELECT_MASK,
-        BOOL_LOGIC,
-        UNKNOWN
-    }
-
     enum OpResultKind {
         NUMERIC,
         BOOLEAN,
@@ -201,13 +193,6 @@ public interface Operation {
     OpComputationalCost computationalCost();
 
     /**
-     * Returns the control-flow shape used by prepare-time planning policy.
-     *
-     * @return backend-neutral operation control trait
-     */
-    OpControlTrait controlTrait();
-
-    /**
      * Returns the logical result kind produced by this operation.
      *
      * @return backend-neutral operation result kind
@@ -220,17 +205,4 @@ public interface Operation {
      * @return human-readable operation expression
      */
     String getExpression();
-
-    /**
-     * Indicates whether this operation is cheap enough for optimizers to
-     * duplicate or inline when profitable.
-     *
-     * @return {@code true} for inexpensive scalar or simple elementwise
-     *         descriptors; {@code false} by default
-     */
-    default boolean isCheap() {
-        OpComputationalCost cost = computationalCost();
-        return cost == OpComputationalCost.TRIVIAL || cost == OpComputationalCost.CHEAP;
-    }
-
 }

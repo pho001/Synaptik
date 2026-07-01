@@ -56,11 +56,6 @@ public final class notEqualTo implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.BRANCHLESS;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.BOOLEAN;
     }

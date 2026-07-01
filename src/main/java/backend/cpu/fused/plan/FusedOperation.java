@@ -85,11 +85,6 @@ public final class FusedOperation implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.UNKNOWN;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.UNKNOWN;
     }
@@ -100,14 +95,6 @@ public final class FusedOperation implements Operation {
     @Override
     public String getExpression() {
         return expression;
-    }
-
-    /**
-     * Returns whether scheduler policy may treat this fused operation as cheap.
-     */
-    @Override
-    public boolean isCheap() {
-        return lowCostHint;
     }
 
     /**

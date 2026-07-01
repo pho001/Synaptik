@@ -1,5 +1,5 @@
-import planning.region.lowering.OperationSemanticClassifier;
-import planning.region.lowering.OperationSemanticLevel;
+import planning.partition.execution.lowering.OperationSemanticClassifier;
+import planning.partition.execution.lowering.OperationSemanticLevel;
 import operations.Operation;
 import operations.elementwise.binary.add;
 import operations.elementwise.compare.greaterThan;
@@ -41,7 +41,6 @@ class OperationTraitMetadataTest {
             assertNotNull(operation.arityClass(), operation.getClass().getName());
             assertNotNull(operation.semanticFamily(), operation.getClass().getName());
             assertNotNull(operation.computationalCost(), operation.getClass().getName());
-            assertNotNull(operation.controlTrait(), operation.getClass().getName());
             assertNotNull(operation.resultKind(), operation.getClass().getName());
         }
     }
@@ -71,21 +70,18 @@ class OperationTraitMetadataTest {
         assertEquals(Operation.OpArityClass.ELEMENT_WISE, greaterThan.arityClass());
         assertTrue(greaterThan.isFusable());
         assertEquals(Operation.OpSemanticFamily.COMPARISON, greaterThan.semanticFamily());
-        assertEquals(Operation.OpControlTrait.BRANCHLESS, greaterThan.controlTrait());
         assertEquals(Operation.OpResultKind.BOOLEAN, greaterThan.resultKind());
 
         Operation logicalAnd = new logicalAnd(null);
         assertEquals(Operation.OpArityClass.ELEMENT_WISE, logicalAnd.arityClass());
         assertTrue(logicalAnd.isFusable());
         assertEquals(Operation.OpSemanticFamily.LOGICAL, logicalAnd.semanticFamily());
-        assertEquals(Operation.OpControlTrait.BOOL_LOGIC, logicalAnd.controlTrait());
         assertEquals(Operation.OpResultKind.BOOLEAN, logicalAnd.resultKind());
 
         Operation where = new where();
         assertEquals(Operation.OpArityClass.ELEMENT_WISE, where.arityClass());
         assertTrue(where.isFusable());
         assertEquals(Operation.OpSemanticFamily.SELECTION, where.semanticFamily());
-        assertEquals(Operation.OpControlTrait.SELECT_MASK, where.controlTrait());
         assertEquals(Operation.OpResultKind.NUMERIC, where.resultKind());
     }
 

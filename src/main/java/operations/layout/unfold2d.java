@@ -46,11 +46,6 @@ public final class unfold2d implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.SHAPE_VIEW;
     }

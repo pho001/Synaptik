@@ -46,11 +46,6 @@ public final class argMax implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.INDEX;
     }

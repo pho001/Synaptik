@@ -327,7 +327,10 @@ public final class CpuPlanningPolicy {
         if (op instanceof FusedOperation fused) {
             return fused.isLowCostHint() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
         }
-        return op.isCheap() ? CpuKernelCostClass.LOW : CpuKernelCostClass.MEDIUM;
+        Operation.OpComputationalCost cost = op.computationalCost();
+        return cost == Operation.OpComputationalCost.TRIVIAL || cost == Operation.OpComputationalCost.CHEAP
+                ? CpuKernelCostClass.LOW
+                : CpuKernelCostClass.MEDIUM;
     }
 
     public int targetChunksPerWorker(CpuKernelCostClass costClass) {

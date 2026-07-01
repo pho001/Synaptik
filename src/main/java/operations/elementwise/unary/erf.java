@@ -32,11 +32,6 @@ public final class erf implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.NUMERIC;
     }

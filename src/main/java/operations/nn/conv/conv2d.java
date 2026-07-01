@@ -73,11 +73,6 @@ public final class conv2d implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.NUMERIC;
     }

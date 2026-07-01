@@ -57,11 +57,6 @@ public final class reshape implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.SHAPE_VIEW;
     }

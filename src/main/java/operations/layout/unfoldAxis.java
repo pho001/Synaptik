@@ -60,11 +60,6 @@ public final class unfoldAxis implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.NONE;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.SHAPE_VIEW;
     }

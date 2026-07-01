@@ -35,11 +35,6 @@ public final class where implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.SELECT_MASK;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.NUMERIC;
     }

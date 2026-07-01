@@ -56,11 +56,6 @@ public final class logicalAnd implements Operation {
     }
 
     @Override
-    public OpControlTrait controlTrait() {
-        return OpControlTrait.BOOL_LOGIC;
-    }
-
-    @Override
     public OpResultKind resultKind() {
         return OpResultKind.BOOLEAN;
     }
