@@ -106,6 +106,8 @@ AGENTS.md
 
 When adding or changing architecture-related behavior, update documentation in the same change.
 
+After every code change, review the affected documentation. Update or extend it in the same change when public APIs, behavior, configuration, architecture, module boundaries, workflows, or examples have changed. If no documentation update is needed, state that explicitly in the completion summary.
+
 ## Testing expectations
 
 When changing module boundaries or dependencies, add or update architecture tests under:
