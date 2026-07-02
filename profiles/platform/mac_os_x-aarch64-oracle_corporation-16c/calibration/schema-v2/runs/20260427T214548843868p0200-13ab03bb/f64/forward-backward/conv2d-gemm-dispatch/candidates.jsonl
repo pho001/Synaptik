@@ -1,6 +1,0 @@
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=NONE","valid":true,"score":68.17043621708626}
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=OPENBLAS_FFM:minWork=100000","valid":true,"score":68.14114041486232}
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=OPENBLAS_FFM:minWork=1000000","valid":true,"score":68.1496227745622}
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=OPENBLAS_FFM:minWork=250000","valid":true,"score":67.74936066864558}
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=OPENBLAS_FFM:minWork=4000000","valid":true,"score":68.0610492523642}
-{"family":"conv2d-gemm-dispatch","candidateId":"base+conv2dBlasProvider=OPENBLAS_FFM:minWork=50000","valid":true,"score":68.1043891730936}

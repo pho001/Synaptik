@@ -1,0 +1,25 @@
+rootProject.name = "synaptik"
+
+include(
+    ":modules:trace",
+    ":modules:backend-contract",
+    ":modules:model",
+    ":modules:config",
+    ":modules:planning",
+    ":modules:compiler",
+    ":modules:runtime",
+    ":modules:prepare",
+    ":modules:engine",
+    ":backends:openblas-provider",
+    ":backends:cpu",
+    ":backends:metal",
+    ":backends:cuda",
+    ":extensions:training",
+    ":extensions:onnx",
+    ":tools:tuning",
+    ":tools:benchmarks",
+    ":tools:cli",
+    ":testing:architecture-tests",
+    ":testing:backend-conformance",
+    ":testing:integration-tests",
+)

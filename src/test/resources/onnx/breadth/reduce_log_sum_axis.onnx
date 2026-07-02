@@ -1,15 +1,0 @@
-	:ƒ
-2
-input
-axesyreduce"ReduceLogSum*
-
-keepdimsreduce_log_sum_axis*
-:BaxesZ
-input
-
-
-b
-y
-
-
-B
