@@ -50,7 +50,7 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [DataType model](tasks/0001-data-type-model.md) | Complete | - | Define data type categories, metadata, floating promotion, and BFLOAT16 conversion. |
-| 0002 | Shape and dimension model | Draft | - | Define static/dynamic dimensions and shapes. |
+| 0002 | [Shape and dimension model](tasks/0002-shape-and-dimension-model.md) | Complete | - | Define static and symbolic dimensions, immutable shapes, checked element counts, axes, and broadcasting. |
 | 0003 | Layout descriptor model | Draft | 0002 | Define layout kind, strides, offset/view metadata. |
 | 0004 | Typed identifiers | Draft | - | Define TensorId, NodeId, ValueId, OperationId. |
 | 0005 | Operation taxonomy and attribute foundation | Draft | 0001 | Define the core semantic taxonomy and typed immutable attribute contracts used by later operation families. |
@@ -86,12 +86,10 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 
 Draft.
 
-The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Task 0001 is complete. The current frontier is task 0002; its detailed specification has not yet been created.
+The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 and 0002 are complete. The current frontier is task 0003; its detailed specification has not yet been created.
 
 ## Open questions
 
-- The exact representation of dynamic dimensions remains local to task 0002.
-- The canonical scalar shape and initial zero-sized-dimension policy remain local to task 0002.
 - The minimal provenance representation remains local to task 0013.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
 
@@ -100,6 +98,9 @@ The capability baseline is documented and the ordered task queue covers its mode
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - The initial data type baseline is `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`.
+- Static dimensions use non-negative `long` sizes; dynamic dimensions use explicit canonical symbols rather than negative sentinels.
+- Scalar shape is rank zero, and zero-sized static dimensions are supported.
+- Local broadcasting is right-aligned and conservative for symbolic dimensions; graph-wide symbolic constraints remain a compiler responsibility.
 - All selected legacy public operation capabilities must be representable without backend knowledge.
 - Model capability parity and end-to-end executable parity are tracked separately.
 - Fusion is not a model-level mathematical operation capability.

@@ -33,6 +33,35 @@ BFLOAT16 < FLOAT32 < FLOAT64
 
 The utility describes the value format only. It does not allocate storage, expose device formats, or report backend capabilities.
 
+## Shapes and dimensions
+
+`Shape` is an immutable ordered collection of `Dimension` values. A dimension is either:
+
+- `StaticDimension`, with a known non-negative `long` size; or
+- `DynamicDimension`, with a canonical non-blank symbolic name.
+
+Dynamic dimensions are explicit values and never use negative numeric sentinels. Shape values defensively isolate caller-owned arrays and expose immutable dimension lists.
+
+### Scalars and empty tensors
+
+`Shape.scalar()` is the canonical rank-0 scalar shape. It has no axes and its known element count is one.
+
+Static size zero is valid. For example, `Shape.of(2, 0, 4)` represents an empty tensor and has a known element count of zero. Static dimensions use `long`; later storage implementations may impose narrower allocation limits without changing the logical shape.
+
+### Static and dynamic element counts
+
+`Shape.knownElementCount()` returns a present checked `long` value only when every dimension is static. Dynamic shapes return an empty optional. Non-zero multiplication overflow raises `ArithmeticException`; a fully static shape containing a zero dimension has count zero even when multiplying other dimensions would overflow.
+
+`Shape.toLongArray()` copies the ordered static sizes and rejects dynamic shapes. Positive and negative axes are normalized through the shape, while every axis is invalid for a rank-0 scalar.
+
+### Broadcasting
+
+`ShapeBroadcast.broadcast(left, right)` applies right-aligned broadcasting. Equal dimensions are preserved and static size `1` expands to the opposing dimension. This includes scalar broadcasting and zero-sized dimensions such as `[0, 3]` with `[1, 3]`.
+
+Equal dynamic symbols are compatible, and a singleton may expand to a dynamic dimension. Different symbols or a dynamic dimension paired with a non-singleton static size are rejected because local model code cannot prove their compatibility. Graph-wide symbolic constraints belong to future compiler shape inference.
+
+Shape broadcasting does not calculate strides, layouts, storage, materialization, or backend execution information.
+
 ## Planned tensor contracts
 
-Tensor values, shapes, layouts, host storage, operations, and factories will be documented here as their ordered model tasks are implemented.
+Tensor values, layouts, host storage, operations, and factories will be documented here as their ordered model tasks are implemented.

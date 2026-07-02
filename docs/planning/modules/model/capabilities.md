@@ -64,8 +64,10 @@ No implicit promotion between floating, integral, and boolean categories is assu
 The model must be able to describe:
 
 - tensor rank, dimensions, and checked element count;
-- static positive dimensions used by the legacy public API;
-- the planned distinction between static and dynamic dimensions;
+- static dimensions represented by non-negative `long` sizes;
+- explicit symbolic dynamic dimensions represented without negative numeric sentinels;
+- rank-0 scalar shapes with element count one;
+- zero-sized dimensions and empty tensors;
 - normalized positive and negative axes;
 - right-aligned NumPy-style broadcasting;
 - broadcast dimensions represented through effective zero strides where applicable;
@@ -74,7 +76,7 @@ The model must be able to describe:
 - overflow-safe element-count and stride calculations; and
 - operation-specific output-shape metadata without backend information.
 
-The legacy implementation represented scalar results as shape `[1]` and rejected zero-sized dimensions. Task 0002 must explicitly decide the new canonical scalar and zero-sized-dimension contracts before implementation; capability parity must not depend on an undocumented representation accident.
+The legacy implementation represented scalar results as shape `[1]`, rejected zero-sized dimensions, and limited element count to `Integer.MAX_VALUE`. The new model deliberately uses rank zero for scalars, permits zero-sized dimensions, and keeps model dimensions independent of Java array-size limits. Storage implementations may impose narrower validated limits later.
 
 ## Layout baseline
 
@@ -302,16 +304,12 @@ The following are not part of the initial legacy-parity baseline unless added th
 
 - additional data types such as `FLOAT16`, unsigned integers, or complex numbers;
 - sparse, quantized, string, or distributed tensor storage;
-- zero-sized tensor dimensions if task 0002 does not explicitly adopt them;
 - runtime device tensors in `modules/model`;
 - backend-specific operation variants; and
 - optimizer algorithms, which belong to `extensions/training`.
 
 ## Open design questions
 
-- What is the canonical representation of scalar shape in the new model?
-- Are zero-sized dimensions supported initially?
-- How are dynamic dimensions represented without weakening static validation?
 - Which operation families use dedicated immutable attribute records versus a shared typed attribute vocabulary?
 - Which public Tensor overloads are retained, consolidated, or replaced while preserving capability parity?
 - What ownership modes does `MemorySegmentStorage` support for externally supplied host memory?
