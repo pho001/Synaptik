@@ -1,9 +1,15 @@
 ### IntelliJ IDEA ###
+.idea/
+*.iml
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-.idea/.name
-.idea/workspace.xml
+.kotlin
+
+### Gradle ###
+.gradle/
+build/
+**/build/
 
 ### Eclipse ###
 .apt_generated
@@ -29,31 +35,3 @@ bin/
 
 ### Mac OS ###
 .DS_Store
-
-### Gradle ###
-.gradle/
-.gradle-userhome/
-build/
-
-### Local agent / workspace metadata ###
-.oca/
-.plan
-.plan/
-.planning/tmp/
-.planning/
-todo/
-
-### Git (generated artifacts) ###
-/*.class
-**/*.class
-.tmp*
-.tmp_*/
-.tools/
-
-# Legacy local optimizer profiles
-config/optimizer-profile.json
-config/optimizer-profile-f32.json
-config/optimizer-profile-f64.json
-config/optimizer-hw-profiles.tsv
-config/optimizer-hw-profiles-f32.tsv
-config/optimizer-hw-profiles-f64.tsv

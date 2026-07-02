@@ -1,9 +1,0 @@
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X1+attentionMatmulTiles=16x64x32","valid":true,"score":4.0198340799314956}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X1+attentionMatmulTiles=32x128x64","valid":true,"score":3.8989407421951157}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X1+attentionMatmulTiles=32x64x32","valid":true,"score":3.922090998653169}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X2+attentionMatmulTiles=16x64x32","valid":true,"score":3.7986465606780646}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X2+attentionMatmulTiles=32x128x64","valid":true,"score":3.714469506738844}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_2X2+attentionMatmulTiles=32x64x32","valid":true,"score":3.73236207754094}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_4X1+attentionMatmulTiles=16x64x32","valid":true,"score":3.759038839489919}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_4X1+attentionMatmulTiles=32x128x64","valid":true,"score":3.8546823455551973}
-{"family":"attention-matmul","candidateId":"base+attentionMatmulMicroKernel=F64_4X1+attentionMatmulTiles=32x64x32","valid":true,"score":3.7612402336316038}
