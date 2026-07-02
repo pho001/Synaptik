@@ -42,16 +42,16 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0001 DataType model
+0002 Shape and dimension model
 ```
 
-No later task specification should be created until task `0001` is complete, unless the model master plan records an explicit exception.
+No later task specification should be created until task `0002` is complete, unless the model master plan records an explicit exception.
 
 ## Model task sequence
 
 | Order | Task | Status |
 |---|---|---|
-| 1 | 0001 DataType model | Ready |
+| 1 | 0001 DataType model | Complete |
 | 2 | 0002 Shape and dimension model | Draft |
 | 3 | 0003 Layout descriptor model | Draft |
 | 4 | 0004 Typed identifiers | Draft |

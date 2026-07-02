@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -220,20 +220,47 @@ At the end, update this task file with local decisions, known limitations, valid
 
 ## Local decisions
 
-Empty until implemented.
+- `DataType`, `DataTypeCategory`, `DataTypePromotion`, and `BFloat16Bits` are small public contracts in the root `io.github.pho001.synaptik.model` package.
+- `DataType` stores category, bit width, byte width, and differentiability directly in each enum constant. `byteWidth()` is derived once during enum initialization because every initial data type is byte-aligned.
+- The default is exposed through `DataType.defaultFloating()` instead of a mutable or backend-configured default.
+- `DataTypePromotion` supports floating promotion only. Null operands fail with `NullPointerException`; non-floating operands fail with `IllegalArgumentException`.
+- `BFloat16Bits` is a scalar, allocation-free utility. It uses round-to-nearest with ties to even and canonicalizes every Java NaN to raw BFLOAT16 bits `0x7FC0`.
+- Java carrier and array classes are intentionally absent from `DataType`; storage mappings remain deferred to task 0011.
 
 ## Known limitations
 
-Empty until implemented.
+- Only the six data types in the initial capability baseline are represented.
+- Cross-category and integral promotion are intentionally unsupported; a later explicit cast operation owns conversion semantics.
+- BFLOAT16 bulk conversion and storage ownership are not included in this task.
+- Backend support and physical data type mappings remain outside the model contract.
 
 ## Validation evidence
 
-Empty until implemented.
+- `./gradlew :modules:model:test` — passed. 15 tests executed: 6 `DataTypeTest`, 3 `DataTypePromotionTest`, and 6 `BFloat16BitsTest`; no failures, errors, or skips.
+- `./gradlew :modules:model:javadoc` — passed. Public API Javadoc generated without errors.
+- `./gradlew test` — passed. The complete repository test lifecycle completed successfully with 36 actionable tasks in the final run.
+- `git diff --check` — passed before task closure; repeated after the final planning update.
+- Markdown link validation — passed for all 72 repository Markdown files.
+- Manual dependency review — production code imports only `java.util.Objects`; no project-module, backend, runtime, prepare, engine, or storage implementation dependency was added.
+- Manual scope review — exactly eight Java changes: four production files created, three test files created, and the placeholder `ModelModule` removed.
+- Gradle and architecture review — no Gradle file, `ARCHITECTURE.md`, or focused architecture document changed.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added immutable category and data type metadata contracts for the six initial data types.
+- Added exhaustive floating promotion behavior and rejection tests for null, integral, and boolean operands.
+- Added BFLOAT16 conversion coverage for exact values, both rounding directions, ties-to-even, signed zero, infinities, subnormal round trips, and NaN canonicalization.
+- Removed `ModelModule` because the module now exposes real public model contracts.
+- Replaced the tensor API placeholder with the implemented data type, promotion, and BFLOAT16 documentation.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Implemented the backend-independent `DataType` foundation, floating promotion, and BFLOAT16 scalar conversion.
+- Files changed or created: Four production classes, three unit-test classes, one removed placeholder, the tensor API documentation, and synchronized planning documents.
+- Tests and validation: All required Gradle commands, Javadoc generation, diff checks, link checks, dependency review, and scope review passed.
+- Documentation impact: Added the initial public data type API reference; no architecture documentation change was required.
+- Javadoc review: Every public type, enum constant, and method documents semantics, parameters, results, constraints, and failures where applicable.
+- Unresolved issues: None.
+- Follow-up required: None. Task 0002 is the next planned frontier.
+
+Status: Complete

@@ -49,7 +49,7 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [DataType model](tasks/0001-data-type-model.md) | Ready | - | Define data type categories, metadata, floating promotion, and BFLOAT16 conversion. |
+| 0001 | [DataType model](tasks/0001-data-type-model.md) | Complete | - | Define data type categories, metadata, floating promotion, and BFLOAT16 conversion. |
 | 0002 | Shape and dimension model | Draft | - | Define static/dynamic dimensions and shapes. |
 | 0003 | Layout descriptor model | Draft | 0002 | Define layout kind, strides, offset/view metadata. |
 | 0004 | Typed identifiers | Draft | - | Define TensorId, NodeId, ValueId, OperationId. |
@@ -86,7 +86,7 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 
 Draft.
 
-The capability baseline is documented and the ordered task queue covers its model-level responsibilities. The current frontier remains task 0001. Detailed task specifications are created only for the next unfinished task.
+The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Task 0001 is complete. The current frontier is task 0002; its detailed specification has not yet been created.
 
 ## Open questions
 
