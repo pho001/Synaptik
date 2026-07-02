@@ -10,6 +10,8 @@ Before making changes related to architecture, module boundaries, dependencies, 
 
 - `ARCHITECTURE.md`
 - `docs/architecture/current-architecture-plan.md`, if present
+- `docs/planning/planning-guide.md` and `docs/planning/roadmap.md`, before creating, updating, or executing implementation plans
+- the applicable master plan and task specification under `docs/planning/`, if they exist
 
 `ARCHITECTURE.md` is the authoritative architecture contract.
 
@@ -100,6 +102,9 @@ ARCHITECTURE.md
 docs/
   explanations, guides, design notes, examples, ADRs
 
+docs/planning/
+  non-authoritative implementation plans
+
 AGENTS.md
   agent working instructions
 ```
@@ -107,6 +112,24 @@ AGENTS.md
 When adding or changing architecture-related behavior, update documentation in the same change.
 
 After every code change, review the affected documentation. Update or extend it in the same change when public APIs, behavior, configuration, architecture, module boundaries, workflows, or examples have changed. If no documentation update is needed, state that explicitly in the completion summary.
+
+Every Java code change must be reflected in the Javadoc for the affected API or implementation contract. In the same change, add or update Javadoc whenever behavior, invariants, ownership, lifecycle, side effects, threading, nullability, parameters, return values, or failure modes change. Do not add Javadoc that merely restates the implementation. If the affected Javadoc remains accurate without modification, review it and state that explicitly in the completion summary.
+
+Javadoc must always provide a meaningful, detailed description of the documented type, constructor, or method. Constructor and method Javadoc must document every input with `@param`, including relevant constraints, units, nullability, ownership, or mutation behavior. Every non-`void` method must document its result with `@return`, including result semantics and nullability. Document expected failure conditions with `@throws`. Constructors and `void` methods do not use `@return`.
+
+## Planning discipline
+
+Implementation plans and task specifications live under `docs/planning/`. Before creating, updating, or executing planning tasks, read `docs/planning/planning-guide.md` and `docs/planning/roadmap.md`.
+
+Planning documents are not authoritative architecture contracts. If a planning document conflicts with `ARCHITECTURE.md`, the architecture contract wins and implementation must stop until the conflict is resolved.
+
+Represent non-trivial implementation work as a small task specification under the relevant `tasks/` directory. Task specifications must follow the planning guide and define the goal, scope, exclusions, architecture constraints, affected files, acceptance criteria, validation, dependencies, follow-up tasks, implementation prompt, and completion summary.
+
+Execute tasks in the order listed by the relevant master plan. Create a detailed task specification for the next unfinished task only. Parallel or out-of-order execution is an explicit exception that must be justified and recorded in the master plan.
+
+## Legacy implementation reference
+
+The `legacy/pre-rewrite` branch is a read-only reference for capabilities, observable behavior, tests, and historical context. Implement the new architecture from scratch. Do not copy or import legacy source files, internal package structure, dependency direction, runtime coupling, or implementation shortcuts into the new project. Reproduce only explicitly selected capabilities, expressed through new designs that comply with `ARCHITECTURE.md` and verified by new or adapted tests.
 
 ## Testing expectations
 
@@ -127,6 +150,18 @@ When changing end-to-end behavior, add or update integration tests under:
 ```text
 testing/integration-tests/
 ```
+
+## Code discipline
+
+Prefer small, focused, readable classes, and split classes that own multiple concepts. Do not create god classes, catch-all managers, broad facades, or vague utilities; place each responsibility in its owning module and layer. Keep public APIs minimal, prefer explicit domain names over generic `Manager`, `Helper`, `Util`, `Processor`, or `Service` names, and avoid unrelated refactors.
+
+Add abstractions and interfaces only for a concrete current need, a real boundary, multiple implementations, a test seam, or an architecture contract. Do not conceal architecture violations behind facades, adapters, registries, or service locators.
+
+## Performance discipline
+
+Treat performance as a design priority, especially on runtime hot paths. Keep code readable without adding avoidable overhead per tensor element, operation, graph node, or execution step, and move expensive decisions to compile or prepare time when possible.
+
+Avoid unnecessary allocation, boxing, reflection, string dispatch, map lookup, synchronization, and virtual indirection in hot paths. Do not obscure code for speculative optimization; document necessary optimizations that reduce readability and add tests or benchmarks when appropriate.
 
 ## Change discipline
 

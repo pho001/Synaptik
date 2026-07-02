@@ -30,7 +30,7 @@ Scoring may use immutable or estimated compile-time facts, including:
 
 - graph metadata and graph phase;
 - operation kind;
-- dtype, shape, estimated element count, and estimated byte size;
+- data type, shape, estimated element count, and estimated byte size;
 - backend capability and availability information represented for planning;
 - configured backend intent;
 - candidate ownership of producers and consumers;

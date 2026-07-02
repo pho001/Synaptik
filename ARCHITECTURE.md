@@ -226,14 +226,14 @@ Use `BackendId`, not concrete backend objects, in compile-time ownership and par
 
 ### `modules/model`
 
-`modules/model` owns the public tensor model, operation semantics, shape/dtype/layout model, host storage abstraction, and immutable graph model.
+`modules/model` owns the public tensor model, operation semantics, shape/data type/layout model, host storage abstraction, and immutable graph model.
 
 Allowed:
 
 - `Tensor`
 - `TensorId`
 - `TensorFactory`
-- `DType`
+- `DataType`
 - `Shape`
 - `LayoutDescriptor`
 - `HostTensorStorage`
@@ -351,7 +351,7 @@ Partition scoring may use compile-time information only, such as:
 
 - graph metadata
 - op kind
-- dtype
+- data type
 - shape
 - estimated element count
 - estimated byte size
@@ -395,7 +395,7 @@ Allowed:
 - producer/use indexing
 - canonicalization
 - shape inference
-- dtype inference
+- data type inference
 - validation
 - dead-code elimination
 - common subexpression elimination
@@ -892,7 +892,7 @@ Tensor output
   -> topological sort
   -> producer/use index
   -> canonicalization
-  -> shape/dtype inference
+  -> shape and data type inference
   -> validation
   -> forward optimization
      - DCE

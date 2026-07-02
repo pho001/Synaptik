@@ -18,7 +18,7 @@ It does not own capabilities implementation, operation support logic, kernel reg
 
 ### `modules/model`
 
-Owns the public tensor model, operation semantics, shape/dtype/layout types, host storage abstractions, and immutable graph model. `Tensor` remains public mutable API state; `CompiledGraphModel`, `CompiledNode`, and graph values are compile-time state.
+Owns the public tensor model, operation semantics, shape/data type/layout types, host storage abstractions, and immutable graph model. `Tensor` remains public mutable API state; `CompiledGraphModel`, `CompiledNode`, and graph values are compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 

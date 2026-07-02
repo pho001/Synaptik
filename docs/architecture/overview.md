@@ -8,7 +8,7 @@ Synaptik turns a public tensor expression into an immutable compile-time recipe,
 
 The main layers are:
 
-- **Model** owns tensors, operation semantics, shape, dtype, layout, host storage abstractions, and the immutable graph model. It has no backend or runtime responsibility.
+- **Model** owns tensors, operation semantics, shape, data type, layout, host storage abstractions, and the immutable graph model. It has no backend or runtime responsibility.
 - **Planning** makes backend-neutral compile-time decisions: intent, capability, ownership scoring, partitioning, and logical memory or materialization requirements.
 - **Compiler** captures and transforms the graph, expands autograd when requested, coordinates planning, and produces immutable `CompileArtifacts`.
 - **Prepare** validates the transition from compile artifacts to executable runtime state and defines the shared backend preparation contract.

@@ -20,7 +20,7 @@ Tensor output
   -> topological sort
   -> producer/use index
   -> canonicalization
-  -> shape/dtype inference
+  -> shape and data type inference
   -> validation
   -> forward optimization
      - dead-code elimination
