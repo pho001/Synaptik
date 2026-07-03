@@ -10,13 +10,20 @@ The current types describe logical values without allocating or executing a tens
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
+ValueId + TensorDescriptor                                    = GraphValue
+NodeId + Operation + ordered input/output ValueIds            = CompiledNode
 ```
 
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
 and gradient eligibility together as one immutable value. It is still only a description: the
-mutable `Tensor`, graph integration, storage, inference, and execution remain separate contracts.
+mutable `Tensor`, graph-wide validation, storage, inference, and execution remain separate
+contracts.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
+
+An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
+place where operation semantics consume and produce that data. These records are graph elements,
+not a graph container: graph-wide relationships and compiler behavior remain planned.
 
 ## Data types
 
@@ -282,7 +289,125 @@ The `SampleKind` declaration shows how an enum inherits `Enum.name()` and theref
 
 `new Operation(kind, attrs)` stores those exact non-null objects without copying or normalization. The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their hash codes are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
 
-The example demonstrates the implemented descriptor's construction, ownership, and record value semantics. It does not establish that `SampleAttrs` is compatible with `SampleKind`: the generic descriptor checks only that neither component is null. It also does not create a production operation family or graph node, infer a result shape or data type, report backend support, select a kernel, or execute computation. Concrete kinds, family attributes, graph integration, compiler behavior, and executable support remain later work in their owning layers.
+The example demonstrates the implemented descriptor's construction, ownership, and record value semantics. It does not establish that `SampleAttrs` is compatible with `SampleKind`: the generic descriptor checks only that neither component is null. It also does not create a production operation family or graph node, infer a result shape or data type, report backend support, select a kernel, or execute computation. Concrete kinds, family attributes, compiler behavior, and executable support remain later work in their owning layers.
+
+## Graph values and compiled nodes
+
+The public graph-element contracts live in `io.github.pho001.synaptik.model.graph`. They keep data
+and computation separate:
+
+| Contract | Stored state | Meaning |
+|---|---|---|
+| `GraphValue` | `ValueId id`, `TensorDescriptor descriptor` | One described logical input, intermediate result, or output. |
+| `CompiledNode` | `NodeId id`, `Operation operation`, ordered `inputs`, ordered `outputs` | One occurrence of computation and the value positions it consumes and produces. |
+
+Both identity types are local to an owning graph context. Equal numeric IDs in another graph do
+not establish a relationship, and a `NodeId` is never interchangeable with a `ValueId`.
+
+`GraphValue` stores no producer or consumer. This allows an input value to use the same record as a
+produced value. A future graph container can derive a producer by finding the node whose `outputs`
+list contains the value ID; task 0008 does not provide that container or perform the lookup.
+
+`CompiledNode` copies its input and output lists with `List.copyOf`, preserving encounter order and
+preventing later caller mutation from changing the node. Input positions may be empty or repeat a
+value ID. Output positions must contain at least one value and must be unique within that one node.
+The lists have value semantics: callers rely on their contents and order, not container identity.
+
+The records use generated structural equality and hashing. For `CompiledNode`, list order and
+repeated input positions are part of equality. Generated text is useful for diagnostics but is not
+a serialization format, graph-validation result, or execution-dispatch key.
+
+### Complete test-local graph-element example
+
+#### Goal and inputs
+
+Connect two scalar graph values through one sample operation occurrence. The input has
+`ValueId(0)`, the output has `ValueId(1)`, the node has `NodeId(0)`, and both values use an
+unresolved-layout `FLOAT32` scalar descriptor. `SampleKind` is test-local and is not a production
+operation family.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.graph.NodeId;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import java.util.List;
+import java.util.Optional;
+
+public final class GraphElementExample {
+    private enum SampleKind implements OperationKind {
+        IDENTITY
+    }
+
+    public static void main(String[] args) {
+        TensorDescriptor scalar = new TensorDescriptor(
+                DataType.FLOAT32, Shape.scalar(), Optional.empty(), false);
+        GraphValue input = new GraphValue(new ValueId(0), scalar);
+        GraphValue output = new GraphValue(new ValueId(1), scalar);
+
+        Operation identity = new Operation(
+                SampleKind.IDENTITY, NoOperationAttrs.INSTANCE);
+        CompiledNode node = new CompiledNode(
+                new NodeId(0),
+                identity,
+                List.of(input.id()),
+                List.of(output.id()));
+
+        System.out.println(node.operation().kind().name());
+        System.out.println(node.inputs().stream().map(ValueId::value).toList());
+        System.out.println(node.outputs().stream().map(ValueId::value).toList());
+        System.out.println(input.descriptor().equals(output.descriptor()));
+    }
+}
+```
+
+#### Meaningful lines
+
+- The one `TensorDescriptor` describes the logical scalar facts. Reusing that immutable value does
+  not allocate shared storage or claim that input and output are the same graph value.
+- The two `GraphValue` constructions give the data positions distinct `ValueId` values. Neither
+  construction names a producer.
+- `Operation` describes the sample identity semantics. `CompiledNode` gives that operation one
+  occurrence and connects its ordered input position to value `0` and output position to value `1`.
+- Passing `input.id()` and `output.id()` uses typed data identities. The node snapshots both lists;
+  it does not store either `GraphValue` object or infer their descriptors.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+IDENTITY
+[0]
+[1]
+true
+```
+
+The result shows the operation kind, ordered input and output positions, and equal descriptors.
+It does not prove that the values belong to one valid graph, derive a producer index, validate
+operation arity or descriptor compatibility, create `CompiledGraphModel` or compile artifacts,
+choose storage or a backend, or execute the operation.
+
+#### Failures and useful variations
+
+- A null `GraphValue` component fails with `NullPointerException` and message `id` or
+  `descriptor`.
+- A null node component fails with `NullPointerException` and its component name. A null list
+  element reports its zero-based position, such as `inputs[1]` or `outputs[2]`.
+- An empty output list fails with `IllegalArgumentException` and message
+  `outputs must not be empty`. A repeated output reports its later position and duplicate ID.
+- `List.of()` is a valid input list, and repeated input IDs remain in their original positions.
+  Mutating either list returned by the node fails with `UnsupportedOperationException`.
+
+Validation is deliberately local. Existence of referenced values, graph-wide ID uniqueness,
+exactly one producer, graph input/output classification, topology, cycles, operation arity, result
+count, and descriptor agreement require a future graph container or operation-family contract.
 
 ## Planned contracts
 
@@ -291,10 +416,13 @@ The following contracts appear in the architecture and planning documents but ar
 - mutable public `Tensor` state and `TensorFactory`;
 - host-visible storage;
 - concrete operation kinds and family-specific attribute values;
-- immutable graph values, nodes, and `CompiledGraphModel`; and
+- immutable `CompiledGraphModel` and graph-wide validation; and
 - publication bindings and tensor provenance.
 
-`OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and `Operation` are current Java API contracts. No production concrete kind or family-specific attribute type exists yet, so the descriptor currently has no production mathematical operation to pair and provides no graph or executable support.
+`OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `GraphValue`, and
+`CompiledNode` are current Java API contracts. No production concrete kind or family-specific
+attribute type exists yet. The graph records can therefore compose test-local semantics but do not
+provide a complete graph, compiler entry point, or executable support.
 
 ## Failures and ownership summary
 
@@ -307,6 +435,9 @@ The following contracts appear in the architecture and planning documents but ar
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.
+- `GraphValue` rejects null identity or descriptor components and stores no producer relationship.
+- `CompiledNode` snapshots ordered lists, accepts empty or repeated inputs, and requires non-empty
+  within-node-unique outputs. It does not perform graph-wide or operation-family validation.
 - None of the current types owns device storage, runtime residency, or backend selection.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

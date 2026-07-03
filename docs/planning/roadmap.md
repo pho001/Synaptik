@@ -42,10 +42,11 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0008 Graph value and node model
+0009 Compiled graph model
 ```
 
-Package migrations `0003A` through `0003C` and tasks `0004`–`0007` are complete. Task `0008` is the next ordered planning frontier and remains `Draft`; its detailed specification must be prepared separately before implementation.
+Package migrations `0003A` through `0003C` and tasks `0004`–`0008` are complete. Task `0009` is
+the next ordered planning frontier and remains `Draft` without a detailed specification.
 
 ## Model task sequence
 
@@ -61,7 +62,7 @@ Package migrations `0003A` through `0003C` and tasks `0004`–`0007` are complet
 | 8 | 0005 Operation semantic foundation | Complete |
 | 9 | 0006 Operation model | Complete |
 | 10 | [0007 Tensor descriptor model](modules/model/tasks/0007-tensor-descriptor-model.md) | Complete |
-| 11 | 0008 Graph value and node model | Draft |
+| 11 | [0008 Graph value and node model](modules/model/tasks/0008-graph-value-and-node-model.md) | Complete |
 | 12 | 0009 Compiled graph model | Draft |
 | 13 | 0010 Host storage abstraction | Draft |
 | 14 | 0011 Public Tensor skeleton | Draft |

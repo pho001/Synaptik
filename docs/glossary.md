@@ -6,7 +6,14 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed `TensorId`, `NodeId`, and `ValueId` values, plus `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and the `Operation` descriptor. Concrete operation kinds and family attributes, graph integration, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
+The currently implemented terms are the model foundations: data type, dimension, shape,
+broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed
+`TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
+the `Operation` descriptor, and the `GraphValue` and `CompiledNode` graph-element records. Concrete
+operation kinds and family attributes, a compiled graph container and graph-wide validation,
+public `Tensor`, planning, prepare, runtime, concrete backends, traces, and training remain
+architecture or planning contracts. A definition explains intended meaning; it is not by itself
+evidence that a Java type exists.
 
 ## Terms
 
@@ -88,7 +95,14 @@ A directed dataflow model of a computation. [Nodes](#node) represent computation
 
 ### Graph value
 
-Logical data flowing through a graph. A value may be a graph input, an intermediate result, or a graph output. It can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers. A graph value is compile-time graph state, not the public mutable [`Tensor`](#tensor) object and not a physical memory slot.
+Logical data flowing through a graph. The implemented immutable `GraphValue` record stores exactly
+one graph-local [`ValueId`](#valueid) and one [`TensorDescriptor`](#tensor-descriptor). A value may
+be a graph input, an intermediate result, or a graph output. It can exist without a producing node,
+one node can produce multiple values, and one value can have multiple consumers. The record stores
+no producer, consumer, or role flag; a future graph container derives producers from node output
+lists and owns graph-wide existence, uniqueness, and topology checks. A graph value is compile-time
+model state, not the public mutable [`Tensor`](#tensor), a physical memory slot, storage, or runtime
+residency. See [Graph values and compiled nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
 ### Graph phase
 
@@ -132,7 +146,16 @@ The implemented canonical immutable attribute value for an operation kind that h
 
 ### Node
 
-One occurrence of computation in a graph. A node applies operation semantics to input values and produces one or more output values. Reusing the same operation kind in two places creates two node occurrences. A node is not the data flowing between computations; that data is represented by graph values.
+One occurrence of computation in a graph. The implemented immutable `CompiledNode` record stores a
+graph-local [`NodeId`](#nodeid), one [`Operation`](#operation), and ordered immutable input and
+output `ValueId` snapshots. Empty and repeated inputs are valid; outputs must be non-empty and
+unique within that node. Reusing the same operation kind in two places creates two node
+occurrences. A node is not the operation semantics alone and is not the data flowing between
+computations; that data is represented by [graph values](#graph-value). The record validates only
+its local list invariants. A future graph container owns referenced-value existence, producer
+uniqueness, topology, and graph input/output classification, while operation-family contracts own
+arity and descriptor compatibility. A compiled node is compile-time model state and must not enter
+runtime hot paths. See [Graph values and compiled nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
 ### `NodeId`
 
@@ -140,7 +163,7 @@ A validated non-negative identifier for a node occurrence within one owning grap
 
 ### Operation
 
-The implemented immutable value that keeps two parts of a computation description together: an [`OperationKind`](#operationkind), which says which computation is meant, and [`OperationAttrs`](#operationattrs), which carries its typed parameters. Both parts must be non-null and are retained unchanged. Record equality and hashing use both parts, while its text form is for diagnostics rather than serialization. The descriptor does not verify that a particular attributes type is compatible with a kind; future operation-family contracts own that validation. It also does not report backend support, perform compiler work, choose a kernel, execute computation, own runtime state, or identify a particular occurrence in a graph; the occurrence is a [node](#node).
+The implemented immutable value that keeps two parts of a computation description together: an [`OperationKind`](#operationkind), which says which computation is meant, and [`OperationAttrs`](#operationattrs), which carries its typed parameters. Both parts must be non-null and are retained unchanged. Record equality and hashing use both parts, while its text form is for diagnostics rather than serialization. The descriptor does not verify that a particular attributes type is compatible with a kind; future operation-family contracts own that validation. It also does not report backend support, perform compiler work, choose a kernel, execute computation, own runtime state, or identify a particular occurrence in a graph; an implemented [`CompiledNode`](#node) represents that occurrence.
 
 ### `OperationAttrs`
 
@@ -260,10 +283,14 @@ A publication binding connects the two domains when a compiled logical result mu
 
 | Node | Value |
 |---|---|
+| Implemented as `CompiledNode` | Implemented as `GraphValue` |
 | A computation occurrence | Logical data consumed or produced by computation |
 | Identified by `NodeId` | Identified by `ValueId` |
-| Applies operation semantics | Carries an input, intermediate result, or output |
-| May produce multiple values | May have multiple consumers |
+| Stores an `Operation` and ordered value-ID positions | Stores a `TensorDescriptor`, not an operation |
+| May produce multiple values | May exist without a producer and may have multiple consumers |
+
+Neither local record is the future compiled graph container. Producer derivation, whole-graph
+uniqueness, topology, and input/output classification remain graph-wide planned responsibilities.
 
 ### Operation kind versus attributes versus operation
 
@@ -274,7 +301,7 @@ A publication binding connects the two domains when a compiled logical result mu
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
-A kind distinguishes computations, while attributes carry parameters within a computation family. `Operation` stores both as one value but does not validate family compatibility. None of these values identifies where computation occurs in a graph; a [node](#node) represents that occurrence. Concrete kinds, family-specific attributes, and graph integration remain planned.
+A kind distinguishes computations, while attributes carry parameters within a computation family. `Operation` stores both as one value but does not validate family compatibility. None of these values identifies where computation occurs in a graph; an implemented [node](#node) represents that occurrence. Concrete kinds, family-specific attributes, the compiled graph container, and compiler integration remain planned.
 
 ### Compile versus prepare versus run
 
