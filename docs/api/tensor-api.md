@@ -12,6 +12,8 @@ TensorId / NodeId / ValueId                                  = distinct identity
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
 NodeId + Operation + ordered input/output ValueIds            = CompiledNode
+values + nodes + boundaries + node phases                     = CompiledGraphModel
+TensorId + ValueId                                             = PublicationBinding
 ```
 
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
@@ -22,8 +24,12 @@ contracts.
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
-place where operation semantics consume and produce that data. These records are graph elements,
-not a graph container: graph-wide relationships and compiler behavior remain planned.
+place where operation semantics consume and produce that data. The implemented
+`CompiledGraphModel` contains those elements, declares ordered graph boundaries, classifies every
+node with a `GraphPhase`, and validates structural closure. It is compile-time model state, not a
+compiler, compile artifact, prepared program, or runtime schedule. The standalone implemented
+`PublicationBinding` associates public tensor identity with graph-local value identity for a later
+compiler-owned publication plan.
 
 ## Data types
 
@@ -248,7 +254,12 @@ Each identifier is an immutable record over one non-negative `long` value. Zero 
 
 Graph-local numeric identifiers may be reused by different graph containers. `NodeId` identifies a computation, whereas `ValueId` identifies data flowing between computations. A value can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers.
 
-Future publication bindings associate a public `TensorId` with the final `ValueId` produced by a particular compiled graph. A Tensor does not store graph-local IDs because the same Tensor may participate in multiple separately compiled graphs. `OperationId` is not currently defined: operation semantics occur through graph nodes, and no independent operation-identity lifecycle has been established.
+An implemented `PublicationBinding` associates a public `TensorId` with a `ValueId`. The binding is
+standalone and cannot prove that the value belongs to a particular graph; a later compiler-owned
+`PublicationPlan` will provide that context. A planned `Tensor` does not store graph-local IDs
+because the same tensor may participate in multiple separately compiled graphs. `OperationId` is
+not currently defined: operation semantics occur through graph nodes, and no independent
+operation-identity lifecycle has been established.
 
 ## Operation semantic foundation
 
@@ -293,20 +304,23 @@ The example demonstrates the implemented descriptor's construction, ownership, a
 
 ## Graph values and compiled nodes
 
-The public graph-element contracts live in `io.github.pho001.synaptik.model.graph`. They keep data
-and computation separate:
+The public graph-model contracts live in `io.github.pho001.synaptik.model.graph`. They keep data,
+computation, graph boundaries, node phase, and publication association separate:
 
 | Contract | Stored state | Meaning |
 |---|---|---|
 | `GraphValue` | `ValueId id`, `TensorDescriptor descriptor` | One described logical input, intermediate result, or output. |
 | `CompiledNode` | `NodeId id`, `Operation operation`, ordered `inputs`, ordered `outputs` | One occurrence of computation and the value positions it consumes and produces. |
+| `GraphPhase` | Exactly `FORWARD` or `BACKWARD` | A node's compile-time classification, not a compile mode or runtime schedule. |
+| `CompiledGraphModel` | Ordered `values`, topological `nodes`, ordered `inputs` and `outputs`, exact `nodePhases` | One immutable, structurally closed compile-time graph. |
+| `PublicationBinding` | `TensorId tensorId`, `ValueId valueId` | A standalone association for a later compiler-owned publication plan. |
 
 Both identity types are local to an owning graph context. Equal numeric IDs in another graph do
 not establish a relationship, and a `NodeId` is never interchangeable with a `ValueId`.
 
 `GraphValue` stores no producer or consumer. This allows an input value to use the same record as a
-produced value. A future graph container can derive a producer by finding the node whose `outputs`
-list contains the value ID; task 0008 does not provide that container or perform the lookup.
+produced value. `CompiledGraphModel` derives producer relationships while validating construction,
+but it stores no producer, consumer, node, value, or phase index.
 
 `CompiledNode` copies its input and output lists with `List.copyOf`, preserving encounter order and
 preventing later caller mutation from changing the node. Input positions may be empty or repeat a
@@ -317,27 +331,45 @@ The records use generated structural equality and hashing. For `CompiledNode`, l
 repeated input positions are part of equality. Generated text is useful for diagnostics but is not
 a serialization format, graph-validation result, or execution-dispatch key.
 
-### Complete test-local graph-element example
+`CompiledGraphModel` snapshots all four lists with `List.copyOf`; list order is part of the record
+value. It snapshots `nodePhases` with `Map.copyOf`; the mapping is structural, but iteration order
+is not an API contract. Construction requires unique value and node IDs, resolvable boundaries and
+node references, producer-free inputs, exactly one producer for every non-input value, topological
+node order, at least one graph output, and exactly one phase for every node. Repeated node inputs,
+zero-input nodes, unused graph inputs, and a zero-node pass-through graph are valid.
+
+`GraphPhase` contains only `FORWARD` and `BACKWARD`, in that declaration order. It does not encode
+an optimizer phase, compile mode, or runtime schedule. `PublicationBinding` remains separate from
+`CompiledGraphModel` and carries no `Tensor`, gradient role, publication policy or target, storage,
+backend, or execution state.
+
+### Complete test-local graph-model example
 
 #### Goal and inputs
 
-Connect two scalar graph values through one sample operation occurrence. The input has
+Connect two scalar graph values through one sample operation occurrence, validate them as a
+compiled graph model, and create a separate publication binding. The input has
 `ValueId(0)`, the output has `ValueId(1)`, the node has `NodeId(0)`, and both values use an
 unresolved-layout `FLOAT32` scalar descriptor. `SampleKind` is test-local and is not a production
 operation family.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
+import io.github.pho001.synaptik.model.graph.PublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class GraphElementExample {
@@ -359,10 +391,20 @@ public final class GraphElementExample {
                 List.of(input.id()),
                 List.of(output.id()));
 
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(input, output),
+                List.of(node),
+                List.of(input.id()),
+                List.of(output.id()),
+                Map.of(node.id(), GraphPhase.FORWARD));
+        PublicationBinding publication = new PublicationBinding(
+                new TensorId(9), output.id());
+
         System.out.println(node.operation().kind().name());
-        System.out.println(node.inputs().stream().map(ValueId::value).toList());
-        System.out.println(node.outputs().stream().map(ValueId::value).toList());
-        System.out.println(input.descriptor().equals(output.descriptor()));
+        System.out.println(graph.inputs().stream().map(ValueId::value).toList());
+        System.out.println(graph.outputs().stream().map(ValueId::value).toList());
+        System.out.println(graph.nodePhases().get(node.id()));
+        System.out.println(publication.tensorId());
     }
 }
 ```
@@ -377,6 +419,10 @@ public final class GraphElementExample {
   occurrence and connects its ordered input position to value `0` and output position to value `1`.
 - Passing `input.id()` and `output.id()` uses typed data identities. The node snapshots both lists;
   it does not store either `GraphValue` object or infer their descriptors.
+- `CompiledGraphModel` snapshots the graph elements and boundaries, verifies that node `0` is in
+  topological order, and requires its one `FORWARD` phase entry.
+- `PublicationBinding` associates tensor identity `9` with output value `1`. It remains a separate
+  object because the graph model does not own publication policy or execution.
 
 #### Result and interpretation
 
@@ -386,13 +432,15 @@ The program prints:
 IDENTITY
 [0]
 [1]
-true
+FORWARD
+TensorId[value=9]
 ```
 
-The result shows the operation kind, ordered input and output positions, and equal descriptors.
-It does not prove that the values belong to one valid graph, derive a producer index, validate
-operation arity or descriptor compatibility, create `CompiledGraphModel` or compile artifacts,
-choose storage or a backend, or execute the operation.
+The result shows the operation kind, validated graph boundaries, compile-time node phase, and
+public tensor identity selected by the standalone binding. Construction proves structural graph
+closure. It does not validate operation arity or descriptor compatibility, prove that the binding
+belongs to this graph, create a compiler-owned `PublicationPlan` or `CompileArtifacts`, choose
+storage or a backend, prepare execution, or run the operation.
 
 #### Failures and useful variations
 
@@ -404,10 +452,15 @@ choose storage or a backend, or execute the operation.
   `outputs must not be empty`. A repeated output reports its later position and duplicate ID.
 - `List.of()` is a valid input list, and repeated input IDs remain in their original positions.
   Mutating either list returned by the node fails with `UnsupportedOperationException`.
+- An empty graph-output list is invalid. A zero-node graph is valid when its listed value is both
+  an input and an output and its phase map is empty.
+- A node cannot read its own or a later node's output. Every non-input value needs exactly one
+  producer, and the phase map must cover exactly the listed nodes.
 
-Validation is deliberately local. Existence of referenced values, graph-wide ID uniqueness,
-exactly one producer, graph input/output classification, topology, cycles, operation arity, result
-count, and descriptor agreement require a future graph container or operation-family contract.
+`GraphValue` and `CompiledNode` validation is deliberately local. `CompiledGraphModel` adds
+graph-wide existence, ID uniqueness, producer, boundary, topology, and phase-coverage validation.
+Operation arity, result count, descriptor agreement, compiler transformations, and execution
+remain outside the model container.
 
 ## Planned contracts
 
@@ -416,13 +469,16 @@ The following contracts appear in the architecture and planning documents but ar
 - mutable public `Tensor` state and `TensorFactory`;
 - host-visible storage;
 - concrete operation kinds and family-specific attribute values;
-- immutable `CompiledGraphModel` and graph-wide validation; and
-- publication bindings and tensor provenance.
+- tensor provenance;
+- compiler entry points and transformations, compiler-owned `PublicationPlan` and
+  `CompileArtifacts`, and the engine `CompiledGraph` facade; and
+- planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `GraphValue`, and
-`CompiledNode` are current Java API contracts. No production concrete kind or family-specific
-attribute type exists yet. The graph records can therefore compose test-local semantics but do not
-provide a complete graph, compiler entry point, or executable support.
+`CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are current Java API
+contracts. No production concrete kind or family-specific attribute type exists yet. The graph
+records can therefore compose and structurally validate test-local semantics, but they do not
+provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -438,6 +494,11 @@ provide a complete graph, compiler entry point, or executable support.
 - `GraphValue` rejects null identity or descriptor components and stores no producer relationship.
 - `CompiledNode` snapshots ordered lists, accepts empty or repeated inputs, and requires non-empty
   within-node-unique outputs. It does not perform graph-wide or operation-family validation.
+- `CompiledGraphModel` snapshots all collections and validates graph-wide structural closure,
+  topological order, declared boundaries, producer rules, and exact node-phase coverage. It
+  accepts zero-input nodes, repeated node inputs, unused inputs, and zero-node pass-through graphs.
+- `PublicationBinding` rejects null identities and remains a standalone association without
+  owning-graph validation, policy, storage, backend, or runtime behavior.
 - None of the current types owns device storage, runtime residency, or backend selection.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

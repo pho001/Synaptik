@@ -8,15 +8,15 @@ import java.util.Objects;
  *
  * <p>A graph value is data that may be a graph input, an intermediate result, or a graph output.
  * It is distinct from a {@link CompiledNode}, which represents a computation occurrence, and from
- * the future public mutable {@code Tensor} API object used to build expressions. It also does not
+ * the planned public mutable {@code Tensor} API object used to build expressions. It also does not
  * represent physical storage, a prepared memory slot, a device buffer, or runtime residency.</p>
  *
  * <p>Producer and consumer relationships are deliberately absent. A graph input has no producer,
  * and an owning graph can derive producer and use relationships from node input and output lists
  * without duplicating them in this value. Graph-wide existence, uniqueness, topology, descriptor
- * agreement, and role classification therefore belong to the future graph-container contract.
- * This record supplies model data only; it performs no graph capture, compiler transformation, or
- * graph-wide validation.</p>
+ * agreement, and role classification therefore belong to the owning
+ * {@link CompiledGraphModel}. This record supplies model data only; by itself it performs no graph
+ * capture, compiler transformation, or graph-wide validation.</p>
  *
  * <p>Both components are immutable values and their exact references are retained. Record-generated
  * equality and hashing use both components. The generated {@link #toString()} exposes diagnostic

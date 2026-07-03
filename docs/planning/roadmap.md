@@ -42,10 +42,10 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0009 Compiled graph model
+0010 Host storage abstraction
 ```
 
-Package migrations `0003A` through `0003C` and tasks `0004`–`0008` are complete. Task `0009` is
+Package migrations `0003A` through `0003C` and tasks `0004`–`0009` are complete. Task `0010` is
 the next ordered planning frontier and remains `Draft` without a detailed specification.
 
 ## Model task sequence
@@ -63,7 +63,7 @@ the next ordered planning frontier and remains `Draft` without a detailed specif
 | 9 | 0006 Operation model | Complete |
 | 10 | [0007 Tensor descriptor model](modules/model/tasks/0007-tensor-descriptor-model.md) | Complete |
 | 11 | [0008 Graph value and node model](modules/model/tasks/0008-graph-value-and-node-model.md) | Complete |
-| 12 | 0009 Compiled graph model | Draft |
+| 12 | [0009 Compiled graph model](modules/model/tasks/0009-compiled-graph-model.md) | Complete |
 | 13 | 0010 Host storage abstraction | Draft |
 | 14 | 0011 Public Tensor skeleton | Draft |
 | 15 | 0012 Tensor factory | Draft |

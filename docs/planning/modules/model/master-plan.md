@@ -92,7 +92,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0006 | [Operation model](tasks/0006-operation-model.md) | Complete | 0005 | Define the minimal immutable backend-independent kind-and-attributes descriptor. |
 | 0007 | [Tensor descriptor model](tasks/0007-tensor-descriptor-model.md) | Complete | 0001–0003, 0003A–0003C | Define data type, shape, explicit resolved/unresolved layout, and requires-grad descriptors. |
 | 0008 | [Graph value and node model](tasks/0008-graph-value-and-node-model.md) | Complete | 0004, 0006, 0007 | Define immutable graph value and node records. |
-| 0009 | Compiled graph model | Draft | 0008 | Define immutable graph container and publication binding. |
+| 0009 | [Compiled graph model](tasks/0009-compiled-graph-model.md) | Complete | 0008 | Define immutable graph container, forward/backward phase, and standalone publication binding. |
 | 0010 | Host storage abstraction | Draft | 0001, 0003A | Define host storage abstractions without device buffers. |
 | 0011 | Public Tensor skeleton | Draft | 0004, 0007, 0010 | Define public Tensor metadata and host-storage state without runtime device state. |
 | 0012 | Tensor factory | Draft | 0010, 0011 | Define tensor creation API and validation. |
@@ -119,12 +119,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0009 as the next planning frontier.
+Draft, with task 0010 as the next planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
-0008, graph value and node model, is complete. Task 0009, compiled graph model, is the next ordered
-planning frontier and remains `Draft` without a detailed specification.
+0008, graph value and node model, and task 0009, compiled graph model, are complete. Task 0010,
+host storage abstraction, is the next ordered planning frontier and remains `Draft` without a
+detailed specification.
 
 ## Open questions
 
@@ -151,6 +152,12 @@ planning frontier and remains `Draft` without a detailed specification.
 - All selected legacy public operation capabilities must be representable without backend knowledge.
 - Model capability parity and end-to-end executable parity are tracked separately.
 - Fusion is not a model-level mathematical operation capability.
+- The compiled graph container stores ordered values, topological nodes, explicit input/output
+  boundaries, and an exact node-to-forward/backward-phase mapping. It stores no derived indexes.
+- Publication binding remains a standalone `TensorId`-to-`ValueId` model DTO for a later
+  compiler-owned publication plan; it is not part of `CompiledGraphModel`.
+- The current graph-phase vocabulary is exactly forward and backward. Optimizer-update graph work
+  remains a future architecture change, not a task-0009 phase.
 
 ## Risks
 
@@ -166,8 +173,9 @@ planning frontier and remains `Draft` without a detailed specification.
 
 Execute tasks in table order, including package migrations 0003A through 0003C before task 0004. The operation-family rows are task groups, not permission for oversized implementations; replace the current frontier row with smaller sequential task rows before implementation when its detailed scope would exceed the limits in [the planning guide](../../planning-guide.md).
 
-Package migrations 0003A–0003C and tasks 0004–0008 are complete. Task 0008 added only the two local
-immutable graph element records. Graph-wide container and validation work remains in task 0009,
-which is the next ordered planning frontier and has no detailed specification. Concrete operation
-families remain in tasks 0014–0023. The legacy branch must be consulted read-only for capability
-and test evidence when preparing each applicable capability task.
+Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
+immutable graph element records, and task 0009 added the structurally closed graph container,
+forward/backward node phases, and standalone publication binding. Task 0010 is the next `Draft`
+planning frontier and has no detailed specification. Concrete operation families remain in tasks
+0014–0023. The legacy branch must be consulted read-only for capability and test evidence when
+preparing each applicable capability task.

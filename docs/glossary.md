@@ -9,11 +9,11 @@ Some entries describe contracts planned by the architecture but not yet implemen
 The currently implemented terms are the model foundations: data type, dimension, shape,
 broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
-the `Operation` descriptor, and the `GraphValue` and `CompiledNode` graph-element records. Concrete
-operation kinds and family attributes, a compiled graph container and graph-wide validation,
-public `Tensor`, planning, prepare, runtime, concrete backends, traces, and training remain
-architecture or planning contracts. A definition explains intended meaning; it is not by itself
-evidence that a Java type exists.
+the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
+`GraphPhase`, `CompiledGraphModel`, and `PublicationBinding`. Concrete operation kinds and family
+attributes, public `Tensor`, compiler entry points and artifacts, planning, prepare, runtime,
+concrete backends, traces, and training remain architecture or planning contracts. A definition
+explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -59,11 +59,22 @@ The lifecycle stage that captures a tensor expression, builds and validates grap
 
 ### Compile artifacts
 
-The immutable planned output of compilation: a compiled graph model, backend-owned planned partitions, logical memory requirements, publication bindings, and compile diagnostics. Compile artifacts are a recipe for prepare, not executable state, and contain no physical buffers, concrete kernel routes, runtime residency, or mutable run state.
+The planned immutable output of compilation: an implemented compiled graph model plus planned
+backend-owned partitions, logical memory requirements, a compiler-owned publication plan, and
+compile diagnostics. `CompileArtifacts` is not implemented. It will be a recipe for prepare, not
+executable state, and will contain no physical buffers, concrete kernel routes, runtime residency,
+or mutable run state.
 
 ### Compiled graph / `CompiledGraphModel`
 
-The immutable compile-time graph representation: nodes, logical values, phases, and relationships after graph capture and compiler transformations. `CompiledGraphModel` is model state inside the compiler's output and is not prepared executable state. The public engine facade named `CompiledGraph` represents access to compiled artifacts and lifecycle orchestration; it should not be confused with the graph model itself. See [Architecture overview](architecture/overview.md).
+The implemented immutable compile-time graph representation. `CompiledGraphModel` stores ordered
+`GraphValue` values, topologically ordered `CompiledNode` nodes, ordered input and output
+`ValueId` boundaries, and an exact `NodeId`-to-[`GraphPhase`](#graph-phase) mapping. Construction
+validates structural closure, producer rules, topology, and phase coverage and then stores
+immutable collection snapshots without derived indexes. It performs no graph capture, compiler
+transformation, planning, preparation, or execution. The planned public engine facade named
+`CompiledGraph` will expose compiled artifacts and lifecycle orchestration; it is not the graph
+model. See the [Compile API](api/compile-api.md#current-model-contracts).
 
 ### Concrete backend
 
@@ -99,14 +110,19 @@ Logical data flowing through a graph. The implemented immutable `GraphValue` rec
 one graph-local [`ValueId`](#valueid) and one [`TensorDescriptor`](#tensor-descriptor). A value may
 be a graph input, an intermediate result, or a graph output. It can exist without a producing node,
 one node can produce multiple values, and one value can have multiple consumers. The record stores
-no producer, consumer, or role flag; a future graph container derives producers from node output
-lists and owns graph-wide existence, uniqueness, and topology checks. A graph value is compile-time
-model state, not the public mutable [`Tensor`](#tensor), a physical memory slot, storage, or runtime
-residency. See [Graph values and compiled nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
+no producer, consumer, or role flag. The owning implemented
+[`CompiledGraphModel`](#compiled-graph--compiledgraphmodel) derives producers during construction
+and validates graph-wide existence, uniqueness, and topology without storing an index. A graph
+value is compile-time model state, not the planned public mutable [`Tensor`](#tensor), a physical
+memory slot, storage, or runtime residency. See [Graph values and compiled
+nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
 ### Graph phase
 
-The compile-time role of graph work, such as forward or backward computation. A phase helps optimization, publication, planning, and diagnostics distinguish related regions without turning them into separate runtime programs by definition.
+The implemented `GraphPhase` enum classifies compiled nodes as exactly `FORWARD` or `BACKWARD`
+compile-time work. It helps later compiler, publication, planning, and diagnostic work distinguish
+the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
+serialization, or optimizer-update phase.
 
 ### Host storage
 
@@ -152,10 +168,11 @@ output `ValueId` snapshots. Empty and repeated inputs are valid; outputs must be
 unique within that node. Reusing the same operation kind in two places creates two node
 occurrences. A node is not the operation semantics alone and is not the data flowing between
 computations; that data is represented by [graph values](#graph-value). The record validates only
-its local list invariants. A future graph container owns referenced-value existence, producer
-uniqueness, topology, and graph input/output classification, while operation-family contracts own
-arity and descriptor compatibility. A compiled node is compile-time model state and must not enter
-runtime hot paths. See [Graph values and compiled nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
+its local list invariants. The owning implemented `CompiledGraphModel` validates referenced-value
+existence, producer uniqueness, topology, and graph boundaries, while planned operation-family
+contracts own arity and descriptor compatibility. A compiled node is compile-time model state and
+must not enter runtime hot paths. See [Graph values and compiled
+nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
 ### `NodeId`
 
@@ -199,7 +216,12 @@ The minimal origin information associated with a public tensor expression so gra
 
 ### Publication binding
 
-An immutable compile-time association between public tensor identity and a logical graph result. Conceptually, it connects a `TensorId` requested for publication with the final `ValueId` that the compiled graph produces. Prepare and run use the publication plan to make requested outputs or gradients visible without treating the public `Tensor` as compiled IR.
+The implemented immutable `PublicationBinding` record associates one [`TensorId`](#tensorid) with
+one graph-local [`ValueId`](#valueid). It is standalone model data for a later compiler-owned
+`PublicationPlan`, not a component of `CompiledGraphModel`. A binding cannot by itself prove that
+its value belongs to a particular graph, and it carries no public `Tensor`, gradient role,
+publication policy or target, storage, backend, or runtime state. The planned publication plan,
+prepare, and run layers will add their own owning context and behavior.
 
 ### Residency
 
@@ -243,7 +265,10 @@ storage, device buffers, runtime residency, materialization policy, or backend e
 
 ### `TensorId`
 
-A validated non-negative identifier for public mutable tensor state. It belongs to the tensor's lifecycle and is distinct from graph-local node and value identities. A future publication binding can associate it with a compiled graph's result without storing graph-local IDs on the tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
+A validated non-negative identifier for planned public mutable tensor state. It belongs to the
+tensor identity domain and is distinct from graph-local node and value identities. An implemented
+`PublicationBinding` can associate it with a graph value without storing graph-local IDs on the
+tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
 
 ### Trace
 
@@ -277,7 +302,8 @@ A tensor or layout interpretation that aliases storage also used by another logi
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
-A publication binding connects the two domains when a compiled logical result must be exposed through public tensor identity.
+The implemented standalone `PublicationBinding` connects the two identity domains. The planned
+compiler-owned publication plan will provide owning-graph and publication-policy context.
 
 ### Node versus value
 
@@ -289,8 +315,9 @@ A publication binding connects the two domains when a compiled logical result mu
 | Stores an `Operation` and ordered value-ID positions | Stores a `TensorDescriptor`, not an operation |
 | May produce multiple values | May exist without a producer and may have multiple consumers |
 
-Neither local record is the future compiled graph container. Producer derivation, whole-graph
-uniqueness, topology, and input/output classification remain graph-wide planned responsibilities.
+Neither local record is the graph container. The implemented `CompiledGraphModel` owns producer
+derivation and validates whole-graph uniqueness, topology, boundaries, and exact phase coverage
+without storing derived indexes.
 
 ### Operation kind versus attributes versus operation
 
@@ -301,7 +328,11 @@ uniqueness, topology, and input/output classification remain graph-wide planned 
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
-A kind distinguishes computations, while attributes carry parameters within a computation family. `Operation` stores both as one value but does not validate family compatibility. None of these values identifies where computation occurs in a graph; an implemented [node](#node) represents that occurrence. Concrete kinds, family-specific attributes, the compiled graph container, and compiler integration remain planned.
+A kind distinguishes computations, while attributes carry parameters within a computation family.
+`Operation` stores both as one value but does not validate family compatibility. None of these
+values identifies where computation occurs in a graph; an implemented [node](#node) represents
+that occurrence. Concrete kinds, family-specific attributes, and compiler integration remain
+planned; the compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

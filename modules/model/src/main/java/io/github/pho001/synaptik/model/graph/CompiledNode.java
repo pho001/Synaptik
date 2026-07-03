@@ -53,8 +53,8 @@ public record CompiledNode(
      *
      * <p>Validation is local to this record. In particular, an input may also be an output, IDs
      * need not be resolvable without an owning graph, and another separately constructed node may
-     * claim the same output. Graph-wide validation and operation-family compatibility belong to
-     * later owning contracts.</p>
+     * claim the same output. The owning {@link CompiledGraphModel} validates graph-wide structure,
+     * while planned operation-family contracts own compatibility.</p>
      *
      * @param id non-null graph-local node identity to retain exactly
      * @param operation non-null immutable operation semantics to retain exactly
