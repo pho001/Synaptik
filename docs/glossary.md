@@ -12,12 +12,13 @@ broadcasting, layout, element stride, referenced element span, view, `TensorDesc
 the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
 `HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
-`TensorFactory` construction boundary with JVM-scoped factory-assigned identity. Concrete
-operation kinds and family attributes, provenance, tensor allocation/import/population and typed
-access, expression operations, gradient and publication behavior, compiler entry points and
-artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
-or planning contracts. A definition explains intended meaning; it is not by itself evidence that
-a Java type exists.
+`TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
+JVM-managed heap allocation for resolved layouts. Concrete operation kinds and family attributes,
+provenance, tensor import/population and typed access, native/runtime/backend allocation,
+expression operations, gradient and publication behavior, compiler entry points and artifacts,
+planning, prepare, runtime, concrete backends, traces, and training remain architecture or
+planning contracts. A definition explains intended meaning; it is not by itself evidence that a
+Java type exists.
 
 ## Terms
 
@@ -139,8 +140,10 @@ layout offset, and referenced span. Byte size is the checked product of capacity
 width; zero capacity requires a zero-byte segment.
 
 The wrapper borrows and returns the exact segment. It does not allocate memory, own or close an
-arena, extend a scope's lifetime, or implement `AutoCloseable`. The caller remains responsible for
-scope lifetime and JDK thread-access rules. Read-only state is descriptive, and liveness is a
+arena, extend a scope's lifetime, or implement `AutoCloseable`. For a caller-supplied arena-backed
+segment, the caller remains responsible for scope lifetime and JDK thread-access rules. A
+factory-created primitive-array segment instead has an automatic scope that keeps its heap base
+reachable and is accessible from any thread. Read-only state is descriptive, and liveness is a
 point-in-time observation: after caller-controlled closure, the wrapper reports not alive but still
 returns the exact dead segment so JDK access rules enforce failure. It defines no typed element
 access, alignment, byte order, conversion, synchronization, or mutation-version policy.
@@ -150,9 +153,10 @@ device/backend storage, prepared memory, workspaces, and runtime [residency](#re
 implemented `Tensor` may borrow the exact storage object and validates matching data type,
 resolved referenced span when geometry is available, and attachment-time liveness. The
 implemented `TensorFactory` may pass an existing caller-supplied borrowed object through that same
-construction path, but it does not allocate or own storage. Neither contract changes this
-wrapper's sizing, lifetime, ownership, or raw-access contract. See [Host-visible
-storage](api/tensor-api.md#host-visible-storage).
+construction path or create a matching primitive-array heap segment whose capacity is exactly the
+resolved referenced span. The factory introduces no arena, close operation, external owner, or
+deterministic lifetime. Neither path changes the wrapper's sizing, borrowed/non-closing ownership,
+or raw-access contract. See [Host-visible storage](api/tensor-api.md#host-visible-storage).
 
 ### Kernel
 
@@ -277,15 +281,17 @@ immutable [`TensorDescriptor`](#tensor-descriptor), and one normalized immutable
 Its only current mutation is a synchronized optional borrowed [`HostTensorStorage`](#host-storage)
 association. Replacement validates matching data type, resolved referenced span when layout is
 available, and point-in-time liveness before changing the exact reference. Read-only storage is
-accepted; later caller-controlled scope death remains observable; and the tensor never allocates,
-copies, accesses, retains, owns, or closes storage.
+accepted; later caller-controlled scope death remains observable; and the tensor retains the
+wrapper reference without allocating backing memory itself, copying or accessing contents, owning
+a closeable resource, or closing storage.
 
 Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
 the supported public construction boundary. The object uses ordinary identity equality and
 hashing, while its diagnostic text contains stable ID, descriptor, and label facts without
-storage or runtime state. Owning allocation, import and population, provenance, expression
-operations, typed access, gradients, trainable role, publication behavior, compiler integration,
-device buffers, and runtime residency remain planned. A `Tensor` is not an
+storage or runtime state. Flat and nested import, constant/range/prefix/random population, typed
+access, deterministic native-resource ownership, provenance, expression operations, gradients,
+trainable role, publication behavior, compiler integration, device buffers, and runtime residency
+remain planned. A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
 
@@ -294,18 +300,33 @@ state](api/tensor-api.md#public-tensor-state).
 The implemented public static `TensorFactory` creates a fresh [`Tensor`](#tensor) from a completed
 [`TensorDescriptor`](#tensor-descriptor), with optional diagnostic label text and optional
 existing borrowed [host storage](#host-storage). It is the public construction boundary while the
-Tensor constructor remains package-private. The factory does not allocate or populate storage,
-construct descriptors, resolve layouts, own memory lifetime, create provenance, or retain tensor,
-storage, graph, runtime, backend, registry, or service state.
+Tensor constructor remains package-private. For a descriptor with a resolved layout, the factory
+can also allocate one matching JVM primitive array whose length is exactly the referenced element
+span, wrap its heap segment, and attach that writable storage. `FLOAT64`, `FLOAT32`, `BFLOAT16`,
+`INT32`, `INT64`, and `BOOL` use `double[]`, `float[]`, raw `short[]`, `int[]`, `long[]`, and raw
+`byte[]`, respectively. The raw array starts at the JVM default zero representation.
 
-For every attempted construction that reaches allocation, the factory issues one non-negative
-[`TensorId`](#tensorid) unique among its allocations in the current Java virtual machine (JVM),
-including concurrent calls. Numeric values are opaque: semantic construction failures create
-permanent gaps, and numeric order need not match method-completion order. Null argument containers
-fail before allocation, while delegated label or storage validation fails afterward and consumes
-the candidate. `Long.MAX_VALUE` can be claimed once; every later allocation fails permanently
-instead of wrapping or reusing an ID. The guarantee does not cover manually constructed IDs,
-another JVM, process restarts, persisted artifacts, or distributed identity.
+The heap segment's automatic scope keeps the primitive array reachable and permits access from
+any thread. No arena, close operation, external owner, native fallback, or deterministic release
+is introduced. The factory does not populate values, construct descriptors, resolve absent
+layouts, create provenance, or retain tensor, graph, runtime, backend, registry, or service state.
+Flat/nested import, constants, ranges, prefixes, random population, typed access, copy/conversion,
+native/runtime/backend allocation, and deterministic resource ownership remain planned.
+
+For every attempted construction that reaches identifier allocation, the factory issues one
+non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
+machine (JVM), including concurrent calls. Numeric values are opaque: semantic construction
+failures create permanent gaps, and numeric order need not match method-completion order. Null
+argument containers fail before allocation, while delegated label or storage validation fails
+afterward and consumes the candidate. `Long.MAX_VALUE` can be claimed once; every later allocation
+fails permanently instead of wrapping or reusing an ID. The guarantee does not cover manually
+constructed IDs, another JVM, process restarts, persisted artifacts, or distributed identity.
+
+Heap allocation additionally requires resolved layout and a referenced span no greater than
+`Integer.MAX_VALUE`. Null, unresolved-layout, over-limit, JVM array, segment, and storage-wrapper
+failures occur before identifier allocation and consume no ID. Heap allocation and wrapping occur
+before delegated creation, so a blank label or exhausted identifier space is observed only after
+the heap work; a blank-label failure consumes its allocated ID.
 
 ### Tensor descriptor
 

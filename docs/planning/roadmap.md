@@ -42,14 +42,16 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012A Owning host storage and allocation (Draft)
+0012B Flat typed tensor import (Draft)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
-JVM-wide tensor-ID allocation. Task `0012A` is the next `Draft` planning frontier. Draft tasks
-`0012A`–`0012F` preserve allocation, import, and population families before task `0013`; they have
-no detailed specifications yet.
+JVM-wide tensor-ID allocation. Task [`0012A`](modules/model/tasks/0012a-host-storage-allocation.md)
+is complete. It adds exact-span typed primitive-array allocation through the existing borrowed
+heap-segment storage contract without arena ownership or close behavior. Task `0012B` is now the
+next `Draft` planning frontier. Tasks `0012B`–`0012F` preserve import and population families
+before task `0013` and have no detailed specifications yet.
 
 ## Model task sequence
 
@@ -70,7 +72,7 @@ no detailed specifications yet.
 | 13 | [0010 Host storage abstraction](modules/model/tasks/0010-host-storage-abstraction.md) | Complete |
 | 14 | [0011 Public Tensor skeleton](modules/model/tasks/0011-public-tensor-skeleton.md) | Complete |
 | 15 | [0012 Tensor factory foundation](modules/model/tasks/0012-tensor-factory.md) | Complete |
-| 16 | 0012A Owning host storage and allocation | Draft |
+| 16 | [0012A JVM-managed heap host storage allocation](modules/model/tasks/0012a-host-storage-allocation.md) | Complete |
 | 17 | 0012B Flat typed tensor import | Draft |
 | 18 | 0012C Nested typed tensor import | Draft |
 | 19 | 0012D Constant tensor creation | Draft |

@@ -73,19 +73,29 @@ class TensorFactoryTest {
                 "create", TensorDescriptor.class);
         Method complete = TensorFactory.class.getDeclaredMethod(
                 "create", TensorDescriptor.class, Optional.class, Optional.class);
+        Method allocateConvenience = TensorFactory.class.getDeclaredMethod(
+                "allocate", TensorDescriptor.class);
+        Method allocateComplete = TensorFactory.class.getDeclaredMethod(
+                "allocate", TensorDescriptor.class, Optional.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
         assertEquals(
-                Set.of(convenience, complete, allocator),
+                Set.of(convenience, complete, allocateConvenience, allocateComplete, allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
         assertAll(
                 () -> assertEquals(Tensor.class, convenience.getReturnType()),
                 () -> assertEquals(Tensor.class, complete.getReturnType()),
+                () -> assertEquals(Tensor.class, allocateConvenience.getReturnType()),
+                () -> assertEquals(Tensor.class, allocateComplete.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(complete.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(allocateConvenience.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(allocateComplete.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(complete.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(allocateConvenience.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(allocateComplete.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }
 
