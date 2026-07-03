@@ -6,7 +6,7 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, typed `TensorId`, `NodeId`, and `ValueId` values, plus `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and the `Operation` descriptor. Concrete operation kinds and family attributes, graph integration, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
+The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed `TensorId`, `NodeId`, and `ValueId` values, plus `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and the `Operation` descriptor. Concrete operation kinds and family attributes, graph integration, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -204,7 +204,19 @@ The public mutable API object used to describe tensor metadata and host-visible 
 
 ### Tensor descriptor
 
-The planned immutable combination of model-level tensor facts such as data type, shape, layout, and gradient requirements. A descriptor describes a logical value and does not own host storage, device buffers, runtime residency, or a backend.
+The implemented immutable combination of one non-null data type, one non-null shape, an explicit
+resolved-or-unresolved layout state, and a `requiresGrad` flag. A present
+`Optional<LayoutDescriptor>` contains resolved numeric geometry; `Optional.empty()` means geometry
+is unresolved. Dynamic shapes must be unresolved, while fully static shapes may also remain
+unresolved without implying a default layout. A present layout is reconstructed against the paired
+shape and accepted only when its complete public geometry remains equal. This proves geometric
+compatibility, not the identity of the shape that originally created the layout. `requiresGrad`
+may be true only for a differentiable data type and records model eligibility, not the existence of
+a gradient rule or backend support. The optional is compared by value rather than container
+identity; when present, it contains the exact immutable layout object supplied at construction. A
+descriptor describes logical facts and does not own a public mutable `Tensor`, graph identity, host
+storage, device buffers, runtime residency, materialization policy, or backend execution state. See
+[Tensor descriptors](api/tensor-api.md#tensor-descriptors).
 
 ### `TensorId`
 

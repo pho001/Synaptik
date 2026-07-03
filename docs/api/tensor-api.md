@@ -7,10 +7,14 @@ This reference documents the public model contracts that are implemented today. 
 The current types describe logical values without allocating or executing a tensor:
 
 ```text
-DataType + Shape + LayoutDescriptor = logical element kind and geometry
-TensorId / NodeId / ValueId         = distinct identity domains
-Operation                            = OperationKind + OperationAttrs
+DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
+TensorId / NodeId / ValueId                                  = distinct identity domains
+Operation                                                     = OperationKind + OperationAttrs
 ```
+
+An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
+and gradient eligibility together as one immutable value. It is still only a description: the
+mutable `Tensor`, graph integration, storage, inference, and execution remain separate contracts.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
 
@@ -123,6 +127,108 @@ LayoutDescriptor layout = LayoutDescriptor.of(
 
 The logical shape has six positions, but axis 0 has stride zero: both rows reuse the same three storage elements. The referenced span is therefore `3`, computed as `(2 - 1) × 0 + (3 - 1) × 1 + 1`. The descriptor is a `BROADCAST_ZERO_STRIDE` view. This calculation describes aliasing geometry; it does not authorize in-place writes or decide whether a backend must materialize a copy.
 
+## Tensor descriptors
+
+The public `TensorDescriptor` contract lives in
+`io.github.pho001.synaptik.model.tensor`. It is an immutable record with four components:
+
+| Component | Meaning |
+|---|---|
+| `dataType` | The non-null logical type of every element. |
+| `shape` | The non-null ordered logical dimensions. |
+| `layout` | A non-null `Optional`: present for resolved numeric geometry, empty for unresolved geometry. |
+| `requiresGrad` | Whether model-level gradient eligibility is requested. This may be true only for a differentiable data type. |
+
+Layout resolution and shape resolution are separate facts. A dynamic shape must use
+`Optional.empty()` because its numeric strides and span are not known. A fully static shape may
+also use `Optional.empty()` when layout has not been resolved yet; the descriptor does not invent a
+contiguous default.
+
+When a layout is present, construction rebuilds it against the paired shape through
+`LayoutDescriptor.of(...)` and compares the complete value. The check covers rank, strides,
+element offset, view flag, derived layout kind, and referenced element span. It proves that the
+public geometry is compatible with the paired shape. It cannot prove which shape originally
+created the layout because `LayoutDescriptor` deliberately does not retain source-shape identity.
+
+`TensorDescriptor` uses record equality and hashing across all four components. Its `layout`
+component follows `Optional` value semantics: inspect presence or compare values, and do not rely
+on the optional container's identity. A present optional contains the exact immutable
+`LayoutDescriptor` object supplied to the constructor. The generated text form is useful for
+diagnostics but is not a serialization format.
+
+### Complete descriptor example
+
+#### Goal and inputs
+
+Create three descriptors that distinguish a fully static unresolved value, the same static value
+with resolved row-major geometry, and a dynamic unresolved value. The static shape is `[2, 3]`, the
+dynamic shape is `[batch, 3]`, and every value uses `FLOAT32`.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import java.util.Optional;
+
+public final class TensorDescriptorExample {
+    public static void main(String[] args) {
+        Shape staticShape = Shape.of(2, 3);
+        TensorDescriptor staticUnresolved = new TensorDescriptor(
+                DataType.FLOAT32, staticShape, Optional.empty(), false);
+
+        LayoutDescriptor rowMajor = LayoutDescriptor.contiguous(staticShape);
+        TensorDescriptor resolved = new TensorDescriptor(
+                DataType.FLOAT32, staticShape, Optional.of(rowMajor), true);
+
+        Shape dynamicShape = Shape.ofDimensions(
+                new DynamicDimension("batch"), new StaticDimension(3));
+        TensorDescriptor dynamicUnresolved = new TensorDescriptor(
+                DataType.FLOAT32, dynamicShape, Optional.empty(), false);
+
+        System.out.println(staticUnresolved.layout().isEmpty());
+        System.out.println(resolved.layout().orElseThrow().kind());
+        System.out.println(resolved.layout().orElseThrow().referencedElementSpan());
+        System.out.println(dynamicUnresolved.shape());
+    }
+}
+```
+
+#### Meaningful lines
+
+- `staticUnresolved` shows that known sizes do not force a layout decision.
+- `LayoutDescriptor.contiguous(staticShape)` resolves row-major strides `[3, 1]`, offset `0`, and
+  referenced span `6`; `resolved` pairs that geometry with the same shape.
+- `requiresGrad` is true only on `resolved`. `FLOAT32` permits that request because it is
+  differentiable.
+- `dynamicUnresolved` keeps the symbolic `batch` dimension and therefore has no numeric layout.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+true
+DENSE_CONTIGUOUS
+6
+Shape[batch, 3]
+```
+
+These results show the two layout states and the concrete geometry of the resolved `[2, 3]`
+example. They do not allocate tensor storage, create a public `Tensor` or graph node, infer the
+dynamic `batch` size, choose materialization, select a backend, or execute an operation.
+
+#### Failures and useful variations
+
+- Supplying `Optional.of(rowMajor)` with `dynamicShape` fails with `IllegalArgumentException`
+  because numeric geometry cannot be validated for an unresolved dimension.
+- Requesting gradients for `INT32`, `INT64`, or `BOOL` fails with `IllegalArgumentException`.
+- A present layout whose rank or reconstructed geometry differs from the paired shape fails with
+  `IllegalArgumentException`; checked reconstruction overflow remains an `ArithmeticException`.
+- Passing `null` for the data type, shape, or optional itself fails with `NullPointerException`.
+
 ## Typed identifiers
 
 The model separates public tensor identity from graph-local computation and data identity:
@@ -183,7 +289,7 @@ The example demonstrates the implemented descriptor's construction, ownership, a
 The following contracts appear in the architecture and planning documents but are not implemented:
 
 - mutable public `Tensor` state and `TensorFactory`;
-- `TensorDescriptor` and host-visible storage;
+- host-visible storage;
 - concrete operation kinds and family-specific attribute values;
 - immutable graph values, nodes, and `CompiledGraphModel`; and
 - publication bindings and tensor provenance.
@@ -198,6 +304,9 @@ The following contracts appear in the architecture and planning documents but ar
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
+  shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
+  checked arithmetic overflow.
 - None of the current types owns device storage, runtime residency, or backend selection.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

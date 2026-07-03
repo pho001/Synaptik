@@ -90,7 +90,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0004 | [Typed identifiers](tasks/0004-typed-identifiers.md) | Complete | 0003A–0003C | Define TensorId, NodeId, and ValueId in their owning domain packages. |
 | 0005 | [Operation semantic foundation](tasks/0005-operation-semantic-foundation.md) | Complete | - | Define the minimal operation-kind and typed-attribute contracts without family-specific semantics. |
 | 0006 | [Operation model](tasks/0006-operation-model.md) | Complete | 0005 | Define the minimal immutable backend-independent kind-and-attributes descriptor. |
-| 0007 | Tensor descriptor model | Draft | 0001–0003, 0003A–0003C | Define data type, shape, layout, and requires-grad descriptors. |
+| 0007 | [Tensor descriptor model](tasks/0007-tensor-descriptor-model.md) | Complete | 0001–0003, 0003A–0003C | Define data type, shape, explicit resolved/unresolved layout, and requires-grad descriptors. |
 | 0008 | Graph value and node model | Draft | 0004, 0006, 0007 | Define immutable graph value and node records. |
 | 0009 | Compiled graph model | Draft | 0008 | Define immutable graph container and publication binding. |
 | 0010 | Host storage abstraction | Draft | 0001, 0003A | Define host storage abstractions without device buffers. |
@@ -121,7 +121,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft.
 
-The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0006 and package migrations 0003A–0003C are complete. Task 0007 is the next ordered planning frontier and remains `Draft`; its detailed specification has not been created yet.
+The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task 0008, graph value and node model, is the next ordered planning frontier and remains `Draft` without a detailed specification.
 
 ## Open questions
 
@@ -163,4 +163,4 @@ The capability baseline is documented and the ordered task queue covers its mode
 
 Execute tasks in table order, including package migrations 0003A through 0003C before task 0004. The operation-family rows are task groups, not permission for oversized implementations; replace the current frontier row with smaller sequential task rows before implementation when its detailed scope would exceed the limits in [the planning guide](../../planning-guide.md).
 
-Package migrations 0003A–0003C and tasks 0004–0006 are complete. Task 0007 is the next ordered planning frontier and does not yet have a detailed specification. Concrete operation families remain in tasks 0014–0023. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.
+Package migrations 0003A–0003C and tasks 0004–0007 are complete. Task 0008 is the next ordered planning frontier and remains a master-plan row without a detailed specification. Concrete operation families remain in tasks 0014–0023. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.
