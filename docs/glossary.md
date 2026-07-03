@@ -10,8 +10,9 @@ The currently implemented terms are the model foundations: data type, dimension,
 broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
 the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
-`GraphPhase`, `CompiledGraphModel`, and `PublicationBinding`. Concrete operation kinds and family
-attributes, public `Tensor`, compiler entry points and artifacts, planning, prepare, runtime,
+`GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
+`HostTensorStorage` and `MemorySegmentStorage`. Concrete operation kinds and family attributes,
+public `Tensor`, tensor factories, compiler entry points and artifacts, planning, prepare, runtime,
 concrete backends, traces, and training remain architecture or planning contracts. A definition
 explains intended meaning; it is not by itself evidence that a Java type exists.
 
@@ -126,7 +127,25 @@ serialization, or optimizer-update phase.
 
 ### Host storage
 
-Model-level storage for tensor elements that are visible in host memory, represented through the `HostTensorStorage` abstraction and its implementations. Host storage has explicit data type, size, mutability, ownership, and lifetime rules. It is distinct from backend device buffers, workspaces, and runtime [residency](#residency). See the [model capability baseline](planning/modules/model/capabilities.md#host-storage-baseline).
+Implemented model-level raw storage for physical tensor-element capacity visible in host memory.
+The sealed `HostTensorStorage` abstraction currently permits exactly the final
+`MemorySegmentStorage` identity wrapper. That wrapper binds a non-null logical data type and a
+non-negative physical element capacity to one exact-size, initially live JDK `MemorySegment`.
+Capacity is measured in complete physical elements and is independent of logical element count,
+layout offset, and referenced span. Byte size is the checked product of capacity and data-type byte
+width; zero capacity requires a zero-byte segment.
+
+The wrapper borrows and returns the exact segment. It does not allocate memory, own or close an
+arena, extend a scope's lifetime, or implement `AutoCloseable`. The caller remains responsible for
+scope lifetime and JDK thread-access rules. Read-only state is descriptive, and liveness is a
+point-in-time observation: after caller-controlled closure, the wrapper reports not alive but still
+returns the exact dead segment so JDK access rules enforce failure. It defines no typed element
+access, alignment, byte order, conversion, synchronization, or mutation-version policy.
+
+Host storage is distinct from logical [layout](#layout), planned public [`Tensor`](#tensor) state,
+device/backend storage, prepared memory, workspaces, and runtime [residency](#residency). No current
+contract associates a host-storage capacity with a `TensorDescriptor`; later Tensor and factory
+tasks own that decision. See [Host-visible storage](api/tensor-api.md#host-visible-storage).
 
 ### Kernel
 

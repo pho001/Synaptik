@@ -93,7 +93,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0007 | [Tensor descriptor model](tasks/0007-tensor-descriptor-model.md) | Complete | 0001–0003, 0003A–0003C | Define data type, shape, explicit resolved/unresolved layout, and requires-grad descriptors. |
 | 0008 | [Graph value and node model](tasks/0008-graph-value-and-node-model.md) | Complete | 0004, 0006, 0007 | Define immutable graph value and node records. |
 | 0009 | [Compiled graph model](tasks/0009-compiled-graph-model.md) | Complete | 0008 | Define immutable graph container, forward/backward phase, and standalone publication binding. |
-| 0010 | Host storage abstraction | Draft | 0001, 0003A | Define host storage abstractions without device buffers. |
+| 0010 | [Host storage abstraction](tasks/0010-host-storage-abstraction.md) | Complete | 0001, 0003A | Define exact-size borrowed Java 26 memory-segment host storage without device buffers. |
 | 0011 | Public Tensor skeleton | Draft | 0004, 0007, 0010 | Define public Tensor metadata and host-storage state without runtime device state. |
 | 0012 | Tensor factory | Draft | 0010, 0011 | Define tensor creation API and validation. |
 | 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
@@ -119,19 +119,18 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0010 as the next planning frontier.
+Draft, with task 0011 as the next `Draft` planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
-0008, graph value and node model, and task 0009, compiled graph model, are complete. Task 0010,
-host storage abstraction, is the next ordered planning frontier and remains `Draft` without a
+0008, graph value and node model, task 0009, compiled graph model, and task 0010, host storage
+abstraction, are complete. Task 0011 is the next planning frontier and remains `Draft` without a
 detailed specification.
 
 ## Open questions
 
 - The minimal provenance representation remains local to task 0013.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- Task 0010 must define ownership, lifetime, mutability, alignment, and bounds for stable Java 26 `MemorySegment` values without leaking native backend storage into the model.
 - After task 0013, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
 
 ## Decisions made
@@ -148,6 +147,11 @@ detailed specification.
 - Java 26 is the project baseline. Stable Java 26 APIs require no preview opt-in; preview and incubator features remain disabled unless a focused owning-module task explicitly configures and validates them.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
+- `HostTensorStorage` is a sealed model boundary with one final identity-based
+  `MemorySegmentStorage` implementation. The wrapper borrows an exact-size live segment, exposes
+  raw segment/read-only/liveness facts, uses checked `long` capacity sizing, and owns no arena,
+  allocation, close behavior, typed access, alignment, byte order, tensor geometry, or runtime
+  residency policy.
 - Operation-family table order coordinates delivery; dependencies record only real contract prerequisites rather than the preceding row.
 - All selected legacy public operation capabilities must be representable without backend knowledge.
 - Model capability parity and end-to-end executable parity are tracked separately.
@@ -175,7 +179,8 @@ Execute tasks in table order, including package migrations 0003A through 0003C b
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
-forward/backward node phases, and standalone publication binding. Task 0010 is the next `Draft`
-planning frontier and has no detailed specification. Concrete operation families remain in tasks
-0014–0023. The legacy branch must be consulted read-only for capability and test evidence when
-preparing each applicable capability task.
+forward/backward node phases, and standalone publication binding. Task 0010 added the sealed raw
+host-storage boundary and exact-size borrowed Java 26 memory-segment wrapper. Task 0011 is the next
+`Draft` planning frontier without a detailed specification. Concrete operation families remain in
+tasks 0014–0023. The legacy branch must be consulted read-only for capability and test evidence
+when preparing each applicable capability task.

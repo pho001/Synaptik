@@ -2,12 +2,13 @@
 
 ## Purpose and mental model
 
-This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, concrete operation families, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, concrete operation families, and tensor-factory contracts are still planned. Raw host-visible storage is implemented independently of those future contracts. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values without allocating or executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
+DataType + physical capacity + exact MemorySegment           = MemorySegmentStorage
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -18,8 +19,12 @@ TensorId + ValueId                                             = PublicationBind
 
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
 and gradient eligibility together as one immutable value. It is still only a description: the
-mutable `Tensor`, graph-wide validation, storage, inference, and execution remain separate
+mutable `Tensor`, graph-wide validation, storage association, inference, and execution remain separate
 contracts.
+
+The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
+implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
+capacity without allocating memory or relating that capacity to a tensor descriptor or layout.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
 
@@ -241,6 +246,114 @@ dynamic `batch` size, choose materialization, select a backend, or execute an op
 - A present layout whose rank or reconstructed geometry differs from the paired shape fails with
   `IllegalArgumentException`; checked reconstruction overflow remains an `ArithmeticException`.
 - Passing `null` for the data type, shape, or optional itself fails with `NullPointerException`.
+
+## Host-visible storage
+
+The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
+`HostTensorStorage` is a sealed raw-storage boundary with exactly one permitted implementation,
+the final `MemorySegmentStorage` class. The wrapper exposes six facts:
+
+| Fact | Meaning |
+|---|---|
+| `dataType()` | The exact non-null logical element type supplied at construction. |
+| `elementCapacity()` | A non-negative physical capacity in complete elements, not a tensor's logical element count. |
+| `byteSize()` | The checked product of capacity and `DataType.byteWidth()`, in bytes. |
+| `segment()` | The exact supplied `MemorySegment` reference, including after its scope closes. |
+| `isReadOnly()` | The supplied segment's JDK read-only state. |
+| `isAlive()` | A point-in-time snapshot of the supplied segment scope's liveness. |
+
+Construction requires exact equality between `segment.byteSize()` and the checked byte-size
+product. Zero capacity therefore requires a live zero-byte segment. Extra bytes are not treated as
+implicit capacity; a caller that wants a subrange supplies an explicit exact-size segment slice.
+Heap, native, mapped, global, confined, shared, read-only, writable, and sliced segments are all
+accepted when they meet the same size and initial-liveness rules.
+
+The wrapper is borrowed and non-owning. It retains the exact segment but does not allocate memory,
+own or close an arena, extend a scope's lifetime, or implement `AutoCloseable`. The caller must keep
+scoped memory alive and obey the JDK's thread-access rules. `isAlive()` can become stale immediately,
+and a false result does not hide the segment: `segment()` still returns the same dead reference, so
+JDK memory access reports the closed-scope failure.
+
+Writable raw memory can be changed through JDK APIs, but the wrapper supplies no typed element
+access, conversion, copying, synchronization, or mutation-version tracking. It chooses no
+`ValueLayout`, byte order, or alignment. An exact unaligned slice can therefore be wrapped, but
+that acceptance is not a promise that a future typed or backend path can access it without an
+unaligned layout or materialization.
+
+`MemorySegmentStorage` uses ordinary object identity. Two wrappers around the same segment and
+metadata are still unequal. Physical capacity is not validated against `Shape`,
+`TensorDescriptor`, `LayoutDescriptor`, logical element count, offset, or referenced span. Public
+`Tensor` association, factories, allocation/import policy, runtime residency, prepared memory,
+device buffers, and backend storage remain separate planned work.
+
+### Borrowed-lifetime example
+
+#### Goal and inputs
+
+Wrap a caller-owned 16-byte confined segment as four physical `FLOAT32` elements, then show what
+the wrapper reports after the caller closes the arena. The allocation supplies the example input;
+it is not performed by `MemorySegmentStorage`.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+
+public final class HostStorageExample {
+    public static void main(String[] args) {
+        Arena arena = Arena.ofConfined();
+        MemorySegment segment = arena.allocate(16, 1);
+        MemorySegmentStorage storage = new MemorySegmentStorage(
+                DataType.FLOAT32, 4, segment);
+
+        System.out.println(storage.elementCapacity());
+        System.out.println(storage.byteSize());
+        System.out.println(storage.segment() == segment);
+        System.out.println(storage.isAlive());
+
+        arena.close();
+        System.out.println(storage.isAlive());
+        System.out.println(storage.segment() == segment);
+    }
+}
+```
+
+#### Meaningful lines
+
+- `arena.allocate(16, 1)` creates the caller-owned input region. Alignment `1` is sufficient for
+  this raw wrapper because it performs no typed access.
+- Capacity `4` with `FLOAT32` requires exactly `4 × 4 = 16` bytes, matching the supplied segment.
+- The identity comparison demonstrates exact segment retention rather than a copy or slice.
+- Closing `arena` ends the scope because the caller, not the wrapper, owns the lifetime.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+4
+16
+true
+true
+false
+true
+```
+
+The result proves exact byte sizing, borrowed lifetime, point-in-time liveness, and segment identity.
+It does not construct a `Tensor`, validate layout compatibility, select byte order or typed access,
+allocate through the wrapper, or create runtime/backend storage.
+
+#### Failures and useful variations
+
+- A negative capacity fails with `IllegalArgumentException` before multiplication or segment-size
+  inspection.
+- Capacity multiplication overflow fails with `ArithmeticException` before size comparison.
+- An undersized, oversized, or non-divisible segment fails with `IllegalArgumentException` because
+  its byte size is not exact.
+- A segment whose scope is already dead fails construction with `IllegalStateException` after the
+  size check. Closing the scope after successful construction instead makes `isAlive()` false;
+  later JDK memory access through the returned segment fails under JDK scope rules.
 
 ## Typed identifiers
 
@@ -467,7 +580,6 @@ remain outside the model container.
 The following contracts appear in the architecture and planning documents but are not implemented:
 
 - mutable public `Tensor` state and `TensorFactory`;
-- host-visible storage;
 - concrete operation kinds and family-specific attribute values;
 - tensor provenance;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -491,6 +603,9 @@ provide a compiler entry point or executable support.
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.
+- `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
+  inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
+  and owns no allocation or lifetime.
 - `GraphValue` rejects null identity or descriptor components and stores no producer relationship.
 - `CompiledNode` snapshots ordered lists, accepts empty or repeated inputs, and requires non-empty
   within-node-unique outputs. It does not perform graph-wide or operation-family validation.
