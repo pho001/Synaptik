@@ -42,10 +42,10 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0011 Public Tensor skeleton (Draft)
+0012 Tensor factory (Draft)
 ```
 
-Package migrations `0003A` through `0003C` and tasks `0004`–`0010` are complete. Task `0011` is
+Package migrations `0003A` through `0003C` and tasks `0004`–`0011` are complete. Task `0012` is
 the next planning frontier and remains `Draft` without a detailed specification.
 
 ## Model task sequence
@@ -65,7 +65,7 @@ the next planning frontier and remains `Draft` without a detailed specification.
 | 11 | [0008 Graph value and node model](modules/model/tasks/0008-graph-value-and-node-model.md) | Complete |
 | 12 | [0009 Compiled graph model](modules/model/tasks/0009-compiled-graph-model.md) | Complete |
 | 13 | [0010 Host storage abstraction](modules/model/tasks/0010-host-storage-abstraction.md) | Complete |
-| 14 | 0011 Public Tensor skeleton | Draft |
+| 14 | [0011 Public Tensor skeleton](modules/model/tasks/0011-public-tensor-skeleton.md) | Complete |
 | 15 | 0012 Tensor factory | Draft |
 | 16 | 0013 Tensor provenance skeleton | Draft |
 | 17 | 0014 Elementwise arithmetic operations | Draft |

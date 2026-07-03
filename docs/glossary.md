@@ -11,10 +11,12 @@ broadcasting, layout, element stride, referenced element span, view, `TensorDesc
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
 the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
-`HostTensorStorage` and `MemorySegmentStorage`. Concrete operation kinds and family attributes,
-public `Tensor`, tensor factories, compiler entry points and artifacts, planning, prepare, runtime,
-concrete backends, traces, and training remain architecture or planning contracts. A definition
-explains intended meaning; it is not by itself evidence that a Java type exists.
+`HostTensorStorage` and `MemorySegmentStorage`, plus the public `Tensor` skeleton. Concrete
+operation kinds and family attributes, tensor factories and provenance, expression operations,
+typed access, gradient and publication behavior, compiler entry points and artifacts, planning,
+prepare, runtime, concrete backends, traces, and training remain architecture or planning
+contracts. A definition explains intended meaning; it is not by itself evidence that a Java type
+exists.
 
 ## Terms
 
@@ -142,10 +144,12 @@ point-in-time observation: after caller-controlled closure, the wrapper reports 
 returns the exact dead segment so JDK access rules enforce failure. It defines no typed element
 access, alignment, byte order, conversion, synchronization, or mutation-version policy.
 
-Host storage is distinct from logical [layout](#layout), planned public [`Tensor`](#tensor) state,
-device/backend storage, prepared memory, workspaces, and runtime [residency](#residency). No current
-contract associates a host-storage capacity with a `TensorDescriptor`; later Tensor and factory
-tasks own that decision. See [Host-visible storage](api/tensor-api.md#host-visible-storage).
+Host storage is distinct from logical [layout](#layout), public [`Tensor`](#tensor) state,
+device/backend storage, prepared memory, workspaces, and runtime [residency](#residency). The
+implemented `Tensor` may borrow the exact storage object and validates matching data type,
+resolved referenced span when geometry is available, and attachment-time liveness. It does not
+change this wrapper's sizing, lifetime, ownership, or raw-access contract. See [Host-visible
+storage](api/tensor-api.md#host-visible-storage).
 
 ### Kernel
 
@@ -264,7 +268,22 @@ The minimum count of storage elements needed to include every index referenced b
 
 ### Tensor
 
-The public mutable API object used to describe tensor metadata and host-visible state and to build expressions. It may carry data type, shape, layout, host storage, gradient/publication state, identity, and provenance. A `Tensor` is not an intermediate-representation node, a graph value, a physical device buffer, or runtime residency state. See the [Tensor API](api/tensor-api.md).
+The implemented public mutable API object for stable tensor metadata and optional host-visible
+state. The current final `Tensor` retains one exact immutable [`TensorId`](#tensorid), one exact
+immutable [`TensorDescriptor`](#tensor-descriptor), and one normalized immutable optional label.
+Its only current mutation is a synchronized optional borrowed [`HostTensorStorage`](#host-storage)
+association. Replacement validates matching data type, resolved referenced span when layout is
+available, and point-in-time liveness before changing the exact reference. Read-only storage is
+accepted; later caller-controlled scope death remains observable; and the tensor never allocates,
+copies, accesses, retains, owns, or closes storage.
+
+Construction is package-private until the planned factory supplies the public creation and
+identifier-allocation policy. The object uses ordinary identity equality and hashing, while its
+diagnostic text contains stable ID, descriptor, and label facts without storage or runtime state.
+Factory behavior, provenance, expression operations, typed access, gradients, trainable role,
+publication behavior, compiler integration, device buffers, and runtime residency remain planned.
+A `Tensor` is not an intermediate-representation node or [graph value](#graph-value). See [Public
+Tensor state](api/tensor-api.md#public-tensor-state).
 
 ### Tensor descriptor
 
@@ -284,9 +303,11 @@ storage, device buffers, runtime residency, materialization policy, or backend e
 
 ### `TensorId`
 
-A validated non-negative identifier for planned public mutable tensor state. It belongs to the
-tensor identity domain and is distinct from graph-local node and value identities. An implemented
-`PublicationBinding` can associate it with a graph value without storing graph-local IDs on the
+A validated non-negative identifier retained by implemented public mutable `Tensor` state. It
+belongs to the tensor identity domain and is distinct from graph-local node and value identities.
+The value type does not allocate or guarantee uniqueness; the planned factory owns that policy,
+and two tensor objects remain unequal even when their IDs compare equal. An implemented
+`PublicationBinding` can associate an ID with a graph value without storing graph-local IDs on the
 tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
 
 ### Trace
@@ -315,14 +336,16 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 | `Tensor` | Graph value |
 |---|---|
-| Public mutable API state | Immutable compile-time graph state |
-| Can carry host storage, labels, gradient state, and provenance | Represents logical data flowing between graph nodes |
+| Implemented public mutable API state | Immutable compile-time graph state |
+| Currently retains stable ID, descriptor, and label plus optional mutable host storage | Represents logical data flowing between graph nodes |
 | Identified by `TensorId` | Identified by graph-local `ValueId` |
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context.
+Provenance, expression construction, gradients, and publication behavior are not part of the
+current Tensor skeleton.
 
 ### Node versus value
 

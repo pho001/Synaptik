@@ -2,13 +2,19 @@
 
 ## Purpose and mental model
 
-This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, concrete operation families, and tensor-factory contracts are still planned. Raw host-visible storage is implemented independently of those future contracts. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+This reference documents the public model contracts that are implemented today. The mutable
+`Tensor` skeleton now connects stable logical metadata to an optional borrowed host-storage
+association. Its public factory, provenance, expression operations, typed access, gradient and
+publication behavior, compiler integration, runtime residency, and backend execution remain
+planned. The authoritative module boundary remains
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values without allocating or executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
 DataType + physical capacity + exact MemorySegment           = MemorySegmentStorage
+TensorId + TensorDescriptor + label + optional host storage  = Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -18,15 +24,17 @@ TensorId + ValueId                                             = PublicationBind
 ```
 
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
-and gradient eligibility together as one immutable value. It is still only a description: the
-mutable `Tensor`, graph-wide validation, storage association, inference, and execution remain separate
-contracts.
+and gradient eligibility together as one immutable value. It is still only a description. The
+implemented `Tensor` retains that descriptor, a stable `TensorId`, and an optional label while
+allowing only its borrowed host-storage association to change.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
 capacity without allocating memory or relating that capacity to a tensor descriptor or layout.
 
-An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
+An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed
+semantic parameters. The implemented `Operation` record keeps those two values together. It does
+not attach them to a tensor or graph, infer a result, or execute them.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -247,6 +255,58 @@ dynamic `batch` size, choose materialization, select a backend, or execute an op
   `IllegalArgumentException`; checked reconstruction overflow remains an `ArithmeticException`.
 - Passing `null` for the data type, shape, or optional itself fails with `NullPointerException`.
 
+## Public Tensor state
+
+The public `Tensor` contract lives in `io.github.pho001.synaptik.model.tensor`. The current final
+class is mutable API state, not an intermediate-representation node. It has four state components:
+
+| Component | Stability and ownership |
+|---|---|
+| `id()` | Returns the exact immutable `TensorId` reference retained for the tensor's lifetime. |
+| `descriptor()` | Returns the exact immutable `TensorDescriptor` reference retained for the tensor's lifetime. |
+| `label()` | Returns an immutable optional diagnostic value; present text is stripped and must remain non-blank. |
+| `hostStorage()` | Returns a synchronized snapshot of the optional borrowed `HostTensorStorage` association. |
+
+Construction is temporarily package-private. Code outside `model.tensor` can inspect a `Tensor`
+received from same-module code, but it cannot create one through a supported public entry point
+until the planned `TensorFactory` defines identifier allocation, layout choices, allocation, and
+import policy. The current constructor does not guarantee `TensorId` uniqueness.
+
+Only the host-storage reference can change. `replaceHostStorage(storage)` validates the proposed
+storage before atomically replacing that reference and returns the exact previous reference, or an
+empty optional when there was none. `clearHostStorage()` atomically removes and returns the exact
+previous reference. `hostStorage()`, replacement, and clearing are synchronized with respect to
+one another, so each returned optional is a snapshot of reference state. The synchronization does
+not make raw memory access thread-safe, keep an arena alive, or make a confined segment accessible
+from another thread.
+
+Storage compatibility has three checks in a fixed order:
+
+1. The storage data type must exactly match the descriptor data type.
+2. When the descriptor has a resolved layout, capacity must be at least the layout's complete
+   referenced element span. This includes offset, strided, broadcast, scalar, and zero-sized
+   geometry. A static or dynamic unresolved layout skips this capacity check because no physical
+   geometry is known.
+3. The storage must be alive at attachment time.
+
+Read-only storage is valid because `Tensor` performs no memory writes. Storage remains borrowed:
+the tensor never allocates, copies, retains, accesses, or closes it. The caller may close the
+owning scope after attachment. The tensor then continues to return the exact associated storage,
+whose own `isAlive()` reports the point-in-time state and whose segment remains subject to JDK
+scope and thread-access checks. One storage object may be associated with multiple tensors;
+changing one tensor's association does not change another's.
+
+`Tensor` inherits ordinary object equality and hashing. Equal `TensorId` values do not make two
+tensor objects equal; identifier uniqueness is still factory work. Its text form is stable
+metadata-only diagnostic output containing the ID, descriptor, and normalized label. It omits
+storage presence and identity, memory addresses and contents, liveness, graph state, and runtime
+state, and it is not a serialization format.
+
+The current class stores no graph-local `NodeId` or `ValueId`, operation or provenance,
+gradient object or trainable role, publication state, typed element access, device buffer,
+runtime residency, prepared state, or backend support. Those remain separate planned contracts in
+their owning layers.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -281,10 +341,11 @@ that acceptance is not a promise that a future typed or backend path can access 
 unaligned layout or materialization.
 
 `MemorySegmentStorage` uses ordinary object identity. Two wrappers around the same segment and
-metadata are still unequal. Physical capacity is not validated against `Shape`,
-`TensorDescriptor`, `LayoutDescriptor`, logical element count, offset, or referenced span. Public
-`Tensor` association, factories, allocation/import policy, runtime residency, prepared memory,
-device buffers, and backend storage remain separate planned work.
+metadata are still unequal. The wrapper itself does not validate physical capacity against
+`Shape`, `TensorDescriptor`, `LayoutDescriptor`, logical element count, offset, or referenced
+span. The current `Tensor` association performs the compatibility checks described above without
+changing the wrapper's raw-storage contract. Factories, allocation/import policy, runtime
+residency, prepared memory, device buffers, and backend storage remain separate planned work.
 
 ### Borrowed-lifetime example
 
@@ -369,7 +430,7 @@ Graph-local numeric identifiers may be reused by different graph containers. `No
 
 An implemented `PublicationBinding` associates a public `TensorId` with a `ValueId`. The binding is
 standalone and cannot prove that the value belongs to a particular graph; a later compiler-owned
-`PublicationPlan` will provide that context. A planned `Tensor` does not store graph-local IDs
+`PublicationPlan` will provide that context. The implemented `Tensor` stores no graph-local IDs
 because the same tensor may participate in multiple separately compiled graphs. `OperationId` is
 not currently defined: operation semantics occur through graph nodes, and no independent
 operation-identity lifecycle has been established.
@@ -579,9 +640,10 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- mutable public `Tensor` state and `TensorFactory`;
+- `TensorFactory`, tensor-ID allocation and uniqueness, public tensor creation, storage allocation
+  and import, and typed tensor access;
+- tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
-- tensor provenance;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -603,6 +665,11 @@ provide a compiler entry point or executable support.
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.
+- `Tensor` retains exact stable ID and descriptor references plus a normalized label, and uses
+  object identity for equality and hashing. It borrows optional host storage, validates data type,
+  resolved referenced span, and attachment-time liveness in that order, and changes only the
+  storage reference through synchronized snapshot, replacement, and clearing methods. Failed
+  replacement preserves the previous reference, and later storage death remains observable.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.
@@ -614,6 +681,8 @@ provide a compiler entry point or executable support.
   accepts zero-input nodes, repeated node inputs, unused inputs, and zero-node pass-through graphs.
 - `PublicationBinding` rejects null identities and remains a standalone association without
   owning-graph validation, policy, storage, backend, or runtime behavior.
-- None of the current types owns device storage, runtime residency, or backend selection.
+- None of the current types owns device storage, runtime residency, or backend selection. The
+  current `Tensor` also owns no storage lifetime, graph-local identity, compiler behavior, or
+  execution state.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

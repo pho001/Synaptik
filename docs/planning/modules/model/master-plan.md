@@ -94,7 +94,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0008 | [Graph value and node model](tasks/0008-graph-value-and-node-model.md) | Complete | 0004, 0006, 0007 | Define immutable graph value and node records. |
 | 0009 | [Compiled graph model](tasks/0009-compiled-graph-model.md) | Complete | 0008 | Define immutable graph container, forward/backward phase, and standalone publication binding. |
 | 0010 | [Host storage abstraction](tasks/0010-host-storage-abstraction.md) | Complete | 0001, 0003A | Define exact-size borrowed Java 26 memory-segment host storage without device buffers. |
-| 0011 | Public Tensor skeleton | Draft | 0004, 0007, 0010 | Define public Tensor metadata and host-storage state without runtime device state. |
+| 0011 | [Public Tensor skeleton](tasks/0011-public-tensor-skeleton.md) | Complete | 0004, 0007, 0010 | Define stable public Tensor identity/descriptor/label and synchronized optional host-storage state without graph or runtime state. |
 | 0012 | Tensor factory | Draft | 0010, 0011 | Define tensor creation API and validation. |
 | 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
@@ -119,13 +119,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0011 as the next `Draft` planning frontier.
+Draft, with task 0012 as the next `Draft` planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
 0008, graph value and node model, task 0009, compiled graph model, and task 0010, host storage
-abstraction, are complete. Task 0011 is the next planning frontier and remains `Draft` without a
-detailed specification.
+abstraction, are complete. Task 0011, public Tensor skeleton, is also complete. Task 0012 is the
+next ordered task and remains `Draft` without a detailed specification.
 
 ## Open questions
 
@@ -162,6 +162,15 @@ detailed specification.
   compiler-owned publication plan; it is not part of `CompiledGraphModel`.
 - The current graph-phase vocabulary is exactly forward and backward. Optimizer-update graph work
   remains a future architecture change, not a task-0009 phase.
+- The task-0011 Tensor skeleton is one final public identity object with package-private
+  construction. It retains one stable `TensorId`, immutable `TensorDescriptor`, and normalized
+  optional label; task 0012 owns the public factory and ID allocation policy.
+- Tensor's only task-0011 mutation is a synchronized optional borrowed `HostTensorStorage`
+  association. Matching data type is always required; resolved layouts require capacity at least
+  their referenced element span, while unresolved layouts do not invent physical geometry.
+- Tensor accepts read-only storage, rejects storage already dead at attachment, continues to expose
+  storage that dies later, owns no arena, retains object identity equality/hashing, and stores no
+  graph-local ID, provenance, gradient/trainable/publication, runtime, or backend state.
 
 ## Risks
 
@@ -180,7 +189,8 @@ Execute tasks in table order, including package migrations 0003A through 0003C b
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
 forward/backward node phases, and standalone publication binding. Task 0010 added the sealed raw
-host-storage boundary and exact-size borrowed Java 26 memory-segment wrapper. Task 0011 is the next
-`Draft` planning frontier without a detailed specification. Concrete operation families remain in
-tasks 0014–0023. The legacy branch must be consulted read-only for capability and test evidence
-when preparing each applicable capability task.
+host-storage boundary and exact-size borrowed Java 26 memory-segment wrapper. Task 0011 added the
+completed public Tensor skeleton with stable metadata and a synchronized borrowed host-storage
+association. Task 0012 is the next `Draft` planning frontier without a detailed specification.
+Concrete operation families remain in tasks 0014–0023. The legacy branch must be consulted
+read-only for capability and test evidence when preparing each applicable capability task.
