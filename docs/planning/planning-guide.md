@@ -40,6 +40,21 @@ Create master plans early for every module, backend, extension, and tool so owne
 
 Do not create detailed task specs far ahead of implementation. Upstream public APIs, module contracts, and validation evidence may change the correct design of downstream work. Future work should remain a concise row in a master plan until its dependencies and constraints are sufficiently stable.
 
+## Package structure planning
+
+Package structure is part of implementation planning, not an incidental implementation decision. Do not default every new type to a module's root package merely because no package plan exists.
+
+Use two levels of package planning:
+
+- the module master plan defines the target package map, the responsibility of each package, and which packages form the intended public surface; and
+- each detailed task specification maps every expected production and test type to an existing or proposed package and explains any package it adds or changes.
+
+Plan the module-level map progressively. It should be detailed enough for the current and next implementation frontier without attempting to predict every future internal package. Group types by cohesive responsibility and useful visibility boundaries rather than by file count. A module root package may hold a small, deliberate public facade or closely related foundational contracts, but it must not become the automatic destination for unrelated APIs, implementation helpers, and internal models.
+
+Package-private helpers should live with the contracts they support. Tests should normally mirror the production package when they need package-private access; black-box API tests may use a distinct test package when the task explains why. Avoid generic packages such as `util`, `common`, or `misc` unless the master plan gives them a narrow, stable responsibility.
+
+A task must not become `Ready` until its package impact is explicit. Implementation must not create a different package structure silently. If evidence shows that the planned package placement is unsuitable, update the task and master-plan package map before continuing. Moving an already published or completed contract to another package requires an explicit refactoring or migration task with compatibility impact and validation; it must not be hidden inside unrelated work.
+
 ## Task ordering
 
 The task table in each master plan is an ordered implementation queue. Unless the master plan explicitly says otherwise, execute tasks in ascending ID and table order.
@@ -98,6 +113,13 @@ A master plan defines the stable implementation outline for one project area. It
 
 ## Forbidden dependencies
 
+## Package structure
+
+```text
+<base.package>/
+  <subpackage>/  <responsibility and intended visibility>
+```
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
@@ -136,6 +158,20 @@ Draft
 ## Architecture references
 
 ## Architecture constraints
+
+## Package impact
+
+Existing packages used:
+
+- ...
+
+Packages added or changed:
+
+- ...
+
+Type placement:
+
+- `<fully.qualified.Type>` — <reason this package owns the type>
 
 ## Affected files
 
@@ -258,7 +294,8 @@ Evidence must record:
 - whether it passed, failed, or was not run;
 - the relevant result, including test counts or task outcomes when available;
 - any environmental limitation or skipped validation; and
-- manual checks required by the acceptance criteria.
+- manual checks required by the acceptance criteria; and
+- confirmation that created and moved types match the package map and task-level type placement.
 
 Claims such as `tests pass` without commands and results are insufficient. Keep evidence concise; do not paste entire build logs when a result summary identifies the outcome.
 
@@ -289,6 +326,7 @@ If work reveals a required architecture change, stop implementation. Report the 
 Create a new task when work:
 
 - introduces a separate concept or public contract;
+- introduces or restructures a package boundary beyond the current task's approved package impact;
 - belongs to another module or architecture layer;
 - exceeds the current file or scope limit;
 - needs independent validation;
@@ -306,3 +344,5 @@ Do not update architecture documentation merely to make a conflicting implementa
 ## Templates
 
 Use the [master plan format](#master-plan-format) for each project area and the [task specification format](#task-specification-format) for executable tasks. Copy templates into the relevant directory, replace all placeholders, and keep the master task table synchronized with task status.
+
+Existing master plans may adopt the package-structure section progressively, but the active project's master plan must contain it before the next detailed task becomes `Ready`. Existing task specifications do not need retrospective package sections after completion; every new or materially replanned task must use the current template.

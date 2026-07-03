@@ -42,10 +42,10 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0003 Layout descriptor model
+0003A Data type package migration
 ```
 
-No later task specification should be created until task `0003` is complete, unless the model master plan records an explicit exception.
+Task `0003A` is the current implementation frontier and its detailed specification is `Ready`. Task `0003B` must not receive a detailed specification until `0003A` is complete. The three package migrations complete the foundational package structure before task `0004` introduces new contracts.
 
 ## Model task sequence
 
@@ -53,30 +53,39 @@ No later task specification should be created until task `0003` is complete, unl
 |---|---|---|
 | 1 | 0001 DataType model | Complete |
 | 2 | 0002 Shape and dimension model | Complete |
-| 3 | 0003 Layout descriptor model | Draft |
-| 4 | 0004 Typed identifiers | Draft |
-| 5 | 0005 Operation taxonomy and attribute foundation | Draft |
-| 6 | 0006 Operation model | Draft |
-| 7 | 0007 Tensor descriptor model | Draft |
-| 8 | 0008 Graph value and node model | Draft |
-| 9 | 0009 Compiled graph model | Draft |
-| 10 | 0010 Public Tensor skeleton | Draft |
-| 11 | 0011 Host storage abstraction | Draft |
-| 12 | 0012 Tensor factory | Draft |
-| 13 | 0013 Tensor provenance skeleton | Draft |
-| 14 | 0014 Elementwise arithmetic operations | Draft |
-| 15 | 0015 Comparison, logical, selection, and cast operations | Draft |
-| 16 | 0016 Reduction and scan operations | Draft |
-| 17 | 0017 Layout and view operations | Draft |
-| 18 | 0018 Indexing and scatter operations | Draft |
-| 19 | 0019 Linear algebra and attention operations | Draft |
-| 20 | 0020 Convolution and pooling operations | Draft |
-| 21 | 0021 Normalization operations | Draft |
-| 22 | 0022 Loss operations | Draft |
-| 23 | 0023 Compiler-generated semantic operations | Draft |
-| 24 | 0024 Model capability parity audit | Draft |
+| 3 | 0003 Layout descriptor model | Complete |
+| 4 | 0003A Data type package migration | Ready |
+| 5 | 0003B Shape package migration | Draft |
+| 6 | 0003C Layout package migration | Draft |
+| 7 | 0004 Typed identifiers | Draft |
+| 8 | 0005 Operation semantic foundation | Draft |
+| 9 | 0006 Operation model | Draft |
+| 10 | 0007 Tensor descriptor model | Draft |
+| 11 | 0008 Graph value and node model | Draft |
+| 12 | 0009 Compiled graph model | Draft |
+| 13 | 0010 Host storage abstraction | Draft |
+| 14 | 0011 Public Tensor skeleton | Draft |
+| 15 | 0012 Tensor factory | Draft |
+| 16 | 0013 Tensor provenance skeleton | Draft |
+| 17 | 0014 Elementwise arithmetic operations | Draft |
+| 18 | 0015 Comparison, logical, selection, and cast operations | Draft |
+| 19 | 0016 Reduction and scan operations | Draft |
+| 20 | 0017 Layout and view operations | Draft |
+| 21 | 0018 Indexing and scatter operations | Draft |
+| 22 | 0019 Linear algebra and attention operations | Draft |
+| 23 | 0020 Convolution and pooling operations | Draft |
+| 24 | 0021 Normalization operations | Draft |
+| 25 | 0022 Loss operations | Draft |
+| 26 | 0023 Compiler-generated semantic operations | Draft |
+| 27 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
+
+## Model foundation checkpoint
+
+After task `0013`, review the completed value, graph, storage, tensor, and provenance contracts against the entry requirements of downstream modules. The default remains to continue with model operation-family task groups. Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the new frontier and preserves all architecture dependency rules.
+
+This checkpoint is not permission to skip or execute tasks out of order. It prevents the decision to complete every operation family before downstream feedback from remaining an implicit assumption.
 
 ## Advancing the frontier
 

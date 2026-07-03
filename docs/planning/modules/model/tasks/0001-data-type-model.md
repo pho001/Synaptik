@@ -184,8 +184,9 @@ Manually verify:
 ## Follow-up tasks
 
 - Task 0002: Shape and dimension model.
-- Task 0005: Operation taxonomy and attribute foundation consumes data type categories and promotion semantics.
-- Task 0011: Host storage abstraction consumes data type width and BFLOAT16 representation.
+- Task 0003A: Data type package migration moves these completed contracts into the package defined by the model master plan without changing behavior.
+- Task 0005: Operation semantic foundation consumes data type categories and promotion semantics.
+- Task 0010: Host storage abstraction consumes data type width and BFLOAT16 representation.
 
 Do not create detailed specifications for these follow-ups until task 0001 is complete and the planning frontier advances.
 
@@ -220,12 +221,12 @@ At the end, update this task file with local decisions, known limitations, valid
 
 ## Local decisions
 
-- `DataType`, `DataTypeCategory`, `DataTypePromotion`, and `BFloat16Bits` are small public contracts in the root `io.github.pho001.synaptik.model` package.
+- `DataType`, `DataTypeCategory`, `DataTypePromotion`, and `BFloat16Bits` were initially created as small public contracts in the root `io.github.pho001.synaptik.model` package. The later package-structure review supersedes that placement through task 0003A without changing their behavior.
 - `DataType` stores category, bit width, byte width, and differentiability directly in each enum constant. `byteWidth()` is derived once during enum initialization because every initial data type is byte-aligned.
 - The default is exposed through `DataType.defaultFloating()` instead of a mutable or backend-configured default.
 - `DataTypePromotion` supports floating promotion only. Null operands fail with `NullPointerException`; non-floating operands fail with `IllegalArgumentException`.
 - `BFloat16Bits` is a scalar, allocation-free utility. It uses round-to-nearest with ties to even and canonicalizes every Java NaN to raw BFLOAT16 bits `0x7FC0`.
-- Java carrier and array classes are intentionally absent from `DataType`; storage mappings remain deferred to task 0011.
+- Java carrier and array classes are intentionally absent from `DataType`; storage mappings remain deferred to task 0010.
 
 ## Known limitations
 

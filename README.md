@@ -1,17 +1,24 @@
 # Synaptik
 
-Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs across multiple backends. The repository currently contains only the initial project skeleton; framework behavior has not been implemented yet.
+Synaptik is a modular Java foundation for compiling, preparing, and executing computational graphs across multiple backends. The project is under active development and currently provides its initial model foundations and repository structure.
 
 The authoritative architecture contract is defined in [`ARCHITECTURE.md`](ARCHITECTURE.md). The contributor and agent workflow is defined in [`AGENTS.md`](AGENTS.md).
 
+## Prerequisites
+
+- JDK 26
+- an IntelliJ IDEA version with Java 26 support, when using the IDE
+
+The Gradle wrapper downloads the supported Gradle distribution. A separate Gradle installation is not required.
+
 ## Gradle commands
 
-When a Gradle installation is available, use:
+Use the repository wrapper:
 
 ```shell
-gradle projects
-gradle test
-gradle build
+./gradlew projects
+./gradlew test
+./gradlew build
 ```
 
-If a Gradle wrapper is added later, use the equivalent `./gradlew` commands.
+Synaptik does not enable Java preview features globally. A focused implementation task may enable a required preview or incubator feature only for the owning module, with explicit build configuration, documentation, and validation.

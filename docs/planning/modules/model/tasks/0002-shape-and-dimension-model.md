@@ -252,6 +252,7 @@ Manually verify:
 ## Follow-up tasks
 
 - Task 0003: Layout descriptor model consumes static shape sizes when deriving contiguous strides and describing views.
+- Task 0003B: Shape package migration moves the completed dimension and shape contracts into the package defined by the model master plan without changing behavior.
 - Task 0007: Tensor descriptor model composes `DataType`, `Shape`, and `LayoutDescriptor`.
 - Task 0017: Layout and view operations own reshape `-1` inference, expand, squeeze, permute, and other operation-level shape transformations.
 - Compiler planning must later define graph-wide symbolic shape constraints and operation-specific inference.

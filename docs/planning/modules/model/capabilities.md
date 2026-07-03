@@ -82,17 +82,20 @@ The legacy implementation represented scalar results as shape `[1]`, rejected ze
 
 `LayoutDescriptor` must describe logical layout independently of physical device storage. Required capabilities are:
 
-- contiguous row-major layout;
-- explicit logical strides;
-- storage offset;
+- resolved numeric layouts for fully static shapes;
+- contiguous row-major and contiguous-with-offset layout kinds;
+- general strided and zero-stride broadcast layout kinds;
+- explicit non-negative `long` element strides;
+- non-negative storage offset and checked referenced element span;
+- explicit storage-alias/view metadata independent of layout kind;
 - permuted views;
 - sliced views;
 - expanded/broadcast views;
 - reshape and contiguity metadata;
 - layout-preserving aliases; and
-- detection of when materialization is logically required.
+- sufficient immutable facts for planning to derive logical materialization requirements.
 
-Layout metadata must not contain device addresses, runtime residency, backend storage handles, kernel routes, or prepared-execution state.
+Numeric layout descriptors are not created for dynamic shapes until their required dimensions are resolved by later compiler/runtime contracts. Layout metadata must not contain device addresses, runtime residency, backend storage handles, kernel routes, prepared-execution state, or materialization policy.
 
 ## Host storage baseline
 
@@ -107,7 +110,9 @@ The model owns host-visible tensor storage only. The baseline includes:
 - explicit ownership and lifetime contracts for host memory; and
 - multiple tensor views sharing the same host storage through layout metadata.
 
-The exact class count and whether storage implementations are public are local API-design decisions for task 0011. Capability parity does not require direct exposure of mutable backing arrays.
+The exact class count and whether storage implementations are public are local API-design decisions for task 0010. Capability parity does not require direct exposure of mutable backing arrays.
+
+The project uses Java 26, where `MemorySegment` is a stable API. Task 0010 may therefore implement `MemorySegmentStorage` without enabling preview features. The task must still define ownership, lifetime, mutability, alignment, and bounds behavior explicitly; the stable API does not decide those model contracts.
 
 The following are explicitly outside `modules/model`:
 
