@@ -42,10 +42,10 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0006 Operation model
+0007 Tensor descriptor model
 ```
 
-Package migrations `0003A` through `0003C` and tasks `0004`–`0005` are complete. Task `0006` is the next ordered planning frontier and remains `Draft`; its focused specification must be prepared separately before implementation.
+Package migrations `0003A` through `0003C` and tasks `0004`–`0006` are complete. Task `0007` is the next ordered planning frontier and remains `Draft`; its focused specification must be prepared separately before implementation.
 
 ## Model task sequence
 
@@ -59,7 +59,7 @@ Package migrations `0003A` through `0003C` and tasks `0004`–`0005` are complet
 | 6 | 0003C Layout package migration | Complete |
 | 7 | 0004 Typed identifiers | Complete |
 | 8 | 0005 Operation semantic foundation | Complete |
-| 9 | 0006 Operation model | Draft |
+| 9 | 0006 Operation model | Complete |
 | 10 | 0007 Tensor descriptor model | Draft |
 | 11 | 0008 Graph value and node model | Draft |
 | 12 | 0009 Compiled graph model | Draft |

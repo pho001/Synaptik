@@ -6,7 +6,7 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, typed `TensorId`, `NodeId`, and `ValueId` values, plus the `OperationKind`, `OperationAttrs`, and `NoOperationAttrs` contracts. The complete `Operation` descriptor, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
+The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, typed `TensorId`, `NodeId`, and `ValueId` values, plus `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and the `Operation` descriptor. Concrete operation kinds and family attributes, graph integration, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -140,15 +140,15 @@ A validated non-negative identifier for a node occurrence within one owning grap
 
 ### Operation
 
-The planned backend-independent description of what a computation means. It combines a semantic kind with immutable typed attributes, such as axes or padding when a future operation family requires them. An operation does not report backend support, choose a kernel, own runtime state, or identify a particular occurrence in a graph; the occurrence is a [node](#node).
+The implemented immutable value that keeps two parts of a computation description together: an [`OperationKind`](#operationkind), which says which computation is meant, and [`OperationAttrs`](#operationattrs), which carries its typed parameters. Both parts must be non-null and are retained unchanged. Record equality and hashing use both parts, while its text form is for diagnostics rather than serialization. The descriptor does not verify that a particular attributes type is compatible with a kind; future operation-family contracts own that validation. It also does not report backend support, perform compiler work, choose a kernel, execute computation, own runtime state, or identify a particular occurrence in a graph; the occurrence is a [node](#node).
 
 ### `OperationAttrs`
 
-The implemented zero-method marker contract for immutable, typed semantic parameters of a computation. A future family-specific attribute record might hold axes, padding, or another operation-specific value. Implementations use typed fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of a value but does not enforce immutability at runtime.
+The implemented zero-method marker contract for immutable, typed parameters that refine which computation an [`Operation`](#operation) describes. A future family-specific attribute record might hold axes, padding, or another operation-specific value. Implementations use typed fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
-The implemented open typed discriminator for the backend-independent kind of computation that a future [operation](#operation) represents. Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route. No production concrete kind is implemented yet.
+The implemented open typed discriminator that supplies the “which computation” part of an [`Operation`](#operation). Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route. No production concrete kind is implemented yet.
 
 ### Partition
 
@@ -260,9 +260,9 @@ A publication binding connects the two domains when a compiled logical result mu
 | `OperationKind` | Which backend-independent computation is meant | Interface implemented; concrete kinds planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker implemented; family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
-| `Operation` | Future pairing of one kind with its matching attributes | Planned |
+| `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
-A kind distinguishes computations, while attributes carry parameters within a computation family. Neither value identifies where computation occurs in a graph; a [node](#node) represents that occurrence. The `Operation` descriptor that will join a kind and attributes is not implemented yet.
+A kind distinguishes computations, while attributes carry parameters within a computation family. `Operation` stores both as one value but does not validate family compatibility. None of these values identifies where computation occurs in a graph; a [node](#node) represents that occurrence. Concrete kinds, family-specific attributes, and graph integration remain planned.
 
 ### Compile versus prepare versus run
 

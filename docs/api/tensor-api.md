@@ -2,17 +2,17 @@
 
 ## Purpose and mental model
 
-This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, complete operation descriptor, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, concrete operation families, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values without allocating or executing a tensor:
 
 ```text
 DataType + Shape + LayoutDescriptor = logical element kind and geometry
 TensorId / NodeId / ValueId         = distinct identity domains
-OperationKind + OperationAttrs      = computation meaning vocabulary
+Operation                            = OperationKind + OperationAttrs
 ```
 
-The operation vocabulary can name a kind of computation and describe its semantic parameters. It does not yet combine them into an `Operation`, attach them to a graph, or execute them.
+An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed semantic parameters. The implemented `Operation` record keeps those two values together. It does not attach them to a graph, infer a result, or execute them.
 
 ## Data types
 
@@ -143,10 +143,10 @@ The public operation-foundation contracts live in `io.github.pho001.synaptik.mod
 
 | Concept | Current role |
 |---|---|
-| `OperationKind` | An implemented open interface that identifies which backend-independent computation a future operation represents. |
+| `OperationKind` | An implemented open interface that identifies which backend-independent computation an operation describes. |
 | `OperationAttrs` | An implemented marker interface for the immutable, typed semantic parameters of that computation. |
 | `NoOperationAttrs.INSTANCE` | The implemented canonical attribute value for a kind that has no semantic parameters. |
-| `Operation` | A planned descriptor that will combine one kind with its matching attributes. |
+| `Operation` | An implemented immutable descriptor that stores one kind and one `OperationAttrs` value. |
 
 `OperationKind` declares only `name()`. The result must be a stable, non-null, non-blank diagnostic name, but it is not a serialization token or a global lookup key. Enum-based kind families are the expected common implementation because an enum already supplies a stable `name()`, equality, and hashing. Two enum values from different kind families remain different typed values even if both names contain the same text.
 
@@ -167,11 +167,16 @@ private record SampleAttrs(int axis, boolean keepDimensions)
 OperationKind kind = SampleKind.SAMPLE;
 OperationAttrs attrs = new SampleAttrs(2, true);
 OperationAttrs emptyAttrs = NoOperationAttrs.INSTANCE;
+Operation operation = new Operation(kind, attrs);
+Operation equalOperation = new Operation(
+        SampleKind.SAMPLE, new SampleAttrs(2, true));
 ```
 
 The `SampleKind` declaration shows how an enum inherits `Enum.name()` and therefore returns the stable diagnostic text `"SAMPLE"`. The `SampleAttrs` record shows the intended structural value style: the two fields are typed semantic parameters, and two records with the same `axis` and `keepDimensions` values compare equal. Assigning `NoOperationAttrs.INSTANCE` shows the single canonical value used when a kind has no parameters.
 
-At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains the test-local values `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE`. The example demonstrates the shape and value semantics of the three implemented contracts. It does not construct an `Operation`, establish that `SampleAttrs` belongs with `SampleKind`, infer a result shape, report backend support, select a kernel, or execute computation; those responsibilities are absent or belong to later layers.
+`new Operation(kind, attrs)` stores those exact non-null objects without copying or normalization. The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their hash codes are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
+
+The example demonstrates the implemented descriptor's construction, ownership, and record value semantics. It does not establish that `SampleAttrs` is compatible with `SampleKind`: the generic descriptor checks only that neither component is null. It also does not create a production operation family or graph node, infer a result shape or data type, report backend support, select a kernel, or execute computation. Concrete kinds, family attributes, graph integration, compiler behavior, and executable support remain later work in their owning layers.
 
 ## Planned contracts
 
@@ -179,11 +184,11 @@ The following contracts appear in the architecture and planning documents but ar
 
 - mutable public `Tensor` state and `TensorFactory`;
 - `TensorDescriptor` and host-visible storage;
-- `Operation`, concrete operation kinds, and family-specific attribute values;
+- concrete operation kinds and family-specific attribute values;
 - immutable graph values, nodes, and `CompiledGraphModel`; and
 - publication bindings and tensor provenance.
 
-`OperationKind`, `OperationAttrs`, and `NoOperationAttrs` are current Java API contracts. No production concrete kind or family-specific attribute type exists yet, so callers cannot use this foundation to describe a mathematical operation on its own.
+`OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and `Operation` are current Java API contracts. No production concrete kind or family-specific attribute type exists yet, so the descriptor currently has no production mathematical operation to pair and provides no graph or executable support.
 
 ## Failures and ownership summary
 
@@ -192,6 +197,7 @@ The following contracts appear in the architecture and planning documents but ar
 - Checked size, stride, and span arithmetic throws `ArithmeticException` on overflow.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
+- `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
 - None of the current types owns device storage, runtime residency, or backend selection.
 
 See generated Javadoc for the exact member-level exception and nullability contract.
