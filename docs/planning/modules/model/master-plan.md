@@ -14,7 +14,7 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 ## Scope
 
 - data type, dimension, shape, and layout value models
-- typed tensor, node, value, and operation identifiers
+- typed tensor, node, and value identifiers
 - backend-independent operations and immutable attributes
 - tensor descriptors, immutable graph values and nodes, and compiled graph state
 - public `Tensor`, host storage abstractions, factories, and minimal provenance
@@ -87,7 +87,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0003A | [Data type package migration](tasks/0003a-data-type-package-migration.md) | Complete | 0001 | Move completed data type contracts into `model.datatype` without changing behavior. |
 | 0003B | [Shape package migration](tasks/0003b-shape-package-migration.md) | Complete | - | Move completed dimension and shape contracts into `model.shape` without changing behavior. |
 | 0003C | [Layout package migration](tasks/0003c-layout-package-migration.md) | Complete | 0003B | Move completed layout contracts into `model.layout` and preserve their shape imports. |
-| 0004 | Typed identifiers | Draft | 0003A–0003C | Define TensorId, NodeId, and ValueId in their owning domain packages. |
+| 0004 | [Typed identifiers](tasks/0004-typed-identifiers.md) | Complete | 0003A–0003C | Define TensorId, NodeId, and ValueId in their owning domain packages. |
 | 0005 | Operation semantic foundation | Draft | 0001, 0003A | Define the minimal operation taxonomy and typed attribute mechanism without family-specific attributes. |
 | 0006 | Operation model | Draft | 0005 | Define backend-independent operation object. |
 | 0007 | Tensor descriptor model | Draft | 0001–0003, 0003A–0003C | Define data type, shape, layout, and requires-grad descriptors. |
@@ -121,7 +121,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft.
 
-The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0003 and all three package migrations 0003A–0003C are complete. Task 0004 is the current planning frontier and remains `Draft` until its focused specification is created.
+The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0004 and package migrations 0003A–0003C are complete. Task 0005 is the current planning frontier and remains `Draft` until its focused specification is created.
 
 ## Open questions
 
@@ -163,4 +163,4 @@ The capability baseline is documented and the ordered task queue covers its mode
 
 Execute tasks in table order, including package migrations 0003A through 0003C before task 0004. The operation-family rows are task groups, not permission for oversized implementations; replace the current frontier row with smaller sequential task rows before implementation when its detailed scope would exceed the limits in [the planning guide](../../planning-guide.md).
 
-Package migrations 0003A–0003C are complete. Create and review the detailed task 0004 specification next. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.
+Package migrations 0003A–0003C and task 0004 are complete. Create and review the detailed task 0005 specification next. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.

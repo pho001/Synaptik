@@ -81,6 +81,20 @@ The referenced element span is zero for any shape containing a zero-sized dimens
 
 Dynamic shapes do not yet have numeric layout descriptors because their concrete strides and span are unresolved. Symbolic layout resolution belongs to later compiler and preparation contracts. The model descriptor exposes geometry only: it does not own storage, byte addresses, device state, backend information, or a decision about whether materialization is required.
 
+## Typed identifiers
+
+The model separates public tensor identity from graph-local computation and data identity:
+
+- `io.github.pho001.synaptik.model.tensor.TensorId` identifies public mutable tensor state;
+- `io.github.pho001.synaptik.model.graph.NodeId` identifies a computation occurrence within an owning graph; and
+- `io.github.pho001.synaptik.model.graph.ValueId` identifies an input, intermediate, or output logical value within an owning graph.
+
+Each identifier is an immutable record over one non-negative `long` value. Zero is valid, negative sentinels are rejected, and different identifier types cannot be interchanged. The records do not generate or guarantee uniqueness; later tensor factories, graph builders, and compiler sessions own allocation within their lifecycle.
+
+Graph-local numeric identifiers may be reused by different graph containers. `NodeId` identifies a computation, whereas `ValueId` identifies data flowing between computations. A value can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers.
+
+Future publication bindings associate a public `TensorId` with the final `ValueId` produced by a particular compiled graph. A Tensor does not store graph-local IDs because the same Tensor may participate in multiple separately compiled graphs. `OperationId` is not currently defined: operation semantics occur through graph nodes, and no independent operation-identity lifecycle has been established.
+
 ## Planned tensor contracts
 
 Tensor values, host storage, operations, and factories will be documented here as their ordered model tasks are implemented.

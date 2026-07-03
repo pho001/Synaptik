@@ -97,6 +97,18 @@ The legacy implementation represented scalar results as shape `[1]`, rejected ze
 
 Numeric layout descriptors are not created for dynamic shapes until their required dimensions are resolved by later compiler/runtime contracts. Layout metadata must not contain device addresses, runtime residency, backend storage handles, kernel routes, prepared-execution state, or materialization policy.
 
+## Identifier baseline
+
+The model uses distinct immutable identifier types for distinct semantic domains:
+
+- `TensorId` identifies public tensor state and belongs to `model.tensor`;
+- `NodeId` identifies a node occurrence within an owning graph and belongs to `model.graph`; and
+- `ValueId` identifies an input, intermediate, or output value within an owning graph and belongs to `model.graph`.
+
+Identifiers use validated non-negative `long` values. They are identity values only: allocation, uniqueness, graph construction, tensor lifecycle, persistence, and serialization belong to later focused tasks. Graph-local numeric values may be reused by different graph containers and must be interpreted in their owning graph context. Negative sentinels and implicit conversion between identifier types are not supported.
+
+`OperationId` is not part of the current baseline. `NodeId` identifies the occurrence of operation semantics in a graph; a separate operation identity requires a future demonstrated use case rather than a speculative contract. Trace identifiers remain local to `modules/trace` and do not reuse model identifier types.
+
 ## Host storage baseline
 
 The model owns host-visible tensor storage only. The baseline includes:
