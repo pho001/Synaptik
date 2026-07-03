@@ -95,7 +95,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0009 | [Compiled graph model](tasks/0009-compiled-graph-model.md) | Complete | 0008 | Define immutable graph container, forward/backward phase, and standalone publication binding. |
 | 0010 | [Host storage abstraction](tasks/0010-host-storage-abstraction.md) | Complete | 0001, 0003A | Define exact-size borrowed Java 26 memory-segment host storage without device buffers. |
 | 0011 | [Public Tensor skeleton](tasks/0011-public-tensor-skeleton.md) | Complete | 0004, 0007, 0010 | Define stable public Tensor identity/descriptor/label and synchronized optional host-storage state without graph or runtime state. |
-| 0012 | Tensor factory | Draft | 0010, 0011 | Define tensor creation API and validation. |
+| 0012 | [Tensor factory foundation](tasks/0012-tensor-factory.md) | Complete | 0010, 0011 | Expose descriptor-based public construction, optional borrowed storage attachment, and JVM-wide tensor-ID allocation without allocating memory. |
+| 0012A | Owning host storage and allocation | Draft | 0010, 0012 | Define the ownership and lifetime contract required before factories allocate host memory. |
+| 0012B | Flat typed tensor import | Draft | 0012A | Define typed carrier matching, logical-count validation, copying, and storage population. |
+| 0012C | Nested typed tensor import | Draft | 0012B | Define supported rectangular nested arrays, shape inference, ragged/empty behavior, and flattening. |
+| 0012D | Constant tensor creation | Draft | 0012B | Add focused scalar, zeros, ones, zeros-like, and ones-like conveniences. |
+| 0012E | Range and prefix population | Draft | 0012B | Add integer ranges plus strict and cyclic prefix population under explicit validation. |
+| 0012F | Random tensor creation | Draft | 0012B | Decide random-source and reproducibility policy, then add normally distributed population. |
 | 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
@@ -113,23 +119,30 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
-- Public tensor and host storage: tasks 0010–0013
+- Public tensor and host storage: tasks 0010–0013, including factory follow-ups 0012A–0012F
 - Public operation capability families: tasks 0014–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
-Draft, with task 0012 as the next `Draft` planning frontier.
+Draft, with task 0012A as the next `Draft` planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
 0008, graph value and node model, task 0009, compiled graph model, and task 0010, host storage
-abstraction, are complete. Task 0011, public Tensor skeleton, is also complete. Task 0012 is the
-next ordered task and remains `Draft` without a detailed specification.
+abstraction, are complete. Task 0011, public Tensor skeleton, and task 0012, the bounded Tensor
+factory foundation, are also complete. Task 0012A, owning host storage and allocation, is the next
+`Draft` planning frontier, followed by Draft import and population families 0012B–0012F before
+provenance task 0013.
 
 ## Open questions
 
-- The minimal provenance representation remains local to task 0013.
+- The owning host-storage and allocation lifetime model remains local to task 0012A; task 0012
+  attaches only caller-supplied borrowed storage.
+- Flat/nested import, constant, range/prefix, and random population contracts remain local to
+  tasks 0012B–0012F and may be split further before becoming `Ready`.
+- The minimal provenance representation remains local to task 0013 after the factory capability
+  sequence.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
 - After task 0013, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
 
@@ -171,6 +184,20 @@ next ordered task and remains `Draft` without a detailed specification.
 - Tensor accepts read-only storage, rejects storage already dead at attachment, continues to expose
   storage that dies later, owns no arena, retains object identity equality/hashing, and stores no
   graph-local ID, provenance, gradient/trainable/publication, runtime, or backend state.
+- Task 0012 is a non-instantiable static `TensorFactory` with exactly descriptor-only and
+  descriptor/optional-label/optional-storage creation methods. It delegates semantic label and
+  storage validation to the package-private Tensor constructor and performs no storage allocation,
+  import, population, descriptor construction, layout resolution, or provenance work.
+- Factory-assigned tensor IDs are unique across factory calls in one JVM, including concurrent
+  calls. A hidden `AtomicLong`/`AtomicBoolean` allocator issues non-negative candidates from zero
+  through `Long.MAX_VALUE`, permits the final value once, never wraps or reuses a value, and then
+  fails permanently. Numeric order and gaplessness are not public caller contracts.
+- Factory argument-container null failures occur before ID allocation. Tensor label/storage
+  failures occur after allocation and consume the candidate so the factory does not duplicate
+  canonical validation or attempt unsafe concurrent rollback.
+- The broad factory baseline is split into Draft tasks 0012A–0012F for owning allocation, flat and
+  nested imports, constant tensors, range/prefix population, and random tensors. These rows remain
+  before provenance and have no detailed specifications yet.
 
 ## Risks
 
@@ -181,6 +208,10 @@ next ordered task and remains `Draft` without a detailed specification.
 - Enabling preview or incubator features globally instead of containing them in the module that requires them.
 - Treating the operation inventory as permission to move graph inference, autograd rules, fallback, or execution into model.
 - Reproducing accidental legacy behavior instead of specifying and testing the intended contract.
+- Letting a global identity counter wrap, collide under concurrency, or become a runtime service
+  registry rather than remaining hidden model-only allocation state.
+- Treating the factory foundation as completed allocation/import/population parity before an owning
+  host-memory lifetime and typed population contract exists.
 
 ## Notes
 
@@ -191,6 +222,10 @@ immutable graph element records, and task 0009 added the structurally closed gra
 forward/backward node phases, and standalone publication binding. Task 0010 added the sealed raw
 host-storage boundary and exact-size borrowed Java 26 memory-segment wrapper. Task 0011 added the
 completed public Tensor skeleton with stable metadata and a synchronized borrowed host-storage
-association. Task 0012 is the next `Draft` planning frontier without a detailed specification.
-Concrete operation families remain in tasks 0014–0023. The legacy branch must be consulted
-read-only for capability and test evidence when preparing each applicable capability task.
+association. Task 0012 completed public descriptor-based construction, optional borrowed storage
+attachment, and JVM-scoped ID allocation only. Task 0012A is now the next `Draft` planning
+frontier. Draft tasks 0012A–0012F preserve the remaining factory capability families in executable
+order before task 0013 provenance; create only the next detailed specification in a separate
+planning step. Concrete operation families remain in tasks 0014–0023. The legacy branch must be
+consulted read-only for capability and test evidence when preparing each applicable capability
+task.

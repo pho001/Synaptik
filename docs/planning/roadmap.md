@@ -42,11 +42,14 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012 Tensor factory (Draft)
+0012A Owning host storage and allocation (Draft)
 ```
 
-Package migrations `0003A` through `0003C` and tasks `0004`–`0011` are complete. Task `0012` is
-the next planning frontier and remains `Draft` without a detailed specification.
+Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
+implemented only descriptor-based construction, optional borrowed storage attachment, and
+JVM-wide tensor-ID allocation. Task `0012A` is the next `Draft` planning frontier. Draft tasks
+`0012A`–`0012F` preserve allocation, import, and population families before task `0013`; they have
+no detailed specifications yet.
 
 ## Model task sequence
 
@@ -66,19 +69,25 @@ the next planning frontier and remains `Draft` without a detailed specification.
 | 12 | [0009 Compiled graph model](modules/model/tasks/0009-compiled-graph-model.md) | Complete |
 | 13 | [0010 Host storage abstraction](modules/model/tasks/0010-host-storage-abstraction.md) | Complete |
 | 14 | [0011 Public Tensor skeleton](modules/model/tasks/0011-public-tensor-skeleton.md) | Complete |
-| 15 | 0012 Tensor factory | Draft |
-| 16 | 0013 Tensor provenance skeleton | Draft |
-| 17 | 0014 Elementwise arithmetic operations | Draft |
-| 18 | 0015 Comparison, logical, selection, and cast operations | Draft |
-| 19 | 0016 Reduction and scan operations | Draft |
-| 20 | 0017 Layout and view operations | Draft |
-| 21 | 0018 Indexing and scatter operations | Draft |
-| 22 | 0019 Linear algebra and attention operations | Draft |
-| 23 | 0020 Convolution and pooling operations | Draft |
-| 24 | 0021 Normalization operations | Draft |
-| 25 | 0022 Loss operations | Draft |
-| 26 | 0023 Compiler-generated semantic operations | Draft |
-| 27 | 0024 Model capability parity audit | Draft |
+| 15 | [0012 Tensor factory foundation](modules/model/tasks/0012-tensor-factory.md) | Complete |
+| 16 | 0012A Owning host storage and allocation | Draft |
+| 17 | 0012B Flat typed tensor import | Draft |
+| 18 | 0012C Nested typed tensor import | Draft |
+| 19 | 0012D Constant tensor creation | Draft |
+| 20 | 0012E Range and prefix population | Draft |
+| 21 | 0012F Random tensor creation | Draft |
+| 22 | 0013 Tensor provenance skeleton | Draft |
+| 23 | 0014 Elementwise arithmetic operations | Draft |
+| 24 | 0015 Comparison, logical, selection, and cast operations | Draft |
+| 25 | 0016 Reduction and scan operations | Draft |
+| 26 | 0017 Layout and view operations | Draft |
+| 27 | 0018 Indexing and scatter operations | Draft |
+| 28 | 0019 Linear algebra and attention operations | Draft |
+| 29 | 0020 Convolution and pooling operations | Draft |
+| 30 | 0021 Normalization operations | Draft |
+| 31 | 0022 Loss operations | Draft |
+| 32 | 0023 Compiler-generated semantic operations | Draft |
+| 33 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 

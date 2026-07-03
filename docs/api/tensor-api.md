@@ -3,10 +3,11 @@
 ## Purpose and mental model
 
 This reference documents the public model contracts that are implemented today. The mutable
-`Tensor` skeleton now connects stable logical metadata to an optional borrowed host-storage
-association. Its public factory, provenance, expression operations, typed access, gradient and
-publication behavior, compiler integration, runtime residency, and backend execution remain
-planned. The authoritative module boundary remains
+`Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
+and `TensorFactory` provides the public descriptor-based construction boundary with
+factory-assigned identity. Provenance, expression operations, typed access, gradient and
+publication behavior, storage allocation and import, compiler integration, runtime residency,
+and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values without allocating or executing a tensor:
@@ -15,6 +16,7 @@ The current types describe logical values without allocating or executing a tens
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
 DataType + physical capacity + exact MemorySegment           = MemorySegmentStorage
 TensorId + TensorDescriptor + label + optional host storage  = Tensor
+TensorFactory + completed descriptor + optional metadata     = public Tensor construction
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -26,7 +28,9 @@ TensorId + ValueId                                             = PublicationBind
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
 and gradient eligibility together as one immutable value. It is still only a description. The
 implemented `Tensor` retains that descriptor, a stable `TensorId`, and an optional label while
-allowing only its borrowed host-storage association to change.
+allowing only its borrowed host-storage association to change. The implemented `TensorFactory`
+creates tensors from completed descriptors and assigns identity unique among factory allocations
+within the current Java virtual machine (JVM).
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -267,10 +271,22 @@ class is mutable API state, not an intermediate-representation node. It has four
 | `label()` | Returns an immutable optional diagnostic value; present text is stripped and must remain non-blank. |
 | `hostStorage()` | Returns a synchronized snapshot of the optional borrowed `HostTensorStorage` association. |
 
-Construction is temporarily package-private. Code outside `model.tensor` can inspect a `Tensor`
-received from same-module code, but it cannot create one through a supported public entry point
-until the planned `TensorFactory` defines identifier allocation, layout choices, allocation, and
-import policy. The current constructor does not guarantee `TensorId` uniqueness.
+Construction remains package-private so `Tensor` keeps one validation path. Code outside
+`model.tensor` creates tensors through the public static `TensorFactory`: `create(descriptor)`
+creates an unlabeled storage-free tensor, while the complete overload also accepts optional label
+text and optional existing borrowed host storage. Both overloads retain the exact descriptor, and
+the complete overload retains the exact compatible storage object. The factory does not construct
+descriptors, choose or resolve layouts, allocate memory, or import values.
+
+Each factory allocation receives a non-negative `TensorId` unique among all allocations made by
+that factory in the current JVM, including concurrent calls. Callers treat the numeric value as
+opaque: completion order, adjacency, gaplessness, cross-process uniqueness, persistence, and
+uniqueness relative to manually constructed `TensorId` values are not promised. Null factory
+arguments are rejected before allocation and consume no identifier. Label normalization and
+storage compatibility remain `Tensor` constructor responsibilities, so a blank label or invalid
+storage consumes an identifier before construction fails. Consumed identifiers are never reused.
+The final candidate is `Long.MAX_VALUE`; once it is claimed, all later factory allocations fail
+permanently with `IllegalStateException` and message `tensor identifier space exhausted`.
 
 Only the host-storage reference can change. `replaceHostStorage(storage)` validates the proposed
 storage before atomically replacing that reference and returns the exact previous reference, or an
@@ -297,8 +313,8 @@ scope and thread-access checks. One storage object may be associated with multip
 changing one tensor's association does not change another's.
 
 `Tensor` inherits ordinary object equality and hashing. Equal `TensorId` values do not make two
-tensor objects equal; identifier uniqueness is still factory work. Its text form is stable
-metadata-only diagnostic output containing the ID, descriptor, and normalized label. It omits
+tensor objects equal; the factory's ID guarantee does not change object equality. Its text form is
+stable metadata-only diagnostic output containing the ID, descriptor, and normalized label. It omits
 storage presence and identity, memory addresses and contents, liveness, graph state, and runtime
 state, and it is not a serialization format.
 
@@ -344,8 +360,10 @@ unaligned layout or materialization.
 metadata are still unequal. The wrapper itself does not validate physical capacity against
 `Shape`, `TensorDescriptor`, `LayoutDescriptor`, logical element count, offset, or referenced
 span. The current `Tensor` association performs the compatibility checks described above without
-changing the wrapper's raw-storage contract. Factories, allocation/import policy, runtime
-residency, prepared memory, device buffers, and backend storage remain separate planned work.
+changing the wrapper's raw-storage contract, and `TensorFactory` can attach only an existing
+caller-supplied borrowed storage object through that same validation path. Owning allocation,
+import policy, runtime residency, prepared memory, device buffers, and backend storage remain
+separate planned work.
 
 ### Borrowed-lifetime example
 
@@ -424,7 +442,12 @@ The model separates public tensor identity from graph-local computation and data
 - `io.github.pho001.synaptik.model.graph.NodeId` identifies a computation occurrence within an owning graph; and
 - `io.github.pho001.synaptik.model.graph.ValueId` identifies an input, intermediate, or output logical value within an owning graph.
 
-Each identifier is an immutable record over one non-negative `long` value. Zero is valid, negative sentinels are rejected, and different identifier types cannot be interchanged. The records do not generate or guarantee uniqueness; later tensor factories, graph builders, and compiler sessions own allocation within their lifecycle.
+Each identifier is an immutable record over one non-negative `long` value. Zero is valid, negative
+sentinels are rejected, and different identifier types cannot be interchanged. The records
+themselves do not generate or guarantee uniqueness. `TensorFactory` now allocates `TensorId`
+values unique among its own calls in one JVM; manually constructed values remain outside that
+guarantee. Future graph builders and compiler sessions own graph-local allocation within their
+lifecycles.
 
 Graph-local numeric identifiers may be reused by different graph containers. `NodeId` identifies a computation, whereas `ValueId` identifies data flowing between computations. A value can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers.
 
@@ -640,8 +663,8 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- `TensorFactory`, tensor-ID allocation and uniqueness, public tensor creation, storage allocation
-  and import, and typed tensor access;
+- owning host-storage allocation, tensor import and population conveniences, and typed tensor
+  access;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -670,6 +693,10 @@ provide a compiler entry point or executable support.
   resolved referenced span, and attachment-time liveness in that order, and changes only the
   storage reference through synchronized snapshot, replacement, and clearing methods. Failed
   replacement preserves the previous reference, and later storage death remains observable.
+- `TensorFactory` rejects null argument containers before ID allocation, delegates label and
+  storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
+  one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.
+  The factory attaches only existing borrowed storage and owns no allocation or lifetime.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.

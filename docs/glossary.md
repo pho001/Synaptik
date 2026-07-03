@@ -11,12 +11,13 @@ broadcasting, layout, element stride, referenced element span, view, `TensorDesc
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
 the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
-`HostTensorStorage` and `MemorySegmentStorage`, plus the public `Tensor` skeleton. Concrete
-operation kinds and family attributes, tensor factories and provenance, expression operations,
-typed access, gradient and publication behavior, compiler entry points and artifacts, planning,
-prepare, runtime, concrete backends, traces, and training remain architecture or planning
-contracts. A definition explains intended meaning; it is not by itself evidence that a Java type
-exists.
+`HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
+`TensorFactory` construction boundary with JVM-scoped factory-assigned identity. Concrete
+operation kinds and family attributes, provenance, tensor allocation/import/population and typed
+access, expression operations, gradient and publication behavior, compiler entry points and
+artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
+or planning contracts. A definition explains intended meaning; it is not by itself evidence that
+a Java type exists.
 
 ## Terms
 
@@ -147,8 +148,10 @@ access, alignment, byte order, conversion, synchronization, or mutation-version 
 Host storage is distinct from logical [layout](#layout), public [`Tensor`](#tensor) state,
 device/backend storage, prepared memory, workspaces, and runtime [residency](#residency). The
 implemented `Tensor` may borrow the exact storage object and validates matching data type,
-resolved referenced span when geometry is available, and attachment-time liveness. It does not
-change this wrapper's sizing, lifetime, ownership, or raw-access contract. See [Host-visible
+resolved referenced span when geometry is available, and attachment-time liveness. The
+implemented `TensorFactory` may pass an existing caller-supplied borrowed object through that same
+construction path, but it does not allocate or own storage. Neither contract changes this
+wrapper's sizing, lifetime, ownership, or raw-access contract. See [Host-visible
 storage](api/tensor-api.md#host-visible-storage).
 
 ### Kernel
@@ -277,13 +280,32 @@ available, and point-in-time liveness before changing the exact reference. Read-
 accepted; later caller-controlled scope death remains observable; and the tensor never allocates,
 copies, accesses, retains, owns, or closes storage.
 
-Construction is package-private until the planned factory supplies the public creation and
-identifier-allocation policy. The object uses ordinary identity equality and hashing, while its
-diagnostic text contains stable ID, descriptor, and label facts without storage or runtime state.
-Factory behavior, provenance, expression operations, typed access, gradients, trainable role,
-publication behavior, compiler integration, device buffers, and runtime residency remain planned.
-A `Tensor` is not an intermediate-representation node or [graph value](#graph-value). See [Public
-Tensor state](api/tensor-api.md#public-tensor-state).
+Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
+the supported public construction boundary. The object uses ordinary identity equality and
+hashing, while its diagnostic text contains stable ID, descriptor, and label facts without
+storage or runtime state. Owning allocation, import and population, provenance, expression
+operations, typed access, gradients, trainable role, publication behavior, compiler integration,
+device buffers, and runtime residency remain planned. A `Tensor` is not an
+intermediate-representation node or [graph value](#graph-value). See [Public Tensor
+state](api/tensor-api.md#public-tensor-state).
+
+### Tensor factory
+
+The implemented public static `TensorFactory` creates a fresh [`Tensor`](#tensor) from a completed
+[`TensorDescriptor`](#tensor-descriptor), with optional diagnostic label text and optional
+existing borrowed [host storage](#host-storage). It is the public construction boundary while the
+Tensor constructor remains package-private. The factory does not allocate or populate storage,
+construct descriptors, resolve layouts, own memory lifetime, create provenance, or retain tensor,
+storage, graph, runtime, backend, registry, or service state.
+
+For every attempted construction that reaches allocation, the factory issues one non-negative
+[`TensorId`](#tensorid) unique among its allocations in the current Java virtual machine (JVM),
+including concurrent calls. Numeric values are opaque: semantic construction failures create
+permanent gaps, and numeric order need not match method-completion order. Null argument containers
+fail before allocation, while delegated label or storage validation fails afterward and consumes
+the candidate. `Long.MAX_VALUE` can be claimed once; every later allocation fails permanently
+instead of wrapping or reusing an ID. The guarantee does not cover manually constructed IDs,
+another JVM, process restarts, persisted artifacts, or distributed identity.
 
 ### Tensor descriptor
 
@@ -305,8 +327,10 @@ storage, device buffers, runtime residency, materialization policy, or backend e
 
 A validated non-negative identifier retained by implemented public mutable `Tensor` state. It
 belongs to the tensor identity domain and is distinct from graph-local node and value identities.
-The value type does not allocate or guarantee uniqueness; the planned factory owns that policy,
-and two tensor objects remain unequal even when their IDs compare equal. An implemented
+The value type itself does not allocate or guarantee uniqueness. The implemented
+[`TensorFactory`](#tensor-factory) provides the narrower guarantee that IDs it allocates are unique
+among its allocations in one JVM; callers may still construct equal numeric values manually. Two
+tensor objects remain unequal even when their IDs compare equal. An implemented
 `PublicationBinding` can associate an ID with a graph value without storing graph-local IDs on the
 tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
 
@@ -343,9 +367,9 @@ A tensor or layout interpretation that aliases storage also used by another logi
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
-compiler-owned publication plan will provide owning-graph and publication-policy context.
-Provenance, expression construction, gradients, and publication behavior are not part of the
-current Tensor skeleton.
+compiler-owned publication plan will provide owning-graph and publication-policy context. Public
+descriptor-based factory construction is implemented. Provenance, expression construction,
+gradients, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
 

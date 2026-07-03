@@ -13,10 +13,12 @@ import java.util.Optional;
  * reference replacement and clearing atomic and visible with respect to one another; they do not
  * synchronize access to the underlying memory or prevent its caller-owned scope from closing.</p>
  *
- * <p>Construction is package-private until the planned tensor factory defines the public creation
- * surface and identifier-allocation policy. This class does not guarantee identifier uniqueness.
- * It uses ordinary object identity for inherited equality and hashing, so equal identifier values
- * do not make two tensor objects equal.</p>
+ * <p>Construction remains package-private, and {@link TensorFactory} is the supported public
+ * creation surface. The factory assigns identifiers unique among its allocations in the current
+ * Java virtual machine, while this class still accepts any validated identifier through its
+ * internal construction path and does not independently enforce uniqueness. It uses ordinary
+ * object identity for inherited equality and hashing, so equal identifier values do not make two
+ * tensor objects equal.</p>
  *
  * <p>A tensor is distinct from its immutable descriptor, graph values and nodes, operation
  * provenance, publication bindings and plans, device buffers, runtime residency, and prepared
