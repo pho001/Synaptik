@@ -42,10 +42,10 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0003A Data type package migration
+0004 Typed identifiers
 ```
 
-Task `0003A` is the current implementation frontier and its detailed specification is `Ready`. Task `0003B` must not receive a detailed specification until `0003A` is complete. The three package migrations complete the foundational package structure before task `0004` introduces new contracts.
+Package migrations `0003A` through `0003C` are complete and the foundational package structure is established. Task `0004` is the current planning frontier and must receive a focused specification before implementation.
 
 ## Model task sequence
 
@@ -54,9 +54,9 @@ Task `0003A` is the current implementation frontier and its detailed specificati
 | 1 | 0001 DataType model | Complete |
 | 2 | 0002 Shape and dimension model | Complete |
 | 3 | 0003 Layout descriptor model | Complete |
-| 4 | 0003A Data type package migration | Ready |
-| 5 | 0003B Shape package migration | Draft |
-| 6 | 0003C Layout package migration | Draft |
+| 4 | 0003A Data type package migration | Complete |
+| 5 | 0003B Shape package migration | Complete |
+| 6 | 0003C Layout package migration | Complete |
 | 7 | 0004 Typed identifiers | Draft |
 | 8 | 0005 Operation semantic foundation | Draft |
 | 9 | 0006 Operation model | Draft |

@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.datatype;
 
 /**
  * Classifies a {@link DataType} by its mathematical value domain.

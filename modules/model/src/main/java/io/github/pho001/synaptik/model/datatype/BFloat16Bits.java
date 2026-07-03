@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.datatype;
 
 /**
  * Converts scalar values between Java {@code float} and raw BFLOAT16 bit patterns.

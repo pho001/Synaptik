@@ -1,5 +1,6 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.layout;
 
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.Arrays;
 
 /**

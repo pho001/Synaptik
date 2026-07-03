@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.shape;
 
 /**
  * A dimension whose non-negative numeric size is known in the model.

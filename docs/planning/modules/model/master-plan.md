@@ -84,9 +84,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0001 | [DataType model](tasks/0001-data-type-model.md) | Complete | - | Define data type categories, metadata, floating promotion, and BFLOAT16 conversion. |
 | 0002 | [Shape and dimension model](tasks/0002-shape-and-dimension-model.md) | Complete | - | Define static and symbolic dimensions, immutable shapes, checked element counts, axes, and broadcasting. |
 | 0003 | [Layout descriptor model](tasks/0003-layout-descriptor-model.md) | Complete | 0002 | Define resolved layout kinds, checked element strides, offset/span, and view metadata. |
-| 0003A | [Data type package migration](tasks/0003a-data-type-package-migration.md) | Ready | 0001 | Move completed data type contracts into `model.datatype` without changing behavior. |
-| 0003B | Shape package migration | Draft | - | Move completed dimension and shape contracts into `model.shape` without changing behavior. |
-| 0003C | Layout package migration | Draft | 0003B | Move completed layout contracts into `model.layout` and update their shape imports. |
+| 0003A | [Data type package migration](tasks/0003a-data-type-package-migration.md) | Complete | 0001 | Move completed data type contracts into `model.datatype` without changing behavior. |
+| 0003B | [Shape package migration](tasks/0003b-shape-package-migration.md) | Complete | - | Move completed dimension and shape contracts into `model.shape` without changing behavior. |
+| 0003C | [Layout package migration](tasks/0003c-layout-package-migration.md) | Complete | 0003B | Move completed layout contracts into `model.layout` and preserve their shape imports. |
 | 0004 | Typed identifiers | Draft | 0003A–0003C | Define TensorId, NodeId, and ValueId in their owning domain packages. |
 | 0005 | Operation semantic foundation | Draft | 0001, 0003A | Define the minimal operation taxonomy and typed attribute mechanism without family-specific attributes. |
 | 0006 | Operation model | Draft | 0005 | Define backend-independent operation object. |
@@ -121,7 +121,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft.
 
-The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0003 are complete. Task 0003A is the current implementation frontier and is `Ready`; tasks 0003B and 0003C remain `Draft` until their preceding migration is complete.
+The capability baseline is documented and the ordered task queue covers its model-level responsibilities. Tasks 0001 through 0003 and all three package migrations 0003A–0003C are complete. Task 0004 is the current planning frontier and remains `Draft` until its focused specification is created.
 
 ## Open questions
 
@@ -163,4 +163,4 @@ The capability baseline is documented and the ordered task queue covers its mode
 
 Execute tasks in table order, including package migrations 0003A through 0003C before task 0004. The operation-family rows are task groups, not permission for oversized implementations; replace the current frontier row with smaller sequential task rows before implementation when its detailed scope would exceed the limits in [the planning guide](../../planning-guide.md).
 
-Only task 0003A has a detailed migration specification. Create the 0003B specification after 0003A is complete, then create 0003C after 0003B. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.
+Package migrations 0003A–0003C are complete. Create and review the detailed task 0004 specification next. The legacy branch must be consulted read-only for capability and test evidence when preparing each applicable capability task.

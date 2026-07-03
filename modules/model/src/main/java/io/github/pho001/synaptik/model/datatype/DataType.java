@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.datatype;
 
 /**
  * Identifies the logical element type of a Synaptik tensor.

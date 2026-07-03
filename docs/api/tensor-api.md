@@ -4,7 +4,7 @@ This reference documents the public tensor-model contracts as they are introduce
 
 ## Data types
 
-The initial `DataType` model contains six backend-independent element types:
+The public data type contracts live in `io.github.pho001.synaptik.model.datatype`. The initial `DataType` model contains six backend-independent element types:
 
 | Data type | Category | Bit width | Byte width | Differentiable |
 |---|---|---:|---:|---|
@@ -35,7 +35,7 @@ The utility describes the value format only. It does not allocate storage, expos
 
 ## Shapes and dimensions
 
-`Shape` is an immutable ordered collection of `Dimension` values. A dimension is either:
+The public shape contracts live in `io.github.pho001.synaptik.model.shape`. `Shape` is an immutable ordered collection of `Dimension` values. A dimension is either:
 
 - `StaticDimension`, with a known non-negative `long` size; or
 - `DynamicDimension`, with a canonical non-blank symbolic name.
@@ -64,7 +64,7 @@ Shape broadcasting does not calculate strides, layouts, storage, materialization
 
 ## Resolved layouts
 
-`LayoutDescriptor` is an immutable description of resolved logical element geometry for a fully static shape. The descriptor records rank, non-negative `long` element strides, a non-negative storage offset measured in elements, explicit view/alias metadata, and the checked element span needed to contain every referenced index. It does not retain the `Shape` used to construct it.
+The public layout contracts live in `io.github.pho001.synaptik.model.layout`. `LayoutDescriptor` is an immutable description of resolved logical element geometry for a fully static shape. The descriptor records rank, non-negative `long` element strides, a non-negative storage offset measured in elements, explicit view/alias metadata, and the checked element span needed to contain every referenced index. It does not retain the `Shape` used to construct it.
 
 Resolved layouts have four geometric kinds:
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -182,20 +182,41 @@ At the end, update this task file with local decisions, known limitations, valid
 
 ## Local decisions
 
-Empty until implemented.
+- All four production contracts moved together so their intra-package references remain unchanged and no transitional import state is published.
+- No compatibility types remain in `io.github.pho001.synaptik.model`; the rewrite has no released API that requires package forwarding shims.
+- Tests mirror the new production package. Their assertions and test method bodies remain unchanged.
 
 ## Known limitations
 
-Empty until implemented.
+- This task migrates only data type contracts. Shape and layout contracts remain in the root model package until tasks 0003B and 0003C.
+- Source consumers must import the new fully qualified package. Binary and source compatibility with the unreleased root-package location is intentionally not preserved.
 
 ## Validation evidence
 
-Empty until implemented.
+- `GRADLE_USER_HOME=/tmp/synaptik-gradle-home ./gradlew :modules:model:test` — passed with 56 tests, zero failures, zero errors, and zero skipped tests.
+- `GRADLE_USER_HOME=/tmp/synaptik-gradle-home ./gradlew :modules:model:javadoc` — passed; generated output contains `io/github/pho001/synaptik/model/datatype/DataType.html` and the other migrated public contracts.
+- `GRADLE_USER_HOME=/tmp/synaptik-gradle-home ./gradlew test` — passed for the complete multi-module repository.
+- `git diff --check` — passed after the implementation and planning updates.
+- Manual scope review confirmed exactly four production and three test files moved, with no added Java type or compatibility wrapper.
+- Manual source review confirmed that Java changes are limited to package declarations and paths; production imports remain limited to `java.util.Objects`.
+- Manual architecture review confirmed no changes to Gradle, `ARCHITECTURE.md`, focused architecture documentation, other modules, or model behavior.
+- Gradle emitted a non-fatal filesystem-watching warning in the sandbox; all requested tasks completed successfully.
 
 ## Implementation notes
 
-Empty until implemented.
+- Moved `DataType`, `DataTypeCategory`, `DataTypePromotion`, and `BFloat16Bits` into `io.github.pho001.synaptik.model.datatype`.
+- Moved the three existing tests into the matching test package without changing their assertions.
+- Updated the Tensor API reference to publish the new data type package.
+- Synchronized the task, model master plan, and roadmap status and advanced the planning frontier to task 0003B.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Migrated the completed data type model into its planned cohesive package without semantic changes.
+- Files changed or created: Four production moves, three test moves, the Tensor API reference, this task, the model master plan, and the roadmap.
+- Tests and validation: Model tests, model Javadoc, the full repository test suite, diff checks, source-scope review, dependency review, and documentation review passed.
+- Documentation impact: The public API reference now identifies `io.github.pho001.synaptik.model.datatype`; no architecture documentation change was required.
+- Javadoc review: Existing detailed Javadoc remains accurate and resolves under the new package; no behavioral contract changed.
+- Unresolved issues: None.
+- Follow-up required: Plan and implement task 0003B, then task 0003C.
+
+Status: Complete

@@ -1,4 +1,4 @@
-package io.github.pho001.synaptik.model;
+package io.github.pho001.synaptik.model.layout;
 
 /**
  * Classifies the resolved logical element geometry of a tensor layout.
