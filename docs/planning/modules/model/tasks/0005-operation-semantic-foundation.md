@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -243,20 +243,98 @@ At the end, update this task file with local decisions, known limitations, valid
 
 ## Local decisions
 
-Empty until implemented.
+- `OperationKind` remains an open one-method interface. Enum-based family vocabularies inherit
+  `Enum.name()` directly; the foundation adds no adapter, registry, or duplicate name field.
+- Name validity, kind immutability, and typed equality are documented implementation obligations.
+  The interface does not add runtime validation because it neither constructs nor wraps future
+  kind values.
+- `OperationAttrs` remains a zero-method marker. Test-local immutable records demonstrate typed
+  structural attributes without committing production family fields before their focused tasks.
+- `NoOperationAttrs` uses a one-value enum so the empty attribute value has canonical identity,
+  stable equality and hashing, and deterministic diagnostic text without allocation.
+- Two test-local enum types deliberately use the same constant name to prove that identical name
+  text does not collapse distinct typed kind values.
 
 ## Known limitations
 
-Empty until implemented.
+- The open interfaces cannot enforce non-blank names, immutability, defensive copying, or
+  structural equality at runtime; future implementations must satisfy these documented contracts
+  and their own focused tests.
+- No production mathematical kind or family-specific attribute value exists yet.
+- `Operation` is not implemented, so the model does not yet pair a kind with attributes or validate
+  that an attribute type belongs to a kind.
+- This foundation provides semantic vocabulary only. It performs no graph construction, shape or
+  data type inference, execution, backend capability analysis, lowering, fusion, or cost modeling.
 
 ## Validation evidence
 
-Empty until implemented.
+- Clean implementation context `/root/implement_model_0005` ran
+  `./gradlew :modules:model:test` — `BUILD SUCCESSFUL`; the model suite contains 71 passing tests,
+  including seven new focused tests with zero failures, errors, or skipped tests.
+- The implementation context ran `./gradlew :modules:model:javadoc` — `BUILD SUCCESSFUL`; generated
+  documentation contains `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `name()`, and
+  `INSTANCE`.
+- The implementation context ran `./gradlew test` — `BUILD SUCCESSFUL` for the complete repository.
+- The implementation context ran `git diff --check` — passed with no output.
+- Manual implementation checks confirmed exactly three new production and two new test files,
+  `OperationKind` with only `name()`, zero declared methods on `OperationAttrs`, exactly one
+  `NoOperationAttrs` constant, no production imports, and no copied legacy metadata or concrete
+  operation inventory.
+- Clean documentation context `/root/review_model_0005_docs` applied the API and Javadoc profile,
+  General style, and Example format. It independently reviewed all five Java/test files, finalized
+  the operation-foundation explanation in `docs/api/tensor-api.md`, and updated the status and
+  distinctions of the three new contracts in `docs/glossary.md`.
+- The documentation context concluded that the submitted Javadocs already fully covered semantics,
+  result nullability, immutability, equality, intended implementations, and exclusions, so no
+  Javadoc text change was necessary. It changed no Java declaration or behavior.
+- The documentation context ran `./gradlew :modules:model:javadoc` and
+  `./gradlew :modules:model:test` — both `BUILD SUCCESSFUL`; all seven new tests passed.
+- The documentation context validated 45 local Markdown links and anchors, code fences, trailing
+  whitespace, current-versus-planned terminology, generated Javadoc coverage, and
+  `git diff --check` — all passed.
+- The final coordinating context reran `./gradlew :modules:model:test`,
+  `./gradlew :modules:model:javadoc`, and `./gradlew test` after documentation and planning
+  synchronization — all reported `BUILD SUCCESSFUL`; a final `git diff --check` passed with no
+  output.
+- Final `javap` inspection confirmed that `OperationKind` exposes only `String name()`,
+  `OperationAttrs` exposes no methods, and `NoOperationAttrs` declares only the `INSTANCE` enum
+  constant. A production-source import scan returned no matches.
+- Final scope review confirmed that only the three production files, two test files, Tensor API,
+  glossary, this task, model master plan, and implementation roadmap changed. `ARCHITECTURE.md`,
+  focused architecture documentation, Gradle files, existing Java contracts, and other modules
+  remain unchanged.
 
 ## Implementation notes
 
-Empty until implemented.
+- Added `OperationKind` as the minimal semantic-name contract and documented why its name is
+  diagnostic rather than a serialization or dispatch key.
+- Added `OperationAttrs` as the typed immutable-attribute role without prescribing family fields.
+- Added `NoOperationAttrs.INSTANCE` as the explicit non-null representation of no semantic
+  parameters.
+- Added focused tests using only test-local sample enums and a record. Tests cover reflection shape,
+  inherited enum names, concrete-type separation, structural equality and hashing, marker
+  membership, singleton identity, and diagnostic text.
+- Updated the Tensor API and glossary to classify the three foundation contracts as implemented
+  while keeping `Operation`, concrete kinds, and family-specific attributes planned.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Implemented the minimal open operation-kind and immutable-attribute
+  foundation without concrete operation semantics or cross-layer behavior.
+- Files changed or created: Three production Java files, two focused test files, Tensor API,
+  glossary, this task specification, model master plan, and implementation roadmap.
+- Tests and validation: Model tests, generated Javadoc, complete repository tests, scope checks,
+  Markdown checks, and `git diff --check` passed.
+- Documentation-agent review: `/root/review_model_0005_docs` independently completed the required
+  clean-context pass in the same overall change.
+- Documentation impact: Tensor API now explains the implemented foundation with a clearly labeled
+  test-local example and preserves the planned status of `Operation` and concrete families.
+- Javadoc review: Complete for every new public type, `OperationKind.name()`, and
+  `NoOperationAttrs.INSTANCE`; no post-review correction was required.
+- Glossary impact: `OperationKind`, `OperationAttrs`, and `NoOperationAttrs` now describe current
+  contracts and are distinguished from the planned `Operation` descriptor.
+- Architecture impact: None.
+- Unresolved issues: None.
+- Follow-up required: None for task 0005. Plan task 0006 separately before implementation.
+
+Status: Complete

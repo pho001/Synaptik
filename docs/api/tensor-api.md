@@ -2,14 +2,17 @@
 
 ## Purpose and mental model
 
-This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, operation, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, complete operation descriptor, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values without allocating or executing a tensor:
 
 ```text
 DataType + Shape + LayoutDescriptor = logical element kind and geometry
 TensorId / NodeId / ValueId         = distinct identity domains
+OperationKind + OperationAttrs      = computation meaning vocabulary
 ```
+
+The operation vocabulary can name a kind of computation and describe its semantic parameters. It does not yet combine them into an `Operation`, attach them to a graph, or execute them.
 
 ## Data types
 
@@ -134,17 +137,53 @@ Graph-local numeric identifiers may be reused by different graph containers. `No
 
 Future publication bindings associate a public `TensorId` with the final `ValueId` produced by a particular compiled graph. A Tensor does not store graph-local IDs because the same Tensor may participate in multiple separately compiled graphs. `OperationId` is not currently defined: operation semantics occur through graph nodes, and no independent operation-identity lifecycle has been established.
 
+## Operation semantic foundation
+
+The public operation-foundation contracts live in `io.github.pho001.synaptik.model.operation`. They separate four concepts that are easy to confuse:
+
+| Concept | Current role |
+|---|---|
+| `OperationKind` | An implemented open interface that identifies which backend-independent computation a future operation represents. |
+| `OperationAttrs` | An implemented marker interface for the immutable, typed semantic parameters of that computation. |
+| `NoOperationAttrs.INSTANCE` | The implemented canonical attribute value for a kind that has no semantic parameters. |
+| `Operation` | A planned descriptor that will combine one kind with its matching attributes. |
+
+`OperationKind` declares only `name()`. The result must be a stable, non-null, non-blank diagnostic name, but it is not a serialization token or a global lookup key. Enum-based kind families are the expected common implementation because an enum already supplies a stable `name()`, equality, and hashing. Two enum values from different kind families remain different typed values even if both names contain the same text.
+
+`OperationAttrs` deliberately declares no methods. A family-specific implementation defines its own typed fields and must be immutable, defensively isolate mutable constructor inputs, and provide structural equality and hashing. `NoOperationAttrs.INSTANCE` makes the absence of parameters an explicit non-null value rather than `null` or an empty map. These are implementation contracts, not runtime validators: the interfaces themselves cannot prevent a custom implementation from returning an invalid name or retaining mutable state.
+
+### Test-local conceptual example
+
+The following types are examples local to a test or explanation. They are not production operation kinds or promises about a future operation-family API.
+
+```java
+private enum SampleKind implements OperationKind {
+    SAMPLE
+}
+
+private record SampleAttrs(int axis, boolean keepDimensions)
+        implements OperationAttrs {}
+
+OperationKind kind = SampleKind.SAMPLE;
+OperationAttrs attrs = new SampleAttrs(2, true);
+OperationAttrs emptyAttrs = NoOperationAttrs.INSTANCE;
+```
+
+The `SampleKind` declaration shows how an enum inherits `Enum.name()` and therefore returns the stable diagnostic text `"SAMPLE"`. The `SampleAttrs` record shows the intended structural value style: the two fields are typed semantic parameters, and two records with the same `axis` and `keepDimensions` values compare equal. Assigning `NoOperationAttrs.INSTANCE` shows the single canonical value used when a kind has no parameters.
+
+At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains the test-local values `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE`. The example demonstrates the shape and value semantics of the three implemented contracts. It does not construct an `Operation`, establish that `SampleAttrs` belongs with `SampleKind`, infer a result shape, report backend support, select a kernel, or execute computation; those responsibilities are absent or belong to later layers.
+
 ## Planned contracts
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
 - mutable public `Tensor` state and `TensorFactory`;
 - `TensorDescriptor` and host-visible storage;
-- `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and `Operation`;
+- `Operation`, concrete operation kinds, and family-specific attribute values;
 - immutable graph values, nodes, and `CompiledGraphModel`; and
 - publication bindings and tensor provenance.
 
-In particular, task 0005 for the operation semantic foundation is `Ready`, not complete. References to these operation types in the [glossary](../glossary.md) describe the planned contract rather than a current Java API.
+`OperationKind`, `OperationAttrs`, and `NoOperationAttrs` are current Java API contracts. No production concrete kind or family-specific attribute type exists yet, so callers cannot use this foundation to describe a mathematical operation on its own.
 
 ## Failures and ownership summary
 
@@ -152,6 +191,7 @@ In particular, task 0005 for the operation semantic foundation is `Ready`, not c
 - Negative sizes, offsets, strides, and identifiers are rejected.
 - Checked size, stride, and span arithmetic throws `ArithmeticException` on overflow.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
+- Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - None of the current types owns device storage, runtime residency, or backend selection.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

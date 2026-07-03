@@ -6,7 +6,7 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, and typed `TensorId`, `NodeId`, and `ValueId` values. Public `Tensor`, operations, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
+The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, typed `TensorId`, `NodeId`, and `ValueId` values, plus the `OperationKind`, `OperationAttrs`, and `NoOperationAttrs` contracts. The complete `Operation` descriptor, public `Tensor`, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -128,7 +128,7 @@ A position in a prepared memory plan for a physical buffer or workspace used dur
 
 ### `NoOperationAttrs`
 
-The planned canonical immutable attribute value for an operation kind that has no semantic parameters. The contract calls for a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. Using this value will make “no parameters” explicit; operation attributes will not be represented by `null` or an empty map. See [`OperationAttrs`](#operationattrs).
+The implemented canonical immutable attribute value for an operation kind that has no semantic parameters. It is a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. The singleton makes “no parameters” explicit and non-null rather than representing absence with `null`, an empty map, or a newly allocated placeholder. See [`OperationAttrs`](#operationattrs).
 
 ### Node
 
@@ -144,11 +144,11 @@ The planned backend-independent description of what a computation means. It comb
 
 ### `OperationAttrs`
 
-The planned marker contract for immutable, typed semantic parameters attached to an operation kind. A future attribute record might hold axes, padding, or another operation-specific value. Implementations will use typed fields, defensively isolate mutable inputs, and provide structural equality; they will not use a primary string-keyed map or contain backend, compiler-service, tensor, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs).
+The implemented zero-method marker contract for immutable, typed semantic parameters of a computation. A future family-specific attribute record might hold axes, padding, or another operation-specific value. Implementations use typed fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
-The planned typed semantic discriminator that says which kind of computation an [operation](#operation) represents. Each kind will provide a stable, non-blank diagnostic name. Equality remains tied to the typed kind value, so equal text from two unrelated kind types does not create implicit equivalence. An operation kind does not describe backend support, cost, fusion, storage, or a kernel route.
+The implemented open typed discriminator for the backend-independent kind of computation that a future [operation](#operation) represents. Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route. No production concrete kind is implemented yet.
 
 ### Partition
 
@@ -252,6 +252,17 @@ A publication binding connects the two domains when a compiled logical result mu
 | Identified by `NodeId` | Identified by `ValueId` |
 | Applies operation semantics | Carries an input, intermediate result, or output |
 | May produce multiple values | May have multiple consumers |
+
+### Operation kind versus attributes versus operation
+
+| Concept | Meaning | Current status |
+|---|---|---|
+| `OperationKind` | Which backend-independent computation is meant | Interface implemented; concrete kinds planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker implemented; family-specific values planned |
+| `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
+| `Operation` | Future pairing of one kind with its matching attributes | Planned |
+
+A kind distinguishes computations, while attributes carry parameters within a computation family. Neither value identifies where computation occurs in a graph; a [node](#node) represents that occurrence. The `Operation` descriptor that will join a kind and attributes is not implemented yet.
 
 ### Compile versus prepare versus run
 
