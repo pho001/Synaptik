@@ -1,6 +1,15 @@
 # Tensor API
 
-This reference documents the public tensor-model contracts as they are introduced. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+## Purpose and mental model
+
+This reference documents the public model contracts that are implemented today. Despite the page title, the mutable `Tensor`, host storage, operation, and tensor-factory contracts are still planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
+The current types describe logical values without allocating or executing a tensor:
+
+```text
+DataType + Shape + LayoutDescriptor = logical element kind and geometry
+TensorId / NodeId / ValueId         = distinct identity domains
+```
 
 ## Data types
 
@@ -26,6 +35,15 @@ BFLOAT16 < FLOAT32 < FLOAT64
 ```
 
 `DataTypePromotion.promoteFloating(left, right)` returns the widest input precision. Integral, boolean, null, and cross-category inputs are rejected. Converting between categories requires a future explicit cast operation rather than an implicit promotion rule.
+
+For example:
+
+```java
+DataType result = DataTypePromotion.promoteFloating(
+        DataType.BFLOAT16, DataType.FLOAT64);
+```
+
+The first input has 16 logical bits and the second has 64, so the widest precision is `FLOAT64`. This result is a model-level type decision; it does not prove that a backend supports the eventual operation.
 
 ### BFLOAT16 representation
 
@@ -62,6 +80,17 @@ Equal dynamic symbols are compatible, and a singleton may expand to a dynamic di
 
 Shape broadcasting does not calculate strides, layouts, storage, materialization, or backend execution information.
 
+### Shape example
+
+```java
+Shape left = Shape.of(2, 1, 4);
+Shape right = Shape.of(3, 4);
+Shape result = ShapeBroadcast.broadcast(left, right);
+long count = result.knownElementCount().orElseThrow();
+```
+
+Broadcasting aligns axes from the right. The pairs are `4` with `4`, `1` with `3`, and the unmatched leading `2` with an implicit singleton. The result is `Shape[2, 3, 4]`, and its element count is `2 × 3 × 4 = 24`. No storage is allocated.
+
 ## Resolved layouts
 
 The public layout contracts live in `io.github.pho001.synaptik.model.layout`. `LayoutDescriptor` is an immutable description of resolved logical element geometry for a fully static shape. The descriptor records rank, non-negative `long` element strides, a non-negative storage offset measured in elements, explicit view/alias metadata, and the checked element span needed to contain every referenced index. It does not retain the `Shape` used to construct it.
@@ -81,6 +110,16 @@ The referenced element span is zero for any shape containing a zero-sized dimens
 
 Dynamic shapes do not yet have numeric layout descriptors because their concrete strides and span are unresolved. Symbolic layout resolution belongs to later compiler and preparation contracts. The model descriptor exposes geometry only: it does not own storage, byte addresses, device state, backend information, or a decision about whether materialization is required.
 
+### Layout example
+
+```java
+Shape shape = Shape.of(2, 3);
+LayoutDescriptor layout = LayoutDescriptor.of(
+        shape, new long[] {0, 1}, 0, true);
+```
+
+The logical shape has six positions, but axis 0 has stride zero: both rows reuse the same three storage elements. The referenced span is therefore `3`, computed as `(2 - 1) × 0 + (3 - 1) × 1 + 1`. The descriptor is a `BROADCAST_ZERO_STRIDE` view. This calculation describes aliasing geometry; it does not authorize in-place writes or decide whether a backend must materialize a copy.
+
 ## Typed identifiers
 
 The model separates public tensor identity from graph-local computation and data identity:
@@ -95,6 +134,24 @@ Graph-local numeric identifiers may be reused by different graph containers. `No
 
 Future publication bindings associate a public `TensorId` with the final `ValueId` produced by a particular compiled graph. A Tensor does not store graph-local IDs because the same Tensor may participate in multiple separately compiled graphs. `OperationId` is not currently defined: operation semantics occur through graph nodes, and no independent operation-identity lifecycle has been established.
 
-## Planned tensor contracts
+## Planned contracts
 
-Tensor values, host storage, operations, and factories will be documented here as their ordered model tasks are implemented.
+The following contracts appear in the architecture and planning documents but are not implemented:
+
+- mutable public `Tensor` state and `TensorFactory`;
+- `TensorDescriptor` and host-visible storage;
+- `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, and `Operation`;
+- immutable graph values, nodes, and `CompiledGraphModel`; and
+- publication bindings and tensor provenance.
+
+In particular, task 0005 for the operation semantic foundation is `Ready`, not complete. References to these operation types in the [glossary](../glossary.md) describe the planned contract rather than a current Java API.
+
+## Failures and ownership summary
+
+- Null inputs are rejected where documented by each current method's Javadoc.
+- Negative sizes, offsets, strides, and identifiers are rejected.
+- Checked size, stride, and span arithmetic throws `ArithmeticException` on overflow.
+- Current value objects are immutable and defensively copy caller-owned arrays where applicable.
+- None of the current types owns device storage, runtime residency, or backend selection.
+
+See generated Javadoc for the exact member-level exception and nullability contract.

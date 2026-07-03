@@ -2,6 +2,8 @@
 
 This document explains the boundary defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
+Runtime, prepare, engine, and concrete backend contracts are not implemented. The types below name the intended architecture and must not be read as a current Java API.
+
 ## Boundary in one flow
 
 ```text

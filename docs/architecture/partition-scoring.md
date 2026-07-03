@@ -2,6 +2,8 @@
 
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
+Partition scoring is not implemented. This page explains the accepted boundary and permitted inputs; it does not define a current formula, weights, or callable API.
+
 ## Purpose and pipeline position
 
 Partition scoring answers this compile-time question:

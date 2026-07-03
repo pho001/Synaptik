@@ -2,6 +2,8 @@
 
 This document explains the typed trace model required by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
+The trace module is not implemented. The Java records on this page are conceptual schema shapes, not current signatures.
+
 ## Typed diagnostic DTOs
 
 `modules/trace` contains diagnostic data-transfer objects only. A trace producer in the compiler, prepare layer, runtime, or a backend maps its local state into trace DTOs; the trace module does not traverse graphs, execute work, or import producer-layer domain types.
@@ -10,7 +12,7 @@ Typed DTOs make event schemas explicit, keep consumers independent of producer i
 
 ## Event envelope
 
-Every event has a common envelope around a typed payload. Conceptually:
+Every event has a common envelope around a typed payload. The following code is conceptual:
 
 ```java
 public record TraceEvent<T extends TracePayload>(
@@ -58,6 +60,10 @@ public record TraceAttributes(
 An unstructured string map as the primary trace model would hide required fields, discard numeric and boolean types, push parsing into every consumer, and make schema changes difficult to validate. Typed payloads preserve meaning and let code handle compile, prepare, run, and backend events explicitly.
 
 Maps are therefore limited to backend-specific `TraceAttributes`, whose values remain typed.
+
+## Diagnostic scenario
+
+If a node receives CPU ownership, a compile payload can record the trace-local node identity, candidate backends, and selected owner. A later CPU prepare payload can record the chosen CPU route, and a run payload can record execution of the prepared unit. This sequence preserves which lifecycle stage made each decision. A single string such as `"cpu fallback"` would lose those typed facts and incorrectly imply that runtime changed ownership.
 
 ## Why trace stays a dependency leaf
 

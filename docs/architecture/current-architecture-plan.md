@@ -1,12 +1,12 @@
-# Current Architecture Plan
+# Current architecture documentation
 
-This document is the planning snapshot for the current Synaptik architecture.
+This document is the navigation page for explanations of the current Synaptik architecture.
 
 The authoritative architecture contract is:
 
 - [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)
 
-This file and the other documents in this directory are planning and explanatory documentation. They do not replace the contract.
+This file and the other documents in this directory are explanatory documentation. They do not replace the contract or report implementation completion.
 
 Focused architecture documentation:
 
@@ -21,10 +21,10 @@ Focused architecture documentation:
 
 ## Status
 
-This document is active as a planning index. The detailed content has been split into focused architecture documents.
+This index is current. The architecture describes the intended complete system, while the repository currently implements only the initial model foundations. The [implementation roadmap](../planning/roadmap.md) is the source for delivery status.
 
-## Next documentation tasks
+## Decisions and strategies
 
-- Add ADRs under `docs/design/decisions/`.
-- Expand backend guide documents.
-- Expand developer guide documents.
+- [Architecture decision records and design notes](../design/README.md)
+- [Backend integration guides](../index.md#documentation-areas)
+- [Developer guides](../index.md#documentation-areas)

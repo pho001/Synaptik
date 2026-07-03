@@ -4,6 +4,10 @@ This glossary is the central dictionary for Synaptik terminology. It explains ho
 
 Some entries describe contracts planned by the architecture but not yet implemented. Planning status belongs in the [implementation roadmap](planning/roadmap.md), not in this glossary.
 
+## Implementation-status convention
+
+The currently implemented terms are the model foundations: data type, dimension, shape, broadcasting, layout, element stride, referenced element span, view, and typed `TensorId`, `NodeId`, and `ValueId` values. Public `Tensor`, operations, compiled graphs, planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning contracts. A definition explains intended meaning; it is not by itself evidence that a Java type exists.
+
 ## Terms
 
 ### Architecture contract
@@ -30,13 +34,25 @@ The compile-time decision that assigns a node or segment to a backend identity s
 
 The rule that each concrete backend translates its assigned planned partitions into its own executable representation during prepare. Lowering, fusion, specialization, and kernel selection stay together because they depend on backend-specific execution and storage models. There is no shared lowering module. See [Runtime, Prepare, and Backend Boundary](architecture/runtime-prepare-backend-boundary.md).
 
+### Backend route
+
+A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API routine, OpenBLAS call, MPSGraph executable, custom Metal kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the backend owner. Routes are not separate backend identities.
+
 ### Backward graph
 
 The graph of gradient computations derived by autograd from a forward graph. It propagates derivatives from requested outputs toward differentiable inputs or parameters. In backward-capable compile modes, the compiler may combine it with the forward graph before post-autograd optimization and planning. See [Training graph](architecture/training-graph.md).
 
+### Broadcasting
+
+A shape rule that combines compatible inputs by aligning axes from the right and expanding static singleton dimensions as needed. In the implemented local shape model, equal dimensions remain equal, size `1` expands to the opposing dimension, and symbolic compatibility must be provable from equal names or a singleton. Broadcasting describes logical repetition; a resolved layout may represent that repetition with a zero element stride.
+
 ### Compile
 
 The lifecycle stage that captures a tensor expression, builds and validates graph semantics, applies graph transformations, adds autograd when requested, assigns backend ownership, and creates immutable compile artifacts. Compile creates a logical recipe; it does not allocate physical buffers, choose concrete kernels, or create backend executables. See [Lifecycle](architecture/lifecycle.md).
+
+### Compile artifacts
+
+The immutable planned output of compilation: a compiled graph model, backend-owned planned partitions, logical memory requirements, publication bindings, and compile diagnostics. Compile artifacts are a recipe for prepare, not executable state, and contain no physical buffers, concrete kernel routes, runtime residency, or mutable run state.
 
 ### Compiled graph / `CompiledGraphModel`
 
@@ -50,9 +66,17 @@ A module that implements a backend, such as `backends/cpu`, `backends/metal`, or
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
 
+### Data-transfer object / DTO
+
+A value whose purpose is to carry structured data across a boundary without owning the behavior that produced it. Synaptik's planned trace module uses typed DTOs so diagnostic consumers receive explicit fields without importing compiler, runtime, or backend business objects.
+
 ### Dimension
 
 The size description for one axis of a [shape](#shape). A static dimension has a known non-negative `long` size; zero is valid and represents an empty extent. A dynamic dimension has a non-blank symbolic name because its numeric size is not yet known. Dynamic dimensions are explicit values, not negative-number sentinels, and two different symbols are not assumed equal. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Element stride
+
+The number of storage elements advanced when one logical index advances by one position along an axis. Strides are measured in elements, not bytes. A stride of zero can represent repeated data, while canonical row-major strides describe contiguous geometry.
 
 ### Forward graph
 
@@ -66,6 +90,10 @@ A directed dataflow model of a computation. [Nodes](#node) represent computation
 
 Logical data flowing through a graph. A value may be a graph input, an intermediate result, or a graph output. It can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers. A graph value is compile-time graph state, not the public mutable [`Tensor`](#tensor) object and not a physical memory slot.
 
+### Graph phase
+
+The compile-time role of graph work, such as forward or backward computation. A phase helps optimization, publication, planning, and diagnostics distinguish related regions without turning them into separate runtime programs by definition.
+
 ### Host storage
 
 Model-level storage for tensor elements that are visible in host memory, represented through the `HostTensorStorage` abstraction and its implementations. Host storage has explicit data type, size, mutability, ownership, and lifetime rules. It is distinct from backend device buffers, workspaces, and runtime [residency](#residency). See the [model capability baseline](planning/modules/model/capabilities.md#host-storage-baseline).
@@ -77,6 +105,10 @@ A concrete backend implementation route for executing prepared work, such as a s
 ### Layout
 
 The logical mapping from a tensor's multidimensional indices to positions in storage. A layout can describe contiguous, offset-contiguous, strided, or broadcast views using facts such as element strides and storage offset. Layout describes geometry and aliasing; it does not own storage or decide whether a copy must be materialized. See the [Tensor API](api/tensor-api.md#resolved-layouts).
+
+### Logical memory plan
+
+Compile-time requirements derived from graph values and lifetimes, such as logical storage or materialization needs. It does not allocate buffers or assign physical addresses. Prepare turns these requirements into a prepared physical memory plan and slots.
 
 ### Lifecycle
 
@@ -96,7 +128,7 @@ A position in a prepared memory plan for a physical buffer or workspace used dur
 
 ### `NoOperationAttrs`
 
-The canonical immutable attribute value for an operation kind that has no semantic parameters. It is a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. Using this value makes “no parameters” explicit; operation attributes are not represented by `null` or an empty map. See [`OperationAttrs`](#operationattrs).
+The planned canonical immutable attribute value for an operation kind that has no semantic parameters. The contract calls for a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. Using this value will make “no parameters” explicit; operation attributes will not be represented by `null` or an empty map. See [`OperationAttrs`](#operationattrs).
 
 ### Node
 
@@ -108,15 +140,15 @@ A validated non-negative identifier for a node occurrence within one owning grap
 
 ### Operation
 
-A backend-independent description of what a computation means. It combines a semantic kind with immutable typed attributes, such as axes or padding when a future operation family requires them. An operation does not report backend support, choose a kernel, own runtime state, or identify a particular occurrence in a graph; the occurrence is a [node](#node).
+The planned backend-independent description of what a computation means. It combines a semantic kind with immutable typed attributes, such as axes or padding when a future operation family requires them. An operation does not report backend support, choose a kernel, own runtime state, or identify a particular occurrence in a graph; the occurrence is a [node](#node).
 
 ### `OperationAttrs`
 
-The marker contract for immutable, typed semantic parameters attached to an operation kind. A future attribute record might hold axes, padding, or another operation-specific value. Implementations use typed fields, defensively isolate mutable inputs, and provide structural equality; they do not use a primary string-keyed map or contain backend, compiler-service, tensor, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs).
+The planned marker contract for immutable, typed semantic parameters attached to an operation kind. A future attribute record might hold axes, padding, or another operation-specific value. Implementations will use typed fields, defensively isolate mutable inputs, and provide structural equality; they will not use a primary string-keyed map or contain backend, compiler-service, tensor, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs).
 
 ### `OperationKind`
 
-The typed semantic discriminator that says which kind of computation an [operation](#operation) represents. Each kind provides a stable, non-blank diagnostic name. Equality remains tied to the typed kind value, so equal text from two unrelated kind types does not create implicit equivalence. An operation kind does not describe backend support, cost, fusion, storage, or a kernel route.
+The planned typed semantic discriminator that says which kind of computation an [operation](#operation) represents. Each kind will provide a stable, non-blank diagnostic name. Equality remains tied to the typed kind value, so equal text from two unrelated kind types does not create implicit equivalence. An operation kind does not describe backend support, cost, fusion, storage, or a kernel route.
 
 ### Partition
 
@@ -134,6 +166,10 @@ The lifecycle stage that turns immutable compile artifacts into reusable runtime
 
 Reusable runtime-ready state produced by prepare. It contains or refers to prepared partitions and executables, a physical memory plan, and an execution schedule. It can serve multiple runs; per-run mutable inputs and state belong to `RunState`, not to the immutable compile-time graph. See [Runtime, Prepare, and Backend Boundary](architecture/runtime-prepare-backend-boundary.md#what-prepare-creates).
 
+### Prepared executable / `PreparedExecutable`
+
+The backend-independent runtime call boundary implemented by a concrete backend for one prepared region. It contains the implementation choice made during prepare and computes only that region. Runtime invokes it without passing compile-time `Operation` or `CompiledNode` objects or asking it to select another backend.
+
 ### Provenance
 
 The minimal origin information associated with a public tensor expression so graph capture can discover how a tensor was produced and from which inputs. Provenance supports later graph construction but does not turn `Tensor` into an IR node or assign graph-local `NodeId` or `ValueId` values to the tensor itself. See the [model capability baseline](planning/modules/model/capabilities.md#public-tensor-baseline).
@@ -150,13 +186,25 @@ Runtime knowledge of where a value's current physical representation exists, suc
 
 **Run** is one invocation of a `PreparedExecution`: it binds inputs, creates or reuses `RunState`, follows the prepared schedule, executes prepared units, manages scheduled transfers or materialization, and publishes results. **Runtime** is the module and machinery that performs this work. Run does not optimize graphs, discover backends, lower partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
 
+### Run state / `RunState`
+
+Mutable state for one invocation of prepared execution, including input bindings, runtime slots, resources, and current residency facts as defined by future runtime contracts. It is separate from reusable `PreparedExecution` and immutable compile artifacts.
+
 ### Shape
 
 An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
 
+### Referenced element span
+
+The minimum count of storage elements needed to include every index referenced by a resolved layout. For non-empty shapes it is the greatest referenced element index plus one; for shapes with a zero-sized dimension it is zero. The span includes a storage offset and is not necessarily equal to the logical element count.
+
 ### Tensor
 
 The public mutable API object used to describe tensor metadata and host-visible state and to build expressions. It may carry data type, shape, layout, host storage, gradient/publication state, identity, and provenance. A `Tensor` is not an intermediate-representation node, a graph value, a physical device buffer, or runtime residency state. See the [Tensor API](api/tensor-api.md).
+
+### Tensor descriptor
+
+The planned immutable combination of model-level tensor facts such as data type, shape, layout, and gradient requirements. A descriptor describes a logical value and does not own host storage, device buffers, runtime residency, or a backend.
 
 ### `TensorId`
 
@@ -177,6 +225,10 @@ A typed data-transfer object used to carry one defined category of diagnostic fa
 ### `ValueId`
 
 A validated non-negative identifier for an input, intermediate, or output logical value within one owning graph. It does not identify a computation occurrence or a physical buffer. Its numeric value may be reused in another graph. See [Identifiers](api/tensor-api.md#typed-identifiers).
+
+### View
+
+A tensor or layout interpretation that aliases storage also used by another logical tensor representation. A view may change shape, strides, or offset without copying elements. In the implemented `LayoutDescriptor`, view is explicit metadata independent of geometric kind, except that broadcast repetition through a zero stride must be marked as a view.
 
 ## Common distinctions
 

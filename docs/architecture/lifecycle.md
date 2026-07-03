@@ -2,6 +2,8 @@
 
 This document explains the compile, prepare, run, and training lifecycles defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
+These lifecycle stages are architecture contracts, not current runnable APIs. The repository currently implements only initial model value types; the [roadmap](../planning/roadmap.md) tracks delivery.
+
 ## State across the lifecycle
 
 Synaptik deliberately separates three kinds of state:
@@ -76,6 +78,10 @@ PreparedExecution.run(...)
 ```
 
 Run executes prepared work. It must not perform graph optimization, autograd construction, compiler passes, backend discovery, backend-specific lowering, or kernel selection.
+
+## State scenario
+
+Suppose one compiled graph is prepared once for CPU and then run twice with different input values. The immutable `CompileArtifacts` and reusable `PreparedExecution` are shared. Each invocation has distinct input bindings and `RunState`. Storing the second run's current buffer residency in the compiled graph would mix per-run mutable state into the immutable recipe; selecting a different CPU route during the second run would repeat a prepare-time decision in the hot path.
 
 ## Training lifecycle
 

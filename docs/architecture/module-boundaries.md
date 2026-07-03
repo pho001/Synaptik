@@ -2,6 +2,8 @@
 
 This document explains the module responsibilities established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract is authoritative when a summary here is incomplete.
 
+The boundaries apply as modules are implemented. Most modules currently contain only build structure and a placeholder module marker; the [roadmap](../planning/roadmap.md) identifies the active implementation frontier.
+
 ## Shared modules
 
 ### `modules/trace`

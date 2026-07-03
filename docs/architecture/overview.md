@@ -2,6 +2,8 @@
 
 This document explains the architecture defined by the authoritative [`ARCHITECTURE.md`](../../ARCHITECTURE.md). It summarizes the system without replacing the contract.
 
+The overview describes the intended complete system. Only the initial model value foundations are implemented; consult the [roadmap](../planning/roadmap.md) before treating a named module or type as available.
+
 ## High-level architecture
 
 Synaptik turns a public tensor expression into an immutable compile-time recipe, prepares that recipe for explicitly registered backends, and then executes a prepared schedule. The architecture keeps semantic graph work separate from backend implementation choices and per-run state.
@@ -56,6 +58,10 @@ The central state distinction is:
 - A `PreparedExecutable` computes only the prepared region assigned to it.
 
 The complete stage-by-stage flow is described in [Lifecycle](lifecycle.md). The handoff among prepare, runtime, and concrete backends is described in [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md).
+
+## Boundary scenario
+
+Consider a future matrix multiplication followed by an elementwise addition. Compile may assign both nodes to CPU and place them in one planned partition. CPU prepare may lower that partition to an OpenBLAS matrix multiplication plus a scalar or vectorized addition. Run invokes those prepared units with bound inputs. Moving the OpenBLAS choice into planning would violate backend-owned lowering; passing the original operations back into runtime would violate the hot-path boundary.
 
 ## Repository structure
 

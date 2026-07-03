@@ -1,3 +1,31 @@
-# Kernel routes
+# Select backend-local kernel routes (planned contract)
 
-TODO: This guide will explain backend-local kernel route selection.
+## Outcome and status
+
+This guide explains where a concrete implementation route is selected. No backend or prepare implementation exists yet.
+
+Planning chooses backend ownership. During prepare, the owning backend chooses a kernel or executable route:
+
+```text
+planning: owner = CPU
+prepare:  scalar | Vector API | OpenBLAS | specialized | fused
+run:      invoke the selected PreparedExecutable
+```
+
+CPU routes are not separate backends. The same rule applies to MPSGraph versus custom Metal kernels and to multiple CUDA kernels.
+
+## Decision inputs
+
+A backend may consider operation semantics, data type, resolved shape and layout, alignment, prepare configuration, fusion opportunities, workspace needs, native availability, and immutable tuning profiles. It must not wait for runtime to inspect the graph and choose a route.
+
+For a matrix multiplication `[64, 128] × [128, 32]`, the output has `64 × 32 = 2,048` values and performs `64 × 128 × 32 = 262,144` multiply contributions. Such size facts may help CPU prepare compare routes. No threshold or performance promise is currently defined.
+
+## Failure and diagnostics
+
+If no route can realize a capability that the backend declared, preparation fails with diagnostic context. Runtime does not switch to another backend. Route traces should identify the selected typed route and relevant facts without using an unstructured string map as the primary trace model.
+
+## Validation expectations
+
+Test route predicates at boundaries, compare each optimized route with a reference implementation, benchmark performance separately from correctness, and verify resource cleanup for native routes.
+
+See [CPU backend](cpu-backend.md), [Partition preparer](partition-preparer.md), and [Partition scoring](../architecture/partition-scoring.md).

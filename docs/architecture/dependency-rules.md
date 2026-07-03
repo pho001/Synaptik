@@ -2,6 +2,8 @@
 
 This document explains the dependency direction required by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). It is explanatory; the root contract is authoritative.
 
+The direction constrains both current and future code. Focused architecture-test coverage is planned and not yet complete; see the [architecture test guide](../developer-guide/architecture-tests.md).
+
 ## Intended direction
 
 The compile-time side builds upward from small shared contracts into planning and compilation:
@@ -74,6 +76,10 @@ Runtime executes `PreparedExecutable` and schedule contracts. Concrete backend p
 ### Backends are independent of engine
 
 Engine is the outer composition root: it knows and wires concrete backend modules. If a backend depended on engine, composition would become cyclic and backend implementation would be coupled to the public orchestration layer.
+
+## Dependency scenario
+
+A CPU partition preparer may implement a shared prepare contract and return a runtime `PreparedExecutable`; those dependencies point from the concrete backend toward shared inward contracts. Engine may then depend on CPU to register that implementation. If CPU imported engine to find configuration or register itself, the inward module would depend back on the composition root and create the prohibited reverse edge.
 
 ## Related semantic dependency rules
 
