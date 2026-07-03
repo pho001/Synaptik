@@ -5,9 +5,16 @@ The authoritative architecture contract is [`ARCHITECTURE.md`](../ARCHITECTURE.m
 ## Start here
 
 - [Getting started](getting-started.md)
+- [Glossary](glossary.md)
 - [Current architecture plan](architecture/current-architecture-plan.md)
 - [Architecture overview](architecture/overview.md)
 - [Implementation plans](planning/README.md)
+
+## Contributor guides
+
+- [Documentation rules](developer-guide/documentation-rules.md)
+- [Documentation style profiles](developer-guide/documentation/README.md)
+- [Coding rules](developer-guide/coding-rules.md)
 
 ## Documentation areas
 

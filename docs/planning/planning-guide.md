@@ -90,7 +90,7 @@ If a task needs more than 10–15 files, split it unless a documented technical 
 - **Superseded** — another linked plan or task replaces this document.
 - **Cancelled** — the work will not proceed; the reason is recorded.
 
-Only mark a task `Complete` when its implementation, tests, documentation, Javadoc review, validation evidence, and completion summary are all complete.
+Only mark a task `Complete` when its implementation, tests, documentation, validation evidence, and completion summary are all complete. When code or behavior changes, a documentation-focused agent or thread with clean context, separate from the implementation context, must independently review and finalize the affected explanatory documentation, Javadoc, and glossary impact. The separate context works on the same overall branch and change; it does not defer documentation to a later commit or task.
 
 ## Master plan format
 
@@ -190,6 +190,7 @@ If more files are needed, stop and propose a follow-up task.
 ## Acceptance criteria
 
 - ...
+- A separate documentation-focused agent pass has finalized affected documentation, Javadoc, and glossary impact in this same overall change.
 
 ## Tests / validation
 
@@ -229,7 +230,9 @@ Read:
 Implement this task exactly as specified.
 Do not implement out-of-scope items.
 
-At the end, update this task file with implementation notes, validation evidence, completion summary, and final status.
+After code implementation and validation, hand the resulting diff to a separate documentation-focused agent or thread with clean context. That pass must follow docs/developer-guide/documentation-rules.md and finalize affected documentation, Javadoc, glossary impact, and documentation validation in the same overall change.
+
+At the end, update this task file with implementation notes, validation evidence including the documentation-agent pass, completion summary, and final status. Do not mark the task Complete before that pass finishes.
 ```
 
 ## Local decisions
@@ -257,7 +260,9 @@ Empty until implemented.
 
 Every implementation prompt must create a separate agentic task or thread with a clean context. It must identify the exact task file and require the agent to read `AGENTS.md`, `ARCHITECTURE.md`, this guide, and the task specification.
 
-The prompt must repeat critical scope limits and required validation. It must not rely on remembered conversation context. It must require the implementation agent to update the task specification with evidence and a final status before handoff.
+The prompt must repeat critical scope limits and required validation. It must not rely on remembered conversation context. It must require a second, documentation-focused agent or thread with clean context after implementation whenever code or behavior changes. That pass reviews the resulting diff and independently finalizes affected explanatory documentation, Javadoc, glossary impact, and documentation validation. Both contexts work in the same overall branch and change, and the task remains incomplete until the documentation pass and its evidence are present.
+
+The documentation-agent handoff must identify the task specification, affected APIs or behavior, implementation diff, architecture constraints, expected documentation, and validation to perform. See the [documentation rules](../developer-guide/documentation-rules.md) for the complete handoff and review workflow.
 
 ## Completion summary format
 
@@ -269,8 +274,10 @@ Every completed or blocked implementation session must add a concise summary to 
 - Completed changes: ...
 - Files changed or created: ...
 - Tests and validation: ...
+- Documentation-agent review: ...
 - Documentation impact: ...
 - Javadoc review: ...
+- Glossary impact: ...
 - Unresolved issues: None.
 - Follow-up required: None.
 
@@ -294,7 +301,10 @@ Evidence must record:
 - whether it passed, failed, or was not run;
 - the relevant result, including test counts or task outcomes when available;
 - any environmental limitation or skipped validation; and
-- manual checks required by the acceptance criteria; and
+- manual checks required by the acceptance criteria;
+- the separate documentation-focused agent or thread used, the files and topics it reviewed, and its result;
+- documentation, Javadoc, and glossary impact, including an explicit no-change conclusion with rationale where applicable;
+- documentation validation commands and link checks, including their results; and
 - confirmation that created and moved types match the package map and task-level type placement.
 
 Claims such as `tests pass` without commands and results are insufficient. Keep evidence concise; do not paste entire build logs when a result summary identifies the outcome.

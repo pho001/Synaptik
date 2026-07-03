@@ -93,6 +93,10 @@ When an architectural decision changes, update all relevant files in the same ch
 
 ## Documentation discipline
 
+Substantive documentation creation or revision must be performed and finalized in a separate documentation-focused agent or thread with clean context, distinct from the implementation context. This is context isolation, not a separate branch, commit, or overall change: all required documentation must land in the same overall change before completion. An implementation agent may draft Javadoc while coding, but the documentation-focused agent must independently review and finalize affected Javadoc, explanatory documentation, and glossary impact before the task is marked `Complete`. Follow `docs/developer-guide/documentation-rules.md` for the detailed workflow.
+
+Before writing documentation, identify its document type and apply the matching profile under `docs/developer-guide/documentation/` together with the general style. Explain terms at first use, update the glossary when terminology changes, and include examples appropriate to that document type.
+
 Documentation changes should keep the following distinction clear:
 
 ```text

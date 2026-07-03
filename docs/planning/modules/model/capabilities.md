@@ -168,6 +168,17 @@ The factory capability set includes:
 
 Random-source configuration and reproducibility policy must be decided without introducing live services into `modules/model`.
 
+## Operation foundation baseline
+
+Operation semantics use two open typed contracts under `model.operation`:
+
+- `OperationKind` identifies backend-independent semantic kinds through immutable typed values with stable diagnostic names; and
+- `OperationAttrs` marks immutable typed semantic-attribute values.
+
+`NoOperationAttrs.INSTANCE` is the canonical attribute value for a kind with no parameters. Attributes are never represented primarily as `Map<String, ?>`, and absence is not represented by `null`. Concrete kinds and attribute records are introduced progressively by the applicable operation-family task rather than through a speculative monolithic enum.
+
+The model foundation does not expose computational cost, fusion eligibility, kernel routes, backend support, device facts, materialization decisions, or runtime behavior. `FUSED` is backend-prepare output rather than a semantic kind, and `UNKNOWN` is not a supported operation. `Operation` itself is a separate ordered task built on this foundation.
+
 ## Public operation baseline
 
 The following sections inventory public mathematical capabilities. They do not prescribe one Java class per item or a one-to-one mapping between API methods and operation kinds.

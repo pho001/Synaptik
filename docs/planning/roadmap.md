@@ -45,7 +45,7 @@ Its next task is:
 0005 Operation semantic foundation
 ```
 
-Package migrations `0003A` through `0003C` and task `0004` are complete. Task `0005` is the current planning frontier and must receive a focused specification before implementation.
+Package migrations `0003A` through `0003C` and task `0004` are complete. Task `0005` is the current implementation frontier and its focused specification is `Ready`.
 
 ## Model task sequence
 
@@ -58,7 +58,7 @@ Package migrations `0003A` through `0003C` and task `0004` are complete. Task `0
 | 5 | 0003B Shape package migration | Complete |
 | 6 | 0003C Layout package migration | Complete |
 | 7 | 0004 Typed identifiers | Complete |
-| 8 | 0005 Operation semantic foundation | Draft |
+| 8 | 0005 Operation semantic foundation | Ready |
 | 9 | 0006 Operation model | Draft |
 | 10 | 0007 Tensor descriptor model | Draft |
 | 11 | 0008 Graph value and node model | Draft |
