@@ -42,7 +42,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0013 Tensor provenance skeleton (Draft; no detailed specification)
+0013A Full-value and identity-matrix tensor creation (Draft; no detailed specification)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -69,8 +69,11 @@ same transient source policy. [`0012H`](modules/model/tasks/0012h-integral-rando
 is complete; it adds typed bounded integral sampling with primitive-bound type inference and direct
 JDK bounded calls. [`0012I`](modules/model/tasks/0012i-bernoulli-random-tensor-creation.md) is
 complete; it adds canonical BOOL Bernoulli samples from a finite scalar probability using one
-unbounded source call per element, including at probability endpoints. Draft provenance task 0013
-is the active planning frontier; no detailed specification for 0013 is created here.
+unbounded source call per element, including at probability endpoints. Task
+[`0013`](modules/model/tasks/0013-tensor-provenance-skeleton.md) is complete. It adds immutable
+operation-and-ordered-input origin metadata without turning Tensor into graph IR or implementing
+compiler capture. Draft task `0013A` is now the active planning frontier for canonical `full` and
+`identityMatrix` creation with exact convenience alias `eye`; it has no detailed specification.
 
 ## Model task sequence
 
@@ -100,24 +103,25 @@ is the active planning frontier; no detailed specification for 0013 is created h
 | 22 | [0012G Uniform random tensor creation](modules/model/tasks/0012g-uniform-random-tensor-creation.md) | Complete |
 | 23 | [0012H Integral random tensor creation](modules/model/tasks/0012h-integral-random-tensor-creation.md) | Complete |
 | 24 | [0012I Bernoulli random tensor creation](modules/model/tasks/0012i-bernoulli-random-tensor-creation.md) | Complete |
-| 25 | 0013 Tensor provenance skeleton | Draft |
-| 26 | 0014 Elementwise arithmetic operations | Draft |
-| 27 | 0015 Comparison, logical, selection, and cast operations | Draft |
-| 28 | 0016 Reduction and scan operations | Draft |
-| 29 | 0017 Layout and view operations | Draft |
-| 30 | 0018 Indexing and scatter operations | Draft |
-| 31 | 0019 Linear algebra and attention operations | Draft |
-| 32 | 0020 Convolution and pooling operations | Draft |
-| 33 | 0021 Normalization operations | Draft |
-| 34 | 0022 Loss operations | Draft |
-| 35 | 0023 Compiler-generated semantic operations | Draft |
-| 36 | 0024 Model capability parity audit | Draft |
+| 25 | [0013 Tensor provenance skeleton](modules/model/tasks/0013-tensor-provenance-skeleton.md) | Complete |
+| 26 | 0013A Full-value and identity-matrix tensor creation | Draft |
+| 27 | 0014 Elementwise arithmetic operations | Draft |
+| 28 | 0015 Comparison, logical, selection, and cast operations | Draft |
+| 29 | 0016 Reduction and scan operations | Draft |
+| 30 | 0017 Layout and view operations | Draft |
+| 31 | 0018 Indexing and scatter operations | Draft |
+| 32 | 0019 Linear algebra and attention operations | Draft |
+| 33 | 0020 Convolution and pooling operations | Draft |
+| 34 | 0021 Normalization operations | Draft |
+| 35 | 0022 Loss operations | Draft |
+| 36 | 0023 Compiler-generated semantic operations | Draft |
+| 37 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
 ## Model foundation checkpoint
 
-After task `0013`, review the completed value, graph, storage, tensor, and provenance contracts against the entry requirements of downstream modules. The default remains to continue with model operation-family task groups. Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the new frontier and preserves all architecture dependency rules.
+After task `0013A`, review the completed value, graph, storage, tensor, provenance, and eager factory contracts against the entry requirements of downstream modules. The default remains to continue with model operation-family task groups. Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the new frontier and preserves all architecture dependency rules.
 
 This checkpoint is not permission to skip or execute tasks out of order. It prevents the decision to complete every operation family before downstream feedback from remaining an implicit assumption.
 

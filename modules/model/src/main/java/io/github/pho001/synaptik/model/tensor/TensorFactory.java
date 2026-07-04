@@ -43,8 +43,11 @@ import java.util.random.RandomGenerator;
  * while zeros, ones, and their like-shaped variants create independent dense-contiguous tensors
  * for fully static shapes. The factory does not otherwise infer descriptors, retain or expose
  * source/backing arrays, convert values, accept boxed or generic nested values, provide typed
- * tensor access, create provenance, allocate native or backend memory, or provide compiler,
- * runtime, or backend behavior. Deterministic population additionally supports non-empty INT32
+ * tensor access, expose caller-supplied provenance, allocate native or backend memory, or provide
+ * compiler, runtime, or backend behavior. Every public creation and population method produces a
+ * provenance-free leaf. One package-private derived-construction seam attaches an already-created
+ * provenance value for future same-package expression helpers, while performing no graph capture,
+ * traversal, inference, or semantic validation. Deterministic population additionally supports non-empty INT32
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
  * and reuse flat import for final allocation, normalization, and identity assignment. Normal and
@@ -86,7 +89,8 @@ public final class TensorFactory {
     }
 
     /**
-     * Creates a fresh unlabeled tensor without host storage from a completed descriptor.
+     * Creates a fresh unlabeled provenance-free leaf tensor without host storage from a completed
+     * descriptor.
      *
      * <p>The exact descriptor reference is retained by the returned tensor. No layout or storage
      * is synthesized. A null descriptor is rejected before identifier allocation and therefore
@@ -94,8 +98,8 @@ public final class TensorFactory {
      *
      * @param descriptor non-null completed immutable descriptor to retain by exact reference;
      *     the factory does not inspect or alter its data type, shape, layout, or gradient request
-     * @return a non-null fresh tensor with factory-assigned identity, the exact descriptor,
-     *     no label, and no host storage
+     * @return a non-null fresh provenance-free leaf tensor with factory-assigned identity, the
+     *     exact descriptor, no label, and no host storage
      * @throws NullPointerException if {@code descriptor} is {@code null}, with message
      *     {@code descriptor}; this failure does not consume an identifier
      * @throws IllegalStateException if every non-negative identifier has been allocated, with
@@ -106,7 +110,8 @@ public final class TensorFactory {
     }
 
     /**
-     * Creates a fresh tensor from a completed descriptor and optional caller-supplied metadata.
+     * Creates a fresh provenance-free leaf tensor from a completed descriptor and optional
+     * caller-supplied metadata.
      *
      * <p>The descriptor and, when present, borrowed host-storage references are passed unchanged
      * to the package-private {@link Tensor} construction path. The label optional uses value
@@ -127,8 +132,8 @@ public final class TensorFactory {
      *     normalized and validated only by {@code Tensor}
      * @param hostStorage non-null optional caller-supplied borrowed host storage; empty means
      *     absent and a present object is retained by exact reference after delegated validation
-     * @return a non-null fresh tensor with factory-assigned opaque identity and the exact supplied
-     *     descriptor and compatible present storage references
+     * @return a non-null fresh provenance-free leaf tensor with factory-assigned opaque identity
+     *     and the exact supplied descriptor and compatible present storage references
      * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code hostStorage}
      *     is {@code null}, checked in that order with the corresponding parameter name as the
      *     message; these failures do not consume an identifier
@@ -147,7 +152,44 @@ public final class TensorFactory {
         Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(label, "label");
         Objects.requireNonNull(hostStorage, "hostStorage");
-        return new Tensor(nextTensorId(), descriptor, label, hostStorage);
+        return new Tensor(nextTensorId(), descriptor, label, Optional.empty(), hostStorage);
+    }
+
+    /**
+     * Creates a storage-free derived tensor with immutable expression-origin metadata.
+     *
+     * <p>Factory arguments are null-checked in declaration order before allocating exactly one
+     * identifier. The allocated ID is consumed if the package-private Tensor constructor later
+     * rejects a blank label, and identifier exhaustion is reported before Tensor construction
+     * without rollback. The returned tensor retains the exact descriptor and provenance
+     * references, has no host storage, and delegates label normalization to Tensor.</p>
+     *
+     * <p>This package-private seam does not inspect the provenance's operation or inputs and
+     * performs no graph capture or traversal, operation arity or semantic validation, descriptor
+     * inference, gradient inference, storage allocation, or eager evaluation.</p>
+     *
+     * @param descriptor non-null completed immutable descriptor to retain by exact reference
+     * @param label non-null value-based optional diagnostic label; Tensor normalizes and validates
+     *     present text after identifier allocation
+     * @param provenance non-null immutable expression origin to retain by exact reference
+     * @return a non-null fresh derived tensor with one factory-assigned ID, exact provenance, and
+     *     no host storage
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code provenance} is
+     *     null, checked in that order with the parameter name as the message; no ID is consumed
+     * @throws IllegalArgumentException if Tensor rejects a present blank label after allocation;
+     *     the allocated ID is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted before construction,
+     *     with message {@code tensor identifier space exhausted}
+     */
+    static Tensor createDerived(
+            TensorDescriptor descriptor,
+            Optional<String> label,
+            TensorProvenance provenance) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(provenance, "provenance");
+        return new Tensor(
+                nextTensorId(), descriptor, label, Optional.of(provenance), Optional.empty());
     }
 
     /**

@@ -20,7 +20,8 @@ zero, one, zero-like, and one-like constants, plus eager typed integer ranges, s
 flat-prefix population for all six exact primitive carriers, and explicit-source normal random
 and bounded continuous-uniform population for the three floating types, plus bounded integral
 random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
-finite scalar probability. Concrete operation kinds and family attributes, provenance, random
+finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
+kinds and family attributes, random
 Operations, typed access and export, native/runtime/backend allocation, expression operations,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -124,7 +125,7 @@ one node can produce multiple values, and one value can have multiple consumers.
 no producer, consumer, or role flag. The owning implemented
 [`CompiledGraphModel`](#compiled-graph--compiledgraphmodel) derives producers during construction
 and validates graph-wide existence, uniqueness, and topology without storing an index. A graph
-value is compile-time model state, not the planned public mutable [`Tensor`](#tensor), a physical
+value is compile-time model state, not the implemented public mutable [`Tensor`](#tensor), a physical
 memory slot, storage, or runtime residency. See [Graph values and compiled
 nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
@@ -248,7 +249,19 @@ The backend-independent runtime call boundary implemented by a concrete backend 
 
 ### Provenance
 
-The minimal origin information associated with a public tensor expression so graph capture can discover how a tensor was produced and from which inputs. Provenance supports later graph construction but does not turn `Tensor` into an IR node or assign graph-local `NodeId` or `ValueId` values to the tensor itself. See the [model capability baseline](planning/modules/model/capabilities.md#public-tensor-baseline).
+Implemented immutable expression-origin metadata carried by an optional `TensorProvenance` value
+on public [`Tensor`](#tensor) state. The record retains one exact backend-independent
+[`Operation`](#operation) reference and an ordered immutable snapshot of exact input-Tensor
+references. Empty inputs represent a valid local zero-input origin, repeated references preserve
+distinct ordered roles, and caller mutation of the source list cannot change the snapshot.
+
+Provenance is not intermediate representation (IR), producer-occurrence identity, graph
+membership, graph capture, or executable behavior. It contains no graph-local `NodeId` or
+`ValueId`, does not validate operation arity, descriptors, cycles, or graph structure, and does not
+change when Tensor host storage is replaced, cleared, or becomes dead. Record equality compares
+the operation value and ordered input objects using ordinary equality; it does not perform
+common-subexpression elimination. A later compiler owns traversal and conversion into immutable
+graph records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
 
 ### Publication binding
 
@@ -283,18 +296,21 @@ The minimum count of storage elements needed to include every index referenced b
 
 The implemented public mutable API object for stable tensor metadata and optional host-visible
 state. The current final `Tensor` retains one exact immutable [`TensorId`](#tensorid), one exact
-immutable [`TensorDescriptor`](#tensor-descriptor), and one normalized immutable optional label.
-Its only current mutation is a synchronized optional borrowed [`HostTensorStorage`](#host-storage)
-association. Replacement validates matching data type, resolved referenced span when layout is
-available, and point-in-time liveness before changing the exact reference. Read-only storage is
-accepted; later caller-controlled scope death remains observable; and the tensor retains the
-wrapper reference without allocating backing memory itself, copying or accessing contents, owning
-a closeable resource, or closing storage.
+immutable [`TensorDescriptor`](#tensor-descriptor), one normalized immutable optional label, and
+immutable optional [`TensorProvenance`](#provenance). Its only current mutation is a synchronized
+optional borrowed [`HostTensorStorage`](#host-storage) association. Replacement validates matching
+data type, resolved referenced span when layout is available, and point-in-time liveness before
+changing the exact reference. Read-only storage is accepted; later caller-controlled scope death
+remains observable; and the tensor retains the wrapper reference without allocating backing
+memory itself, copying or accessing contents, owning a closeable resource, or closing storage.
+Provenance remains the same exact value across every storage transition and is accessed without
+synchronization because it is final.
 
 Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
 the supported public construction boundary. The object uses ordinary identity equality and
 hashing, while its diagnostic text contains stable ID, descriptor, and label facts without
-storage or runtime state. Copied flat typed import is implemented through the factory for resolved
+provenance expansion, storage, or runtime state. Copied flat typed import is implemented through
+the factory for resolved
 dense-contiguous layouts. Copied rectangular nested primitive-array import is also implemented;
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
@@ -304,7 +320,7 @@ continuous-uniform creation are also implemented as copied canonical dense leaf 
 Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
 false gradient intent. Caller-source Bernoulli creation is implemented for canonical BOOL output
 with false gradient intent and a finite scalar probability. Random Operations, typed access and
-export, deterministic native-resource ownership, provenance, expression operations, gradient
+export, deterministic native-resource ownership, concrete expression operations, gradient
 objects, trainable role, publication behavior, compiler integration, device buffers, and runtime
 residency remain planned.
 A `Tensor` is not an
@@ -349,8 +365,11 @@ primitive rank-0 scalars or fully static requested/template shapes. Scalars infe
 their declared primitive inputs; `scalarBFloat16(float)` alone converts with BFLOAT16
 round-to-nearest, ties-to-even semantics. Zeros use default-zero allocation, while scalars and
 ones use exact typed flat import. Like methods read only template shape and data type and preserve
-neither layout nor mutable or diagnostic state. The factory does not create provenance or retain
-tensor, graph, runtime, backend, registry, or service state.
+neither layout nor mutable or diagnostic state. Every public factory path creates a
+provenance-free leaf. One package-private derived-construction seam attaches an already-created
+provenance value through the existing ID allocator without storage, graph capture, traversal,
+inference, or semantic validation. The factory retains no tensor, graph, runtime, backend,
+registry, or service state.
 
 The factory's two eager range overloads map `int` bounds and step to `INT32`, and `long` bounds and
 step to `INT64`. Each result is non-empty, rank one, non-differentiable, inclusive at the start,
@@ -536,15 +555,15 @@ A tensor or layout interpretation that aliases storage also used by another logi
 | `Tensor` | Graph value |
 |---|---|
 | Implemented public mutable API state | Immutable compile-time graph state |
-| Currently retains stable ID, descriptor, and label plus optional mutable host storage | Represents logical data flowing between graph nodes |
+| Retains stable ID, descriptor, label, and optional provenance plus optional mutable host storage | Represents logical data flowing between graph nodes |
 | Identified by `TensorId` | Identified by graph-local `ValueId` |
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based factory construction is implemented. Provenance, expression construction,
-gradients, and publication behavior are not part of the current Tensor contract.
+descriptor-based leaf construction and immutable provenance are implemented. Concrete expression
+construction, gradients, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
 

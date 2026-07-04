@@ -12,6 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -39,18 +42,19 @@ class TensorTest {
         var fields = Arrays.stream(Tensor.class.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
                 .toList();
-        assertEquals(List.of("id", "descriptor", "label", "hostStorage"),
+        assertEquals(List.of("id", "descriptor", "label", "provenance", "hostStorage"),
                 fields.stream().map(field -> field.getName()).toList());
         assertAll(
                 () -> assertEquals(TensorId.class, fields.get(0).getType()),
                 () -> assertEquals(TensorDescriptor.class, fields.get(1).getType()),
                 () -> assertEquals(Optional.class, fields.get(2).getType()),
-                () -> assertEquals(HostTensorStorage.class, fields.get(3).getType()),
+                () -> assertEquals(Optional.class, fields.get(3).getType()),
+                () -> assertEquals(HostTensorStorage.class, fields.get(4).getType()),
                 () -> assertTrue(fields.stream().allMatch(
                         field -> Modifier.isPrivate(field.getModifiers()))),
-                () -> assertTrue(fields.subList(0, 3).stream().allMatch(
+                () -> assertTrue(fields.subList(0, 4).stream().allMatch(
                         field -> Modifier.isFinal(field.getModifiers()))),
-                () -> assertFalse(Modifier.isFinal(fields.get(3).getModifiers())));
+                () -> assertFalse(Modifier.isFinal(fields.get(4).getModifiers())));
 
         var constructors = Tensor.class.getDeclaredConstructors();
         assertEquals(1, constructors.length);
@@ -59,7 +63,12 @@ class TensorTest {
                 () -> assertFalse(Modifier.isProtected(constructors[0].getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(
-                        List.of(TensorId.class, TensorDescriptor.class, Optional.class, Optional.class),
+                        List.of(
+                                TensorId.class,
+                                TensorDescriptor.class,
+                                Optional.class,
+                                Optional.class,
+                                Optional.class),
                         Arrays.asList(constructors[0].getParameterTypes())));
 
         Set<String> publicMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
@@ -68,7 +77,7 @@ class TensorTest {
                 .collect(Collectors.toSet());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
-                        "clearHostStorage", "toString"),
+                        "clearHostStorage", "provenance", "toString"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -84,7 +93,9 @@ class TensorTest {
                 () -> assertFalse(Modifier.isSynchronized(
                         Tensor.class.getDeclaredMethod("descriptor").getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(
-                        Tensor.class.getDeclaredMethod("label").getModifiers())));
+                        Tensor.class.getDeclaredMethod("label").getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(
+                        Tensor.class.getDeclaredMethod("provenance").getModifiers())));
     }
 
     @Test
@@ -94,25 +105,38 @@ class TensorTest {
 
         NullPointerException nullId = assertThrows(
                 NullPointerException.class,
-                () -> new Tensor(null, null, null, null));
+                () -> new Tensor(null, null, null, null, null));
         NullPointerException nullDescriptor = assertThrows(
                 NullPointerException.class,
-                () -> new Tensor(new TensorId(1), null, null, null));
+                () -> new Tensor(new TensorId(1), null, null, null, null));
         NullPointerException nullLabel = assertThrows(
                 NullPointerException.class,
-                () -> new Tensor(new TensorId(1), descriptor, null, null));
+                () -> new Tensor(new TensorId(1), descriptor, null, null, null));
+        NullPointerException nullProvenance = assertThrows(
+                NullPointerException.class,
+                () -> new Tensor(new TensorId(1), descriptor, Optional.empty(), null, null));
         NullPointerException nullStorageOptional = assertThrows(
                 NullPointerException.class,
-                () -> new Tensor(new TensorId(1), descriptor, Optional.empty(), null));
+                () -> new Tensor(
+                        new TensorId(1),
+                        descriptor,
+                        Optional.of(" "),
+                        Optional.empty(),
+                        null));
         IllegalArgumentException blankWins = assertThrows(
                 IllegalArgumentException.class,
                 () -> new Tensor(
-                        new TensorId(1), descriptor, Optional.of(" \t\n "), Optional.of(wrongType)));
+                        new TensorId(1),
+                        descriptor,
+                        Optional.of(" \t\n "),
+                        Optional.empty(),
+                        Optional.of(wrongType)));
 
         assertAll(
                 () -> assertEquals("id", nullId.getMessage()),
                 () -> assertEquals("descriptor", nullDescriptor.getMessage()),
                 () -> assertEquals("label", nullLabel.getMessage()),
+                () -> assertEquals("provenance", nullProvenance.getMessage()),
                 () -> assertEquals("hostStorage", nullStorageOptional.getMessage()),
                 () -> assertEquals("label must not be blank", blankWins.getMessage()));
     }
@@ -121,15 +145,62 @@ class TensorTest {
     void retainsStableReferencesAndNormalizesLabelValue() {
         TensorId id = new TensorId(7);
         TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.of(2, 3));
-        Tensor labeled = new Tensor(id, descriptor, Optional.of("  weights\n"), Optional.empty());
-        Tensor unlabeled = new Tensor(new TensorId(8), descriptor, Optional.empty(), Optional.empty());
+        Tensor labeled = new Tensor(
+                id, descriptor, Optional.of("  weights\n"), Optional.empty(), Optional.empty());
+        Tensor unlabeled = new Tensor(
+                new TensorId(8),
+                descriptor,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
 
         assertAll(
                 () -> assertSame(id, labeled.id()),
                 () -> assertSame(descriptor, labeled.descriptor()),
                 () -> assertEquals(Optional.of("weights"), labeled.label()),
                 () -> assertEquals(Optional.empty(), unlabeled.label()),
+                () -> assertEquals(Optional.empty(), labeled.provenance()),
                 () -> assertEquals(Optional.empty(), labeled.hostStorage()));
+    }
+
+    @Test
+    void retainsExactImmutableProvenanceIndependentlyOfHostStorage() {
+        TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+        Arena arena = Arena.ofConfined();
+        HostTensorStorage inputStorage = new MemorySegmentStorage(
+                DataType.FLOAT32, 0, arena.allocate(0, 1));
+        Tensor input = new Tensor(
+                new TensorId(6),
+                descriptor,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(inputStorage));
+        TensorProvenance provenance = new TensorProvenance(
+                new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of(input));
+        Tensor derived = new Tensor(
+                new TensorId(7),
+                descriptor,
+                Optional.of("derived"),
+                Optional.of(provenance),
+                Optional.empty());
+        String initialText = derived.toString();
+
+        HostTensorStorage derivedStorage = storage(DataType.FLOAT32, 0);
+        derived.replaceHostStorage(derivedStorage);
+        arena.close();
+        Optional<HostTensorStorage> clearedInput = input.clearHostStorage();
+        Optional<HostTensorStorage> clearedDerived = derived.clearHostStorage();
+
+        assertAll(
+                () -> assertSame(provenance, derived.provenance().orElseThrow()),
+                () -> assertSame(input, derived.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertSame(inputStorage, clearedInput.orElseThrow()),
+                () -> assertFalse(inputStorage.isAlive()),
+                () -> assertSame(derivedStorage, clearedDerived.orElseThrow()),
+                () -> assertEquals(initialText, derived.toString()),
+                () -> assertFalse(initialText.contains("provenance")),
+                () -> assertFalse(initialText.contains("operation")),
+                () -> assertFalse(initialText.contains("SAMPLE")));
     }
 
     @Test
@@ -149,16 +220,28 @@ class TensorTest {
         IllegalArgumentException typeWins = assertThrows(
                 IllegalArgumentException.class,
                 () -> new Tensor(
-                        new TensorId(1), resolved, Optional.empty(), Optional.of(wrongDead)));
+                        new TensorId(1),
+                        resolved,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of(wrongDead)));
         IllegalArgumentException capacityWins = assertThrows(
                 IllegalArgumentException.class,
                 () -> new Tensor(
-                        new TensorId(1), resolved, Optional.empty(), Optional.of(smallDead)));
+                        new TensorId(1),
+                        resolved,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of(smallDead)));
         TensorDescriptor unresolved = unresolved(DataType.FLOAT32, Shape.of(2, 3));
         IllegalStateException liveness = assertThrows(
                 IllegalStateException.class,
                 () -> new Tensor(
-                        new TensorId(1), unresolved, Optional.empty(), Optional.of(smallDead)));
+                        new TensorId(1),
+                        unresolved,
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.of(smallDead)));
 
         assertAll(
                 () -> assertEquals(
@@ -177,10 +260,12 @@ class TensorTest {
         HostTensorStorage invalidType = storage(DataType.INT32, 6);
         Tensor initiallyEmpty = new Tensor(
                 new TensorId(0), unresolved(DataType.FLOAT32, Shape.of(2, 3)), Optional.empty(),
+                Optional.empty(),
                 Optional.empty());
         Tensor tensor = new Tensor(
                 new TensorId(1),
                 resolved(DataType.FLOAT32, Shape.of(2, 3), LayoutDescriptor.contiguous(Shape.of(2, 3))),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.of(first));
         Optional<HostTensorStorage> initialSnapshot = tensor.hostStorage();
@@ -212,6 +297,7 @@ class TensorTest {
         HostTensorStorage first = storage(DataType.FLOAT32, 0);
         Tensor tensor = new Tensor(
                 new TensorId(1), unresolved(DataType.FLOAT32, Shape.of(2, 3)), Optional.empty(),
+                Optional.empty(),
                 Optional.of(first));
 
         NullPointerException failure = assertThrows(
@@ -246,6 +332,7 @@ class TensorTest {
                 new TensorId(99),
                 resolved(DataType.FLOAT32, empty, emptyWithOffset),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.of(storage(DataType.FLOAT32, 0)));
         assertEquals(0, zeroCapacity.hostStorage().orElseThrow().elementCapacity());
     }
@@ -256,12 +343,14 @@ class TensorTest {
                 new TensorId(1),
                 unresolved(DataType.FLOAT32, Shape.of(100, 100)),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.of(storage(DataType.FLOAT32, 0)));
         Shape dynamicShape = Shape.ofDimensions(
                 new DynamicDimension("batch"), new StaticDimension(3));
         Tensor dynamicTensor = new Tensor(
                 new TensorId(2),
                 unresolved(DataType.FLOAT32, dynamicShape),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.of(storage(DataType.FLOAT32, 0)));
 
@@ -280,6 +369,7 @@ class TensorTest {
                 new TensorId(1),
                 resolved(DataType.FLOAT32, Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar())),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.of(storage));
 
         assertAll(
@@ -295,6 +385,7 @@ class TensorTest {
         Tensor tensor = new Tensor(
                 new TensorId(1),
                 resolved(DataType.FLOAT32, Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar())),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.of(storage));
         arena.close();
@@ -313,9 +404,11 @@ class TensorTest {
         HostTensorStorage shared = new MemorySegmentStorage(DataType.BOOL, 2, segment);
         Tensor first = new Tensor(
                 new TensorId(1), unresolved(DataType.BOOL, Shape.of(2)), Optional.empty(),
+                Optional.empty(),
                 Optional.of(shared));
         Tensor second = new Tensor(
                 new TensorId(2), unresolved(DataType.BOOL, Shape.of(2)), Optional.empty(),
+                Optional.empty(),
                 Optional.of(shared));
 
         segment.set(JAVA_BYTE, 1, (byte) 9);
@@ -333,8 +426,10 @@ class TensorTest {
         TensorId equalId = new TensorId(3);
         TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.of(2));
         HostTensorStorage storage = storage(DataType.FLOAT32, 0);
-        Tensor first = new Tensor(firstId, descriptor, Optional.of("x"), Optional.of(storage));
-        Tensor second = new Tensor(equalId, descriptor, Optional.of("x"), Optional.of(storage));
+        Tensor first = new Tensor(
+                firstId, descriptor, Optional.of("x"), Optional.empty(), Optional.of(storage));
+        Tensor second = new Tensor(
+                equalId, descriptor, Optional.of("x"), Optional.empty(), Optional.of(storage));
 
         assertAll(
                 () -> assertNotSame(firstId, equalId),
@@ -357,6 +452,7 @@ class TensorTest {
                 new TensorId(42),
                 resolved(DataType.FLOAT32, Shape.scalar(), LayoutDescriptor.contiguous(Shape.scalar())),
                 Optional.of("  result  "),
+                Optional.empty(),
                 Optional.empty());
         String absent = tensor.toString();
         tensor.replaceHostStorage(scoped);
@@ -386,7 +482,11 @@ class TensorTest {
         TensorDescriptor descriptor = resolved(DataType.FLOAT32, shape, layout);
         HostTensorStorage exact = storage(DataType.FLOAT32, requiredCapacity);
         Tensor accepted = new Tensor(
-                new TensorId(requiredCapacity), descriptor, Optional.empty(), Optional.of(exact));
+                new TensorId(requiredCapacity),
+                descriptor,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(exact));
         assertSame(exact, accepted.hostStorage().orElseThrow());
 
         if (requiredCapacity > 0) {
@@ -396,6 +496,7 @@ class TensorTest {
                     () -> new Tensor(
                             new TensorId(requiredCapacity + 100),
                             descriptor,
+                            Optional.empty(),
                             Optional.empty(),
                             Optional.of(tooSmall)));
             assertEquals(
@@ -410,6 +511,7 @@ class TensorTest {
         Tensor largerAccepted = new Tensor(
                 new TensorId(requiredCapacity + 200),
                 descriptor,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.of(larger));
         assertSame(larger, largerAccepted.hostStorage().orElseThrow());
@@ -428,5 +530,9 @@ class TensorTest {
         long byteSize = Math.multiplyExact(capacity, dataType.byteWidth());
         MemorySegment segment = MemorySegment.ofArray(new byte[Math.toIntExact(byteSize)]);
         return new MemorySegmentStorage(dataType, capacity, segment);
+    }
+
+    private enum SampleKind implements OperationKind {
+        SAMPLE
     }
 }

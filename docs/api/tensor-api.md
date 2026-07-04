@@ -6,7 +6,7 @@ This reference documents the public model contracts that are implemented today. 
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, independent dense constants, deterministic population, and explicit-source
-normal, continuous-uniform, bounded integral, and Bernoulli random population. Provenance, expression
+normal, continuous-uniform, bounded integral, and Bernoulli random population. Concrete expression
 operations, typed access, gradient objects and publication behavior, native/runtime/backend
 allocation, compiler integration, runtime residency, and backend execution remain planned. The
 authoritative module boundary remains
@@ -18,7 +18,8 @@ executing a tensor:
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
 DataType + physical capacity + exact MemorySegment           = MemorySegmentStorage
-TensorId + TensorDescriptor + label + optional host storage  = Tensor
+TensorId + TensorDescriptor + label + optional provenance + optional host storage = Tensor
+Operation + ordered input Tensor references                  = TensorProvenance
 TensorFactory + completed descriptor + optional metadata     = public Tensor construction
 TensorFactory + resolved descriptor                          = exact-span heap storage + Tensor
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
@@ -40,7 +41,11 @@ TensorId + ValueId                                             = PublicationBind
 An implemented `TensorDescriptor` keeps the logical element type, shape, explicit layout state,
 and gradient eligibility together as one immutable value. It is still only a description. The
 implemented `Tensor` retains that descriptor, a stable `TensorId`, and an optional label while
-allowing only its borrowed host-storage association to change. The implemented `TensorFactory`
+allowing only its borrowed host-storage association to change. A tensor may also retain immutable
+optional `TensorProvenance`: the backend-independent operation that produced it and an ordered
+immutable snapshot of the exact input-tensor references. Provenance is origin metadata for later
+compiler capture, not graph membership or an intermediate-representation (IR) node. The
+implemented `TensorFactory`
 creates tensors from completed descriptors and assigns identity unique among factory allocations
 within the current Java virtual machine (JVM). For a descriptor with resolved layout geometry, its
 allocation overloads also create one matching primitive array whose length is the layout's
@@ -70,8 +75,9 @@ capacity without allocating memory or relating that capacity to a tensor descrip
 automatic-scope primitive-array heap segments.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed
-semantic parameters. The implemented `Operation` record keeps those two values together. It does
-not attach them to a tensor or graph, infer a result, or execute them.
+semantic parameters. The implemented `Operation` record keeps those two values together.
+`TensorProvenance` can retain that operation with its ordered public-tensor inputs, but neither
+contract assigns graph identity, infers a result, captures a graph, or executes computation.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -295,13 +301,14 @@ dynamic `batch` size, choose materialization, select a backend, or execute an op
 ## Public Tensor state
 
 The public `Tensor` contract lives in `io.github.pho001.synaptik.model.tensor`. The current final
-class is mutable API state, not an intermediate-representation node. It has four state components:
+class is mutable API state, not an intermediate-representation node. It has five state components:
 
 | Component | Stability and ownership |
 |---|---|
 | `id()` | Returns the exact immutable `TensorId` reference retained for the tensor's lifetime. |
 | `descriptor()` | Returns the exact immutable `TensorDescriptor` reference retained for the tensor's lifetime. |
 | `label()` | Returns an immutable optional diagnostic value; present text is stripped and must remain non-blank. |
+| `provenance()` | Returns immutable optional expression-origin metadata; a present value is the exact retained `TensorProvenance`. |
 | `hostStorage()` | Returns a synchronized snapshot of the optional borrowed `HostTensorStorage` association. |
 
 Construction remains package-private so `Tensor` keeps one validation path. Code outside
@@ -1279,10 +1286,24 @@ stable metadata-only diagnostic output containing the ID, descriptor, and normal
 storage presence and identity, memory addresses and contents, liveness, graph state, and runtime
 state, and it is not a serialization format.
 
-The current class stores no graph-local `NodeId` or `ValueId`, operation or provenance,
-gradient object or trainable role, publication state, typed element access, device buffer,
-runtime residency, prepared state, or backend support. Those remain separate planned contracts in
-their owning layers.
+Provenance is fixed at construction and needs no synchronization. `TensorProvenance` contains one
+exact immutable `Operation` reference and an ordered immutable `List<Tensor>` snapshot. The list
+preserves exact input-object identities, including repeated references and an empty zero-input
+case, but does not retain the caller's mutable list container. It performs no operation-arity,
+descriptor, cycle, or graph validation. Record equality compares the operation value and ordered
+input objects using their ordinary equality; it is not producer-occurrence identity and must not
+be used as automatic common-subexpression elimination.
+
+Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
+package-private derived-construction seam used by future same-package expression helpers attaches
+one already-validated provenance value, allocates exactly one ID through the existing allocator,
+and creates no storage. It does not inspect the operation or inputs, infer a descriptor, traverse
+an expression, capture a graph, or perform semantic validation.
+
+The current class stores no graph-local `NodeId` or `ValueId`, gradient object or trainable role,
+publication state, typed element access, device buffer, runtime residency, prepared state, or
+backend support. Provenance does not add any of those roles; they remain separate planned
+contracts in their owning layers.
 
 ## Host-visible storage
 
@@ -1629,7 +1650,7 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- tensor provenance, expression operations, gradient and trainable state, and publication behavior;
+- concrete expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -1652,11 +1673,18 @@ provide a compiler entry point or executable support.
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.
-- `Tensor` retains exact stable ID and descriptor references plus a normalized label, and uses
-  object identity for equality and hashing. It borrows optional host storage, validates data type,
-  resolved referenced span, and attachment-time liveness in that order, and changes only the
-  storage reference through synchronized snapshot, replacement, and clearing methods. Failed
-  replacement preserves the previous reference, and later storage death remains observable.
+- `Tensor` retains exact stable ID and descriptor references, a normalized label, and immutable
+  optional provenance, and uses object identity for equality and hashing. A present provenance
+  retains the exact `TensorProvenance` reference for the tensor's lifetime without synchronization.
+  It borrows optional host storage, validates data type, resolved referenced span, and
+  attachment-time liveness in that order, and changes only the storage reference through
+  synchronized snapshot, replacement, and clearing methods. Failed replacement preserves the
+  previous reference, later storage death remains observable, and neither transition changes
+  provenance or metadata-only diagnostics.
+- `TensorProvenance` rejects a null operation, input list, or indexed input element; snapshots the
+  input list with `List.copyOf`; preserves order, empty inputs, repeated references, and exact
+  Tensor identities; and retains the exact Operation reference. Its record value methods do not
+  establish producer-occurrence identity, graph membership, or semantic compatibility.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
   one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.
@@ -1746,7 +1774,7 @@ provide a compiler entry point or executable support.
 - `PublicationBinding` rejects null identities and remains a standalone association without
   owning-graph validation, policy, storage, backend, or runtime behavior.
 - None of the current types owns device storage, runtime residency, or backend selection. The
-  current `Tensor` also owns no storage lifetime, graph-local identity, compiler behavior, or
-  execution state.
+  current `Tensor` also owns no storage lifetime, graph-local identity, compiler graph capture, or
+  execution state; its provenance is model origin metadata only.
 
 See generated Javadoc for the exact member-level exception and nullability contract.

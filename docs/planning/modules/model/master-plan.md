@@ -106,7 +106,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0012G | [Uniform random tensor creation](tasks/0012g-uniform-random-tensor-creation.md) | Complete | 0012F | Add continuous uniform floating tensors with explicit half-open bounds and the existing caller-owned source policy. |
 | 0012H | [Integral random tensor creation](tasks/0012h-integral-random-tensor-creation.md) | Complete | 0012F | Add exact INT32/INT64 overloads with exclusive bounds and unbiased JDK bounded sampling. |
 | 0012I | [Bernoulli random tensor creation](tasks/0012i-bernoulli-random-tensor-creation.md) | Complete | 0012F | Add BOOL tensors sampled from an explicit probability using the existing caller-owned source policy. |
-| 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
+| 0013 | [Tensor provenance skeleton](tasks/0013-tensor-provenance-skeleton.md) | Complete | 0006, 0011, 0012 | Attach immutable operation-and-input origin metadata to Tensor for future compiler-owned graph capture. |
+| 0013A | Full-value and identity-matrix tensor creation | Draft | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
@@ -123,13 +124,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
-- Public tensor and host storage: tasks 0010–0013, including factory follow-ups 0012A–0012I
+- Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
 - Public operation capability families: tasks 0014–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
-Draft, with task 0012I complete and task 0013 as the active Draft planning frontier.
+Draft, with task 0013 complete and task 0013A as the active Draft planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -139,15 +140,14 @@ factory foundation, are also complete. Task 0012A, JVM-managed heap host storage
 complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, nested typed tensor
 import, is complete. Task 0012D, constant tensor creation, and task 0012E, deterministic range and
 prefix population, are also complete. Normal population task 0012F, uniform population task 0012G,
-and integral population task 0012H are complete. Bernoulli task 0012I is also complete. Draft
-provenance task 0013 is the active planning frontier without a detailed specification.
+and integral population task 0012H are complete. Bernoulli task 0012I and provenance task 0013 are
+also complete. Full-value and identity-matrix factory task 0013A is the next Draft frontier without
+a detailed specification.
 
 ## Open questions
 
-- The minimal provenance representation remains local to task 0013 after the factory capability
-  sequence.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- After task 0013, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
+- After task 0013A, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
 
 ## Decisions made
 
@@ -181,12 +181,13 @@ provenance task 0013 is the active planning frontier without a detailed specific
 - The task-0011 Tensor skeleton is one final public identity object with package-private
   construction. It retains one stable `TensorId`, immutable `TensorDescriptor`, and normalized
   optional label; task 0012 owns the public factory and ID allocation policy.
-- Tensor's only task-0011 mutation is a synchronized optional borrowed `HostTensorStorage`
+- Tensor's only mutable state is a synchronized optional borrowed `HostTensorStorage`
   association. Matching data type is always required; resolved layouts require capacity at least
   their referenced element span, while unresolved layouts do not invent physical geometry.
 - Tensor accepts read-only storage, rejects storage already dead at attachment, continues to expose
   storage that dies later, owns no arena, retains object identity equality/hashing, and stores no
-  graph-local ID, provenance, gradient/trainable/publication, runtime, or backend state.
+  graph-local ID, gradient/trainable/publication, runtime, or backend state. Task 0013 adds only
+  final optional provenance metadata and does not change host storage's sole-mutation role.
 - Task 0012 is a non-instantiable static `TensorFactory` with exactly descriptor-only and
   descriptor/optional-label/optional-storage creation methods. It delegates semantic label and
   storage validation to the package-private Tensor constructor and performs no storage allocation,
@@ -203,8 +204,8 @@ provenance task 0013 is the active planning frontier without a detailed specific
   completed task 0012D for constant tensors, completed task 0012E for deterministic range/prefix
   population, completed task 0012F for normal random tensors, completed task 0012G for uniform
   random tensors, completed task 0012H for integral tensors, and completed task 0012I for
-  Bernoulli tensors. These rows remain before provenance; task 0013 is the active Draft planning
-  frontier.
+  Bernoulli tensors. These rows remain before the completed provenance task 0013; task 0013A is
+  the next Draft planning frontier.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -263,6 +264,15 @@ provenance task 0013 is the active planning frontier without a detailed specific
 - Random factory methods and package-private helpers remain in `model.tensor`. A `randoms` package
   would break useful package-private collaboration or require a public implementation surface and
   is not justified without independent public random-domain types.
+- Task 0013 adds one immutable `TensorProvenance` value containing a backend-independent
+  `Operation` and an ordered immutable snapshot of input Tensor identities. Tensor retains it as
+  optional final metadata; it receives no graph-local identity and does not become IR.
+- Existing public factory paths remain provenance-free leaves. One package-private derived-
+  construction seam reuses the existing TensorFactory allocator, attaches exact provenance, and
+  creates no storage, inference, graph, compiler, runtime, or backend state.
+- Task 0013A is model-owned eager tensor creation, not a training initializer, graph operation, or
+  runtime/backend capability. `full` and `identityMatrix` are the canonical factory names, and
+  `eye` is the exact convenience alias for `identityMatrix` semantics.
 
 ## Risks
 
@@ -297,7 +307,8 @@ delegation to flat import. Task 0012D completed exact typed scalars and independ
 constants. Task 0012E completed deterministic typed range and strict/cyclic prefix population, and
 task 0012F completed explicit-source normal-random population, task 0012G completed bounded
 continuous-uniform floating population, task 0012H completed bounded-integral population, and task
-0012I completed BOOL Bernoulli population. Draft task 0013 provenance is now the active planning
-frontier without a detailed specification. Concrete operation families remain in tasks 0014–0023.
+0012I completed BOOL Bernoulli population, and task 0013 completed immutable Tensor provenance and
+the package-private derived-construction seam. Draft task 0013A is the next planning frontier before
+the concrete operation families in tasks 0014–0023; it has no detailed specification yet.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

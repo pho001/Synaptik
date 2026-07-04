@@ -11,6 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -233,6 +236,8 @@ class TensorFactoryTest {
                 DataType.class,
                 int.class,
                 MemorySegment.class);
+        Method createDerived = TensorFactory.class.getDeclaredMethod(
+                "createDerived", TensorDescriptor.class, Optional.class, TensorProvenance.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
         assertEquals(
                 Set.of(
@@ -277,6 +282,7 @@ class TensorFactoryTest {
                         randomInt64,
                         randomBernoulli,
                         importFlat,
+                        createDerived,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
         assertAll(
@@ -324,6 +330,7 @@ class TensorFactoryTest {
                         .stream()
                         .allMatch(method -> method.getReturnType() == Tensor.class)),
                 () -> assertEquals(Tensor.class, importFlat.getReturnType()),
+                () -> assertEquals(Tensor.class, createDerived.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(complete.getModifiers())),
@@ -369,6 +376,9 @@ class TensorFactoryTest {
                         .stream()
                         .allMatch(method -> Modifier.isPublic(method.getModifiers()))),
                 () -> assertTrue(Modifier.isPrivate(importFlat.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(createDerived.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(createDerived.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(createDerived.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(complete.getModifiers())),
@@ -414,6 +424,7 @@ class TensorFactoryTest {
                         .stream()
                         .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(createDerived.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }
 
@@ -433,10 +444,12 @@ class TensorFactoryTest {
         assertAll(
                 () -> assertSame(resolved, resolvedTensor.descriptor()),
                 () -> assertEquals(Optional.empty(), resolvedTensor.label()),
+                () -> assertEquals(Optional.empty(), resolvedTensor.provenance()),
                 () -> assertEquals(Optional.empty(), resolvedTensor.hostStorage()),
                 () -> assertSame(unresolved, unresolvedTensor.descriptor()),
                 () -> assertTrue(unresolvedTensor.descriptor().layout().isEmpty()),
                 () -> assertEquals(Optional.empty(), unresolvedTensor.label()),
+                () -> assertEquals(Optional.empty(), unresolvedTensor.provenance()),
                 () -> assertEquals(Optional.empty(), unresolvedTensor.hostStorage()),
                 () -> assertNotSame(resolvedTensor, unresolvedTensor),
                 () -> assertNotEquals(resolvedTensor.id(), unresolvedTensor.id()));
@@ -460,12 +473,57 @@ class TensorFactoryTest {
         assertAll(
                 () -> assertSame(descriptor, tensor.descriptor()),
                 () -> assertEquals(Optional.of("weights"), tensor.label()),
+                () -> assertEquals(Optional.empty(), tensor.provenance()),
                 () -> assertSame(storage, tensor.hostStorage().orElseThrow()),
                 () -> assertTrue(storage.isAlive()),
                 () -> assertTrue(storage.isReadOnly()),
                 () -> assertSame(storage, alias.hostStorage().orElseThrow()),
                 () -> assertNotSame(tensor, alias),
                 () -> assertNotEquals(tensor.id(), alias.id()));
+    }
+
+    @Test
+    void createsDerivedTensorWithExactProvenanceAndRequiredFailureEffects()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+        TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+        Tensor input = TensorFactory.create(descriptor);
+        TensorProvenance provenance = new TensorProvenance(
+                new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of(input));
+        long afterInput = next.get();
+
+        NullPointerException nullDescriptor = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerived(null, null, null));
+        NullPointerException nullLabel = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerived(descriptor, null, null));
+        NullPointerException nullProvenance = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerived(descriptor, Optional.empty(), null));
+        assertEquals(afterInput, next.get());
+
+        IllegalArgumentException blank = assertThrows(
+                IllegalArgumentException.class,
+                () -> TensorFactory.createDerived(
+                        descriptor, Optional.of(" \t\n "), provenance));
+        assertEquals(afterInput + 1, next.get());
+
+        Tensor derived = TensorFactory.createDerived(
+                descriptor, Optional.of("  result  "), provenance);
+
+        assertAll(
+                () -> assertEquals(before, input.id().value()),
+                () -> assertEquals("descriptor", nullDescriptor.getMessage()),
+                () -> assertEquals("label", nullLabel.getMessage()),
+                () -> assertEquals("provenance", nullProvenance.getMessage()),
+                () -> assertEquals("label must not be blank", blank.getMessage()),
+                () -> assertEquals(afterInput + 1, derived.id().value()),
+                () -> assertSame(descriptor, derived.descriptor()),
+                () -> assertEquals(Optional.of("result"), derived.label()),
+                () -> assertSame(provenance, derived.provenance().orElseThrow()),
+                () -> assertTrue(derived.hostStorage().isEmpty()));
     }
 
     @Test
@@ -645,6 +703,13 @@ class TensorFactoryTest {
                 assertEquals("tensor identifier space exhausted", exhausted.getMessage());
             }
 
+            TensorProvenance provenance = new TensorProvenance(
+                    new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of());
+            IllegalStateException derivedExhausted = assertThrows(
+                    IllegalStateException.class,
+                    () -> TensorFactory.createDerived(
+                            descriptor, Optional.of("derived"), provenance));
+
             NullPointerException nullWins = assertThrows(
                     NullPointerException.class,
                     () -> TensorFactory.create(null, Optional.of(" "), Optional.empty()));
@@ -655,6 +720,8 @@ class TensorFactoryTest {
             assertAll(
                     () -> assertEquals("descriptor", nullWins.getMessage()),
                     () -> assertEquals("tensor identifier space exhausted", exhaustionWins.getMessage()),
+                    () -> assertEquals(
+                            "tensor identifier space exhausted", derivedExhausted.getMessage()),
                     () -> assertEquals(Long.MAX_VALUE, next.get()),
                     () -> assertTrue(maximumClaimed.get()));
         } finally {
@@ -696,5 +763,9 @@ class TensorFactoryTest {
         Field field = TensorFactory.class.getDeclaredField("MAXIMUM_TENSOR_ID_CLAIMED");
         field.setAccessible(true);
         return (AtomicBoolean) field.get(null);
+    }
+
+    private enum SampleKind implements OperationKind {
+        SAMPLE
     }
 }

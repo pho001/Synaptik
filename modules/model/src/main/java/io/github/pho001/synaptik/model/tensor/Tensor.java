@@ -8,9 +8,10 @@ import java.util.Optional;
  * Public mutable state for one tensor, identified independently of graph-local values and nodes.
  *
  * <p>The tensor retains one immutable {@link TensorId}, one immutable {@link TensorDescriptor},
- * and one normalized optional diagnostic label. Its sole mutable state in this contract is an
- * optional borrowed {@link HostTensorStorage} association. The synchronized storage methods make
- * reference replacement and clearing atomic and visible with respect to one another; they do not
+ * one normalized optional diagnostic label, and immutable optional {@link TensorProvenance}.
+ * Its sole mutable state is an optional borrowed {@link HostTensorStorage} association. The
+ * synchronized storage methods make reference replacement and clearing atomic and visible with
+ * respect to one another; they do not
  * synchronize access to the underlying memory or prevent its caller-owned scope from closing.</p>
  *
  * <p>Construction remains package-private, and {@link TensorFactory} is the supported public
@@ -20,41 +21,49 @@ import java.util.Optional;
  * object identity for inherited equality and hashing, so equal identifier values do not make two
  * tensor objects equal.</p>
  *
- * <p>A tensor is distinct from its immutable descriptor, graph values and nodes, operation
- * provenance, publication bindings and plans, device buffers, runtime residency, and prepared
- * execution. It owns none of those cross-layer states and neither allocates nor closes storage.</p>
+ * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
+ * clearing, or later storage death. It is not graph-local node or value identity and does not
+ * make a tensor an intermediate-representation node. The tensor owns no publication, device,
+ * runtime-residency, or prepared-execution state and neither allocates nor closes storage.</p>
  */
 public final class Tensor {
     private final TensorId id;
     private final TensorDescriptor descriptor;
     private final Optional<String> label;
+    private final Optional<TensorProvenance> provenance;
     private HostTensorStorage hostStorage;
 
     /**
      * Creates tensor state from stable metadata and an optional borrowed host-storage association.
      *
      * <p>Validation proceeds in parameter order: {@code id}, {@code descriptor}, {@code label},
-     * and {@code hostStorage} optionals must be non-null; a present label is stripped and must
-     * remain non-blank; then present storage is checked for matching data type, sufficient capacity
-     * when layout geometry is resolved, and point-in-time liveness. A static or dynamic unresolved
-     * layout performs no capacity check because this class does not invent row-major geometry.
-     * Resolved capacity uses the complete referenced element span, including offset and striding;
-     * scalar span is one and zero-sized span is zero.</p>
+     * {@code provenance}, and {@code hostStorage} optionals must be non-null; a present label is
+     * stripped and must remain non-blank; then present storage is checked for matching data type,
+     * sufficient capacity when layout geometry is resolved, and point-in-time liveness. A static
+     * or dynamic unresolved layout performs no capacity check because this class does not invent
+     * row-major geometry. Resolved capacity uses the complete referenced element span, including
+     * offset and striding; scalar span is one and zero-sized span is zero.</p>
      *
-     * <p>The exact immutable identifier and descriptor references are retained. Label uses optional
-     * value semantics and is stored normalized. A present storage reference is borrowed and
-     * retained exactly, whether writable or read-only. The caller owns its lifetime and may close
-     * its scope immediately after construction; synchronization does not make raw memory access
-     * thread-safe or extend JDK scope accessibility.</p>
+     * <p>The exact immutable identifier and descriptor references are retained. Label uses
+     * optional value semantics and is stored normalized. Provenance also uses optional value
+     * semantics, and a present value retains the exact immutable provenance reference for this
+     * tensor's lifetime. A present storage reference is borrowed and retained exactly, whether
+     * writable or read-only. The caller owns its lifetime and may close its scope immediately
+     * after construction; synchronization does not make raw memory access thread-safe or extend
+     * JDK scope accessibility.</p>
      *
      * @param id non-null immutable tensor identity reference to retain exactly
      * @param descriptor non-null immutable logical descriptor reference to retain exactly
      * @param label non-null optional diagnostic label; present text is stripped and must contain a
      *     non-whitespace character, while empty represents absence
+     * @param provenance non-null value-based optional expression origin to retain; a present
+     *     result contains the exact immutable provenance reference and remains independent of
+     *     storage mutation
      * @param hostStorage non-null optional borrowed host storage to retain exactly when present;
      *     read-only storage is accepted
-     * @throws NullPointerException if {@code id}, {@code descriptor}, {@code label}, or
-     *     {@code hostStorage} is {@code null}, with the corresponding parameter name as the message
+     * @throws NullPointerException if {@code id}, {@code descriptor}, {@code label},
+     *     {@code provenance}, or {@code hostStorage} is {@code null}, with the corresponding
+     *     parameter name as the message
      * @throws IllegalArgumentException if a present label is blank, with message
      *     {@code label must not be blank}; if storage data type differs from the descriptor, with
      *     message {@code hostStorage data type must match descriptor data type:
@@ -68,10 +77,12 @@ public final class Tensor {
             TensorId id,
             TensorDescriptor descriptor,
             Optional<String> label,
+            Optional<TensorProvenance> provenance,
             Optional<HostTensorStorage> hostStorage) {
         this.id = Objects.requireNonNull(id, "id");
         this.descriptor = Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(label, "label");
+        this.provenance = Objects.requireNonNull(provenance, "provenance");
         Objects.requireNonNull(hostStorage, "hostStorage");
         this.label = normalizeLabel(label);
 
@@ -108,6 +119,22 @@ public final class Tensor {
      */
     public Optional<String> label() {
         return label;
+    }
+
+    /**
+     * Returns this tensor's immutable optional expression-origin metadata.
+     *
+     * <p>The optional uses value semantics, so callers must not rely on container identity. A
+     * present result contains the exact {@link TensorProvenance} reference supplied at
+     * construction. Provenance is final and therefore needs no synchronization; replacing,
+     * clearing, mutating, or invalidating host storage cannot change it. The value is origin
+     * metadata only, not graph-local identity, graph membership, or an executable node.</p>
+     *
+     * @return a non-null value-based optional containing the exact immutable provenance reference,
+     *     or empty for a leaf tensor
+     */
+    public Optional<TensorProvenance> provenance() {
+        return provenance;
     }
 
     /**
@@ -185,8 +212,9 @@ public final class Tensor {
      * Returns stable metadata-only diagnostic text.
      *
      * <p>The text contains the tensor identity, descriptor, and normalized label. It deliberately
-     * omits storage presence, implementation identity, addresses, contents, liveness, graph state,
-     * and runtime facts, so storage transitions do not change it. The format is not serialization.</p>
+     * omits provenance, operation and input expansion, storage presence, implementation identity,
+     * addresses, contents, liveness, graph state, and runtime facts, so origin and storage do not
+     * destabilize it. The format is not serialization.</p>
      *
      * @return non-null stable diagnostic text for this tensor's immutable metadata
      */

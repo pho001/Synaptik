@@ -162,6 +162,8 @@ The factory capability set includes:
 - scalar tensors;
 - zeros and ones;
 - zeros-like and ones-like;
+- fully static tensors filled with an explicit typed scalar value through canonical `full`;
+- dense rectangular identity matrices through canonical `identityMatrix`, with `eye` as its exact convenience alias;
 - floating tensors from normal and continuous uniform distributions;
 - integral random tensors from bounded half-open ranges;
 - boolean tensors from a Bernoulli distribution with explicit probability;
