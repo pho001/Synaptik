@@ -42,7 +42,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012H Integral random tensor creation (Draft; no detailed specification)
+0012I Bernoulli random tensor creation (Draft; no detailed specification)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -65,9 +65,11 @@ population under canonical dense descriptors. Task
 population for three floating types from an explicit transient caller-owned source with bounded
 reproducibility. [`0012G`](modules/model/tasks/0012g-uniform-random-tensor-creation.md) is complete;
 it adds bounded continuous-uniform floating samples with explicit binary64 half-open bounds and the
-same transient source policy. Task 0012H is the next Draft frontier for typed integral sampling,
-followed by Draft task 0012I for Bernoulli initialization and Draft provenance task 0013. No
-detailed specification for 0012H, 0012I, or 0013 is created here.
+same transient source policy. [`0012H`](modules/model/tasks/0012h-integral-random-tensor-creation.md)
+is complete; it adds typed bounded integral sampling with primitive-bound type inference and direct
+JDK bounded calls. Task 0012I is the active Draft planning frontier for Bernoulli initialization,
+followed by Draft provenance task 0013. No detailed specification for 0012I or 0013 is created
+here.
 
 ## Model task sequence
 
@@ -95,7 +97,7 @@ detailed specification for 0012H, 0012I, or 0013 is created here.
 | 20 | [0012E Range and prefix population](modules/model/tasks/0012e-range-and-prefix-population.md) | Complete |
 | 21 | [0012F Random tensor creation](modules/model/tasks/0012f-random-tensor-creation.md) | Complete |
 | 22 | [0012G Uniform random tensor creation](modules/model/tasks/0012g-uniform-random-tensor-creation.md) | Complete |
-| 23 | 0012H Integral random tensor creation | Draft |
+| 23 | [0012H Integral random tensor creation](modules/model/tasks/0012h-integral-random-tensor-creation.md) | Complete |
 | 24 | 0012I Bernoulli random tensor creation | Draft |
 | 25 | 0013 Tensor provenance skeleton | Draft |
 | 26 | 0014 Elementwise arithmetic operations | Draft |

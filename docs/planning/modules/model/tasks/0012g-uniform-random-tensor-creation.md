@@ -452,7 +452,7 @@ or end-to-end execution behavior. Architecture impact is therefore None.
 - Glossary impact: existing implementation-status, Tensor, and Tensor factory language was
   updated; no new reusable project term was introduced.
 - Unresolved issues: None.
-- Follow-up required: None for task 0012G. Task 0012H remains the next Draft frontier without a
-  detailed specification.
+- Follow-up required: None for task 0012G. Subsequent planning promoted task 0012H to the Ready
+  frontier with its own detailed specification.
 
 Status: Complete

@@ -8,17 +8,18 @@ import java.util.Optional;
 import java.util.random.RandomGenerator;
 
 /**
- * Implements validated eager normal and bounded continuous uniform sampling for
+ * Implements validated eager normal, bounded continuous uniform, and bounded integral sampling for
  * {@link TensorFactory} without retaining random source or result state.
  *
  * <p>The helper accepts only fully static Java-array-sized shapes and the three floating data
- * types. It constructs canonical dense descriptors, samples directly into one matching primitive
- * carrier, and delegates exactly once to flat import. It never creates a Tensor or storage
+ * types for floating distributions, plus exact INT32 and INT64 output selected by primitive
+ * integral bounds. It constructs canonical dense descriptors, samples directly into one matching
+ * primitive carrier, and delegates exactly once to flat import. It never creates a Tensor or storage
  * directly, allocates an identifier, looks up or replaces a source, or synchronizes, seeds,
- * resets, splits, or closes the caller-owned generator. Normal and uniform sampling remain two
- * cohesive package-private factory mechanics rather than a public random package, source
- * abstraction, seed API, or distribution enum: callers already supply the exact generator, and
- * no independent random-domain model type is needed.</p>
+ * resets, splits, or closes the caller-owned generator. The sampling paths remain cohesive
+ * package-private factory mechanics rather than a public random package, source abstraction, seed
+ * API, or distribution enum: callers already supply the exact generator, and no independent
+ * random-domain model type is needed.</p>
  */
 final class TensorRandoms {
     /** Prevents instantiation because sampling is stateless and scoped to one factory call. */
@@ -145,6 +146,91 @@ final class TensorRandoms {
     }
 
     /**
+     * Validates a requested INT32 tensor, samples one exact carrier, and imports it once.
+     *
+     * <p>Validation requires a fully static Java-array-sized shape and strictly ordered bounds.
+     * A canonical dense non-differentiable INT32 descriptor is completed before one {@code int[]}
+     * is allocated. Each row-major element is the direct result of one bounded
+     * {@link RandomGenerator#nextInt(int, int)} invocation with the unchanged bounds. No modulo,
+     * unbounded draw, floating arithmetic, conversion, stream, batching, or post-validation is
+     * used. Empty output makes no source call and scalar output makes one.</p>
+     *
+     * <p>The source and carrier are transient. Pre-sampling failures consume no source call or
+     * identifier; source exceptions leave earlier calls consumed but create no destination or
+     * identifier. Blank-label and exhaustion effects occur after all calls and are inherited from
+     * the one matching flat import. No state is rolled back.</p>
+     *
+     * <p>Primitive bounds select INT32 directly, gradients are disabled, and no data-type,
+     * gradient, default-bound, or full-domain option is inferred. Because the exclusive bound has
+     * the same carrier as the result, the interval cannot include {@link Integer#MAX_VALUE} as an
+     * emitted value. The caller owns source configuration, state, and safe access; reproducibility
+     * is limited to equivalent source implementation/state and identical arguments without
+     * interfering use.</p>
+     *
+     * @param shape non-null shape already checked by the public factory; must be fully static
+     * @param originInclusive inclusive signed 32-bit lower bound
+     * @param boundExclusive exclusive signed 32-bit upper bound, greater than the origin
+     * @param randomGenerator exact non-null transient caller-owned source
+     * @param label non-null optional label delegated unchanged to flat import
+     * @return the exact tensor returned by one INT32 flat-import call; never {@code null}
+     * @throws IllegalArgumentException if shape, count, or bound validation fails, or delegated
+     *     label validation rejects blank text
+     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    static Tensor randomInt(
+            Shape shape,
+            int originInclusive,
+            int boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        TensorDescriptor descriptor = integralDescriptor(shape, originInclusive, boundExclusive);
+        int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
+        return sampleInt32(
+                descriptor, originInclusive, boundExclusive, randomGenerator, label, length);
+    }
+
+    /**
+     * Validates a requested INT64 tensor, samples one exact carrier, and imports it once.
+     *
+     * <p>This overload applies the INT32 helper contract to primitive {@code long} bounds. It
+     * creates a canonical dense non-differentiable INT64 descriptor, calls
+     * {@link RandomGenerator#nextLong(long, long)} exactly once per row-major element, stores each
+     * direct result in one {@code long[]} carrier, and delegates once to matching flat import.
+     * Neither source nor carrier is retained, and no unbounded draw, modulo, floating arithmetic,
+     * conversion, alternate carrier, or post-validation is used.</p>
+     *
+     * <p>Primitive bounds select INT64 directly and gradients are disabled. The same-carrier
+     * exclusive bound cannot express a value above {@link Long#MAX_VALUE}, so that maximum cannot
+     * be emitted by this bounded API and no full-domain alternative is supplied. Source ownership,
+     * safe access, bounded reproducibility, and failure effects match the INT32 entry.</p>
+     *
+     * @param shape non-null shape already checked by the public factory; must be fully static
+     * @param originInclusive inclusive signed 64-bit lower bound
+     * @param boundExclusive exclusive signed 64-bit upper bound, greater than the origin
+     * @param randomGenerator exact non-null transient caller-owned source
+     * @param label non-null optional label delegated unchanged to flat import
+     * @return the exact tensor returned by one INT64 flat-import call; never {@code null}
+     * @throws IllegalArgumentException if shape, count, or bound validation fails, or delegated
+     *     label validation rejects blank text
+     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    static Tensor randomInt(
+            Shape shape,
+            long originInclusive,
+            long boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        TensorDescriptor descriptor = integralDescriptor(shape, originInclusive, boundExclusive);
+        int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
+        return sampleInt64(
+                descriptor, originInclusive, boundExclusive, randomGenerator, label, length);
+    }
+
+    /**
      * Validates metadata and creates the canonical dense descriptor before sampling or carrier
      * allocation.
      *
@@ -258,6 +344,84 @@ final class TensorRandoms {
         LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
         return new TensorDescriptor(
                 dataType, shape, Optional.of(layout), requiresGrad);
+    }
+
+    /**
+     * Validates INT32 random metadata and creates the canonical non-differentiable descriptor.
+     *
+     * @param shape requested logical shape
+     * @param originInclusive inclusive signed 32-bit lower bound
+     * @param boundExclusive exclusive signed 32-bit upper bound
+     * @return a non-null validated dense INT32 descriptor retaining {@code shape}
+     * @throws IllegalArgumentException if shape is dynamic, count exceeds the Java-array limit, or
+     *     origin is not strictly less than bound
+     * @throws ArithmeticException if checked element-count or layout arithmetic overflows
+     */
+    private static TensorDescriptor integralDescriptor(
+            Shape shape, int originInclusive, int boundExclusive) {
+        validateIntegralShape(shape);
+        if (originInclusive >= boundExclusive) {
+            throw new IllegalArgumentException(
+                    "integral random origin must be less than bound: origin="
+                            + originInclusive
+                            + ", bound="
+                            + boundExclusive);
+        }
+        LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
+        return new TensorDescriptor(DataType.INT32, shape, Optional.of(layout), false);
+    }
+
+    /**
+     * Validates INT64 random metadata and creates the canonical non-differentiable descriptor.
+     *
+     * @param shape requested logical shape
+     * @param originInclusive inclusive signed 64-bit lower bound
+     * @param boundExclusive exclusive signed 64-bit upper bound
+     * @return a non-null validated dense INT64 descriptor retaining {@code shape}
+     * @throws IllegalArgumentException if shape is dynamic, count exceeds the Java-array limit, or
+     *     origin is not strictly less than bound
+     * @throws ArithmeticException if checked element-count or layout arithmetic overflows
+     */
+    private static TensorDescriptor integralDescriptor(
+            Shape shape, long originInclusive, long boundExclusive) {
+        validateIntegralShape(shape);
+        if (originInclusive >= boundExclusive) {
+            throw new IllegalArgumentException(
+                    "integral random origin must be less than bound: origin="
+                            + originInclusive
+                            + ", bound="
+                            + boundExclusive);
+        }
+        LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
+        return new TensorDescriptor(DataType.INT64, shape, Optional.of(layout), false);
+    }
+
+    /**
+     * Validates the shared integral shape and Java-array count boundary before bound validation.
+     *
+     * <p>Dynamic shape reports
+     * {@code integral random tensor creation requires a fully static shape: <shape>}. A count
+     * above the Java-array limit reports {@code integral random tensor element count exceeds Java
+     * array limit: required=<required>, maximum=2147483647}. Checked count overflow propagates
+     * before either message can be superseded by bound validation.</p>
+     *
+     * @param shape requested logical shape
+     * @throws IllegalArgumentException if shape is dynamic or count exceeds the Java-array limit
+     * @throws ArithmeticException if checked element-count arithmetic overflows
+     */
+    private static void validateIntegralShape(Shape shape) {
+        if (!shape.isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "integral random tensor creation requires a fully static shape: " + shape);
+        }
+        long elementCount = shape.knownElementCount().orElseThrow();
+        if (elementCount > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "integral random tensor element count exceeds Java array limit: required="
+                            + elementCount
+                            + ", maximum="
+                            + Integer.MAX_VALUE);
+        }
     }
 
     /**
@@ -460,6 +624,60 @@ final class TensorRandoms {
         for (int index = 0; index < length; index++) {
             source[index] = BFloat16Bits.fromFloat((float) randomGenerator.nextDouble(
                     lowerBoundInclusive, upperBoundExclusive));
+        }
+        return TensorFactory.fromFlatArray(descriptor, label, source);
+    }
+
+    /**
+     * Samples one direct bounded INT32 result per element and imports the sole typed carrier.
+     *
+     * @param descriptor non-null validated dense INT32 result descriptor
+     * @param originInclusive inclusive signed 32-bit lower bound
+     * @param boundExclusive exclusive signed 32-bit upper bound
+     * @param randomGenerator non-null transient caller-owned source; invoked once per element
+     * @param label non-null optional label delegated unchanged to flat import
+     * @param length non-negative logical element count and exact carrier length
+     * @return the non-null tensor returned by the one INT32 flat-import call
+     * @throws RuntimeException if a source call or delegated import throws; no state is rolled back
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    private static Tensor sampleInt32(
+            TensorDescriptor descriptor,
+            int originInclusive,
+            int boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label,
+            int length) {
+        int[] source = new int[length];
+        for (int index = 0; index < length; index++) {
+            source[index] = randomGenerator.nextInt(originInclusive, boundExclusive);
+        }
+        return TensorFactory.fromFlatArray(descriptor, label, source);
+    }
+
+    /**
+     * Samples one direct bounded INT64 result per element and imports the sole typed carrier.
+     *
+     * @param descriptor non-null validated dense INT64 result descriptor
+     * @param originInclusive inclusive signed 64-bit lower bound
+     * @param boundExclusive exclusive signed 64-bit upper bound
+     * @param randomGenerator non-null transient caller-owned source; invoked once per element
+     * @param label non-null optional label delegated unchanged to flat import
+     * @param length non-negative logical element count and exact carrier length
+     * @return the non-null tensor returned by the one INT64 flat-import call
+     * @throws RuntimeException if a source call or delegated import throws; no state is rolled back
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    private static Tensor sampleInt64(
+            TensorDescriptor descriptor,
+            long originInclusive,
+            long boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label,
+            int length) {
+        long[] source = new long[length];
+        for (int index = 0; index < length; index++) {
+            source[index] = randomGenerator.nextLong(originInclusive, boundExclusive);
         }
         return TensorFactory.fromFlatArray(descriptor, label, source);
     }

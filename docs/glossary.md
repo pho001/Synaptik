@@ -18,8 +18,9 @@ dense-contiguous layouts and copied rectangular nested primitive-array import wi
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
 zero, one, zero-like, and one-like constants, plus eager typed integer ranges, strict or cyclic
 flat-prefix population for all six exact primitive carriers, and explicit-source normal random
-and bounded continuous-uniform population for the three floating types. Concrete operation kinds
-and family attributes, provenance, bounded integral and Bernoulli random distributions, random
+and bounded continuous-uniform population for the three floating types, plus bounded integral
+random population for exact `INT32` and `INT64` output. Concrete operation kinds and family
+attributes, provenance, Bernoulli random distribution, random
 Operations, typed access and export, native/runtime/backend allocation, expression operations,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -299,10 +300,12 @@ the factory infers its exact type, fully static shape, and dense-contiguous layo
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
 dense storage and explicit label and gradient intent. Eager non-empty `INT32` and `INT64` range
 creation, strict or cyclic typed flat-prefix creation, and caller-source normal random and bounded
-continuous-uniform creation are also implemented as copied canonical dense leaf data. Bounded
-integral and Bernoulli distributions, random Operations, typed access and export, deterministic
-native-resource ownership, provenance, expression operations, gradient objects, trainable role,
-publication behavior, compiler integration, device buffers, and runtime residency remain planned.
+continuous-uniform creation are also implemented as copied canonical dense leaf data.
+Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
+false gradient intent. Bernoulli distribution, random Operations, typed access and export,
+deterministic native-resource ownership, provenance, expression operations, gradient objects,
+trainable role, publication behavior, compiler integration, device buffers, and runtime residency
+remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -371,9 +374,9 @@ numerically non-negative standard deviation, label, and gradient intent. It cons
 multiplication then addition, converts to one exact carrier, and delegates once to flat import.
 The factory never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
 the source. Reproducibility is consequently bounded to equivalent generator implementation and
-state, identical arguments, and no interfering use. Bounded integral and Bernoulli distributions,
-random Operations, typed access or export, general numeric conversion, native/runtime/backend
-allocation, and deterministic resource ownership remain planned.
+state, identical arguments, and no interfering use. Bernoulli distribution, random Operations,
+typed access or export, general numeric conversion, native/runtime/backend allocation, and
+deterministic resource ownership remain planned.
 
 Continuous-uniform random creation accepts the same transient caller-owned source, static
 Java-array-sized shapes, and three floating output types. Its finite binary64 lower bound must be
@@ -383,8 +386,21 @@ FLOAT64 stores it directly, FLOAT32 narrows once, and BFLOAT16 narrows to binary
 `BFloat16Bits.fromFloat`. Narrowing may produce a stored value equal to the corresponding narrowed
 upper bound. The factory does not clamp or resample, post-validate custom source results, or retain
 the generator. The same caller ownership, no-synchronization, and bounded reproducibility policy
-applies. No random package, source service, seed API, or distribution enum is introduced because
-the two distribution-specific factory methods share one cohesive package-private helper and add no
+applies.
+
+Bounded integral random creation has two `randomInt` overloads. Primitive `int` bounds infer
+`INT32`, primitive `long` bounds infer `INT64`, and both results disable gradients. Each row-major
+element consumes exactly one matching bounded `nextInt(origin, bound)` or
+`nextLong(origin, bound)` call and is stored directly in one exact carrier before one flat import.
+Bounds define a strict half-open interval and are validated even for empty output. No modulo,
+unbounded draw, floating conversion, data-type parameter, gradient parameter, or default source is
+added. Because the exclusive bound uses the result carrier, the API cannot express a mathematical
+exclusive bound above `Integer.MAX_VALUE` or `Long.MAX_VALUE`; no full-domain convenience is
+provided. The same caller ownership, no-synchronization, bounded reproducibility, and late
+failure/no-rollback rules apply.
+
+No random package, source service, seed API, or distribution enum is introduced because the
+distribution-specific factory methods share one cohesive package-private helper and add no
 independent public random-domain model.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
@@ -439,6 +455,13 @@ Source allocation failure consumes neither calls nor an ID. A generator exceptio
 bounded calls but creates no destination or ID. After sampling, delegated flat import allocates the
 destination and then the ID; blank-label failure consumes all calls and one ID, while exhaustion
 consumes all calls without rollback.
+
+Bounded-integral null, shape, count, and bound validation likewise completes before source-carrier
+allocation, sampling, destination allocation, or ID allocation. Source allocation failure
+consumes neither calls nor an ID. A generator exception preserves prior bounded calls but creates
+no destination or ID. After sampling, delegated flat import allocates the destination and then the
+ID; blank-label failure consumes all calls and one ID, while exhaustion consumes all calls without
+rollback.
 
 ### Tensor descriptor
 

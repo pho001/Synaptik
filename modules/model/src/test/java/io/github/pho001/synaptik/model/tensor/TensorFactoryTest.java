@@ -206,6 +206,20 @@ class TensorFactoryTest {
                 RandomGenerator.class,
                 Optional.class,
                 boolean.class);
+        Method randomInt32 = TensorFactory.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                int.class,
+                int.class,
+                RandomGenerator.class,
+                Optional.class);
+        Method randomInt64 = TensorFactory.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                long.class,
+                long.class,
+                RandomGenerator.class,
+                Optional.class);
         Method importFlat = TensorFactory.class.getDeclaredMethod(
                 "importFlat",
                 TensorDescriptor.class,
@@ -253,6 +267,8 @@ class TensorFactoryTest {
                         cyclicBool,
                         randomNormal,
                         randomUniform,
+                        randomInt32,
+                        randomInt64,
                         importFlat,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
@@ -282,6 +298,8 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, rangeInt64.getReturnType()),
                 () -> assertEquals(Tensor.class, randomNormal.getReturnType()),
                 () -> assertEquals(Tensor.class, randomUniform.getReturnType()),
+                () -> assertEquals(Tensor.class, randomInt32.getReturnType()),
+                () -> assertEquals(Tensor.class, randomInt64.getReturnType()),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -324,6 +342,8 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(rangeInt64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomNormal.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomUniform.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(randomInt32.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(randomInt64.getModifiers())),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -366,6 +386,8 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(rangeInt64.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomNormal.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomUniform.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(randomInt32.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(randomInt64.getModifiers())),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,

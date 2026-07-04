@@ -48,13 +48,15 @@ import java.util.random.RandomGenerator;
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
  * and reuse flat import for final allocation, normalization, and identity assignment. Normal and
- * bounded continuous uniform random creation likewise produce eager copied leaf data, but require
- * a transient caller-owned {@link RandomGenerator}; the factory never selects, seeds, retains,
- * replaces, synchronizes, splits, or closes a random source. No random package, source service,
- * seed API, or distribution abstraction is introduced. The two distribution-specific methods
- * remain cohesive factory operations beside their package-private sampling helper; they do not
- * create an independently useful random-domain type, and the explicit caller-owned generator
- * already supplies source and seeding policy without another model service.</p>
+ * bounded continuous uniform and bounded integral random creation likewise produce eager copied
+ * leaf data, but require a transient caller-owned {@link RandomGenerator}; the factory never
+ * selects, seeds, retains, replaces, synchronizes, splits, or closes a random source. Integral
+ * primitive bounds infer INT32 or INT64, so those overloads need no data-type or gradient input.
+ * No random package, source service, seed API, or distribution abstraction is introduced. The
+ * distribution-specific methods remain cohesive factory operations beside their package-private
+ * sampling helper; they do not create an independently useful random-domain type, and the
+ * explicit caller-owned generator already supplies source and seeding policy without another
+ * model service.</p>
  */
 public final class TensorFactory {
     /**
@@ -1091,6 +1093,151 @@ public final class TensorFactory {
                 randomGenerator,
                 label,
                 requiresGrad);
+    }
+
+    /**
+     * Creates an independent dense INT32 tensor from bounded integral samples.
+     *
+     * <p>The shape must be fully static and its checked logical element count must fit a Java
+     * array. {@code originInclusive} must be strictly less than {@code boundExclusive}; the result
+     * uses a new canonical dense-contiguous descriptor with gradients disabled and the supplied
+     * optional label. The primitive bounds select {@link DataType#INT32} directly, so no data-type,
+     * gradient, rounding, narrowing, widening, or conversion policy is involved.</p>
+     *
+     * <p>For every logical element in row-major order, this method invokes
+     * {@link RandomGenerator#nextInt(int, int)} exactly once with the unchanged bounds and stores
+     * that result directly in one {@code int[]} carrier. A conforming generator returns each value
+     * in the half-open interval {@code [originInclusive, boundExclusive)} without project-owned
+     * modulo arithmetic or bias. A custom non-conforming result is not post-validated. A
+     * zero-element shape makes no source call, while a scalar makes one.</p>
+     *
+     * <p>The same-carrier exclusive bound cannot express the mathematical value one greater than
+     * {@link Integer#MAX_VALUE}. Consequently, {@code Integer.MAX_VALUE} may be supplied as the
+     * exclusive bound but is never emitted, and this overload does not provide an unbounded or
+     * full-domain alternative. Negative and mixed-sign intervals remain valid when strictly
+     * ordered.</p>
+     *
+     * <p>Validation after the public null checks is deterministic. Dynamic shape reports
+     * {@code integral random tensor creation requires a fully static shape: <shape>}; an
+     * over-limit count reports {@code integral random tensor element count exceeds Java array
+     * limit: required=<required>, maximum=2147483647}; and unordered bounds report
+     * {@code integral random origin must be less than bound: origin=<origin>, bound=<bound>}.
+     * Checked count or layout overflow remains an {@link ArithmeticException}.</p>
+     *
+     * <p>The caller creates, configures, seeds, owns, and advances the exact random generator.
+     * Neither this factory nor the returned tensor retains or substitutes it, and the call does
+     * not synchronize, reset, split, or close it. Equivalent output is bounded to equivalent
+     * generator implementations and initial states, identical arguments, and no interfering
+     * source use; no cross-algorithm, provider, Java-version, seed-expansion, concurrent-use, or
+     * global reproducibility promise is made. The one-call promise concerns the bounded generator
+     * method, not the source's internal random-bit consumption.</p>
+     *
+     * <p>Null, shape, count, bound, layout, and descriptor failures occur before carrier
+     * allocation, sampling, destination allocation, or identifier allocation. Source-carrier
+     * allocation failure therefore consumes no source call or identifier. If the generator
+     * throws, preceding calls remain consumed according to generator behavior, but no destination
+     * or identifier exists. After all samples are produced, exactly one matching flat import
+     * allocates destination storage and then an identifier. A destination-allocation failure
+     * follows all source calls but precedes identifier allocation. A blank label consumes all
+     * source calls, both carriers, and one identifier before delegated Tensor validation fails;
+     * exhaustion likewise follows all calls and allocations. No source, allocation, or identifier
+     * state is rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
+     * @param originInclusive inclusive signed 32-bit lower bound
+     * @param boundExclusive exclusive signed 32-bit upper bound, strictly greater than the origin
+     * @param randomGenerator non-null transient caller-owned source; it is never retained,
+     *     substituted, seeded, reset, split, synchronized, or closed
+     * @param label non-null optional diagnostic label; present text is normalized and validated by
+     *     {@link Tensor} after sampling and destination/identifier allocation
+     * @return a non-null fresh dense INT32 tensor containing independently copied bounded samples,
+     *     with gradients disabled, new storage, and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order with the parameter name as message; no source call or
+     *     identifier is consumed
+     * @throws IllegalArgumentException if the shape is dynamic; its logical count exceeds
+     *     {@link Integer#MAX_VALUE}; the origin is not strictly less than the bound; or delegated
+     *     Tensor validation rejects a blank label. Only the blank-label failure occurs after
+     *     sampling, destination allocation, and identifier allocation
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after sampling and both carrier allocations
+     * @throws OutOfMemoryError if source or destination carrier allocation fails; source allocation
+     *     failure consumes no calls or identifier, while destination failure follows sampling
+     */
+    public static Tensor randomInt(
+            Shape shape,
+            int originInclusive,
+            int boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
+        return TensorRandoms.randomInt(
+                shape, originInclusive, boundExclusive, randomGenerator, label);
+    }
+
+    /**
+     * Creates an independent dense INT64 tensor from bounded integral samples.
+     *
+     * <p>This overload has the same static-shape, strict half-open interval, source ownership,
+     * reproducibility, validation ordering, allocation, label, identifier, and no-rollback
+     * contract as the INT32 overload. Primitive {@code long} bounds select
+     * {@link DataType#INT64}; gradients are always disabled. Each row-major element is the direct
+     * result of one {@link RandomGenerator#nextLong(long, long)} call stored in the sole
+     * {@code long[]} source carrier, followed by exactly one matching flat import. No unbounded
+     * draw, modulo reduction, floating arithmetic, conversion, stream, or alternate carrier is
+     * used.</p>
+     *
+     * <p>The same-carrier exclusive bound cannot express the mathematical value one greater than
+     * {@link Long#MAX_VALUE}. {@code Long.MAX_VALUE} may be the exclusive bound but is never
+     * emitted; no unbounded or full-domain convenience is added. Negative and mixed-sign strictly
+     * ordered intervals are supported. The generator is transient and never retained or managed,
+     * and the one-call guarantee applies to bounded method invocations rather than internal source
+     * bits.</p>
+     *
+     * <p>Validation uses the same public null order and the same shape, count, and bound messages
+     * as the INT32 overload, with the supplied signed 64-bit bound values. Pre-sampling failures
+     * and source-carrier allocation failure consume no calls or identifier. A source exception
+     * leaves preceding calls consumed but creates no destination or identifier. Destination
+     * allocation follows all calls and precedes identifier allocation; a blank label consumes all
+     * calls and one identifier, while exhaustion follows all calls and both carrier allocations.
+     * No source, allocation, or identifier state is rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
+     * @param originInclusive inclusive signed 64-bit lower bound
+     * @param boundExclusive exclusive signed 64-bit upper bound, strictly greater than the origin
+     * @param randomGenerator non-null transient caller-owned source; it is never retained,
+     *     substituted, seeded, reset, split, synchronized, or closed
+     * @param label non-null optional diagnostic label; present text is normalized and validated by
+     *     {@link Tensor} after sampling and destination/identifier allocation
+     * @return a non-null fresh dense INT64 tensor containing independently copied bounded samples,
+     *     with gradients disabled, new storage, and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order with the parameter name as message; no source call or
+     *     identifier is consumed
+     * @throws IllegalArgumentException if the shape is dynamic; its logical count exceeds
+     *     {@link Integer#MAX_VALUE}; the origin is not strictly less than the bound; or delegated
+     *     Tensor validation rejects a blank label. Only the blank-label failure occurs after
+     *     sampling, destination allocation, and identifier allocation
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after sampling and both carrier allocations
+     * @throws OutOfMemoryError if source or destination carrier allocation fails; source allocation
+     *     failure consumes no calls or identifier, while destination failure follows sampling
+     */
+    public static Tensor randomInt(
+            Shape shape,
+            long originInclusive,
+            long boundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
+        return TensorRandoms.randomInt(
+                shape, originInclusive, boundExclusive, randomGenerator, label);
     }
 
     /**

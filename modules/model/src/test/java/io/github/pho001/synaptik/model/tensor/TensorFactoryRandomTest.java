@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryRandomTest {
     @Test
-    void helperHasExactlyTwoPackageEntriesAndNoStateOrPublicSurface()
+    void helperHasExactlyFourPackageEntriesAndNoStateOrPublicSurface()
             throws ReflectiveOperationException {
         Method entry = TensorRandoms.class.getDeclaredMethod(
                 "randomNormal",
@@ -52,6 +52,20 @@ class TensorFactoryRandomTest {
                 RandomGenerator.class,
                 Optional.class,
                 boolean.class);
+        Method int32Entry = TensorRandoms.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                int.class,
+                int.class,
+                RandomGenerator.class,
+                Optional.class);
+        Method int64Entry = TensorRandoms.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                long.class,
+                long.class,
+                RandomGenerator.class,
+                Optional.class);
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
@@ -73,8 +87,18 @@ class TensorFactoryRandomTest {
                 () -> assertFalse(Modifier.isPrivate(uniformEntry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(uniformEntry.getModifiers())),
                 () -> assertEquals(Tensor.class, uniformEntry.getReturnType()),
+                () -> assertFalse(Modifier.isPublic(int32Entry.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(int32Entry.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(int32Entry.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(int32Entry.getModifiers())),
+                () -> assertEquals(Tensor.class, int32Entry.getReturnType()),
+                () -> assertFalse(Modifier.isPublic(int64Entry.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(int64Entry.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(int64Entry.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(int64Entry.getModifiers())),
+                () -> assertEquals(Tensor.class, int64Entry.getReturnType()),
                 () -> assertEquals(
-                        2,
+                        4,
                         Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),

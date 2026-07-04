@@ -6,9 +6,10 @@ This reference documents the public model contracts that are implemented today. 
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, independent dense constants, deterministic population, and explicit-source
-normal and continuous-uniform random population. Provenance, expression operations, typed access,
-gradient objects and publication behavior, native/runtime/backend allocation, compiler integration, runtime
-residency, and backend execution remain planned. The authoritative module boundary remains
+normal, continuous-uniform, and bounded integral random population. Provenance, expression
+operations, typed access, gradient objects and publication behavior, native/runtime/backend
+allocation, compiler integration, runtime residency, and backend execution remain planned. The
+authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values and provide one bounded host-allocation path without
@@ -26,6 +27,7 @@ TensorFactory + scalar/shape/type or Tensor template          = independent dens
 TensorFactory + integral bounds/step                          = copied dense INT32 or INT64 range Tensor
 TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
 TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
+TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -52,11 +54,12 @@ Its deterministic population methods also create non-empty exclusive-end `INT32`
 ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
 Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
 and delegate final storage population and identity assignment to flat import.
-Normal and continuous-uniform random creation similarly build one exact floating carrier, but
-consume a transient caller-owned `RandomGenerator` instead of retaining, selecting, or seeding a
-source. They remain explicit distribution-specific factory methods beside one package-private
-helper because two cohesive sampling paths do not justify a public random package, source
-abstraction, seed API, or distribution enum.
+Normal, continuous-uniform, and bounded integral random creation similarly build one exact
+carrier, but consume a transient caller-owned `RandomGenerator` instead of retaining, selecting,
+or seeding a source. Primitive `int` or `long` bounds infer `INT32` or `INT64`, respectively, and
+integral results always disable gradients. The methods remain explicit distribution-specific
+factory operations beside one package-private helper because these cohesive sampling paths do not
+justify a public random package, source abstraction, seed API, or distribution enum.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -856,6 +859,120 @@ runtime/backend random execution.
 - Two equivalent caller-created generators can produce equivalent tensors when their initial
   states and all method arguments match and neither source has interfering use.
 
+Bounded integral random creation has exactly two public overloads named `randomInt`. Primitive
+`int` bounds produce `INT32`, while primitive `long` bounds produce `INT64`. Both take a fully
+static Java-array-sized shape, inclusive origin, exclusive bound, caller-owned `RandomGenerator`,
+and optional label. The origin must be strictly less than the bound, including for an empty
+result. The synthesized descriptor is canonical dense-contiguous and always has
+`requiresGrad == false`; there is no data-type or gradient parameter because the bound carrier
+already selects a non-differentiable result type.
+
+Each logical row-major element is the direct result of exactly one matching bounded call:
+`nextInt(origin, bound)` for `INT32` or `nextLong(origin, bound)` for `INT64`. The factory uses no
+unbounded draw, modulo reduction, floating arithmetic, narrowing, widening, or alternate carrier.
+It fills one exact `int[]` or `long[]` and delegates once to matching flat import. A conforming
+source supplies values in the half-open interval `[origin, bound)` without project-owned modulo
+bias; custom non-conforming values are copied without post-validation. A scalar consumes one
+bounded call and a valid empty result consumes none.
+
+The source has the same ownership and bounded reproducibility contract as the floating random
+methods. The caller configures, seeds, owns, advances, and provides safe access to it. The factory
+does not substitute, retain, synchronize, reset, split, or close the source. Equivalent output
+requires equivalent generator implementation and initial state, identical arguments, and no
+interfering source use. The one-call guarantee concerns bounded method invocations rather than the
+generator's internal random-bit consumption.
+
+The bounds use the result carrier itself. `Integer.MAX_VALUE` or `Long.MAX_VALUE` can therefore be
+an exclusive bound but cannot be emitted, and the mathematical exclusive bound one greater than
+the carrier maximum cannot be expressed. No unbounded or full-domain convenience is supplied.
+Negative and mixed-sign intervals are supported when strictly ordered.
+
+### Complete bounded-integral example
+
+#### Goal and inputs
+
+Create a `2 × 2` INT32 tensor from the scripted values `[-3, -1, 0, 4]` over `[-3, 5)`. The
+scripted source verifies that every call receives the exact bounds and that neither an unbounded
+draw nor a production seed/source-selection API is involved.
+
+```java
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.random.RandomGenerator;
+
+public final class IntegralRandomExample {
+    private static final class ScriptedGenerator implements RandomGenerator {
+        private final int[] values = {-3, -1, 0, 4};
+        private int calls;
+
+        @Override
+        public long nextLong() {
+            throw new AssertionError("unbounded nextLong is not used");
+        }
+
+        @Override
+        public int nextInt(int origin, int bound) {
+            if (origin != -3 || bound != 5) {
+                throw new AssertionError("unexpected bounds");
+            }
+            return values[calls++];
+        }
+    }
+
+    public static void main(String[] args) {
+        ScriptedGenerator source = new ScriptedGenerator();
+        Tensor tensor = TensorFactory.randomInt(
+                Shape.of(2, 2), -3, 5, source, Optional.of("indices"));
+
+        int[] data = (int[]) tensor.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        System.out.println(Arrays.toString(data));
+        System.out.println(tensor.descriptor().dataType());
+        System.out.println(tensor.descriptor().requiresGrad());
+        System.out.println(source.calls);
+    }
+}
+```
+
+#### Meaningful lines
+
+- Primitive `int` bounds select `INT32`; the call has no `DataType` or gradient argument.
+- The source rejects unbounded `nextLong()` and validates `-3` and `5` on every bounded
+  `nextInt(origin, bound)` invocation. The factory stores each returned value directly.
+- Heap-base inspection makes the implemented raw storage observable for the example; it is not a
+  typed Tensor access or export API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+[-3, -1, 0, 4]
+INT32
+false
+4
+```
+
+The result proves inferred INT32 type, false gradient intent, exact bounded-call order and count,
+direct carrier storage, and half-open boundary values for this scripted input. The primitive
+`long` overload follows the same contract with `nextLong(origin, bound)` and an `INT64` result. The
+example does not promise statistical quality for a custom generator, full-domain sampling, typed
+export, a random graph Operation, or runtime/backend generation.
+
+#### Failures and useful variations
+
+- A dynamic shape or logical count above `Integer.MAX_VALUE` fails before sampling or ID
+  allocation. Checked element-count overflow remains an `ArithmeticException`.
+- Equal or reversed bounds fail even for an empty result, before source-carrier allocation.
+- If the bounded source method throws, earlier calls remain consumed, but no destination or ID
+  exists.
+- A blank label fails after all bounded calls, destination allocation, and ID allocation; the ID
+  is consumed and no state is rolled back.
+
 ### Complete flat-import example
 
 #### Goal and inputs
@@ -1400,7 +1517,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- bounded integral and Bernoulli random distributions, random Operations, and typed tensor access
+- Bernoulli random distribution, random Operations, and typed tensor access
   or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
@@ -1490,6 +1607,16 @@ provide a compiler entry point or executable support.
   failures consume no calls or ID; a source exception preserves prior advancement; blank label and
   exhaustion occur after all calls and destination allocation under the delegated flat-import
   side effects.
+- Its two bounded-integral `randomInt` overloads infer `INT32` from primitive `int` bounds and
+  `INT64` from primitive `long` bounds. They require a fully static Java-array-sized shape and a
+  strict half-open interval, always disable gradients, and consume one matching bounded
+  `nextInt(origin, bound)` or `nextLong(origin, bound)` call per row-major element. Each direct
+  result is stored without modulo, unbounded sampling, floating arithmetic, or conversion in one
+  exact carrier and delegated once to flat import. The same-carrier bound cannot express an
+  exclusive value above the carrier maximum, so no full-domain form is provided. Prevalidation
+  and source-carrier allocation failures consume no calls or ID; a source exception preserves
+  prior calls; blank-label failure and exhaustion occur after all calls and destination
+  allocation without rollback.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.

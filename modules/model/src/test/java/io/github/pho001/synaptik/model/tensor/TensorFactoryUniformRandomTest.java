@@ -52,6 +52,20 @@ class TensorFactoryUniformRandomTest {
                 RandomGenerator.class,
                 Optional.class,
                 boolean.class);
+        Method int32Entry = TensorRandoms.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                int.class,
+                int.class,
+                RandomGenerator.class,
+                Optional.class);
+        Method int64Entry = TensorRandoms.class.getDeclaredMethod(
+                "randomInt",
+                Shape.class,
+                long.class,
+                long.class,
+                RandomGenerator.class,
+                Optional.class);
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
@@ -61,12 +75,12 @@ class TensorFactoryUniformRandomTest {
                 () -> assertTrue(Modifier.isPrivate(
                         TensorRandoms.class.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(
-                        2,
+                        4,
                         Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),
                 () -> assertEquals(
-                        java.util.Set.of(normalEntry, uniformEntry),
+                        java.util.Set.of(normalEntry, uniformEntry, int32Entry, int64Entry),
                         Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .collect(java.util.stream.Collectors.toSet())),
