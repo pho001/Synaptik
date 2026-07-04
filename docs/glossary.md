@@ -16,9 +16,10 @@ the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element re
 JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
 dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
-zero, one, zero-like, and one-like constants, plus eager typed integer ranges and strict or cyclic
-flat-prefix population for all six exact primitive carriers. Concrete operation kinds and family
-attributes, provenance, random population, typed access and export, native/runtime/backend
+zero, one, zero-like, and one-like constants, plus eager typed integer ranges, strict or cyclic
+flat-prefix population for all six exact primitive carriers, and explicit-source normal random
+population for the three floating types. Concrete operation kinds and family attributes,
+provenance, other random distributions, random Operations, typed access and export, native/runtime/backend
 allocation, expression operations, gradient and publication behavior, compiler entry points and
 artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
 or planning contracts. A definition explains intended meaning; it is not by itself evidence that
@@ -297,8 +298,9 @@ dense-contiguous layouts. Copied rectangular nested primitive-array import is al
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
 dense storage and explicit label and gradient intent. Eager non-empty `INT32` and `INT64` range
-creation and strict or cyclic typed flat-prefix creation are also implemented as copied canonical
-dense leaf data. Random population, typed access and export, deterministic native-resource
+creation, strict or cyclic typed flat-prefix creation, and caller-source normal random creation
+are also implemented as copied canonical dense leaf data. Other random distributions and random
+Operations, typed access and export, deterministic native-resource
 ownership, provenance, expression operations, gradient objects, trainable role,
 publication behavior, compiler integration, device buffers, and runtime residency remain planned.
 A `Tensor` is not an
@@ -362,8 +364,16 @@ result. No source is retained or mutated. Numeric and raw BFLOAT16 values remain
 flat import normalizes BOOL zero/non-zero bytes to canonical zero/one storage. Neither mode adds
 shape inference, conversion, view scattering, or a general fill/repeat/tile operation.
 
-Random population, typed access or export, general numeric conversion, native/runtime/backend
-allocation, and deterministic resource ownership remain planned.
+Normal random creation accepts one transient caller-owned `RandomGenerator`, fully static
+Java-array-sized shape, explicit `FLOAT64`, `FLOAT32`, or `BFLOAT16` output, finite mean, finite
+numerically non-negative standard deviation, label, and gradient intent. It consumes exactly one
+`nextGaussian()` call per logical row-major element, transforms with ordinary binary64
+multiplication then addition, converts to one exact carrier, and delegates once to flat import.
+The factory never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
+the source. Reproducibility is consequently bounded to equivalent generator implementation and
+state, identical arguments, and no interfering use. Other distributions, random Operations,
+typed access or export, general numeric conversion, native/runtime/backend allocation, and
+deterministic resource ownership remain planned.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
@@ -403,6 +413,13 @@ result-carrier, destination, or ID allocation. Each successful path builds one c
 carrier and delegates once to flat import. A blank label is rejected after carrier, destination,
 and ID allocation but before copying, and consumes that ID. Exhaustion is observed after both
 arrays exist. These failures do not roll back identifiers.
+
+Normal-random null, shape, count, type, distribution, layout, and descriptor validation completes
+before source-carrier allocation, sampling, destination allocation, or ID allocation. Source
+allocation failure consumes neither calls nor an ID. A generator exception preserves completed
+source calls but creates no destination or ID. After sampling, delegated flat import allocates the
+destination and then the ID; blank-label failure consumes all calls and one ID, while exhaustion
+consumes all calls without rollback.
 
 ### Tensor descriptor
 

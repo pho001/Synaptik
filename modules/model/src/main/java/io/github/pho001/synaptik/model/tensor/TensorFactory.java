@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.random.RandomGenerator;
 
 /**
  * Public construction boundary for tensors with factory-assigned identity.
@@ -46,7 +47,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * runtime, or backend behavior. Deterministic population additionally supports non-empty INT32
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
- * and reuse flat import for final allocation, normalization, and identity assignment.</p>
+ * and reuse flat import for final allocation, normalization, and identity assignment. Normal
+ * random creation likewise produces eager copied leaf data, but requires a transient
+ * caller-owned {@link RandomGenerator}; the factory never selects, seeds, retains, replaces,
+ * synchronizes, splits, or closes a random source.</p>
  */
 public final class TensorFactory {
     /**
@@ -902,6 +906,90 @@ public final class TensorFactory {
         TensorDescriptor templateDescriptor = template.descriptor();
         return TensorConstants.ones(
                 templateDescriptor.shape(), templateDescriptor.dataType(), label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent dense floating tensor from normally distributed samples.
+     *
+     * <p>The shape must be fully static and its checked logical element count must fit a Java
+     * array. The exact data type must be {@link DataType#FLOAT64}, {@link DataType#FLOAT32}, or
+     * {@link DataType#BFLOAT16}. Both distribution parameters must be finite, and
+     * {@code standardDeviation} must be numerically non-negative; positive and negative zero are
+     * accepted. The result uses a new canonical dense-contiguous descriptor with the supplied
+     * gradient intent and optional label.</p>
+     *
+     * <p>For every logical element in row-major order, this method invokes
+     * {@link RandomGenerator#nextGaussian()} exactly once and evaluates ordinary binary64
+     * {@code mean + gaussian * standardDeviation}, multiplication before addition and without
+     * fused multiply-add substitution. FLOAT64 stores that binary64 result directly. FLOAT32
+     * narrows it once to binary32. BFLOAT16 first narrows it to binary32 and then applies
+     * {@link BFloat16Bits#fromFloat(float)}. Generated overflow, underflow, signed zero, infinity,
+     * or NaN is retained according to those conversions rather than post-validated. A
+     * zero-element shape consumes no samples; a scalar consumes one.</p>
+     *
+     * <p>The caller creates, configures, seeds, owns, and advances the exact random generator.
+     * Neither this factory nor the returned tensor retains or substitutes it, and the call does
+     * not synchronize, reset, split, or close it. Equivalent output is bounded to equivalent
+     * generator implementations and initial states, identical arguments, and no interfering
+     * source use; no cross-algorithm, provider, Java-version, seed-expansion, concurrent-use, or
+     * global reproducibility promise is made.</p>
+     *
+     * <p>Null, shape, count, type, parameter, layout, and descriptor failures occur before source
+     * allocation, sampling, destination allocation, or identifier allocation. Source-carrier
+     * allocation failure occurs before sampling. If the generator throws, preceding calls remain
+     * consumed according to generator behavior, but no destination or identifier exists. After
+     * all samples are produced, exactly one matching flat import allocates destination storage and
+     * then an identifier. A blank label therefore consumes all samples, both carriers, and one
+     * identifier before delegated Tensor validation fails. Identifier exhaustion consumes all
+     * samples and both carrier allocations but performs no flat copy; no source or identifier
+     * state is rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
+     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, or BFLOAT16
+     * @param mean finite binary64 mean applied to every sampled Gaussian value
+     * @param standardDeviation finite numerically non-negative binary64 standard deviation;
+     *     either signed zero is accepted and still consumes one sample per element
+     * @param randomGenerator non-null transient caller-owned source; it is never retained,
+     *     substituted, seeded, reset, split, synchronized, or closed
+     * @param label non-null optional diagnostic label; present text is normalized and validated by
+     *     {@link Tensor} after sampling and destination/identifier allocation
+     * @param requiresGrad whether model-level gradient eligibility is requested for the result
+     * @return a non-null fresh dense tensor containing independently copied converted samples,
+     *     with new storage and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, {@code randomGenerator}, or
+     *     {@code label} is null, checked in that order with the parameter name as message; no
+     *     sample or identifier is consumed
+     * @throws IllegalArgumentException if the shape is dynamic; its logical count exceeds
+     *     {@link Integer#MAX_VALUE}; the data type is not one of the three floating types; the
+     *     mean is non-finite; the standard deviation is non-finite or numerically negative; or
+     *     delegated Tensor validation rejects a blank label. Only the blank-label failure occurs
+     *     after sampling, destination allocation, and identifier allocation
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after sampling and both carrier allocations
+     * @throws OutOfMemoryError if source or destination carrier allocation fails; source allocation
+     *     failure consumes no samples or identifier, while destination failure follows sampling
+     */
+    public static Tensor randomNormal(
+            Shape shape,
+            DataType dataType,
+            double mean,
+            double standardDeviation,
+            RandomGenerator randomGenerator,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
+        return TensorRandoms.randomNormal(
+                shape,
+                dataType,
+                mean,
+                standardDeviation,
+                randomGenerator,
+                label,
+                requiresGrad);
     }
 
     /**

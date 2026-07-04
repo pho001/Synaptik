@@ -42,7 +42,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012F Random tensor creation (Draft; no detailed specification)
+0013 Tensor provenance skeleton (Draft; no detailed specification)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -60,8 +60,10 @@ flattens row-major, and delegates final creation to flat import. Task
 rank-zero scalars plus independent dense zeros, ones, zeros-like, and ones-like tensors. Task
 [`0012E`](modules/model/tasks/0012e-range-and-prefix-population.md), range and prefix population,
 is complete. It adds eager non-empty typed integer ranges and copied strict/cyclic flat-prefix
-population under canonical dense descriptors. Task `0012F` is the next Draft population frontier
-without a detailed specification.
+population under canonical dense descriptors. Task
+[`0012F`](modules/model/tasks/0012f-random-tensor-creation.md) is complete. It adds eager normal
+population for three floating types from an explicit transient caller-owned source with bounded
+reproducibility. Task 0013 is the next Draft frontier; no detailed specification is created here.
 
 ## Model task sequence
 
@@ -87,7 +89,7 @@ without a detailed specification.
 | 18 | [0012C Nested typed tensor import](modules/model/tasks/0012c-nested-typed-tensor-import.md) | Complete |
 | 19 | [0012D Constant tensor creation](modules/model/tasks/0012d-constant-tensor-creation.md) | Complete |
 | 20 | [0012E Range and prefix population](modules/model/tasks/0012e-range-and-prefix-population.md) | Complete |
-| 21 | 0012F Random tensor creation | Draft |
+| 21 | [0012F Random tensor creation](modules/model/tasks/0012f-random-tensor-creation.md) | Complete |
 | 22 | 0013 Tensor provenance skeleton | Draft |
 | 23 | 0014 Elementwise arithmetic operations | Draft |
 | 24 | 0015 Comparison, logical, selection, and cast operations | Draft |

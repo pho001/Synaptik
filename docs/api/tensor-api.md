@@ -5,9 +5,9 @@
 This reference documents the public model contracts that are implemented today. The mutable
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
-primitive-array import, and independent dense scalar, zero, and one constants. Provenance,
-expression operations, typed access, gradient objects and publication behavior, random
-population, native/runtime/backend allocation, compiler integration, runtime
+primitive-array import, independent dense constants, deterministic population, and explicit-source
+normal random population. Provenance, expression operations, typed access, gradient objects and
+publication behavior, native/runtime/backend allocation, compiler integration, runtime
 residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -25,6 +25,7 @@ TensorFactory + rectangular nested primitive array           = inferred dense de
 TensorFactory + scalar/shape/type or Tensor template          = independent dense constant Tensor
 TensorFactory + integral bounds/step                          = copied dense INT32 or INT64 range Tensor
 TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
+TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal-random Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -51,6 +52,8 @@ Its deterministic population methods also create non-empty exclusive-end `INT32`
 ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
 Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
 and delegate final storage population and identity assignment to flat import.
+Normal random creation similarly builds one exact floating carrier, but consumes a transient
+caller-owned `RandomGenerator` instead of retaining, selecting, or seeding a source.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -602,7 +605,8 @@ Shape[2, 2]
 The result demonstrates range typing and exclusive-end semantics, strict tail handling, cyclic
 repetition, BOOL normalization, canonical dense shapes, and copied ownership. It does not provide
 an empty or floating range, implicit conversion, general fill/repeat/tile operations, view
-population, typed access/export, provenance, random generation, or execution.
+population, typed access/export, provenance, or execution. Normal random creation is the separate
+explicit-source factory method described next.
 
 #### Failures and useful variations
 
@@ -611,6 +615,118 @@ population, typed access/export, provenance, random generation, or execution.
 - An empty cyclic source is valid for shape `[0, 3]` and invalid for every non-empty shape.
 - `requiresGrad` must be false for `INT32`, `INT64`, and `BOOL`; floating prefix carriers may
   request gradients.
+
+Normal random creation has exactly one public method:
+`randomNormal(shape, dataType, mean, standardDeviation, randomGenerator, label, requiresGrad)`.
+It accepts only fully static Java-array-sized shapes and `FLOAT64`, `FLOAT32`, or `BFLOAT16`.
+Both parameters must be finite, and the standard deviation must be numerically non-negative;
+either signed zero is valid. The result has a newly synthesized canonical dense-contiguous
+descriptor, independent writable heap storage, the explicit label and gradient intent, and a new
+factory ID.
+
+For every logical row-major element, the method calls the exact supplied
+`RandomGenerator.nextGaussian()` once, multiplies the returned binary64 value by the standard
+deviation, and then adds the binary64 mean. It does not use fused multiply-add. `FLOAT64` stores
+the result directly, `FLOAT32` narrows it once to binary32, and `BFLOAT16` first narrows to
+binary32 and then uses `BFloat16Bits.fromFloat`. A scalar consumes one call; an empty shape
+consumes none. Generated non-finite values are stored according to the requested conversion and
+are not rejected after sampling.
+
+The generator is transient caller-owned state. The factory does not select an algorithm or
+default source, store a seed, retain or replace the generator, synchronize access, or reset,
+split, or close it. Equivalent output therefore requires equivalent generator implementation and
+initial state, identical arguments, and no interfering source use. There is no sequence promise
+across algorithms, providers, Java versions, seed expansion, concurrent access, or different
+initial states.
+
+### Complete normal-random example
+
+#### Goal and inputs
+
+Create a `2 × 2` FLOAT32 tensor from the scripted Gaussian sequence `[-1, 0, 1, 0.5]`, mean `1`,
+and standard deviation `2`. A scripted source makes the transformation and exact call count
+observable without introducing a production seed or generator-selection API.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.random.RandomGenerator;
+
+public final class NormalRandomExample {
+    private static final class ScriptedGenerator implements RandomGenerator {
+        private final double[] values = {-1.0, 0.0, 1.0, 0.5};
+        private int calls;
+
+        @Override
+        public long nextLong() {
+            throw new AssertionError("nextLong is not used");
+        }
+
+        @Override
+        public double nextGaussian() {
+            return values[calls++];
+        }
+    }
+
+    public static void main(String[] args) {
+        ScriptedGenerator source = new ScriptedGenerator();
+        Tensor tensor = TensorFactory.randomNormal(
+                Shape.of(2, 2),
+                DataType.FLOAT32,
+                1.0,
+                2.0,
+                source,
+                Optional.of("samples"),
+                true);
+
+        float[] data = (float[]) tensor.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        System.out.println(Arrays.toString(data));
+        System.out.println(source.calls);
+        System.out.println(tensor.descriptor().layout().orElseThrow().kind());
+    }
+}
+```
+
+#### Meaningful lines
+
+- The source implements only the methods needed by `RandomGenerator` and overrides
+  `nextGaussian()` with four known values. TensorFactory uses that exact object and does not call
+  `nextLong()` or select another generator.
+- Each output applies `1 + gaussian × 2` in binary64 before narrowing to the requested FLOAT32
+  carrier. The four transformed values are `-1`, `1`, `3`, and `2` in row-major order.
+- Heap-base inspection makes the already implemented raw storage observable for the example; it
+  is not a typed Tensor access or export API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+[-1.0, 1.0, 3.0, 2.0]
+4
+DENSE_CONTIGUOUS
+```
+
+The result proves transformation order, one source call per element, FLOAT32 conversion, and
+canonical dense layout for this scripted input. It does not promise statistical properties of a
+custom generator, cross-generator reproducibility, a Synaptik seed API, other distributions,
+typed export, or runtime/backend random execution.
+
+#### Failures and useful variations
+
+- A dynamic shape, non-floating data type, non-finite mean, negative or non-finite deviation, or
+  logical count above `Integer.MAX_VALUE` fails before sampling or ID allocation.
+- If `nextGaussian()` throws, preceding calls remain consumed, but no destination or ID exists.
+- A blank present label is detected by delegated Tensor validation after all samples, destination
+  allocation, and ID allocation; the ID is consumed and no state is rolled back.
+- Two equivalent caller-created generators can produce equivalent tensors when their initial
+  states and all method arguments match and neither source has interfering use.
 
 ### Complete flat-import example
 
@@ -1156,7 +1272,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- random population conveniences and typed tensor access or export;
+- additional random distributions, random Operations, and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -1226,6 +1342,15 @@ provide a compiler entry point or executable support.
   Numeric and raw BFLOAT16 values remain unchanged, while BOOL is normalized by flat import. All
   sources are copied and never retained. Prevalidation consumes no ID; blank-label failure and
   exhaustion occur after carrier and destination allocation and before the flat copy.
+- Its one normal-random method requires a caller-owned `RandomGenerator`, a fully static
+  Java-array-sized shape, a floating data type, finite mean, and finite numerically non-negative
+  standard deviation. It consumes one `nextGaussian()` call per row-major element, transforms in
+  binary64 with ordinary multiplication then addition, converts to the exact FLOAT64, FLOAT32, or
+  BFLOAT16 carrier, and delegates once to flat import. The source is never retained, substituted,
+  synchronized, seeded, reset, split, or closed. Prevalidation and source-carrier allocation
+  failures consume no calls or ID; a source exception preserves prior source advancement; blank
+  label and exhaustion occur after all calls and destination allocation under the delegated
+  flat-import side effects.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.
