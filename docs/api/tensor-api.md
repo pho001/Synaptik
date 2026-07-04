@@ -8,14 +8,15 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
 integral, and Bernoulli random population. The current concrete expression surface contains seven
-floating tensor-to-tensor binary arithmetic methods. Typed access, other expression families,
-gradient objects and publication behavior, native/runtime/backend allocation, compiler
-integration, runtime residency, and backend execution remain planned. The
+floating tensor-to-tensor binary arithmetic methods and fifteen floating unary elementwise
+methods. Typed access, other expression families, gradient objects and publication behavior,
+native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
+remain planned. The
 authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current types describe logical values, construct storage-free binary expressions, and provide
-one bounded host-allocation path without executing a tensor:
+The current types describe logical values, construct storage-free binary and unary expressions,
+and provide one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -35,6 +36,7 @@ TensorFactory + static shape/type + caller RandomGenerator    = copied dense nor
 TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
+input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -89,10 +91,12 @@ semantic parameters. The implemented `Operation` record keeps those two values t
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
-tensors. Unary Tensor expression methods remain planned. `TensorProvenance` retains the exact
-operation and ordered public-tensor inputs. Binary expression construction derives a result
-descriptor, but neither kind family assigns graph identity, captures a graph, calculates values,
-defines gradient rules, or executes computation.
+tensors. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`,
+`sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary kinds to create
+storage-free expressions from one floating input. `TensorProvenance` retains the exact operation
+and ordered public-tensor inputs. Both expression families derive result descriptors, but neither
+assigns graph identity, captures a graph, calculates values, defines gradient rules, or executes
+computation.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -1427,10 +1431,10 @@ input objects using their ordinary equality; it is not producer-occurrence ident
 be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
-package-private derived-construction seam used by the implemented binary-expression helper
-attaches one already-validated provenance value, allocates exactly one ID through the existing
-allocator, and creates no storage. The factory seam itself does not inspect the operation or
-inputs, infer a descriptor, traverse an expression, capture a graph, or perform semantic
+package-private derived-construction seam used by the implemented binary and unary expression
+helpers attaches one already-validated provenance value, allocates exactly one ID through the
+existing allocator, and creates no storage. The factory seam itself does not inspect the operation
+or inputs, infer a descriptor, traverse an expression, capture a graph, or perform semantic
 validation.
 
 ### Binary arithmetic expressions
@@ -1559,6 +1563,131 @@ The current class stores no graph-local `NodeId` or `ValueId`, gradient object o
 publication state, typed element access, device buffer, runtime residency, prepared state, or
 backend support. Provenance does not add any of those roles; they remain separate planned
 contracts in their owning layers.
+
+### Unary elementwise expressions
+
+The fifteen current zero-argument methods create one-input elementwise semantics without reading
+or calculating element values:
+
+| Method | Elementwise meaning |
+|---|---|
+| `abs` | Absolute magnitude. |
+| `neg` | Additive inverse. |
+| `inv` | Multiplicative reciprocal. |
+| `log` | Natural logarithm. |
+| `exp` | Strict natural exponential request. |
+| `erf` | Gaussian error function. |
+| `sqrt` | Principal square root. |
+| `floor` | Greatest integer-valued result not greater than the input. |
+| `ceil` | Least integer-valued result not less than the input. |
+| `sign` | Numeric negative, zero, or positive classification. |
+| `relu` | Rectified linear unit. |
+| `sigmoid` | Logistic sigmoid. |
+| `tanh` | Strict hyperbolic tangent request. |
+| `fastExp` | Explicit approximate natural exponential request. |
+| `fastTanh` | Explicit approximate hyperbolic tangent request. |
+
+Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
+data type and immutable `Shape` reference; no promotion or shape algebra is needed for one input.
+Its layout is unresolved even when the input layout is resolved, because expression construction
+does not select storage geometry or a materialization route. The input `requiresGrad` value is
+preserved for every kind, including `floor`, `ceil`, and `sign`. That flag remains eligibility
+metadata and does not assert that a derivative or backward rule exists.
+
+Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
+Its provenance contains one `Operation` with the exact matching `UnaryElementwiseKind` and
+`NoOperationAttrs.INSTANCE`, followed by exactly the receiver reference. A chain retains its
+immediately preceding result as the next input. Calls are never interned or simplified at this
+boundary, and `log`, `sqrt`, and `inv` do not inspect values to enforce mathematical domains.
+Compiler optimization, autograd, numerical edge behavior, and backend execution remain later
+responsibilities.
+
+`fastExp` and `fastTanh` construct kinds distinct from `exp` and `tanh`. The “fast” names express
+approximation intent only; this API does not choose an algorithm, promise an error bound, or claim
+backend availability.
+
+#### Complete unary-expression example
+
+##### Goal and inputs
+
+Build a fast-exponential expression from a storage-free `FLOAT32` tensor of shape `[2, 3]` that
+requests gradient eligibility. The example observes expression metadata, not exponential values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class UnaryExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), true));
+
+        Tensor result = input.fastExp();
+        TensorProvenance provenance = result.provenance().orElseThrow();
+
+        System.out.println("type=" + result.descriptor().dataType());
+        System.out.println("sameShape=" + (result.descriptor().shape() == shape));
+        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
+        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + result.label().isEmpty());
+        System.out.println("storageFree=" + result.hostStorage().isEmpty());
+        System.out.println("kind=" + provenance.operation().kind());
+        System.out.println("parameterless="
+                + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("exactInput=" + (provenance.inputs().getFirst() == input));
+        System.out.println("fresh=" + (result != input));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `TensorFactory.create` makes a provenance-free leaf whose exact immutable shape object is
+  `shape` and whose descriptor requests gradients.
+- `input.fastExp()` creates a new semantic expression without reading storage or calculating an
+  exponential. It retains `FLOAT32`, the exact `shape` reference, and the true eligibility flag.
+- The operation kind is `FAST_EXP`, not `EXP`, and its complete parameter value is the canonical
+  no-attributes singleton. Provenance retains `input` as its sole exact input reference.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+type=FLOAT32
+sameShape=true
+layoutUnresolved=true
+requiresGrad=true
+unlabeled=true
+storageFree=true
+kind=FAST_EXP
+parameterless=true
+exactInput=true
+fresh=true
+```
+
+The output proves exact type and shape retention, unresolved layout, gradient-eligibility
+propagation, fresh identity, and one-input provenance. It does not prove a numerical exponential,
+an approximation algorithm or accuracy bound, a gradient rule, graph capture, backend support, or
+execution.
+
+##### Failures and useful variations
+
+- Calling any unary elementwise method on an `INT32`, `INT64`, or `BOOL` tensor fails with
+  `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
+- Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. A resolved input layout is
+  deliberately not copied to the result.
+- Replacing `fastExp()` with `exp()` creates the distinct strict `EXP` semantic request. Chaining
+  another unary call records the first result, not the original leaf, as its exact input.
+- Exhausting the factory's tensor-ID space fails after the local descriptor, operation, and
+  provenance values are built.
 
 ## Host-visible storage
 
@@ -1788,8 +1917,8 @@ Operation exponential = new Operation(
         NoOperationAttrs.INSTANCE);
 ```
 
-The enum does not store the input, infer a result descriptor, or create provenance. Public unary
-Tensor methods will own those expression-construction rules in a later task. `FAST_EXP` and
+The enum does not store the input, infer a result descriptor, or create provenance. The current
+public unary Tensor methods own those expression-construction rules. `FAST_EXP` and
 `FAST_TANH` are distinct approximate semantic requests rather than aliases or backend flags for
 `EXP` and `TANH`; their algorithms, accuracy, special-value behavior, differentiation, execution,
 and backend availability remain undefined here. Inherited enum names are diagnostic text, not
@@ -1827,7 +1956,8 @@ It also does not create a graph node, infer a result shape or data type, report 
 select a kernel, or execute computation. Production `BinaryArithmeticKind` and
 `UnaryElementwiseKind` now provide parameterless families, while family-specific attributes,
 additional kind families, compiler behavior, and executable support remain later work in their
-owning layers. Only binary arithmetic currently has public Tensor expression methods.
+owning layers. Binary arithmetic and unary elementwise semantics both have current public Tensor
+expression methods.
 
 ## Graph values and compiled nodes
 
@@ -1995,7 +2125,8 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- expression families beyond binary tensor arithmetic, gradient and trainable state, and
+- expression families beyond binary arithmetic and unary elementwise operations, gradient and
+  trainable state, and
   publication behavior;
 - operation-kind families beyond binary arithmetic and unary elementwise semantics, plus
   family-specific attribute values;
@@ -2006,10 +2137,10 @@ The following contracts appear in the architecture and planning documents but ar
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
 `UnaryElementwiseKind`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic and unary elementwise
-semantics are the current production concrete kind families; only the seven binary arithmetic
-kinds have matching public Tensor expression methods. No family-specific attribute type exists
-yet. The graph records can compose and structurally validate these or test-local semantics, but
-they do not provide a compiler entry point or executable support.
+semantics are the current production concrete kind families, and both have matching public Tensor
+expression methods. No family-specific attribute type exists yet. The graph records can compose
+and structurally validate these or test-local semantics, but they do not provide a compiler entry
+point or executable support.
 
 ## Failures and ownership summary
 
@@ -2041,6 +2172,14 @@ they do not provide a compiler entry point or executable support.
   ordered `[left, right]` provenance. Null, type, and shape failures precede ID allocation;
   identity exhaustion follows local descriptor and provenance construction. These methods do not
   calculate values, simplify expressions, capture graphs, or define gradient or backend behavior.
+- `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
+  `sigmoid`, `tanh`, `fastExp`, and `fastTanh` accept only floating receiver data types and retain
+  the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns
+  a fresh unlabeled storage-free Tensor with unresolved layout and exact matching parameterless
+  operation plus one-input provenance. Type failures precede ID allocation; identity exhaustion
+  follows local descriptor and provenance construction. The methods do not inspect mathematical
+  domains, simplify chains, define strict or fast numerical accuracy, capture graphs, or provide
+  gradient or backend behavior.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
   one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.

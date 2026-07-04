@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,14 +25,16 @@ import java.util.Optional;
  *
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
- * make a tensor an intermediate-representation node. Binary arithmetic expression methods create
- * fresh storage-free tensors whose immutable provenance records the requested semantics and
- * ordered operands; they do not execute arithmetic, create gradient rules, or capture a graph.
- * They accept floating operands only, apply floating promotion and locally provable right-aligned
- * broadcasting, leave result layout unresolved, and combine gradient eligibility by logical OR.
- * Each result has a fresh factory identity, no label or storage, and an exact matching
- * {@link BinaryArithmeticKind} with {@code NoOperationAttrs.INSTANCE} and ordered input
- * references. Gradient eligibility does not promise that a gradient rule exists.
+ * make a tensor an intermediate-representation node. Binary arithmetic and unary elementwise
+ * expression methods create fresh storage-free tensors whose immutable provenance records the
+ * requested semantics and exact inputs; they do not execute mathematics, validate numerical
+ * domains, create gradient rules, or capture a graph. Binary methods promote floating operands,
+ * broadcast shapes, and combine gradient eligibility by logical OR. Unary methods accept one
+ * floating input and retain its exact data type, shape reference, and gradient eligibility. Every
+ * expression result leaves layout unresolved, has a fresh factory identity and no label or
+ * storage, and records an exact matching {@link BinaryArithmeticKind} or
+ * {@link UnaryElementwiseKind} with {@code NoOperationAttrs.INSTANCE}. Gradient eligibility does
+ * not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
  */
@@ -314,6 +317,268 @@ public final class Tensor {
      */
     public Tensor pow(Tensor right) {
         return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
+    }
+
+    /**
+     * Builds an elementwise expression for the absolute magnitude of this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#ABS},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical and special-value
+     * behavior, gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor abs() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.ABS);
+    }
+
+    /**
+     * Builds an elementwise expression for the additive inverse of this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#NEG},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical and special-value
+     * behavior, canonicalization, gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor neg() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.NEG);
+    }
+
+    /**
+     * Builds an elementwise expression for the multiplicative reciprocal of this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#INV},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Zero handling, numerical domain,
+     * canonicalization, gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor inv() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.INV);
+    }
+
+    /**
+     * Builds an elementwise natural-logarithm expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#LOG},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Mathematical-domain and
+     * special-value handling, accuracy, gradient rules, execution, and backend support are
+     * deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor log() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.LOG);
+    }
+
+    /**
+     * Builds an elementwise strict natural-exponential expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing the distinct strict request {@link UnaryElementwiseKind#EXP},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical accuracy, overflow,
+     * special values, gradients, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor exp() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.EXP);
+    }
+
+    /**
+     * Builds an elementwise Gaussian error-function expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#ERF},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Accuracy, special-value behavior,
+     * gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor erf() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.ERF);
+    }
+
+    /**
+     * Builds an elementwise principal-square-root expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#SQRT},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Mathematical-domain and
+     * special-value handling, accuracy, gradient rules, execution, and backend support are
+     * deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor sqrt() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SQRT);
+    }
+
+    /**
+     * Builds an elementwise floor expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#FLOOR},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Representation, special values,
+     * gradient policy, execution, and backend support are deferred; preserving
+     * {@code requiresGrad} does not define a derivative.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor floor() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FLOOR);
+    }
+
+    /**
+     * Builds an elementwise ceiling expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#CEIL},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Representation, special values,
+     * gradient policy, execution, and backend support are deferred; preserving
+     * {@code requiresGrad} does not define a derivative.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor ceil() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.CEIL);
+    }
+
+    /**
+     * Builds an elementwise numeric sign-classification expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#SIGN},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Exact representation, signed-zero
+     * and NaN behavior, gradient policy, execution, and backend support are deferred; preserving
+     * {@code requiresGrad} does not define a derivative.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor sign() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SIGN);
+    }
+
+    /**
+     * Builds an elementwise rectified-linear-unit expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#RELU},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Zero and special-value behavior,
+     * gradient convention, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor relu() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.RELU);
+    }
+
+    /**
+     * Builds an elementwise logistic-sigmoid expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#SIGMOID},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical stability, accuracy,
+     * special values, gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor sigmoid() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SIGMOID);
+    }
+
+    /**
+     * Builds an elementwise strict hyperbolic-tangent expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing the distinct strict request {@link UnaryElementwiseKind#TANH},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Accuracy, special values,
+     * gradient rules, execution, and backend support are deferred.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor tanh() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.TANH);
+    }
+
+    /**
+     * Builds an explicit fast approximate natural-exponential expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#FAST_EXP},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. This is distinct from
+     * {@link #exp()}; no approximation algorithm, accuracy bound, special-value behavior,
+     * gradient rule, execution route, or backend availability is promised here.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor fastExp() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FAST_EXP);
+    }
+
+    /**
+     * Builds an explicit fast approximate hyperbolic-tangent expression from this tensor.
+     *
+     * <p>The input must be floating. The fresh result retains the exact data type and shape
+     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
+     * and provenance containing {@link UnaryElementwiseKind#FAST_TANH},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. This is distinct from
+     * {@link #tanh()}; no approximation algorithm, accuracy bound, special-value behavior,
+     * gradient rule, execution route, or backend availability is promised here.</p>
+     *
+     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor fastTanh() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FAST_TANH);
     }
 
     /**

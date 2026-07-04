@@ -31,11 +31,11 @@ group bindings with their owning compilation context and publication policy. The
 does not retain a public `Tensor`, gradient role, runtime target, storage, backend, or execution
 state.
 
-The public `Tensor` model is also current. Its `add`, `sub`, `mul`, `div`, `min`, `max`, and
-tensor-valued `pow` methods construct storage-free floating binary expressions with immutable
-operation-and-ordered-input provenance. That origin metadata gives a future compiler an expression
-to traverse, but no current API captures it into `CompiledGraphModel`, performs inference or
-optimization, or produces compile artifacts.
+The public `Tensor` model is also current. Its seven binary arithmetic methods and fifteen unary
+elementwise methods construct storage-free floating expressions with immutable operation-and-input
+provenance. That origin metadata gives a future compiler an expression to traverse, but no current
+API captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
+artifacts.
 
 ## Current expression input and planned compiler output
 
@@ -47,8 +47,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 ```
 
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
-  Public Tensor state and binary expression construction are implemented; the compiler entry
-  point, traversal, capture, and conversion into graph values and nodes remain planned.
+  Public Tensor state plus binary and unary expression construction are implemented; the compiler
+  entry point, traversal, capture, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

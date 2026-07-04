@@ -118,7 +118,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0014A | [Binary arithmetic semantic kinds](tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete | 0005, 0006 | Define typed parameterless ADD, SUB, MUL, DIV, MIN, MAX, and POW kinds. |
 | 0014B | [Binary arithmetic Tensor expressions](tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete | 0013, 0014A | Build locally validated floating broadcast-aware Tensor expressions with ordered provenance. |
 | 0014C | [Unary elementwise semantic kinds](tasks/0014c-unary-elementwise-semantic-kinds.md) | Complete | 0005, 0006 | Define fifteen parameterless unary arithmetic, transcendental, activation, and fast-approximation kinds. |
-| 0014D | Unary arithmetic and activation Tensor expressions | Draft | 0013, 0014C | Build unary and activation Tensor expressions with locally derived descriptors. |
+| 0014D | [Unary elementwise Tensor expressions](tasks/0014d-unary-elementwise-tensor-expressions.md) | Complete | 0013, 0014C | Build floating shape-preserving Tensor expressions with exact one-input provenance. |
 | 0014E | Scalar arithmetic and clamp semantics | Draft | 0005, 0006 | Define typed scalar attributes and clamp semantic contracts. |
 | 0014F | Scalar arithmetic and clamp Tensor expressions | Draft | 0013, 0014E | Build scalar arithmetic and clamp Tensor expressions without eager execution. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
@@ -142,8 +142,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0014C complete and the post-0014B vertical-slice reassessment
-recorded. Task 0014D remains the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0014D complete and the post-0014B vertical-slice reassessment
+recorded. Task 0014E is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -310,7 +310,12 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   rather than form one bounded implementation session. This changes order only, not dependencies.
 - Task 0014C uses one parameterless `UnaryElementwiseKind` enum in
   `model.operation.elementwise.unary` for ABS, NEG, INV, LOG, EXP, ERF, SQRT, FLOOR, CEIL, SIGN,
-  RELU, SIGMOID, TANH, FAST_EXP, and FAST_TANH. Tensor expression behavior remains in task 0014D.
+  RELU, SIGMOID, TANH, FAST_EXP, and FAST_TANH. Task 0014D implements their Tensor expression
+  behavior.
+- Task 0014D adds the matching fifteen zero-argument Tensor methods through one package-private
+  helper. It accepts only floating inputs, retains exact data type and Shape, leaves result layout
+  unresolved, propagates gradient eligibility unchanged, and records exact one-input provenance
+  without value/storage access, domain checks, canonicalization, gradient rules, or execution.
 - The independent task-0014B documentation review found stale public-Tensor status in the Compile
   API. Explicit authorization expanded the task to ten paths solely to correct that statement.
   The updated page describes public Tensor and binary expression construction as current while
@@ -357,7 +362,7 @@ operation-family work, and task 0014A completed the first concrete parameterless
 Task 0014B completed the matching public expression construction and all authorized documentation,
 including the focused Compile API status correction. The post-0014B reassessment selected
 continued ordered model work. Task 0014C completed the fifteen parameterless unary elementwise
-semantic kinds. Task 0014D and all later operation-family tasks remain Draft without detailed
-specifications.
+semantic kinds, and task 0014D completed their public floating Tensor expression construction.
+Task 0014E and all later operation-family tasks remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

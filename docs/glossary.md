@@ -27,8 +27,9 @@ kind support now includes the parameterless `BinaryArithmeticKind` vocabulary fo
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
 construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
 The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fifteen unary
-arithmetic, transcendental, activation, and explicit fast-approximation meanings; matching unary
-Tensor expression methods remain planned. Other concrete kind and expression families, family
+arithmetic, transcendental, activation, and explicit fast-approximation meanings, plus matching
+public floating unary Tensor expression construction with exact type/shape retention and one-input
+provenance. Other concrete kind and expression families, family
 attributes, random Operations, typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -249,7 +250,8 @@ The second production family is `UnaryElementwiseKind`, an enum containing exact
 meanings and compose with `NoOperationAttrs.INSTANCE`. One-input arity is family context rather
 than stored metadata. `FAST_EXP` and `FAST_TANH` are distinct approximate requests, not aliases or
 backend flags; the enum defines no algorithm, accuracy, descriptor inference, provenance,
-gradient, execution, or backend support. Public unary Tensor expression methods remain planned.
+gradient, execution, or backend support. The implemented public unary Tensor methods consume these
+values while separately owning local expression construction.
 
 ### Partition
 
@@ -289,8 +291,10 @@ graph records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
 
 The implemented binary Tensor methods create provenance whose operation uses the exact matching
 `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
-receiver as left and argument as right. That current construction does not change provenance's
-general role or make it graph membership.
+receiver as left and argument as right. The implemented unary methods similarly use the exact
+matching `UnaryElementwiseKind` and canonical no-attributes value, with exactly the receiver as
+their one input. These construction paths do not change provenance's general role or make it graph
+membership.
 
 ### Publication binding
 
@@ -358,7 +362,10 @@ arithmetic expression tensors from floating operands. They promote data type, br
 leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
 operation semantics plus ordered provenance. Other expression families, gradient rules and
 objects, trainable role, publication behavior, compiler integration, device buffers, numerical
-execution, and runtime residency remain planned.
+execution, and runtime residency remain planned. The current fifteen zero-argument unary methods
+also create fresh floating expression tensors. They retain the exact input data type and Shape,
+leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
+plus exactly one input reference without domain checks or canonicalization.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -603,8 +610,8 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based leaf construction, immutable provenance, and floating binary Tensor expression
-construction are implemented. Gradient rules and objects, compiler graph capture, numerical
+descriptor-based leaf construction, immutable provenance, and floating binary and unary Tensor
+expression construction are implemented. Gradient rules and objects, compiler graph capture, numerical
 execution, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
@@ -633,10 +640,9 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic kinds and their public Tensor construction path are implemented.
-Unary elementwise kinds are also implemented, while their public Tensor construction path remains
-planned. Other concrete families, family-specific attributes, compiler capture, and execution
-remain planned. The compiled graph container is implemented model state.
+that occurrence. Binary arithmetic and unary elementwise kinds and their public Tensor
+construction paths are implemented. Other concrete families, family-specific attributes, compiler
+capture, and execution remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

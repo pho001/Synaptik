@@ -41,14 +41,15 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0014D Unary arithmetic and activation Tensor expressions — Draft
+- 0014E Scalar arithmetic and clamp semantics — Draft
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
 compiler behavior. The post-0014B reassessment kept the ordered model frontier because downstream
 prerequisite modules remain placeholders. Task
-[0014C](modules/model/tasks/0014c-unary-elementwise-semantic-kinds.md) is complete. Task 0014D
-remains Draft without a detailed specification.
+[0014C](modules/model/tasks/0014c-unary-elementwise-semantic-kinds.md) is complete. Task
+[0014D](modules/model/tasks/0014d-unary-elementwise-tensor-expressions.md) is complete. Task 0014E
+remains the next Draft planning frontier without a detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -121,7 +122,7 @@ authorized Compile API status correction.
 | 27 | [0014A Binary arithmetic semantic kinds](modules/model/tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete |
 | 28 | [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete |
 | 29 | [0014C Unary elementwise semantic kinds](modules/model/tasks/0014c-unary-elementwise-semantic-kinds.md) | Complete |
-| 30 | 0014D Unary arithmetic and activation Tensor expressions | Draft |
+| 30 | [0014D Unary elementwise Tensor expressions](modules/model/tasks/0014d-unary-elementwise-tensor-expressions.md) | Complete |
 | 31 | 0014E Scalar arithmetic and clamp semantics | Draft |
 | 32 | 0014F Scalar arithmetic and clamp Tensor expressions | Draft |
 | 33 | 0015 Comparison, logical, selection, and cast operations | Draft |
@@ -155,7 +156,8 @@ the required trace, backend-contract, config, planning, and compiler foundations
 of placeholder production types and broad master plans. Treating that prerequisite chain as one
 next task would violate the planning granularity and architecture-boundary rules. The ordered model
 queue therefore continued with task 0014C, which completed the fifteen parameterless unary
-elementwise semantic kinds. Task 0014D remains the next Draft planning frontier.
+elementwise semantic kinds. Task 0014D then completed their matching public Tensor expression
+construction without crossing the model boundary. Task 0014E remains the next Draft frontier.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

@@ -78,11 +78,13 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(15, declaredPublicMethods.size());
+        assertEquals(30, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
-                        "div", "min", "max", "pow"),
+                        "div", "min", "max", "pow", "abs", "neg", "inv", "log", "exp",
+                        "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
+                        "fastExp", "fastTanh"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -106,6 +108,18 @@ class TensorTest {
             var method = Tensor.class.getDeclaredMethod(methodName, Tensor.class);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
+        for (String methodName : List.of(
+                "abs", "neg", "inv", "log", "exp", "erf", "sqrt", "floor", "ceil", "sign",
+                "relu", "sigmoid", "tanh", "fastExp", "fastTanh")) {
+            var method = Tensor.class.getDeclaredMethod(methodName);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(0, method.getParameterCount()),
                     () -> assertTrue(Modifier.isPublic(method.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
