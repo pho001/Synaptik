@@ -15,8 +15,9 @@ the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element re
 `TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
 JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
 dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
-static-shape, and dense-layout inference. Concrete operation kinds and family attributes,
-provenance, other tensor population families, typed access and export, native/runtime/backend
+static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
+zero, one, zero-like, and one-like constants. Concrete operation kinds and family attributes,
+provenance, range, prefix, and random population, typed access and export, native/runtime/backend
 allocation, expression operations, gradient and publication behavior, compiler entry points and
 artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
 or planning contracts. A definition explains intended meaning; it is not by itself evidence that
@@ -293,8 +294,10 @@ hashing, while its diagnostic text contains stable ID, descriptor, and label fac
 storage or runtime state. Copied flat typed import is implemented through the factory for resolved
 dense-contiguous layouts. Copied rectangular nested primitive-array import is also implemented;
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
-a Tensor. Constant/range/prefix/random population, typed access and export, deterministic
-native-resource ownership, provenance, expression operations, gradients, trainable role,
+a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
+dense storage and explicit label and gradient intent. Range, prefix, and random population, typed
+access and export, deterministic native-resource ownership, provenance, expression operations,
+gradient objects, trainable role,
 publication behavior, compiler integration, device buffers, and runtime residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
@@ -333,10 +336,15 @@ The heap segment's automatic scope keeps the primitive array reachable and permi
 any thread. No arena, close operation, external owner, native fallback, or deterministic release
 is introduced. Descriptor-based creation and flat import do not construct descriptors or resolve
 absent layouts; nested import constructs only the exact static dense descriptor inferred from the
-validated source. The factory does not create provenance or retain tensor, graph, runtime,
-backend, registry, or service state. Constants, ranges, prefixes, random population, typed access
-or export, numeric conversion, native/runtime/backend allocation, and deterministic resource
-ownership remain planned.
+validated source. Constant creation constructs only canonical dense descriptors for exact
+primitive rank-0 scalars or fully static requested/template shapes. Scalars infer data type from
+their declared primitive inputs; `scalarBFloat16(float)` alone converts with BFLOAT16
+round-to-nearest, ties-to-even semantics. Zeros use default-zero allocation, while scalars and
+ones use exact typed flat import. Like methods read only template shape and data type and preserve
+neither layout nor mutable or diagnostic state. The factory does not create provenance or retain
+tensor, graph, runtime, backend, registry, or service state. Ranges, prefixes, random population,
+typed access or export, general numeric conversion, native/runtime/backend allocation, and
+deterministic resource ownership remain planned.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
@@ -362,6 +370,14 @@ intermediate flat carrier. Descriptor gradient eligibility is checked after flat
 destination or ID allocation. A blank label and identifier exhaustion then have the same
 destination-allocation and ID side effects as delegated flat import. The intermediate carrier is
 never exposed or retained.
+
+Constant creation validates static shape, checked logical count, the Java array limit, dense
+layout geometry, and gradient eligibility before destination or ID allocation. Scalar and one
+source carriers are allocated after descriptor validation; zeros have no source carrier. Blank
+labels fail after destination and ID allocation and consume that ID. Exhaustion is also observed
+after destination allocation. Every successful constant has a new Tensor, descriptor, layout,
+storage wrapper, backing array, and factory ID; like-shaped results retain no template object or
+template state beyond the immutable shape and data-type values used to build the result.
 
 ### Tensor descriptor
 

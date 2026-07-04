@@ -1,7 +1,9 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import java.lang.foreign.MemorySegment;
@@ -35,10 +37,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * introduces no arena, close operation, external lifetime owner, or deterministic reclamation.
  * Descriptor-based creation and flat import do not build descriptors or resolve layouts. Nested
  * import is the bounded exception: it synthesizes only the exact fully static shape and canonical
- * dense-contiguous descriptor proved by the source structure. The factory does not otherwise
- * infer descriptors, retain or expose source/backing arrays, convert values, accept boxed or
- * generic nested values, provide typed tensor access, create provenance, allocate native or
- * backend memory, or provide compiler, runtime, or backend behavior.</p>
+ * dense-contiguous descriptor proved by the source structure. Constant creation is the other
+ * bounded descriptor-construction path: exact primitive scalar overloads create rank-zero values,
+ * while zeros, ones, and their like-shaped variants create independent dense-contiguous tensors
+ * for fully static shapes. The factory does not otherwise infer descriptors, retain or expose
+ * source/backing arrays, convert values, accept boxed or generic nested values, provide typed
+ * tensor access, create provenance, allocate native or backend memory, or provide compiler,
+ * runtime, or backend behavior.</p>
  */
 public final class TensorFactory {
     /**
@@ -564,6 +569,336 @@ public final class TensorFactory {
         Objects.requireNonNull(source, "source");
         Objects.requireNonNull(label, "label");
         return NestedTensorArray.importArray(source, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#FLOAT64} tensor from one binary64 value.
+     *
+     * <p>The value is copied with its exact raw binary64 representation into newly allocated
+     * dense-contiguous heap storage. The label is validated before descriptor, source carrier,
+     * destination, or identifier allocation. Descriptor validation precedes source-carrier
+     * allocation; a blank present label is rejected later by {@link Tensor}, after destination
+     * and identifier allocation, and consumes that identifier.</p>
+     *
+     * <p>The descriptor uses the canonical shared {@link Shape#scalar()} value, but the returned
+     * Tensor, descriptor, layout, storage wrapper, backing array, and identifier are new and are
+     * not retained by the factory. The one-element source carrier exists before destination
+     * allocation. Identifier exhaustion is therefore observed after both arrays exist and before
+     * population; no identifier is rolled back. A source- or destination-array allocation failure
+     * before identifier allocation propagates without consuming an identifier.</p>
+     *
+     * @param value binary64 value to store exactly, including signed zero, infinities, and NaNs
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether the differentiable scalar requests model-level gradient eligibility
+     * @return a non-null fresh rank-zero FLOAT64 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if delegated Tensor validation rejects a blank label, with
+     *     message {@code label must not be blank}; the allocated identifier is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}; source and destination arrays have already
+     *     been allocated
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalar(
+            double value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalar(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#FLOAT32} tensor from one binary32 value.
+     *
+     * <p>The exact raw binary32 representation is copied into new dense-contiguous heap storage.
+     * No widening, narrowing, or default data type is involved. Null-label and later allocation,
+     * blank-label, identifier, memory, ownership, and non-retention semantics match
+     * {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value binary32 value to store exactly, including signed zero, infinities, and NaNs
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether the differentiable scalar requests model-level gradient eligibility
+     * @return a non-null fresh rank-zero FLOAT32 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if delegated Tensor validation rejects a blank label, with
+     *     message {@code label must not be blank}; the allocated identifier is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalar(
+            float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalar(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#BFLOAT16} tensor by converting binary32 input.
+     *
+     * <p>{@code value} is converted explicitly by {@link BFloat16Bits#fromFloat(float)} with
+     * round-to-nearest, ties-to-even BFLOAT16 semantics; signed zero and infinities are preserved
+     * and NaN is canonicalized. The resulting raw {@code short} bits are copied into new dense
+     * storage. Null-label and later allocation, blank-label, identifier, ownership, and memory side
+     * effects match
+     * {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value binary32 semantic value to round to BFLOAT16
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether the differentiable scalar requests model-level gradient eligibility
+     * @return a non-null fresh rank-zero BFLOAT16 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if delegated Tensor validation rejects a blank label, with
+     *     message {@code label must not be blank}; the allocated identifier is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalarBFloat16(
+            float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalarBFloat16(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#INT32} tensor from one exact signed value.
+     *
+     * <p>No conversion or rounding occurs. Because INT32 is not differentiable, a true gradient
+     * request fails during descriptor validation before source-carrier, destination, or identifier
+     * allocation. Other side effects match {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value exact signed 32-bit value to store
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad must be false because INT32 is not differentiable
+     * @return a non-null fresh rank-zero INT32 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if gradients are requested, with the
+     *     {@link TensorDescriptor} eligibility message before source or destination allocation, or
+     *     if the label is blank after allocation; only the label failure consumes an identifier
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalar(
+            int value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalar(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#INT64} tensor from one exact signed value.
+     *
+     * <p>No conversion or rounding occurs. A true gradient request fails before source-carrier,
+     * destination, or identifier allocation because INT64 is not differentiable. Other side
+     * effects match {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value exact signed 64-bit value to store
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad must be false because INT64 is not differentiable
+     * @return a non-null fresh rank-zero INT64 tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if gradients are requested, with the
+     *     {@link TensorDescriptor} eligibility message before source or destination allocation, or
+     *     if the label is blank after allocation; only the label failure consumes an identifier
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalar(
+            long value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalar(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent rank-zero {@link DataType#BOOL} tensor from one semantic boolean.
+     *
+     * <p>{@code false} is stored as canonical byte zero and {@code true} as canonical byte one.
+     * This method accepts no numeric truthiness conversion. A true gradient request fails before
+     * source-carrier, destination, or identifier allocation because BOOL is not differentiable.
+     * Other side effects match {@link #scalar(double, Optional, boolean)}.</p>
+     *
+     * @param value semantic boolean value to store canonically
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad must be false because BOOL is not differentiable
+     * @return a non-null fresh rank-zero BOOL tensor with independent dense storage and identity
+     * @throws NullPointerException if {@code label} is null, with message {@code label}, before allocation
+     * @throws IllegalArgumentException if gradients are requested, with the
+     *     {@link TensorDescriptor} eligibility message before source or destination allocation, or
+     *     if the label is blank after allocation; only the label failure consumes an identifier
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws ArithmeticException if checked scalar layout arithmetic unexpectedly overflows
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor scalar(
+            boolean value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.scalar(value, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent dense-contiguous tensor filled with each data type's raw zero value.
+     *
+     * <p>The shape must be fully static; scalar and zero-sized shapes are supported. A canonical
+     * layout and descriptor are synthesized from the supplied logical facts. Storage is created
+     * directly through {@link #allocate(TensorDescriptor, Optional)}, relying on JVM primitive-array
+     * zero initialization without a source array, fill loop, or copy. Shape/count/layout/gradient
+     * validation precedes destination and identifier allocation.</p>
+     *
+     * <p>Each successful call returns a new Tensor, descriptor, layout, storage wrapper, backing
+     * array, and identifier; no result aliases another factory result. A blank label is rejected
+     * after destination and identifier allocation and consumes that identifier. Exhaustion is
+     * observed after destination allocation. Because this path has no source carrier, JVM
+     * destination-allocation failure occurs before identifier allocation and consumes no ID.</p>
+     *
+     * @param shape non-null fully static logical shape, retained by the new descriptor
+     * @param dataType non-null exact element type; no default or conversion is applied
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested; valid only for a differentiable type
+     * @return a non-null fresh tensor with a new dense descriptor, zeroed storage, and identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, or {@code label} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if {@code shape} is dynamic, with message
+     *     {@code constant tensor creation requires a fully static shape: <shape>}; logical count
+     *     exceeds the Java array limit, with message {@code constant tensor element count exceeds
+     *     Java array limit: required=<required>, maximum=2147483647}; gradients are requested for
+     *     a non-differentiable type with the {@link TensorDescriptor} eligibility message; or the
+     *     label is blank with message {@code label must not be blank}; only the label failure
+     *     occurs after destination and ID allocation and consumes that ID
+     * @throws ArithmeticException if checked element-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after destination allocation
+     * @throws OutOfMemoryError if destination heap allocation fails
+     */
+    public static Tensor zeros(
+            Shape shape,
+            DataType dataType,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.zeros(shape, dataType, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent dense-contiguous tensor filled with the exact typed value one.
+     *
+     * <p>The fully static shape may be scalar or zero-sized. After descriptor validation, one
+     * matching primitive carrier is allocated and filled, then delegated to exactly one typed flat
+     * import overload. BFLOAT16 one uses the converted raw representation {@code 0x3F80}; BOOL one
+     * uses canonical byte one. FLOAT64, FLOAT32, INT32, and INT64 use {@code 1.0d}, {@code 1.0f},
+     * {@code 1}, and {@code 1L}, respectively. The source carrier is not retained.</p>
+     *
+     * <p>Each successful call returns a new Tensor, descriptor, layout, storage wrapper, backing
+     * array, and identifier. A blank label is rejected after source-carrier, destination, and ID
+     * allocation and consumes that identifier. Exhaustion is observed after both arrays exist.
+     * A source- or destination-array allocation failure before ID allocation consumes no ID.</p>
+     *
+     * @param shape non-null fully static logical shape, retained by the new descriptor
+     * @param dataType non-null exact element type; no default or conversion is applied
+     * @param label non-null optional diagnostic label; present text is normalized by {@code Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested; valid only for a differentiable type
+     * @return a non-null fresh tensor with a new dense descriptor, one-filled storage, and identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, or {@code label} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if {@code shape} is dynamic, with message
+     *     {@code constant tensor creation requires a fully static shape: <shape>}; logical count
+     *     exceeds the Java array limit, with message {@code constant tensor element count exceeds
+     *     Java array limit: required=<required>, maximum=2147483647}; gradients are requested for
+     *     a non-differentiable type with the {@link TensorDescriptor} eligibility message; or the
+     *     label is blank with message {@code label must not be blank}; only the label failure
+     *     occurs after source, destination, and ID allocation and consumes that ID
+     * @throws ArithmeticException if checked element-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor ones(
+            Shape shape,
+            DataType dataType,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.ones(shape, dataType, label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent zero tensor using only a template's shape and data type.
+     *
+     * <p>The template's label, identity, gradient request, layout, storage, liveness, and all other
+     * state are neither copied nor retained. Its fully static shape and data type seed a new
+     * canonical dense descriptor; the explicit label and gradient request govern the result.
+     * Static unresolved, dense, offset, strided, and broadcast template layouts are accepted
+     * because no template layout or storage is inspected.</p>
+     *
+     * <p>Successful creation returns new Tensor, descriptor, layout, storage wrapper, backing
+     * array, and identifier objects; only the template's immutable shape and data-type values are
+     * used. Validation and failure side effects are exactly those of
+     * {@link #zeros(Shape, DataType, Optional, boolean)} after the template and label null checks.</p>
+     *
+     * @param template non-null tensor whose immutable shape and data type alone are reused
+     * @param label non-null optional diagnostic label for the result, never inherited
+     * @param requiresGrad explicit result gradient request, never inherited and valid only for floating types
+     * @return a non-null fresh independent dense zero tensor with new descriptor, storage, and identity
+     * @throws NullPointerException if {@code template} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if the template shape is dynamic, logical count exceeds the
+     *     Java array limit, gradient request is ineligible, or result label is blank; only blank
+     *     label failure occurs after destination and ID allocation and consumes that ID
+     * @throws ArithmeticException if checked element-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after destination allocation
+     * @throws OutOfMemoryError if destination heap allocation fails
+     */
+    public static Tensor zerosLike(
+            Tensor template, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(template, "template");
+        Objects.requireNonNull(label, "label");
+        TensorDescriptor templateDescriptor = template.descriptor();
+        return TensorConstants.zeros(
+                templateDescriptor.shape(), templateDescriptor.dataType(), label, requiresGrad);
+    }
+
+    /**
+     * Creates an independent one tensor using only a template's shape and data type.
+     *
+     * <p>The template's label, identity, gradient request, layout, storage, liveness, and all other
+     * state are neither copied nor retained. Its fully static shape and data type seed a new
+     * canonical dense descriptor; one matching typed carrier is filled and copied, and the
+     * explicit label and gradient request govern the result. Static unresolved, dense, offset,
+     * strided, and broadcast template layouts are accepted because no template layout or storage
+     * is inspected.</p>
+     *
+     * <p>Successful creation returns new Tensor, descriptor, layout, storage wrapper, backing
+     * array, and identifier objects; only the template's immutable shape and data-type values are
+     * used. Validation and failure side effects are exactly those of
+     * {@link #ones(Shape, DataType, Optional, boolean)} after the template and label null checks.</p>
+     *
+     * @param template non-null tensor whose immutable shape and data type alone are reused
+     * @param label non-null optional diagnostic label for the result, never inherited
+     * @param requiresGrad explicit result gradient request, never inherited and valid only for floating types
+     * @return a non-null fresh independent dense one tensor with new descriptor, storage, and identity
+     * @throws NullPointerException if {@code template} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if the template shape is dynamic, logical count exceeds the
+     *     Java array limit, gradient request is ineligible, or result label is blank; only blank
+     *     label failure occurs after source, destination, and ID allocation and consumes that ID
+     * @throws ArithmeticException if checked element-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after source and destination allocation
+     * @throws OutOfMemoryError if source or destination heap allocation fails
+     */
+    public static Tensor onesLike(
+            Tensor template, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(template, "template");
+        Objects.requireNonNull(label, "label");
+        TensorDescriptor templateDescriptor = template.descriptor();
+        return TensorConstants.ones(
+                templateDescriptor.shape(), templateDescriptor.dataType(), label, requiresGrad);
     }
 
     /**

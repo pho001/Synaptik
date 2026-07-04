@@ -91,6 +91,26 @@ class TensorFactoryTest {
                 "fromFlatArray", TensorDescriptor.class, Optional.class, byte[].class);
         Method importNested = TensorFactory.class.getDeclaredMethod(
                 "fromNestedArray", Object.class, Optional.class, boolean.class);
+        Method scalarFloat64 = TensorFactory.class.getDeclaredMethod(
+                "scalar", double.class, Optional.class, boolean.class);
+        Method scalarFloat32 = TensorFactory.class.getDeclaredMethod(
+                "scalar", float.class, Optional.class, boolean.class);
+        Method scalarBfloat16 = TensorFactory.class.getDeclaredMethod(
+                "scalarBFloat16", float.class, Optional.class, boolean.class);
+        Method scalarInt32 = TensorFactory.class.getDeclaredMethod(
+                "scalar", int.class, Optional.class, boolean.class);
+        Method scalarInt64 = TensorFactory.class.getDeclaredMethod(
+                "scalar", long.class, Optional.class, boolean.class);
+        Method scalarBool = TensorFactory.class.getDeclaredMethod(
+                "scalar", boolean.class, Optional.class, boolean.class);
+        Method zeros = TensorFactory.class.getDeclaredMethod(
+                "zeros", Shape.class, DataType.class, Optional.class, boolean.class);
+        Method ones = TensorFactory.class.getDeclaredMethod(
+                "ones", Shape.class, DataType.class, Optional.class, boolean.class);
+        Method zerosLike = TensorFactory.class.getDeclaredMethod(
+                "zerosLike", Tensor.class, Optional.class, boolean.class);
+        Method onesLike = TensorFactory.class.getDeclaredMethod(
+                "onesLike", Tensor.class, Optional.class, boolean.class);
         Method importFlat = TensorFactory.class.getDeclaredMethod(
                 "importFlat",
                 TensorDescriptor.class,
@@ -112,6 +132,16 @@ class TensorFactoryTest {
                         importInt64,
                         importBool,
                         importNested,
+                        scalarFloat64,
+                        scalarFloat32,
+                        scalarBfloat16,
+                        scalarInt32,
+                        scalarInt64,
+                        scalarBool,
+                        zeros,
+                        ones,
+                        zerosLike,
+                        onesLike,
                         importFlat,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
@@ -127,6 +157,16 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, importInt64.getReturnType()),
                 () -> assertEquals(Tensor.class, importBool.getReturnType()),
                 () -> assertEquals(Tensor.class, importNested.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarFloat64.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarFloat32.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarBfloat16.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarInt32.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarInt64.getReturnType()),
+                () -> assertEquals(Tensor.class, scalarBool.getReturnType()),
+                () -> assertEquals(Tensor.class, zeros.getReturnType()),
+                () -> assertEquals(Tensor.class, ones.getReturnType()),
+                () -> assertEquals(Tensor.class, zerosLike.getReturnType()),
+                () -> assertEquals(Tensor.class, onesLike.getReturnType()),
                 () -> assertEquals(Tensor.class, importFlat.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
@@ -140,6 +180,16 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(importInt64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(importBool.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(importNested.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarFloat64.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarFloat32.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarBfloat16.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarInt32.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarInt64.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(scalarBool.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(zeros.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(ones.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(zerosLike.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(onesLike.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
@@ -153,6 +203,16 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(importInt64.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importBool.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importNested.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarFloat64.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarFloat32.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarBfloat16.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarInt32.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarInt64.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(scalarBool.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(zeros.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(ones.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(zerosLike.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(onesLike.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }

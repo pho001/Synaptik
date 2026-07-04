@@ -4,12 +4,11 @@
 
 This reference documents the public model contracts that are implemented today. The mutable
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
-and `TensorFactory` provides the public descriptor-based construction boundary with
-factory-assigned identity and JVM-managed heap allocation for resolved descriptors. Provenance,
-expression operations, typed access, gradient and publication behavior, storage import and
-population beyond copied flat and rectangular nested primitive arrays,
-native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
-remain planned. The authoritative module boundary remains
+and `TensorFactory` provides the public construction boundary for completed descriptors, copied
+primitive-array import, and independent dense scalar, zero, and one constants. Provenance,
+expression operations, typed access, gradient objects and publication behavior, range, prefix,
+and random population, native/runtime/backend allocation, compiler integration, runtime
+residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values and provide one bounded host-allocation path without
@@ -23,6 +22,7 @@ TensorFactory + completed descriptor + optional metadata     = public Tensor con
 TensorFactory + resolved descriptor                          = exact-span heap storage + Tensor
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
 TensorFactory + rectangular nested primitive array           = inferred dense descriptor + copied Tensor
+TensorFactory + scalar/shape/type or Tensor template          = independent dense constant Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -42,7 +42,9 @@ referenced element span and attach the resulting heap-segment storage. Its flat-
 copy one matching primitive carrier into a resolved dense-contiguous tensor without retaining the
 caller's array. Its nested-array method validates a rank-two-or-greater rectangular primitive-array
 graph, infers the exact carrier type and fully static shape, flattens it in row-major order, and
-delegates destination creation to that flat-import boundary.
+delegates destination creation to that flat-import boundary. Its constant methods synthesize
+canonical dense descriptors for rank-zero scalars or fully static caller/template shapes, then
+reuse default-zero allocation or exact-carrier flat import.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -299,7 +301,8 @@ to `int[]`, `INT64` to `long[]`, and `BOOL` to raw `byte[]`. The new array begin
 default all-zero raw representation. A span above `Integer.MAX_VALUE` is rejected before array
 allocation, and an unresolved layout is rejected rather than inferred. These overloads do not
 provide typed access, copy or conversion, boolean normalization, value import, fill operations,
-public constants, native allocation, or descriptor synthesis.
+native allocation, or descriptor synthesis. The separate constant methods deliberately synthesize
+only canonical dense descriptors and reuse this allocation path for zeros.
 
 Flat typed import is the current value-population boundary. `fromFlatArray(descriptor, label,
 source)` has exactly six overloads and maps carriers without conversion:
@@ -359,6 +362,128 @@ is allocated. A blank label reaches flat import, so destination storage is alloc
 consumed before Tensor validation fails. Identifier exhaustion is likewise observed after
 destination allocation and before the final flat-to-storage copy. Neither failure exposes or
 retains the intermediate carrier.
+
+Constant creation is the factory's other descriptor-synthesis boundary. Its six scalar methods
+infer an exact data type from the declared primitive input and create canonical rank-0 dense
+tensors:
+
+| Method input | Result data type | Stored representation |
+|---|---|---|
+| `double` | `FLOAT64` | Exact binary64 bits |
+| `float` | `FLOAT32` | Exact binary32 bits |
+| `scalarBFloat16(float)` | `BFLOAT16` | `BFloat16Bits.fromFloat(value)` |
+| `int` | `INT32` | Exact signed 32-bit value |
+| `long` | `INT64` | Exact signed 64-bit value |
+| `boolean` | `BOOL` | Canonical byte `0` or `1` |
+
+The BFLOAT16 method is named explicitly because it rounds a semantic binary32 input to BFLOAT16
+using round-to-nearest with ties to even; it is not the FLOAT32 overload and does not accept raw
+`short` bits. Every scalar descriptor uses `Shape.scalar()`, a resolved canonical
+dense-contiguous layout, exactly one logical element, and the caller's explicit `requiresGrad`
+request.
+
+`zeros(shape, dataType, label, requiresGrad)` and
+`ones(shape, dataType, label, requiresGrad)` accept every current data type. The shape must be
+fully static, but it may be rank zero or contain a zero-sized dimension. Both methods synthesize a
+new canonical dense descriptor. Zeros allocate the destination once and rely on JVM primitive
+array initialization, so no source array or element fill is performed. Ones fill one exact typed
+source carrier with `1.0d`, `1.0f`, BFLOAT16 bits `0x3F80`, `1`, `1L`, or BOOL byte `1`, then copy
+through the matching flat-import overload. An empty shape therefore creates empty storage rather
+than one physical element.
+
+`zerosLike(template, label, requiresGrad)` and
+`onesLike(template, label, requiresGrad)` read only the template descriptor's shape and data type.
+They do not inspect or preserve the template layout, label, storage, storage liveness, identity,
+gradient request, or other state. Static unresolved, offset, strided, broadcast, and dense
+templates are all accepted; the result always has a newly synthesized canonical dense layout and
+uses the explicit result label and gradient request. Each successful call creates a new Tensor,
+descriptor, layout, storage wrapper, backing array, and ID. The template object and any temporary
+source carrier are not retained.
+
+Public null checks happen before descriptor or storage work. Constant descriptor validation then
+requires a fully static shape, calculates its checked logical element count, applies the Java
+array limit, constructs dense layout geometry, and validates gradient eligibility in that order.
+Those failures allocate no destination and consume no ID. Source-carrier allocation for scalars
+and ones occurs only after descriptor validation. A blank label fails later, after destination and
+ID allocation, and consumes that ID; scalar and one creation have also allocated their source
+carrier. Identifier exhaustion is observed after destination allocation, with the same source
+carrier distinction. A JVM allocation failure that occurs before ID allocation consumes no ID.
+
+### Complete constant-creation example
+
+#### Goal and inputs
+
+Create a BFLOAT16 scalar from a halfway binary32 value, create a `2 × 2` INT32 one tensor, and
+create an independent zero tensor using only the one's shape and data type. The scalar input
+`1.00390625f` is halfway between adjacent BFLOAT16 values and rounds to the even representation
+`0x3F80` for `1.0`.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class ConstantCreationExample {
+    public static void main(String[] args) {
+        Tensor scalar = TensorFactory.scalarBFloat16(
+                1.00390625f, Optional.of("scale"), true);
+        Tensor ones = TensorFactory.ones(
+                Shape.of(2, 2), DataType.INT32, Optional.of("ones"), false);
+        Tensor zeros = TensorFactory.zerosLike(
+                ones, Optional.of("zeros"), false);
+
+        short[] scalarData = (short[]) scalar.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+        int[] oneData = (int[]) ones.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        System.out.printf("%04X%n", scalarData[0] & 0xFFFF);
+        System.out.println(Arrays.toString(oneData));
+        System.out.println(zeros.descriptor().shape());
+        System.out.println(zeros.descriptor().layout().orElseThrow().kind());
+        System.out.println(ones.hostStorage().orElseThrow()
+                != zeros.hostStorage().orElseThrow());
+    }
+}
+```
+
+#### Meaningful lines
+
+- `scalarBFloat16` makes the rounding request explicit and creates a differentiable rank-0
+  descriptor before copying the converted raw bits into independent storage.
+- `ones` selects the `int[]` carrier from `INT32` and fills its four logical positions with exact
+  integer one.
+- `zerosLike` reuses only `ones`' immutable shape and data type. Its supplied label and gradient
+  request are independent, and it creates a new dense descriptor and storage.
+- Heap-base inspection exposes the already implemented raw storage only so the values are visible
+  in this example; it is not a typed Tensor access or export API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+3F80
+[1, 1, 1, 1]
+Shape[2, 2]
+DENSE_CONTIGUOUS
+true
+```
+
+The result demonstrates BFLOAT16 ties-to-even rounding, exact INT32 one population, dense
+like-shaped creation, and independent storage. It does not provide general fill values, numeric
+conversion, range, prefix, random, typed access/export, view preservation, or execution.
+
+#### Failures and useful variations
+
+- Requesting gradients for `INT32`, `INT64`, or `BOOL` fails before source or destination
+  allocation.
+- A dynamic shape or logical element count above `Integer.MAX_VALUE` fails before destination or
+  ID allocation.
+- A zero-sized static shape is valid and produces an empty backing array for either zeros or ones.
 
 ### Complete flat-import example
 
@@ -904,7 +1029,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- constant/scalar/range/prefix/random population conveniences and typed tensor access or export;
+- range, prefix, and random population conveniences and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -954,6 +1079,14 @@ provide a compiler entry point or executable support.
   normalization remains in flat import. Structural and descriptor failures consume no ID; blank
   label and exhaustion retain the flat-import destination-allocation and ID side effects. Source
   ownership remains with the caller, and concurrent mutation has no deep-snapshot guarantee.
+- Its scalar methods infer exact data type from primitive signatures and create rank-0 dense
+  values; BFLOAT16 alone performs an explicit binary32-to-BFLOAT16 conversion. Zeros and ones
+  require fully static shapes, synthesize dense descriptors, and support scalar and empty shapes.
+  Like methods copy only shape and data type from the template. Static/count/layout/gradient
+  validation happens before source or destination allocation. Blank-label failure and exhaustion
+  happen after destination allocation; scalar and one creation have also allocated their source
+  carrier, while zero creation has no source carrier. Every successful result has independent
+  descriptor, layout, storage, backing array, Tensor object, and factory ID.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.
