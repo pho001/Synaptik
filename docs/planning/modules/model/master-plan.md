@@ -76,6 +76,9 @@ io.github.pho001.synaptik.model.operation.elementwise.unary
   Typed parameterless semantic kinds for unary arithmetic, transcendental functions,
   activations, and explicit fast approximation requests.
 
+io.github.pho001.synaptik.model.operation.elementwise.scalar
+  Typed parameterized semantic kinds and immutable attributes for scalar arithmetic and clamps.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -119,7 +122,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0014B | [Binary arithmetic Tensor expressions](tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete | 0013, 0014A | Build locally validated floating broadcast-aware Tensor expressions with ordered provenance. |
 | 0014C | [Unary elementwise semantic kinds](tasks/0014c-unary-elementwise-semantic-kinds.md) | Complete | 0005, 0006 | Define fifteen parameterless unary arithmetic, transcendental, activation, and fast-approximation kinds. |
 | 0014D | [Unary elementwise Tensor expressions](tasks/0014d-unary-elementwise-tensor-expressions.md) | Complete | 0013, 0014C | Build floating shape-preserving Tensor expressions with exact one-input provenance. |
-| 0014E | Scalar arithmetic and clamp semantics | Draft | 0005, 0006 | Define typed scalar attributes and clamp semantic contracts. |
+| 0014E | [Scalar arithmetic and clamp semantics](tasks/0014e-scalar-arithmetic-and-clamp-semantics.md) | Complete | 0005, 0006 | Define typed scalar elementwise kinds plus one-value and clamp-range attributes. |
 | 0014F | Scalar arithmetic and clamp Tensor expressions | Draft | 0013, 0014E | Build scalar arithmetic and clamp Tensor expressions without eager execution. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
@@ -142,8 +145,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0014D complete and the post-0014B vertical-slice reassessment
-recorded. Task 0014E is the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0014E complete and the post-0014B vertical-slice reassessment
+recorded. Task 0014F is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -316,6 +319,14 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   helper. It accepts only floating inputs, retains exact data type and Shape, leaves result layout
   unresolved, propagates gradient eligibility unchanged, and records exact one-input provenance
   without value/storage access, domain checks, canonicalization, gradient rules, or execution.
+- Task 0014E defines `ScalarElementwiseKind` for MUL, POW, CLAMP, CLAMP_MIN, and CLAMP_MAX plus
+  immutable `ScalarValueAttrs` and `ClampRangeAttrs`. Parameters remain exact binary64 semantic
+  values without Tensor/DataType coupling, alternate-precision caches, execution, or family
+  registries. Tensor expression behavior remains in task 0014F.
+- The independent task-0014E documentation review finalized only the two new record Javadocs,
+  Tensor API, glossary, task evidence, master plan, and roadmap. Existing operation, Tensor,
+  Compile API, Training API, capabilities, architecture, test, and build contracts remain accurate
+  unchanged because 0014E adds semantic values without public expressions or cross-layer behavior.
 - The independent task-0014B documentation review found stale public-Tensor status in the Compile
   API. Explicit authorization expanded the task to ten paths solely to correct that statement.
   The updated page describes public Tensor and binary expression construction as current while
@@ -363,6 +374,8 @@ Task 0014B completed the matching public expression construction and all authori
 including the focused Compile API status correction. The post-0014B reassessment selected
 continued ordered model work. Task 0014C completed the fifteen parameterless unary elementwise
 semantic kinds, and task 0014D completed their public floating Tensor expression construction.
-Task 0014E and all later operation-family tasks remain Draft without detailed specifications.
+Task 0014E completed the scalar arithmetic/clamp semantic kinds and exact immutable attributes.
+Task 0014F is the next Draft planning frontier; it and all later operation-family tasks remain
+without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

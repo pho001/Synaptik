@@ -29,8 +29,11 @@ construction with local promotion, broadcasting, descriptor derivation, and orde
 The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fifteen unary
 arithmetic, transcendental, activation, and explicit fast-approximation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
-provenance. Other concrete kind and expression families, family
-attributes, random Operations, typed access and export, native/runtime/backend allocation,
+provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
+`MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact-double
+`ScalarValueAttrs` and `ClampRangeAttrs`; matching public Tensor expression methods remain
+planned. Other concrete kind and expression families, their family attributes, random Operations,
+typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
 definition explains intended meaning; it is not by itself evidence that a Java type exists.
@@ -229,7 +232,15 @@ The implemented immutable value that keeps two parts of a computation descriptio
 
 ### `OperationAttrs`
 
-The implemented zero-method marker contract for immutable, typed parameters that refine which computation an [`Operation`](#operation) describes. A future family-specific attribute record might hold axes, padding, or another operation-specific value. Implementations use typed fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of a value but does not enforce immutability at runtime.
+The implemented zero-method marker contract for immutable, typed parameters that refine which
+computation an [`Operation`](#operation) describes. Implemented scalar-family values are
+`ScalarValueAttrs`, which holds one exact Java `double`, and `ClampRangeAttrs`, which holds exact
+ordered inclusive lower and upper bounds. Other families may define records for axes, padding, or
+another operation-specific value. Implementations use typed fields, defensively isolate mutable
+inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or
+contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without
+parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of
+a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
@@ -252,6 +263,16 @@ than stored metadata. `FAST_EXP` and `FAST_TANH` are distinct approximate reques
 backend flags; the enum defines no algorithm, accuracy, descriptor inference, provenance,
 gradient, execution, or backend support. The implemented public unary Tensor methods consume these
 values while separately owning local expression construction.
+
+The third production family is `ScalarElementwiseKind`, an enum containing exactly `MUL`, `POW`,
+`CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`. These values identify parameterized one-input elementwise
+meanings. `MUL`, `POW`, `CLAMP_MIN`, and `CLAMP_MAX` pair with `ScalarValueAttrs`; `CLAMP` pairs
+with `ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
+the generic `Operation` descriptor does not enforce family compatibility. The attributes retain
+exact Java `double` values. Clamp-range construction rejects only a primitive
+`minValue > maxValue` comparison, so equal bounds, both signed-zero orderings, ordered infinities,
+and NaN endpoints are valid. The family defines no public Tensor expression construction,
+descriptor inference, numerical execution behavior, gradients, or backend support yet.
 
 ### Partition
 
@@ -632,8 +653,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface, binary arithmetic family, and unary elementwise family implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker implemented; family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, unary elementwise, and scalar elementwise families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value and clamp-range values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -641,8 +662,10 @@ A kind distinguishes computations, while attributes carry parameters within a co
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic and unary elementwise kinds and their public Tensor
-construction paths are implemented. Other concrete families, family-specific attributes, compiler
-capture, and execution remain planned. The compiled graph container is implemented model state.
+construction paths are implemented. Scalar elementwise kinds and attributes are implemented, but
+their public Tensor construction paths remain planned. Other concrete families, their
+family-specific attributes, compiler capture, and execution remain planned. The compiled graph
+container is implemented model state.
 
 ### Compile versus prepare versus run
 
