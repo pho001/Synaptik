@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -23,8 +24,16 @@ import java.util.Optional;
  *
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
- * make a tensor an intermediate-representation node. The tensor owns no publication, device,
- * runtime-residency, or prepared-execution state and neither allocates nor closes storage.</p>
+ * make a tensor an intermediate-representation node. Binary arithmetic expression methods create
+ * fresh storage-free tensors whose immutable provenance records the requested semantics and
+ * ordered operands; they do not execute arithmetic, create gradient rules, or capture a graph.
+ * They accept floating operands only, apply floating promotion and locally provable right-aligned
+ * broadcasting, leave result layout unresolved, and combine gradient eligibility by logical OR.
+ * Each result has a fresh factory identity, no label or storage, and an exact matching
+ * {@link BinaryArithmeticKind} with {@code NoOperationAttrs.INSTANCE} and ordered input
+ * references. Gradient eligibility does not promise that a gradient rule exists.
+ * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
+ * neither allocates nor closes storage.</p>
  */
 public final class Tensor {
     private final TensorId id;
@@ -135,6 +144,176 @@ public final class Tensor {
      */
     public Optional<TensorProvenance> provenance() {
         return provenance;
+    }
+
+    /**
+     * Builds an elementwise expression that adds this left operand to {@code right}.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#ADD}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right addend; it is retained by exact reference in result
+     *     provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor add(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.ADD);
+    }
+
+    /**
+     * Builds an elementwise expression that subtracts {@code right} from this left operand.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#SUB}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered subtrahend; it is retained by exact reference in result
+     *     provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor sub(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.SUB);
+    }
+
+    /**
+     * Builds an elementwise expression that multiplies this left operand by {@code right}.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#MUL}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right factor; it is retained by exact reference in result
+     *     provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor mul(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.MUL);
+    }
+
+    /**
+     * Builds an elementwise expression that divides this left operand by {@code right}.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#DIV}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered denominator; it is retained by exact reference in result
+     *     provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor div(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.DIV);
+    }
+
+    /**
+     * Builds an elementwise expression that selects the minimum of this left operand and
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#MIN}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right minimum operand; it is retained by exact reference in
+     *     result provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor min(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.MIN);
+    }
+
+    /**
+     * Builds an elementwise expression that selects the maximum of this left operand and
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#MAX}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right maximum operand; it is retained by exact reference in
+     *     result provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor max(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.MAX);
+    }
+
+    /**
+     * Builds an elementwise expression that raises this left base to the {@code right} exponent.
+     *
+     * <p>Both operands must have floating data types, which are promoted through the model's
+     * floating hierarchy, and their shapes must support locally provable right-aligned
+     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * logical OR of the operand requests, no label or host storage, and provenance containing
+     * {@link BinaryArithmeticKind#POW}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
+     * {@code [this, right]}. This method constructs semantics only; numerical execution and
+     * gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered exponent; it is retained by exact reference in result
+     *     provenance and is not mutated
+     * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
+     *     layout, propagated gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor pow(Tensor right) {
+        return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
     }
 
     /**

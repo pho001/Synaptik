@@ -7,14 +7,15 @@ This reference documents the public model contracts that are implemented today. 
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
-integral, and Bernoulli random population. Concrete expression
-operations, typed access, gradient objects and publication behavior, native/runtime/backend
-allocation, compiler integration, runtime residency, and backend execution remain planned. The
+integral, and Bernoulli random population. The current concrete expression surface contains seven
+floating tensor-to-tensor binary arithmetic methods. Typed access, other expression families,
+gradient objects and publication behavior, native/runtime/backend allocation, compiler
+integration, runtime residency, and backend execution remain planned. The
 authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current types describe logical values and provide one bounded host-allocation path without
-executing a tensor:
+The current types describe logical values, construct storage-free binary expressions, and provide
+one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -33,6 +34,7 @@ TensorFactory + static shape + typed flat source              = strict/cyclic co
 TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
 TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
+left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -83,9 +85,11 @@ automatic-scope primitive-array heap segments.
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed
 semantic parameters. The implemented `Operation` record keeps those two values together.
 `BinaryArithmeticKind` is the first implemented production kind family: it names seven
-parameterless tensor-to-tensor arithmetic meanings without constructing a Tensor expression.
-`TensorProvenance` can retain that operation with its ordered public-tensor inputs, but neither
-contract assigns graph identity, infers a result, captures a graph, or executes computation.
+parameterless tensor-to-tensor arithmetic meanings. The public `Tensor.add`, `sub`, `mul`, `div`,
+`min`, `max`, and tensor-valued `pow` methods use those kinds to construct storage-free expression
+tensors. `TensorProvenance` retains the exact operation and ordered public-tensor inputs. This
+local construction derives a result descriptor, but it does not assign graph identity, capture a
+graph, calculate values, define gradient rules, or execute computation.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -1420,10 +1424,133 @@ input objects using their ordinary equality; it is not producer-occurrence ident
 be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
-package-private derived-construction seam used by future same-package expression helpers attaches
-one already-validated provenance value, allocates exactly one ID through the existing allocator,
-and creates no storage. It does not inspect the operation or inputs, infer a descriptor, traverse
-an expression, capture a graph, or perform semantic validation.
+package-private derived-construction seam used by the implemented binary-expression helper
+attaches one already-validated provenance value, allocates exactly one ID through the existing
+allocator, and creates no storage. The factory seam itself does not inspect the operation or
+inputs, infer a descriptor, traverse an expression, capture a graph, or perform semantic
+validation.
+
+### Binary arithmetic expressions
+
+The seven current expression methods build model semantics; they do not calculate element values:
+
+| Method | Ordered meaning of `left.method(right)` |
+|---|---|
+| `add` | left plus the right addend |
+| `sub` | left minus the right subtrahend |
+| `mul` | left multiplied by the right factor |
+| `div` | left divided by the right denominator |
+| `min` | minimum of the left and right operands |
+| `max` | maximum of the left and right operands |
+| `pow` | left base raised to the right exponent |
+
+The receiver is always the ordered left input and the argument is always the ordered right input.
+This order remains in provenance even for operations whose mathematical result is commonly
+commutative.
+
+Each method accepts only `BFLOAT16`, `FLOAT32`, and `FLOAT64`. It promotes the two types through
+`BFLOAT16 < FLOAT32 < FLOAT64`, applies the existing right-aligned local broadcast rule, and
+creates a fresh `TensorDescriptor`. The result layout is unresolved even when every shape
+dimension is static because expression construction has not chosen storage geometry. Result
+`requiresGrad` is the logical OR of the input requests; that flag records gradient eligibility
+only and does not install a gradient rule.
+
+The fresh result has a new factory identity, no label, and no host storage. Its provenance stores
+one `Operation` with the matching `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, followed
+by the exact ordered input references `[left, right]`. Repeated calls create distinct results, and
+even identities such as adding a stored zero or multiplying by a stored one are not simplified at
+this boundary. Compiler-owned graph capture, canonicalization, common-subexpression elimination,
+autograd, and backend execution remain later responsibilities.
+
+#### Complete binary-expression example
+
+##### Goal and inputs
+
+Build a division expression from a `BFLOAT16` left tensor of shape `[2, 1]` and a `FLOAT32` right
+tensor of shape `[1, 3]`. The left descriptor does not request gradients; the right descriptor
+does. Both inputs are storage-free leaves, so the example demonstrates expression metadata rather
+than numerical division.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class BinaryExpressionExample {
+    public static void main(String[] args) {
+        Tensor left = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(2, 1), Optional.empty(), false));
+        Tensor right = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(1, 3), Optional.empty(), true));
+
+        Tensor result = left.div(right);
+        TensorProvenance provenance = result.provenance().orElseThrow();
+
+        System.out.println("type=" + result.descriptor().dataType());
+        System.out.println("shape=" + result.descriptor().shape());
+        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
+        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + result.label().isEmpty());
+        System.out.println("storageFree=" + result.hostStorage().isEmpty());
+        System.out.println("kind=" + provenance.operation().kind());
+        System.out.println("parameterless="
+                + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("orderedInputs="
+                + (provenance.inputs().get(0) == left
+                && provenance.inputs().get(1) == right));
+        System.out.println("fresh=" + (result != left && result != right));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `BFLOAT16` and `FLOAT32` promote to `FLOAT32`.
+- Right alignment compares shape axes as `1` with `3` and `2` with `1`; each singleton expands,
+  producing shape `[2, 3]`.
+- `left.div(right)` preserves the non-commutative roles: `left` is the numerator and `right` is
+  the denominator. The operation kind is `DIV`, and the parameterless attributes are the canonical
+  singleton.
+- The input gradient requests `false` and `true` combine to `true`. This result is eligibility
+  metadata rather than a generated backward computation.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+type=FLOAT32
+shape=Shape[2, 3]
+layoutUnresolved=true
+requiresGrad=true
+unlabeled=true
+storageFree=true
+kind=DIV
+parameterless=true
+orderedInputs=true
+fresh=true
+```
+
+The output proves local type promotion, broadcasting, descriptor derivation, fresh identity, and
+ordered provenance. It does not prove a numerical quotient, division-by-zero behavior, a gradient
+formula, graph capture, backend support, or execution because none of those behaviors is part of
+the current expression-construction API.
+
+##### Failures and useful variations
+
+- A null right operand fails with `NullPointerException` and message `right`.
+- An `INT32`, `INT64`, or `BOOL` operand fails through floating promotion; no implicit cast is
+  inserted.
+- Incompatible static dimensions, different dynamic symbols, and a dynamic dimension paired with
+  a non-singleton static size fail through local broadcasting. Equal dynamic symbols and singleton
+  expansion remain valid.
+- Validation failures happen before result identity allocation. Exhausting the factory's tensor-ID
+  space instead fails after the local descriptor, operation, and provenance values are built.
 
 The current class stores no graph-local `NodeId` or `ValueId`, gradient object or trainable role,
 publication state, typed element access, device buffer, runtime residency, prepared state, or
@@ -1615,12 +1742,13 @@ not a Tensor result, provenance value, graph occurrence, executable operation, o
 claim. No family factory or implicit attributes assignment is provided.
 
 Broadcast geometry is derived from operand shapes rather than stored on the enum or in operation
-attributes. Public Tensor methods, operand and result descriptors, broadcasting success, data-type
-eligibility and promotion, integer or floating-point edge behavior, differentiation, compiler
-capture, execution, and backend availability remain deferred to their owning contracts. The
-inherited enum names and text are stable diagnostics, not serialization tokens, registry keys, or
-string-dispatch contracts. Equality remains typed: an `ADD` value declared by another kind family
-is not equal to `BinaryArithmeticKind.ADD` even though both diagnostics may contain `ADD`.
+attributes. The current public Tensor methods own local floating eligibility, promotion,
+broadcasting, result-descriptor construction, and ordered provenance. Numerical edge behavior,
+gradient rules, compiler capture, execution, and backend availability remain deferred to their
+owning contracts. The inherited enum names and text are stable diagnostics, not serialization
+tokens, registry keys, or string-dispatch contracts. Equality remains typed: an `ADD` value
+declared by another kind family is not equal to `BinaryArithmeticKind.ADD` even though both
+diagnostics may contain `ADD`.
 
 ### Test-local conceptual example
 
@@ -1820,7 +1948,8 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- concrete expression operations, gradient and trainable state, and publication behavior;
+- expression families beyond binary tensor arithmetic, gradient and trainable state, and
+  publication behavior;
 - operation-kind families beyond binary arithmetic and family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -1828,10 +1957,10 @@ The following contracts appear in the architecture and planning documents but ar
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
-current Java API contracts. Binary arithmetic is the only production concrete kind family, and no
-family-specific attribute type exists yet. The graph records can compose and structurally validate
-these or test-local semantics, but they do not provide a compiler entry point or executable
-support.
+current Java API contracts. Binary arithmetic is the only production concrete kind family, and
+the seven matching public Tensor expression methods are current. No family-specific attribute
+type exists yet. The graph records can compose and structurally validate these or test-local
+semantics, but they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -1856,6 +1985,13 @@ support.
   input list with `List.copyOf`; preserves order, empty inputs, repeated references, and exact
   Tensor identities; and retains the exact Operation reference. Its record value methods do not
   establish producer-occurrence identity, graph membership, or semantic compatibility.
+- `Tensor.add`, `sub`, `mul`, `div`, `min`, `max`, and tensor-valued `pow` require a non-null right
+  operand, promote only floating data types, and require locally provable right-aligned
+  broadcasting. Each successful call returns a fresh unlabeled storage-free Tensor with unresolved
+  layout, gradient eligibility equal to input OR, and exact matching parameterless operation plus
+  ordered `[left, right]` provenance. Null, type, and shape failures precede ID allocation;
+  identity exhaustion follows local descriptor and provenance construction. These methods do not
+  calculate values, simplify expressions, capture graphs, or define gradient or backend behavior.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
   one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.

@@ -24,11 +24,13 @@ and bounded continuous-uniform population for the three floating types, plus bou
 random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
 finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
 kind support now includes the parameterless `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
-`MUL`, `DIV`, `MIN`, `MAX`, and `POW`. Other concrete kind families and family attributes, random
-Operations, typed access and export, native/runtime/backend allocation, expression operations,
-gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
-runtime, concrete backends, traces, and training remain architecture or planning contracts. A
-definition explains intended meaning; it is not by itself evidence that a Java type exists.
+`MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
+construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
+Other concrete kind and expression families, family attributes, random Operations, typed access
+and export, native/runtime/backend allocation, gradient and publication behavior, compiler entry
+points and artifacts, planning, prepare, runtime, concrete backends, traces, and training remain
+architecture or planning contracts. A definition explains intended meaning; it is not by itself
+evidence that a Java type exists.
 
 ## Terms
 
@@ -234,9 +236,10 @@ The first production family is `BinaryArithmeticKind`, an enum containing exactl
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`. These values identify ordered tensor-to-tensor elementwise
 arithmetic meanings. They have no intrinsic parameters and therefore compose with
 `NoOperationAttrs.INSTANCE`. The enum stores no operands or broadcast metadata and does not build
-Tensor expressions, infer shapes or data types, identify graph occurrences, execute computation,
-or report backend support. Its inherited names are diagnostics rather than serialization or
-dispatch keys.
+Tensor expressions by itself, infer shapes or data types, identify graph occurrences, execute
+computation, or report backend support. The implemented public Tensor methods consume these values
+while separately owning local expression construction. The enum's inherited names are diagnostics
+rather than serialization or dispatch keys.
 
 ### Partition
 
@@ -273,6 +276,11 @@ change when Tensor host storage is replaced, cleared, or becomes dead. Record eq
 the operation value and ordered input objects using ordinary equality; it does not perform
 common-subexpression elimination. A later compiler owns traversal and conversion into immutable
 graph records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
+
+The implemented binary Tensor methods create provenance whose operation uses the exact matching
+`BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
+receiver as left and argument as right. That current construction does not change provenance's
+general role or make it graph membership.
 
 ### Publication binding
 
@@ -334,9 +342,13 @@ continuous-uniform creation are also implemented as copied canonical dense leaf 
 Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
 false gradient intent. Caller-source Bernoulli creation is implemented for canonical BOOL output
 with false gradient intent and a finite scalar probability. Random Operations, typed access and
-export, deterministic native-resource ownership, concrete expression operations, gradient
-objects, trainable role, publication behavior, compiler integration, device buffers, and runtime
-residency remain planned.
+export, and deterministic native-resource ownership remain planned. The current `add`, `sub`,
+`mul`, `div`, `min`, `max`, and tensor-valued `pow` methods create fresh storage-free binary
+arithmetic expression tensors from floating operands. They promote data type, broadcast shape,
+leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
+operation semantics plus ordered provenance. Other expression families, gradient rules and
+objects, trainable role, publication behavior, compiler integration, device buffers, numerical
+execution, and runtime residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -581,8 +593,9 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based leaf construction and immutable provenance are implemented. Concrete expression
-construction, gradients, and publication behavior are not part of the current Tensor contract.
+descriptor-based leaf construction, immutable provenance, and floating binary Tensor expression
+construction are implemented. Gradient rules and objects, compiler graph capture, numerical
+execution, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
 
@@ -610,9 +623,9 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic kinds are implemented; other concrete families,
-family-specific attributes, and compiler integration remain planned. The compiled graph container
-is implemented model state.
+that occurrence. Binary arithmetic kinds and their public Tensor construction path are
+implemented; other concrete families, family-specific attributes, compiler capture, and execution
+remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

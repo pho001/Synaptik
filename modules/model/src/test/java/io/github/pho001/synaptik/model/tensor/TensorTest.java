@@ -32,7 +32,8 @@ import org.junit.jupiter.api.Test;
 
 class TensorTest {
     @Test
-    void hasExactlyTheRequiredClassStateConstructorAndPublicApi() {
+    void hasExactlyTheRequiredClassStateConstructorAndPublicApi()
+            throws ReflectiveOperationException {
         assertAll(
                 () -> assertTrue(Modifier.isPublic(Tensor.class.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(Tensor.class.getModifiers())),
@@ -71,13 +72,17 @@ class TensorTest {
                                 Optional.class),
                         Arrays.asList(constructors[0].getParameterTypes())));
 
-        Set<String> publicMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
+        var declaredPublicMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .toList();
+        Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
+        assertEquals(15, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
-                        "clearHostStorage", "provenance", "toString"),
+                        "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
+                        "div", "min", "max", "pow"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -96,6 +101,15 @@ class TensorTest {
                         Tensor.class.getDeclaredMethod("label").getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(
                         Tensor.class.getDeclaredMethod("provenance").getModifiers())));
+
+        for (String methodName : List.of("add", "sub", "mul", "div", "min", "max", "pow")) {
+            var method = Tensor.class.getDeclaredMethod(methodName, Tensor.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
     }
 
     @Test

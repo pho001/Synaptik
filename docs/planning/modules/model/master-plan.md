@@ -112,7 +112,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0013 | [Tensor provenance skeleton](tasks/0013-tensor-provenance-skeleton.md) | Complete | 0006, 0011, 0012 | Attach immutable operation-and-input origin metadata to Tensor for future compiler-owned graph capture. |
 | 0013A | [Full-value and identity-matrix tensor creation](tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
 | 0014A | [Binary arithmetic semantic kinds](tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete | 0005, 0006 | Define typed parameterless ADD, SUB, MUL, DIV, MIN, MAX, and POW kinds. |
-| 0014B | Binary arithmetic Tensor expressions | Draft | 0013, 0014A | Build locally validated broadcast-aware Tensor expressions with ordered provenance. |
+| 0014B | [Binary arithmetic Tensor expressions](tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete | 0013, 0014A | Build locally validated floating broadcast-aware Tensor expressions with ordered provenance. |
 | 0014C | Unary arithmetic and activation semantic kinds | Draft | 0005, 0006 | Define parameterless unary and activation kinds. |
 | 0014D | Unary arithmetic and activation Tensor expressions | Draft | 0013, 0014C | Build unary and activation Tensor expressions with locally derived descriptors. |
 | 0014E | Scalar arithmetic and clamp semantics | Draft | 0005, 0006 | Define typed scalar attributes and clamp semantic contracts. |
@@ -138,8 +138,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with the post-foundation checkpoint and task 0014A complete. Task 0014B remains the next
-Draft planning frontier without a detailed specification.
+Draft, with the post-foundation checkpoint and tasks 0014A and 0014B complete. Task 0014B provides
+the first public capturable operation family; the post-0014B vertical-slice reassessment is the
+next planning action. Task 0014C remains Draft without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -152,14 +153,15 @@ prefix population, are also complete. Normal population task 0012F, uniform popu
 and integral population task 0012H are complete. Bernoulli task 0012I and provenance task 0013 are
 also complete. Full-value and identity-matrix factory task 0013A is complete. The foundation
 checkpoint selected continued sequential model operation-family work. Task 0014A, binary
-arithmetic semantic kinds, is complete; task 0014B remains the next Draft planning frontier
-without a detailed specification.
+arithmetic semantic kinds, and task 0014B, public binary arithmetic Tensor expressions, are
+complete. The explicitly authorized Compile API correction now distinguishes current public
+Tensor expressions from the still-planned compiler capture lifecycle.
 
 ## Open questions
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- Reassess the next cross-module vertical-slice opportunity after binary semantic kinds and public
-  expression construction provide one concrete capturable operation family.
+- Reassess the next cross-module vertical-slice opportunity now that task 0014B has completed the
+  first concrete capturable operation family.
 
 ## Decisions made
 
@@ -297,6 +299,15 @@ without a detailed specification.
 - Task 0014A implements one parameterless `BinaryArithmeticKind` enum in
   `model.operation.elementwise.binary` with exact constants ADD, SUB, MUL, DIV, MIN, MAX, and POW.
   Broadcast geometry, dtype rules, provenance, and Tensor methods remain in task 0014B.
+- Task 0014B adds seven fluent Tensor methods through one package-private helper. It promotes only
+  floating data types, delegates right-aligned shape algebra to `ShapeBroadcast`, leaves result
+  layout unresolved, propagates gradient eligibility as input OR, and records exact ordered
+  provenance without storage access, execution, canonicalization, or graph capture.
+- The independent task-0014B documentation review found stale public-Tensor status in the Compile
+  API. Explicit authorization expanded the task to ten paths solely to correct that statement.
+  The updated page describes public Tensor and binary expression construction as current while
+  preserving compiler entry, capture, inference, optimization, artifacts, and engine APIs as
+  planned.
 
 ## Risks
 
@@ -335,6 +346,9 @@ continuous-uniform floating population, task 0012H completed bounded-integral po
 the package-private derived-construction seam, and task 0013A completed type-safe full-value and
 rectangular identity creation. The completed post-foundation checkpoint selected sequential model
 operation-family work, and task 0014A completed the first concrete parameterless kind family.
-Task 0014B and all later operation-family tasks remain Draft without detailed specifications.
+Task 0014B completed the matching public expression construction and all authorized documentation,
+including the focused Compile API status correction. The post-0014B cross-module checkpoint is the
+next planning action. Task 0014C and all later operation-family tasks remain Draft without detailed
+specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
