@@ -79,6 +79,9 @@ io.github.pho001.synaptik.model.operation.elementwise.unary
 io.github.pho001.synaptik.model.operation.elementwise.scalar
   Typed parameterized semantic kinds and immutable attributes for scalar arithmetic and clamps.
 
+io.github.pho001.synaptik.model.operation.elementwise.comparison
+  Typed parameterless semantic kinds for ordered Tensor-to-Tensor comparisons.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -124,7 +127,14 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0014D | [Unary elementwise Tensor expressions](tasks/0014d-unary-elementwise-tensor-expressions.md) | Complete | 0013, 0014C | Build floating shape-preserving Tensor expressions with exact one-input provenance. |
 | 0014E | [Scalar arithmetic and clamp semantics](tasks/0014e-scalar-arithmetic-and-clamp-semantics.md) | Complete | 0005, 0006 | Define typed scalar elementwise kinds plus one-value and clamp-range attributes. |
 | 0014F | [Scalar arithmetic and clamp Tensor expressions](tasks/0014f-scalar-arithmetic-and-clamp-tensor-expressions.md) | Complete | 0013, 0014E | Build floating shape-preserving parameterized Tensor expressions with exact one-input provenance. |
-| 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
+| 0015A | [Binary comparison semantic kinds](tasks/0015a-binary-comparison-semantic-kinds.md) | Complete | 0005, 0006 | Define six typed parameterless ordered comparison meanings. |
+| 0015B | Binary comparison Tensor expressions | Draft | 0001, 0002, 0013, 0015A | Build floating broadcast-aware comparisons with BOOL results and ordered provenance. |
+| 0015C | Boolean logical semantic kinds | Draft | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
+| 0015D | Boolean logical Tensor expressions | Draft | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
+| 0015E | Where selection semantic kind | Draft | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
+| 0015F | Where selection Tensor expression | Draft | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
+| 0015G | Cast semantic kind and attributes | Draft | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
+| 0015H | Cast Tensor expression | Draft | 0001, 0013, 0015G | Build explicit cast expressions without eager conversion. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
@@ -132,7 +142,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected legacy baseline. |
 
 ## Milestones
@@ -140,13 +150,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F and 0015–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, and 0016–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
-Draft, with tasks 0014A through 0014F complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015 is the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0015A complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015B is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -327,6 +337,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   floating inputs, preserves exact caller binary64 attributes and input type/Shape, leaves layout
   unresolved, propagates gradient eligibility unchanged, records exact one-input provenance, and
   represents range clamp as one first-class operation without conversion or canonicalization.
+- The broad former task 0015 is decomposed into four semantic/expression pairs: binary comparisons
+  0015A–0015B, BOOL logic 0015C–0015D, ternary `where` 0015E–0015F, and cast 0015G–0015H.
+- Task 0015A defines parameterless `BinaryComparisonKind` in
+  `model.operation.elementwise.comparison` for GREATER_THAN, GREATER_OR_EQUAL, LESS_THAN,
+  LESS_OR_EQUAL, EQUAL, and NOT_EQUAL. Tensor inputs, broadcasting, and BOOL results remain in
+  task 0015B.
+- The independent task-0015A documentation review found the enum and every constant Javadoc
+  complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
+  API, Training API, capabilities, architecture/ADRs/tests, build configuration, existing
+  operation/Tensor/expression contracts, and other modules remain accurate unchanged because the
+  task adds only model-owned semantic vocabulary without public expressions, dependencies,
+  inference, provenance, training, or execution behavior.
 - The independent task-0014F documentation review finalized Tensor API, the pre-authorized Compile
   API current-status wording, glossary, task evidence, master plan, and roadmap. Existing Javadocs
   were already complete. Training API, capabilities, architecture/ADRs/tests, build configuration,
@@ -384,8 +406,9 @@ including the focused Compile API status correction. The post-0014B reassessment
 continued ordered model work. Task 0014C completed the fifteen parameterless unary elementwise
 semantic kinds, and task 0014D completed their public floating Tensor expression construction.
 Task 0014E completed the scalar arithmetic/clamp semantic kinds and exact immutable attributes,
-and task 0014F completed their public floating Tensor expression construction. Task 0015 is the
-next Draft planning frontier; it and all later operation-family tasks remain without detailed
-specifications.
+task 0014F completed their public floating Tensor expression construction, and task 0015A
+completed the six parameterless ordered binary comparison semantic kinds. Task 0015B is the next
+Draft planning frontier without a detailed specification; all later operation-family tasks also
+remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

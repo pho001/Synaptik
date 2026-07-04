@@ -33,7 +33,10 @@ provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented 
 `MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact-double
 `ScalarValueAttrs` and `ClampRangeAttrs`, plus matching public floating Tensor expression
 construction with exact type/shape retention, exact binary64 attributes, and one-input provenance.
-Other concrete kind and expression families, their family attributes, random Operations,
+The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
+`GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings; matching
+public Tensor expressions and BOOL result derivation remain planned. Other concrete kind and
+expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -277,6 +280,15 @@ descriptor inference, numerical execution behavior, gradients, or backend suppor
 The implemented public scalar Tensor methods consume these values while separately owning
 floating validation, descriptor derivation, exact attribute composition, and one-input
 provenance.
+
+The fourth production family is `BinaryComparisonKind`, an enum containing exactly
+`GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
+values identify ordered, parameterless tensor-to-tensor comparison meanings and compose with
+`NoOperationAttrs.INSTANCE`. The enum stores no operands, broadcast geometry, BOOL result facts,
+numeric edge policy, or execution metadata. Public comparison Tensor methods, input eligibility,
+promotion, broadcasting, result derivation, provenance, gradients, execution, and backend support
+remain planned. Its inherited names are diagnostic rather than serialization or dispatch keys,
+and an equally named kind from another family remains a different typed value.
 
 ### Partition
 
@@ -662,7 +674,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, unary elementwise, and scalar elementwise families implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, unary elementwise, and scalar elementwise families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value and clamp-range values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -670,10 +682,11 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic, unary elementwise, and scalar elementwise kinds and their
-public Tensor construction paths are implemented. Other concrete families, their
-family-specific attributes, compiler capture, and execution remain planned. The compiled graph
-container is implemented model state.
+that occurrence. Binary arithmetic, binary comparison, unary elementwise, and scalar elementwise
+kinds are implemented. Arithmetic, unary, and scalar public Tensor construction paths are also
+implemented; comparison construction remains planned. Other concrete families, their family-
+specific attributes, compiler capture, and execution remain planned. The compiled graph container
+is implemented model state.
 
 ### Compile versus prepare versus run
 
