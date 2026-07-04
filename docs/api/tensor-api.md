@@ -35,6 +35,7 @@ TensorFactory + static shape + primitive bounds + source      = copied dense INT
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
+BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
 ValueId + TensorDescriptor                                    = GraphValue
 NodeId + Operation + ordered input/output ValueIds            = CompiledNode
 values + nodes + boundaries + node phases                     = CompiledGraphModel
@@ -81,6 +82,8 @@ automatic-scope primitive-array heap segments.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed
 semantic parameters. The implemented `Operation` record keeps those two values together.
+`BinaryArithmeticKind` is the first implemented production kind family: it names seven
+parameterless tensor-to-tensor arithmetic meanings without constructing a Tensor expression.
 `TensorProvenance` can retain that operation with its ordered public-tensor inputs, but neither
 contract assigns graph identity, infers a result, captures a graph, or executes computation.
 
@@ -1575,10 +1578,49 @@ The public operation-foundation contracts live in `io.github.pho001.synaptik.mod
 | `OperationAttrs` | An implemented marker interface for the immutable, typed semantic parameters of that computation. |
 | `NoOperationAttrs.INSTANCE` | The implemented canonical attribute value for a kind that has no semantic parameters. |
 | `Operation` | An implemented immutable descriptor that stores one kind and one `OperationAttrs` value. |
+| `BinaryArithmeticKind` | The implemented production enum for seven parameterless tensor-to-tensor arithmetic meanings. |
 
 `OperationKind` declares only `name()`. The result must be a stable, non-null, non-blank diagnostic name, but it is not a serialization token or a global lookup key. Enum-based kind families are the expected common implementation because an enum already supplies a stable `name()`, equality, and hashing. Two enum values from different kind families remain different typed values even if both names contain the same text.
 
 `OperationAttrs` deliberately declares no methods. A family-specific implementation defines its own typed fields and must be immutable, defensively isolate mutable constructor inputs, and provide structural equality and hashing. `NoOperationAttrs.INSTANCE` makes the absence of parameters an explicit non-null value rather than `null` or an empty map. These are implementation contracts, not runtime validators: the interfaces themselves cannot prevent a custom implementation from returning an invalid name or retaining mutable state.
+
+### Binary arithmetic semantic kinds
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind` implements
+`OperationKind` with exactly these constants in declaration order:
+
+| Kind | Ordered elementwise meaning |
+|---|---|
+| `ADD` | Left value plus right value. |
+| `SUB` | Left value minus right value. |
+| `MUL` | Left value multiplied by right value. |
+| `DIV` | Left value divided by right value. |
+| `MIN` | Mathematical minimum of the left and right values. |
+| `MAX` | Mathematical maximum of the left and right values. |
+| `POW` | Left value as the base raised to the right value as the exponent. |
+
+The enum values are semantic identities only. All seven have no intrinsic parameters and compose
+explicitly with the existing generic descriptor:
+
+```java
+Operation addition = new Operation(
+        BinaryArithmeticKind.ADD,
+        NoOperationAttrs.INSTANCE);
+```
+
+The result is an immutable operation description whose kind is exactly
+`BinaryArithmeticKind.ADD` and whose attributes value is exactly the canonical singleton. It is
+not a Tensor result, provenance value, graph occurrence, executable operation, or backend-support
+claim. No family factory or implicit attributes assignment is provided.
+
+Broadcast geometry is derived from operand shapes rather than stored on the enum or in operation
+attributes. Public Tensor methods, operand and result descriptors, broadcasting success, data-type
+eligibility and promotion, integer or floating-point edge behavior, differentiation, compiler
+capture, execution, and backend availability remain deferred to their owning contracts. The
+inherited enum names and text are stable diagnostics, not serialization tokens, registry keys, or
+string-dispatch contracts. Equality remains typed: an `ADD` value declared by another kind family
+is not equal to `BinaryArithmeticKind.ADD` even though both diagnostics may contain `ADD`.
 
 ### Test-local conceptual example
 
@@ -1604,7 +1646,13 @@ The `SampleKind` declaration shows how an enum inherits `Enum.name()` and theref
 
 `new Operation(kind, attrs)` stores those exact non-null objects without copying or normalization. The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their hash codes are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
 
-The example demonstrates the implemented descriptor's construction, ownership, and record value semantics. It does not establish that `SampleAttrs` is compatible with `SampleKind`: the generic descriptor checks only that neither component is null. It also does not create a production operation family or graph node, infer a result shape or data type, report backend support, select a kernel, or execute computation. Concrete kinds, family attributes, compiler behavior, and executable support remain later work in their owning layers.
+The example demonstrates the implemented descriptor's construction, ownership, and record value
+semantics for an attributes-bearing test value. It does not establish that `SampleAttrs` is
+compatible with `SampleKind`: the generic descriptor checks only that neither component is null.
+It also does not create a graph node, infer a result shape or data type, report backend support,
+select a kernel, or execute computation. Production `BinaryArithmeticKind` exists as the first
+parameterless family, while family-specific attributes, other kind families, compiler behavior,
+and executable support remain later work in their owning layers.
 
 ## Graph values and compiled nodes
 
@@ -1773,16 +1821,17 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - concrete expression operations, gradient and trainable state, and publication behavior;
-- concrete operation kinds and family-specific attribute values;
+- operation-kind families beyond binary arithmetic and family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
-`OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `GraphValue`, and
-`CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are current Java API
-contracts. No production concrete kind or family-specific attribute type exists yet. The graph
-records can therefore compose and structurally validate test-local semantics, but they do not
-provide a compiler entry point or executable support.
+`OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
+`GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
+current Java API contracts. Binary arithmetic is the only production concrete kind family, and no
+family-specific attribute type exists yet. The graph records can compose and structurally validate
+these or test-local semantics, but they do not provide a compiler entry point or executable
+support.
 
 ## Failures and ownership summary
 

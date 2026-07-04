@@ -69,6 +69,9 @@ io.github.pho001.synaptik.model.storage
 io.github.pho001.synaptik.model.operation
   Backend-independent operation semantics and immutable attributes.
 
+io.github.pho001.synaptik.model.operation.elementwise.binary
+  Typed parameterless semantic kinds for tensor-to-tensor elementwise arithmetic.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -108,7 +111,12 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0012I | [Bernoulli random tensor creation](tasks/0012i-bernoulli-random-tensor-creation.md) | Complete | 0012F | Add BOOL tensors sampled from an explicit probability using the existing caller-owned source policy. |
 | 0013 | [Tensor provenance skeleton](tasks/0013-tensor-provenance-skeleton.md) | Complete | 0006, 0011, 0012 | Attach immutable operation-and-input origin metadata to Tensor for future compiler-owned graph capture. |
 | 0013A | [Full-value and identity-matrix tensor creation](tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
-| 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
+| 0014A | [Binary arithmetic semantic kinds](tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete | 0005, 0006 | Define typed parameterless ADD, SUB, MUL, DIV, MIN, MAX, and POW kinds. |
+| 0014B | Binary arithmetic Tensor expressions | Draft | 0013, 0014A | Build locally validated broadcast-aware Tensor expressions with ordered provenance. |
+| 0014C | Unary arithmetic and activation semantic kinds | Draft | 0005, 0006 | Define parameterless unary and activation kinds. |
+| 0014D | Unary arithmetic and activation Tensor expressions | Draft | 0013, 0014C | Build unary and activation Tensor expressions with locally derived descriptors. |
+| 0014E | Scalar arithmetic and clamp semantics | Draft | 0005, 0006 | Define typed scalar attributes and clamp semantic contracts. |
+| 0014F | Scalar arithmetic and clamp Tensor expressions | Draft | 0013, 0014E | Build scalar arithmetic and clamp Tensor expressions without eager execution. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
@@ -117,7 +125,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected legacy baseline. |
 
 ## Milestones
@@ -125,12 +133,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014–0022
+- Public operation capability families: tasks 0014A–0014F and 0015–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
-Draft, with task 0013A complete and the post-foundation checkpoint as the next planning action.
+Draft, with the post-foundation checkpoint and task 0014A complete. Task 0014B remains the next
+Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -141,16 +150,16 @@ complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, ne
 import, is complete. Task 0012D, constant tensor creation, and task 0012E, deterministic range and
 prefix population, are also complete. Normal population task 0012F, uniform population task 0012G,
 and integral population task 0012H are complete. Bernoulli task 0012I and provenance task 0013 are
-also complete. Full-value and identity-matrix factory task 0013A is complete. The next action is
-the model foundation checkpoint; task 0014 remains Draft until that checkpoint explicitly selects
-the next implementation frontier.
+also complete. Full-value and identity-matrix factory task 0013A is complete. The foundation
+checkpoint selected continued sequential model operation-family work. Task 0014A, binary
+arithmetic semantic kinds, is complete; task 0014B remains the next Draft planning frontier
+without a detailed specification.
 
 ## Open questions
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- At the post-foundation checkpoint, review whether to continue through all model operation
-  families or explicitly advance a cross-module vertical slice. The default roadmap remains
-  sequential until that checkpoint records a different decision.
+- Reassess the next cross-module vertical-slice opportunity after binary semantic kinds and public
+  expression construction provide one concrete capturable operation family.
 
 ## Decisions made
 
@@ -208,7 +217,8 @@ the next implementation frontier.
   population, completed task 0012F for normal random tensors, completed task 0012G for uniform
   random tensors, completed task 0012H for integral tensors, and completed task 0012I for
   Bernoulli tensors. These rows remain before completed provenance task 0013 and completed
-  full-value/identity task 0013A. The model foundation checkpoint is the next planning action.
+  full-value/identity task 0013A. The completed model foundation checkpoint selected task 0014A
+  as the next implementation frontier.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -279,6 +289,14 @@ the next implementation frontier.
 - Task 0013A added six primitive-carrier `full` methods, including explicitly converted
   `fullBFloat16`, plus one all-data-type rectangular `identityMatrix`. `eye` delegates only to the
   canonical method. All results are dense provenance-free leaves created through flat import.
+- The post-foundation checkpoint selected continued model work instead of an immediate
+  cross-module vertical slice because no production concrete OperationKind existed yet for
+  compiler capture or backend capability work.
+- The broad former task 0014 is decomposed into semantic-vocabulary and public-expression pairs:
+  binary arithmetic 0014A–0014B, unary/activation 0014C–0014D, and scalar/clamp 0014E–0014F.
+- Task 0014A implements one parameterless `BinaryArithmeticKind` enum in
+  `model.operation.elementwise.binary` with exact constants ADD, SUB, MUL, DIV, MIN, MAX, and POW.
+  Broadcast geometry, dtype rules, provenance, and Tensor methods remain in task 0014B.
 
 ## Risks
 
@@ -315,7 +333,8 @@ task 0012F completed explicit-source normal-random population, task 0012G comple
 continuous-uniform floating population, task 0012H completed bounded-integral population, and task
 0012I completed BOOL Bernoulli population, task 0013 completed immutable Tensor provenance and
 the package-private derived-construction seam, and task 0013A completed type-safe full-value and
-rectangular identity creation. The post-foundation checkpoint is now the next planning action
-before any concrete operation-family or cross-module frontier is selected. Task 0014 remains Draft.
+rectangular identity creation. The completed post-foundation checkpoint selected sequential model
+operation-family work, and task 0014A completed the first concrete parameterless kind family.
+Task 0014B and all later operation-family tasks remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -23,7 +23,8 @@ random
 and bounded continuous-uniform population for the three floating types, plus bounded integral
 random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
 finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
-kinds and family attributes, random
+kind support now includes the parameterless `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
+`MUL`, `DIV`, `MIN`, `MAX`, and `POW`. Other concrete kind families and family attributes, random
 Operations, typed access and export, native/runtime/backend allocation, expression operations,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -227,7 +228,15 @@ The implemented zero-method marker contract for immutable, typed parameters that
 
 ### `OperationKind`
 
-The implemented open typed discriminator that supplies the “which computation” part of an [`Operation`](#operation). Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route. No production concrete kind is implemented yet.
+The implemented open typed discriminator that supplies the “which computation” part of an [`Operation`](#operation). Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route.
+
+The first production family is `BinaryArithmeticKind`, an enum containing exactly `ADD`, `SUB`,
+`MUL`, `DIV`, `MIN`, `MAX`, and `POW`. These values identify ordered tensor-to-tensor elementwise
+arithmetic meanings. They have no intrinsic parameters and therefore compose with
+`NoOperationAttrs.INSTANCE`. The enum stores no operands or broadcast metadata and does not build
+Tensor expressions, infer shapes or data types, identify graph occurrences, execute computation,
+or report backend support. Its inherited names are diagnostics rather than serialization or
+dispatch keys.
 
 ### Partition
 
@@ -593,7 +602,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface implemented; concrete kinds planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface and binary arithmetic family implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker implemented; family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -601,8 +610,9 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Concrete kinds, family-specific attributes, and compiler integration remain
-planned; the compiled graph container is implemented model state.
+that occurrence. Binary arithmetic kinds are implemented; other concrete families,
+family-specific attributes, and compiler integration remain planned. The compiled graph container
+is implemented model state.
 
 ### Compile versus prepare versus run
 

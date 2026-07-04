@@ -39,10 +39,10 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 The current project area is [`modules/model`](modules/model/master-plan.md).
 
-Its next planning action is:
+Its next planning frontier is:
 
 ```text
-Model foundation checkpoint (task 0014 remains Draft)
+0014B Binary arithmetic Tensor expressions (Draft; no detailed specification)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -75,8 +75,11 @@ operation-and-ordered-input origin metadata without turning Tensor into graph IR
 compiler capture. Task
 [`0013A`](modules/model/tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) is complete;
 it adds canonical type-safe `full`, rectangular `identityMatrix`, and the exact convenience alias
-`eye`. The post-foundation checkpoint below is now the active planning action. It must select the
-next implementation frontier explicitly; task 0014 remains Draft and has no detailed specification.
+`eye`. The completed post-foundation checkpoint selected continued sequential model operation-
+family work. Task
+[`0014A`](modules/model/tasks/0014a-binary-arithmetic-semantic-kinds.md) is complete and provides
+the first production concrete OperationKind family. Task 0014B remains the next Draft planning
+frontier without a detailed specification.
 
 ## Model task sequence
 
@@ -108,30 +111,40 @@ next implementation frontier explicitly; task 0014 remains Draft and has no deta
 | 24 | [0012I Bernoulli random tensor creation](modules/model/tasks/0012i-bernoulli-random-tensor-creation.md) | Complete |
 | 25 | [0013 Tensor provenance skeleton](modules/model/tasks/0013-tensor-provenance-skeleton.md) | Complete |
 | 26 | [0013A Full-value and identity-matrix tensor creation](modules/model/tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete |
-| 27 | 0014 Elementwise arithmetic operations | Draft |
-| 28 | 0015 Comparison, logical, selection, and cast operations | Draft |
-| 29 | 0016 Reduction and scan operations | Draft |
-| 30 | 0017 Layout and view operations | Draft |
-| 31 | 0018 Indexing and scatter operations | Draft |
-| 32 | 0019 Linear algebra and attention operations | Draft |
-| 33 | 0020 Convolution and pooling operations | Draft |
-| 34 | 0021 Normalization operations | Draft |
-| 35 | 0022 Loss operations | Draft |
-| 36 | 0023 Compiler-generated semantic operations | Draft |
-| 37 | 0024 Model capability parity audit | Draft |
+| 27 | [0014A Binary arithmetic semantic kinds](modules/model/tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete |
+| 28 | 0014B Binary arithmetic Tensor expressions | Draft |
+| 29 | 0014C Unary arithmetic and activation semantic kinds | Draft |
+| 30 | 0014D Unary arithmetic and activation Tensor expressions | Draft |
+| 31 | 0014E Scalar arithmetic and clamp semantics | Draft |
+| 32 | 0014F Scalar arithmetic and clamp Tensor expressions | Draft |
+| 33 | 0015 Comparison, logical, selection, and cast operations | Draft |
+| 34 | 0016 Reduction and scan operations | Draft |
+| 35 | 0017 Layout and view operations | Draft |
+| 36 | 0018 Indexing and scatter operations | Draft |
+| 37 | 0019 Linear algebra and attention operations | Draft |
+| 38 | 0020 Convolution and pooling operations | Draft |
+| 39 | 0021 Normalization operations | Draft |
+| 40 | 0022 Loss operations | Draft |
+| 41 | 0023 Compiler-generated semantic operations | Draft |
+| 42 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
-## Model foundation checkpoint
+## Model foundation checkpoint result
 
-Task `0013A` is complete. The next planning action is to review the completed value, graph,
-storage, tensor, provenance, and eager factory contracts against the entry requirements of
-downstream modules. The default remains to continue with model operation-family task groups.
-Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the
-new frontier and preserves all architecture dependency rules. Until this checkpoint records that
-decision, task `0014` remains Draft and no new implementation task is active.
+The checkpoint reviewed the completed value, graph, storage, Tensor, provenance, and eager factory
+contracts after task `0013A`. It selected continued sequential model operation-family work rather
+than an immediate cross-module vertical slice.
 
-This checkpoint is not permission to skip or execute tasks out of order. It prevents the decision to complete every operation family before downstream feedback from remaining an implicit assumption.
+The reason was concrete: model graph and provenance foundations existed, but no production
+concrete `OperationKind` existed for compiler capture, capability analysis, backend ownership,
+lowering, or execution. Task 0014 was therefore decomposed into semantic-vocabulary and public-
+expression pairs. Completed task 0014A introduces the first typed family; task 0014B will later
+make it capturable through public Tensor expressions. A cross-module slice should be reconsidered
+after that complete family creates a meaningful integration seam.
+
+This decision changes implementation order only. It does not change architecture dependencies or
+authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model.
 
 ## Advancing the frontier
 
