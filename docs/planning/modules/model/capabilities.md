@@ -12,6 +12,10 @@ The legacy implementation on the read-only `legacy/pre-rewrite` branch is eviden
 
 The selected baseline is all public tensor operation capabilities present in the legacy project. Parity means preserving the useful mathematical operation, accepted options, shape behavior, data type behavior, and failure conditions after those contracts are specified and tested for the new design.
 
+Explicit user-approved additions may extend that minimum baseline. Uniform floating, bounded
+integral, and Bernoulli factory initialization are such additive capabilities; they do not imply
+that the legacy implementation already provided them or that corresponding graph operations exist.
+
 Parity does not require:
 
 - copying legacy classes, package names, or implementation structure;
@@ -158,7 +162,9 @@ The factory capability set includes:
 - scalar tensors;
 - zeros and ones;
 - zeros-like and ones-like;
-- normally distributed random tensors;
+- floating tensors from normal and continuous uniform distributions;
+- integral random tensors from bounded half-open ranges;
+- boolean tensors from a Bernoulli distribution with explicit probability;
 - integer ranges with a non-zero step;
 - tensors from flat typed arrays;
 - tensors from supported nested Java arrays;
@@ -166,7 +172,9 @@ The factory capability set includes:
 - explicit data type, shape, label, and gradient metadata where applicable; and
 - validation that logical element count matches supplied data.
 
-Random-source configuration and reproducibility policy must be decided without introducing live services into `modules/model`.
+Random-source configuration and reproducibility policy must remain explicit without introducing
+live services into `modules/model`. Distribution-specific bounds, probability, output-type, source
+advancement, and narrowing behavior are defined by focused factory tasks.
 
 ## Operation foundation baseline
 

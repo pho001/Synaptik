@@ -18,12 +18,12 @@ dense-contiguous layouts and copied rectangular nested primitive-array import wi
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
 zero, one, zero-like, and one-like constants, plus eager typed integer ranges, strict or cyclic
 flat-prefix population for all six exact primitive carriers, and explicit-source normal random
-population for the three floating types. Concrete operation kinds and family attributes,
-provenance, other random distributions, random Operations, typed access and export, native/runtime/backend
-allocation, expression operations, gradient and publication behavior, compiler entry points and
-artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
-or planning contracts. A definition explains intended meaning; it is not by itself evidence that
-a Java type exists.
+and bounded continuous-uniform population for the three floating types. Concrete operation kinds
+and family attributes, provenance, bounded integral and Bernoulli random distributions, random
+Operations, typed access and export, native/runtime/backend allocation, expression operations,
+gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
+runtime, concrete backends, traces, and training remain architecture or planning contracts. A
+definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -298,10 +298,10 @@ dense-contiguous layouts. Copied rectangular nested primitive-array import is al
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
 dense storage and explicit label and gradient intent. Eager non-empty `INT32` and `INT64` range
-creation, strict or cyclic typed flat-prefix creation, and caller-source normal random creation
-are also implemented as copied canonical dense leaf data. Other random distributions and random
-Operations, typed access and export, deterministic native-resource
-ownership, provenance, expression operations, gradient objects, trainable role,
+creation, strict or cyclic typed flat-prefix creation, and caller-source normal random and bounded
+continuous-uniform creation are also implemented as copied canonical dense leaf data. Bounded
+integral and Bernoulli distributions, random Operations, typed access and export, deterministic
+native-resource ownership, provenance, expression operations, gradient objects, trainable role,
 publication behavior, compiler integration, device buffers, and runtime residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
@@ -371,9 +371,21 @@ numerically non-negative standard deviation, label, and gradient intent. It cons
 multiplication then addition, converts to one exact carrier, and delegates once to flat import.
 The factory never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
 the source. Reproducibility is consequently bounded to equivalent generator implementation and
-state, identical arguments, and no interfering use. Other distributions, random Operations,
-typed access or export, general numeric conversion, native/runtime/backend allocation, and
-deterministic resource ownership remain planned.
+state, identical arguments, and no interfering use. Bounded integral and Bernoulli distributions,
+random Operations, typed access or export, general numeric conversion, native/runtime/backend
+allocation, and deterministic resource ownership remain planned.
+
+Continuous-uniform random creation accepts the same transient caller-owned source, static
+Java-array-sized shapes, and three floating output types. Its finite binary64 lower bound must be
+strictly less than its finite upper bound. Each row-major element consumes exactly one
+`nextDouble(lower, upper)` call. A conforming source result is in the binary64 half-open interval;
+FLOAT64 stores it directly, FLOAT32 narrows once, and BFLOAT16 narrows to binary32 before
+`BFloat16Bits.fromFloat`. Narrowing may produce a stored value equal to the corresponding narrowed
+upper bound. The factory does not clamp or resample, post-validate custom source results, or retain
+the generator. The same caller ownership, no-synchronization, and bounded reproducibility policy
+applies. No random package, source service, seed API, or distribution enum is introduced because
+the two distribution-specific factory methods share one cohesive package-private helper and add no
+independent public random-domain model.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
@@ -418,6 +430,13 @@ Normal-random null, shape, count, type, distribution, layout, and descriptor val
 before source-carrier allocation, sampling, destination allocation, or ID allocation. Source
 allocation failure consumes neither calls nor an ID. A generator exception preserves completed
 source calls but creates no destination or ID. After sampling, delegated flat import allocates the
+destination and then the ID; blank-label failure consumes all calls and one ID, while exhaustion
+consumes all calls without rollback.
+
+Continuous-uniform null, shape, count, type, bound, layout, and descriptor validation likewise
+completes before source-carrier allocation, sampling, destination allocation, or ID allocation.
+Source allocation failure consumes neither calls nor an ID. A generator exception preserves prior
+bounded calls but creates no destination or ID. After sampling, delegated flat import allocates the
 destination and then the ID; blank-label failure consumes all calls and one ID, while exhaustion
 consumes all calls without rollback.
 

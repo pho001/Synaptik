@@ -374,7 +374,9 @@ documentation links/anchors/fences/whitespace/status, and no task-0013 spec.
 
 ## Follow-up tasks
 
-- 0013 defines minimal Tensor provenance for future graph capture.
+- Subsequent user-approved planning inserts 0012G uniform, 0012H integral, and 0012I Bernoulli
+  initialization before provenance. These are independent follow-ups, not incomplete 0012F work.
+- 0013 defines minimal Tensor provenance after the expanded initializer sequence.
 - Later tasks own random Operation semantics, training initialization, typed access/export,
   mutation/versioning, native/runtime/backend generation, compiler capture, and execution.
 
@@ -558,6 +560,6 @@ module boundary, backend behavior, or end-to-end execution behavior changed.
 - Glossary impact: updated existing implementation-status, Tensor, and Tensor factory language;
   no new reusable project term was introduced.
 - Unresolved issues: None.
-- Follow-up required: None. Task 0013 remains the next Draft frontier without a specification.
+- Follow-up required: None for task 0012F. Subsequent planning places 0012G–0012I before task 0013.
 
 Status: Complete

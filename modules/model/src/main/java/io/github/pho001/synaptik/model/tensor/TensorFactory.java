@@ -47,10 +47,14 @@ import java.util.random.RandomGenerator;
  * runtime, or backend behavior. Deterministic population additionally supports non-empty INT32
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
- * and reuse flat import for final allocation, normalization, and identity assignment. Normal
- * random creation likewise produces eager copied leaf data, but requires a transient
- * caller-owned {@link RandomGenerator}; the factory never selects, seeds, retains, replaces,
- * synchronizes, splits, or closes a random source.</p>
+ * and reuse flat import for final allocation, normalization, and identity assignment. Normal and
+ * bounded continuous uniform random creation likewise produce eager copied leaf data, but require
+ * a transient caller-owned {@link RandomGenerator}; the factory never selects, seeds, retains,
+ * replaces, synchronizes, splits, or closes a random source. No random package, source service,
+ * seed API, or distribution abstraction is introduced. The two distribution-specific methods
+ * remain cohesive factory operations beside their package-private sampling helper; they do not
+ * create an independently useful random-domain type, and the explicit caller-owned generator
+ * already supplies source and seeding policy without another model service.</p>
  */
 public final class TensorFactory {
     /**
@@ -987,6 +991,103 @@ public final class TensorFactory {
                 dataType,
                 mean,
                 standardDeviation,
+                randomGenerator,
+                label,
+                requiresGrad);
+    }
+
+    /**
+     * Creates an independent dense floating tensor from bounded continuous uniform samples.
+     *
+     * <p>The shape must be fully static and its checked logical element count must fit a Java
+     * array. The exact data type must be {@link DataType#FLOAT64}, {@link DataType#FLOAT32}, or
+     * {@link DataType#BFLOAT16}. Both bounds must be finite and the binary64
+     * {@code lowerBoundInclusive} must be strictly less than {@code upperBoundExclusive}. The
+     * result uses a new canonical dense-contiguous descriptor with the supplied gradient intent
+     * and optional label.</p>
+     *
+     * <p>For every logical element in row-major order, this method invokes
+     * {@link RandomGenerator#nextDouble(double, double)} exactly once with the supplied bounds.
+     * The conforming generator's binary64 result is in the half-open interval
+     * {@code [lowerBoundInclusive, upperBoundExclusive)}. FLOAT64 stores that value directly.
+     * FLOAT32 narrows it once to binary32. BFLOAT16 first narrows it to binary32 and then applies
+     * {@link BFloat16Bits#fromFloat(float)}. Narrowing may round a stored FLOAT32 or BFLOAT16 value
+     * to the corresponding narrowed upper bound or to a lower-rounded representable value; the
+     * half-open promise applies to the generator's binary64 result, not to the narrowed carrier.
+     * A custom non-conforming generator result is not post-validated. A zero-element shape makes
+     * no source calls; a scalar makes one.</p>
+     *
+     * <p>The caller creates, configures, seeds, owns, and advances the exact random generator.
+     * Neither this factory nor the returned tensor retains or substitutes it, and the call does
+     * not synchronize, reset, split, or close it. Equivalent output is bounded to equivalent
+     * generator implementations and initial states, identical arguments, and no interfering
+     * source use; no cross-algorithm, provider, Java-version, seed-expansion, concurrent-use, or
+     * global reproducibility promise is made.</p>
+     *
+     * <p>Validation after the public null checks is deterministic. Dynamic shape reports
+     * {@code uniform random tensor creation requires a fully static shape: <shape>}; an
+     * over-limit count reports {@code uniform random tensor element count exceeds Java array
+     * limit: required=<required>, maximum=2147483647}; a non-floating type reports
+     * {@code uniform random creation requires floating data type: <dataType>}; non-finite bounds
+     * report {@code uniform random lower bound must be finite: <lower>} or
+     * {@code uniform random upper bound must be finite: <upper>}; and unordered bounds report
+     * {@code uniform random lower bound must be less than upper bound: lower=<lower>,
+     * upper=<upper>}. Checked count or layout overflow remains an {@link ArithmeticException},
+     * and descriptor construction remains authoritative for gradient eligibility.</p>
+     *
+     * <p>Null, shape, count, type, bound, layout, and descriptor failures occur before source
+     * allocation, sampling, destination allocation, or identifier allocation. Source-carrier
+     * allocation failure occurs before sampling. If the generator throws, preceding calls remain
+     * consumed according to generator behavior, but no destination or identifier exists. After
+     * all samples are produced, exactly one matching flat import allocates destination storage and
+     * then an identifier. A blank label therefore consumes all samples, both carriers, and one
+     * identifier before delegated Tensor validation fails. Identifier exhaustion consumes all
+     * samples and both carrier allocations but performs no flat copy. Source advancement, array
+     * allocation, storage construction, and identifier allocation are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
+     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, or BFLOAT16
+     * @param lowerBoundInclusive finite inclusive binary64 lower bound
+     * @param upperBoundExclusive finite exclusive binary64 upper bound, strictly greater than the
+     *     lower bound
+     * @param randomGenerator non-null transient caller-owned source; it is never retained,
+     *     substituted, seeded, reset, split, synchronized, or closed
+     * @param label non-null optional diagnostic label; present text is normalized and validated by
+     *     {@link Tensor} after sampling and destination/identifier allocation
+     * @param requiresGrad whether model-level gradient eligibility is requested for the result
+     * @return a non-null fresh dense tensor containing independently copied converted samples,
+     *     with new storage and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, {@code randomGenerator}, or
+     *     {@code label} is null, checked in that order with the parameter name as message; no
+     *     sample or identifier is consumed
+     * @throws IllegalArgumentException if the shape is dynamic; its logical count exceeds
+     *     {@link Integer#MAX_VALUE}; the data type is not one of the three floating types; either
+     *     bound is non-finite; the lower bound is not strictly less than the upper bound; or
+     *     delegated Tensor validation rejects a blank label. Only the blank-label failure occurs
+     *     after sampling, destination allocation, and identifier allocation
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after sampling and both carrier allocations
+     * @throws OutOfMemoryError if source or destination carrier allocation fails; source allocation
+     *     failure consumes no samples or identifier, while destination failure follows sampling
+     */
+    public static Tensor randomUniform(
+            Shape shape,
+            DataType dataType,
+            double lowerBoundInclusive,
+            double upperBoundExclusive,
+            RandomGenerator randomGenerator,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
+        return TensorRandoms.randomUniform(
+                shape,
+                dataType,
+                lowerBoundInclusive,
+                upperBoundExclusive,
                 randomGenerator,
                 label,
                 requiresGrad);

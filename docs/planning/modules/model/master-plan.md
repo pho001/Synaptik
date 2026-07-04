@@ -60,7 +60,8 @@ io.github.pho001.synaptik.model.layout
   Resolved logical layout geometry and layout classification.
 
 io.github.pho001.synaptik.model.tensor
-  Public Tensor state, TensorId, TensorDescriptor, TensorFactory, and provenance.
+  Public Tensor state, TensorId, TensorDescriptor, TensorFactory, eager initialization helpers,
+  and provenance.
 
 io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
@@ -102,6 +103,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0012D | [Constant tensor creation](tasks/0012d-constant-tensor-creation.md) | Complete | 0012B | Add exact typed rank-zero scalars and independent dense zeros, ones, zeros-like, and ones-like tensors. |
 | 0012E | [Range and prefix population](tasks/0012e-range-and-prefix-population.md) | Complete | 0012B | Add typed integer ranges plus strict and cyclic exact-carrier prefix population under explicit validation. |
 | 0012F | [Random tensor creation](tasks/0012f-random-tensor-creation.md) | Complete | 0012B | Add normally distributed floating tensors from an explicit caller-owned random source with bounded reproducibility. |
+| 0012G | [Uniform random tensor creation](tasks/0012g-uniform-random-tensor-creation.md) | Complete | 0012F | Add continuous uniform floating tensors with explicit half-open bounds and the existing caller-owned source policy. |
+| 0012H | Integral random tensor creation | Draft | 0012F | Add exact INT32/INT64 overloads with exclusive bounds and unbiased JDK bounded sampling. |
+| 0012I | Bernoulli random tensor creation | Draft | 0012F | Add BOOL tensors sampled from an explicit probability using the existing caller-owned source policy. |
 | 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
@@ -119,13 +123,13 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
-- Public tensor and host storage: tasks 0010–0013, including factory follow-ups 0012A–0012F
+- Public tensor and host storage: tasks 0010–0013, including factory follow-ups 0012A–0012I
 - Public operation capability families: tasks 0014–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
-Draft, with task 0012F complete and task 0013 next as the Draft implementation frontier.
+Draft, with task 0012G complete and task 0012H next as the Draft implementation frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -134,13 +138,16 @@ abstraction, are complete. Task 0011, public Tensor skeleton, and task 0012, the
 factory foundation, are also complete. Task 0012A, JVM-managed heap host storage allocation, is
 complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, nested typed tensor
 import, is complete. Task 0012D, constant tensor creation, and task 0012E, deterministic range and
-prefix population, are also complete. Random population task 0012F is complete, and provenance
-task 0013 is the next Draft implementation frontier without a detailed specification.
+prefix population, are also complete. Normal population task 0012F and uniform population task
+0012G are complete. Integral task 0012H is the next Draft frontier, followed by Draft Bernoulli
+task 0012I and provenance task 0013. No detailed 0012H specification exists yet.
 
 ## Open questions
 
 - The minimal provenance representation remains local to task 0013 after the factory capability
   sequence.
+- Exact integral bound overloads remain local to task 0012H, and Bernoulli probability/call-count
+  rules remain local to task 0012I until each becomes the active frontier.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
 - After task 0013, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
 
@@ -196,8 +203,9 @@ task 0013 is the next Draft implementation frontier without a detailed specifica
 - The broad factory baseline is split into completed task 0012A for JVM-managed heap allocation,
   completed task 0012B for flat typed import, completed task 0012C for nested typed import,
   completed task 0012D for constant tensors, completed task 0012E for deterministic range/prefix
-  population, and completed task 0012F for random tensors. These rows remain before provenance;
-  task 0013 is the next Draft implementation frontier.
+  population, completed task 0012F for normal random tensors, completed task 0012G for uniform random
+  tensors, and Draft tasks 0012H–0012I for integral and Bernoulli tensors. These rows remain before
+  provenance; task 0012H is the next Draft frontier.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -208,7 +216,7 @@ task 0013 is the next Draft implementation frontier without a detailed specifica
 - Task 0012A requires resolved layout, rejects span above `Integer.MAX_VALUE`, and keeps allocation
   separate from the imports in completed tasks 0012B and 0012C, constant creation in completed task
   0012D, deterministic population in completed task 0012E, and random population in completed task
-  0012F.
+  0012F–0012G plus planned tasks 0012H–0012I.
 - Task 0012B adds six typed flat-array overloads for `double[]`, `float[]`, raw BFLOAT16 `short[]`,
   `int[]`, `long[]`, and BOOL `byte[]`. It accepts only resolved dense-contiguous layout, validates
   source length against logical element count, copies all input data, and normalizes BOOL bytes to
@@ -243,6 +251,12 @@ task 0013 is the next Draft implementation frontier without a detailed specifica
 - Random reproducibility is bounded to equivalent generator implementation/state and identical
   arguments without interfering use. No cross-algorithm/provider/Java-version promise, default
   source, synchronization, or seed-only convenience is introduced.
+- User-approved random initialization expansion remains sequential: completed task 0012G adds
+  floating uniform sampling, task 0012H adds typed bounded integral sampling, and task 0012I adds
+  BOOL Bernoulli sampling. Each reuses the caller-owned source policy without changing task 0012F.
+- Random factory methods and package-private helpers remain in `model.tensor`. A `randoms` package
+  would break useful package-private collaboration or require a public implementation surface and
+  is not justified without independent public random-domain types.
 
 ## Risks
 
@@ -275,8 +289,9 @@ dense-contiguous/count validation and BOOL normalization. Task 0012C completed v
 rectangular nested primitive-array import, exact carrier/static-shape inference, and row-major
 delegation to flat import. Task 0012D completed exact typed scalars and independent dense zero/one
 constants. Task 0012E completed deterministic typed range and strict/cyclic prefix population, and
-task 0012F completed explicit-source normal-random population. Draft task 0013 provenance is now
-the next frontier without a detailed specification. Concrete operation families remain in tasks
-0014–0023.
+task 0012F completed explicit-source normal-random population, and task 0012G completed bounded
+continuous-uniform floating population. Draft task 0012H is now the next frontier without a
+detailed specification; Draft task 0012I preserves Bernoulli initialization before Draft task 0013
+provenance. Concrete operation families remain in tasks 0014–0023.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

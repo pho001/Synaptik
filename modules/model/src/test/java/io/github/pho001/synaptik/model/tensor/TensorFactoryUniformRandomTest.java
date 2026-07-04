@@ -30,11 +30,11 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.SAME_THREAD)
-class TensorFactoryRandomTest {
+class TensorFactoryUniformRandomTest {
     @Test
-    void helperHasExactlyTwoPackageEntriesAndNoStateOrPublicSurface()
+    void helperAddsExactlyTheUniformPackageEntryWithoutStateOrPublicSurface()
             throws ReflectiveOperationException {
-        Method entry = TensorRandoms.class.getDeclaredMethod(
+        Method normalEntry = TensorRandoms.class.getDeclaredMethod(
                 "randomNormal",
                 Shape.class,
                 DataType.class,
@@ -56,28 +56,20 @@ class TensorFactoryRandomTest {
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(TensorRandoms.class.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(TensorRandoms.class.getModifiers())),
                 () -> assertEquals(0, TensorRandoms.class.getDeclaredFields().length),
                 () -> assertEquals(1, TensorRandoms.class.getDeclaredConstructors().length),
                 () -> assertTrue(Modifier.isPrivate(
                         TensorRandoms.class.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(
-                        0, TensorRandoms.class.getDeclaredConstructors()[0].getParameterCount()),
-                () -> assertFalse(Modifier.isPublic(entry.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(entry.getModifiers())),
-                () -> assertFalse(Modifier.isPrivate(entry.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(entry.getModifiers())),
-                () -> assertEquals(Tensor.class, entry.getReturnType()),
-                () -> assertFalse(Modifier.isPublic(uniformEntry.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(uniformEntry.getModifiers())),
-                () -> assertFalse(Modifier.isPrivate(uniformEntry.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(uniformEntry.getModifiers())),
-                () -> assertEquals(Tensor.class, uniformEntry.getReturnType()),
-                () -> assertEquals(
                         2,
                         Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),
+                () -> assertEquals(
+                        java.util.Set.of(normalEntry, uniformEntry),
+                        Arrays.stream(TensorRandoms.class.getDeclaredMethods())
+                                .filter(method -> !Modifier.isPrivate(method.getModifiers()))
+                                .collect(java.util.stream.Collectors.toSet())),
                 () -> assertTrue(Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                         .noneMatch(method -> Modifier.isPublic(method.getModifiers())
                                 || Modifier.isProtected(method.getModifiers()))),
@@ -86,92 +78,77 @@ class TensorFactoryRandomTest {
     }
 
     @Test
-    void convertsScriptedSamplesExactlyForAllThreeFloatingCarriersInOrder() {
-        double[] gaussians = {-1.25d, 0.5d, 3.0d, -0.0d};
-        double mean = 0x1.0000000000001p20;
-        double deviation = 0x1.0000000000001p-20;
-        ScriptedGenerator float64Source = new ScriptedGenerator(gaussians);
-        ScriptedGenerator float32Source = new ScriptedGenerator(gaussians);
-        ScriptedGenerator bfloat16Source = new ScriptedGenerator(gaussians);
-        Shape float64Shape = Shape.of(2, 2);
-        Shape vectorShape = Shape.of(4);
+    void passesExactBoundsAndConvertsScriptedSamplesForAllFloatingCarriersInOrder() {
+        double lower = -0x1.0000000000001p20;
+        double upper = 0x1.0000000000001p20;
+        double[] samples = {lower, -0.0d, 0x1.0000000000001p-20, Math.nextDown(upper)};
+        BoundedScriptedGenerator float64Source = new BoundedScriptedGenerator(samples);
+        BoundedScriptedGenerator float32Source = new BoundedScriptedGenerator(samples);
+        BoundedScriptedGenerator bfloat16Source = new BoundedScriptedGenerator(samples);
+        Shape matrix = Shape.of(2, 2);
+        Shape vector = Shape.of(4);
 
-        Tensor float64 = TensorFactory.randomNormal(
-                float64Shape,
+        Tensor float64 = TensorFactory.randomUniform(
+                matrix,
                 DataType.FLOAT64,
-                mean,
-                deviation,
+                lower,
+                upper,
                 float64Source,
-                Optional.of("  normal  "),
+                Optional.of("  uniform  "),
                 true);
-        Tensor float32 = TensorFactory.randomNormal(
-                vectorShape,
+        Tensor float32 = TensorFactory.randomUniform(
+                vector,
                 DataType.FLOAT32,
-                mean,
-                deviation,
+                lower,
+                upper,
                 float32Source,
                 Optional.empty(),
                 true);
-        Tensor bfloat16 = TensorFactory.randomNormal(
-                vectorShape,
+        Tensor bfloat16 = TensorFactory.randomUniform(
+                vector,
                 DataType.BFLOAT16,
-                mean,
-                deviation,
+                lower,
+                upper,
                 bfloat16Source,
                 Optional.empty(),
                 true);
 
-        double[] expected64 = new double[gaussians.length];
-        float[] expected32 = new float[gaussians.length];
-        short[] expectedBfloat16 = new short[gaussians.length];
-        for (int index = 0; index < gaussians.length; index++) {
-            double sample = mean + gaussians[index] * deviation;
-            expected64[index] = sample;
-            expected32[index] = (float) sample;
-            expectedBfloat16[index] = BFloat16Bits.fromFloat((float) sample);
+        float[] expected32 = new float[samples.length];
+        short[] expectedBfloat16 = new short[samples.length];
+        for (int index = 0; index < samples.length; index++) {
+            expected32[index] = (float) samples[index];
+            expectedBfloat16[index] = BFloat16Bits.fromFloat((float) samples[index]);
         }
 
         assertAll(
-                () -> assertArrayEquals(expected64, heapArray(float64, double[].class)),
+                () -> assertArrayEquals(samples, heapArray(float64, double[].class)),
                 () -> assertArrayEquals(expected32, heapArray(float32, float[].class)),
                 () -> assertArrayEquals(expectedBfloat16, heapArray(bfloat16, short[].class)),
-                () -> assertEquals(gaussians.length, float64Source.calls()),
-                () -> assertEquals(gaussians.length, float32Source.calls()),
-                () -> assertEquals(gaussians.length, bfloat16Source.calls()),
-                () -> assertEquals(Optional.of("normal"), float64.label()),
-                () -> assertDescriptor(float64, float64Shape, DataType.FLOAT64, true),
-                () -> assertDescriptor(float32, vectorShape, DataType.FLOAT32, true),
-                () -> assertDescriptor(bfloat16, vectorShape, DataType.BFLOAT16, true),
+                () -> float64Source.assertEveryCallUsed(lower, upper),
+                () -> float32Source.assertEveryCallUsed(lower, upper),
+                () -> bfloat16Source.assertEveryCallUsed(lower, upper),
+                () -> assertEquals(Optional.of("uniform"), float64.label()),
+                () -> assertDescriptor(float64, matrix, DataType.FLOAT64, true),
+                () -> assertDescriptor(float32, vector, DataType.FLOAT32, true),
+                () -> assertDescriptor(bfloat16, vector, DataType.BFLOAT16, true),
                 () -> assertNotSame(float64.hostStorage().orElseThrow(),
                         float32.hostStorage().orElseThrow()),
                 () -> assertNotEquals(float64.id(), float32.id()));
     }
 
     @Test
-    void scalarConsumesOneSampleAndEmptyShapeConsumesNone() {
-        ScriptedGenerator scalarSource = new ScriptedGenerator(2.5d);
-        ScriptedGenerator emptySource = new ScriptedGenerator();
+    void scalarConsumesOneBoundedCallAndEmptyShapeConsumesNone() {
+        BoundedScriptedGenerator scalarSource = new BoundedScriptedGenerator(0.25d);
+        BoundedScriptedGenerator emptySource = new BoundedScriptedGenerator();
 
-        Tensor scalar = TensorFactory.randomNormal(
-                Shape.scalar(),
-                DataType.FLOAT64,
-                -1.0d,
-                2.0d,
-                scalarSource,
-                Optional.empty(),
-                false);
+        Tensor scalar = uniform(
+                Shape.scalar(), DataType.FLOAT64, -1.0d, 1.0d, scalarSource);
         Shape emptyShape = Shape.of(2, 0, 3);
-        Tensor empty = TensorFactory.randomNormal(
-                emptyShape,
-                DataType.FLOAT32,
-                1.0d,
-                3.0d,
-                emptySource,
-                Optional.empty(),
-                false);
+        Tensor empty = uniform(
+                emptyShape, DataType.FLOAT32, -1.0d, 1.0d, emptySource);
 
         assertAll(
-                () -> assertArrayEquals(new double[] {4.0d}, heapArray(scalar, double[].class)),
+                () -> assertArrayEquals(new double[] {0.25d}, heapArray(scalar, double[].class)),
                 () -> assertEquals(1, scalarSource.calls()),
                 () -> assertEquals(0, emptySource.calls()),
                 () -> assertEquals(0, heapArray(empty, float[].class).length),
@@ -184,24 +161,24 @@ class TensorFactoryRandomTest {
             throws ReflectiveOperationException {
         AtomicLong next = nextTensorIdState();
         long before = next.get();
-        ScriptedGenerator source = new ScriptedGenerator(0.0d);
+        BoundedScriptedGenerator source = new BoundedScriptedGenerator(0.0d);
         Shape shape = Shape.scalar();
 
         NullPointerException shapeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorFactory.randomUniform(
                         null, null, 0.0d, 1.0d, null, null, false));
         NullPointerException typeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorFactory.randomUniform(
                         shape, null, 0.0d, 1.0d, null, null, false));
         NullPointerException sourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorFactory.randomUniform(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, null, null, false));
         NullPointerException labelFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorFactory.randomUniform(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, source, null, false));
 
         assertAll(
@@ -214,11 +191,11 @@ class TensorFactoryRandomTest {
     }
 
     @Test
-    void metadataAndDistributionValidationPrecedesSamplingAndIdentifierAllocation()
+    void metadataValidationUsesExactOrderMessagesWithoutDrawingOrAllocatingAnIdentifier()
             throws ReflectiveOperationException {
         AtomicLong next = nextTensorIdState();
         long before = next.get();
-        ScriptedGenerator source = new ScriptedGenerator(0.0d);
+        BoundedScriptedGenerator source = new BoundedScriptedGenerator(0.0d);
         Shape dynamic = Shape.ofDimensions(
                 new DynamicDimension("batch"), new StaticDimension(2));
         Shape overflow = Shape.of(Long.MAX_VALUE, 2);
@@ -226,74 +203,115 @@ class TensorFactoryRandomTest {
 
         IllegalArgumentException dynamicFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> random(dynamic, DataType.INT32, 0.0d, -1.0d, source));
+                () -> uniform(dynamic, DataType.INT32, Double.NaN, Double.NaN, source));
         ArithmeticException overflowFailure = assertThrows(
                 ArithmeticException.class,
-                () -> random(overflow, DataType.FLOAT32, 0.0d, 1.0d, source));
+                () -> uniform(overflow, DataType.FLOAT32, 0.0d, 1.0d, source));
         IllegalArgumentException limitFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> random(overLimit, DataType.FLOAT32, 0.0d, 1.0d, source));
+                () -> uniform(overLimit, DataType.FLOAT32, 0.0d, 1.0d, source));
         IllegalArgumentException typeFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> random(Shape.scalar(), DataType.INT64, Double.NaN, -1.0d, source));
-        IllegalArgumentException meanFailure = assertThrows(
-                IllegalArgumentException.class,
-                () -> random(Shape.scalar(), DataType.FLOAT64, Double.POSITIVE_INFINITY, 1.0d, source));
-        IllegalArgumentException negativeDeviation = assertThrows(
-                IllegalArgumentException.class,
-                () -> random(Shape.scalar(), DataType.FLOAT32, 0.0d, -0.25d, source));
-        IllegalArgumentException infiniteDeviation = assertThrows(
-                IllegalArgumentException.class,
-                () -> random(Shape.scalar(), DataType.BFLOAT16, 0.0d, Double.NaN, source));
+                () -> uniform(Shape.scalar(), DataType.INT64, Double.NaN, Double.NaN, source));
 
         assertAll(
                 () -> assertEquals(
-                        "random tensor creation requires a fully static shape: " + dynamic,
+                        "uniform random tensor creation requires a fully static shape: " + dynamic,
                         dynamicFailure.getMessage()),
                 () -> assertEquals("long overflow", overflowFailure.getMessage()),
                 () -> assertEquals(
-                        "random tensor element count exceeds Java array limit: required=2147483648, maximum=2147483647",
+                        "uniform random tensor element count exceeds Java array limit: required=2147483648, maximum=2147483647",
                         limitFailure.getMessage()),
                 () -> assertEquals(
-                        "random normal creation requires floating data type: INT64",
+                        "uniform random creation requires floating data type: INT64",
                         typeFailure.getMessage()),
-                () -> assertEquals(
-                        "random normal mean must be finite: Infinity", meanFailure.getMessage()),
-                () -> assertEquals(
-                        "random normal standard deviation must be finite and non-negative: -0.25",
-                        negativeDeviation.getMessage()),
-                () -> assertEquals(
-                        "random normal standard deviation must be finite and non-negative: NaN",
-                        infiniteDeviation.getMessage()),
                 () -> assertEquals(0, source.calls()),
                 () -> assertEquals(before, next.get()));
     }
 
     @Test
-    void bothSignedZeroDeviationsAreAcceptedAndStillConsumeEverySample() {
-        ScriptedGenerator positive = new ScriptedGenerator(1.0d, -2.0d);
-        ScriptedGenerator negative = new ScriptedGenerator(1.0d, -2.0d);
+    void boundValidationUsesFiniteThenStrictOrderWithExactMessagesAndNoDraws()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+        BoundedScriptedGenerator source = new BoundedScriptedGenerator(0.0d);
 
-        Tensor positiveZero = random(
-                Shape.of(2), DataType.FLOAT64, 3.0d, 0.0d, positive);
-        Tensor negativeZero = random(
-                Shape.of(2), DataType.FLOAT64, 3.0d, -0.0d, negative);
+        IllegalArgumentException lowerInfinity = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT64,
+                        Double.NEGATIVE_INFINITY, Double.NaN, source));
+        IllegalArgumentException lowerNaN = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT32, Double.NaN, 1.0d, source));
+        IllegalArgumentException upperInfinity = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.BFLOAT16,
+                        0.0d, Double.POSITIVE_INFINITY, source));
+        IllegalArgumentException upperNaN = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT64, 0.0d, Double.NaN, source));
+        IllegalArgumentException equal = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT64, 1.0d, 1.0d, source));
+        IllegalArgumentException reversed = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT64, 2.0d, -2.0d, source));
+        IllegalArgumentException signedZero = assertThrows(
+                IllegalArgumentException.class,
+                () -> uniform(Shape.scalar(), DataType.FLOAT64, -0.0d, 0.0d, source));
 
         assertAll(
-                () -> assertArrayEquals(new double[] {3.0d, 3.0d},
-                        heapArray(positiveZero, double[].class)),
-                () -> assertArrayEquals(new double[] {3.0d, 3.0d},
-                        heapArray(negativeZero, double[].class)),
-                () -> assertEquals(2, positive.calls()),
-                () -> assertEquals(2, negative.calls()));
+                () -> assertEquals(
+                        "uniform random lower bound must be finite: -Infinity",
+                        lowerInfinity.getMessage()),
+                () -> assertEquals(
+                        "uniform random lower bound must be finite: NaN", lowerNaN.getMessage()),
+                () -> assertEquals(
+                        "uniform random upper bound must be finite: Infinity",
+                        upperInfinity.getMessage()),
+                () -> assertEquals(
+                        "uniform random upper bound must be finite: NaN", upperNaN.getMessage()),
+                () -> assertEquals(
+                        "uniform random lower bound must be less than upper bound: lower=1.0, upper=1.0",
+                        equal.getMessage()),
+                () -> assertEquals(
+                        "uniform random lower bound must be less than upper bound: lower=2.0, upper=-2.0",
+                        reversed.getMessage()),
+                () -> assertEquals(
+                        "uniform random lower bound must be less than upper bound: lower=-0.0, upper=0.0",
+                        signedZero.getMessage()),
+                () -> assertEquals(0, source.calls()),
+                () -> assertEquals(before, next.get()));
     }
 
     @Test
-    void equivalentSeededGeneratorsProduceEquivalentIndependentResults() {
+    void veryNarrowValidIntervalPreservesBinary64HalfOpenSampleButMayRoundToNarrowedUpper() {
+        double lower = 1.0d;
+        double upper = Math.nextUp(lower);
+        BoundedScriptedGenerator float32Source = new BoundedScriptedGenerator(lower);
+        BoundedScriptedGenerator bfloat16Source = new BoundedScriptedGenerator(lower);
+
+        Tensor float32 = uniform(
+                Shape.scalar(), DataType.FLOAT32, lower, upper, float32Source);
+        Tensor bfloat16 = uniform(
+                Shape.scalar(), DataType.BFLOAT16, lower, upper, bfloat16Source);
+
+        assertAll(
+                () -> assertTrue(lower < upper),
+                () -> assertEquals((float) upper, heapArray(float32, float[].class)[0]),
+                () -> assertEquals(
+                        BFloat16Bits.fromFloat((float) upper),
+                        heapArray(bfloat16, short[].class)[0]),
+                () -> float32Source.assertEveryCallUsed(lower, upper),
+                () -> bfloat16Source.assertEveryCallUsed(lower, upper));
+    }
+
+    @Test
+    void equivalentSeededSourcesProduceEquivalentIndependentResults() {
         Random firstSource = new Random(0x5eedL);
         Random secondSource = new Random(0x5eedL);
 
-        Tensor first = TensorFactory.randomNormal(
+        Tensor first = TensorFactory.randomUniform(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -301,7 +319,7 @@ class TensorFactoryRandomTest {
                 firstSource,
                 Optional.empty(),
                 false);
-        Tensor second = TensorFactory.randomNormal(
+        Tensor second = TensorFactory.randomUniform(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -316,26 +334,31 @@ class TensorFactoryRandomTest {
                 () -> assertNotSame(
                         heapArray(first, float[].class), heapArray(second, float[].class)),
                 () -> assertNotEquals(first.id(), second.id()),
-                () -> assertEquals(firstSource.nextGaussian(), secondSource.nextGaussian()));
+                () -> assertEquals(firstSource.nextDouble(), secondSource.nextDouble()));
     }
 
     @Test
-    void generatorFailureConsumesOnlyPrecedingCallsAndNoIdentifier()
+    void nonConformingGeneratorResultIsConvertedWithoutPostValidation() {
+        BoundedScriptedGenerator source = new BoundedScriptedGenerator(Double.NaN);
+
+        Tensor tensor = uniform(
+                Shape.scalar(), DataType.FLOAT64, -1.0d, 1.0d, source);
+
+        assertAll(
+                () -> assertTrue(Double.isNaN(heapArray(tensor, double[].class)[0])),
+                () -> assertEquals(1, source.calls()));
+    }
+
+    @Test
+    void generatorFailureLeavesEarlierCallsConsumedAndAllocatesNoIdentifier()
             throws ReflectiveOperationException {
         AtomicLong next = nextTensorIdState();
         long before = next.get();
-        ThrowingGenerator source = new ThrowingGenerator(2);
+        ThrowingBoundedGenerator source = new ThrowingBoundedGenerator(2);
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
-                () -> TensorFactory.randomNormal(
-                        Shape.of(4),
-                        DataType.FLOAT64,
-                        0.0d,
-                        1.0d,
-                        source,
-                        Optional.empty(),
-                        false));
+                () -> uniform(Shape.of(4), DataType.FLOAT64, -2.0d, 3.0d, source));
 
         assertAll(
                 () -> assertEquals("scripted generator failure", failure.getMessage()),
@@ -344,20 +367,20 @@ class TensorFactoryRandomTest {
     }
 
     @Test
-    void blankLabelAndPermanentExhaustionOccurAfterAllDrawsWithDocumentedIdEffects()
+    void blankLabelAndPermanentExhaustionFollowAllDrawsWithDocumentedIdEffects()
             throws ReflectiveOperationException {
         AtomicLong next = nextTensorIdState();
         AtomicBoolean claimed = maximumClaimedState();
         long before = next.get();
-        ScriptedGenerator blankSource = new ScriptedGenerator(0.0d, 1.0d, 2.0d);
+        BoundedScriptedGenerator blankSource = new BoundedScriptedGenerator(0.0d, 0.5d, 0.75d);
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorFactory.randomUniform(
                         Shape.of(3),
                         DataType.FLOAT32,
+                        0.0d,
                         1.0d,
-                        2.0d,
                         blankSource,
                         Optional.of(" \t\n "),
                         false));
@@ -368,18 +391,18 @@ class TensorFactoryRandomTest {
 
         long originalNext = next.get();
         boolean originalClaimed = claimed.get();
-        ScriptedGenerator exhaustedSource = new ScriptedGenerator(-1.0d, 1.0d);
+        BoundedScriptedGenerator exhaustedSource = new BoundedScriptedGenerator(-1.0d, 1.0d);
         try {
             next.set(Long.MAX_VALUE);
             claimed.set(true);
 
             IllegalStateException exhausted = assertThrows(
                     IllegalStateException.class,
-                    () -> TensorFactory.randomNormal(
+                    () -> TensorFactory.randomUniform(
                             Shape.of(2),
                             DataType.BFLOAT16,
-                            0.0d,
-                            1.0d,
+                            -2.0d,
+                            2.0d,
                             exhaustedSource,
                             Optional.empty(),
                             true));
@@ -396,14 +419,14 @@ class TensorFactoryRandomTest {
         }
     }
 
-    private static Tensor random(
+    private static Tensor uniform(
             Shape shape,
             DataType dataType,
-            double mean,
-            double deviation,
+            double lower,
+            double upper,
             RandomGenerator source) {
-        return TensorFactory.randomNormal(
-                shape, dataType, mean, deviation, source, Optional.empty(), false);
+        return TensorFactory.randomUniform(
+                shape, dataType, lower, upper, source, Optional.empty(), false);
     }
 
     private static void assertDescriptor(
@@ -411,7 +434,8 @@ class TensorFactoryRandomTest {
         assertAll(
                 () -> assertSame(shape, tensor.descriptor().shape()),
                 () -> assertSame(dataType, tensor.descriptor().dataType()),
-                () -> assertEquals(LayoutKind.DENSE_CONTIGUOUS,
+                () -> assertEquals(
+                        LayoutKind.DENSE_CONTIGUOUS,
                         tensor.descriptor().layout().orElseThrow().kind()),
                 () -> assertFalse(tensor.descriptor().layout().orElseThrow().isView()),
                 () -> assertEquals(requiresGrad, tensor.descriptor().requiresGrad()),
@@ -437,12 +461,16 @@ class TensorFactoryRandomTest {
         return (AtomicBoolean) field.get(null);
     }
 
-    private static final class ScriptedGenerator implements RandomGenerator {
+    private static class BoundedScriptedGenerator implements RandomGenerator {
         private final double[] values;
+        private final double[] origins;
+        private final double[] bounds;
         private int calls;
 
-        private ScriptedGenerator(double... values) {
+        private BoundedScriptedGenerator(double... values) {
             this.values = values.clone();
+            this.origins = new double[values.length];
+            this.bounds = new double[values.length];
         }
 
         @Override
@@ -451,23 +479,38 @@ class TensorFactoryRandomTest {
         }
 
         @Override
-        public double nextGaussian() {
+        public double nextDouble() {
+            throw new AssertionError("unbounded nextDouble must not be called");
+        }
+
+        @Override
+        public double nextDouble(double randomNumberOrigin, double randomNumberBound) {
             if (calls >= values.length) {
-                throw new AssertionError("unexpected Gaussian call " + calls);
+                throw new AssertionError("unexpected bounded call " + calls);
             }
+            origins[calls] = randomNumberOrigin;
+            bounds[calls] = randomNumberBound;
             return values[calls++];
         }
 
         private int calls() {
             return calls;
         }
+
+        private void assertEveryCallUsed(double expectedOrigin, double expectedBound) {
+            assertEquals(values.length, calls);
+            for (int index = 0; index < calls; index++) {
+                assertEquals(expectedOrigin, origins[index]);
+                assertEquals(expectedBound, bounds[index]);
+            }
+        }
     }
 
-    private static final class ThrowingGenerator implements RandomGenerator {
+    private static final class ThrowingBoundedGenerator implements RandomGenerator {
         private final int throwOnCall;
         private int calls;
 
-        private ThrowingGenerator(int throwOnCall) {
+        private ThrowingBoundedGenerator(int throwOnCall) {
             this.throwOnCall = throwOnCall;
         }
 
@@ -477,12 +520,17 @@ class TensorFactoryRandomTest {
         }
 
         @Override
-        public double nextGaussian() {
+        public double nextDouble() {
+            throw new AssertionError("unbounded nextDouble must not be called");
+        }
+
+        @Override
+        public double nextDouble(double randomNumberOrigin, double randomNumberBound) {
             calls++;
             if (calls == throwOnCall) {
                 throw new IllegalStateException("scripted generator failure");
             }
-            return 0.25d;
+            return randomNumberOrigin;
         }
 
         private int calls() {

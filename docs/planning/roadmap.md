@@ -42,7 +42,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0013 Tensor provenance skeleton (Draft; no detailed specification)
+0012H Integral random tensor creation (Draft; no detailed specification)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -63,7 +63,11 @@ is complete. It adds eager non-empty typed integer ranges and copied strict/cycl
 population under canonical dense descriptors. Task
 [`0012F`](modules/model/tasks/0012f-random-tensor-creation.md) is complete. It adds eager normal
 population for three floating types from an explicit transient caller-owned source with bounded
-reproducibility. Task 0013 is the next Draft frontier; no detailed specification is created here.
+reproducibility. [`0012G`](modules/model/tasks/0012g-uniform-random-tensor-creation.md) is complete;
+it adds bounded continuous-uniform floating samples with explicit binary64 half-open bounds and the
+same transient source policy. Task 0012H is the next Draft frontier for typed integral sampling,
+followed by Draft task 0012I for Bernoulli initialization and Draft provenance task 0013. No
+detailed specification for 0012H, 0012I, or 0013 is created here.
 
 ## Model task sequence
 
@@ -90,18 +94,21 @@ reproducibility. Task 0013 is the next Draft frontier; no detailed specification
 | 19 | [0012D Constant tensor creation](modules/model/tasks/0012d-constant-tensor-creation.md) | Complete |
 | 20 | [0012E Range and prefix population](modules/model/tasks/0012e-range-and-prefix-population.md) | Complete |
 | 21 | [0012F Random tensor creation](modules/model/tasks/0012f-random-tensor-creation.md) | Complete |
-| 22 | 0013 Tensor provenance skeleton | Draft |
-| 23 | 0014 Elementwise arithmetic operations | Draft |
-| 24 | 0015 Comparison, logical, selection, and cast operations | Draft |
-| 25 | 0016 Reduction and scan operations | Draft |
-| 26 | 0017 Layout and view operations | Draft |
-| 27 | 0018 Indexing and scatter operations | Draft |
-| 28 | 0019 Linear algebra and attention operations | Draft |
-| 29 | 0020 Convolution and pooling operations | Draft |
-| 30 | 0021 Normalization operations | Draft |
-| 31 | 0022 Loss operations | Draft |
-| 32 | 0023 Compiler-generated semantic operations | Draft |
-| 33 | 0024 Model capability parity audit | Draft |
+| 22 | [0012G Uniform random tensor creation](modules/model/tasks/0012g-uniform-random-tensor-creation.md) | Complete |
+| 23 | 0012H Integral random tensor creation | Draft |
+| 24 | 0012I Bernoulli random tensor creation | Draft |
+| 25 | 0013 Tensor provenance skeleton | Draft |
+| 26 | 0014 Elementwise arithmetic operations | Draft |
+| 27 | 0015 Comparison, logical, selection, and cast operations | Draft |
+| 28 | 0016 Reduction and scan operations | Draft |
+| 29 | 0017 Layout and view operations | Draft |
+| 30 | 0018 Indexing and scatter operations | Draft |
+| 31 | 0019 Linear algebra and attention operations | Draft |
+| 32 | 0020 Convolution and pooling operations | Draft |
+| 33 | 0021 Normalization operations | Draft |
+| 34 | 0022 Loss operations | Draft |
+| 35 | 0023 Compiler-generated semantic operations | Draft |
+| 36 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
