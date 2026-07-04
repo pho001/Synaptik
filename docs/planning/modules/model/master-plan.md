@@ -100,7 +100,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0012B | [Flat typed tensor import](tasks/0012b-flat-typed-tensor-import.md) | Complete | 0012A | Import copied flat primitive arrays into dense-contiguous tensors with exact carrier and logical-count validation. |
 | 0012C | [Nested typed tensor import](tasks/0012c-nested-typed-tensor-import.md) | Complete | 0012B | Infer exact type and static dense shape from validated rectangular primitive arrays, then flatten and delegate to typed flat import. |
 | 0012D | [Constant tensor creation](tasks/0012d-constant-tensor-creation.md) | Complete | 0012B | Add exact typed rank-zero scalars and independent dense zeros, ones, zeros-like, and ones-like tensors. |
-| 0012E | Range and prefix population | Draft | 0012B | Add integer ranges plus strict and cyclic prefix population under explicit validation. |
+| 0012E | [Range and prefix population](tasks/0012e-range-and-prefix-population.md) | Complete | 0012B | Add typed integer ranges plus strict and cyclic exact-carrier prefix population under explicit validation. |
 | 0012F | Random tensor creation | Draft | 0012B | Decide random-source and reproducibility policy, then add normally distributed population. |
 | 0013 | Tensor provenance skeleton | Draft | 0006, 0011 | Define minimal provenance for future graph capture. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
@@ -125,7 +125,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0012D complete and task 0012E next as a Draft planning frontier.
+Draft, with task 0012E complete and task 0012F next as the Draft implementation frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -133,14 +133,13 @@ responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C a
 abstraction, are complete. Task 0011, public Tensor skeleton, and task 0012, the bounded Tensor
 factory foundation, are also complete. Task 0012A, JVM-managed heap host storage allocation, is
 complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, nested typed tensor
-import, is complete. Task 0012D, constant tensor creation, is also complete. Task 0012E, range and
-prefix population, is the next `Draft` planning frontier without a detailed specification,
-followed by Draft random population task 0012F and provenance task 0013.
+import, is complete. Task 0012D, constant tensor creation, and task 0012E, deterministic range and
+prefix population, are also complete. Draft random population task 0012F is the next implementation
+frontier, followed by Draft provenance task 0013.
 
 ## Open questions
 
-- Range/prefix and random population contracts remain local to tasks 0012E–0012F and may be split
-  further before becoming `Ready`.
+- Random-source ownership and reproducibility remain local to task 0012F.
 - The minimal provenance representation remains local to task 0013 after the factory capability
   sequence.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
@@ -197,9 +196,9 @@ followed by Draft random population task 0012F and provenance task 0013.
   canonical validation or attempt unsafe concurrent rollback.
 - The broad factory baseline is split into completed task 0012A for JVM-managed heap allocation,
   completed task 0012B for flat typed import, completed task 0012C for nested typed import,
-  completed task 0012D for constant tensors, and Draft tasks 0012E–0012F for range/prefix
-  population and random tensors. These rows remain before provenance; task 0012E is the next Draft
-  planning frontier and has no detailed specification.
+  completed task 0012D for constant tensors, completed task 0012E for deterministic range/prefix
+  population, and Draft task 0012F for random tensors. These rows remain before provenance; task
+  0012F is the next Draft implementation frontier without a detailed specification.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -209,7 +208,8 @@ followed by Draft random population task 0012F and provenance task 0013.
   close behavior, external owner, or storage-contract change.
 - Task 0012A requires resolved layout, rejects span above `Integer.MAX_VALUE`, and keeps allocation
   separate from the imports in completed tasks 0012B and 0012C, constant creation in completed task
-  0012D, and the population families that remain in Draft tasks 0012E–0012F.
+  0012D, deterministic population in completed task 0012E, and random population in Draft task
+  0012F.
 - Task 0012B adds six typed flat-array overloads for `double[]`, `float[]`, raw BFLOAT16 `short[]`,
   `int[]`, `long[]`, and BOOL `byte[]`. It accepts only resolved dense-contiguous layout, validates
   source length against logical element count, copies all input data, and normalizes BOOL bytes to
@@ -230,6 +230,13 @@ followed by Draft random population task 0012F and provenance task 0013.
 - Constant `*Like` methods copy only template shape and data type. They take explicit label and
   gradient intent and create new dense-contiguous descriptor, storage, and identity without
   observing or preserving template layout, label, storage, liveness, or ID.
+- Task 0012E keeps deterministic population type-exact: `int` and `long` ranges produce only
+  `INT32` and `INT64`, while strict and cyclic prefixes use six primitive-carrier overloads with no
+  implicit conversion. All results synthesize canonical dense layout and reuse flat import.
+- Integer ranges are eager non-differentiable leaf data with inclusive start, exclusive end,
+  positive or negative non-zero step, exact overflow-safe count, and no automatic label. Prefixes
+  require fully static shape, copy source values, preserve raw BFLOAT16 bits, and reuse downstream
+  BOOL normalization. Empty cyclic input is valid only for an empty result.
 
 ## Risks
 
@@ -261,9 +268,9 @@ contract. Task 0012B completed copied flat typed import for all six data types w
 dense-contiguous/count validation and BOOL normalization. Task 0012C completed validated
 rectangular nested primitive-array import, exact carrier/static-shape inference, and row-major
 delegation to flat import. Task 0012D completed exact typed scalars and independent dense zero/one
-constants. Draft task 0012E is now the next planning frontier without a detailed specification;
-Draft tasks 0012E–0012F preserve the remaining factory population families in executable order
-before task 0013 provenance. Concrete operation families remain in tasks
+constants. Task 0012E completed deterministic typed range and strict/cyclic prefix population;
+Draft task 0012F is now the next frontier and preserves the remaining random population family
+without a detailed specification before task 0013 provenance. Concrete operation families remain in tasks
 0014–0023. The
 legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

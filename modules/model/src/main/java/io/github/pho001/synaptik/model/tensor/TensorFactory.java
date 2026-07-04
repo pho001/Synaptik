@@ -43,7 +43,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * for fully static shapes. The factory does not otherwise infer descriptors, retain or expose
  * source/backing arrays, convert values, accept boxed or generic nested values, provide typed
  * tensor access, create provenance, allocate native or backend memory, or provide compiler,
- * runtime, or backend behavior.</p>
+ * runtime, or backend behavior. Deterministic population additionally supports non-empty INT32
+ * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
+ * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
+ * and reuse flat import for final allocation, normalization, and identity assignment.</p>
  */
 public final class TensorFactory {
     /**
@@ -899,6 +902,480 @@ public final class TensorFactory {
         TensorDescriptor templateDescriptor = template.descriptor();
         return TensorConstants.ones(
                 templateDescriptor.shape(), templateDescriptor.dataType(), label, requiresGrad);
+    }
+
+    /**
+     * Creates a non-empty dense INT32 range with inclusive start and exclusive end.
+     *
+     * <p>A positive step requires ascending bounds and a negative step requires descending bounds;
+     * zero step, equal bounds, and a direction that cannot reach the end are rejected. The final
+     * emitted value may be less than one step from {@code endExclusive}. Exact sizing prevents
+     * primitive subtraction, absolute-value, and ceiling-division overflow. Population advances
+     * only when another value remains, so a valid primitive-boundary range cannot fail from an
+     * unused addition after its final value.</p>
+     *
+     * <p>The method creates one rank-one canonical dense descriptor with {@link DataType#INT32}
+     * and {@code requiresGrad == false}, fills one exact {@code int[]} carrier, and delegates once
+     * to matching flat import. The temporary carrier is not retained. A null label or invalid
+     * range fails before carrier, destination, or identifier allocation. A blank present label
+     * fails after carrier and destination allocation and consumes its allocated identifier without
+     * copying. Identifier exhaustion is observed after both arrays exist and before copying; no
+     * failed identifier is rolled back.</p>
+     *
+     * @param startInclusive first emitted signed 32-bit value
+     * @param endExclusive exclusive signed 32-bit bound, which is never emitted
+     * @param step non-zero signed increment that must advance toward {@code endExclusive}
+     * @param label non-null optional diagnostic label; empty means absent and present text is
+     *     normalized and validated by {@link Tensor}
+     * @return a non-null fresh rank-one dense INT32 tensor containing the encounter-ordered range
+     *     in independent writable heap storage
+     * @throws NullPointerException if {@code label} is {@code null}, with message {@code label};
+     *     this check runs before all range validation and consumes no identifier
+     * @throws IllegalArgumentException if {@code step} is zero, the bounds are equal, the step
+     *     direction cannot advance toward the end, the exact count exceeds
+     *     {@link Integer#MAX_VALUE}, or delegated Tensor validation rejects a blank label; only the
+     *     label failure occurs after allocation and consumes an identifier
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after carrier and destination allocation
+     * @throws OutOfMemoryError if the source carrier or destination heap array cannot be allocated;
+     *     an error before identifier allocation consumes no identifier
+     */
+    public static Tensor range(
+            int startInclusive,
+            int endExclusive,
+            int step,
+            Optional<String> label) {
+        Objects.requireNonNull(label, "label");
+        return TensorPopulations.range(startInclusive, endExclusive, step, label);
+    }
+
+    /**
+     * Creates a non-empty dense INT64 range with inclusive start and exclusive end.
+     *
+     * <p>Positive and negative non-zero steps are supported only when their sign advances toward
+     * the exclusive bound. Exact arbitrary-precision arithmetic is confined to count validation;
+     * emitted values and storage remain signed 64-bit. The final emitted value may be less than one
+     * step from the end, and population performs no unused post-final addition, including at
+     * {@link Long#MIN_VALUE} and {@link Long#MAX_VALUE} boundaries.</p>
+     *
+     * <p>The result has a new rank-one canonical dense {@link DataType#INT64} descriptor with
+     * gradients disabled. One exact {@code long[]} carrier is filled and delegated once to flat
+     * import, which creates independent destination storage and identity; the carrier is not
+     * retained. Validation, blank-label, exhaustion, allocation, and no-rollback side effects are
+     * the same as the INT32 overload.</p>
+     *
+     * @param startInclusive first emitted signed 64-bit value
+     * @param endExclusive exclusive signed 64-bit bound, which is never emitted
+     * @param step non-zero signed increment that must advance toward {@code endExclusive}
+     * @param label non-null optional diagnostic label; empty means absent and present text is
+     *     normalized and validated by {@link Tensor}
+     * @return a non-null fresh rank-one dense INT64 tensor containing the encounter-ordered range
+     *     in independent writable heap storage
+     * @throws NullPointerException if {@code label} is {@code null}, with message {@code label};
+     *     this check runs before all range validation and consumes no identifier
+     * @throws IllegalArgumentException if {@code step} is zero, the bounds are equal, the step
+     *     direction cannot advance toward the end, the exact count exceeds
+     *     {@link Integer#MAX_VALUE}, or delegated Tensor validation rejects a blank label; only the
+     *     label failure occurs after allocation and consumes an identifier
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after carrier and destination allocation
+     * @throws OutOfMemoryError if the source carrier or destination heap array cannot be allocated;
+     *     an error before identifier allocation consumes no identifier
+     */
+    public static Tensor range(
+            long startInclusive,
+            long endExclusive,
+            long step,
+            Optional<String> label) {
+        Objects.requireNonNull(label, "label");
+        return TensorPopulations.range(startInclusive, endExclusive, step, label);
+    }
+
+    /**
+     * Creates a dense FLOAT64 tensor from the requested strict prefix of binary64 values.
+     *
+     * <p>The shape must be fully static. Its checked logical element count must fit a Java array,
+     * and {@code source} must contain at least that many values. Exactly that prefix is copied into
+     * one fresh exact-length {@code double[]} carrier; any source tail is ignored, and even an
+     * equal-length source is not retained. A zero-element shape accepts an empty source. The
+     * result uses a new canonical dense-contiguous {@link DataType#FLOAT64} descriptor with the
+     * explicit gradient request, label, storage, and factory identity.</p>
+     *
+     * <p>Null checks run in {@code shape}, {@code label}, {@code source} order. Dynamic shape,
+     * checked-count, Java-array-limit, source-sufficiency, dense-layout, and gradient-eligibility
+     * validation complete before output-carrier, destination, or identifier allocation. The fresh
+     * carrier is delegated once to matching flat import. A blank label fails after the carrier,
+     * destination, and identifier exist but before the flat copy, consuming the identifier.
+     * Exhaustion is observed at the same point before copying, and failures are not rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; the immutable shape is retained by the new
+     *     descriptor and may be scalar or contain a zero-sized dimension
+     * @param label non-null optional diagnostic label; empty means absent and present text is
+     *     normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for FLOAT64
+     * @param source non-null caller-owned binary64 values; it must contain at least the shape's
+     *     logical element count and is never retained or mutated
+     * @return a non-null fresh dense FLOAT64 tensor containing an independent copy of exactly the
+     *     requested prefix
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is
+     *     {@code null}, checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if the shape is dynamic, the count exceeds
+     *     {@link Integer#MAX_VALUE}, the source is shorter than the count, descriptor construction
+     *     rejects the gradient request, or delegated Tensor validation rejects a blank label; only
+     *     the label failure consumes an identifier
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after carrier and destination allocation
+     * @throws OutOfMemoryError if the copied carrier or destination heap array cannot be allocated;
+     *     an error before identifier allocation consumes no identifier
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, double[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense FLOAT32 tensor from a copied strict prefix of binary32 values.
+     *
+     * <p>This overload has the same static-shape, exact-prefix, source non-retention, validation
+     * order, allocation, label, identity, and no-rollback contract as the FLOAT64 overload. The
+     * exact {@code float[]} carrier selects {@link DataType#FLOAT32}; no numeric conversion occurs.
+     * A source tail is ignored, and a zero-element result requires no source values.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for FLOAT32
+     * @param source non-null caller-owned binary32 source with at least the logical result count;
+     *     the source is never retained or mutated
+     * @return a non-null fresh dense FLOAT32 tensor containing an independent exact-prefix copy
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, source-sufficiency,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if copied-carrier or destination allocation fails
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, float[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense BFLOAT16 tensor from a copied strict prefix of raw bit patterns.
+     *
+     * <p>This overload follows the FLOAT64 overload's static-shape, prefix, ownership, validation,
+     * allocation, and ID-side-effect contract. Each {@code short} is copied as raw
+     * {@link DataType#BFLOAT16} bits without conversion or canonicalization; a source tail is
+     * ignored and the source is never retained.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for BFLOAT16
+     * @param source non-null caller-owned raw BFLOAT16 source with at least the logical result
+     *     count; it is never retained or mutated
+     * @return a non-null fresh dense BFLOAT16 tensor preserving an independent raw-bit prefix
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, source-sufficiency,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if copied-carrier or destination allocation fails
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, short[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense INT32 tensor from a copied strict prefix of signed values.
+     *
+     * <p>This overload follows the FLOAT64 overload's static-shape, prefix, ownership, validation,
+     * allocation, and ID-side-effect contract. The exact {@code int[]} carrier selects
+     * {@link DataType#INT32}; values are copied unchanged, and gradients must be disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because INT32 is not differentiable
+     * @param source non-null caller-owned signed source with at least the logical result count;
+     *     it is never retained or mutated
+     * @return a non-null fresh dense INT32 tensor containing an independent exact-prefix copy
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, source-sufficiency,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if copied-carrier or destination allocation fails
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, int[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense INT64 tensor from a copied strict prefix of signed values.
+     *
+     * <p>This overload follows the FLOAT64 overload's static-shape, prefix, ownership, validation,
+     * allocation, and ID-side-effect contract. The exact {@code long[]} carrier selects
+     * {@link DataType#INT64}; values are copied unchanged, and gradients must be disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because INT64 is not differentiable
+     * @param source non-null caller-owned signed source with at least the logical result count;
+     *     it is never retained or mutated
+     * @return a non-null fresh dense INT64 tensor containing an independent exact-prefix copy
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, source-sufficiency,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if copied-carrier or destination allocation fails
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, long[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense BOOL tensor from a copied strict prefix of logical bytes.
+     *
+     * <p>This overload follows the FLOAT64 overload's static-shape, prefix, ownership, validation,
+     * allocation, and ID-side-effect contract. The exact {@code byte[]} carrier selects
+     * {@link DataType#BOOL}. The prefix carrier preserves its bytes until flat import maps zero to
+     * canonical {@code 0} and every non-zero value to canonical {@code 1}; gradients must be
+     * disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because BOOL is not differentiable
+     * @param source non-null caller-owned logical-byte source with at least the logical result
+     *     count; it is never retained or mutated
+     * @return a non-null fresh dense BOOL tensor containing an independent canonical prefix
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, source-sufficiency,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if copied-carrier or destination allocation fails
+     */
+    public static Tensor fromStrictFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, byte[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromStrictFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense FLOAT64 tensor by cyclically repeating binary64 source values.
+     *
+     * <p>The shape must be fully static and its checked logical element count must fit a Java
+     * array. For output index {@code i}, the copied value is {@code source[i % source.length]}.
+     * A non-empty result therefore requires a non-empty source; a zero-element result accepts an
+     * empty source and performs no modulo operation. One fresh exact-length {@code double[]}
+     * carrier holds the complete result, so neither the source nor a source subrange is retained.
+     * A source at least as long as the result contributes exactly its requested prefix.</p>
+     *
+     * <p>The result uses a new canonical dense-contiguous {@link DataType#FLOAT64} descriptor with
+     * explicit gradient intent. Null checks run in {@code shape}, {@code label}, {@code source}
+     * order. Dynamic shape, checked-count, array-limit, cyclic-source, layout, and gradient
+     * validation complete before output-carrier, destination, or ID allocation. The carrier is
+     * delegated once to flat import. Blank-label failure occurs after carrier, destination, and ID
+     * allocation but before copying and consumes the ID. Exhaustion occurs after both arrays exist;
+     * neither path rolls back state.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor; scalar
+     *     and zero-element shapes are supported
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for FLOAT64
+     * @param source non-null caller-owned binary64 cycle; it may be empty only for a zero-element
+     *     result and is never retained or mutated
+     * @return a non-null fresh dense FLOAT64 tensor containing an independent cyclic population
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if the shape is dynamic, count exceeds
+     *     {@link Integer#MAX_VALUE}, source is empty for non-empty output, descriptor construction
+     *     rejects the gradient request, or delegated Tensor validation rejects a blank label; only
+     *     the label failure consumes an identifier
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after carrier and
+     *     destination allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, double[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense FLOAT32 tensor by cyclically repeating binary32 source values.
+     *
+     * <p>This overload shares the FLOAT64 overload's modulo-order repetition, empty-result rule,
+     * source non-retention, validation order, allocation, label, identity, and no-rollback
+     * semantics. The exact {@code float[]} carrier selects {@link DataType#FLOAT32}; values are
+     * copied unchanged without numeric conversion.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for FLOAT32
+     * @param source non-null caller-owned binary32 cycle, empty only for empty output and never
+     *     retained or mutated
+     * @return a non-null fresh dense FLOAT32 tensor containing an independent cyclic population
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, cyclic-source,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, float[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense BFLOAT16 tensor by cyclically repeating raw bit patterns.
+     *
+     * <p>This overload shares the FLOAT64 overload's repetition, empty-result, ownership,
+     * validation, allocation, and ID-side-effect contract. Each {@code short} remains raw
+     * {@link DataType#BFLOAT16} bits; repetition performs no conversion or canonicalization.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad whether model-level gradient eligibility is requested for BFLOAT16
+     * @param source non-null caller-owned raw-bit cycle, empty only for empty output and never
+     *     retained or mutated
+     * @return a non-null fresh dense BFLOAT16 tensor preserving the repeated raw bits independently
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, cyclic-source,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, short[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense INT32 tensor by cyclically repeating signed values.
+     *
+     * <p>This overload shares the FLOAT64 overload's repetition, empty-result, ownership,
+     * validation, allocation, and ID-side-effect contract. The exact {@code int[]} carrier selects
+     * {@link DataType#INT32}; values are copied unchanged and gradients must be disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because INT32 is not differentiable
+     * @param source non-null caller-owned signed cycle, empty only for empty output and never
+     *     retained or mutated
+     * @return a non-null fresh dense INT32 tensor containing an independent cyclic population
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, cyclic-source,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, int[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense INT64 tensor by cyclically repeating signed values.
+     *
+     * <p>This overload shares the FLOAT64 overload's repetition, empty-result, ownership,
+     * validation, allocation, and ID-side-effect contract. The exact {@code long[]} carrier selects
+     * {@link DataType#INT64}; values are copied unchanged and gradients must be disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because INT64 is not differentiable
+     * @param source non-null caller-owned signed cycle, empty only for empty output and never
+     *     retained or mutated
+     * @return a non-null fresh dense INT64 tensor containing an independent cyclic population
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, cyclic-source,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, long[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
+    }
+
+    /**
+     * Creates a dense BOOL tensor by cyclically repeating logical bytes.
+     *
+     * <p>This overload shares the FLOAT64 overload's repetition, empty-result, ownership,
+     * validation, allocation, and ID-side-effect contract. The exact {@code byte[]} carrier selects
+     * {@link DataType#BOOL}. Repetition preserves raw cycle bytes until flat import maps zero to
+     * canonical {@code 0} and every non-zero value to canonical {@code 1}; gradients must be
+     * disabled.</p>
+     *
+     * @param shape non-null fully static result shape retained by the new dense descriptor
+     * @param label non-null optional diagnostic label normalized and validated by {@link Tensor}
+     * @param requiresGrad must be false because BOOL is not differentiable
+     * @param source non-null caller-owned zero/non-zero cycle, empty only for empty output and never
+     *     retained or mutated
+     * @return a non-null fresh dense BOOL tensor containing independent canonical repeated bytes
+     * @throws NullPointerException if {@code shape}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if static-shape, Java-array-limit, cyclic-source,
+     *     descriptor-gradient, or delegated label validation fails
+     * @throws ArithmeticException if checked count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after allocation
+     * @throws OutOfMemoryError if result-carrier or destination allocation fails
+     */
+    public static Tensor fromCyclicFlatPrefix(
+            Shape shape, Optional<String> label, boolean requiresGrad, byte[] source) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return TensorPopulations.fromCyclicFlatPrefix(shape, label, requiresGrad, source);
     }
 
     /**

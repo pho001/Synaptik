@@ -6,8 +6,8 @@ This reference documents the public model contracts that are implemented today. 
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, and independent dense scalar, zero, and one constants. Provenance,
-expression operations, typed access, gradient objects and publication behavior, range, prefix,
-and random population, native/runtime/backend allocation, compiler integration, runtime
+expression operations, typed access, gradient objects and publication behavior, random
+population, native/runtime/backend allocation, compiler integration, runtime
 residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -23,6 +23,8 @@ TensorFactory + resolved descriptor                          = exact-span heap s
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
 TensorFactory + rectangular nested primitive array           = inferred dense descriptor + copied Tensor
 TensorFactory + scalar/shape/type or Tensor template          = independent dense constant Tensor
+TensorFactory + integral bounds/step                          = copied dense INT32 or INT64 range Tensor
+TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -45,6 +47,10 @@ graph, infers the exact carrier type and fully static shape, flattens it in row-
 delegates destination creation to that flat-import boundary. Its constant methods synthesize
 canonical dense descriptors for rank-zero scalars or fully static caller/template shapes, then
 reuse default-zero allocation or exact-carrier flat import.
+Its deterministic population methods also create non-empty exclusive-end `INT32` and `INT64`
+ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
+Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
+and delegate final storage population and identity assignment to flat import.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -475,7 +481,8 @@ true
 
 The result demonstrates BFLOAT16 ties-to-even rounding, exact INT32 one population, dense
 like-shaped creation, and independent storage. It does not provide general fill values, numeric
-conversion, range, prefix, random, typed access/export, view preservation, or execution.
+conversion, random generation, typed access/export, view preservation, or execution; deterministic
+range and prefix creation are separate factory methods described below.
 
 #### Failures and useful variations
 
@@ -484,6 +491,126 @@ conversion, range, prefix, random, typed access/export, view preservation, or ex
 - A dynamic shape or logical element count above `Integer.MAX_VALUE` fails before destination or
   ID allocation.
 - A zero-sized static shape is valid and produces an empty backing array for either zeros or ones.
+
+Deterministic range creation has exactly two overloads. `range(int, int, int, label)` creates an
+`INT32` result, while `range(long, long, long, label)` creates `INT64`. Both produce eager,
+rank-one, non-differentiable tensors with inclusive start and exclusive end. A positive step must
+advance from a smaller start toward a larger end; a negative step must advance from a larger start
+toward a smaller end. Step zero, equal bounds, and the wrong direction are rejected rather than
+producing an empty tensor or correcting the step. Exact count arithmetic prevents primitive
+overflow, and the final emitted value may be less than one step from the exclusive bound. Counts
+above `Integer.MAX_VALUE` are rejected before allocation.
+
+Strict and cyclic flat-prefix creation each have six overloads for `double[]`, `float[]`, raw
+BFLOAT16 `short[]`, `int[]`, `long[]`, and BOOL `byte[]`. The carrier-to-data-type mapping is the
+same exact mapping as flat import; no conversion, promotion, or caller-selected data type is
+available. The caller supplies a fully static shape, optional label, and explicit gradient intent.
+The result always has a newly synthesized canonical dense-contiguous descriptor and independent
+heap storage.
+
+A strict prefix source must contain at least the shape's logical element count. The factory copies
+exactly that many leading values into a fresh carrier and ignores any tail. A cyclic prefix copies
+`source[i % source.length]` at output position `i`; when the source is longer than the output, this
+is exactly its requested prefix. A non-empty cyclic result requires a non-empty source. Both modes
+accept an empty source for a zero-element result because no value is needed, and neither mode
+retains or mutates the caller's array. Numeric values and raw BFLOAT16 bits remain unchanged. BOOL
+bytes are normalized downstream by flat import, where zero becomes `0` and every non-zero value
+becomes `1`.
+
+Prefix null checks run in shape, label, source order. Dynamic shape, checked-count overflow,
+Java-array limit, strict source sufficiency or cyclic source availability, dense descriptor
+construction, and gradient eligibility are validated before the result carrier, destination, or
+ID is allocated. Range label and argument validation likewise precede allocation. Successful
+paths build one complete temporary carrier and delegate once to matching flat import. A blank
+label therefore fails after the carrier, destination, and ID have been allocated but before the
+flat copy; it consumes the ID. Identifier exhaustion is also observed after both arrays exist and
+before copying. Neither failure rolls back an identifier. Concurrent source mutation is outside
+the prefix snapshot contract.
+
+### Complete deterministic-population example
+
+#### Goal and inputs
+
+Create the INT32 range `[1, 4, 7]`, copy the first four values of a five-value strict source into
+shape `[2, 2]`, and repeat a two-byte logical cycle across shape `[2, 3]`. The strict tail value
+`99` is deliberately outside the requested result, while cyclic non-zero byte `-3` represents
+logical true.
+
+```java
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class DeterministicPopulationExample {
+    public static void main(String[] args) {
+        Tensor range = TensorFactory.range(
+                1, 8, 3, Optional.of("indices"));
+
+        int[] strictSource = {10, 20, 30, 40, 99};
+        Tensor strict = TensorFactory.fromStrictFlatPrefix(
+                Shape.of(2, 2), Optional.empty(), false, strictSource);
+
+        byte[] cycle = {0, -3};
+        Tensor cyclic = TensorFactory.fromCyclicFlatPrefix(
+                Shape.of(2, 3), Optional.of("mask"), false, cycle);
+
+        int[] rangeData = (int[]) range.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+        int[] strictData = (int[]) strict.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+        byte[] cyclicData = (byte[]) cyclic.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        strictSource[0] = -1;
+        cycle[0] = 1;
+
+        System.out.println(range.descriptor().dataType());
+        System.out.println(Arrays.toString(rangeData));
+        System.out.println(strict.descriptor().shape());
+        System.out.println(Arrays.toString(strictData));
+        System.out.println(Arrays.toString(cyclicData));
+    }
+}
+```
+
+#### Meaningful lines
+
+- The `int` range overload fixes the result data type as `INT32`. Ceiling division of the distance
+  by step gives three values, and the exclusive bound `8` is not emitted.
+- The strict call obtains four logical positions from shape `[2, 2]`, copies source values
+  `[10, 20, 30, 40]`, and ignores `99`.
+- The cyclic call repeats raw bytes as `[0, -3, 0, -3, 0, -3]`; delegated BOOL import then stores
+  canonical `[0, 1, 0, 1, 0, 1]`.
+- Mutating both sources after construction demonstrates that neither returned tensor retains the
+  caller's array. Heap-base inspection only makes existing raw storage observable; it is not a
+  typed Tensor access or export API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+INT32
+[1, 4, 7]
+Shape[2, 2]
+[10, 20, 30, 40]
+[0, 1, 0, 1, 0, 1]
+```
+
+The result demonstrates range typing and exclusive-end semantics, strict tail handling, cyclic
+repetition, BOOL normalization, canonical dense shapes, and copied ownership. It does not provide
+an empty or floating range, implicit conversion, general fill/repeat/tile operations, view
+population, typed access/export, provenance, random generation, or execution.
+
+#### Failures and useful variations
+
+- `range(0, 3, -1, label)` fails because the negative step cannot advance toward the larger end.
+- A strict source with only three values fails for shape `[2, 2]`; a longer source remains valid.
+- An empty cyclic source is valid for shape `[0, 3]` and invalid for every non-empty shape.
+- `requiresGrad` must be false for `INT32`, `INT64`, and `BOOL`; floating prefix carriers may
+  request gradients.
 
 ### Complete flat-import example
 
@@ -1029,7 +1156,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- range, prefix, and random population conveniences and typed tensor access or export;
+- random population conveniences and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -1087,6 +1214,18 @@ provide a compiler entry point or executable support.
   happen after destination allocation; scalar and one creation have also allocated their source
   carrier, while zero creation has no source carrier. Every successful result has independent
   descriptor, layout, storage, backing array, Tensor object, and factory ID.
+- Its `int` and `long` range overloads create eager non-empty, inclusive-start, exclusive-end
+  `INT32` and `INT64` tensors with gradients disabled. Positive or negative non-zero steps must
+  advance toward the end. Exact count arithmetic and a no-post-final-addition fill loop preserve
+  primitive-boundary behavior, while counts above `Integer.MAX_VALUE` fail before allocation.
+  One exact carrier is delegated to flat import and is not retained.
+- Its strict and cyclic prefix overloads infer exact data type from the same six primitive
+  carriers, require a fully static shape, synthesize canonical dense descriptors, and preserve
+  explicit label and gradient intent. Strict mode copies the requested prefix and ignores source
+  tail; cyclic mode repeats by modulo and requires a non-empty source only for non-empty output.
+  Numeric and raw BFLOAT16 values remain unchanged, while BOOL is normalized by flat import. All
+  sources are copied and never retained. Prevalidation consumes no ID; blank-label failure and
+  exhaustion occur after carrier and destination allocation and before the flat copy.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.

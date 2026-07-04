@@ -16,8 +16,9 @@ the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element re
 JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
 dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
-zero, one, zero-like, and one-like constants. Concrete operation kinds and family attributes,
-provenance, range, prefix, and random population, typed access and export, native/runtime/backend
+zero, one, zero-like, and one-like constants, plus eager typed integer ranges and strict or cyclic
+flat-prefix population for all six exact primitive carriers. Concrete operation kinds and family
+attributes, provenance, random population, typed access and export, native/runtime/backend
 allocation, expression operations, gradient and publication behavior, compiler entry points and
 artifacts, planning, prepare, runtime, concrete backends, traces, and training remain architecture
 or planning contracts. A definition explains intended meaning; it is not by itself evidence that
@@ -295,9 +296,10 @@ storage or runtime state. Copied flat typed import is implemented through the fa
 dense-contiguous layouts. Copied rectangular nested primitive-array import is also implemented;
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
-dense storage and explicit label and gradient intent. Range, prefix, and random population, typed
-access and export, deterministic native-resource ownership, provenance, expression operations,
-gradient objects, trainable role,
+dense storage and explicit label and gradient intent. Eager non-empty `INT32` and `INT64` range
+creation and strict or cyclic typed flat-prefix creation are also implemented as copied canonical
+dense leaf data. Random population, typed access and export, deterministic native-resource
+ownership, provenance, expression operations, gradient objects, trainable role,
 publication behavior, compiler integration, device buffers, and runtime residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
@@ -342,9 +344,26 @@ their declared primitive inputs; `scalarBFloat16(float)` alone converts with BFL
 round-to-nearest, ties-to-even semantics. Zeros use default-zero allocation, while scalars and
 ones use exact typed flat import. Like methods read only template shape and data type and preserve
 neither layout nor mutable or diagnostic state. The factory does not create provenance or retain
-tensor, graph, runtime, backend, registry, or service state. Ranges, prefixes, random population,
-typed access or export, general numeric conversion, native/runtime/backend allocation, and
-deterministic resource ownership remain planned.
+tensor, graph, runtime, backend, registry, or service state.
+
+The factory's two eager range overloads map `int` bounds and step to `INT32`, and `long` bounds and
+step to `INT64`. Each result is non-empty, rank one, non-differentiable, inclusive at the start,
+exclusive at the end, and stored in new canonical dense storage. Positive and negative non-zero
+steps are accepted only when they advance toward the end. Exact overflow-safe sizing rejects a
+count above `Integer.MAX_VALUE` before allocation and does not evaluate an unused addition after
+the final emitted value.
+
+Strict and cyclic flat-prefix creation each have six overloads for `double[]`, `float[]`, raw
+BFLOAT16 `short[]`, `int[]`, `long[]`, and BOOL `byte[]`. They require a fully static caller shape,
+infer the exact data type, and create a new canonical dense descriptor with explicit label and
+gradient intent. Strict mode copies exactly the requested leading values and ignores a tail.
+Cyclic mode repeats `source[i % source.length]`; an empty source is accepted only for an empty
+result. No source is retained or mutated. Numeric and raw BFLOAT16 values remain unchanged, while
+flat import normalizes BOOL zero/non-zero bytes to canonical zero/one storage. Neither mode adds
+shape inference, conversion, view scattering, or a general fill/repeat/tile operation.
+
+Random population, typed access or export, general numeric conversion, native/runtime/backend
+allocation, and deterministic resource ownership remain planned.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
@@ -378,6 +397,12 @@ labels fail after destination and ID allocation and consume that ID. Exhaustion 
 after destination allocation. Every successful constant has a new Tensor, descriptor, layout,
 storage wrapper, backing array, and factory ID; like-shaped results retain no template object or
 template state beyond the immutable shape and data-type values used to build the result.
+
+Range label and argument validation and prefix shape/count/source/gradient validation run before
+result-carrier, destination, or ID allocation. Each successful path builds one complete exact
+carrier and delegates once to flat import. A blank label is rejected after carrier, destination,
+and ID allocation but before copying, and consumes that ID. Exhaustion is observed after both
+arrays exist. These failures do not roll back identifiers.
 
 ### Tensor descriptor
 
