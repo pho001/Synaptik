@@ -229,6 +229,32 @@ class TensorFactoryTest {
                 double.class,
                 RandomGenerator.class,
                 Optional.class);
+        Method fullFloat64 = TensorFactory.class.getDeclaredMethod(
+                "full", Shape.class, double.class, Optional.class, boolean.class);
+        Method fullFloat32 = TensorFactory.class.getDeclaredMethod(
+                "full", Shape.class, float.class, Optional.class, boolean.class);
+        Method fullBfloat16 = TensorFactory.class.getDeclaredMethod(
+                "fullBFloat16", Shape.class, float.class, Optional.class, boolean.class);
+        Method fullInt32 = TensorFactory.class.getDeclaredMethod(
+                "full", Shape.class, int.class, Optional.class, boolean.class);
+        Method fullInt64 = TensorFactory.class.getDeclaredMethod(
+                "full", Shape.class, long.class, Optional.class, boolean.class);
+        Method fullBool = TensorFactory.class.getDeclaredMethod(
+                "full", Shape.class, boolean.class, Optional.class, boolean.class);
+        Method identityMatrix = TensorFactory.class.getDeclaredMethod(
+                "identityMatrix",
+                long.class,
+                long.class,
+                DataType.class,
+                Optional.class,
+                boolean.class);
+        Method eye = TensorFactory.class.getDeclaredMethod(
+                "eye",
+                long.class,
+                long.class,
+                DataType.class,
+                Optional.class,
+                boolean.class);
         Method importFlat = TensorFactory.class.getDeclaredMethod(
                 "importFlat",
                 TensorDescriptor.class,
@@ -281,6 +307,14 @@ class TensorFactoryTest {
                         randomInt32,
                         randomInt64,
                         randomBernoulli,
+                        fullFloat64,
+                        fullFloat32,
+                        fullBfloat16,
+                        fullInt32,
+                        fullInt64,
+                        fullBool,
+                        identityMatrix,
+                        eye,
                         importFlat,
                         createDerived,
                         allocator),
@@ -314,6 +348,17 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, randomInt32.getReturnType()),
                 () -> assertEquals(Tensor.class, randomInt64.getReturnType()),
                 () -> assertEquals(Tensor.class, randomBernoulli.getReturnType()),
+                () -> assertTrue(List.of(
+                                fullFloat64,
+                                fullFloat32,
+                                fullBfloat16,
+                                fullInt32,
+                                fullInt64,
+                                fullBool,
+                                identityMatrix,
+                                eye)
+                        .stream()
+                        .allMatch(method -> method.getReturnType() == Tensor.class)),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -360,6 +405,17 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(randomInt32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomInt64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomBernoulli.getModifiers())),
+                () -> assertTrue(List.of(
+                                fullFloat64,
+                                fullFloat32,
+                                fullBfloat16,
+                                fullInt32,
+                                fullInt64,
+                                fullBool,
+                                identityMatrix,
+                                eye)
+                        .stream()
+                        .allMatch(method -> Modifier.isPublic(method.getModifiers()))),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -408,6 +464,17 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(randomInt32.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomInt64.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomBernoulli.getModifiers())),
+                () -> assertTrue(List.of(
+                                fullFloat64,
+                                fullFloat32,
+                                fullBfloat16,
+                                fullInt32,
+                                fullInt64,
+                                fullBool,
+                                identityMatrix,
+                                eye)
+                        .stream()
+                        .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,

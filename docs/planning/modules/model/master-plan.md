@@ -107,7 +107,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0012H | [Integral random tensor creation](tasks/0012h-integral-random-tensor-creation.md) | Complete | 0012F | Add exact INT32/INT64 overloads with exclusive bounds and unbiased JDK bounded sampling. |
 | 0012I | [Bernoulli random tensor creation](tasks/0012i-bernoulli-random-tensor-creation.md) | Complete | 0012F | Add BOOL tensors sampled from an explicit probability using the existing caller-owned source policy. |
 | 0013 | [Tensor provenance skeleton](tasks/0013-tensor-provenance-skeleton.md) | Complete | 0006, 0011, 0012 | Attach immutable operation-and-input origin metadata to Tensor for future compiler-owned graph capture. |
-| 0013A | Full-value and identity-matrix tensor creation | Draft | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
+| 0013A | [Full-value and identity-matrix tensor creation](tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
 | 0014 | Elementwise arithmetic operations | Draft | 0013 | Represent binary, unary, scalar, activation, and clamp capabilities. |
 | 0015 | Comparison, logical, selection, and cast operations | Draft | 0013 | Represent comparison, boolean, where, and explicit cast capabilities. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
@@ -130,7 +130,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0013 complete and task 0013A as the active Draft planning frontier.
+Draft, with task 0013A complete and the post-foundation checkpoint as the next planning action.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -141,13 +141,16 @@ complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, ne
 import, is complete. Task 0012D, constant tensor creation, and task 0012E, deterministic range and
 prefix population, are also complete. Normal population task 0012F, uniform population task 0012G,
 and integral population task 0012H are complete. Bernoulli task 0012I and provenance task 0013 are
-also complete. Full-value and identity-matrix factory task 0013A is the next Draft frontier without
-a detailed specification.
+also complete. Full-value and identity-matrix factory task 0013A is complete. The next action is
+the model foundation checkpoint; task 0014 remains Draft until that checkpoint explicitly selects
+the next implementation frontier.
 
 ## Open questions
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- After task 0013A, review whether to continue through all model operation families or explicitly advance a cross-module vertical slice. The default roadmap remains sequential until that checkpoint records a different decision.
+- At the post-foundation checkpoint, review whether to continue through all model operation
+  families or explicitly advance a cross-module vertical slice. The default roadmap remains
+  sequential until that checkpoint records a different decision.
 
 ## Decisions made
 
@@ -204,8 +207,8 @@ a detailed specification.
   completed task 0012D for constant tensors, completed task 0012E for deterministic range/prefix
   population, completed task 0012F for normal random tensors, completed task 0012G for uniform
   random tensors, completed task 0012H for integral tensors, and completed task 0012I for
-  Bernoulli tensors. These rows remain before the completed provenance task 0013; task 0013A is
-  the next Draft planning frontier.
+  Bernoulli tensors. These rows remain before completed provenance task 0013 and completed
+  full-value/identity task 0013A. The model foundation checkpoint is the next planning action.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -273,6 +276,9 @@ a detailed specification.
 - Task 0013A is model-owned eager tensor creation, not a training initializer, graph operation, or
   runtime/backend capability. `full` and `identityMatrix` are the canonical factory names, and
   `eye` is the exact convenience alias for `identityMatrix` semantics.
+- Task 0013A added six primitive-carrier `full` methods, including explicitly converted
+  `fullBFloat16`, plus one all-data-type rectangular `identityMatrix`. `eye` delegates only to the
+  canonical method. All results are dense provenance-free leaves created through flat import.
 
 ## Risks
 
@@ -307,8 +313,9 @@ delegation to flat import. Task 0012D completed exact typed scalars and independ
 constants. Task 0012E completed deterministic typed range and strict/cyclic prefix population, and
 task 0012F completed explicit-source normal-random population, task 0012G completed bounded
 continuous-uniform floating population, task 0012H completed bounded-integral population, and task
-0012I completed BOOL Bernoulli population, and task 0013 completed immutable Tensor provenance and
-the package-private derived-construction seam. Draft task 0013A is the next planning frontier before
-the concrete operation families in tasks 0014–0023; it has no detailed specification yet.
+0012I completed BOOL Bernoulli population, task 0013 completed immutable Tensor provenance and
+the package-private derived-construction seam, and task 0013A completed type-safe full-value and
+rectangular identity creation. The post-foundation checkpoint is now the next planning action
+before any concrete operation-family or cross-module frontier is selected. Task 0014 remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

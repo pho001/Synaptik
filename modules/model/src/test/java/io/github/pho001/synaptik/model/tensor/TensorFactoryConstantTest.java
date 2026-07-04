@@ -21,6 +21,7 @@ import java.lang.foreign.Arena;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,7 +46,7 @@ class TensorFactoryConstantTest {
                 () -> assertEquals(
                         0, TensorConstants.class.getDeclaredConstructors()[0].getParameterCount()));
 
-        Set<Method> entries = Set.of(
+        Set<Method> entries = new HashSet<>(Set.of(
                 TensorConstants.class.getDeclaredMethod(
                         "scalar", double.class, Optional.class, boolean.class),
                 TensorConstants.class.getDeclaredMethod(
@@ -61,7 +62,27 @@ class TensorFactoryConstantTest {
                 TensorConstants.class.getDeclaredMethod(
                         "zeros", Shape.class, DataType.class, Optional.class, boolean.class),
                 TensorConstants.class.getDeclaredMethod(
-                        "ones", Shape.class, DataType.class, Optional.class, boolean.class));
+                        "ones", Shape.class, DataType.class, Optional.class, boolean.class)));
+
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "full", Shape.class, double.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "full", Shape.class, float.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "fullBFloat16", Shape.class, float.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "full", Shape.class, int.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "full", Shape.class, long.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "full", Shape.class, boolean.class, Optional.class, boolean.class));
+        entries.add(TensorConstants.class.getDeclaredMethod(
+                "identityMatrix",
+                long.class,
+                long.class,
+                DataType.class,
+                Optional.class,
+                boolean.class));
 
         assertAll(
                 () -> assertTrue(entries.stream().allMatch(method ->

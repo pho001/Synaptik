@@ -40,9 +40,16 @@ import java.util.random.RandomGenerator;
  * import is the bounded exception: it synthesizes only the exact fully static shape and canonical
  * dense-contiguous descriptor proved by the source structure. Constant creation is the other
  * bounded descriptor-construction path: exact primitive scalar overloads create rank-zero values,
- * while zeros, ones, and their like-shaped variants create independent dense-contiguous tensors
- * for fully static shapes. The factory does not otherwise infer descriptors, retain or expose
- * source/backing arrays, convert values, accept boxed or generic nested values, provide typed
+ * while zeros, ones, type-safe full-value tensors, rectangular identity matrices, and like-shaped
+ * zero/one variants create independent dense-contiguous tensors for fully static shapes.
+ * Full-value methods infer the exact type from one primitive value, with only the explicitly named
+ * BFLOAT16 method performing conversion. Rectangular identity creation supports all six current
+ * data types, writes typed one on the main diagonal, and leaves typed zero elsewhere. The
+ * {@link #eye(long, long, DataType, Optional, boolean)} method is only an unchanged-argument
+ * convenience delegation to canonical identity-matrix creation. These are eager leaf-data
+ * constructors, not general mutable fill, identity operations, or expression semantics. The
+ * factory does not otherwise infer descriptors, retain or expose source/backing arrays, convert
+ * values, accept boxed or generic nested values, provide typed
  * tensor access, expose caller-supplied provenance, allocate native or backend memory, or provide
  * compiler, runtime, or backend behavior. Every public creation and population method produces a
  * provenance-free leaf. One package-private derived-construction seam attaches an already-created
@@ -955,6 +962,286 @@ public final class TensorFactory {
         TensorDescriptor templateDescriptor = template.descriptor();
         return TensorConstants.ones(
                 templateDescriptor.shape(), templateDescriptor.dataType(), label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense FLOAT64 tensor filled with one exact binary64 value.
+     *
+     * <p>Scalar and zero-element shapes are valid. The value is repeated through one filled
+     * {@code double[]} source and one exact flat import, preserving signed-zero and NaN payload
+     * bits. Every result has new descriptor, layout, storage, backing array, identity, and empty
+     * provenance. The caller supplies label and gradient intent explicitly; present label text is
+     * normalized by {@link Tensor}.</p>
+     *
+     * <p>Validation checks {@code shape} and {@code label} for null in that order, then requires a
+     * fully static shape, obtains its checked logical count, enforces the Java-array limit,
+     * constructs canonical dense geometry, and validates gradient eligibility. Those failures
+     * precede allocation and ID consumption. Source allocation and fill precede destination and
+     * ID allocation. A blank label fails after both arrays and the ID exist and consumes that ID;
+     * exhaustion occurs after both arrays exist, and an unexpected flat-copy failure occurs after
+     * ID allocation. No failure rolls an ID back.</p>
+     *
+     * @param shape non-null fully static result shape
+     * @param value exact binary64 fill value
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent dense FLOAT64 leaf tensor
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, {@code requiresGrad} is ineligible, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor full(
+            Shape shape, double value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.full(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense FLOAT32 tensor filled with one exact binary32 value.
+     *
+     * <p>One {@code float[]} source is filled exactly, including signed-zero or NaN payload bits,
+     * and copied once through the matching flat import. Scalar shapes contain one value and static
+     * shapes with a zero extent create empty source and destination arrays. The result has fresh
+     * descriptor, layout, storage, backing array, identity, and empty provenance; present label
+     * text is normalized by {@link Tensor}.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value exact binary32 fill value, preserving signed-zero and NaN payload bits
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent provenance-free FLOAT32 leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, {@code requiresGrad} is ineligible, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor full(
+            Shape shape, float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.full(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense BFLOAT16 tensor by converting and repeating one binary32 value.
+     *
+     * <p>After descriptor validation, {@link BFloat16Bits#fromFloat(float)} converts the semantic
+     * input once using round-to-nearest with ties to even and canonical NaN handling. One
+     * {@code short[]} source is filled with the converted raw bits and copied once. Scalar and
+     * empty static shapes are valid. The result owns fresh metadata and storage, has empty
+     * provenance, and retains neither the source nor any conversion state. Empty label means
+     * absent; present text is stripped and validated by {@link Tensor}.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value binary32 semantic value converted with {@link BFloat16Bits#fromFloat(float)}
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit model-level gradient request
+     * @return a non-null fresh independent provenance-free BFLOAT16 leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, {@code requiresGrad} is ineligible, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor fullBFloat16(
+            Shape shape, float value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.fullBFloat16(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense INT32 tensor filled with one exact signed value.
+     *
+     * <p>One {@code int[]} source is filled exactly and copied once through the matching flat
+     * import. Scalar and empty static shapes are valid. The result has new descriptor, layout,
+     * source and destination carriers, storage, Tensor identity, and empty provenance; it retains
+     * no source carrier. Empty label means absent; present text is stripped and validated by
+     * {@link Tensor}. INT32 is not differentiable, so {@code requiresGrad} must be false.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value exact signed 32-bit fill value
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit request, which must be false for INT32
+     * @return a non-null fresh independent provenance-free INT32 leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, gradients are requested, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor full(
+            Shape shape, int value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.full(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense INT64 tensor filled with one exact signed value.
+     *
+     * <p>One {@code long[]} source is filled exactly and copied once through the matching flat
+     * import. Scalar and empty static shapes are valid. The result has new descriptor, layout,
+     * source and destination carriers, storage, Tensor identity, and empty provenance; it retains
+     * no source carrier. Empty label means absent; present text is stripped and validated by
+     * {@link Tensor}. INT64 is not differentiable, so {@code requiresGrad} must be false.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value exact signed 64-bit fill value
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit request, which must be false for INT64
+     * @return a non-null fresh independent provenance-free INT64 leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, gradients are requested, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor full(
+            Shape shape, long value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.full(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a fully static dense BOOL tensor filled with one semantic boolean value.
+     *
+     * <p>The semantic value maps directly to canonical byte zero or one; no numeric truthiness or
+     * conversion is accepted. One {@code byte[]} source is filled and copied once through BOOL
+     * flat import. Scalar and empty static shapes are valid. The result has fresh independent
+     * metadata, storage, identity, and empty provenance, and retains no source carrier. BOOL is
+     * not differentiable, so {@code requiresGrad} must be false. Empty label means absent;
+     * present text is stripped and validated by {@link Tensor}.</p>
+     *
+     * <p>Shape then label null checks precede static-shape, checked-count, Java-array-limit,
+     * dense-layout, and gradient validation. Those failures consume no ID. A blank label fails
+     * after source, destination, and ID allocation; exhaustion occurs after both arrays exist; and
+     * an unexpected copy failure occurs after ID allocation. Identifiers are never rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and empty shapes are valid
+     * @param value semantic value stored only as canonical byte zero or one
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit request, which must be false for BOOL
+     * @return a non-null fresh independent provenance-free BOOL leaf with copied storage
+     * @throws NullPointerException if {@code shape} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code shape} is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, gradients are requested, or a present label is blank
+     * @throws ArithmeticException if checked non-zero element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor full(
+            Shape shape, boolean value, Optional<String> label, boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.full(shape, value, label, requiresGrad);
+    }
+
+    /**
+     * Creates a dense rectangular matrix with typed one on the main diagonal and zero elsewhere.
+     *
+     * <p>All six current data types are supported. Rows and columns may be unequal or zero, and
+     * the result always has shape {@code [rows, columns]}. One default-zero matching carrier is
+     * populated only at coordinates {@code (i, i)} for {@code 0 <= i < min(rows, columns)}, then
+     * copied through one flat import. Diagonal values are {@code 1.0d}, {@code 1.0f}, converted
+     * BFLOAT16 one bits, {@code 1}, {@code 1L}, or canonical BOOL byte {@code 1}; off-diagonal
+     * values retain the corresponding JVM default-zero representation. Square, wide, tall,
+     * zero-row, and zero-column matrices are valid. The result has new descriptor, dense layout,
+     * source and destination carriers, storage, identity, and empty provenance; no carrier is
+     * shared or retained outside its storage. Empty label means absent; present text is stripped
+     * and validated by {@link Tensor}.</p>
+     *
+     * <p>Validation checks {@code dataType} and {@code label} for null in that order, then rejects
+     * negative rows before negative columns. Rank-two shape construction is followed by checked
+     * element count, Java-array limit, canonical dense geometry, and gradient eligibility before
+     * source, destination, or ID allocation. A blank label fails after both arrays and the ID
+     * exist and consumes that ID. Exhaustion is observed after both arrays exist; an unexpected
+     * copy failure occurs after ID allocation. No ID is rolled back.</p>
+     *
+     * @param rows non-negative row count
+     * @param columns non-negative column count
+     * @param dataType non-null exact matrix element type
+     * @param label non-null optional diagnostic label
+     * @param requiresGrad explicit model-level gradient request, valid only for floating types
+     * @return a non-null fresh independent dense rectangular identity-matrix leaf
+     * @throws NullPointerException if {@code dataType} or {@code label} is null, checked in that order
+     * @throws IllegalArgumentException if {@code rows} or {@code columns} is negative, the element
+     *     count exceeds {@link Integer#MAX_VALUE}, {@code requiresGrad} is ineligible for
+     *     {@code dataType}, or a present label is blank
+     * @throws ArithmeticException if checked positive element-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after destination allocation
+     * @throws OutOfMemoryError if source or destination allocation fails before ID allocation
+     */
+    public static Tensor identityMatrix(
+            long rows,
+            long columns,
+            DataType dataType,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(label, "label");
+        return TensorConstants.identityMatrix(rows, columns, dataType, label, requiresGrad);
+    }
+
+    /**
+     * Delegates unchanged to {@link #identityMatrix(long, long, DataType, Optional, boolean)}.
+     *
+     * <p>This alias performs no validation or allocation of its own. Equal arguments yield equal
+     * descriptor/value behavior, while separate successful calls still return distinct Tensor,
+     * descriptor, layout, storage, backing-array, and identifier objects. It therefore has the
+     * same rectangular, data-type, label, gradient, provenance, validation-order, allocation, and
+     * failure-side-effect contract as the canonical method.</p>
+     *
+     * @param rows non-negative row count passed unchanged to {@code identityMatrix}
+     * @param columns non-negative column count passed unchanged to {@code identityMatrix}
+     * @param dataType non-null exact element type passed unchanged to {@code identityMatrix}
+     * @param label non-null optional label passed unchanged to {@code identityMatrix}
+     * @param requiresGrad explicit gradient request passed unchanged to {@code identityMatrix}
+     * @return the exact fresh tensor returned by the single canonical method invocation
+     * @throws NullPointerException if {@code dataType} or {@code label} is null, checked by the
+     *     canonical method in that order
+     * @throws IllegalArgumentException if canonical row, column, count, gradient, or label validation fails
+     * @throws ArithmeticException if canonical checked positive count or dense geometry overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after canonical destination allocation
+     * @throws OutOfMemoryError if canonical source or destination allocation fails before ID allocation
+     */
+    public static Tensor eye(
+            long rows,
+            long columns,
+            DataType dataType,
+            Optional<String> label,
+            boolean requiresGrad) {
+        return identityMatrix(rows, columns, dataType, label, requiresGrad);
     }
 
     /**

@@ -16,8 +16,10 @@ the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element re
 JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
 dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
-zero, one, zero-like, and one-like constants, plus eager typed integer ranges, strict or cyclic
-flat-prefix population for all six exact primitive carriers, and explicit-source normal random
+zero, one, zero-like, and one-like constants, plus exact typed full-value tensors and dense
+rectangular identity matrices with `eye` as a pure alias, plus eager typed integer ranges, strict
+or cyclic flat-prefix population for all six exact primitive carriers, and explicit-source normal
+random
 and bounded continuous-uniform population for the three floating types, plus bounded integral
 random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
 finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
@@ -314,8 +316,11 @@ the factory for resolved
 dense-contiguous layouts. Copied rectangular nested primitive-array import is also implemented;
 the factory infers its exact type, fully static shape, and dense-contiguous layout before returning
 a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is implemented with new
-dense storage and explicit label and gradient intent. Eager non-empty `INT32` and `INT64` range
-creation, strict or cyclic typed flat-prefix creation, and caller-source normal random and bounded
+dense storage and explicit label and gradient intent. Type-safe full-value creation is implemented
+for every current primitive meaning, and rectangular identity creation is implemented for all six
+data types with typed main-diagonal ones and off-diagonal zeros. Eager non-empty `INT32` and
+`INT64` range creation, strict or cyclic typed flat-prefix creation, and caller-source normal
+random and bounded
 continuous-uniform creation are also implemented as copied canonical dense leaf data.
 Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
 false gradient intent. Caller-source Bernoulli creation is implemented for canonical BOOL output
@@ -365,7 +370,12 @@ primitive rank-0 scalars or fully static requested/template shapes. Scalars infe
 their declared primitive inputs; `scalarBFloat16(float)` alone converts with BFLOAT16
 round-to-nearest, ties-to-even semantics. Zeros use default-zero allocation, while scalars and
 ones use exact typed flat import. Like methods read only template shape and data type and preserve
-neither layout nor mutable or diagnostic state. Every public factory path creates a
+neither layout nor mutable or diagnostic state. Full-value methods infer exact type from primitive
+values, with only `fullBFloat16` converting, and fill one exact source before one flat import.
+`identityMatrix` creates square or rectangular dense matrices for every current data type with
+typed one on the main diagonal and typed zero elsewhere; `eye` delegates unchanged to that
+canonical method. Separate calls create fresh metadata, storage, Tensor identity, and backing
+arrays. Every public factory path creates a
 provenance-free leaf. One package-private derived-construction seam attaches an already-created
 provenance value through the existing ID allocator without storage, graph capture, traversal,
 inference, or semantic validation. The factory retains no tensor, graph, runtime, backend,

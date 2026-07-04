@@ -5,8 +5,9 @@
 This reference documents the public model contracts that are implemented today. The mutable
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
-primitive-array import, independent dense constants, deterministic population, and explicit-source
-normal, continuous-uniform, bounded integral, and Bernoulli random population. Concrete expression
+primitive-array import, independent dense constants including full-value and rectangular identity
+tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
+integral, and Bernoulli random population. Concrete expression
 operations, typed access, gradient objects and publication behavior, native/runtime/backend
 allocation, compiler integration, runtime residency, and backend execution remain planned. The
 authoritative module boundary remains
@@ -25,6 +26,8 @@ TensorFactory + resolved descriptor                          = exact-span heap s
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
 TensorFactory + rectangular nested primitive array           = inferred dense descriptor + copied Tensor
 TensorFactory + scalar/shape/type or Tensor template          = independent dense constant Tensor
+TensorFactory + static shape + exact primitive value          = independent dense full-value Tensor
+TensorFactory + rows + columns + DataType                     = independent dense identity matrix
 TensorFactory + integral bounds/step                          = copied dense INT32 or INT64 range Tensor
 TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
 TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
@@ -55,7 +58,9 @@ caller's array. Its nested-array method validates a rank-two-or-greater rectangu
 graph, infers the exact carrier type and fully static shape, flattens it in row-major order, and
 delegates destination creation to that flat-import boundary. Its constant methods synthesize
 canonical dense descriptors for rank-zero scalars or fully static caller/template shapes, then
-reuse default-zero allocation or exact-carrier flat import.
+reuse default-zero allocation or exact-carrier flat import. Its full-value methods fill one exact
+typed carrier from a primitive scalar, and its identity method creates rank-two rectangular
+matrices with typed one on the main diagonal and typed zero elsewhere.
 Its deterministic population methods also create non-empty exclusive-end `INT32` and `INT64`
 ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
 Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
@@ -433,6 +438,43 @@ ID allocation, and consumes that ID; scalar and one creation have also allocated
 carrier. Identifier exhaustion is observed after destination allocation, with the same source
 carrier distinction. A JVM allocation failure that occurs before ID allocation consumes no ID.
 
+Full-value creation extends the same dense constant path without adding a generic conversion or
+mutable fill operation. The six type-safe entries are:
+
+| Factory value | Result data type | Stored value |
+|---|---|---|
+| `double` | `FLOAT64` | Exact binary64 value, including signed-zero and NaN payload bits |
+| `float` | `FLOAT32` | Exact binary32 value, including signed-zero and NaN payload bits |
+| `fullBFloat16(..., float, ...)` | `BFLOAT16` | One `BFloat16Bits.fromFloat(value)` conversion repeated as raw bits |
+| `int` | `INT32` | Exact signed 32-bit value |
+| `long` | `INT64` | Exact signed 64-bit value |
+| `boolean` | `BOOL` | Canonical false byte `0` or true byte `1` |
+
+Every `full` method requires a fully static caller shape, but rank-zero scalar and zero-element
+shapes are valid. It constructs one canonical dense descriptor, fills one exact primitive source
+carrier, and delegates once to matching flat import. The source is copied and not retained. The
+result has independent descriptor, layout, destination storage, Tensor identity, and empty
+provenance. The API deliberately has no boxed value, caller-selected conversion, raw BFLOAT16
+scalar, `fullLike`, default-label overload, or post-construction mutation.
+
+`identityMatrix(rows, columns, dataType, label, requiresGrad)` creates a canonical dense rank-two
+matrix for any of the six current data types. Both dimensions are non-negative `long` values, so
+square, wide, tall, zero-row, and zero-column matrices are valid when their checked logical count
+fits a Java array. The method writes typed one only at coordinates `(i, i)` for
+`0 <= i < min(rows, columns)` and leaves every other position at typed zero. Its exact values are
+`1.0d`/`0.0d`, `1.0f`/`0.0f`, converted BFLOAT16 one bits/raw zero bits, `1`/`0`, `1L`/`0L`, or
+canonical BOOL `1`/`0`. `eye(...)` is only an unchanged-argument call to `identityMatrix(...)`.
+Equal arguments therefore produce equal descriptors and values, while separate successful calls
+still return different Tensor, ID, descriptor, layout, storage, and backing-array objects.
+
+Full-value methods check shape then label nullity before static-shape, checked-count, Java array
+limit, dense-layout, and gradient validation. Identity checks data type then label nullity,
+negative rows then negative columns, and then uses the same checked descriptor path. These early
+failures allocate no carrier and consume no ID. Each successful path creates one source carrier,
+then flat import creates one destination and allocates the ID. A blank label therefore fails after
+both arrays and the ID exist and consumes that ID. Exhaustion occurs after both arrays exist, and
+an unexpected flat-copy failure occurs after ID allocation; identifiers are never rolled back.
+
 ### Complete constant-creation example
 
 #### Goal and inputs
@@ -509,6 +551,86 @@ range and prefix creation are separate factory methods described below.
 - A dynamic shape or logical element count above `Integer.MAX_VALUE` fails before destination or
   ID allocation.
 - A zero-sized static shape is valid and produces an empty backing array for either zeros or ones.
+
+### Complete full-value and rectangular-identity example
+
+#### Goal and inputs
+
+Create a nontrivial `2 × 3` INT64 tensor whose six logical positions all contain `-7`, and create
+a wide `2 × 4` FLOAT32 identity matrix. Both results use explicit labels and gradient intent. The
+identity is differentiable because FLOAT32 is differentiable; the INT64 full tensor must disable
+gradients.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class FullIdentityExample {
+    public static void main(String[] args) {
+        Tensor full = TensorFactory.full(
+                Shape.of(2, 3), -7L, Optional.of("weights"), false);
+        Tensor identity = TensorFactory.identityMatrix(
+                2, 4, DataType.FLOAT32, Optional.of("projection"), true);
+
+        long[] fullValues = (long[]) full.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+        float[] identityValues = (float[]) identity.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        System.out.println(Arrays.toString(fullValues));
+        System.out.println(Arrays.toString(identityValues));
+        System.out.println(identity.descriptor().shape());
+        System.out.println(identity.descriptor().layout().orElseThrow().kind());
+        System.out.println(full.provenance().isEmpty() && identity.provenance().isEmpty());
+    }
+}
+```
+
+#### Meaningful lines and intermediate values
+
+- `full(Shape.of(2, 3), -7L, ...)` selects INT64 from the Java `long` argument. Row-major
+  positions `0` through `5` all become `-7`, which can be read as two logical rows
+  `[-7, -7, -7]` and `[-7, -7, -7]`.
+- `identityMatrix(2, 4, FLOAT32, ...)` creates a wide matrix. Its diagonal length is
+  `min(2, 4) = 2`, so row-major indices `0 × 4 + 0 = 0` and `1 × 4 + 1 = 5` receive `1.0f`.
+  The other six positions retain `0.0f`.
+- `heapBase()` inspection is used only to make the current raw values observable. It is not a
+  typed Tensor access or export API.
+- The descriptor queries verify that identity creation retained the rectangular shape and
+  synthesized canonical dense-contiguous geometry. The final expression verifies that both
+  public initializers produced leaves without provenance.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+[-7, -7, -7, -7, -7, -7]
+[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+Shape[2, 4]
+DENSE_CONTIGUOUS
+true
+```
+
+The first line is the complete copied INT64 carrier in row-major order. The second line represents
+the rectangular matrix rows `[1, 0, 0, 0]` and `[0, 1, 0, 0]`. The result proves exact full-value
+population, main-diagonal placement, dense metadata, and provenance-free leaf construction. It
+does not add post-construction fill, typed Tensor export, an identity operation, graph capture, or
+backend execution.
+
+#### Failures and useful variations
+
+- Replacing `Shape.of(2, 3)` with a dynamic shape fails before source, destination, or ID
+  allocation. A static zero-element shape is valid and creates empty storage.
+- A negative row is rejected before a negative column; zero rows or zero columns create a valid
+  empty rank-two identity matrix.
+- Requesting gradients for an INT32, INT64, or BOOL full or identity tensor fails before
+  allocation. `eye(...)` has the same validation and values as `identityMatrix(...)`, but a
+  separate call still returns a fresh Tensor and ID.
 
 Deterministic range creation has exactly two overloads. `range(int, int, int, label)` creates an
 `INT32` result, while `range(long, long, long, label)` creates `INT64`. Both produce eager,
@@ -1713,6 +1835,14 @@ provide a compiler entry point or executable support.
   happen after destination allocation; scalar and one creation have also allocated their source
   carrier, while zero creation has no source carrier. Every successful result has independent
   descriptor, layout, storage, backing array, Tensor object, and factory ID.
+- Its six type-safe full-value methods require a fully static shape and infer the exact data type
+  from a primitive value; only `fullBFloat16` converts a binary32 semantic input. Each method fills
+  one exact carrier and delegates once to flat import, preserving raw floating signed-zero and NaN
+  values and canonical BOOL bytes. `identityMatrix` supports all six data types and non-negative
+  rectangular dimensions, writes typed one only on the main diagonal of one default-zero carrier,
+  and delegates once; `eye` is a pure canonical delegation. Early shape, dimension, count, layout,
+  and gradient failures consume no ID. Blank labels, exhaustion, and unexpected copy failures have
+  the same late source/destination/ID effects described by the factory contract.
 - Its `int` and `long` range overloads create eager non-empty, inclusive-start, exclusive-end
   `INT32` and `INT64` tensors with gradients disabled. Positive or negative non-zero steps must
   advance toward the end. Exact count arithmetic and a no-post-final-addition fill loop preserve

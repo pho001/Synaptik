@@ -39,10 +39,10 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 The current project area is [`modules/model`](modules/model/master-plan.md).
 
-Its next task is:
+Its next planning action is:
 
 ```text
-0013A Full-value and identity-matrix tensor creation (Draft; no detailed specification)
+Model foundation checkpoint (task 0014 remains Draft)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -72,8 +72,11 @@ complete; it adds canonical BOOL Bernoulli samples from a finite scalar probabil
 unbounded source call per element, including at probability endpoints. Task
 [`0013`](modules/model/tasks/0013-tensor-provenance-skeleton.md) is complete. It adds immutable
 operation-and-ordered-input origin metadata without turning Tensor into graph IR or implementing
-compiler capture. Draft task `0013A` is now the active planning frontier for canonical `full` and
-`identityMatrix` creation with exact convenience alias `eye`; it has no detailed specification.
+compiler capture. Task
+[`0013A`](modules/model/tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) is complete;
+it adds canonical type-safe `full`, rectangular `identityMatrix`, and the exact convenience alias
+`eye`. The post-foundation checkpoint below is now the active planning action. It must select the
+next implementation frontier explicitly; task 0014 remains Draft and has no detailed specification.
 
 ## Model task sequence
 
@@ -104,7 +107,7 @@ compiler capture. Draft task `0013A` is now the active planning frontier for can
 | 23 | [0012H Integral random tensor creation](modules/model/tasks/0012h-integral-random-tensor-creation.md) | Complete |
 | 24 | [0012I Bernoulli random tensor creation](modules/model/tasks/0012i-bernoulli-random-tensor-creation.md) | Complete |
 | 25 | [0013 Tensor provenance skeleton](modules/model/tasks/0013-tensor-provenance-skeleton.md) | Complete |
-| 26 | 0013A Full-value and identity-matrix tensor creation | Draft |
+| 26 | [0013A Full-value and identity-matrix tensor creation](modules/model/tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete |
 | 27 | 0014 Elementwise arithmetic operations | Draft |
 | 28 | 0015 Comparison, logical, selection, and cast operations | Draft |
 | 29 | 0016 Reduction and scan operations | Draft |
@@ -121,7 +124,12 @@ Task dependencies in the model master plan remain hard prerequisites. The table 
 
 ## Model foundation checkpoint
 
-After task `0013A`, review the completed value, graph, storage, tensor, provenance, and eager factory contracts against the entry requirements of downstream modules. The default remains to continue with model operation-family task groups. Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the new frontier and preserves all architecture dependency rules.
+Task `0013A` is complete. The next planning action is to review the completed value, graph,
+storage, tensor, provenance, and eager factory contracts against the entry requirements of
+downstream modules. The default remains to continue with model operation-family task groups.
+Advancing a cross-module vertical slice earlier requires an explicit roadmap update that names the
+new frontier and preserves all architecture dependency rules. Until this checkpoint records that
+decision, task `0014` remains Draft and no new implementation task is active.
 
 This checkpoint is not permission to skip or execute tasks out of order. It prevents the decision to complete every operation family before downstream feedback from remaining an implicit assumption.
 
