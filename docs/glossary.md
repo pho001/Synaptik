@@ -26,11 +26,13 @@ finite scalar probability, plus immutable `TensorProvenance` origin metadata. Co
 kind support now includes the parameterless `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
 construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
-Other concrete kind and expression families, family attributes, random Operations, typed access
-and export, native/runtime/backend allocation, gradient and publication behavior, compiler entry
-points and artifacts, planning, prepare, runtime, concrete backends, traces, and training remain
-architecture or planning contracts. A definition explains intended meaning; it is not by itself
-evidence that a Java type exists.
+The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fifteen unary
+arithmetic, transcendental, activation, and explicit fast-approximation meanings; matching unary
+Tensor expression methods remain planned. Other concrete kind and expression families, family
+attributes, random Operations, typed access and export, native/runtime/backend allocation,
+gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
+runtime, concrete backends, traces, and training remain architecture or planning contracts. A
+definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -240,6 +242,14 @@ Tensor expressions by itself, infer shapes or data types, identify graph occurre
 computation, or report backend support. The implemented public Tensor methods consume these values
 while separately owning local expression construction. The enum's inherited names are diagnostics
 rather than serialization or dispatch keys.
+
+The second production family is `UnaryElementwiseKind`, an enum containing exactly `ABS`, `NEG`,
+`INV`, `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`,
+`FAST_EXP`, and `FAST_TANH`. These values identify one-input elementwise mathematical or activation
+meanings and compose with `NoOperationAttrs.INSTANCE`. One-input arity is family context rather
+than stored metadata. `FAST_EXP` and `FAST_TANH` are distinct approximate requests, not aliases or
+backend flags; the enum defines no algorithm, accuracy, descriptor inference, provenance,
+gradient, execution, or backend support. Public unary Tensor expression methods remain planned.
 
 ### Partition
 
@@ -615,7 +625,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface and binary arithmetic family implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface, binary arithmetic family, and unary elementwise family implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker implemented; family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -623,8 +633,9 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic kinds and their public Tensor construction path are
-implemented; other concrete families, family-specific attributes, compiler capture, and execution
+that occurrence. Binary arithmetic kinds and their public Tensor construction path are implemented.
+Unary elementwise kinds are also implemented, while their public Tensor construction path remains
+planned. Other concrete families, family-specific attributes, compiler capture, and execution
 remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

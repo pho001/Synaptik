@@ -38,6 +38,7 @@ left Tensor + binary kind + right Tensor                       = fresh descripto
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
+UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ValueId + TensorDescriptor                                    = GraphValue
 NodeId + Operation + ordered input/output ValueIds            = CompiledNode
 values + nodes + boundaries + node phases                     = CompiledGraphModel
@@ -84,12 +85,14 @@ automatic-scope primitive-array heap segments.
 
 An `OperationKind` says which computation is meant, while `OperationAttrs` carries its typed
 semantic parameters. The implemented `Operation` record keeps those two values together.
-`BinaryArithmeticKind` is the first implemented production kind family: it names seven
-parameterless tensor-to-tensor arithmetic meanings. The public `Tensor.add`, `sub`, `mul`, `div`,
-`min`, `max`, and tensor-valued `pow` methods use those kinds to construct storage-free expression
-tensors. `TensorProvenance` retains the exact operation and ordered public-tensor inputs. This
-local construction derives a result descriptor, but it does not assign graph identity, capture a
-graph, calculate values, define gradient rules, or execute computation.
+`BinaryArithmeticKind` names seven parameterless tensor-to-tensor arithmetic meanings, and
+`UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
+and explicit fast-approximation meanings. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
+`max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
+tensors. Unary Tensor expression methods remain planned. `TensorProvenance` retains the exact
+operation and ordered public-tensor inputs. Binary expression construction derives a result
+descriptor, but neither kind family assigns graph identity, captures a graph, calculates values,
+defines gradient rules, or executes computation.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -1706,6 +1709,7 @@ The public operation-foundation contracts live in `io.github.pho001.synaptik.mod
 | `NoOperationAttrs.INSTANCE` | The implemented canonical attribute value for a kind that has no semantic parameters. |
 | `Operation` | An implemented immutable descriptor that stores one kind and one `OperationAttrs` value. |
 | `BinaryArithmeticKind` | The implemented production enum for seven parameterless tensor-to-tensor arithmetic meanings. |
+| `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 
 `OperationKind` declares only `name()`. The result must be a stable, non-null, non-blank diagnostic name, but it is not a serialization token or a global lookup key. Enum-based kind families are the expected common implementation because an enum already supplies a stable `name()`, equality, and hashing. Two enum values from different kind families remain different typed values even if both names contain the same text.
 
@@ -1750,6 +1754,48 @@ tokens, registry keys, or string-dispatch contracts. Equality remains typed: an 
 declared by another kind family is not equal to `BinaryArithmeticKind.ADD` even though both
 diagnostics may contain `ADD`.
 
+### Unary elementwise semantic kinds
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind` implements
+`OperationKind` with exactly these constants in declaration order:
+
+| Kind | Elementwise meaning |
+|---|---|
+| `ABS` | Absolute magnitude of the input value. |
+| `NEG` | Additive inverse of the input value. |
+| `INV` | Multiplicative reciprocal of the input value. |
+| `LOG` | Natural logarithm of the input value. |
+| `EXP` | Natural exponential of the input value. |
+| `ERF` | Gaussian error function of the input value. |
+| `SQRT` | Principal square root of the input value. |
+| `FLOOR` | Greatest integer-valued result not greater than the input value. |
+| `CEIL` | Least integer-valued result not less than the input value. |
+| `SIGN` | Negative, zero, or positive sign classification represented numerically. |
+| `RELU` | Rectified linear unit of the input value. |
+| `SIGMOID` | Logistic sigmoid of the input value. |
+| `TANH` | Hyperbolic tangent of the input value. |
+| `FAST_EXP` | Explicitly approximate natural exponential request. |
+| `FAST_TANH` | Explicitly approximate hyperbolic tangent request. |
+
+All fifteen kinds have one logical input and no intrinsic parameters. One-input arity is family
+context rather than stored enum metadata, and the canonical operation composition remains
+explicit:
+
+```java
+Operation exponential = new Operation(
+        UnaryElementwiseKind.EXP,
+        NoOperationAttrs.INSTANCE);
+```
+
+The enum does not store the input, infer a result descriptor, or create provenance. Public unary
+Tensor methods will own those expression-construction rules in a later task. `FAST_EXP` and
+`FAST_TANH` are distinct approximate semantic requests rather than aliases or backend flags for
+`EXP` and `TANH`; their algorithms, accuracy, special-value behavior, differentiation, execution,
+and backend availability remain undefined here. Inherited enum names are diagnostic text, not
+serialization or dispatch keys, and equally named kinds from another family remain different
+typed values.
+
 ### Test-local conceptual example
 
 The following types are examples local to a test or explanation. They are not production operation kinds or promises about a future operation-family API.
@@ -1778,9 +1824,10 @@ The example demonstrates the implemented descriptor's construction, ownership, a
 semantics for an attributes-bearing test value. It does not establish that `SampleAttrs` is
 compatible with `SampleKind`: the generic descriptor checks only that neither component is null.
 It also does not create a graph node, infer a result shape or data type, report backend support,
-select a kernel, or execute computation. Production `BinaryArithmeticKind` exists as the first
-parameterless family, while family-specific attributes, other kind families, compiler behavior,
-and executable support remain later work in their owning layers.
+select a kernel, or execute computation. Production `BinaryArithmeticKind` and
+`UnaryElementwiseKind` now provide parameterless families, while family-specific attributes,
+additional kind families, compiler behavior, and executable support remain later work in their
+owning layers. Only binary arithmetic currently has public Tensor expression methods.
 
 ## Graph values and compiled nodes
 
@@ -1950,17 +1997,19 @@ The following contracts appear in the architecture and planning documents but ar
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary tensor arithmetic, gradient and trainable state, and
   publication behavior;
-- operation-kind families beyond binary arithmetic and family-specific attribute values;
+- operation-kind families beyond binary arithmetic and unary elementwise semantics, plus
+  family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
-`GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
-current Java API contracts. Binary arithmetic is the only production concrete kind family, and
-the seven matching public Tensor expression methods are current. No family-specific attribute
-type exists yet. The graph records can compose and structurally validate these or test-local
-semantics, but they do not provide a compiler entry point or executable support.
+`UnaryElementwiseKind`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
+`PublicationBinding` are current Java API contracts. Binary arithmetic and unary elementwise
+semantics are the current production concrete kind families; only the seven binary arithmetic
+kinds have matching public Tensor expression methods. No family-specific attribute type exists
+yet. The graph records can compose and structurally validate these or test-local semantics, but
+they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 

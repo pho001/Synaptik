@@ -72,6 +72,10 @@ io.github.pho001.synaptik.model.operation
 io.github.pho001.synaptik.model.operation.elementwise.binary
   Typed parameterless semantic kinds for tensor-to-tensor elementwise arithmetic.
 
+io.github.pho001.synaptik.model.operation.elementwise.unary
+  Typed parameterless semantic kinds for unary arithmetic, transcendental functions,
+  activations, and explicit fast approximation requests.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -113,7 +117,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0013A | [Full-value and identity-matrix tensor creation](tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete | 0012B, 0012D | Add typed full-value tensors through canonical `full` and dense rectangular identity matrices, with `eye` exactly aliasing the canonical `identityMatrix` semantics. |
 | 0014A | [Binary arithmetic semantic kinds](tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete | 0005, 0006 | Define typed parameterless ADD, SUB, MUL, DIV, MIN, MAX, and POW kinds. |
 | 0014B | [Binary arithmetic Tensor expressions](tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete | 0013, 0014A | Build locally validated floating broadcast-aware Tensor expressions with ordered provenance. |
-| 0014C | Unary arithmetic and activation semantic kinds | Draft | 0005, 0006 | Define parameterless unary and activation kinds. |
+| 0014C | [Unary elementwise semantic kinds](tasks/0014c-unary-elementwise-semantic-kinds.md) | Complete | 0005, 0006 | Define fifteen parameterless unary arithmetic, transcendental, activation, and fast-approximation kinds. |
 | 0014D | Unary arithmetic and activation Tensor expressions | Draft | 0013, 0014C | Build unary and activation Tensor expressions with locally derived descriptors. |
 | 0014E | Scalar arithmetic and clamp semantics | Draft | 0005, 0006 | Define typed scalar attributes and clamp semantic contracts. |
 | 0014F | Scalar arithmetic and clamp Tensor expressions | Draft | 0013, 0014E | Build scalar arithmetic and clamp Tensor expressions without eager execution. |
@@ -138,9 +142,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with the post-foundation checkpoint and tasks 0014A and 0014B complete. Task 0014B provides
-the first public capturable operation family; the post-0014B vertical-slice reassessment is the
-next planning action. Task 0014C remains Draft without a detailed specification.
+Draft, with tasks 0014A through 0014C complete and the post-0014B vertical-slice reassessment
+recorded. Task 0014D remains the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -160,8 +163,6 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 ## Open questions
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
-- Reassess the next cross-module vertical-slice opportunity now that task 0014B has completed the
-  first concrete capturable operation family.
 
 ## Decisions made
 
@@ -303,6 +304,13 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   floating data types, delegates right-aligned shape algebra to `ShapeBroadcast`, leaves result
   layout unresolved, propagates gradient eligibility as input OR, and records exact ordered
   provenance without storage access, execution, canonicalization, or graph capture.
+- The post-0014B vertical-slice reassessment keeps `modules/model` as the active frontier. Trace,
+  backend-contract, config, planning, and compiler still contain only placeholder production types
+  and broad master plans, so crossing those boundaries now would hide several foundational tasks
+  rather than form one bounded implementation session. This changes order only, not dependencies.
+- Task 0014C uses one parameterless `UnaryElementwiseKind` enum in
+  `model.operation.elementwise.unary` for ABS, NEG, INV, LOG, EXP, ERF, SQRT, FLOOR, CEIL, SIGN,
+  RELU, SIGMOID, TANH, FAST_EXP, and FAST_TANH. Tensor expression behavior remains in task 0014D.
 - The independent task-0014B documentation review found stale public-Tensor status in the Compile
   API. Explicit authorization expanded the task to ten paths solely to correct that statement.
   The updated page describes public Tensor and binary expression construction as current while
@@ -347,8 +355,9 @@ the package-private derived-construction seam, and task 0013A completed type-saf
 rectangular identity creation. The completed post-foundation checkpoint selected sequential model
 operation-family work, and task 0014A completed the first concrete parameterless kind family.
 Task 0014B completed the matching public expression construction and all authorized documentation,
-including the focused Compile API status correction. The post-0014B cross-module checkpoint is the
-next planning action. Task 0014C and all later operation-family tasks remain Draft without detailed
+including the focused Compile API status correction. The post-0014B reassessment selected
+continued ordered model work. Task 0014C completed the fifteen parameterless unary elementwise
+semantic kinds. Task 0014D and all later operation-family tasks remain Draft without detailed
 specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

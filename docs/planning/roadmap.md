@@ -41,12 +41,14 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- Post-0014B cross-module vertical-slice reassessment — planning decision only
+- 0014D Unary arithmetic and activation Tensor expressions — Draft
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
-compiler behavior. Task 0014C remains Draft without a detailed specification while the checkpoint
-reassesses whether to continue model-family work or start a cross-module vertical slice.
+compiler behavior. The post-0014B reassessment kept the ordered model frontier because downstream
+prerequisite modules remain placeholders. Task
+[0014C](modules/model/tasks/0014c-unary-elementwise-semantic-kinds.md) is complete. Task 0014D
+remains Draft without a detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -118,7 +120,7 @@ authorized Compile API status correction.
 | 26 | [0013A Full-value and identity-matrix tensor creation](modules/model/tasks/0013a-full-value-and-identity-matrix-tensor-creation.md) | Complete |
 | 27 | [0014A Binary arithmetic semantic kinds](modules/model/tasks/0014a-binary-arithmetic-semantic-kinds.md) | Complete |
 | 28 | [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md) | Complete |
-| 29 | 0014C Unary arithmetic and activation semantic kinds | Draft |
+| 29 | [0014C Unary elementwise semantic kinds](modules/model/tasks/0014c-unary-elementwise-semantic-kinds.md) | Complete |
 | 30 | 0014D Unary arithmetic and activation Tensor expressions | Draft |
 | 31 | 0014E Scalar arithmetic and clamp semantics | Draft |
 | 32 | 0014F Scalar arithmetic and clamp Tensor expressions | Draft |
@@ -146,11 +148,19 @@ concrete `OperationKind` existed for compiler capture, capability analysis, back
 lowering, or execution. Task 0014 was therefore decomposed into semantic-vocabulary and public-
 expression pairs. Completed task 0014A introduces the first typed family, and task 0014B now
 implements its public Tensor expression construction. The family creates the intended integration
-seam. The next planning action is therefore the promised cross-module vertical-slice reassessment;
-task 0014C remains Draft until that decision is recorded.
+seam.
+
+The post-0014B reassessment considered opening a cross-module compile-to-execution slice next, but
+the required trace, backend-contract, config, planning, and compiler foundations still consist only
+of placeholder production types and broad master plans. Treating that prerequisite chain as one
+next task would violate the planning granularity and architecture-boundary rules. The ordered model
+queue therefore continued with task 0014C, which completed the fifteen parameterless unary
+elementwise semantic kinds. Task 0014D remains the next Draft planning frontier.
 
 This decision changes implementation order only. It does not change architecture dependencies or
-authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model.
+authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future
+explicit roadmap decision may still reorder work when a bounded cross-module task and its
+prerequisites are concrete.
 
 ## Advancing the frontier
 
