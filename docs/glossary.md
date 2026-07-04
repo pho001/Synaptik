@@ -13,12 +13,13 @@ the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element re
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
 `HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
 `TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
-JVM-managed heap allocation for resolved layouts. Concrete operation kinds and family attributes,
-provenance, tensor import/population and typed access, native/runtime/backend allocation,
+JVM-managed heap allocation for resolved layouts, plus copied flat typed import for resolved
+dense-contiguous layouts. Concrete operation kinds and family attributes, provenance, nested and
+other tensor population families, typed access and export, native/runtime/backend allocation,
 expression operations, gradient and publication behavior, compiler entry points and artifacts,
-planning, prepare, runtime, concrete backends, traces, and training remain architecture or
-planning contracts. A definition explains intended meaning; it is not by itself evidence that a
-Java type exists.
+planning, prepare, runtime, concrete backends, traces, and training remain architecture or planning
+contracts. A definition explains intended meaning; it is not by itself evidence that a Java type
+exists.
 
 ## Terms
 
@@ -288,8 +289,9 @@ a closeable resource, or closing storage.
 Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
 the supported public construction boundary. The object uses ordinary identity equality and
 hashing, while its diagnostic text contains stable ID, descriptor, and label facts without
-storage or runtime state. Flat and nested import, constant/range/prefix/random population, typed
-access, deterministic native-resource ownership, provenance, expression operations, gradients,
+storage or runtime state. Copied flat typed import is implemented through the factory for resolved
+dense-contiguous layouts. Nested import, constant/range/prefix/random population, typed access and
+export, deterministic native-resource ownership, provenance, expression operations, gradients,
 trainable role, publication behavior, compiler integration, device buffers, and runtime residency
 remain planned. A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
@@ -306,11 +308,18 @@ span, wrap its heap segment, and attach that writable storage. `FLOAT64`, `FLOAT
 `INT32`, `INT64`, and `BOOL` use `double[]`, `float[]`, raw `short[]`, `int[]`, `long[]`, and raw
 `byte[]`, respectively. The raw array starts at the JVM default zero representation.
 
+The factory can import those same six flat carriers into a new resolved dense-contiguous tensor.
+Carrier data type and logical element count must match exactly. Numeric carriers and raw BFLOAT16
+bits are copied unchanged; BOOL treats zero as false and canonicalizes every non-zero byte to one.
+The source is not retained or mutated, and later source mutation cannot change the tensor. Scalar
+and empty dense imports follow their logical counts. Offset, strided, broadcast, and unresolved
+layouts are rejected because they require a separate scatter or view-population policy.
+
 The heap segment's automatic scope keeps the primitive array reachable and permits access from
 any thread. No arena, close operation, external owner, native fallback, or deterministic release
-is introduced. The factory does not populate values, construct descriptors, resolve absent
-layouts, create provenance, or retain tensor, graph, runtime, backend, registry, or service state.
-Flat/nested import, constants, ranges, prefixes, random population, typed access, copy/conversion,
+is introduced. The factory does not construct descriptors, resolve absent layouts, create
+provenance, or retain tensor, graph, runtime, backend, registry, or service state. Nested import,
+constants, ranges, prefixes, random population, typed access or export, numeric conversion,
 native/runtime/backend allocation, and deterministic resource ownership remain planned.
 
 For every attempted construction that reaches identifier allocation, the factory issues one
@@ -327,6 +336,10 @@ Heap allocation additionally requires resolved layout and a referenced span no g
 failures occur before identifier allocation and consume no ID. Heap allocation and wrapping occur
 before delegated creation, so a blank label or exhausted identifier space is observed only after
 the heap work; a blank-label failure consumes its allocated ID.
+
+Flat import performs carrier, dense-layout, and logical-count validation before destination or ID
+allocation. A blank label and identifier exhaustion are observed after destination allocation and
+before copying. Unexpected population failures occur after ID allocation and are not rolled back.
 
 ### Tensor descriptor
 

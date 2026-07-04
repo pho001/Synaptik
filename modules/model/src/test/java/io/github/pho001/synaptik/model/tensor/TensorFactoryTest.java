@@ -77,25 +77,77 @@ class TensorFactoryTest {
                 "allocate", TensorDescriptor.class);
         Method allocateComplete = TensorFactory.class.getDeclaredMethod(
                 "allocate", TensorDescriptor.class, Optional.class);
+        Method importFloat64 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, double[].class);
+        Method importFloat32 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, float[].class);
+        Method importBfloat16 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, short[].class);
+        Method importInt32 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, int[].class);
+        Method importInt64 = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, long[].class);
+        Method importBool = TensorFactory.class.getDeclaredMethod(
+                "fromFlatArray", TensorDescriptor.class, Optional.class, byte[].class);
+        Method importFlat = TensorFactory.class.getDeclaredMethod(
+                "importFlat",
+                TensorDescriptor.class,
+                Optional.class,
+                DataType.class,
+                int.class,
+                MemorySegment.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
         assertEquals(
-                Set.of(convenience, complete, allocateConvenience, allocateComplete, allocator),
+                Set.of(
+                        convenience,
+                        complete,
+                        allocateConvenience,
+                        allocateComplete,
+                        importFloat64,
+                        importFloat32,
+                        importBfloat16,
+                        importInt32,
+                        importInt64,
+                        importBool,
+                        importFlat,
+                        allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
         assertAll(
                 () -> assertEquals(Tensor.class, convenience.getReturnType()),
                 () -> assertEquals(Tensor.class, complete.getReturnType()),
                 () -> assertEquals(Tensor.class, allocateConvenience.getReturnType()),
                 () -> assertEquals(Tensor.class, allocateComplete.getReturnType()),
+                () -> assertEquals(Tensor.class, importFloat64.getReturnType()),
+                () -> assertEquals(Tensor.class, importFloat32.getReturnType()),
+                () -> assertEquals(Tensor.class, importBfloat16.getReturnType()),
+                () -> assertEquals(Tensor.class, importInt32.getReturnType()),
+                () -> assertEquals(Tensor.class, importInt64.getReturnType()),
+                () -> assertEquals(Tensor.class, importBool.getReturnType()),
+                () -> assertEquals(Tensor.class, importFlat.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(complete.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(allocateConvenience.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(allocateComplete.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importFloat64.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importFloat32.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importBfloat16.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importInt32.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importInt64.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importBool.getModifiers())),
+                () -> assertTrue(Modifier.isPrivate(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(complete.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocateConvenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocateComplete.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importFloat64.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importFloat32.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importBfloat16.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importInt32.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importInt64.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importBool.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }
 

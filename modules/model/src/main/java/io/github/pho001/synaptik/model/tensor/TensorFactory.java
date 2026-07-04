@@ -1,8 +1,11 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,11 +26,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * atomics allocate model identity only; they are not a runtime service locator or registry. The
  * factory accepts completed descriptors and optional caller-supplied borrowed storage, delegates
  * label and storage semantics to {@link Tensor}, and can allocate exact-span Java primitive-array
- * storage for a resolved layout. Heap allocation uses automatic-scope memory segments, so it
+ * storage for a resolved layout. It can also import a matching flat primitive array into a
+ * resolved dense-contiguous tensor by copying its row-major logical values into newly allocated
+ * heap storage. Numeric values and raw BFLOAT16 bits are copied unchanged; BOOL bytes are
+ * normalized to zero or one. Heap allocation uses automatic-scope memory segments, so it
  * introduces no arena, close operation, external lifetime owner, or deterministic reclamation.
- * The factory does not build descriptors, resolve layouts, import or populate values, expose typed
- * access or backing arrays, create provenance, allocate native or backend memory, or provide
- * compiler, runtime, or backend behavior.</p>
+ * The factory does not build descriptors, resolve layouts, retain or expose source/backing arrays,
+ * convert values, import nested arrays, provide typed tensor access, create provenance, allocate
+ * native or backend memory, or provide compiler, runtime, or backend behavior.</p>
  */
 public final class TensorFactory {
     /**
@@ -236,6 +242,326 @@ public final class TensorFactory {
         MemorySegmentStorage storage =
                 new MemorySegmentStorage(descriptor.dataType(), requiredSpan, segment);
         return create(descriptor, label, Optional.of(storage));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#FLOAT64} tensor by copying flat binary64 values.
+     *
+     * <p>The source order is the tensor's logical row-major order. The descriptor must have a
+     * resolved dense-contiguous layout and its known logical element count must equal the source
+     * length. The source array is not retained, and mutation after return cannot affect the
+     * tensor. Allocation, optional-label normalization, identifier allocation, and their failure
+     * side effects remain those of {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout,
+     * and length failures occur before destination or identifier allocation. A blank label fails
+     * after destination and identifier allocation but before copying; exhaustion occurs after
+     * destination allocation and before copying. Unexpected copy failures consume the identifier,
+     * and no rollback is attempted.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code FLOAT64} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label passed to allocation; present text is
+     *     normalized and validated by {@link Tensor}
+     * @param source non-null flat binary64 values to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent copy of all source values
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code FLOAT64}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, double[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.FLOAT64,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#FLOAT32} tensor by copying flat binary32 values.
+     *
+     * <p>The source order is logical row-major order. A resolved dense-contiguous layout, exact
+     * data-type match, and exact logical element count are required. The source array is not
+     * retained. Allocation, label validation, and identifier side effects follow
+     * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
+     * before destination or identifier allocation. A blank label fails after destination and
+     * identifier allocation but before copying; exhaustion occurs after destination allocation
+     * and before copying. Unexpected copy failures consume the identifier without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code FLOAT32} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null flat binary32 values to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent copy of all source values
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code FLOAT32}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, float[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.FLOAT32,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#BFLOAT16} tensor by copying raw BFLOAT16 bits.
+     *
+     * <p>Each short is copied bit-for-bit without floating-point conversion. Source order is
+     * logical row-major order. A resolved dense-contiguous layout and exact logical element count
+     * are required. The source array is not retained; allocation, label validation, and identifier
+     * side effects follow {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and
+     * length failures occur before destination or identifier allocation. A blank label fails after
+     * destination and identifier allocation but before copying; exhaustion occurs after
+     * destination allocation and before copying. Unexpected copy failures consume the identifier
+     * without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code BFLOAT16} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null raw BFLOAT16 bit patterns to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent bit-for-bit copy of the source
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code BFLOAT16}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, short[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.BFLOAT16,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#INT32} tensor by copying flat integer values.
+     *
+     * <p>The source order is logical row-major order. A resolved dense-contiguous layout, exact
+     * data-type match, and exact logical element count are required. The source array is not
+     * retained; allocation, label validation, and identifier side effects follow
+     * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
+     * before destination or identifier allocation. A blank label fails after destination and
+     * identifier allocation but before copying; exhaustion occurs after destination allocation
+     * and before copying. Unexpected copy failures consume the identifier without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code INT32} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null flat signed 32-bit values to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent copy of all source values
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code INT32}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, int[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.INT32,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#INT64} tensor by copying flat integer values.
+     *
+     * <p>The source order is logical row-major order. A resolved dense-contiguous layout, exact
+     * data-type match, and exact logical element count are required. The source array is not
+     * retained; allocation, label validation, and identifier side effects follow
+     * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
+     * before destination or identifier allocation. A blank label fails after destination and
+     * identifier allocation but before copying; exhaustion occurs after destination allocation
+     * and before copying. Unexpected copy failures consume the identifier without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code INT64} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null flat signed 64-bit values to copy; the caller retains the array
+     * @return a non-null fresh tensor containing an independent copy of all source values
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code INT64}, its
+     *     layout is unresolved or not dense-contiguous, source length differs from logical element
+     *     count, or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, long[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.INT64,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous {@link DataType#BOOL} tensor from flat logical bytes.
+     *
+     * <p>Each zero byte is stored as canonical false byte {@code 0}; every non-zero byte is stored
+     * as canonical true byte {@code 1}. Source order is logical row-major order. A resolved
+     * dense-contiguous layout and exact logical element count are required. The source array is not
+     * retained; allocation, label validation, and identifier side effects follow
+     * {@link #allocate(TensorDescriptor, Optional)}. Carrier, layout, and length failures occur
+     * before destination or identifier allocation. A blank label fails after destination and
+     * identifier allocation but before normalization; exhaustion occurs after destination
+     * allocation and before normalization. Unexpected normalization failures consume the
+     * identifier without rollback.</p>
+     *
+     * @param descriptor non-null completed descriptor whose data type is {@code BOOL} and whose
+     *     resolved layout is dense-contiguous
+     * @param label non-null optional diagnostic label delegated to allocation
+     * @param source non-null flat logical bytes to normalize and copy; the caller retains the array
+     * @return a non-null fresh tensor containing canonical zero-or-one bytes independent of source
+     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code source} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the descriptor data type is not {@code BOOL}, its layout
+     *     is unresolved or not dense-contiguous, source length differs from logical element count,
+     *     or delegated Tensor validation rejects a blank label
+     * @throws IllegalStateException if resolved geometry unexpectedly has no known logical element
+     *     count, or identifier space is exhausted with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if destination heap allocation fails before identifier allocation
+     */
+    public static Tensor fromFlatArray(
+            TensorDescriptor descriptor, Optional<String> label, byte[] source) {
+        Objects.requireNonNull(descriptor, "descriptor");
+        Objects.requireNonNull(label, "label");
+        Objects.requireNonNull(source, "source");
+        return importFlat(
+                descriptor,
+                label,
+                DataType.BOOL,
+                source.length,
+                MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Validates and imports one already carrier-typed flat row-major source segment.
+     *
+     * <p>Logical import is limited to resolved dense-contiguous geometry so sequential source
+     * positions map one-to-one to sequential destination positions. Exact carrier data type and
+     * logical element count are validated before destination or identifier allocation. Numeric
+     * carriers and raw BFLOAT16 bits use a byte-for-byte bulk copy; only BOOL is normalized because
+     * its byte carrier accepts multiple non-zero encodings for the same logical true value. After
+     * validation, the method calls {@link #allocate(TensorDescriptor, Optional)} exactly once,
+     * obtains the attached destination segment, fully populates it, and only then returns the
+     * tensor. The source segment and its array are never retained.</p>
+     *
+     * <p>A delegated blank-label failure occurs after destination and identifier allocation but
+     * before population. Identifier exhaustion occurs inside allocation after destination storage
+     * allocation and before population. An unexpected population failure occurs after identifier
+     * creation, consumes that identifier, and is not rolled back.</p>
+     *
+     * @param descriptor non-null completed descriptor validated by the public overload
+     * @param label non-null optional label delegated unchanged to allocation
+     * @param sourceDataType exact non-null data type belonging to the public source carrier
+     * @param sourceLength non-negative source element count
+     * @param sourceSegment non-null temporary non-owning segment over the caller's source array
+     * @return the exact newly allocated and fully populated tensor; never {@code null}
+     * @throws IllegalArgumentException if the carrier data type differs from the descriptor, the
+     *     layout is unresolved or is not {@link LayoutKind#DENSE_CONTIGUOUS}, source length differs
+     *     from logical element count, or delegated label validation rejects blank text
+     * @throws IllegalStateException if a resolved layout unexpectedly has no known logical element
+     *     count, or identifier space is exhausted
+     * @throws OutOfMemoryError if destination heap allocation fails
+     */
+    private static Tensor importFlat(
+            TensorDescriptor descriptor,
+            Optional<String> label,
+            DataType sourceDataType,
+            int sourceLength,
+            MemorySegment sourceSegment) {
+        if (descriptor.dataType() != sourceDataType) {
+            throw new IllegalArgumentException(
+                    "flat source data type must match descriptor: expected="
+                            + sourceDataType
+                            + ", actual="
+                            + descriptor.dataType());
+        }
+
+        var layout = descriptor.layout();
+        if (layout.isEmpty()) {
+            throw new IllegalArgumentException("flat tensor import requires a resolved layout");
+        }
+        LayoutKind layoutKind = layout.orElseThrow().kind();
+        if (layoutKind != LayoutKind.DENSE_CONTIGUOUS) {
+            throw new IllegalArgumentException(
+                    "flat tensor import requires dense-contiguous layout: actual=" + layoutKind);
+        }
+
+        var knownElementCount = descriptor.shape().knownElementCount();
+        if (knownElementCount.isEmpty()) {
+            throw new IllegalStateException("resolved tensor layout requires a fully static shape");
+        }
+        long required = knownElementCount.getAsLong();
+        if (required != sourceLength) {
+            throw new IllegalArgumentException(
+                    "flat source length must equal logical element count: required="
+                            + required
+                            + ", actual="
+                            + sourceLength);
+        }
+
+        Tensor tensor = allocate(descriptor, label);
+        MemorySegment destination = tensor.hostStorage().orElseThrow().segment();
+        if (sourceDataType == DataType.BOOL) {
+            for (long index = 0; index < sourceLength; index++) {
+                byte value = sourceSegment.get(ValueLayout.JAVA_BYTE, index);
+                destination.set(ValueLayout.JAVA_BYTE, index, value == 0 ? (byte) 0 : (byte) 1);
+            }
+        } else {
+            MemorySegment.copy(sourceSegment, 0, destination, 0, sourceSegment.byteSize());
+        }
+        return tensor;
     }
 
     /**

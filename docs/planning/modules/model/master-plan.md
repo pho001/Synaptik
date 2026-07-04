@@ -97,7 +97,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0011 | [Public Tensor skeleton](tasks/0011-public-tensor-skeleton.md) | Complete | 0004, 0007, 0010 | Define stable public Tensor identity/descriptor/label and synchronized optional host-storage state without graph or runtime state. |
 | 0012 | [Tensor factory foundation](tasks/0012-tensor-factory.md) | Complete | 0010, 0011 | Expose descriptor-based public construction, optional borrowed storage attachment, and JVM-wide tensor-ID allocation without allocating memory. |
 | 0012A | [JVM-managed heap host storage allocation](tasks/0012a-host-storage-allocation.md) | Complete | 0010, 0012 | Add exact-span typed primitive-array allocation through the existing borrowed heap-segment storage contract. |
-| 0012B | Flat typed tensor import | Draft | 0012A | Define typed carrier matching, logical-count validation, copying, and storage population. |
+| 0012B | [Flat typed tensor import](tasks/0012b-flat-typed-tensor-import.md) | Complete | 0012A | Import copied flat primitive arrays into dense-contiguous tensors with exact carrier and logical-count validation. |
 | 0012C | Nested typed tensor import | Draft | 0012B | Define supported rectangular nested arrays, shape inference, ragged/empty behavior, and flattening. |
 | 0012D | Constant tensor creation | Draft | 0012B | Add focused scalar, zeros, ones, zeros-like, and ones-like conveniences. |
 | 0012E | Range and prefix population | Draft | 0012B | Add integer ranges plus strict and cyclic prefix population under explicit validation. |
@@ -125,20 +125,21 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with task 0012A complete and task 0012B next as a Draft planning frontier.
+Draft, with task 0012B complete and task 0012C next as a Draft planning frontier.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
 0008, graph value and node model, task 0009, compiled graph model, and task 0010, host storage
 abstraction, are complete. Task 0011, public Tensor skeleton, and task 0012, the bounded Tensor
 factory foundation, are also complete. Task 0012A, JVM-managed heap host storage allocation, is
-complete. Task 0012B is the next `Draft` planning frontier, followed by Draft import and population
-families 0012C–0012F before provenance task 0013. No task-0012B specification exists yet.
+complete. Task 0012B, flat typed tensor import, is also complete. Task 0012C, nested typed tensor
+import, is the next `Draft` planning frontier, followed by Draft population families 0012D–0012F
+before provenance task 0013. No task-0012C specification exists yet.
 
 ## Open questions
 
-- Flat/nested import, constant, range/prefix, and random population contracts remain local to
-  tasks 0012B–0012F and may be split further before becoming `Ready`.
+- Nested import, constant, range/prefix, and random population contracts remain local to tasks
+  0012C–0012F and may be split further before becoming `Ready`.
 - The minimal provenance representation remains local to task 0013 after the factory capability
   sequence.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
@@ -193,10 +194,10 @@ families 0012C–0012F before provenance task 0013. No task-0012B specification 
 - Factory argument-container null failures occur before ID allocation. Tensor label/storage
   failures occur after allocation and consume the candidate so the factory does not duplicate
   canonical validation or attempt unsafe concurrent rollback.
-- The broad factory baseline is split into task 0012A for JVM-managed heap allocation and Draft
-  tasks 0012B–0012F for flat and nested imports, constant tensors, range/prefix population, and
-  random tensors. These rows remain before provenance; task 0012A is the completed detailed
-  specification, and no task-0012B specification exists yet.
+- The broad factory baseline is split into completed task 0012A for JVM-managed heap allocation,
+  completed task 0012B for flat typed import, and Draft tasks 0012C–0012F for nested import,
+  constant tensors, range/prefix population, and random tensors. These rows remain before
+  provenance; task 0012C is the next planning frontier and has no detailed specification yet.
 - Task 0012A adds only JVM-managed heap allocation to `TensorFactory`. It allocates one typed
   primitive array whose length is the resolved layout's referenced element span, wraps the
   `MemorySegment.ofArray(...)` result in the existing `MemorySegmentStorage`, and delegates to the
@@ -205,7 +206,15 @@ families 0012C–0012F before provenance task 0013. No task-0012B specification 
   and is always accessible from any thread. Task 0012A therefore adds no owning wrapper, arena,
   close behavior, external owner, or storage-contract change.
 - Task 0012A requires resolved layout, rejects span above `Integer.MAX_VALUE`, and keeps allocation
-  separate from typed import and population in Draft tasks 0012B–0012F.
+  separate from the flat import completed in task 0012B and the population families that remain in
+  Draft tasks 0012C–0012F.
+- Task 0012B adds six typed flat-array overloads for `double[]`, `float[]`, raw BFLOAT16 `short[]`,
+  `int[]`, `long[]`, and BOOL `byte[]`. It accepts only resolved dense-contiguous layout, validates
+  source length against logical element count, copies all input data, and normalizes BOOL bytes to
+  canonical zero or one without retaining caller arrays.
+- Offset, strided, and broadcast layouts are rejected by flat import because mapping independent
+  row-major source values into aliased or sparse physical geometry is a distinct scatter/view
+  policy. Task 0012B reuses task-0012A allocation and the existing factory identity path.
 
 ## Risks
 
@@ -233,8 +242,10 @@ completed public Tensor skeleton with stable metadata and a synchronized borrowe
 association. Task 0012 completed public descriptor-based construction, optional borrowed storage
 attachment, and JVM-scoped ID allocation only. Task 0012A completed exact-span typed primitive-
 array heap allocation through automatic-scope segments without changing the borrowed storage
-contract. Draft tasks 0012B–0012F preserve the remaining factory capability families in executable
-order before task 0013 provenance; task 0012B is now the next planning frontier, but its detailed
-specification has not been created. Concrete operation families remain in tasks 0014–0023. The
+contract. Task 0012B completed copied flat typed import for all six data types with
+dense-contiguous/count validation and BOOL normalization. Draft tasks 0012C–0012F preserve the
+remaining factory capability families in executable order before task 0013 provenance; task 0012C
+is the next planning frontier without a detailed specification. Concrete operation families
+remain in tasks 0014–0023. The
 legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

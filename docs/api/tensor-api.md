@@ -7,9 +7,9 @@ This reference documents the public model contracts that are implemented today. 
 and `TensorFactory` provides the public descriptor-based construction boundary with
 factory-assigned identity and JVM-managed heap allocation for resolved descriptors. Provenance,
 expression operations, typed access, gradient and publication behavior, storage import and
-population, native/runtime/backend allocation, compiler integration, runtime residency, and
-backend execution remain planned. The authoritative module boundary remains
-[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+population beyond copied flat typed arrays, native/runtime/backend allocation, compiler
+integration, runtime residency, and backend execution remain planned. The authoritative module
+boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values and provide one bounded host-allocation path without
 executing a tensor:
@@ -20,6 +20,7 @@ DataType + physical capacity + exact MemorySegment           = MemorySegmentStor
 TensorId + TensorDescriptor + label + optional host storage  = Tensor
 TensorFactory + completed descriptor + optional metadata     = public Tensor construction
 TensorFactory + resolved descriptor                          = exact-span heap storage + Tensor
+TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -35,7 +36,9 @@ allowing only its borrowed host-storage association to change. The implemented `
 creates tensors from completed descriptors and assigns identity unique among factory allocations
 within the current Java virtual machine (JVM). For a descriptor with resolved layout geometry, its
 allocation overloads also create one matching primitive array whose length is the layout's
-referenced element span and attach the resulting heap-segment storage.
+referenced element span and attach the resulting heap-segment storage. Its flat-array overloads
+copy one matching primitive carrier into a resolved dense-contiguous tensor without retaining the
+caller's array.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -283,7 +286,7 @@ Construction remains package-private so `Tensor` keeps one validation path. Code
 creates an unlabeled storage-free tensor, while the complete overload also accepts optional label
 text and optional existing borrowed host storage. Both overloads retain the exact descriptor, and
 the complete overload retains the exact compatible storage object. The factory does not construct
-descriptors, choose or resolve layouts, or import values.
+descriptors or choose or resolve layouts; these two creation overloads do not import values.
 
 For a descriptor whose layout is resolved, `allocate(descriptor)` and
 `allocate(descriptor, label)` allocate exactly `layout.referencedElementSpan()` elements. The
@@ -293,6 +296,104 @@ default all-zero raw representation. A span above `Integer.MAX_VALUE` is rejecte
 allocation, and an unresolved layout is rejected rather than inferred. These overloads do not
 provide typed access, copy or conversion, boolean normalization, value import, fill operations,
 public constants, native allocation, or descriptor synthesis.
+
+Flat typed import is the current value-population boundary. `fromFlatArray(descriptor, label,
+source)` has exactly six overloads and maps carriers without conversion:
+
+| Source carrier | Required data type | Imported meaning |
+|---|---|---|
+| `double[]` | `FLOAT64` | IEEE 754 binary64 values copied bit-for-bit |
+| `float[]` | `FLOAT32` | IEEE 754 binary32 values copied bit-for-bit |
+| `short[]` | `BFLOAT16` | Raw BFLOAT16 bit patterns copied unchanged |
+| `int[]` | `INT32` | Signed 32-bit integer values |
+| `long[]` | `INT64` | Signed 64-bit integer values |
+| `byte[]` | `BOOL` | Zero becomes `0`; every non-zero value becomes canonical `1` |
+
+The descriptor must have the exact mapped data type and a resolved `DENSE_CONTIGUOUS` layout.
+Its known logical element count must equal the Java array length. The factory treats source order
+as logical row-major order, allocates a new matching heap array through the existing allocation
+path, and completely copies or normalizes the values before returning the tensor. The source
+array is neither retained nor mutated, so changing it after return cannot change the tensor.
+Rank-0 scalars require one source element, and empty dense tensors require an empty source array.
+
+Data-type, unresolved-layout, non-dense-layout, and length failures happen before destination or
+identifier allocation. A blank label reaches the existing allocation and Tensor-construction
+path, so destination storage and an identifier are allocated before the label fails; no copy is
+performed. Identifier exhaustion is also observed after destination allocation and before copy.
+Unexpected copy failures occur after identifier allocation and are not rolled back. Offset-dense,
+strided, broadcast, and unresolved descriptors remain unsupported because importing independent
+row-major values into those geometries requires a separate scatter or view policy.
+
+### Complete flat-import example
+
+#### Goal and inputs
+
+Import three logical BOOL values from bytes `{0, -2, 3}`, verify canonical storage, and show that
+later source mutation does not affect the tensor.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class FlatImportExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(3);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.BOOL,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        byte[] source = {0, -2, 3};
+
+        Tensor tensor = TensorFactory.fromFlatArray(
+                descriptor, Optional.of("mask"), source);
+        byte[] imported = (byte[]) tensor.hostStorage()
+                .orElseThrow()
+                .segment()
+                .heapBase()
+                .orElseThrow();
+
+        source[0] = 9;
+        System.out.println(tensor.label().orElseThrow());
+        System.out.println(Arrays.toString(imported));
+    }
+}
+```
+
+#### Meaningful lines
+
+- `LayoutDescriptor.contiguous(shape)` supplies the required resolved dense-contiguous geometry.
+- The `byte[]` carrier matches `BOOL`; import normalizes both non-zero values to canonical byte
+  `1` while copying into a distinct factory-allocated array.
+- Mutating `source` after import demonstrates that the returned tensor does not retain that array.
+  The raw heap-base inspection uses the already exposed storage segment only to make this example's
+  result observable; it is not a typed Tensor access API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+mask
+[0, 1, 1]
+```
+
+The result proves BOOL normalization, copied ownership, label retention, and row-major order for a
+dense flat import. It does not provide public typed access or export, numeric conversion, nested
+array import, view scattering, native allocation, runtime residency, or backend execution.
+
+#### Failures and useful variations
+
+- Using this `byte[]` with a non-`BOOL` descriptor fails before destination or ID allocation.
+- An offset, strided, broadcast, or unresolved layout is rejected before source-length validation.
+- A source of length two or four fails because the shape has exactly three logical elements.
+- `short[]` imports raw BFLOAT16 bits; it does not convert Java `float` values.
 
 The matching `MemorySegment.ofArray(...)` overload creates a writable heap segment with an
 automatic scope. That scope keeps the primitive array reachable and permits access from any
@@ -691,8 +792,8 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- flat and nested tensor import, constant/scalar/range/prefix/random population conveniences, and
-  typed tensor access;
+- nested tensor import, constant/scalar/range/prefix/random population conveniences, and typed
+  tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -730,6 +831,11 @@ provide a compiler entry point or executable support.
   only after allocation and wrapping. Preallocation and JVM allocation failures consume no ID;
   blank-label failure and identifier exhaustion occur after heap allocation. Automatic scope keeps
   factory-created arrays reachable without an arena, close operation, or external owner.
+- Its six flat-array overloads require exact carrier/data-type matching, resolved
+  `DENSE_CONTIGUOUS` layout, and source length equal to logical element count. Numeric carriers and
+  raw BFLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. The source is
+  not retained. Import validation failures consume no ID, while blank-label failure and exhaustion
+  occur after destination allocation and before population.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.

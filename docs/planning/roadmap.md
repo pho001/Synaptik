@@ -42,16 +42,19 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012B Flat typed tensor import (Draft)
+0012C Nested typed tensor import (Draft)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
 JVM-wide tensor-ID allocation. Task [`0012A`](modules/model/tasks/0012a-host-storage-allocation.md)
 is complete. It adds exact-span typed primitive-array allocation through the existing borrowed
-heap-segment storage contract without arena ownership or close behavior. Task `0012B` is now the
-next `Draft` planning frontier. Tasks `0012B`–`0012F` preserve import and population families
-before task `0013` and have no detailed specifications yet.
+heap-segment storage contract without arena ownership or close behavior. Task
+[`0012B`](modules/model/tasks/0012b-flat-typed-tensor-import.md) is complete. It imports copied
+flat primitive arrays into resolved dense-contiguous tensors with exact carrier/count validation
+and canonical BOOL normalization. Task `0012C` is now the next `Draft` planning frontier; tasks
+`0012C`–`0012F` preserve nested import and population families before task `0013`. No detailed
+task-0012C specification exists yet.
 
 ## Model task sequence
 
@@ -73,7 +76,7 @@ before task `0013` and have no detailed specifications yet.
 | 14 | [0011 Public Tensor skeleton](modules/model/tasks/0011-public-tensor-skeleton.md) | Complete |
 | 15 | [0012 Tensor factory foundation](modules/model/tasks/0012-tensor-factory.md) | Complete |
 | 16 | [0012A JVM-managed heap host storage allocation](modules/model/tasks/0012a-host-storage-allocation.md) | Complete |
-| 17 | 0012B Flat typed tensor import | Draft |
+| 17 | [0012B Flat typed tensor import](modules/model/tasks/0012b-flat-typed-tensor-import.md) | Complete |
 | 18 | 0012C Nested typed tensor import | Draft |
 | 19 | 0012D Constant tensor creation | Draft |
 | 20 | 0012E Range and prefix population | Draft |
