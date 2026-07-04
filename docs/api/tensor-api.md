@@ -8,15 +8,16 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
 integral, and Bernoulli random population. The current concrete expression surface contains seven
-floating tensor-to-tensor binary arithmetic methods, fifteen floating unary elementwise methods,
-and five floating scalar arithmetic and clamp methods. Typed access, other expression families,
-gradient objects and publication behavior, native/runtime/backend allocation, compiler
+floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
+methods, fifteen floating unary elementwise methods, and five floating scalar arithmetic and
+clamp methods. Typed access, other expression families, gradient objects and publication behavior,
+native/runtime/backend allocation, compiler
 integration, runtime residency, and backend execution remain planned. The authoritative module
 boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current types describe logical values, construct storage-free binary, unary, and scalar
-expressions, and provide one bounded host-allocation path without executing a tensor:
+The current types describe logical values, construct storage-free arithmetic, comparison, unary,
+and scalar expressions, and provide one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -36,6 +37,7 @@ TensorFactory + static shape/type + caller RandomGenerator    = copied dense nor
 TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
+left Tensor + comparison kind + right Tensor                   = fresh BOOL descriptor + provenance Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
@@ -98,19 +100,24 @@ and explicit fast-approximation meanings. `ScalarElementwiseKind` names five par
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
 `ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
-tensors. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`,
-`sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary kinds to create
-storage-free expressions from one floating input. The public scalar overloads `Tensor.mul(double)`,
-`pow(double)`, `clamp(double, double)`, `clampMin(double)`, and `clampMax(double)` use the scalar
-kinds and typed attributes to create one-input storage-free expressions while retaining every
-caller-supplied binary64 parameter bit. `TensorProvenance` retains the exact operation and ordered
-public-tensor inputs. All three expression families derive result descriptors, but none assigns
+tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
+and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
+from ordered floating inputs. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`,
+`floor`, `ceil`, `sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary
+kinds to create storage-free expressions from one floating input. The public scalar overloads
+`Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
+`clampMax(double)` use the scalar kinds and typed attributes to create one-input storage-free
+expressions while retaining every caller-supplied binary64 parameter bit. `TensorProvenance`
+retains the exact operation and ordered public-tensor inputs. All four expression families derive
+result descriptors, but none assigns
 graph identity, captures a graph, calculates values, defines gradient rules, or executes
 computation.
 
-`BinaryComparisonKind` currently supplies semantic identity only. Public comparison Tensor
-methods, floating eligibility and promotion, broadcasting, BOOL result descriptors, provenance,
-numerical edge behavior, gradients, and execution remain planned for their owning layers.
+Comparison expression construction validates floating compatibility and local broadcasting, then
+derives an unresolved non-differentiable `BOOL` descriptor and exact ordered provenance. It does
+not define numerical comparison behavior for NaN, infinity, signed zero, tolerance, or mixed
+floating precision. Compiler capture, gradients, backend lowering, and execution also remain
+planned for their owning layers.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -1445,11 +1452,11 @@ input objects using their ordinary equality; it is not producer-occurrence ident
 be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
-package-private derived-construction seam used by the implemented binary, unary, and scalar
-expression helpers attaches one already-validated provenance value, allocates exactly one ID
-through the existing allocator, and creates no storage. The factory seam itself does not inspect
-the operation or inputs, infer a descriptor, traverse an expression, capture a graph, or perform
-semantic validation.
+package-private derived-construction seam used by the implemented binary arithmetic, comparison,
+unary, and scalar expression helpers attaches one already-validated provenance value, allocates
+exactly one ID through the existing allocator, and creates no storage. The factory seam itself does
+not inspect the operation or inputs, infer a descriptor, traverse an expression, capture a graph,
+or perform semantic validation.
 
 ### Binary arithmetic expressions
 
@@ -1566,6 +1573,126 @@ the current expression-construction API.
 
 - A null right operand fails with `NullPointerException` and message `right`.
 - An `INT32`, `INT64`, or `BOOL` operand fails through floating promotion; no implicit cast is
+  inserted.
+- Incompatible static dimensions, different dynamic symbols, and a dynamic dimension paired with
+  a non-singleton static size fail through local broadcasting. Equal dynamic symbols and singleton
+  expansion remain valid.
+- Validation failures happen before result identity allocation. Exhausting the factory's tensor-ID
+  space instead fails after the local descriptor, operation, and provenance values are built.
+
+### Binary comparison expressions
+
+The six current comparison methods build ordered elementwise relation semantics; they do not read
+or compare element values:
+
+| Method | Ordered meaning of `left.method(right)` |
+|---|---|
+| `greaterThan` | Left value is strictly greater than the right value. |
+| `greaterOrEqual` | Left value is greater than or equal to the right value. |
+| `lessThan` | Left value is strictly less than the right value. |
+| `lessOrEqual` | Left value is less than or equal to the right value. |
+| `equalTo` | Left and right values compare equal. |
+| `notEqualTo` | Left and right values compare unequal. |
+
+The receiver remains the ordered left input and the argument remains the ordered right input for
+every method. Equality and inequality retain this order in provenance even though their relation
+is symmetric.
+
+Each method accepts every ordered pair of `BFLOAT16`, `FLOAT32`, and `FLOAT64` inputs. The existing
+floating-promotion hierarchy validates their common comparison domain, but the promoted type is
+not the output type. Right-aligned local broadcasting derives the result shape. The result data
+type is always `BOOL`, its layout is unresolved, and `requiresGrad` is always false even when one
+or both inputs request gradients.
+
+Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
+Its provenance contains one `Operation` with the exact matching `BinaryComparisonKind` and
+`NoOperationAttrs.INSTANCE`, followed by exact ordered input references `[left, right]`. Repeated,
+self, and symmetric calls are not interned, reordered, or canonicalized. Numerical comparison
+policy, compiler capture, training-graph treatment, gradient rules, and backend execution remain
+later responsibilities.
+
+#### Complete comparison-expression example
+
+##### Goal and inputs
+
+Build a less-than-or-equal expression from a `BFLOAT16` left tensor of shape `[2, 1]` and a
+`FLOAT64` right tensor of shape `[1, 3]`. The left input requests gradients, but the logical result
+is a non-differentiable `BOOL` tensor. Both inputs are storage-free leaves, so the example observes
+expression metadata rather than numerical comparison results.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class ComparisonExpressionExample {
+    public static void main(String[] args) {
+        Tensor left = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(2, 1), Optional.empty(), true));
+        Tensor right = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(1, 3), Optional.empty(), false));
+
+        Tensor result = left.lessOrEqual(right);
+        TensorProvenance provenance = result.provenance().orElseThrow();
+
+        System.out.println("type=" + result.descriptor().dataType());
+        System.out.println("shape=" + result.descriptor().shape());
+        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
+        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + result.label().isEmpty());
+        System.out.println("storageFree=" + result.hostStorage().isEmpty());
+        System.out.println("kind=" + provenance.operation().kind());
+        System.out.println("parameterless="
+                + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("orderedInputs="
+                + (provenance.inputs().get(0) == left
+                && provenance.inputs().get(1) == right));
+        System.out.println("fresh=" + (result != left && result != right));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `BFLOAT16` and `FLOAT64` establish `FLOAT64` as the common comparison domain, but the result
+  remains `BOOL`.
+- Right alignment compares shape axes as `1` with `3` and `2` with `1`; singleton expansion
+  produces shape `[2, 3]`.
+- `left.lessOrEqual(right)` preserves the ordered relation: `left` is compared to `right`, the
+  operation kind is `LESS_OR_EQUAL`, and the attributes are the canonical parameterless singleton.
+- The true input gradient request does not propagate. A comparison result has false gradient
+  eligibility and this construction adds no gradient rule.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+type=BOOL
+shape=Shape[2, 3]
+layoutUnresolved=true
+requiresGrad=false
+unlabeled=true
+storageFree=true
+kind=LESS_OR_EQUAL
+parameterless=true
+orderedInputs=true
+fresh=true
+```
+
+The output proves floating-domain validation, broadcasting, fixed `BOOL` descriptor facts, fresh
+identity, and ordered provenance. It does not prove any elementwise truth value, NaN or signed-zero
+policy, tolerance behavior, gradient handling by a future compiler, backend support, or execution.
+
+##### Failures and useful variations
+
+- A null right operand fails with `NullPointerException` and message `right`.
+- An `INT32`, `INT64`, or `BOOL` operand fails through floating validation; no implicit cast is
   inserted.
 - Incompatible static dimensions, different dynamic symbols, and a dynamic dimension paired with
   a non-singleton static size fail through local broadcasting. Equal dynamic symbols and singleton
@@ -2064,11 +2191,13 @@ It describes ordered comparison meaning only; it stores no operands or broadcast
 a Tensor result, provenance value, graph occurrence, or executable operation. The generic
 `Operation` descriptor does not enforce the documented parameterless pairing.
 
-Input eligibility, floating promotion, right-aligned broadcasting, BOOL result derivation,
-`requiresGrad`, NaN and signed-zero behavior, public Tensor methods, provenance construction,
-gradient policy, compiler capture, execution, and backend availability remain planned. Inherited
-enum names and text are diagnostic rather than serialization or dispatch keys. Typed identity
-keeps an equally named kind from another family unequal to `BinaryComparisonKind`.
+The current public comparison methods separately own floating-pair validation, right-aligned local
+broadcasting, fixed `BOOL` result derivation with false `requiresGrad`, and ordered provenance
+construction. NaN, infinity, signed-zero, tolerance, and mixed-precision numerical behavior,
+gradient policy beyond the descriptor flag, compiler capture, execution, and backend availability
+remain planned. Inherited enum names and text are diagnostic rather than serialization or dispatch
+keys. Typed identity keeps an equally named kind from another family unequal to
+`BinaryComparisonKind`.
 
 ### Unary elementwise semantic kinds
 
@@ -2195,9 +2324,8 @@ select a kernel, or execute computation. Production `BinaryArithmeticKind`,
 `BinaryComparisonKind`, and `UnaryElementwiseKind` provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`. Additional kind families, compiler behavior, and executable support remain
-later work in their owning layers. Binary arithmetic, unary elementwise, and scalar elementwise
-semantics have current public Tensor expression methods; binary comparison expression methods
-remain planned.
+later work in their owning layers. Binary arithmetic, binary comparison, unary elementwise, and
+scalar elementwise semantics have current public Tensor expression methods.
 
 ## Graph values and compiled nodes
 
@@ -2365,8 +2493,8 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- expression families beyond binary arithmetic, unary elementwise, and scalar elementwise
-  operations, plus gradient and trainable state and publication behavior;
+- expression families beyond binary arithmetic, binary comparison, unary elementwise, and scalar
+  elementwise operations, plus gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, unary elementwise, and
   scalar elementwise semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -2378,8 +2506,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ClampRangeAttrs`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison, unary
 elementwise, and scalar elementwise semantics are the current production concrete kind families.
-The arithmetic, unary, and scalar families have matching public Tensor expression methods; the
-comparison family does not yet. The graph records can compose these or test-local semantics, but
+All four current kind families have matching public Tensor expression methods. The graph records
+can compose these or test-local semantics, but
 they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
@@ -2412,6 +2540,14 @@ they do not provide a compiler entry point or executable support.
   ordered `[left, right]` provenance. Null, type, and shape failures precede ID allocation;
   identity exhaustion follows local descriptor and provenance construction. These methods do not
   calculate values, simplify expressions, capture graphs, or define gradient or backend behavior.
+- `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, and `notEqualTo`
+  require a non-null right operand, accept only floating input pairs, and require locally provable
+  right-aligned broadcasting. Each successful call returns a fresh unlabeled storage-free `BOOL`
+  Tensor with unresolved layout, false gradient eligibility, the exact parameterless comparison
+  operation, and ordered `[left, right]` provenance. Null, type, and shape failures precede ID
+  allocation; identity exhaustion follows local descriptor and provenance construction. These
+  methods do not inspect values, define numerical comparison or tolerance behavior, create
+  gradient rules, capture graphs, or provide backend execution.
 - `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
   `sigmoid`, `tanh`, `fastExp`, and `fastTanh` accept only floating receiver data types and retain
   the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns

@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -26,17 +27,19 @@ import java.util.Optional;
  *
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
- * make a tensor an intermediate-representation node. Binary arithmetic, parameterized scalar,
- * and unary elementwise expression methods create fresh storage-free tensors whose immutable
- * provenance records the requested semantics and exact inputs; they do not execute mathematics,
- * validate numerical domains, create gradient rules, or capture a graph. Binary methods promote
- * floating operands, broadcast shapes, and combine gradient eligibility by logical OR. Scalar
- * and unary methods accept one floating input and retain its exact data type, shape reference, and
+ * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
+ * parameterized scalar, and unary elementwise expression methods create fresh storage-free
+ * tensors whose immutable provenance records the requested semantics and exact inputs; they do
+ * not execute mathematics, validate numerical domains, create gradient rules, or capture a graph.
+ * Binary arithmetic methods promote floating operands, broadcast shapes, and combine gradient
+ * eligibility by logical OR. Binary comparison methods validate the same floating compatibility
+ * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Scalar and
+ * unary methods accept one floating input and retain its exact data type, shape reference, and
  * gradient eligibility. Scalar methods retain their exact binary64 parameters in typed
  * attributes. Every expression result leaves layout unresolved, has a fresh factory identity and
  * no label or storage, and records an exact matching {@link BinaryArithmeticKind},
- * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}. Gradient eligibility does not
- * promise that a gradient rule exists.
+ * {@link BinaryComparisonKind}, {@link ScalarElementwiseKind}, or
+ * {@link UnaryElementwiseKind}. Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
  */
@@ -319,6 +322,164 @@ public final class Tensor {
      */
     public Tensor pow(Tensor right) {
         return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand is greater than
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_THAN},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
+     * constructs semantics only; numerical comparison behavior, including special floating
+     * values, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor greaterThan(Tensor right) {
+        return TensorComparisonExpressions.apply(this, right, BinaryComparisonKind.GREATER_THAN);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand is greater than or equal
+     * to {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_OR_EQUAL},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
+     * constructs semantics only; numerical comparison behavior, including special floating
+     * values, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor greaterOrEqual(Tensor right) {
+        return TensorComparisonExpressions.apply(
+                this, right, BinaryComparisonKind.GREATER_OR_EQUAL);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand is less than
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#LESS_THAN},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
+     * constructs semantics only; numerical comparison behavior, including special floating
+     * values, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor lessThan(Tensor right) {
+        return TensorComparisonExpressions.apply(this, right, BinaryComparisonKind.LESS_THAN);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand is less than or equal to
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#LESS_OR_EQUAL},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
+     * constructs semantics only; numerical comparison behavior, including special floating
+     * values, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor lessOrEqual(Tensor right) {
+        return TensorComparisonExpressions.apply(
+                this, right, BinaryComparisonKind.LESS_OR_EQUAL);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand compares equal to
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#EQUAL},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
+     * retained even though equality is symmetric. This method constructs semantics only; tolerance,
+     * NaN and signed-zero comparison behavior, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor equalTo(Tensor right) {
+        return TensorComparisonExpressions.apply(this, right, BinaryComparisonKind.EQUAL);
+    }
+
+    /**
+     * Builds an elementwise expression testing whether this left operand compares unequal to
+     * {@code right}.
+     *
+     * <p>Both operands must have floating data types compatible through the model promotion
+     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * promoted type validates the comparison domain but is not stored in the result. The fresh
+     * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
+     * host storage, and provenance containing {@link BinaryComparisonKind#NOT_EQUAL},
+     * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
+     * retained even though inequality is symmetric. This method constructs semantics only;
+     * tolerance, NaN and signed-zero comparison behavior, and gradient rules are deferred.</p>
+     *
+     * @param right non-null ordered right comparison operand; it is retained by exact reference
+     *     in result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor notEqualTo(Tensor right) {
+        return TensorComparisonExpressions.apply(this, right, BinaryComparisonKind.NOT_EQUAL);
     }
 
     /**

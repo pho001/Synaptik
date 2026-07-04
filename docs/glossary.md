@@ -34,9 +34,10 @@ provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented 
 `ScalarValueAttrs` and `ClampRangeAttrs`, plus matching public floating Tensor expression
 construction with exact type/shape retention, exact binary64 attributes, and one-input provenance.
 The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
-`GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings; matching
-public Tensor expressions and BOOL result derivation remain planned. Other concrete kind and
-expression families, their family attributes, random Operations,
+`GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
+public floating comparison Tensor expression construction with local broadcasting, fixed
+non-differentiable BOOL descriptors, and ordered provenance. Other concrete kind and expression
+families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -285,10 +286,12 @@ The fourth production family is `BinaryComparisonKind`, an enum containing exact
 `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
 values identify ordered, parameterless tensor-to-tensor comparison meanings and compose with
 `NoOperationAttrs.INSTANCE`. The enum stores no operands, broadcast geometry, BOOL result facts,
-numeric edge policy, or execution metadata. Public comparison Tensor methods, input eligibility,
-promotion, broadcasting, result derivation, provenance, gradients, execution, and backend support
-remain planned. Its inherited names are diagnostic rather than serialization or dispatch keys,
-and an equally named kind from another family remains a different typed value.
+numeric edge policy, or execution metadata. The implemented public comparison Tensor methods
+consume these values while separately owning floating input validation, local broadcasting, fixed
+BOOL result derivation, and ordered provenance. Numerical comparison policy, compiler capture,
+gradients, execution, and backend support remain planned. Its inherited names are diagnostic
+rather than serialization or dispatch keys, and an equally named kind from another family remains
+a different typed value.
 
 ### Partition
 
@@ -328,10 +331,12 @@ graph records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
 
 The implemented binary Tensor methods create provenance whose operation uses the exact matching
 `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
-receiver as left and argument as right. The implemented unary methods similarly use the exact
-matching `UnaryElementwiseKind` and canonical no-attributes value, with exactly the receiver as
-their one input. These construction paths do not change provenance's general role or make it graph
-membership.
+receiver as left and argument as right. Binary comparison methods use the same exact ordered input
+contract with `BinaryComparisonKind`, including for symmetric equality and inequality, while
+producing a storage-free non-differentiable BOOL result. The implemented unary methods similarly
+use the exact matching `UnaryElementwiseKind` and canonical no-attributes value, with exactly the
+receiver as their one input. These construction paths do not change provenance's general role or
+make it graph membership.
 
 ### Publication binding
 
@@ -397,8 +402,12 @@ export, and deterministic native-resource ownership remain planned. The current 
 `mul`, `div`, `min`, `max`, and tensor-valued `pow` methods create fresh storage-free binary
 arithmetic expression tensors from floating operands. They promote data type, broadcast shape,
 leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
-operation semantics plus ordered provenance. The current fifteen zero-argument unary methods
-also create fresh floating expression tensors. They retain the exact input data type and Shape,
+operation semantics plus ordered provenance. The current `greaterThan`, `greaterOrEqual`,
+`lessThan`, `lessOrEqual`, `equalTo`, and `notEqualTo` methods also accept ordered floating pairs
+and broadcast shapes, but create fixed BOOL descriptors with false gradient eligibility while
+retaining exact comparison semantics and ordered provenance. The current fifteen zero-argument
+unary methods also create fresh floating expression tensors. They retain the exact input data type
+and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
 plus exactly one input reference without domain checks or canonicalization. The current scalar
 `mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
@@ -651,8 +660,9 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based leaf construction, immutable provenance, and floating binary, unary, and scalar
-Tensor expression construction are implemented. Gradient rules and objects, compiler graph
+descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
+comparison, unary, and scalar Tensor expression construction are implemented. Gradient rules and
+objects, compiler graph
 capture, numerical execution, and publication behavior are not part of the current Tensor
 contract.
 
@@ -684,7 +694,7 @@ A kind distinguishes computations, while attributes carry parameters within a co
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, unary elementwise, and scalar elementwise
 kinds are implemented. Arithmetic, unary, and scalar public Tensor construction paths are also
-implemented; comparison construction remains planned. Other concrete families, their family-
+implemented, as is comparison construction. Other concrete families, their family-
 specific attributes, compiler capture, and execution remain planned. The compiled graph container
 is implemented model state.
 

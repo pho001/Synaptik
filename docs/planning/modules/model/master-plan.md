@@ -128,7 +128,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0014E | [Scalar arithmetic and clamp semantics](tasks/0014e-scalar-arithmetic-and-clamp-semantics.md) | Complete | 0005, 0006 | Define typed scalar elementwise kinds plus one-value and clamp-range attributes. |
 | 0014F | [Scalar arithmetic and clamp Tensor expressions](tasks/0014f-scalar-arithmetic-and-clamp-tensor-expressions.md) | Complete | 0013, 0014E | Build floating shape-preserving parameterized Tensor expressions with exact one-input provenance. |
 | 0015A | [Binary comparison semantic kinds](tasks/0015a-binary-comparison-semantic-kinds.md) | Complete | 0005, 0006 | Define six typed parameterless ordered comparison meanings. |
-| 0015B | Binary comparison Tensor expressions | Draft | 0001, 0002, 0013, 0015A | Build floating broadcast-aware comparisons with BOOL results and ordered provenance. |
+| 0015B | [Binary comparison Tensor expressions](tasks/0015b-binary-comparison-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015A | Build floating broadcast-aware comparisons with BOOL results and ordered provenance. |
 | 0015C | Boolean logical semantic kinds | Draft | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
 | 0015D | Boolean logical Tensor expressions | Draft | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
 | 0015E | Where selection semantic kind | Draft | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
@@ -155,8 +155,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015A complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015B is the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0015B complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015C is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -343,6 +343,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   `model.operation.elementwise.comparison` for GREATER_THAN, GREATER_OR_EQUAL, LESS_THAN,
   LESS_OR_EQUAL, EQUAL, and NOT_EQUAL. Tensor inputs, broadcasting, and BOOL results remain in
   task 0015B.
+- Task 0015B implements six fluent floating-only Tensor methods through one package-private
+  helper. It validates the common floating comparison domain, delegates right-aligned shape
+  algebra to `ShapeBroadcast`, creates an unresolved non-differentiable BOOL descriptor, and
+  records exact ordered provenance without storage access, numerical comparison, graph capture,
+  or execution.
+- The independent task-0015B documentation review found the Tensor and helper Javadocs complete,
+  then finalized Tensor API, Compile API current-expression inventory, glossary, task evidence,
+  master plan, and roadmap. Training API, capabilities, architecture/ADRs/tests, conformance and
+  integration tests, Java 26 build configuration, foundational contracts, and existing expression
+  families remain accurate unchanged because the task adds only model-owned comparison expression
+  construction without compiler, training, dependency, numerical, or executable behavior.
 - The independent task-0015A documentation review found the enum and every constant Javadoc
   complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
   API, Training API, capabilities, architecture/ADRs/tests, build configuration, existing
@@ -406,9 +417,10 @@ including the focused Compile API status correction. The post-0014B reassessment
 continued ordered model work. Task 0014C completed the fifteen parameterless unary elementwise
 semantic kinds, and task 0014D completed their public floating Tensor expression construction.
 Task 0014E completed the scalar arithmetic/clamp semantic kinds and exact immutable attributes,
-task 0014F completed their public floating Tensor expression construction, and task 0015A
-completed the six parameterless ordered binary comparison semantic kinds. Task 0015B is the next
-Draft planning frontier without a detailed specification; all later operation-family tasks also
-remain Draft without detailed specifications.
+task 0014F completed their public floating Tensor expression construction, task 0015A completed the
+six parameterless ordered binary comparison semantic kinds, and task 0015B completed their public
+floating comparison Tensor construction. Task 0015C is the next Draft planning frontier without a
+detailed specification; all later operation-family tasks remain Draft without detailed
+specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
