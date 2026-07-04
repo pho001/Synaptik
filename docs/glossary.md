@@ -36,8 +36,10 @@ construction with exact type/shape retention, exact binary64 attributes, and one
 The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
 `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
 public floating comparison Tensor expression construction with local broadcasting, fixed
-non-differentiable BOOL descriptors, and ordered provenance. Other concrete kind and expression
-families, their family attributes, random Operations,
+non-differentiable BOOL descriptors, and ordered provenance. The parameterless
+`BooleanLogicalKind` vocabulary is implemented for elementwise `AND`, `OR`, and `NOT` truth
+meanings; public logical Tensor expressions, BOOL descriptor rules, and provenance remain planned.
+Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -290,6 +292,16 @@ numeric edge policy, or execution metadata. The implemented public comparison Te
 consume these values while separately owning floating input validation, local broadcasting, fixed
 BOOL result derivation, and ordered provenance. Numerical comparison policy, compiler capture,
 gradients, execution, and backend support remain planned. Its inherited names are diagnostic
+rather than serialization or dispatch keys, and an equally named kind from another family remains
+a different typed value.
+
+The fifth production family is `BooleanLogicalKind`, an enum containing exactly `AND`, `OR`, and
+`NOT`. These values identify parameterless elementwise boolean conjunction, disjunction, and
+negation and compose with `NoOperationAttrs.INSTANCE`. `AND` and `OR` have two logical input roles;
+`NOT` has one. Those roles are family context rather than stored or generically validated arity
+metadata. The enum defines no BOOL descriptor eligibility, binary broadcasting, unary shape
+preservation, provenance, storage representation, numeric truthiness, gradient, execution, or
+backend support. Public logical Tensor methods remain planned. Its inherited names are diagnostic
 rather than serialization or dispatch keys, and an equally named kind from another family remains
 a different typed value.
 
@@ -684,7 +696,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, unary elementwise, and scalar elementwise families implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, unary elementwise, and scalar elementwise families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value and clamp-range values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -692,11 +704,11 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic, binary comparison, unary elementwise, and scalar elementwise
-kinds are implemented. Arithmetic, unary, and scalar public Tensor construction paths are also
-implemented, as is comparison construction. Other concrete families, their family-
-specific attributes, compiler capture, and execution remain planned. The compiled graph container
-is implemented model state.
+that occurrence. Binary arithmetic, binary comparison, boolean logical, unary elementwise, and
+scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and comparison public Tensor
+construction paths are also implemented; boolean logical Tensor construction remains planned.
+Other concrete families, their family-specific attributes, compiler capture, and execution remain
+planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

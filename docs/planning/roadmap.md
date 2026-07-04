@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0015C Boolean logical semantic kinds — Draft
+- 0015D Boolean logical Tensor expressions — Draft
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -56,8 +56,11 @@ six typed parameterless ordered binary comparison meanings without public Tensor
 inference, provenance, or execution. Task
 [0015B](modules/model/tasks/0015b-binary-comparison-tensor-expressions.md) is complete. It adds six
 floating-only broadcast-aware Tensor comparison methods that create storage-free BOOL results with
-false gradient eligibility and exact ordered provenance, without numerical execution. Task 0015C
-is the next Draft planning frontier and has no detailed specification.
+false gradient eligibility and exact ordered provenance, without numerical execution. Task
+[0015C](modules/model/tasks/0015c-boolean-logical-semantic-kinds.md) is complete. It adds one
+parameterless boolean-logical semantic enum with exact AND, OR, and NOT identities while leaving
+BOOL descriptors and public Tensor expressions to task 0015D. Task 0015D is the next Draft
+planning frontier and has no detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -135,7 +138,7 @@ authorized Compile API status correction.
 | 32 | [0014F Scalar arithmetic and clamp Tensor expressions](modules/model/tasks/0014f-scalar-arithmetic-and-clamp-tensor-expressions.md) | Complete |
 | 33 | [0015A Binary comparison semantic kinds](modules/model/tasks/0015a-binary-comparison-semantic-kinds.md) | Complete |
 | 34 | [0015B Binary comparison Tensor expressions](modules/model/tasks/0015b-binary-comparison-tensor-expressions.md) | Complete |
-| 35 | 0015C Boolean logical semantic kinds | Draft |
+| 35 | [0015C Boolean logical semantic kinds](modules/model/tasks/0015c-boolean-logical-semantic-kinds.md) | Complete |
 | 36 | 0015D Boolean logical Tensor expressions | Draft |
 | 37 | 0015E Where selection semantic kind | Draft |
 | 38 | 0015F Where selection Tensor expression | Draft |
@@ -178,7 +181,8 @@ Tensor expression construction without crossing the model boundary. The former b
 has been decomposed into comparison, BOOL logic, `where`, and cast semantic/expression pairs.
 Task 0015A completed the six parameterless comparison semantics, and task 0015B completed their
 floating-only, broadcast-aware public Tensor construction with fixed BOOL results and ordered
-provenance. Task 0015C is now the next Draft planning frontier without a detailed specification.
+provenance. Task 0015C completed the parameterless AND, OR, and NOT semantic identities. Task
+0015D is now the next Draft planning frontier without a detailed specification.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

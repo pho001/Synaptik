@@ -44,6 +44,7 @@ TensorId / NodeId / ValueId                                  = distinct identity
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
 BinaryComparisonKind                                          = six parameterless ordered comparison semantics
+BooleanLogicalKind                                            = three parameterless boolean logical semantics
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -95,10 +96,13 @@ An `OperationKind` says which computation is meant, while `OperationAttrs` carri
 semantic parameters. The implemented `Operation` record keeps those two values together.
 `BinaryArithmeticKind` names seven parameterless tensor-to-tensor arithmetic meanings, and
 `BinaryComparisonKind` names six parameterless ordered tensor-to-tensor comparison meanings.
+`BooleanLogicalKind` names parameterless boolean conjunction, disjunction, and negation meanings.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
-`ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
+`ClampRangeAttrs`. The boolean-logical kinds are semantic vocabulary only: public logical Tensor
+methods, BOOL descriptor validation, broadcasting or shape preservation, and provenance remain
+planned. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
@@ -108,8 +112,8 @@ kinds to create storage-free expressions from one floating input. The public sca
 `Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
 `clampMax(double)` use the scalar kinds and typed attributes to create one-input storage-free
 expressions while retaining every caller-supplied binary64 parameter bit. `TensorProvenance`
-retains the exact operation and ordered public-tensor inputs. All four expression families derive
-result descriptors, but none assigns
+retains the exact operation and ordered public-tensor inputs. All four currently exposed expression
+families derive result descriptors, but none assigns
 graph identity, captures a graph, calculates values, defines gradient rules, or executes
 computation.
 
@@ -2114,6 +2118,7 @@ composition while the table also lists the current production families:
 | `Operation` | An implemented immutable descriptor that stores one kind and one `OperationAttrs` value. |
 | `BinaryArithmeticKind` | The implemented production enum for seven parameterless tensor-to-tensor arithmetic meanings. |
 | `BinaryComparisonKind` | The implemented production enum for six parameterless ordered tensor-to-tensor comparison meanings. |
+| `BooleanLogicalKind` | The implemented production enum for parameterless elementwise boolean conjunction, disjunction, and negation meanings. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -2198,6 +2203,39 @@ gradient policy beyond the descriptor flag, compiler capture, execution, and bac
 remain planned. Inherited enum names and text are diagnostic rather than serialization or dispatch
 keys. Typed identity keeps an equally named kind from another family unequal to
 `BinaryComparisonKind`.
+
+### Boolean logical semantic kinds
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind` implements
+`OperationKind` with exactly these constants in declaration order:
+
+| Kind | Elementwise boolean meaning | Logical input roles |
+|---|---|---|
+| `AND` | True exactly when both input values are true. | Ordered left and right inputs. |
+| `OR` | True exactly when at least one input value is true. | Ordered left and right inputs. |
+| `NOT` | True exactly when the input value is false. | One input. |
+
+All three kinds are parameterless semantic identities. Their explicit generic composition is:
+
+```java
+Operation conjunction = new Operation(
+        BooleanLogicalKind.AND,
+        NoOperationAttrs.INSTANCE);
+```
+
+The resulting operation retains the exact `AND` kind and canonical no-attributes value. The
+generic `Operation` descriptor does not validate that `AND` and `OR` have two logical inputs or
+that `NOT` has one; these roles are family context rather than stored arity metadata. The enum
+stores no input references and creates no Tensor, provenance, or result descriptor.
+
+This vocabulary defines conjunction, disjunction, and negation truth meaning only. Public
+`Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods remain planned, together with BOOL input
+eligibility, binary broadcasting, unary shape preservation, fixed BOOL result construction, and
+provenance. BOOL storage encoding, numeric truthiness, gradients, compiler capture, execution, and
+backend availability are also outside this semantic contract. Inherited enum names and text are
+diagnostic rather than serialization or dispatch keys, and an equally named kind from another
+family remains a different typed value.
 
 ### Unary elementwise semantic kinds
 
@@ -2321,7 +2359,8 @@ semantics for an attributes-bearing test value. It does not establish that `Samp
 compatible with `SampleKind`: the generic descriptor checks only that neither component is null.
 It also does not create a graph node, infer a result shape or data type, report backend support,
 select a kernel, or execute computation. Production `BinaryArithmeticKind`,
-`BinaryComparisonKind`, and `UnaryElementwiseKind` provide parameterless families, and
+`BinaryComparisonKind`, `BooleanLogicalKind`, and `UnaryElementwiseKind` provide parameterless
+families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`. Additional kind families, compiler behavior, and executable support remain
 later work in their owning layers. Binary arithmetic, binary comparison, unary elementwise, and
@@ -2494,20 +2533,22 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, unary elementwise, and scalar
-  elementwise operations, plus gradient and trainable state and publication behavior;
-- operation-kind families beyond binary arithmetic, binary comparison, unary elementwise, and
-  scalar elementwise semantics, plus their family-specific attribute values;
+  elementwise operations, including public boolean logical expressions, plus gradient and
+  trainable state and publication behavior;
+- operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
+  elementwise, and scalar elementwise semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
-`BinaryComparisonKind`, `UnaryElementwiseKind`, `ScalarElementwiseKind`, `ScalarValueAttrs`,
-`ClampRangeAttrs`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
-`PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison, unary
-elementwise, and scalar elementwise semantics are the current production concrete kind families.
-All four current kind families have matching public Tensor expression methods. The graph records
-can compose these or test-local semantics, but
+`BinaryComparisonKind`, `BooleanLogicalKind`, `UnaryElementwiseKind`, `ScalarElementwiseKind`,
+`ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`, `GraphPhase`,
+`CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary arithmetic,
+binary comparison, boolean logical, unary elementwise, and scalar elementwise semantics are the
+current production concrete kind families. The arithmetic, comparison, unary, and scalar families
+have matching public Tensor expression methods; boolean logical Tensor methods remain planned. The
+graph records can compose these or test-local semantics, but
 they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary

@@ -82,6 +82,10 @@ io.github.pho001.synaptik.model.operation.elementwise.scalar
 io.github.pho001.synaptik.model.operation.elementwise.comparison
   Typed parameterless semantic kinds for ordered Tensor-to-Tensor comparisons.
 
+io.github.pho001.synaptik.model.operation.elementwise.logical
+  Typed parameterless semantic kinds for elementwise boolean conjunction, disjunction,
+  and negation.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -129,7 +133,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0014F | [Scalar arithmetic and clamp Tensor expressions](tasks/0014f-scalar-arithmetic-and-clamp-tensor-expressions.md) | Complete | 0013, 0014E | Build floating shape-preserving parameterized Tensor expressions with exact one-input provenance. |
 | 0015A | [Binary comparison semantic kinds](tasks/0015a-binary-comparison-semantic-kinds.md) | Complete | 0005, 0006 | Define six typed parameterless ordered comparison meanings. |
 | 0015B | [Binary comparison Tensor expressions](tasks/0015b-binary-comparison-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015A | Build floating broadcast-aware comparisons with BOOL results and ordered provenance. |
-| 0015C | Boolean logical semantic kinds | Draft | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
+| 0015C | [Boolean logical semantic kinds](tasks/0015c-boolean-logical-semantic-kinds.md) | Complete | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
 | 0015D | Boolean logical Tensor expressions | Draft | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
 | 0015E | Where selection semantic kind | Draft | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
 | 0015F | Where selection Tensor expression | Draft | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
@@ -155,8 +159,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015B complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015C is the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0015C complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015D is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -348,6 +352,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   algebra to `ShapeBroadcast`, creates an unresolved non-differentiable BOOL descriptor, and
   records exact ordered provenance without storage access, numerical comparison, graph capture,
   or execution.
+- Task 0015C implements one parameterless `BooleanLogicalKind` enum in
+  `model.operation.elementwise.logical` with exact constants AND, OR, and NOT. Binary/unary input
+  roles are documented family context, not arity metadata; BOOL validation, broadcasting, result
+  descriptors, provenance, and Tensor methods remain in task 0015D.
+- The independent task-0015C documentation review found the enum and every constant Javadoc
+  complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
+  API, Training API, capabilities, architecture/ADRs/tests, conformance and integration tests,
+  Java 26 build configuration, foundational operation contracts, existing kind families, and
+  Tensor expression contracts remain accurate unchanged because the task adds only model-owned
+  semantic vocabulary without public expressions, dependencies, inference, provenance, training,
+  or execution behavior.
 - The independent task-0015B documentation review found the Tensor and helper Javadocs complete,
   then finalized Tensor API, Compile API current-expression inventory, glossary, task evidence,
   master plan, and roadmap. Training API, capabilities, architecture/ADRs/tests, conformance and
@@ -419,8 +434,8 @@ semantic kinds, and task 0014D completed their public floating Tensor expression
 Task 0014E completed the scalar arithmetic/clamp semantic kinds and exact immutable attributes,
 task 0014F completed their public floating Tensor expression construction, task 0015A completed the
 six parameterless ordered binary comparison semantic kinds, and task 0015B completed their public
-floating comparison Tensor construction. Task 0015C is the next Draft planning frontier without a
-detailed specification; all later operation-family tasks remain Draft without detailed
-specifications.
+floating comparison Tensor construction. Task 0015C completed the three parameterless boolean
+logical semantic kinds. Task 0015D is the next Draft planning frontier without a detailed
+specification; all later operation-family tasks remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
