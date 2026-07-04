@@ -477,7 +477,7 @@ end-to-end execution. Architecture impact is None.
   new reusable project term was introduced.
 - Architecture impact: None.
 - Unresolved issues: None.
-- Follow-up required: None for task 0012H. Draft task 0012I is the next active planning frontier;
-  its detailed specification remains intentionally uncreated.
+- Follow-up required: None for task 0012H. Subsequent planning promoted task 0012I to the Ready
+  frontier with its own detailed specification.
 
 Status: Complete

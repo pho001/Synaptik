@@ -8,15 +8,16 @@ import java.util.Optional;
 import java.util.random.RandomGenerator;
 
 /**
- * Implements validated eager normal, bounded continuous uniform, and bounded integral sampling for
- * {@link TensorFactory} without retaining random source or result state.
+ * Implements validated eager normal, bounded continuous uniform, bounded integral, and Bernoulli
+ * sampling for {@link TensorFactory} without retaining random source or result state.
  *
  * <p>The helper accepts only fully static Java-array-sized shapes and the three floating data
  * types for floating distributions, plus exact INT32 and INT64 output selected by primitive
- * integral bounds. It constructs canonical dense descriptors, samples directly into one matching
- * primitive carrier, and delegates exactly once to flat import. It never creates a Tensor or storage
- * directly, allocates an identifier, looks up or replaces a source, or synchronizes, seeds,
- * resets, splits, or closes the caller-owned generator. The sampling paths remain cohesive
+ * integral bounds, plus canonical BOOL output selected by Bernoulli probability. It constructs
+ * canonical dense descriptors, samples directly into one matching primitive carrier, and
+ * delegates exactly once to flat import. It never creates a Tensor or storage directly, allocates
+ * an identifier, looks up or replaces a source, or synchronizes, seeds, resets, splits, or closes
+ * the caller-owned generator. The sampling paths remain cohesive
  * package-private factory mechanics rather than a public random package, source abstraction, seed
  * API, or distribution enum: callers already supply the exact generator, and no independent
  * random-domain model type is needed.</p>
@@ -231,6 +232,45 @@ final class TensorRandoms {
     }
 
     /**
+     * Validates a requested Bernoulli tensor, samples one canonical BOOL carrier, and imports it
+     * once.
+     *
+     * <p>The probability must be finite and in {@code [0.0, 1.0]}. Every row-major element calls
+     * {@link RandomGenerator#nextDouble()} exactly once, including at either probability endpoint,
+     * so source advancement does not depend on an endpoint optimization. A byte is one exactly
+     * when the draw is strictly less than the probability and zero otherwise. The source and
+     * carrier remain transient, and the result always has BOOL type with gradients disabled.</p>
+     *
+     * <p>The caller owns generator configuration, state, advancement, and safe thread access.
+     * Equivalent output requires an equivalent implementation and initial state, identical
+     * arguments, and no interfering use; no cross-algorithm, provider, Java-version,
+     * seed-expansion, or concurrent-use guarantee is made. Pre-sampling failures consume no call
+     * or identifier. A source exception preserves earlier calls but creates no destination or
+     * identifier. Blank-label and exhaustion effects occur after all calls and destination
+     * allocation through the one BOOL flat import, and no state is rolled back.</p>
+     *
+     * @param shape non-null shape already checked by the public factory; must be fully static
+     * @param probability finite success probability in the closed interval {@code [0.0, 1.0]}
+     * @param randomGenerator exact non-null transient caller-owned source
+     * @param label non-null optional label delegated unchanged to BOOL flat import
+     * @return the exact tensor returned by one BOOL flat-import call; never {@code null}
+     * @throws IllegalArgumentException if shape, count, or probability validation fails, or
+     *     delegated label validation rejects blank text
+     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
+     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    static Tensor randomBernoulli(
+            Shape shape,
+            double probability,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        TensorDescriptor descriptor = bernoulliDescriptor(shape, probability);
+        int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
+        return sampleBernoulli(descriptor, probability, randomGenerator, label, length);
+    }
+
+    /**
      * Validates metadata and creates the canonical dense descriptor before sampling or carrier
      * allocation.
      *
@@ -422,6 +462,42 @@ final class TensorRandoms {
                             + ", maximum="
                             + Integer.MAX_VALUE);
         }
+    }
+
+    /**
+     * Validates Bernoulli metadata and creates the canonical dense non-differentiable descriptor.
+     *
+     * <p>Validation checks fully static shape, checked logical count, the Java-array limit, and
+     * finite closed-interval probability in that order. Descriptor creation then fixes BOOL type
+     * and false gradient intent; callers cannot select a numeric type or request gradients because
+     * Bernoulli creation is logical leaf data rather than numeric truthiness or conversion.</p>
+     *
+     * @param shape requested logical shape
+     * @param probability requested binary64 success probability
+     * @return a non-null validated dense BOOL descriptor retaining {@code shape}
+     * @throws IllegalArgumentException if shape is dynamic, count exceeds the Java-array limit,
+     *     or probability is non-finite or outside {@code [0.0, 1.0]}
+     * @throws ArithmeticException if checked element-count or layout arithmetic overflows
+     */
+    private static TensorDescriptor bernoulliDescriptor(Shape shape, double probability) {
+        if (!shape.isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "bernoulli random tensor creation requires a fully static shape: " + shape);
+        }
+        long elementCount = shape.knownElementCount().orElseThrow();
+        if (elementCount > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "bernoulli random tensor element count exceeds Java array limit: required="
+                            + elementCount
+                            + ", maximum="
+                            + Integer.MAX_VALUE);
+        }
+        if (!Double.isFinite(probability) || probability < 0.0d || probability > 1.0d) {
+            throw new IllegalArgumentException(
+                    "bernoulli probability must be finite and in [0.0, 1.0]: " + probability);
+        }
+        LayoutDescriptor layout = LayoutDescriptor.contiguous(shape);
+        return new TensorDescriptor(DataType.BOOL, shape, Optional.of(layout), false);
     }
 
     /**
@@ -678,6 +754,38 @@ final class TensorRandoms {
         long[] source = new long[length];
         for (int index = 0; index < length; index++) {
             source[index] = randomGenerator.nextLong(originInclusive, boundExclusive);
+        }
+        return TensorFactory.fromFlatArray(descriptor, label, source);
+    }
+
+    /**
+     * Samples one unbounded binary64 draw per element into a canonical BOOL carrier and delegates
+     * once to BOOL flat import.
+     *
+     * <p>The strict {@code draw < probability} comparison writes byte one for success and byte
+     * zero otherwise. Calls are not skipped when probability is zero or one, so source advancement
+     * remains independent of endpoint optimization. Custom non-conforming draws are compared
+     * directly without post-validation. Neither the source nor the carrier is retained.</p>
+     *
+     * @param descriptor non-null validated dense BOOL result descriptor
+     * @param probability finite success probability in the closed interval {@code [0.0, 1.0]}
+     * @param randomGenerator non-null transient caller-owned source; invoked once per element
+     * @param label non-null optional label delegated unchanged to flat import
+     * @param length non-negative logical element count and exact carrier length
+     * @return the non-null tensor returned by the one BOOL flat-import call
+     * @throws RuntimeException if a source call or delegated import throws; no state is rolled back
+     * @throws OutOfMemoryError if source or destination carrier allocation fails
+     */
+    private static Tensor sampleBernoulli(
+            TensorDescriptor descriptor,
+            double probability,
+            RandomGenerator randomGenerator,
+            Optional<String> label,
+            int length) {
+        byte[] source = new byte[length];
+        for (int index = 0; index < length; index++) {
+            double draw = randomGenerator.nextDouble();
+            source[index] = draw < probability ? (byte) 1 : (byte) 0;
         }
         return TensorFactory.fromFlatArray(descriptor, label, source);
     }

@@ -19,8 +19,8 @@ static-shape, and dense-layout inference, plus exact typed rank-0 scalars and in
 zero, one, zero-like, and one-like constants, plus eager typed integer ranges, strict or cyclic
 flat-prefix population for all six exact primitive carriers, and explicit-source normal random
 and bounded continuous-uniform population for the three floating types, plus bounded integral
-random population for exact `INT32` and `INT64` output. Concrete operation kinds and family
-attributes, provenance, Bernoulli random distribution, random
+random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
+finite scalar probability. Concrete operation kinds and family attributes, provenance, random
 Operations, typed access and export, native/runtime/backend allocation, expression operations,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -302,10 +302,11 @@ dense storage and explicit label and gradient intent. Eager non-empty `INT32` an
 creation, strict or cyclic typed flat-prefix creation, and caller-source normal random and bounded
 continuous-uniform creation are also implemented as copied canonical dense leaf data.
 Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
-false gradient intent. Bernoulli distribution, random Operations, typed access and export,
-deterministic native-resource ownership, provenance, expression operations, gradient objects,
-trainable role, publication behavior, compiler integration, device buffers, and runtime residency
-remain planned.
+false gradient intent. Caller-source Bernoulli creation is implemented for canonical BOOL output
+with false gradient intent and a finite scalar probability. Random Operations, typed access and
+export, deterministic native-resource ownership, provenance, expression operations, gradient
+objects, trainable role, publication behavior, compiler integration, device buffers, and runtime
+residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -374,9 +375,9 @@ numerically non-negative standard deviation, label, and gradient intent. It cons
 multiplication then addition, converts to one exact carrier, and delegates once to flat import.
 The factory never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
 the source. Reproducibility is consequently bounded to equivalent generator implementation and
-state, identical arguments, and no interfering use. Bernoulli distribution, random Operations,
-typed access or export, general numeric conversion, native/runtime/backend allocation, and
-deterministic resource ownership remain planned.
+state, identical arguments, and no interfering use. Random Operations, typed access or export,
+general numeric conversion, native/runtime/backend allocation, and deterministic resource
+ownership remain planned.
 
 Continuous-uniform random creation accepts the same transient caller-owned source, static
 Java-array-sized shapes, and three floating output types. Its finite binary64 lower bound must be
@@ -398,6 +399,17 @@ added. Because the exclusive bound uses the result carrier, the API cannot expre
 exclusive bound above `Integer.MAX_VALUE` or `Long.MAX_VALUE`; no full-domain convenience is
 provided. The same caller ownership, no-synchronization, bounded reproducibility, and late
 failure/no-rollback rules apply.
+
+Bernoulli random creation has one `randomBernoulli` method. It requires a fully static
+Java-array-sized shape and a finite binary64 probability in the closed interval `[0, 1]`, always
+produces canonical BOOL storage, and always disables gradients. Each row-major element consumes
+exactly one unbounded `nextDouble()` call, including when probability is zero or one, and stores
+byte one exactly when the draw is strictly less than the probability. Equal or custom
+non-conforming draws are not post-validated or coerced. Positive and negative zero are both
+accepted as probability zero. The factory builds one complete byte carrier and delegates once to
+BOOL flat import; it exposes no data-type, gradient, numeric-truthiness, default-source, or
+probability-tensor option. The same caller ownership, no-synchronization, bounded reproducibility,
+and late failure/no-rollback rules apply.
 
 No random package, source service, seed API, or distribution enum is introduced because the
 distribution-specific factory methods share one cohesive package-private helper and add no
@@ -462,6 +474,13 @@ consumes neither calls nor an ID. A generator exception preserves prior bounded 
 no destination or ID. After sampling, delegated flat import allocates the destination and then the
 ID; blank-label failure consumes all calls and one ID, while exhaustion consumes all calls without
 rollback.
+
+Bernoulli null, shape, count, and probability validation likewise completes before source-carrier
+allocation, sampling, destination allocation, or ID allocation. Source allocation failure
+consumes neither calls nor an ID. A generator exception preserves prior unbounded calls but
+creates no destination or ID. After sampling, delegated BOOL flat import allocates the destination
+and then the ID; blank-label failure consumes all calls and one ID, while exhaustion consumes all
+calls without rollback.
 
 ### Tensor descriptor
 

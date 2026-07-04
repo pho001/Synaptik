@@ -48,10 +48,11 @@ import java.util.random.RandomGenerator;
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
  * and reuse flat import for final allocation, normalization, and identity assignment. Normal and
- * bounded continuous uniform and bounded integral random creation likewise produce eager copied
- * leaf data, but require a transient caller-owned {@link RandomGenerator}; the factory never
- * selects, seeds, retains, replaces, synchronizes, splits, or closes a random source. Integral
- * primitive bounds infer INT32 or INT64, so those overloads need no data-type or gradient input.
+ * bounded continuous uniform, bounded integral, and Bernoulli random creation likewise produce
+ * eager copied leaf data, but require a transient caller-owned {@link RandomGenerator}; the
+ * factory never selects, seeds, retains, replaces, synchronizes, splits, or closes a random
+ * source. Integral primitive bounds infer INT32 or INT64, while Bernoulli output is always BOOL;
+ * those overloads therefore need no data-type or gradient input.
  * No random package, source service, seed API, or distribution abstraction is introduced. The
  * distribution-specific methods remain cohesive factory operations beside their package-private
  * sampling helper; they do not create an independently useful random-domain type, and the
@@ -1238,6 +1239,84 @@ public final class TensorFactory {
         Objects.requireNonNull(label, "label");
         return TensorRandoms.randomInt(
                 shape, originInclusive, boundExclusive, randomGenerator, label);
+    }
+
+    /**
+     * Creates a fresh dense BOOL tensor from Bernoulli samples.
+     *
+     * <p>The shape must be fully static and its checked logical element count must fit a Java
+     * array. {@code probability} must be finite and in the closed interval {@code [0.0, 1.0]}.
+     * Positive and negative zero are accepted as probability zero, and one is accepted. The
+     * result uses a new canonical dense-contiguous {@link DataType#BOOL} descriptor with gradients
+     * disabled and the supplied optional label. No caller-selected data type, gradient intent,
+     * numeric truthiness, conversion, probability tensor, or default is involved.</p>
+     *
+     * <p>For every logical element in row-major order, this method invokes the exact supplied
+     * source's unbounded {@link RandomGenerator#nextDouble()} method once. It stores canonical byte
+     * one exactly when the draw is strictly less than {@code probability}, and canonical byte zero
+     * otherwise, then delegates the complete carrier once to BOOL flat import. Calls are not
+     * skipped at probability zero or one, which keeps source advancement independent of endpoint
+     * optimization. Thus a conforming source produces all false values at zero and all true values
+     * at one while still advancing once per element. A custom non-conforming result is compared
+     * directly without post-validation. An empty shape makes no source call; a scalar makes one.</p>
+     *
+     * <p>The caller creates, configures, seeds, owns, and advances the exact random generator.
+     * Neither this factory nor the returned tensor retains or substitutes it, and the call does
+     * not synchronize, reset, split, or close it. Equivalent output is bounded to equivalent
+     * generator implementations and initial states, identical arguments, and no interfering
+     * source use; no cross-algorithm, provider, Java-version, seed-expansion, concurrent-use, or
+     * global reproducibility promise is made. The one-call guarantee concerns method invocations,
+     * not the source's internal random-bit consumption.</p>
+     *
+     * <p>Validation after the public null checks is deterministic. Dynamic shape reports
+     * {@code bernoulli random tensor creation requires a fully static shape: <shape>}; an
+     * over-limit count reports {@code bernoulli random tensor element count exceeds Java array
+     * limit: required=<required>, maximum=2147483647}; and invalid probability reports
+     * {@code bernoulli probability must be finite and in [0.0, 1.0]: <probability>}. Checked count
+     * or layout overflow remains an {@link ArithmeticException}. Probability is validated even
+     * for empty output.</p>
+     *
+     * <p>Null, shape, count, probability, layout, and descriptor failures occur before carrier
+     * allocation, sampling, destination allocation, or identifier allocation. Source-carrier
+     * allocation failure consumes no source call or identifier. If the generator throws,
+     * preceding calls remain consumed according to generator behavior, but no destination or
+     * identifier exists. After all draws, exactly one BOOL flat import allocates destination
+     * storage and then an identifier. A destination-allocation failure follows all draws but
+     * precedes identifier allocation. A blank label consumes all draws, both carriers, and one
+     * identifier before delegated Tensor validation fails; exhaustion likewise follows all draws
+     * and allocations but precedes copying. An unexpected copy failure consumes its identifier.
+     * No source, allocation, or identifier state is rolled back.</p>
+     *
+     * @param shape non-null fully static result shape; scalar and zero-element shapes are valid
+     * @param probability finite success probability in the closed interval {@code [0.0, 1.0]}
+     * @param randomGenerator non-null transient caller-owned source; it is never retained,
+     *     substituted, seeded, reset, split, synchronized, or closed
+     * @param label non-null optional diagnostic label; present text is normalized and validated by
+     *     {@link Tensor} after sampling and destination/identifier allocation
+     * @return a non-null fresh dense BOOL tensor containing copied canonical bytes in independent
+     *     storage, with gradients disabled and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order with the parameter name as message; no source call or
+     *     identifier is consumed
+     * @throws IllegalArgumentException if the shape is dynamic; its logical count exceeds
+     *     {@link Integer#MAX_VALUE}; probability is non-finite or outside {@code [0.0, 1.0]}; or
+     *     delegated Tensor validation rejects a blank label. Only blank-label failure occurs after
+     *     sampling, destination allocation, and identifier allocation
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}, after sampling and both carrier allocations
+     * @throws OutOfMemoryError if source or destination carrier allocation fails; source allocation
+     *     failure consumes no calls or identifier, while destination failure follows sampling
+     */
+    public static Tensor randomBernoulli(
+            Shape shape,
+            double probability,
+            RandomGenerator randomGenerator,
+            Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
+        return TensorRandoms.randomBernoulli(shape, probability, randomGenerator, label);
     }
 
     /**

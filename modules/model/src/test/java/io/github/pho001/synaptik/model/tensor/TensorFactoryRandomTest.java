@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryRandomTest {
     @Test
-    void helperHasExactlyFourPackageEntriesAndNoStateOrPublicSurface()
+    void helperHasExactlyFivePackageEntriesAndNoStateOrPublicSurface()
             throws ReflectiveOperationException {
         Method entry = TensorRandoms.class.getDeclaredMethod(
                 "randomNormal",
@@ -66,6 +66,12 @@ class TensorFactoryRandomTest {
                 long.class,
                 RandomGenerator.class,
                 Optional.class);
+        Method bernoulliEntry = TensorRandoms.class.getDeclaredMethod(
+                "randomBernoulli",
+                Shape.class,
+                double.class,
+                RandomGenerator.class,
+                Optional.class);
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
@@ -97,8 +103,13 @@ class TensorFactoryRandomTest {
                 () -> assertFalse(Modifier.isPrivate(int64Entry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(int64Entry.getModifiers())),
                 () -> assertEquals(Tensor.class, int64Entry.getReturnType()),
+                () -> assertFalse(Modifier.isPublic(bernoulliEntry.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(bernoulliEntry.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(bernoulliEntry.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(bernoulliEntry.getModifiers())),
+                () -> assertEquals(Tensor.class, bernoulliEntry.getReturnType()),
                 () -> assertEquals(
-                        4,
+                        5,
                         Arrays.stream(TensorRandoms.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),

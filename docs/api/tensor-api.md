@@ -6,7 +6,7 @@ This reference documents the public model contracts that are implemented today. 
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, independent dense constants, deterministic population, and explicit-source
-normal, continuous-uniform, and bounded integral random population. Provenance, expression
+normal, continuous-uniform, bounded integral, and Bernoulli random population. Provenance, expression
 operations, typed access, gradient objects and publication behavior, native/runtime/backend
 allocation, compiler integration, runtime residency, and backend execution remain planned. The
 authoritative module boundary remains
@@ -28,6 +28,7 @@ TensorFactory + integral bounds/step                          = copied dense INT
 TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
 TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
 TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
+TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -54,12 +55,13 @@ Its deterministic population methods also create non-empty exclusive-end `INT32`
 ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
 Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
 and delegate final storage population and identity assignment to flat import.
-Normal, continuous-uniform, and bounded integral random creation similarly build one exact
-carrier, but consume a transient caller-owned `RandomGenerator` instead of retaining, selecting,
-or seeding a source. Primitive `int` or `long` bounds infer `INT32` or `INT64`, respectively, and
-integral results always disable gradients. The methods remain explicit distribution-specific
-factory operations beside one package-private helper because these cohesive sampling paths do not
-justify a public random package, source abstraction, seed API, or distribution enum.
+Normal, continuous-uniform, bounded integral, and Bernoulli random creation similarly build one
+exact carrier, but consume a transient caller-owned `RandomGenerator` instead of retaining,
+selecting, or seeding a source. Primitive `int` or `long` bounds infer `INT32` or `INT64`,
+respectively; Bernoulli output is always BOOL; and all integral and boolean results disable
+gradients. The methods remain explicit distribution-specific factory operations beside one
+package-private helper because these cohesive sampling paths do not justify a public random
+package, source abstraction, seed API, or distribution enum.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -973,6 +975,114 @@ export, a random graph Operation, or runtime/backend generation.
 - A blank label fails after all bounded calls, destination allocation, and ID allocation; the ID
   is consumed and no state is rolled back.
 
+Bernoulli random creation has exactly one public method:
+`randomBernoulli(shape, probability, randomGenerator, label)`. It creates a canonical dense BOOL
+tensor with gradients disabled. The shape must be fully static, its checked logical count must fit
+a Java array, and the binary64 probability must be finite and in the closed interval `[0, 1]`.
+Positive and negative zero are accepted as zero. No data-type or gradient argument is present
+because Bernoulli output is logical non-differentiable leaf data; numeric truthiness and output
+conversion are outside this method.
+
+For each logical row-major element, the factory calls the exact supplied source's unbounded
+`nextDouble()` method once and stores canonical byte `1` exactly when `draw < probability`;
+otherwise it stores byte `0`. The strict comparison means that a draw equal to the probability is
+false. A custom non-conforming draw is compared directly without post-validation. Calls are not
+skipped at probability zero or one: conforming draws still produce all false or all true values,
+respectively, while source advancement stays independent of endpoint optimization. A scalar
+consumes one call and an empty result consumes none.
+
+The source follows the same caller-ownership and bounded-reproducibility contract as the other
+random methods. The factory does not substitute, retain, seed, synchronize, reset, split, or close
+it. Equivalent output requires equivalent generator implementation and initial state, identical
+arguments, and no interfering use. One complete canonical `byte[]` is sampled before one BOOL
+flat import; there is no partial Tensor, direct storage construction, or direct ID allocation in
+the sampling helper.
+
+### Complete Bernoulli-random example
+
+#### Goal and inputs
+
+Create a `2 × 2` BOOL tensor with probability `0.5` from the scripted draws `0.0`, `0.25`, `0.5`,
+and `Math.nextDown(1.0)`. The draw equal to the probability demonstrates strict comparison, while
+the scripted source makes the unbounded call path and exact call count observable.
+
+```java
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.random.RandomGenerator;
+
+public final class BernoulliRandomExample {
+    private static final class ScriptedGenerator implements RandomGenerator {
+        private final double[] values = {0.0, 0.25, 0.5, Math.nextDown(1.0)};
+        private int calls;
+
+        @Override
+        public long nextLong() {
+            throw new AssertionError("nextLong is not used");
+        }
+
+        @Override
+        public double nextDouble() {
+            return values[calls++];
+        }
+    }
+
+    public static void main(String[] args) {
+        ScriptedGenerator source = new ScriptedGenerator();
+        Tensor tensor = TensorFactory.randomBernoulli(
+                Shape.of(2, 2), 0.5, source, Optional.of("mask"));
+
+        byte[] data = (byte[]) tensor.hostStorage()
+                .orElseThrow().segment().heapBase().orElseThrow();
+
+        System.out.println(Arrays.toString(data));
+        System.out.println(tensor.descriptor().dataType());
+        System.out.println(tensor.descriptor().requiresGrad());
+        System.out.println(source.calls);
+    }
+}
+```
+
+#### Meaningful lines
+
+- The source overrides unbounded `nextDouble()` and rejects `nextLong()`. The factory uses the
+  exact supplied object and makes one unbounded call for each output position.
+- The first two draws are strictly below `0.5` and become canonical true bytes. The equal and
+  greater draws become canonical false bytes.
+- The public method fixes BOOL type and false gradient intent, so the call has no `DataType` or
+  `requiresGrad` argument.
+- Heap-base inspection makes implemented raw storage visible for the example; it is not a typed
+  Tensor access or export API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+[1, 1, 0, 0]
+BOOL
+false
+4
+```
+
+The result proves strict comparison, canonical BOOL storage, fixed descriptor facts, and one
+unbounded call per row-major element for this scripted input. It does not establish statistical
+independence for an arbitrary custom generator, provide numeric Bernoulli output, promise
+cross-generator reproducibility, or create a random graph Operation or runtime/backend generator.
+
+#### Failures and useful variations
+
+- A dynamic shape, a logical count above `Integer.MAX_VALUE`, or a non-finite or out-of-range
+  probability fails before sampling or ID allocation. Probability is validated for empty output.
+- Probability `0.0` or `-0.0` still consumes one call per element and stores all false for a
+  conforming source; probability `1.0` consumes the same calls and stores all true.
+- If `nextDouble()` throws, earlier calls remain consumed, but no destination or ID exists.
+- A blank label fails after all calls, destination allocation, and ID allocation; the ID is
+  consumed and no state is rolled back.
+
 ### Complete flat-import example
 
 #### Goal and inputs
@@ -1517,8 +1627,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- Bernoulli random distribution, random Operations, and typed tensor access
-  or export;
+- random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -1617,6 +1726,14 @@ provide a compiler entry point or executable support.
   and source-carrier allocation failures consume no calls or ID; a source exception preserves
   prior calls; blank-label failure and exhaustion occur after all calls and destination
   allocation without rollback.
+- Its one Bernoulli-random method requires a caller-owned `RandomGenerator`, a fully static
+  Java-array-sized shape, and a finite probability in `[0, 1]`. It always creates a BOOL result
+  with gradients disabled. Every row-major element consumes one unbounded `nextDouble()` call,
+  including at probability zero and one, and stores canonical byte one exactly when the draw is
+  strictly less than the probability. A custom source result is not post-validated. One complete
+  `byte[]` is delegated once to BOOL flat import. Prevalidation and source-carrier allocation
+  failures consume no calls or ID; a source exception preserves prior calls; blank-label failure
+  and exhaustion occur after all calls and destination allocation without rollback.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.

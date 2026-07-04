@@ -220,6 +220,12 @@ class TensorFactoryTest {
                 long.class,
                 RandomGenerator.class,
                 Optional.class);
+        Method randomBernoulli = TensorFactory.class.getDeclaredMethod(
+                "randomBernoulli",
+                Shape.class,
+                double.class,
+                RandomGenerator.class,
+                Optional.class);
         Method importFlat = TensorFactory.class.getDeclaredMethod(
                 "importFlat",
                 TensorDescriptor.class,
@@ -269,6 +275,7 @@ class TensorFactoryTest {
                         randomUniform,
                         randomInt32,
                         randomInt64,
+                        randomBernoulli,
                         importFlat,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
@@ -300,6 +307,7 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, randomUniform.getReturnType()),
                 () -> assertEquals(Tensor.class, randomInt32.getReturnType()),
                 () -> assertEquals(Tensor.class, randomInt64.getReturnType()),
+                () -> assertEquals(Tensor.class, randomBernoulli.getReturnType()),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -344,6 +352,7 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(randomUniform.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomInt32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(randomInt64.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(randomBernoulli.getModifiers())),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
@@ -388,6 +397,7 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(randomUniform.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomInt32.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(randomInt64.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(randomBernoulli.getModifiers())),
                 () -> assertTrue(List.of(
                                 strictFloat64,
                                 strictFloat32,
