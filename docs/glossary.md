@@ -31,8 +31,9 @@ arithmetic, transcendental, activation, and explicit fast-approximation meanings
 public floating unary Tensor expression construction with exact type/shape retention and one-input
 provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
 `MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact-double
-`ScalarValueAttrs` and `ClampRangeAttrs`; matching public Tensor expression methods remain
-planned. Other concrete kind and expression families, their family attributes, random Operations,
+`ScalarValueAttrs` and `ClampRangeAttrs`, plus matching public floating Tensor expression
+construction with exact type/shape retention, exact binary64 attributes, and one-input provenance.
+Other concrete kind and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, traces, and training remain architecture or planning contracts. A
@@ -271,8 +272,11 @@ with `ClampRangeAttrs`. The scalar values are attributes rather than additional 
 the generic `Operation` descriptor does not enforce family compatibility. The attributes retain
 exact Java `double` values. Clamp-range construction rejects only a primitive
 `minValue > maxValue` comparison, so equal bounds, both signed-zero orderings, ordered infinities,
-and NaN endpoints are valid. The family defines no public Tensor expression construction,
-descriptor inference, numerical execution behavior, gradients, or backend support yet.
+and NaN endpoints are valid. The enum and attributes perform no Tensor expression construction,
+descriptor inference, numerical execution behavior, gradients, or backend support by themselves.
+The implemented public scalar Tensor methods consume these values while separately owning
+floating validation, descriptor derivation, exact attribute composition, and one-input
+provenance.
 
 ### Partition
 
@@ -381,12 +385,16 @@ export, and deterministic native-resource ownership remain planned. The current 
 `mul`, `div`, `min`, `max`, and tensor-valued `pow` methods create fresh storage-free binary
 arithmetic expression tensors from floating operands. They promote data type, broadcast shape,
 leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
-operation semantics plus ordered provenance. Other expression families, gradient rules and
-objects, trainable role, publication behavior, compiler integration, device buffers, numerical
-execution, and runtime residency remain planned. The current fifteen zero-argument unary methods
+operation semantics plus ordered provenance. The current fifteen zero-argument unary methods
 also create fresh floating expression tensors. They retain the exact input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
-plus exactly one input reference without domain checks or canonicalization.
+plus exactly one input reference without domain checks or canonicalization. The current scalar
+`mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
+one-input expressions. They retain the exact type and Shape, preserve gradient eligibility, and
+store exact binary64 attributes without conversion or canonicalization; range clamp remains one
+first-class `CLAMP` operation. Other expression families, gradient rules and objects, trainable
+role, publication behavior, compiler integration, device buffers, numerical execution, and
+runtime residency remain planned.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -631,9 +639,10 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based leaf construction, immutable provenance, and floating binary and unary Tensor
-expression construction are implemented. Gradient rules and objects, compiler graph capture, numerical
-execution, and publication behavior are not part of the current Tensor contract.
+descriptor-based leaf construction, immutable provenance, and floating binary, unary, and scalar
+Tensor expression construction are implemented. Gradient rules and objects, compiler graph
+capture, numerical execution, and publication behavior are not part of the current Tensor
+contract.
 
 ### Node versus value
 
@@ -661,9 +670,8 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic and unary elementwise kinds and their public Tensor
-construction paths are implemented. Scalar elementwise kinds and attributes are implemented, but
-their public Tensor construction paths remain planned. Other concrete families, their
+that occurrence. Binary arithmetic, unary elementwise, and scalar elementwise kinds and their
+public Tensor construction paths are implemented. Other concrete families, their
 family-specific attributes, compiler capture, and execution remain planned. The compiled graph
 container is implemented model state.
 

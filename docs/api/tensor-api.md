@@ -8,15 +8,15 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
 integral, and Bernoulli random population. The current concrete expression surface contains seven
-floating tensor-to-tensor binary arithmetic methods and fifteen floating unary elementwise
-methods. Typed access, other expression families, gradient objects and publication behavior,
-native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
-remain planned. The
-authoritative module boundary remains
+floating tensor-to-tensor binary arithmetic methods, fifteen floating unary elementwise methods,
+and five floating scalar arithmetic and clamp methods. Typed access, other expression families,
+gradient objects and publication behavior, native/runtime/backend allocation, compiler
+integration, runtime residency, and backend execution remain planned. The authoritative module
+boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current types describe logical values, construct storage-free binary and unary expressions,
-and provide one bounded host-allocation path without executing a tensor:
+The current types describe logical values, construct storage-free binary, unary, and scalar
+expressions, and provide one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -37,6 +37,7 @@ TensorFactory + static shape + primitive bounds + source      = copied dense INT
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
+input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -97,14 +98,13 @@ one-input meanings, with exact Java `double` parameters carried by `ScalarValueA
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`,
 `sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary kinds to create
-storage-free expressions from one floating input. `TensorProvenance` retains the exact operation
-and ordered public-tensor inputs. Both expression families derive result descriptors, but neither
-assigns graph identity, captures a graph, calculates values, defines gradient rules, or executes
+storage-free expressions from one floating input. The public scalar overloads `Tensor.mul(double)`,
+`pow(double)`, `clamp(double, double)`, `clampMin(double)`, and `clampMax(double)` use the scalar
+kinds and typed attributes to create one-input storage-free expressions while retaining every
+caller-supplied binary64 parameter bit. `TensorProvenance` retains the exact operation and ordered
+public-tensor inputs. All three expression families derive result descriptors, but none assigns
+graph identity, captures a graph, calculates values, defines gradient rules, or executes
 computation.
-
-The scalar semantic family has no matching public `Tensor` expression methods yet, so its current
-contracts describe meaning and parameters without constructing provenance or claiming compiler,
-backend, gradient, or execution support.
 
 An implemented `GraphValue` describes logical data. An implemented `CompiledNode` describes one
 place where operation semantics consume and produce that data. The implemented
@@ -1439,11 +1439,11 @@ input objects using their ordinary equality; it is not producer-occurrence ident
 be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
-package-private derived-construction seam used by the implemented binary and unary expression
-helpers attaches one already-validated provenance value, allocates exactly one ID through the
-existing allocator, and creates no storage. The factory seam itself does not inspect the operation
-or inputs, infer a descriptor, traverse an expression, capture a graph, or perform semantic
-validation.
+package-private derived-construction seam used by the implemented binary, unary, and scalar
+expression helpers attaches one already-validated provenance value, allocates exactly one ID
+through the existing allocator, and creates no storage. The factory seam itself does not inspect
+the operation or inputs, infer a descriptor, traverse an expression, capture a graph, or perform
+semantic validation.
 
 ### Binary arithmetic expressions
 
@@ -1696,6 +1696,138 @@ execution.
   another unary call records the first result, not the original leaf, as its exact input.
 - Exhausting the factory's tensor-ID space fails after the local descriptor, operation, and
   provenance values are built.
+
+### Scalar arithmetic and clamp expressions
+
+The five current scalar methods create parameterized one-input semantics without converting a
+parameter to the input type or calculating element values:
+
+| Method | Elementwise meaning | Operation attributes |
+|---|---|---|
+| `mul(double)` | Multiply the input by the scalar. | `ScalarValueAttrs` |
+| `pow(double)` | Raise the input to the scalar exponent. | `ScalarValueAttrs` |
+| `clamp(double, double)` | Constrain the input to inclusive lower and upper bounds. | `ClampRangeAttrs` |
+| `clampMin(double)` | Apply an inclusive scalar lower bound. | `ScalarValueAttrs` |
+| `clampMax(double)` | Apply an inclusive scalar upper bound. | `ScalarValueAttrs` |
+
+Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
+data type and immutable `Shape` reference, preserves `requiresGrad`, and leaves layout unresolved.
+The scalar or bounds remain Java `double` values in the operation attributes with their exact
+binary64 bits, independent of input type. There is no implicit `BFLOAT16` or `FLOAT32` conversion.
+
+Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
+Its provenance contains the exact matching `ScalarElementwiseKind`, typed attributes, and exactly
+the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` operation; it is not
+expanded into `CLAMP_MIN` followed by `CLAMP_MAX`. Repeated, nested, identity-like, and
+special-value calls are not interned, folded, or simplified at this boundary.
+
+For `clamp`, floating-input eligibility is checked before range ordering. `ClampRangeAttrs` then
+rejects only primitive `minValue > maxValue`; equal bounds, either ordering of signed zeros,
+ordered infinities, and a NaN endpoint are representable. Numerical special-value behavior,
+scalar conversion for execution, optimization, gradients, graph capture, and backend execution
+remain later responsibilities.
+
+#### Complete scalar-expression example
+
+##### Goal and inputs
+
+Build a scalar multiplication followed by one range-clamp expression from a storage-free
+`FLOAT32` tensor of shape `[2, 3]`. The example uses negative zero to demonstrate exact binary64
+attribute retention and observes expression metadata rather than numerical values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class ScalarExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), true));
+
+        Tensor scaled = input.mul(-0.0);
+        Tensor result = scaled.clamp(-0.0, 1.0);
+        TensorProvenance scaledFrom = scaled.provenance().orElseThrow();
+        TensorProvenance clampedFrom = result.provenance().orElseThrow();
+        ScalarValueAttrs multiplier =
+                (ScalarValueAttrs) scaledFrom.operation().attrs();
+        ClampRangeAttrs range =
+                (ClampRangeAttrs) clampedFrom.operation().attrs();
+
+        System.out.println("type=" + result.descriptor().dataType());
+        System.out.println("sameShape=" + (result.descriptor().shape() == shape));
+        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
+        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + result.label().isEmpty());
+        System.out.println("storageFree=" + result.hostStorage().isEmpty());
+        System.out.println("multiplierKind=" + scaledFrom.operation().kind());
+        System.out.println("multiplierBits="
+                + Long.toHexString(Double.doubleToRawLongBits(multiplier.value())));
+        System.out.println("clampKind=" + clampedFrom.operation().kind());
+        System.out.println("minBits="
+                + Long.toHexString(Double.doubleToRawLongBits(range.minValue())));
+        System.out.println("maxBits="
+                + Long.toHexString(Double.doubleToRawLongBits(range.maxValue())));
+        System.out.println("exactInput=" + (clampedFrom.inputs().getFirst() == scaled));
+        System.out.println("oneClampInput=" + (clampedFrom.inputs().size() == 1));
+        System.out.println("fresh=" + (result != scaled && scaled != input));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `input.mul(-0.0)` records scalar `MUL` and retains the negative-zero bit pattern in one
+  `ScalarValueAttrs`; it does not convert the multiplier to `FLOAT32`.
+- `scaled.clamp(-0.0, 1.0)` records exactly one `CLAMP` with one `ClampRangeAttrs`. Its sole input
+  is the exact `scaled` object, so the chain preserves immediate expression provenance.
+- Both calls preserve `FLOAT32`, the exact `shape` reference, and true gradient eligibility while
+  creating fresh unresolved, unlabeled, storage-free results.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+type=FLOAT32
+sameShape=true
+layoutUnresolved=true
+requiresGrad=true
+unlabeled=true
+storageFree=true
+multiplierKind=MUL
+multiplierBits=8000000000000000
+clampKind=CLAMP
+minBits=8000000000000000
+maxBits=3ff0000000000000
+exactInput=true
+oneClampInput=true
+fresh=true
+```
+
+The output proves exact attribute-bit retention, first-class range-clamp identity, descriptor
+retention, fresh identity, and one-input provenance. It does not prove multiplication or clamp
+values, parameter conversion for a backend, gradient rules, graph capture, backend support, or
+execution.
+
+##### Failures and useful variations
+
+- Calling any scalar method on an `INT32`, `INT64`, or `BOOL` tensor fails with
+  `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
+- `clamp(2.0, 1.0)` fails with `IllegalArgumentException` and message
+  `minValue must be less than or equal to maxValue`. On a non-floating input, the data-type failure
+  occurs before that range failure.
+- Signed zeros, infinities, and NaN payload bits remain unchanged in attributes. A NaN clamp
+  endpoint is accepted because primitive `>` is false when either operand is NaN.
+- Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. Repeated calls and values
+  such as multiplier `1.0` still create fresh expressions without canonicalization.
 
 ## Host-visible storage
 
@@ -1964,8 +2096,8 @@ accepts equal bounds, either ordering of signed zeros, ordered infinities, and a
 a NaN endpoint. An inverted range fails with `IllegalArgumentException` and the message
 `minValue must be less than or equal to maxValue`.
 
-The following example creates semantic descriptors only; it does not execute an operation or
-construct a Tensor expression:
+The following example creates semantic descriptors directly; it does not call the matching public
+Tensor expression methods or execute an operation:
 
 ```java
 Operation scaled = new Operation(
@@ -1982,11 +2114,12 @@ and negative zero are unequal components. All NaN components compare equal even 
 retain different raw NaN payload bits. Exact retention can be observed with
 `Double.doubleToRawLongBits`; record equality does not imply raw-bit equality.
 
-One-input arity is family context rather than enum metadata. The kinds and attributes do not infer
-result descriptors, define scalar conversion, establish numerical or special-value execution
+One-input arity is family context rather than enum metadata. The kinds and attributes alone do not
+infer result descriptors, define scalar conversion, establish numerical or special-value execution
 behavior, create provenance, define gradients, report backend support, select kernels, or execute
 computation. Their enum names and generated record text are diagnostics, not serialization or
-dispatch contracts. Public scalar Tensor expression methods remain planned.
+dispatch contracts. The current public scalar Tensor methods separately own floating-input
+validation, descriptor derivation, exact attribute composition, and one-input provenance.
 
 ### Test-local conceptual example
 
@@ -2020,8 +2153,8 @@ select a kernel, or execute computation. Production `BinaryArithmeticKind` and
 `UnaryElementwiseKind` provide parameterless families, and `ScalarElementwiseKind` provides a
 parameterized family with `ScalarValueAttrs` and `ClampRangeAttrs`. Additional kind families,
 compiler behavior, and executable support remain later work in their owning layers. Binary
-arithmetic and unary elementwise semantics have current public Tensor expression methods; scalar
-elementwise semantics do not yet.
+arithmetic, unary elementwise, and scalar elementwise semantics all have current public Tensor
+expression methods.
 
 ## Graph values and compiled nodes
 
@@ -2189,9 +2322,8 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- expression families beyond binary arithmetic and unary elementwise operations, including public
-  scalar elementwise Tensor methods, gradient and trainable state, and
-  publication behavior;
+- expression families beyond binary arithmetic, unary elementwise, and scalar elementwise
+  operations, plus gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, unary elementwise, and scalar elementwise
   semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -2202,10 +2334,9 @@ The following contracts appear in the architecture and planning documents but ar
 `UnaryElementwiseKind`, `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, unary elementwise, and scalar elementwise semantics
-are the current production concrete kind families. The binary and unary families have matching
-public Tensor expression methods; the scalar family does not yet. The graph records can compose
-these or test-local semantics, but they do not provide a compiler entry point or executable
-support.
+are the current production concrete kind families, and all three have matching public Tensor
+expression methods. The graph records can compose these or test-local semantics, but they do not
+provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -2245,6 +2376,14 @@ support.
   follows local descriptor and provenance construction. The methods do not inspect mathematical
   domains, simplify chains, define strict or fast numerical accuracy, capture graphs, or provide
   gradient or backend behavior.
+- `Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
+  `clampMax(double)` accept only floating receiver data types, retain exact caller binary64
+  attributes, and preserve the input type, shape reference, and gradient eligibility. Each
+  successful call returns a fresh unlabeled storage-free Tensor with unresolved layout and exact
+  matching one-input provenance. `clamp` validates the input type before rejecting only a strictly
+  inverted range and remains one `CLAMP` operation. Type and range failures precede ID allocation;
+  the methods do not convert parameters, simplify expressions, define numerical behavior, capture
+  graphs, or provide gradient or backend behavior.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in
   one JVM. Delegated semantic failures consume IDs; exhaustion after `Long.MAX_VALUE` is permanent.

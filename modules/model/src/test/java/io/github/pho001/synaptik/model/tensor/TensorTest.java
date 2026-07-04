@@ -78,13 +78,13 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(30, declaredPublicMethods.size());
+        assertEquals(35, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
                         "div", "min", "max", "pow", "abs", "neg", "inv", "log", "exp",
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
-                        "fastExp", "fastTanh"),
+                        "fastExp", "fastTanh", "clamp", "clampMin", "clampMax"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -112,6 +112,26 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
+            var method = Tensor.class.getDeclaredMethod(methodName, double.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(List.of(double.class),
+                            Arrays.asList(method.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
+        var clamp = Tensor.class.getDeclaredMethod("clamp", double.class, double.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, clamp.getReturnType()),
+                () -> assertEquals(List.of(double.class, double.class),
+                        Arrays.asList(clamp.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(clamp.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(clamp.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(clamp.getModifiers())));
 
         for (String methodName : List.of(
                 "abs", "neg", "inv", "log", "exp", "erf", "sqrt", "floor", "ceil", "sign",
