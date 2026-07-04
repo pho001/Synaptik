@@ -89,6 +89,8 @@ class TensorFactoryTest {
                 "fromFlatArray", TensorDescriptor.class, Optional.class, long[].class);
         Method importBool = TensorFactory.class.getDeclaredMethod(
                 "fromFlatArray", TensorDescriptor.class, Optional.class, byte[].class);
+        Method importNested = TensorFactory.class.getDeclaredMethod(
+                "fromNestedArray", Object.class, Optional.class, boolean.class);
         Method importFlat = TensorFactory.class.getDeclaredMethod(
                 "importFlat",
                 TensorDescriptor.class,
@@ -109,6 +111,7 @@ class TensorFactoryTest {
                         importInt32,
                         importInt64,
                         importBool,
+                        importNested,
                         importFlat,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
@@ -123,6 +126,7 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, importInt32.getReturnType()),
                 () -> assertEquals(Tensor.class, importInt64.getReturnType()),
                 () -> assertEquals(Tensor.class, importBool.getReturnType()),
+                () -> assertEquals(Tensor.class, importNested.getReturnType()),
                 () -> assertEquals(Tensor.class, importFlat.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
@@ -135,6 +139,7 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(importInt32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(importInt64.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(importBool.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(importNested.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
@@ -147,6 +152,7 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(importInt32.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importInt64.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importBool.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(importNested.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }

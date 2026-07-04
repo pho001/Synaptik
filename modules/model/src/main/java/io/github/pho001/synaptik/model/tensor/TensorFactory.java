@@ -28,12 +28,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * label and storage semantics to {@link Tensor}, and can allocate exact-span Java primitive-array
  * storage for a resolved layout. It can also import a matching flat primitive array into a
  * resolved dense-contiguous tensor by copying its row-major logical values into newly allocated
- * heap storage. Numeric values and raw BFLOAT16 bits are copied unchanged; BOOL bytes are
- * normalized to zero or one. Heap allocation uses automatic-scope memory segments, so it
+ * heap storage. Nested primitive-array import additionally infers exact carrier type and fully
+ * static dense shape after validating the complete rectangular structure. Numeric values and raw
+ * BFLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. Heap allocation
+ * uses automatic-scope memory segments, so it
  * introduces no arena, close operation, external lifetime owner, or deterministic reclamation.
- * The factory does not build descriptors, resolve layouts, retain or expose source/backing arrays,
- * convert values, import nested arrays, provide typed tensor access, create provenance, allocate
- * native or backend memory, or provide compiler, runtime, or backend behavior.</p>
+ * Descriptor-based creation and flat import do not build descriptors or resolve layouts. Nested
+ * import is the bounded exception: it synthesizes only the exact fully static shape and canonical
+ * dense-contiguous descriptor proved by the source structure. The factory does not otherwise
+ * infer descriptors, retain or expose source/backing arrays, convert values, accept boxed or
+ * generic nested values, provide typed tensor access, create provenance, allocate native or
+ * backend memory, or provide compiler, runtime, or backend behavior.</p>
  */
 public final class TensorFactory {
     /**
@@ -482,6 +487,83 @@ public final class TensorFactory {
                 DataType.BOOL,
                 source.length,
                 MemorySegment.ofArray(source));
+    }
+
+    /**
+     * Creates a dense-contiguous tensor by copying a rectangular multidimensional primitive array.
+     *
+     * <p>The {@code Object} parameter is necessary because Java assigns a distinct runtime class
+     * to every primitive-array rank and no finite overload family can represent arbitrary rank.
+     * Runtime class metadata must prove rank two or greater and an ultimate carrier of
+     * {@code double}, {@code float}, {@code short}, {@code int}, {@code long}, or {@code byte};
+     * those carriers infer {@link DataType#FLOAT64}, {@link DataType#FLOAT32}, raw
+     * {@link DataType#BFLOAT16}, {@link DataType#INT32}, {@link DataType#INT64}, or logical
+     * {@link DataType#BOOL}, respectively. Boxed, generic, rank-one, and other primitive carriers
+     * are rejected without conversion or defaulting.</p>
+     *
+     * <p>Every reachable branch is validated in depth-first row-major order for rectangular
+     * lengths and non-null subarrays before a flat carrier, destination storage, or tensor
+     * identifier is allocated. Diagnostic paths use zero-based bracket notation: {@code []} is
+     * the root, {@code [1]} its second child, and {@code [1][2]} that child's third child. A
+     * zero-length final primitive axis is valid, but a zero-length earlier axis is rejected because
+     * its trailing extents cannot be observed. The inferred shape is fully static and its layout
+     * is canonical row-major dense-contiguous geometry. Values are flattened into a fresh matching
+     * primitive array in row-major encounter order and delegated to exactly one matching flat
+     * import overload. Numeric values and raw BFLOAT16 bits remain unchanged; BOOL bytes are
+     * copied raw into the intermediate carrier, then flat import normalizes zero to zero and every
+     * non-zero byte to one.</p>
+     *
+     * <p>No source array or intermediate flat carrier is retained or mutated. Later caller
+     * mutation cannot affect the returned tensor. Inspection and flattening are not synchronized
+     * with caller mutation, so callers must not mutate any source level concurrently and no atomic
+     * deep-snapshot guarantee is provided. The descriptor enforces gradient eligibility after the
+     * intermediate flat array has been allocated and populated. Structural, carrier,
+     * element-count, and gradient-eligibility failures allocate no destination and consume no
+     * identifier. A blank label reaches flat import after inference and flattening, allocates
+     * destination storage and consumes an identifier before existing Tensor validation rejects
+     * it. Identifier exhaustion likewise occurs after destination allocation and before the final
+     * flat-to-storage copy. Neither failure exposes or retains the intermediate carrier.</p>
+     *
+     * @param source non-null runtime array with declared rank at least two, a supported ultimate
+     *     primitive carrier, rectangular non-null subarrays, and no empty non-final axis; ownership
+     *     remains with the caller
+     * @param label non-null optional diagnostic label delegated to flat import; empty means absent,
+     *     while present text is normalized and validated by {@link Tensor}
+     * @param requiresGrad whether the inferred descriptor requests model-level gradient
+     *     eligibility; true is valid only for the three inferred floating data types
+     * @return a non-null fresh tensor with inferred exact data type, fully static shape,
+     *     dense-contiguous layout, copied values, factory-assigned identity, and optional label
+     * @throws NullPointerException if {@code source} or {@code label} is null, checked in that order
+     *     with the parameter name as the message; these failures consume no identifier
+     * @throws IllegalArgumentException if the source is not an array, with message
+     *     {@code nested tensor source must be an array: actual=<runtimeClassName>}; has rank below
+     *     two, with message {@code nested tensor source must have rank at least 2: actual=<rank>};
+     *     has an unsupported ultimate carrier, with message
+     *     {@code nested tensor source leaf carrier is unsupported: <componentTypeName>}; contains
+     *     a null subarray, with message
+     *     {@code nested tensor source contains null subarray at path <path>}; is ragged, with
+     *     message {@code nested tensor source is ragged at axis <axis>, path <path>:
+     *     expected=<expected>, actual=<actual>}; has an empty non-final axis, with message
+     *     {@code nested tensor source cannot infer dimensions after empty axis <axis> at path
+     *     <path>}; requires more than {@link Integer#MAX_VALUE} flat elements, with message
+     *     {@code nested tensor element count exceeds Java array limit: required=<required>,
+     *     maximum=2147483647}; requests gradients for a non-differentiable inferred type, with the
+     *     {@link TensorDescriptor} eligibility message; or delegated {@link Tensor} validation
+     *     rejects a blank label with message {@code label must not be blank}
+     * @throws ArithmeticException if checked inferred element-count or dense-layout arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}
+     * @throws OutOfMemoryError if the JVM cannot allocate the intermediate flat array or
+     *     destination heap array
+     */
+    public static Tensor fromNestedArray(
+            Object source,
+            Optional<String> label,
+            boolean requiresGrad) {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(label, "label");
+        return NestedTensorArray.importArray(source, label, requiresGrad);
     }
 
     /**

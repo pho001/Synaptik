@@ -42,7 +42,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 Its next task is:
 
 ```text
-0012C Nested typed tensor import (Draft)
+0012D Constant tensor creation (Draft)
 ```
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -52,9 +52,12 @@ is complete. It adds exact-span typed primitive-array allocation through the exi
 heap-segment storage contract without arena ownership or close behavior. Task
 [`0012B`](modules/model/tasks/0012b-flat-typed-tensor-import.md) is complete. It imports copied
 flat primitive arrays into resolved dense-contiguous tensors with exact carrier/count validation
-and canonical BOOL normalization. Task `0012C` is now the next `Draft` planning frontier; tasks
-`0012C`–`0012F` preserve nested import and population families before task `0013`. No detailed
-task-0012C specification exists yet.
+and canonical BOOL normalization. Task
+[`0012C`](modules/model/tasks/0012c-nested-typed-tensor-import.md) is complete. It validates
+rectangular multidimensional primitive arrays, infers exact carrier type and static dense shape,
+flattens row-major, and delegates final creation to flat import. Task `0012D` is the next Draft
+planning frontier; tasks `0012E`–`0012F` remain Draft population families before task `0013`. No
+detailed task-0012D specification exists yet.
 
 ## Model task sequence
 
@@ -77,7 +80,7 @@ task-0012C specification exists yet.
 | 15 | [0012 Tensor factory foundation](modules/model/tasks/0012-tensor-factory.md) | Complete |
 | 16 | [0012A JVM-managed heap host storage allocation](modules/model/tasks/0012a-host-storage-allocation.md) | Complete |
 | 17 | [0012B Flat typed tensor import](modules/model/tasks/0012b-flat-typed-tensor-import.md) | Complete |
-| 18 | 0012C Nested typed tensor import | Draft |
+| 18 | [0012C Nested typed tensor import](modules/model/tasks/0012c-nested-typed-tensor-import.md) | Complete |
 | 19 | 0012D Constant tensor creation | Draft |
 | 20 | 0012E Range and prefix population | Draft |
 | 21 | 0012F Random tensor creation | Draft |

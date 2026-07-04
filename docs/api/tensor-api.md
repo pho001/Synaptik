@@ -7,9 +7,10 @@ This reference documents the public model contracts that are implemented today. 
 and `TensorFactory` provides the public descriptor-based construction boundary with
 factory-assigned identity and JVM-managed heap allocation for resolved descriptors. Provenance,
 expression operations, typed access, gradient and publication behavior, storage import and
-population beyond copied flat typed arrays, native/runtime/backend allocation, compiler
-integration, runtime residency, and backend execution remain planned. The authoritative module
-boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+population beyond copied flat and rectangular nested primitive arrays,
+native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
+remain planned. The authoritative module boundary remains
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values and provide one bounded host-allocation path without
 executing a tensor:
@@ -21,6 +22,7 @@ TensorId + TensorDescriptor + label + optional host storage  = Tensor
 TensorFactory + completed descriptor + optional metadata     = public Tensor construction
 TensorFactory + resolved descriptor                          = exact-span heap storage + Tensor
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
+TensorFactory + rectangular nested primitive array           = inferred dense descriptor + copied Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 ValueId + TensorDescriptor                                    = GraphValue
@@ -38,7 +40,9 @@ within the current Java virtual machine (JVM). For a descriptor with resolved la
 allocation overloads also create one matching primitive array whose length is the layout's
 referenced element span and attach the resulting heap-segment storage. Its flat-array overloads
 copy one matching primitive carrier into a resolved dense-contiguous tensor without retaining the
-caller's array.
+caller's array. Its nested-array method validates a rank-two-or-greater rectangular primitive-array
+graph, infers the exact carrier type and fully static shape, flattens it in row-major order, and
+delegates destination creation to that flat-import boundary.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -324,6 +328,38 @@ Unexpected copy failures occur after identifier allocation and are not rolled ba
 strided, broadcast, and unresolved descriptors remain unsupported because importing independent
 row-major values into those geometries requires a separate scatter or view policy.
 
+Nested typed import is the descriptor-inference boundary. The single
+`fromNestedArray(source, label, requiresGrad)` method accepts `Object` because Java gives each
+primitive-array rank a distinct runtime class and no finite overload family can express arbitrary
+rank. The runtime class must prove rank two or greater and an ultimate carrier of `double`,
+`float`, `short`, `int`, `long`, or `byte`; those carriers infer `FLOAT64`, `FLOAT32`, `BFLOAT16`,
+`INT32`, `INT64`, and `BOOL`, respectively. Boxed arrays, generic object arrays, rank-one arrays,
+and every other primitive carrier are rejected rather than converted or defaulted.
+
+The complete reachable structure is validated in depth-first row-major order before the
+intermediate flat carrier, destination, or tensor ID is allocated. Every corresponding axis must
+have the same length, and every required subarray must be non-null. Paths in diagnostics use
+zero-based bracket notation: `[]` names the root and `[1][2]` names its second child's third child.
+An empty final primitive axis is observable and valid, so `new int[2][0]` infers shape `[2, 0]`.
+An empty earlier axis is rejected because the remaining extents cannot be recovered from the
+runtime object graph.
+
+After validation, nested import allocates a fresh matching primitive array and copies leaf arrays
+into it in logical row-major order. Numeric values and raw BFLOAT16 shorts are unchanged. BOOL
+bytes remain raw in that intermediate array and are normalized once by flat import while copying
+to destination storage. The inferred `TensorDescriptor` has the exact data type, fully static
+shape, canonical dense-contiguous layout, and requested `requiresGrad` flag; descriptor validation
+remains authoritative for gradient eligibility. No source level is retained or mutated, and later
+caller mutation cannot change the tensor. Callers must not mutate the source concurrently with
+import because inspection and flattening do not provide an atomic deep snapshot.
+
+Structural, carrier, checked-count, Java-array-limit, and descriptor-eligibility failures consume
+no ID and allocate no destination. Descriptor eligibility is checked after the intermediate array
+is allocated. A blank label reaches flat import, so destination storage is allocated and one ID is
+consumed before Tensor validation fails. Identifier exhaustion is likewise observed after
+destination allocation and before the final flat-to-storage copy. Neither failure exposes or
+retains the intermediate carrier.
+
 ### Complete flat-import example
 
 #### Goal and inputs
@@ -385,8 +421,9 @@ mask
 ```
 
 The result proves BOOL normalization, copied ownership, label retention, and row-major order for a
-dense flat import. It does not provide public typed access or export, numeric conversion, nested
-array import, view scattering, native allocation, runtime residency, or backend execution.
+dense flat import. It does not demonstrate nested shape inference or provide public typed access
+or export, numeric conversion, view scattering, native allocation, runtime residency, or backend
+execution.
 
 #### Failures and useful variations
 
@@ -394,6 +431,81 @@ array import, view scattering, native allocation, runtime residency, or backend 
 - An offset, strided, broadcast, or unresolved layout is rejected before source-length validation.
 - A source of length two or four fails because the shape has exactly three logical elements.
 - `short[]` imports raw BFLOAT16 bits; it does not convert Java `float` values.
+
+### Complete nested-import example
+
+#### Goal and inputs
+
+Import the rectangular `float[][]` value `{{1, 2}, {3, 4}}`, infer its descriptor, preserve the
+gradient request, and verify that later source mutation does not affect the tensor. The source has
+declared rank two, exact `float` leaves, and two elements along each axis.
+
+```java
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class NestedImportExample {
+    public static void main(String[] args) {
+        float[] firstRow = {1.0f, 2.0f};
+        float[][] source = {firstRow, {3.0f, 4.0f}};
+
+        Tensor tensor = TensorFactory.fromNestedArray(
+                source, Optional.of("weights"), true);
+        float[] imported = (float[]) tensor.hostStorage()
+                .orElseThrow()
+                .segment()
+                .heapBase()
+                .orElseThrow();
+
+        firstRow[0] = 99.0f;
+        System.out.println(tensor.descriptor().dataType());
+        System.out.println(tensor.descriptor().shape());
+        System.out.println(tensor.descriptor().layout().orElseThrow().kind());
+        System.out.println(tensor.descriptor().requiresGrad());
+        System.out.println(tensor.label().orElseThrow());
+        System.out.println(Arrays.toString(imported));
+    }
+}
+```
+
+#### Meaningful lines
+
+- Passing the nested primitive array as `Object` does not erase its runtime metadata: the factory
+  reads declared rank two and ultimate carrier `float`, which infer `FLOAT32` and shape `[2, 2]`.
+- `true` requests gradient eligibility on the inferred descriptor. `FLOAT32` permits that request;
+  an integral or BOOL carrier would reject it before destination or ID allocation.
+- The factory flattens the two rows in encounter order and delegates the resulting `float[]` to
+  flat import, which creates the independent destination array.
+- Mutating `firstRow` after return demonstrates source independence. The heap-base inspection is
+  only a way to observe this example's raw result; it is not a public typed Tensor access API.
+
+#### Result and interpretation
+
+The program prints:
+
+```text
+FLOAT32
+Shape[2, 2]
+DENSE_CONTIGUOUS
+true
+weights
+[1.0, 2.0, 3.0, 4.0]
+```
+
+The result proves exact carrier inference, fully static dense shape and layout inference,
+row-major copying, label retention, gradient eligibility, and source independence. It does not
+promise a snapshot under concurrent source mutation, numeric conversion, dynamic-shape inference,
+view population, typed export, native allocation, or execution.
+
+#### Failures and useful variations
+
+- `new int[2][0]` is valid and infers shape `[2, 0]`; `new int[0][2]` is rejected because axis 1 is
+  not observable from the empty root.
+- `new float[][] {{1}, {2, 3}}` is rejected as ragged at axis `1`, path `[1]`.
+- `new float[][] {null, {1}}` is rejected for a null subarray at path `[0]`.
+- `Integer[][]`, `boolean[][]`, and rank-one `float[]` values are outside this API.
 
 The matching `MemorySegment.ofArray(...)` overload creates a writable heap segment with an
 automatic scope. That scope keeps the primitive array reachable and permits access from any
@@ -792,8 +904,7 @@ remain outside the model container.
 
 The following contracts appear in the architecture and planning documents but are not implemented:
 
-- nested tensor import, constant/scalar/range/prefix/random population conveniences, and typed
-  tensor access or export;
+- constant/scalar/range/prefix/random population conveniences and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - tensor provenance, expression operations, gradient and trainable state, and publication behavior;
 - concrete operation kinds and family-specific attribute values;
@@ -836,6 +947,13 @@ provide a compiler entry point or executable support.
   raw BFLOAT16 bits are copied unchanged; BOOL bytes are normalized to zero or one. The source is
   not retained. Import validation failures consume no ID, while blank-label failure and exhaustion
   occur after destination allocation and before population.
+- Its nested-array method requires runtime rank at least two, one of the same six ultimate
+  primitive carriers, a completely rectangular non-null structure, and no empty non-final axis.
+  It infers an exact fully static dense descriptor, flattens into a fresh matching carrier, and
+  delegates once to flat import. Numeric and raw BFLOAT16 values remain unchanged; BOOL
+  normalization remains in flat import. Structural and descriptor failures consume no ID; blank
+  label and exhaustion retain the flat-import destination-allocation and ID side effects. Source
+  ownership remains with the caller, and concurrent mutation has no deep-snapshot guarantee.
 - `MemorySegmentStorage` rejects null inputs, negative capacity, checked byte-size overflow, an
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.
