@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(70, declaredPublicMethods.size());
+        assertEquals(72, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -178,6 +178,19 @@ class TensorTest {
                     () -> assertEquals(
                             List.of(int.class, boolean.class),
                             Arrays.asList(retained.getParameterTypes())));
+        }
+
+        for (String methodName : List.of("sum", "mean")) {
+            var masked = Tensor.class.getDeclaredMethod(
+                    methodName, int.class, Tensor.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, masked.getReturnType()),
+                    () -> assertEquals(
+                            List.of(int.class, Tensor.class),
+                            Arrays.asList(masked.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(masked.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(masked.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(masked.getModifiers())));
         }
 
         assertAll(

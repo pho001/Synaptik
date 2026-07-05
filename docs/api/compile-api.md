@@ -35,8 +35,8 @@ The public `Tensor` model is also current. Its seven binary arithmetic methods, 
 comparison methods, three boolean logical methods, fifteen unary elementwise methods, and five
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
-methods, plus three axis-only `argMax` methods, construct storage-free expressions with immutable
-operation-and-input provenance.
+methods, two axis-removing masked aggregate methods, plus three axis-only `argMax` methods,
+construct storage-free expressions with immutable operation-and-input provenance.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -56,6 +56,12 @@ store `AxisReductionAttrs`. They preserve exact input type and gradient eligibil
 unresolved, and record one-input provenance without aggregating or comparing values or defining
 empty-domain, NaN, signed-zero, extrema-tie gradient, numerical, or executable behavior. Aggregate
 `MIN`/`MAX` remain typed separately from the equally named two-input binary elementwise kinds.
+The masked `Tensor.sum(axis, mask)` and `Tensor.mean(axis, mask)` forms require floating input and
+an exact BOOL mask. They resolve an ordered injection from mask dimensions to input axes using
+equal dimensions or mask-side singleton expansion, prefer mappings that include the reduction
+axis, remove that axis from the result, and record `MaskedReductionAttrs` with ordered
+`[input, mask]` provenance. Construction does not align storage, inspect values, select elements,
+count true positions, compute a result, define gradients, or execute work.
 `Tensor.all` and `Tensor.any` require exact BOOL input and construct full, axis-removing, or retained-axis
 expressions with exact BOOL result type, false gradient eligibility, unresolved layout, and
 one-input provenance. Aggregate `ALL`/`ANY` remain typed separately from elementwise `AND`/`OR`.
@@ -83,10 +89,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
   Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary, scalar, numeric aggregate expression construction for sum, mean,
-  product, minimum, and maximum, boolean aggregate expression construction for all and any, and
-  axis-only arg-max construction are implemented; the compiler entry point, traversal, capture,
-  reduction inference and canonicalization, redundant-cast canonicalization, and conversion into
-  graph values and nodes remain planned.
+  product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
+  construction for all and any, and axis-only arg-max construction are implemented; the compiler
+  entry point, traversal, capture, reduction inference and canonicalization, redundant-cast
+  canonicalization, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

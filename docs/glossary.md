@@ -60,9 +60,11 @@ The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`
 `ALL`, `ANY`, and `ARG_MAX`, together with normalized single-axis `AxisReductionAttrs`, explicit
 full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, `ArgMaxTiePolicy`, and masked SUM/MEAN
 `MaskedReductionAttrs`. The masked attributes preserve an ordered mask-dimension-to-input-axis
-mapping and fixed all-false zero semantics without constructing a Tensor. Public floating
+mapping and fixed all-false zero semantics. Public floating
 `Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
 axis-removing, and retained-axis expressions with locally derived shapes and one-input provenance.
+The masked `sum(axis, mask)` and `mean(axis, mask)` overloads now resolve their ordered Shape
+mapping locally, remove the selected axis, and record exact `[input, mask]` provenance.
 Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
 `Tensor.all` and `Tensor.any` now provide the corresponding exact-BOOL expressions with false
 gradient eligibility and one-input provenance; aggregate `ALL`/`ANY` remain typed separately from
@@ -70,7 +72,6 @@ elementwise `AND`/`OR`. Axis-only `Tensor.argMax` now accepts floating or integr
 produces fixed non-differentiable INT64 expressions with explicit first- or last-index policy.
 Numerical or truth evaluation, empty-domain behavior, extrema comparison and tie execution,
 gradients, compiler capture, backend support, and execution remain planned.
-Public masked sum/mean Tensor expressions and Shape-based mapping resolution also remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -89,11 +90,15 @@ reduction uses `AxisReductionAttrs`. Representing the full form through paramete
 negative numeric all-axis sentinel.
 
 A masked, axis-removing `SUM` or `MEAN` instead uses `MaskedReductionAttrs`. Its immutable mapping
-states which ordered input axis receives each mask dimension, and later provenance will use exact
-input order `[input, mask]`. False mask positions are excluded. Selecting no values produces zero
+states which ordered input axis receives each mask dimension. Public `sum(axis, mask)` and
+`mean(axis, mask)` resolve that mapping from the input and mask Shapes, remove the normalized
+reduction axis, and use exact provenance order `[input, mask]`. Equal dimensions are compatible,
+and a static singleton mask dimension may align to any input dimension. Resolution prefers a
+mapping that contains the reduction axis, then minimum positional displacement, then
+lexicographic axis order. False mask positions are excluded. Selecting no values produces zero
 for masked sum; masked mean divides by the selected true-count and also produces zero when that
-count is zero. The attributes represent those semantics but perform no Shape resolution, Tensor
-construction, value selection, counting, or execution.
+count is zero. Expression construction records this meaning but performs no storage alignment,
+value selection, counting, aggregation, division, gradient work, or execution.
 
 For a single-axis form, `keepDimensions == false` requests removal of the selected axis, while
 `true` requests retaining it with extent one. `ARG_MAX` instead uses `ArgMaxAttrs` because its tie
@@ -115,7 +120,8 @@ policy. It does not compare values, select an index, or define empty-axis behavi
 aggregate expressions](api/tensor-api.md#numeric-aggregate-expressions) and [Aggregate reduction semantic
 kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes), plus
 [Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions) and [Arg-max
-expressions](api/tensor-api.md#arg-max-expressions).
+expressions](api/tensor-api.md#arg-max-expressions). The masked forms are described separately
+under [Masked sum and mean expressions](api/tensor-api.md#masked-sum-and-mean-expressions).
 
 ### Arg-max tie policy
 
@@ -311,9 +317,11 @@ The selected public baseline removes the reduction axis. A masked sum with no se
 zero. A masked mean divides by the number of true selected positions for each output and is zero
 when that count is zero.
 
-Only semantic representability is current. Public masked Tensor expressions, BOOL-mask and
-data-type validation, deterministic Shape-based mapping resolution, output-shape derivation,
-`[input, mask]` provenance construction, gradients, and numerical execution remain planned.
+Public masked Tensor expressions are also current. They validate floating input and an exact BOOL
+mask, resolve a deterministic ordered mapping from the two Shapes, remove the normalized reduction
+axis, preserve input type and gradient eligibility, and record exact `[input, mask]` provenance.
+Storage alignment, value selection, counting, aggregation, division, gradient rules, compiler
+capture, backend behavior, and numerical execution remain planned.
 
 ### Mask-to-input axis mapping
 
@@ -325,8 +333,8 @@ an empty mapping represents a scalar mask. For example, `[0, 1]` maps mask `[bat
 the first two axes of input `[batch, time, features]` and leaves the features axis implicit.
 
 The mapping value does not contain either Shape. It therefore cannot prove input-rank bounds,
-dimension compatibility, or that one mapping should be selected over another. The planned public
-masked-expression task owns deterministic resolution from concrete input and mask Shapes.
+dimension compatibility, or that one mapping should be selected over another. The public masked
+expression methods separately own deterministic resolution from concrete input and mask Shapes.
 
 ### Memory slot
 
@@ -483,7 +491,9 @@ floating eligibility, while public `all` and `any` own exact BOOL eligibility an
 gradient eligibility. All seven ordinary families own axis normalization, result-shape derivation,
 and one-input provenance. Public `argMax` separately owns floating-or-integral eligibility, fixed
 INT64 false-gradient results, explicit tie policy, axis-only shape derivation, and one-input
-provenance. Public masked reduction construction and Shape mapping remain planned.
+provenance. Public masked `sum` and `mean` separately own floating/BOOL validation, deterministic
+ordered Shape mapping, axis-removing result derivation, exact input type and gradient eligibility,
+and `[input, mask]` provenance.
 
 ### Partition
 
@@ -637,6 +647,10 @@ tie-gradient, compiler, backend, or executable behavior. Current `argMax` method
 of floating or integral input and create fixed INT64, non-differentiable results. Convenience
 forms request the first equal maximum; the complete form retains an explicit policy. They perform
 no comparison or actual index selection and define no NaN, equality, or empty-axis behavior.
+A masked `sum(axis, mask)` or `mean(axis, mask)` requires an exact BOOL mask, resolves an ordered
+mapping from mask dimensions to input axes, removes the selected axis, and records exact
+`[input, mask]` provenance. It preserves input type and gradient eligibility but does not align
+storage, select or aggregate values, count true positions, divide, or define a gradient rule.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).

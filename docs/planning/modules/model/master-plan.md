@@ -154,7 +154,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016D | [Boolean all and any Tensor expressions](tasks/0016d-boolean-all-and-any-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015C, 0015D, 0016A, 0016B, 0016C | Generalize the shared aggregate boundary with BOOL full and single-axis all/any expressions. |
 | 0016E | [Arg-max Tensor expressions](tasks/0016e-arg-max-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016A, 0016B, 0016C, 0016D | Build numeric single-axis INT64 index expressions with explicit or FIRST_INDEX tie policy. |
 | 0016F | [Masked reduction semantics and axis mapping](tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) | Complete | 0005, 0006, 0016A | Define typed SUM/MEAN masked attributes with explicit mask-dimension-to-input-axis mapping. |
-| 0016F1 | Masked sum and mean Tensor expressions | Draft | 0001, 0002, 0013, 0016B, 0016F | Resolve legacy-compatible mask alignment and build axis-removing public expressions. |
+| 0016F1 | [Masked sum and mean Tensor expressions](tasks/0016f1-masked-sum-and-mean-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016B, 0016F | Resolve legacy-compatible mask alignment and build axis-removing public expressions. |
 | 0016G | Cumulative-sum semantic kind and attributes | Draft | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
 | 0016H | Cumulative-sum Tensor expressions | Draft | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
 | 0016I | Softmax semantic kinds and attributes | Draft | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
@@ -180,8 +180,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
-complete. Task 0016F is also complete. Task 0016F1 is the next Draft planning frontier without a
-detailed specification.
+complete. Tasks 0016F and 0016F1 are also complete. Task 0016G remains the next Draft planning
+frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -506,8 +506,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   which input axis receives each mask dimension, so masks such as `[batch, time]` for
   `[batch, time, features]` remain representable without hiding reshape/expand behavior in a
   backend. False positions are excluded; all-false masked sum and masked mean both produce zero.
-  Task 0016F1 remains Draft for Shape-based mapping resolution and public axis-removing
-  expressions.
+  Completion of 0016F left task 0016F1 Draft for later Shape-based mapping resolution and public
+  axis-removing expressions.
 - The independent task-0016F documentation review finalized exact constructor-failure Javadocs,
   the Tensor API semantic reference, glossary terminology, task evidence, master plan, and
   roadmap. Compile API, Training API, capabilities, focused architecture/ADRs/tests, conformance
@@ -516,6 +516,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   unchanged because this task adds only model-owned masked semantic attributes without public
   Tensor construction, Shape resolution, gradients, dependencies, compiler behavior, or
   execution.
+- Task 0016F1 adds exactly `Tensor.sum(axis, mask)` and `mean(axis, mask)` plus one
+  package-private construction helper. It resolves an ordered injective mapping from mask
+  dimensions to input axes using locally provable Dimension equality or mask-side singleton
+  expansion. Candidate preference is explicit: cover the reduced axis when possible, then
+  minimize positional displacement, then choose lexicographically. The result removes the axis,
+  preserves input type and eligibility, and records one masked operation with exact ordered
+  `[input, mask]` provenance. Values, storage alignment, gradients, compiler behavior, and
+  execution remain deferred.
+- The independent task-0016F1 documentation review found the Tensor and helper Javadocs complete,
+  then finalized Tensor API, Compile API, glossary, task evidence, master plan, and roadmap.
+  Training API, capabilities, architecture/ADRs/tests, backend conformance and integration tests,
+  Gradle configuration, foundational contracts, ordinary reductions, and other modules remain
+  accurate unchanged because the task adds only model-owned masked expression metadata without
+  value work, gradient rules, compiler behavior, dependencies, or execution.
 - The independent task-0015G documentation review found the enum and record Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
   Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
@@ -607,8 +621,8 @@ expression construction. Task 0015E completed the sole parameterless `WHERE` con
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
-0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016E are complete. Task 0016F is
-also complete. Task 0016F1 is the next Draft planning frontier, and it and all later
-operation-family tasks remain without detailed specifications.
+0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016F1 are complete. Task 0016G is
+the next Draft planning frontier; all later operation-family tasks remain Draft without detailed
+specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
