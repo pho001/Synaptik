@@ -176,7 +176,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017E | [Axis-transform semantics](tasks/0017e-axis-transform-semantics.md) | Complete | 0002, 0005, 0006 | Define permutation, dimension insertion, and dimension removal meanings. |
 | 0017F | [Permute and transpose Tensor expressions](tasks/0017f-permute-and-transpose-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017E | Build arbitrary axis-reordering and rank-two transpose convenience with view geometry. |
 | 0017F1 | [Expand-dimensions and squeeze Tensor expressions](tasks/0017f1-expand-dimensions-and-squeeze-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017E | Build singleton-axis insertion/removal with rank-editing view geometry. |
-| 0017G | Slice semantics | Draft | 0002, 0005, 0006 | Define immutable general positive-step slice parameters and single-axis convenience meaning. |
+| 0017G | [Slice semantics](tasks/0017g-slice-semantics.md) | Complete | 0002, 0005, 0006 | Define immutable general positive-step slice parameters and single-axis convenience meaning. |
 | 0017H | Slice Tensor expressions | Draft | 0002, 0003, 0013, 0017G | Build general and single-axis slice views with local shape and layout rules. |
 | 0017I | Pad and tile semantics | Draft | 0001, 0002, 0005, 0006 | Define constant-padding and axis-repeat meanings and immutable parameters. |
 | 0017J | Pad and tile Tensor expressions | Draft | 0001, 0002, 0013, 0017I | Build shape-validated constant-pad and tile expressions without eager execution. |
@@ -208,8 +208,8 @@ complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete.
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
-0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, and 0017F1 are complete. Task 0017G is the next Draft
-frontier and remains without a detailed specification; later tasks are also Draft.
+0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, and 0017G are complete. Task 0017H is the next
+Draft frontier and remains without a detailed specification; later tasks are also Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -506,6 +506,11 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   Contiguous semantics/expressions are 0017A–0017B; reshape/expand are 0017C–0017D plus 0017D1;
   axis transforms are 0017E–0017F plus 0017F1; slicing is 0017G–0017H; pad/tile are 0017I–0017J;
   concat/stack/unstack are 0017K–0017L; and unfold/fold are 0017M–0017N.
+- Task 0017G is complete with one `SLICE` identity and one immutable normalized `SliceAttrs` value.
+  Four equal-size parallel lists carry long half-open bounds and positive steps plus distinct int
+  axes. Single-axis slicing remains one entry with step one rather than a second operation kind;
+  Tensor request normalization, Shape/layout derivation, and provenance remain in Draft task
+  0017H.
 - Task 0017A adds the sole parameterless `CONTIGUOUS` identity in the new
   `model.operation.layout` package. It describes a request for logically equivalent canonical
   dense row-major zero-offset output, while remaining distinct from resolved
@@ -816,7 +821,8 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
-complete. Task 0017E, task 0017F, and task 0017F1 are also complete. Task 0017G is the next Draft
-frontier without a detailed specification, and every later operation-family task remains Draft.
+complete. Task 0017E, task 0017F, task 0017F1, and task 0017G are also complete. Task 0017H is the
+next Draft frontier without a detailed specification, and every later operation-family task
+remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

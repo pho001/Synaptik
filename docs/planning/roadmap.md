@@ -56,15 +56,16 @@ Its completed implementation frontier is:
   — Complete.
 - [0017F1 Expand-dimensions and squeeze Tensor expressions](modules/model/tasks/0017f1-expand-dimensions-and-squeeze-tensor-expressions.md)
   — Complete.
+- [0017G Slice semantics](modules/model/tasks/0017g-slice-semantics.md) — Complete.
 
 The next implementation frontier is:
 
-- 0017G Slice semantics — Draft; no detailed task specification exists yet.
+- 0017H Slice Tensor expressions — Draft; no detailed task specification exists yet.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
-composition, and unfold/fold contracts can be implemented and validated independently. Only
-tasks 0017A–0017F1 have detailed specifications. Task 0017G and all later subtasks remain Draft.
+composition, and unfold/fold contracts can be implemented and validated independently. Tasks
+0017A–0017G have detailed specifications. Task 0017H and all later subtasks remain Draft.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -158,8 +159,11 @@ arbitrary complete permutation and rank-two transpose over PERMUTE `[1, 0]`. The
 expression row is split. Task
 [0017F1](modules/model/tasks/0017f1-expand-dimensions-and-squeeze-tensor-expressions.md) is complete
 with expand-dimensions and squeeze construction whose insertion/existing-axis normalization,
-singleton proof, Shape construction, and stride algebra remain distinct from permutation. Task
-0017G is the next Draft frontier and has no detailed specification.
+singleton proof, Shape construction, and stride algebra remain distinct from permutation.
+Task [0017G](modules/model/tasks/0017g-slice-semantics.md) is complete. It defines
+one `SLICE` identity and immutable normalized parallel half-open bounds, distinct axes, and
+positive steps. Single-axis convenience is the same operation with one step-one entry; public
+Tensor request normalization and Shape/layout derivation remain in Draft task 0017H.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -262,7 +266,7 @@ authorized Compile API status correction.
 | 57 | [0017E Axis-transform semantics](modules/model/tasks/0017e-axis-transform-semantics.md) | Complete |
 | 58 | [0017F Permute and transpose Tensor expressions](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md) | Complete |
 | 59 | [0017F1 Expand-dimensions and squeeze Tensor expressions](modules/model/tasks/0017f1-expand-dimensions-and-squeeze-tensor-expressions.md) | Complete |
-| 60 | 0017G Slice semantics | Draft |
+| 60 | [0017G Slice semantics](modules/model/tasks/0017g-slice-semantics.md) | Complete |
 | 61 | 0017H Slice Tensor expressions | Draft |
 | 62 | 0017I Pad and tile semantics | Draft |
 | 63 | 0017J Pad and tile Tensor expressions | Draft |
@@ -321,8 +325,8 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
-complete, 0017F1 is also complete, and every later subtask remains Draft without a detailed
-specification.
+complete, and 0017F1 and 0017G are also complete. Task 0017H and every later subtask remain Draft
+without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

@@ -48,6 +48,12 @@ meaning with `[1, 0]`. Public `Tensor.expandDims` and `Tensor.squeeze` now own t
 insertion-position and existing-axis normalization, result Shape/layout derivation, static
 singleton proof for removal, and provenance.
 
+`SliceKind.SLICE` is also a current one-input semantic identity. It pairs with `SliceAttrs`, whose
+four immutable parallel lists store normalized inclusive starts, exclusive ends, distinct axes,
+and positive steps. These values define positive-step half-open logical selection only. Public
+`Tensor.slice` construction, raw negative request normalization, Shape and layout derivation,
+provenance, gradients, compiler behavior, and execution remain planned in task 0017H.
+
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
 expressions, and provide one bounded host-allocation path without executing a tensor:
@@ -102,6 +108,7 @@ SoftmaxKind + SoftmaxAttrs                                   = shape-preserving 
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
+SliceKind + SliceAttrs                                      = positive-step parallel half-open slice semantics
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -215,6 +222,12 @@ provenance. `Tensor.transpose()` supplies normalized axes `[1, 0]` after requiri
 methods construct logical model metadata only; compiler capture and canonicalization, planning and
 prepare-time materialization, backend lowering, storage aliasing, gradients, and execution remain
 outside the current Tensor contract.
+`SliceKind.SLICE` and `SliceAttrs` define a separate positive-step slicing vocabulary. At each
+entry index, the attributes pair one inclusive start, exclusive end, normalized input axis, and
+positive step. The semantic values contain no input Tensor or Shape and therefore perform no raw
+negative normalization, rank or bound validation, result-Shape calculation, layout derivation,
+provenance construction, or value execution. Those public-expression responsibilities remain in
+task 0017H.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3728,6 +3741,8 @@ composition while the table also lists the current production families:
 | `AxisTransformKind` | The implemented production enum for complete axis permutation, singleton-axis insertion, and selected singleton-axis removal meanings. |
 | `PermutationAttrs` | The implemented immutable complete normalized output-to-input axis permutation. |
 | `AxisTransformAttrs` | The implemented immutable normalized non-negative position shared by singleton-axis insertion and removal. |
+| `SliceKind` | The implemented production enum whose sole `SLICE` value identifies positive-step parallel half-open logical selection. |
+| `SliceAttrs` | The implemented immutable normalized inclusive starts, exclusive ends, distinct axes, and positive steps for a slice. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -4242,6 +4257,77 @@ layout when input geometry is resolved, and exact one-input provenance. Public `
 `squeeze` now construct the corresponding rank-edited result descriptors, conditional logical
 view layouts, and exact one-input provenance. Gradients, compiler behavior, materialization,
 backend support, and execution remain planned.
+
+### Slice semantic kind and normalized attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.layout.SliceKind` implements
+`OperationKind` with exactly one constant, `SLICE`. It identifies a one-input, same-rank logical
+selection. `SliceAttrs(starts, ends, axes, steps)` carries four equal-size parallel lists. At entry
+`i`, the slice selects coordinates beginning at inclusive `starts[i]`, advancing by positive
+`steps[i]`, and remaining below exclusive `ends[i]` on normalized input axis `axes[i]`. An axis
+without an entry retains its complete logical coordinate range.
+
+#### Parallel half-open example
+
+##### Goal and inputs
+
+Describe a conceptual slice of Shape `[3, 6]` that keeps all three rows and selects columns
+`1`, `3`, and `5`. The already normalized parameters are starts `[0, 1]`, ends `[3, 6]`, axes
+`[0, 1]`, and steps `[1, 2]`.
+
+```java
+SliceAttrs attrs = new SliceAttrs(
+        List.of(0L, 1L),
+        List.of(3L, 6L),
+        List.of(0, 1),
+        List.of(1L, 2L));
+Operation slice = new Operation(SliceKind.SLICE, attrs);
+```
+
+##### Meaningful entries and result
+
+- Entry zero is `[0, 3)` with step one on axis zero, so its logical coordinates are rows
+  `0`, `1`, and `2`.
+- Entry one is `[1, 6)` with step two on axis one, so its logical coordinates are columns
+  `1`, `3`, and `5`.
+- The two entries apply in parallel. `slice.kind()` is exactly `SliceKind.SLICE`, and
+  `slice.attrs()` is exactly the supplied `attrs` reference.
+
+The conceptual selected coordinate grid therefore contains all three rows at columns `1`, `3`,
+and `5`. This result explains the requested logical selection; constructing the attributes and
+`Operation` does not construct a Tensor, calculate a result Shape or layout, read values, or
+execute work.
+
+##### Ownership, validation, and useful variations
+
+Coordinates and steps use `long`, matching the numeric width of Shape dimensions and layout
+geometry; axes use `int`, matching Java rank and axis positions. Construction requires non-null
+equal-size lists and non-null elements, rejects negative starts, ends, or axes, rejects repeated
+axes, and rejects zero or negative steps. Validation completes before `List.copyOf` stores one
+immutable snapshot of each list. Caller mutation therefore cannot change the attributes, accessor
+mutation fails, and entry order plus all four list values participate in record equality and
+hashing.
+
+Four empty lists form a normalized identity slice that constrains no axes. A start may equal or
+exceed its paired end because `SliceAttrs` has no input Shape and does not calculate an extent or
+choose empty-result policy. For the same reason, a non-negative axis may still exceed a future
+input rank, and bounds may exceed a future dimension. Raw negative axes or coordinates, clamping,
+rank and dimension checks, extent arithmetic, public empty-slice policy, result Shape and layout,
+and provenance belong to planned task 0017H.
+
+A future single-axis convenience uses the same semantic kind with one step-one entry:
+
+```java
+new SliceAttrs(
+        List.of(fromInclusive),
+        List.of(toExclusive),
+        List.of(normalizedAxis),
+        List.of(1L));
+```
+
+It is not a second kind such as `SLICE_AXIS`. Negative or reverse steps are not represented.
+These semantic values also define no storage view, materialization, gradient or backward scatter,
+compiler canonicalization, ONNX mapping, backend route, or execution behavior.
 
 ### Unary elementwise semantic kinds
 

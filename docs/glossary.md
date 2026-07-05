@@ -110,6 +110,13 @@ with input-rank validation, Shape/layout derivation, and one-input provenance. P
 distinct normalization domains, static singleton proof for removal, conditional same-offset view
 geometry, and one-input provenance. Gradients, compiler behavior, materialization, backend
 behavior, and execution remain planned.
+The `SliceKind` vocabulary is implemented with the sole `SLICE` meaning, together with
+`SliceAttrs` carrying immutable parallel lists of normalized inclusive starts, exclusive ends,
+distinct axes, and positive steps. These semantic values describe positive-step half-open logical
+selection without a Tensor or Shape. Public slice expression construction, raw negative request
+normalization, result Shape/layout derivation, provenance, gradients, compiler behavior,
+materialization, backend behavior, ONNX mapping, and execution remain planned in task 0017H or
+later owning layers.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -464,6 +471,9 @@ before creating it.
 public boundary interprets it according to the operation kind: current `expandDims` uses an output
 insertion position normalized against rank plus one, while current `squeeze` uses an input removal
 position normalized against the existing Shape and validates the selected static singleton.
+`SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
+or rank, so it cannot prove that an axis exists for a future input. Raw negative slice axes are
+planned public request syntax that must be normalized before constructing these attributes.
 
 ### Node
 
@@ -502,7 +512,9 @@ normalized axis plus exact exclusive and reverse flags. Implemented normalizatio
 layout-operation `TargetShapeAttrs` holds one exact normalized semantic result Shape shared by
 reshape and expand. Layout-operation `PermutationAttrs` holds one complete normalized
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
-insertion or removal position. Other families may define records for padding or another
+insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
+inclusive starts, exclusive ends, distinct axes, and positive steps. Other families may define
+records for padding or another
 operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
@@ -639,8 +651,9 @@ parameterless request for canonical dense row-major, zero-offset result geometry
 `ShapeTransformKind`, whose `RESHAPE` and `EXPAND` values pair with `TargetShapeAttrs`. The
 thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` values pair with
 `PermutationAttrs` or `AxisTransformAttrs` as described under [axis transform](#axis-transform).
-These semantic families do not by themselves construct Tensors or define compiler, backend, or
-execution behavior.
+The fourteenth is `SliceKind`, whose sole `SLICE` value pairs with `SliceAttrs` as described under
+[slice](#slice). These semantic families do not by themselves construct Tensors or define
+compiler, backend, or execution behavior.
 
 ### Permutation
 
@@ -750,6 +763,27 @@ Mutable state for one invocation of prepared execution, including input bindings
 ### Shape
 
 An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Slice
+
+An implemented backend-independent logical selection represented by `SliceKind.SLICE` and
+`SliceAttrs`. The attributes use four equal-size parallel lists. Entry `i` selects the half-open
+coordinate interval `[starts[i], ends[i])` on normalized input axis `axes[i]`, advancing by the
+strictly positive `steps[i]`. Unlisted axes retain their complete logical coordinate range.
+
+Starts, ends, and steps use `long`, while axes use `int`. The lists are immutable snapshots;
+their values and entry order define record equality. Axes are non-negative and distinct, bounds
+are non-negative, and four empty lists describe a normalized identity slice. The semantic value
+has no input Shape, so it does not check rank or dimension bounds, compare a start with its end,
+calculate extents, or decide empty-result policy. Raw negative requests, clamping, result Shape
+and layout, and provenance remain planned for task 0017H. Negative or reverse steps are not
+represented.
+
+For conceptual Shape `[3, 6]`, starts `[0, 1]`, ends `[3, 6]`, axes `[0, 1]`, and steps `[1, 2]`
+select rows `0`, `1`, and `2` and columns `1`, `3`, and `5`. This states logical selection rather
+than Tensor construction or execution. A future single-axis convenience is the same `SLICE`
+meaning with one entry and step one, not a separate kind. See [Slice semantic kind and normalized
+attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
 
 ### Softmax / log-softmax
 
@@ -1224,8 +1258,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and axis-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, and single-axis-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, and slice families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, and slice values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1242,7 +1276,9 @@ implemented. Contiguous-request semantics and public contiguous Tensor construct
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
-transpose, expand-dimensions, and squeeze Tensor construction is current. Other
+transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
+normalized parallel attributes are implemented, while public slice Tensor construction remains
+planned in task 0017H. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.
