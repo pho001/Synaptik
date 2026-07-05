@@ -10,10 +10,12 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -72,11 +74,14 @@ import java.util.Optional;
  * Every expression result has a fresh factory identity and no label or storage. Most expression
  * results leave layout unresolved; a contiguous request instead publishes newly resolved
  * canonical dense row-major geometry for a fully static Shape and remains unresolved for a
- * dynamic Shape. Every result records an exact matching
+ * dynamic Shape. Reshape preserves the ordered logical element sequence under a normalized target
+ * Shape. It publishes same-offset canonical alias-view geometry only when the input layout is
+ * resolved and contiguous and the target is fully static; other reshape geometry remains
+ * unresolved without inserting materialization. Every result records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
- * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
+ * {@link ShapeTransformKind}, {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -1979,6 +1984,81 @@ public final class Tensor {
      */
     public Tensor contiguous() {
         return TensorContiguousExpressions.apply(this);
+    }
+
+    /**
+     * Creates a fresh reshape expression from ordered numeric target dimensions.
+     *
+     * <p>The caller-owned array is read but never retained or mutated. Each requested dimension
+     * must be non-negative except for at most one exact {@code -1}, which is inferred from this
+     * tensor's known element count and the non-zero checked product of the other dimensions. An
+     * empty request denotes the rank-zero scalar Shape. Zero extents are valid, but inference is
+     * ambiguous and rejected when the other requested dimensions have product zero. A dynamic
+     * input cannot supply a numeric inferred extent.</p>
+     *
+     * <p>The result retains this tensor's exact DataType and gradient eligibility and uses the
+     * normalized target Shape. Known input and target element counts must match; equality involving
+     * a dynamic Shape is deferred to later compiler validation. When this tensor has resolved
+     * contiguous geometry and the target is fully static, the result receives a new view-marked
+     * layout with canonical target strides and the input element offset. Otherwise layout remains
+     * unresolved: this model method does not insert {@link #contiguous()}, choose materialization,
+     * or inspect storage.</p>
+     *
+     * <p>Every valid call returns a fresh unlabeled, storage-free tensor with exact reshape
+     * semantics and this tensor as its sole provenance input, including same-shape, repeated, and
+     * nested requests. Resolved view metadata does not attach storage or promise zero-copy
+     * execution.</p>
+     *
+     * @param requestedShape non-null caller-owned target dimensions; values must be non-negative
+     *     except for at most one {@code -1}, and an empty array requests scalar Shape
+     * @return a non-null fresh reshape expression retaining exact type and gradient eligibility,
+     *     normalized target Shape, conditional resolved alias-view geometry, and no label/storage
+     * @throws NullPointerException if {@code requestedShape} is null, with message
+     *     {@code requestedShape}
+     * @throws IllegalArgumentException if a dimension is below {@code -1}, multiple {@code -1}
+     *     values occur, inference is unavailable or ambiguous, divisibility fails, or known input
+     *     and target element counts differ
+     * @throws ArithmeticException if requested-product, element-count, canonical-stride, or
+     *     referenced-span arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     metadata has been constructed
+     */
+    public Tensor reshape(long... requestedShape) {
+        return TensorReshapeExpressions.apply(this, requestedShape);
+    }
+
+    /**
+     * Creates a fresh reshape expression for an exact normalized target Shape.
+     *
+     * <p>The exact immutable {@code targetShape} reference is retained in both the result
+     * descriptor and target-shape attributes without copying or normalization. Scalar,
+     * zero-extent, static, and dynamic Shapes are accepted. When both input and target element
+     * counts are known they must be equal; when either count is dynamic, equality is deferred
+     * without binding symbols or inventing a numeric extent.</p>
+     *
+     * <p>The result retains this tensor's exact DataType and gradient eligibility. Resolved
+     * contiguous input geometry plus a fully static target produces a new view-marked layout with
+     * canonical target strides and the input element offset. Unresolved, strided, broadcast, or
+     * dynamic geometry remains unresolved because this method does not force contiguous
+     * materialization or choose an executable alias/copy route.</p>
+     *
+     * <p>Every valid call returns a fresh unlabeled, storage-free tensor with exact reshape
+     * semantics and this tensor as its sole provenance input. Resolved view metadata neither
+     * attaches host storage nor guarantees zero-copy execution.</p>
+     *
+     * @param targetShape non-null normalized semantic target Shape retained by exact reference
+     * @return a non-null fresh reshape expression retaining exact type, target Shape, and gradient
+     *     eligibility with conditional resolved alias-view geometry and no label/storage
+     * @throws NullPointerException if {@code targetShape} is null, with message
+     *     {@code targetShape}
+     * @throws IllegalArgumentException if both Shapes have known unequal element counts
+     * @throws ArithmeticException if element-count, canonical-stride, or referenced-span
+     *     arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     metadata has been constructed
+     */
+    public Tensor reshape(Shape targetShape) {
+        return TensorReshapeExpressions.apply(this, targetShape);
     }
 
     /**

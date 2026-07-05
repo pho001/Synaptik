@@ -17,18 +17,20 @@ aggregate methods add the same three forms for `all` and `any`, and three axis-o
 methods add fixed INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
 scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
 normalization expressions. The parameterless `contiguous` method adds a shape-preserving request
-for canonical dense row-major result geometry. Typed access, other expression families, gradient
-objects and publication behavior, native/runtime/backend allocation, compiler integration,
-runtime residency, and backend execution remain planned. The authoritative module boundary remains
-[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
+preserving coordinate changes from either raw `long...` dimensions or an exact normalized
+`Shape`. Typed access, other expression families, gradient objects and publication behavior,
+native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
+remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current semantic vocabulary also includes `ContiguousKind.CONTIGUOUS`, a parameterless
 request for logically equivalent canonical dense row-major, zero-offset result geometry. Public
 `Tensor.contiguous()` now constructs that request without allocating or copying storage.
 `ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` are also current semantic identities.
-Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape`; public reshape
-and expand request methods, compatibility checks, result descriptors, and provenance remain
-planned.
+Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape`.
+`Tensor.reshape(long...)` now normalizes raw dimensions and performs locally provable count
+validation, while `Tensor.reshape(Shape)` retains an exact normalized target. Public expand
+requests and all compiler, materialization, gradient, and execution behavior remain planned.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -65,6 +67,7 @@ numeric Tensor + ARG_MAX + axis/tie attributes                  = fresh reduced-
 numeric Tensor + CUM_SUM + axis/mode attributes                 = fresh shape-preserving Tensor
 floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-preserving Tensor
 Tensor + CONTIGUOUS                                = fresh static-resolved or dynamic-unresolved Tensor
+Tensor + raw/exact target Shape + RESHAPE          = fresh conditional-view reshape Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -178,10 +181,12 @@ target-shape meanings. `RESHAPE` preserves the ordered logical element sequence 
 the coordinates through which it is interpreted. `EXPAND` logically repeats compatible
 singleton dimensions or adds leading dimensions. Both use `TargetShapeAttrs`, whose exact
 non-null `Shape` is already normalized model semantics. The attributes therefore contain neither
-raw public request syntax nor a numeric `-1` inference sentinel. These semantic contracts do not
-construct Tensor expressions, inspect an input, validate element counts or expansion
-compatibility, derive layout, or define provenance, gradients, compiler behavior, backend
-behavior, or execution.
+raw public request syntax nor a numeric `-1` inference sentinel. Public `Tensor.reshape` now owns
+raw-request normalization, locally provable element-count validation, conditional result-layout
+derivation, and one-input provenance. The semantic values themselves still do not perform that
+work, and public expand construction remains planned. Neither the semantics nor current reshape
+construction defines gradients, compiler behavior, materialization policy, backend behavior, or
+execution.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3006,6 +3011,141 @@ execution.
 - Scalar and zero-extent Shapes are valid, as are all current data types. Repeated or nested
   requests always return fresh expression identities.
 
+### Reshape expressions
+
+The current `Tensor.reshape(long...)` and `Tensor.reshape(Shape)` methods create fresh model
+expressions that preserve the input's ordered logical element sequence under new coordinates.
+Both overloads accept all six current data types, retain the exact input data type and
+`requiresGrad` value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
+`Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(targetShape))` and ordered input
+`[input]`. Same-shape, repeated, and nested requests remain explicit fresh expressions.
+
+The raw `long...` overload treats its array as caller-owned input: it neither mutates nor retains
+the array. An empty request means the canonical rank-zero scalar Shape. Every ordinary extent must
+be non-negative, so zero extents are valid. At most one exact `-1` may request inference; every
+value below `-1` is invalid. The sentinel is normalized before `Shape` and `TargetShapeAttrs`
+construction and therefore never appears in stored semantic state.
+
+Inference requires a fully known input element count and a non-zero checked product of all other
+requested extents. The input count must be exactly divisible by that product. A zero input count
+can therefore infer zero when the other requested product is non-zero, such as reshaping `[0, 3]`
+with `[-1, 2]` to `[0, 2]`. A request such as `[0, -1]` is rejected because infinitely many
+inferred extents satisfy a zero product. Once a zero requested extent is present, that ambiguity is
+reported without performing irrelevant multiplication that could overflow elsewhere in the raw
+request.
+
+The exact-Shape overload accepts a non-null already normalized scalar, zero-extent, static, mixed
+dynamic, or fully dynamic `Shape` and retains that exact immutable reference in both the result
+descriptor and `TargetShapeAttrs`. For either overload, known input and target element counts must
+match. If either Shape has a dynamic dimension, the equality constraint is accepted and deferred
+to later compiler validation; this method neither binds symbols nor assumes that the counts match.
+
+Result layout is resolved only when two facts are locally available: the input descriptor has
+resolved contiguous geometry, including offset-contiguous geometry, and the target Shape is fully
+static. That branch creates a new view-marked layout with canonical target row-major strides and
+the exact input element offset. Offset zero classifies as `DENSE_CONTIGUOUS`; non-zero offset
+classifies as `DENSE_WITH_OFFSET`. Unresolved, strided, or broadcast input geometry, or a dynamic
+target, produces unresolved result layout. Reshape does not insert `contiguous()`, access or attach
+storage, copy values, or decide an executable alias-versus-materialization route. Even resolved
+view metadata is only a logical model fact and does not promise zero-copy execution.
+
+#### Complete expression-construction example
+
+##### Goal and inputs
+
+Normalize one inferred raw request against a static offset-contiguous input, then retain one exact
+dynamic target Shape. Both calls observe expression metadata only; no storage is needed.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class ReshapeExpressionExample {
+    public static void main(String[] args) {
+        Shape inputShape = Shape.of(2, 3);
+        LayoutDescriptor inputLayout = LayoutDescriptor.of(
+                inputShape, new long[] {3, 1}, 5, true);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.of(inputLayout), true));
+
+        long[] request = {3, -1};
+        Tensor staticResult = input.reshape(request);
+        request[0] = 99;
+
+        Shape dynamicTarget = Shape.ofDimensions(
+                new DynamicDimension("items"), new StaticDimension(2));
+        Tensor dynamicResult = input.reshape(dynamicTarget);
+        LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
+
+        System.out.println(staticResult.descriptor().shape());
+        System.out.println(Arrays.toString(resultLayout.strides()));
+        System.out.println(resultLayout.storageOffset());
+        System.out.println(resultLayout.isView());
+        System.out.println(staticResult.provenance().orElseThrow().operation().kind());
+        System.out.println(staticResult.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(dynamicResult.descriptor().shape() == dynamicTarget);
+        System.out.println(dynamicResult.descriptor().layout().isEmpty());
+        System.out.println(staticResult.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Input Shape `[2, 3]` has six elements. In raw request `[3, -1]`, the known product is three, so
+  the inferred extent is `6 / 3 = 2` and the normalized target is `[3, 2]`.
+- Mutating `request` after the call cannot change the result because raw array ownership remains
+  with the caller and the normalized Shape owns its immutable dimensions.
+- The input layout is contiguous at element offset five. The static result therefore receives new
+  canonical target strides `[2, 1]`, retains offset five, and is explicitly marked as a view.
+- The exact dynamic target is accepted because its element count is not locally known. Its
+  reference is retained, while layout remains unresolved.
+- Both results retain `FLOAT32` and true gradient eligibility, record exact one-input `RESHAPE`
+  provenance, and have no label or host storage.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[3, 2]
+[2, 1]
+5
+true
+RESHAPE
+true
+true
+true
+true
+```
+
+The result demonstrates raw inference, defensive ownership, exact dynamic-Shape retention,
+conditional same-offset view geometry, and provenance. It does not demonstrate value movement,
+storage aliasing, compiler constraint solving or canonicalization, gradients, materialization,
+backend lowering, or execution.
+
+##### Failures and useful variations
+
+- A null raw array or exact Shape fails with `NullPointerException` naming `requestedShape` or
+  `targetShape`, respectively.
+- A raw extent below `-1`, a second `-1`, dynamic-input inference, zero-product inference,
+  non-divisible inference, or unequal known counts fails with `IllegalArgumentException`.
+- Checked element-count, non-zero requested-product, canonical-stride, and referenced-span
+  overflow propagates as `ArithmeticException` before a Tensor identity is consumed.
+- Exhausted Tensor identifier space fails with `IllegalStateException` only at final derived
+  construction after local validation and metadata construction.
+- `reshape()` requests a scalar and succeeds only when the input has one known element or when
+  compatibility is dynamic. `reshape(-1, 2)` on a zero-element input infers `[0, 2]`, while
+  `reshape(0, -1)` is ambiguous and fails.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -3591,7 +3731,7 @@ exact result `Shape`, carried by `TargetShapeAttrs(targetShape)` rather than sto
 
 | Kind | Semantic meaning | Deferred input-dependent decision |
 |---|---|---|
-| `RESHAPE` | Preserve the ordered logical element sequence while interpreting it through `targetShape` coordinates. | Element-count compatibility, inferred request dimensions, and view or copy eligibility. |
+| `RESHAPE` | Preserve the ordered logical element sequence while interpreting it through `targetShape` coordinates. | Graph-wide dynamic count constraints and executable alias or copy choice. |
 | `EXPAND` | Logically repeat compatible singleton dimensions or add repeated leading dimensions to produce `targetShape`. | Rank and singleton compatibility, symbolic constraints, and zero-stride or materialized geometry. |
 
 The pairings are explicit:
@@ -3610,19 +3750,21 @@ mixed static/dynamic, and fully dynamic Shapes without inspecting an input.
 
 The stored `Shape` is normalized semantic state. Its static dimensions are non-negative and its
 dynamic dimensions are explicit symbols, so a raw numeric `-1` reshape-inference sentinel cannot
-occur in the attributes. A future public reshape request boundary must normalize any caller-facing
-request syntax before constructing this value.
+occur in the attributes. The current raw public reshape boundary normalizes that caller-facing
+syntax before constructing this value.
 
 Conceptually, reshaping logical sequence `[a, b, c, d, e, f]` from shape `[2, 3]` to `[3, 2]`
 preserves that sequence and changes only its coordinate grouping to `[[a, b], [c, d], [e, f]]`.
 Expanding logical row `[a, b, c]` from `[1, 3]` to `[2, 3]` instead repeats it as
 `[[a, b, c], [a, b, c]]`. These examples explain the semantic distinction; the implemented enum
 and attributes perform neither transformation, compatibility validation, layout construction, nor
-value execution.
+value execution. Current `Tensor.reshape` overloads separately perform raw request normalization,
+locally provable count validation, result descriptor/layout derivation, and provenance
+construction as described under [Reshape expressions](#reshape-expressions).
 
-Public `Tensor.reshape` and `Tensor.expand`, raw request normalization, element-count and
-broadcast validation, descriptor and layout derivation, provenance, gradients, compiler and
-planning behavior, materialization, backend support, and execution remain planned.
+Public `Tensor.expand`, expand compatibility and zero-stride derivation, dynamic reshape
+constraint solving, gradients, compiler and planning behavior, materialization, backend support,
+and execution remain planned.
 
 ### Unary elementwise semantic kinds
 
@@ -3925,7 +4067,7 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous requests, including public reshape and expand expressions, plus gradient and
+  contiguous and reshape requests, including public expand expressions, plus gradient and
   trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
@@ -3954,7 +4096,8 @@ do not provide a compiler entry point or executable support. Softmax and log-sof
 values and their public Tensor expression construction are current. The contiguous semantic value
 and public Tensor expression construction are also current, including static resolved and dynamic
 unresolved result-layout rules. Reshape and expand semantic values are current; their public Tensor
-expression construction remains planned.
+expression status differs: reshape construction is current, while expand construction remains
+planned.
 
 ## Failures and ownership summary
 
@@ -3965,6 +4108,15 @@ expression construction remains planned.
   eligibility, and performs checked canonical layout construction only for fully static Shapes.
   Overflow consumes no Tensor identity; identifier exhaustion occurs after local immutable
   expression metadata construction. Valid results remain unlabeled and storage-free.
+- `Tensor.reshape(long...)` accepts non-negative extents plus at most one inferable `-1`, treats an
+  empty request as scalar Shape, copies request semantics without retaining the caller array, and
+  rejects unavailable, ambiguous, non-divisible, overflowing, or known-mismatched requests before
+  identity allocation.
+- `Tensor.reshape(Shape)` retains the exact non-null normalized target reference. Both overloads
+  defer equality when either count is dynamic and resolve same-offset canonical view geometry only
+  for resolved contiguous input plus a fully static target; every other layout remains unresolved.
+  Valid results retain exact type and gradient eligibility, use exact RESHAPE/target-shape
+  semantics and `[input]` provenance, and remain fresh, unlabeled, and storage-free.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.

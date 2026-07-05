@@ -38,7 +38,8 @@ cast method, fifteen full/axis numeric aggregate methods, and six full/axis bool
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax` and `logSoftmax` methods, construct storage-free
 expressions with immutable operation-and-input provenance. The parameterless `contiguous` method
-adds the same expression provenance for a canonical-layout request.
+adds the same expression provenance for a canonical-layout request, and the two `reshape`
+overloads add normalized target-shape expressions.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -94,6 +95,15 @@ storage-free, records `CONTIGUOUS` with the canonical no-attributes singleton an
 provenance, and does not inspect input layout, storage, or values. Resolved result geometry does
 not allocate or copy storage. Compiler capture, redundant-request canonicalization,
 materialization policy, lowering, and execution remain planned.
+`Tensor.reshape(long...)` accepts all current data types, normalizes an empty request or one
+inferable `-1`, and rejects locally provable invalid counts. `Tensor.reshape(Shape)` retains an
+exact normalized target and defers count equality when either Shape is dynamic. Both overloads
+retain type and gradient eligibility, record exact RESHAPE/target-shape semantics with one-input
+provenance, and stay unlabeled and storage-free. Only resolved contiguous input plus a static
+target produces same-offset canonical view metadata; all other result layout remains unresolved.
+This is current model expression construction, not compiler capture, graph-wide dynamic constraint
+solving, reshape-chain canonicalization, materialization planning, backend alias/copy lowering, or
+execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -113,10 +123,12 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
-  request construction, are implemented; the compiler entry point, traversal, capture,
+  request construction and conditional-view reshape construction, are implemented; the compiler
+  entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast and redundant-contiguous canonicalization, layout materialization planning, and
-  conversion into graph values and nodes remain planned.
+  redundant-cast, redundant-contiguous, and reshape-chain canonicalization, deferred dynamic
+  reshape count validation, layout materialization planning, and conversion into graph values and
+  nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

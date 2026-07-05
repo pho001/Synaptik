@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(77, declaredPublicMethods.size());
+        assertEquals(79, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -89,7 +89,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
-                        "logSoftmax", "contiguous"),
+                        "logSoftmax", "contiguous", "reshape"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -239,6 +239,18 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(contiguous.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(contiguous.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(contiguous.getModifiers())));
+
+        for (Class<?> parameter : List.of(long[].class, Shape.class)) {
+            var reshape = Tensor.class.getDeclaredMethod("reshape", parameter);
+            assertAll(
+                    () -> assertEquals(Tensor.class, reshape.getReturnType()),
+                    () -> assertEquals(List.of(parameter),
+                            Arrays.asList(reshape.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(reshape.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(reshape.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(reshape.getModifiers())),
+                    () -> assertEquals(parameter == long[].class, reshape.isVarArgs()));
+        }
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

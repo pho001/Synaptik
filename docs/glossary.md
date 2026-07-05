@@ -95,9 +95,11 @@ materialization, compiler behavior, backend behavior, and execution remain owned
 The `ShapeTransformKind` vocabulary is implemented with distinct `RESHAPE` and `EXPAND`
 identities, together with `TargetShapeAttrs` carrying one exact normalized target `Shape`.
 `RESHAPE` preserves ordered logical elements under new coordinates, while `EXPAND` logically
-repeats compatible singleton or leading axes. Public request normalization, compatibility
-validation, Tensor expression construction, layout derivation, provenance, gradients, compiler
-behavior, backend behavior, and execution remain planned.
+repeats compatible singleton or leading axes. Public `Tensor.reshape(long...)` and
+`Tensor.reshape(Shape)` now construct fresh storage-free expressions with local count validation,
+conditional same-offset view geometry, and one-input provenance. Public expand construction,
+graph-wide dynamic constraints, gradients, compiler behavior, materialization, backend behavior,
+and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -719,11 +721,23 @@ dimensions. The shared attributes do not inspect an input, compare element count
 expansion compatibility, bind symbols, derive a [`Layout`](#layout), or decide whether a result is
 a [view](#view) or materialized copy.
 
-These semantic values are current, but public `Tensor.reshape` and `Tensor.expand`, request
-normalization, result descriptors, provenance, gradients, compiler behavior, materialization,
-backend support, and execution remain planned. Generic [`Operation`](#operation) composition
-retains the exact kind and attributes references but does not enforce the family pairing or
-one-input context.
+These semantic values are current. Public `Tensor.reshape(long...)` normalizes a defensively owned
+raw request containing non-negative extents and at most one inferable `-1`; an empty request means
+scalar Shape. Inference requires a known input count and non-zero product of all other requested
+extents. It may infer zero from a zero input count, but a requested zero product is ambiguous.
+Public `Tensor.reshape(Shape)` instead retains the exact normalized target reference. Both methods
+reject unequal known counts and defer equality when either Shape is dynamic.
+
+When the input has resolved contiguous geometry and the target is fully static, reshape publishes
+a new view-marked layout with canonical target strides and the same element offset. Unresolved,
+strided, broadcast, or dynamic geometry remains unresolved; no implicit contiguous operation or
+materialization is inserted. Every valid result is fresh, unlabeled, storage-free, retains input
+type and gradient eligibility, and records exact RESHAPE/target-shape semantics with provenance
+`[input]`. Public `Tensor.expand`, dynamic constraint solving, gradients, compiler
+canonicalization, materialization, backend support, and execution remain planned. Generic
+[`Operation`](#operation) composition retains the exact kind and attributes references but does
+not enforce the family pairing or one-input context. See [Reshape
+expressions](api/tensor-api.md#reshape-expressions).
 
 ### Tensor
 
@@ -815,6 +829,13 @@ A `contiguous` request accepts every data type and preserves exact Shape, type, 
 eligibility. A fully static result receives new canonical dense row-major, zero-offset geometry;
 a dynamic result remains unresolved. Every request is fresh, unlabeled, and storage-free, records
 exact one-input provenance, and neither inspects input layout or values nor performs a copy.
+A `reshape` request also accepts every data type and preserves exact type and gradient eligibility,
+but changes to a normalized target Shape while preserving ordered logical elements. Raw requests
+support scalar empty varargs, zero extents, and one locally inferable `-1`; exact Shape requests
+retain their target reference and defer dynamic count equality. A resolved contiguous input and
+static target produce same-offset canonical view metadata, while other geometry remains
+unresolved. Each result is fresh, unlabeled, storage-free, and records one-input RESHAPE
+provenance without moving values or choosing materialization.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1066,8 +1087,10 @@ aggregate expression construction for sum, mean, product, minimum, and maximum, 
 aggregate expression construction for all and any. Axis-only index-producing construction for
 arg-max, shape-preserving cumulative-sum construction, and shape-preserving softmax/log-softmax
 construction are also implemented. Shape-preserving contiguous request construction is
-implemented with static-resolved and dynamic-unresolved result layout rules. Gradient rules and
-objects, compiler graph capture and canonicalization, truth or numerical execution,
+implemented with static-resolved and dynamic-unresolved result layout rules. Ordered-element-
+preserving reshape construction is implemented with raw inference, exact-Shape retention, and
+conditional contiguous-input/static-target view geometry. Gradient rules and objects, compiler
+graph capture and canonicalization, dynamic constraint solving, truth or numerical execution,
 materialization, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
@@ -1103,8 +1126,9 @@ together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
 implemented. Contiguous-request semantics and public contiguous Tensor construction are also
-implemented. Reshape and expand semantics plus target-shape attributes are implemented, while
-their public Tensor expressions remain planned. Other concrete families and their family-specific
+implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
+reshape Tensor construction is current, while public expand construction remains planned. Other
+concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.
 The compiled graph container is implemented model state.

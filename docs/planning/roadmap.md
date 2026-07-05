@@ -46,14 +46,17 @@ Its completed implementation frontier is:
   — Complete.
 - [0017C Reshape and expand semantics](modules/model/tasks/0017c-reshape-and-expand-semantics.md)
   — Complete.
+- [0017D Reshape Tensor expressions](modules/model/tasks/0017d-reshape-tensor-expressions.md)
+  — Complete.
 
-The next planning frontier is 0017D Reshape and expand Tensor expressions — Draft. No detailed
-task specification exists.
+The next implementation frontier is:
+
+- 0017D1 Expand Tensor expressions — Draft; no detailed specification exists yet.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Only
-tasks 0017A–0017C have detailed specifications. Task 0017D and all later subtasks remain Draft.
+tasks 0017A–0017D have detailed specifications. Task 0017D1 and all later subtasks remain Draft.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -133,8 +136,10 @@ storage-free expression with static-resolved and dynamic-unresolved result layou
 leaving copy choice and materialization to later compiler/planning/prepare/backend work.
 Task [0017C](modules/model/tasks/0017c-reshape-and-expand-semantics.md) is complete. It defines only
 the two target-shape semantic identities and shared immutable Shape attributes; public request
-normalization, compatibility validation, layout derivation, and provenance remain in Draft task
-0017D.
+normalization, compatibility validation, layout derivation, and provenance remain in expression
+tasks. Task [0017D](modules/model/tasks/0017d-reshape-tensor-expressions.md) is complete. It adds
+raw-inferred and exact-Shape reshape expressions with conditional contiguous-input/static-target
+view geometry; expand remains separate Draft task 0017D1.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -232,24 +237,25 @@ authorized Compile API status correction.
 | 52 | [0017A Contiguous semantic kind](modules/model/tasks/0017a-contiguous-semantic-kind.md) | Complete |
 | 53 | [0017B Contiguous Tensor expression](modules/model/tasks/0017b-contiguous-tensor-expression.md) | Complete |
 | 54 | [0017C Reshape and expand semantics](modules/model/tasks/0017c-reshape-and-expand-semantics.md) | Complete |
-| 55 | 0017D Reshape and expand Tensor expressions | Draft |
-| 56 | 0017E Axis-transform semantics | Draft |
-| 57 | 0017F Permute, transpose, expand-dimensions, and squeeze expressions | Draft |
-| 58 | 0017G Slice semantics | Draft |
-| 59 | 0017H Slice Tensor expressions | Draft |
-| 60 | 0017I Pad and tile semantics | Draft |
-| 61 | 0017J Pad and tile Tensor expressions | Draft |
-| 62 | 0017K Tensor composition semantics | Draft |
-| 63 | 0017L Tensor composition expressions | Draft |
-| 64 | 0017M Unfold and fold semantics | Draft |
-| 65 | 0017N Unfold and fold Tensor expressions | Draft |
-| 66 | 0018 Indexing and scatter operations | Draft |
-| 67 | 0019 Linear algebra and attention operations | Draft |
-| 68 | 0020 Convolution and pooling operations | Draft |
-| 69 | 0021 Normalization operations | Draft |
-| 70 | 0022 Loss operations | Draft |
-| 71 | 0023 Compiler-generated semantic operations | Draft |
-| 72 | 0024 Model capability parity audit | Draft |
+| 55 | [0017D Reshape Tensor expressions](modules/model/tasks/0017d-reshape-tensor-expressions.md) | Complete |
+| 56 | 0017D1 Expand Tensor expressions | Draft |
+| 57 | 0017E Axis-transform semantics | Draft |
+| 58 | 0017F Permute, transpose, expand-dimensions, and squeeze expressions | Draft |
+| 59 | 0017G Slice semantics | Draft |
+| 60 | 0017H Slice Tensor expressions | Draft |
+| 61 | 0017I Pad and tile semantics | Draft |
+| 62 | 0017J Pad and tile Tensor expressions | Draft |
+| 63 | 0017K Tensor composition semantics | Draft |
+| 64 | 0017L Tensor composition expressions | Draft |
+| 65 | 0017M Unfold and fold semantics | Draft |
+| 66 | 0017N Unfold and fold Tensor expressions | Draft |
+| 67 | 0018 Indexing and scatter operations | Draft |
+| 68 | 0019 Linear algebra and attention operations | Draft |
+| 69 | 0020 Convolution and pooling operations | Draft |
+| 70 | 0021 Normalization operations | Draft |
+| 71 | 0022 Loss operations | Draft |
+| 72 | 0023 Compiler-generated semantic operations | Draft |
+| 73 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -293,8 +299,9 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 0016F1 so aggregate semantics, focused Tensor expression groups, masked reductions, cumulative
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
-decomposed into 0017A–0017N; 0017A through 0017C are complete, 0017D is the next Draft frontier
-without a detailed specification, and every later subtask remains Draft. Completed task 0016E adds fixed-INT64,
+decomposed into 0017A–0017N plus 0017D1; 0017A through 0017D are complete, and 0017D1 plus every
+later subtask remain Draft without detailed specifications.
+Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.
 
