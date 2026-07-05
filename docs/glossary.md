@@ -78,6 +78,11 @@ flags. Public `Tensor.cumSum` now constructs all four traversal/inclusion modes 
 integral inputs, retaining exact Shape/type/eligibility metadata in an unresolved descriptor and
 recording one-input provenance. Value accumulation, gradients, compiler behavior, and execution
 remain planned.
+The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
+`LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
+These semantic values preserve logical positions and describe complete normalization slices
+without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftmax` construction,
+numerical evaluation, gradients, compiler behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -384,6 +389,8 @@ same boundary before constructing `ArgMaxAttrs`.
 expression construction resolves that axis and its mask mapping before creating the attributes.
 `CumulativeSumAttrs` also stores only an already normalized non-negative axis; current public
 Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creating it.
+`SoftmaxAttrs` likewise stores only an already normalized non-negative axis. Public Shape-aware
+softmax and log-softmax construction is not implemented yet and remains planned in task 0016J.
 
 ### Node
 
@@ -417,8 +424,9 @@ non-null target `DataType` without duplicating a source type. Implemented reduct
 `AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
 adds an explicit tie policy and `MaskedReductionAttrs` holds one reduction axis plus an immutable
 ordered mask-to-input axis mapping. Implemented scan-family `CumulativeSumAttrs` holds one
-normalized axis plus exact exclusive and reverse flags. Other families may define records for
-padding or another operation-specific value. Implementations use typed fields, defensively
+normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
+`SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax. Other families may
+define records for padding or another operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
@@ -535,6 +543,18 @@ executable behavior, or backend support. Public `Tensor.cumSum` separately owns 
 validation, Shape-aware axis normalization, descriptor construction, fresh identity, and
 one-input provenance without accumulating values.
 
+The tenth production family is `SoftmaxKind`, an enum containing exactly `SOFTMAX` and
+`LOG_SOFTMAX`. Both kinds pair with `SoftmaxAttrs`, whose sole component is an already normalized
+non-negative axis. A normalization slice fixes every other logical coordinate and varies only
+along that axis. `SOFTMAX` identifies positive normalized probabilities whose ideal slice total is
+one; `LOG_SOFTMAX` identifies their natural logarithms, so exponentiating each ideal log-softmax
+value recovers the corresponding softmax probability. The family preserves logical positions and
+is distinct from both axis-contracting aggregate reduction and ordered-prefix scan semantics.
+Generic `Operation` does not enforce either pairing. The kind and attributes store no Tensor,
+Shape, data-type policy, result descriptor, provenance, numerical algorithm, gradient, compiler
+decomposition, storage, executable behavior, or backend support. Public `Tensor.softmax` and
+`Tensor.logSoftmax` expression construction remains planned in task 0016J.
+
 ### Partition
 
 A planned graph region whose nodes share one backend owner. Planning forms maximal same-owner partitions after ownership decisions so each backend can prepare a coherent region. A partition is still compile-time planning data, not a selected kernel or prepared executable.
@@ -611,6 +631,26 @@ Mutable state for one invocation of prepared execution, including input bindings
 ### Shape
 
 An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Softmax / log-softmax
+
+Two implemented, shape-preserving normalization meanings represented by `SoftmaxKind.SOFTMAX`
+and `SoftmaxKind.LOG_SOFTMAX`. Both pair with `SoftmaxAttrs`, which carries one already normalized
+non-negative axis. A normalization slice contains positions that vary along that axis while every
+other logical coordinate remains fixed.
+
+For slice values `x_i`, ideal softmax produces positive normalized probabilities
+`exp(x_i) / sum_j(exp(x_j))` whose slice total is one. Ideal log-softmax produces the natural
+logarithm of each corresponding softmax probability. For `[1, 2, 3]`, those meanings are
+approximately `[0.09003057, 0.24472847, 0.66524096]` and
+`[-2.40760596, -1.40760596, -0.40760596]`; exponentiating the latter values recovers the former.
+The example states ideal mathematics, not a finite-precision algorithm.
+
+The semantic values do not retain a Tensor or Shape, normalize caller-facing negative axes,
+construct descriptors or provenance, define data-type eligibility or gradients, select compiler
+decomposition, report backend support, or execute normalization. Public `Tensor.softmax` and
+`Tensor.logSoftmax` expression construction remains planned in task 0016J. See [Softmax semantic
+kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
 
 ### Referenced element span
 
@@ -968,8 +1008,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, and cumulative-sum scan families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, and cumulative-sum values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, and softmax normalization families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, and softmax values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -981,9 +1021,10 @@ unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are i
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
-sum/mean. Cumulative-sum semantics and public Tensor construction are also implemented. Other
-concrete families and their family-specific attributes, compiler capture, and execution remain
-planned.
+sum/mean. Cumulative-sum semantics and public Tensor construction are also implemented. Softmax
+and log-softmax semantic kinds and attributes are implemented, while their public Tensor
+construction remains planned. Other concrete families and their family-specific attributes,
+compiler capture, and execution remain planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

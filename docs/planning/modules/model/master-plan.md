@@ -98,6 +98,9 @@ io.github.pho001.synaptik.model.operation.reduction
 io.github.pho001.synaptik.model.operation.scan
   Typed shape-preserving ordered scan meanings and immutable scan parameters.
 
+io.github.pho001.synaptik.model.operation.normalization
+  Typed shape-preserving normalization meanings and immutable normalization parameters.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -160,7 +163,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016F1 | [Masked sum and mean Tensor expressions](tasks/0016f1-masked-sum-and-mean-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016B, 0016F | Resolve legacy-compatible mask alignment and build axis-removing public expressions. |
 | 0016G | [Cumulative-sum semantic kind and attributes](tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) | Complete | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
 | 0016H | [Cumulative-sum Tensor expressions](tasks/0016h-cumulative-sum-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
-| 0016I | Softmax semantic kinds and attributes | Draft | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
+| 0016I | [Softmax semantic kinds and attributes](tasks/0016i-softmax-semantic-kinds-and-attributes.md) | Complete | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
 | 0016J | Softmax Tensor expressions | Draft | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
@@ -183,8 +186,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
-complete. Tasks 0016F, 0016F1, 0016G, and 0016H are also complete. Task 0016I is the next Draft
-planning frontier without a detailed specification; all later model tasks remain Draft.
+complete. Tasks 0016F, 0016F1, 0016G, 0016H, and 0016I are also complete. Task 0016J is the next
+Draft planning frontier without a detailed specification; all later model tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -455,6 +458,14 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   configuration, and other modules remain accurate unchanged because this task adds only
   model-owned cumulative-sum expression metadata without value accumulation, gradient rules,
   compiler capture, dependencies, backend behavior, or execution.
+- Task 0016I completed the cohesive `model.operation.normalization` package with exact SOFTMAX and
+  LOG_SOFTMAX identities plus one immutable normalized-axis attributes record. Its Javadocs,
+  Tensor API, and glossary explain probability and log-probability slice semantics and their
+  mathematical relationship while leaving Tensor construction, floating eligibility, Shape
+  retention, provenance, numerical algorithms, gradients, compiler decomposition, backend
+  behavior, and execution to later owners. The independent documentation pass found the submitted
+  Javadocs complete unchanged and validated focused/model/root tests, generated Javadoc, bytecode,
+  imports, Markdown, exact eight-path scope, and synchronized status.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -647,8 +658,8 @@ expression construction. Task 0015E completed the sole parameterless `WHERE` con
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
-0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016H, including 0016F1, are
-complete. Task 0016I is the next Draft planning frontier without a detailed specification; all
+0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016I, including 0016F1, are
+complete. Task 0016J is the next Draft planning frontier without a detailed specification; all
 later operation-family tasks remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

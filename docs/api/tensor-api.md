@@ -63,6 +63,7 @@ CastKind + CastAttrs                                          = explicit cast id
 AggregateReductionKind + reduction attributes                = full/axis aggregate semantics + arg-max tie policy
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordered mask-axis mapping
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
+SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -143,6 +144,11 @@ semantics. Public `Tensor.cumSum(axis)` selects inclusive forward traversal, whi
 integral input, normalize one axis, retain the exact input Shape, data type, and gradient
 eligibility, leave layout unresolved, and record exact one-input provenance. They do not inspect
 or accumulate values.
+`SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
+shape-preserving probability and log-probability normalization semantics. The attributes carry
+one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
+expression construction is not implemented yet; task 0016J will own caller-axis normalization,
+input eligibility, descriptor construction, and provenance.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -2900,6 +2906,8 @@ composition while the table also lists the current production families:
 | `MaskedReductionAttrs` | The implemented immutable normalized reduction axis and ordered mask-dimension-to-input-axis mapping for masked, axis-removing sum and mean semantics. |
 | `CumulativeSumKind` | The implemented production enum whose sole `CUM_SUM` value identifies cumulative addition along one axis. |
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
+| `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
+| `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -3225,6 +3233,54 @@ Shape/type/eligibility retention in an unresolved descriptor, fresh identity, an
 provenance. Accumulation policy, empty-axis value behavior, numerical edge cases, gradients,
 compiler behavior, storage, backend support, and execution remain with later owning contracts.
 
+### Softmax semantic kinds and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind` implements `OperationKind`
+with exactly `SOFTMAX` and `LOG_SOFTMAX`, in that order. Both meanings have one logical input and
+preserve every logical position. `SoftmaxAttrs(axis)` carries the one already normalized,
+non-negative axis shared by both kinds.
+
+Fixing every logical coordinate except the selected axis identifies one normalization slice. For
+example, in a rank-two input with axis `1`, every row is a separate slice: positions within a row
+vary along axis `1`, while the row coordinate remains fixed. Each output position depends on the
+complete slice, so these meanings differ from both aggregate reduction, which contracts an axis,
+and cumulative sum, which depends on an ordered prefix.
+
+The semantic pairings are explicit:
+
+```java
+SoftmaxAttrs attrs = new SoftmaxAttrs(1);
+Operation probabilities = new Operation(SoftmaxKind.SOFTMAX, attrs);
+Operation logProbabilities = new Operation(SoftmaxKind.LOG_SOFTMAX, attrs);
+```
+
+For slice values `x_i`, ideal SOFTMAX at position `i` is
+`exp(x_i) / sum_j(exp(x_j))`. The outputs are positive probabilities whose slice total is one.
+Ideal LOG_SOFTMAX is the natural logarithm of the corresponding SOFTMAX probability, equivalently
+`x_i - log(sum_j(exp(x_j)))`. Thus exponentiating an ideal LOG_SOFTMAX output recovers the
+corresponding ideal SOFTMAX output.
+
+For the slice `[1, 2, 3]`, the ideal meanings are approximately:
+
+| Kind | Semantic output | Relationship |
+|---|---|---|
+| `SOFTMAX` | `[0.09003057, 0.24472847, 0.66524096]` | The three probabilities sum to approximately one. |
+| `LOG_SOFTMAX` | `[-2.40760596, -1.40760596, -0.40760596]` | Exponentiating each value yields the corresponding SOFTMAX probability. |
+
+These values explain ideal mathematics, not a finite-precision evaluation algorithm.
+`SoftmaxAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, because it stores
+no Shape and cannot prove that an axis exists for an eventual input. A negative axis fails with
+`IllegalArgumentException` and exact message `axis must be non-negative: <axis>`. Generic
+`Operation` retains either kind and the exact attributes reference but does not enforce family
+compatibility, one-input arity, rank bounds, or result facts.
+
+The semantic values store no Tensor, Shape, data-type rule, result descriptor, provenance,
+numerical policy, gradient, compiler decomposition, storage, backend support, or executable
+behavior. Public floating `Tensor.softmax` and `Tensor.logSoftmax` methods, including
+caller-facing positive or negative axis normalization and shape/type/eligibility retention, remain
+planned in task 0016J.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -3529,7 +3585,8 @@ The following contracts appear in the architecture and planning documents but ar
   gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
-  cumulative-sum scan semantics, plus their family-specific attribute values;
+  cumulative-sum scan and softmax normalization semantics, plus their family-specific attribute
+  values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -3538,7 +3595,7 @@ The following contracts appear in the architecture and planning documents but ar
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
-`MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`,
+`MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
@@ -3547,7 +3604,8 @@ reduction is also a current production semantic family; `sum`, `mean`, `prod`, r
 reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have matching public Tensor
 expression methods, including the masked `sum(axis, mask)` and `mean(axis, mask)` forms. The graph
 records can compose these, current cumulative-sum expressions, or test-local semantics, but they
-do not provide a compiler entry point or executable support.
+do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
+values are current, while their public Tensor expression construction remains planned.
 
 ## Failures and ownership summary
 
@@ -3589,6 +3647,11 @@ do not provide a compiler entry point or executable support.
   Shape/type/eligibility metadata in an unresolved descriptor, and records exact one-input
   provenance. Each valid call is fresh and performs no accumulation, gradient work, compiler
   capture, backend behavior, or execution.
+- `SoftmaxAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the exact
+  message `axis must be non-negative: <axis>`. It retains every non-negative axis unchanged but
+  does not validate rank, construct a Tensor or provenance, evaluate normalization, define a
+  gradient or numerical algorithm, report backend support, or execute work. Public softmax and
+  log-softmax Tensor construction remains planned in task 0016J.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and
