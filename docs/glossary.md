@@ -59,10 +59,12 @@ owned.
 The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
 `ALL`, `ANY`, and `ARG_MAX`, together with normalized single-axis `AxisReductionAttrs`, explicit
 full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, and `ArgMaxTiePolicy`. Public floating
-`Tensor.sum`, `mean`, and `prod` now construct full, axis-removing, and retained-axis expressions
-with locally derived shapes and one-input provenance. The other aggregate Tensor methods,
-numerical and empty-domain behavior, gradients, compiler capture, backend support, and execution
-remain planned.
+`Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
+axis-removing, and retained-axis expressions with locally derived shapes and one-input provenance.
+Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
+and index-producing aggregate Tensor methods, numerical and empty-domain behavior, extrema
+comparison and tie handling, gradients, compiler capture, backend support, and execution remain
+planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -83,10 +85,13 @@ negative numeric all-axis sentinel.
 For a single-axis form, `keepDimensions == false` requests removal of the selected axis, while
 `true` requests retaining it with extent one. `ARG_MAX` instead uses `ArgMaxAttrs` because its tie
 policy is an intrinsic semantic parameter, and it has no full form in the current contract. These
-semantic types describe requested meaning only. The current public `sum`, `mean`, and `prod`
-methods add floating input eligibility, local result-shape derivation, exact type and
-gradient-eligibility retention, and provenance. They still define no numerical or empty-domain
-policy, gradient rule, or executable behavior. See [Numeric aggregate
+semantic types describe requested meaning only. The current public `sum`, `mean`, `prod`,
+reduction `min`, and reduction `max` methods add floating input eligibility, local result-shape
+derivation, exact type and gradient-eligibility retention, and provenance. Aggregate extrema use
+one input and `AggregateReductionKind.MIN` or `AggregateReductionKind.MAX`; binary elementwise
+extrema use two ordered inputs and the distinct `BinaryArithmeticKind` constants. The aggregate
+methods still define no numerical or empty-domain policy, comparison, NaN or signed-zero handling,
+extrema-tie gradient rule, or executable behavior. See [Numeric aggregate
 expressions](api/tensor-api.md#numeric-aggregate-expressions) and [Aggregate reduction semantic
 kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes).
 
@@ -287,9 +292,10 @@ A non-negative axis index in the range established by a tensor's rank. The imple
 `Shape.normalizeAxis` method accepts a caller-facing positive or negative axis and returns this
 form. Reduction attributes store only an already normalized non-negative `int`; they do not retain
 a Shape or prove that the index exists for a particular input. A negative stored axis is invalid,
-and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, and `prod` axis
-methods normalize against the input Shape before constructing semantic attributes; later aggregate
-families retain that same boundary.
+and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, `prod`, reduction
+`min`, and reduction `max` axis methods normalize against the input Shape before constructing
+semantic attributes; later boolean and index-producing aggregate families retain that same
+boundary.
 
 ### Node
 
@@ -416,8 +422,9 @@ with `NoOperationAttrs.INSTANCE` for a full reduction over every input axis or w
 adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Generic `Operation` does not enforce
 these family pairings. The family stores no Tensor input, result descriptor, negative all-axis
 sentinel, numerical or empty-domain policy, gradient rule, executable behavior, or backend
-support. Public `sum`, `mean`, and `prod` separately own floating eligibility, axis normalization,
-result-shape derivation, and provenance; the remaining aggregate Tensor expressions are planned.
+support. Public `sum`, `mean`, `prod`, reduction `min`, and reduction `max` separately own
+floating eligibility, axis normalization, result-shape derivation, and provenance; boolean and
+index-producing aggregate Tensor expressions remain planned.
 
 ### Partition
 
@@ -561,11 +568,12 @@ one-input expressions. They retain the exact type and Shape, preserve gradient e
 store exact binary64 attributes without conversion or canonicalization; range clamp remains one
 first-class `CLAMP` operation. Other expression families, gradient rules and objects, trainable
 role, publication behavior, compiler integration, device buffers, numerical execution, and
-runtime residency remain planned. The current `sum`, `mean`, and `prod` methods create floating
-full or single-axis aggregate expressions. Full forms produce canonical rank-zero shape; axis
-forms normalize, then remove or retain the selected axis with extent one. Results preserve exact
-input type and gradient eligibility, leave layout unresolved, and record one-input provenance
-without aggregating values or defining numerical and gradient behavior.
+runtime residency remain planned. The current `sum`, `mean`, `prod`, reduction `min`, and
+reduction `max` methods create floating full or single-axis aggregate expressions. Full forms
+produce canonical rank-zero shape; axis forms normalize, then remove or retain the selected axis
+with extent one. Results preserve exact input type and gradient eligibility, leave layout
+unresolved, and record one-input provenance without aggregating or comparing values or defining
+numerical, tie-gradient, or executable behavior.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -812,10 +820,10 @@ The implemented standalone `PublicationBinding` connects the two identity domain
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
 descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
 comparison, unary, and scalar Tensor expression construction are implemented, as is BOOL-only
-logical expression construction, explicit cast expression construction, and floating
-sum/mean/product aggregate expression construction. Gradient rules and objects, compiler graph
-capture, numerical execution, and publication behavior are not part of the current Tensor
-contract.
+logical expression construction, explicit cast expression construction, and floating numeric
+aggregate expression construction for sum, mean, product, minimum, and maximum. Gradient rules
+and objects, compiler graph capture, numerical execution, and publication behavior are not part of
+the current Tensor contract.
 
 ### Node versus value
 
@@ -846,10 +854,10 @@ values identifies where computation occurs in a graph; an implemented [node](#no
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
 unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
-together with boolean logical, conditional-selection, cast, and sum/mean/product aggregate Tensor
-construction. Other aggregate expressions, other concrete families and their family-specific
-attributes, compiler capture, and execution remain planned. The compiled graph container is
-implemented model state.
+together with boolean logical, conditional-selection, cast, and
+sum/mean/product/minimum/maximum aggregate Tensor construction. Boolean and index-producing
+aggregate expressions, other concrete families and their family-specific attributes, compiler
+capture, and execution remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

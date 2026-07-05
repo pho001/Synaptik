@@ -78,7 +78,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(55, declaredPublicMethods.size());
+        assertEquals(61, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -157,7 +157,7 @@ class TensorTest {
                 () -> assertFalse(Modifier.isStatic(cast.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(cast.getModifiers())));
 
-        for (String methodName : List.of("sum", "mean", "prod")) {
+        for (String methodName : List.of("sum", "mean", "prod", "min", "max")) {
             var full = Tensor.class.getDeclaredMethod(methodName);
             var axis = Tensor.class.getDeclaredMethod(methodName, int.class);
             var retained = Tensor.class.getDeclaredMethod(

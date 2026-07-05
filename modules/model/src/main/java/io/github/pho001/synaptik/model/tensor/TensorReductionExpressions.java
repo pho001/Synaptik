@@ -14,7 +14,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs locally validated storage-free sum, mean, and product tensor expressions.
+ * Constructs locally validated storage-free sum, mean, product, minimum, and maximum tensor
+ * expressions.
  *
  * <p>This package-private boundary owns deterministic validation, single-axis normalization,
  * structural result-shape derivation, typed operation construction, and exact one-input
@@ -26,8 +27,10 @@ import java.util.Optional;
  * <p>Construction is eager only for expression metadata. The helper accepts dynamic and zero
  * extents without reading an element count, and it does not inspect values or storage, aggregate
  * data, select accumulation or empty-domain behavior, create gradient rules, capture a graph, or
- * provide compiler, runtime, or backend behavior. Product preserves an existing gradient request
- * as eligibility metadata without claiming that a product gradient rule exists.</p>
+ * provide compiler, runtime, or backend behavior. Product, minimum, and maximum preserve an
+ * existing gradient request as eligibility metadata without claiming that a gradient rule
+ * exists. Aggregate minimum and maximum remain distinct from equally named elementwise binary
+ * kinds; this helper defines no NaN, signed-zero, tie, or empty-domain policy.</p>
  */
 final class TensorReductionExpressions {
     /** Prevents instantiation because numeric reduction construction is stateless. */
@@ -38,15 +41,16 @@ final class TensorReductionExpressions {
      * Creates one fresh expression that reduces every axis of a floating tensor.
      *
      * <p>Validation occurs in this exact order: null-check {@code input}, null-check {@code kind},
-     * accept only {@code SUM}, {@code MEAN}, or {@code PROD}, then require a floating input. The
-     * method then delegates to common construction with {@link NoOperationAttrs#INSTANCE} and the
-     * canonical scalar shape. Failures before common factory delegation consume no Tensor
-     * identity.</p>
+     * accept only {@code SUM}, {@code MEAN}, {@code PROD}, {@code MIN}, or {@code MAX}, then
+     * require a floating input. The method then delegates to common construction with {@link
+     * NoOperationAttrs#INSTANCE} and the canonical scalar shape. Failures before common factory
+     * delegation consume no Tensor identity.</p>
      *
      * @param input non-null floating tensor retained by exact reference as the sole provenance
      *     input; no values, storage, element count, or shape extents are inspected
      * @param kind non-null aggregate kind; must be {@link AggregateReductionKind#SUM},
-     *     {@link AggregateReductionKind#MEAN}, or {@link AggregateReductionKind#PROD}
+     *     {@link AggregateReductionKind#MEAN}, {@link AggregateReductionKind#PROD}, {@link
+     *     AggregateReductionKind#MIN}, or {@link AggregateReductionKind#MAX}
      * @return the non-null exact fresh scalar Tensor returned by the central factory, with
      *     unchanged type and gradient eligibility and no label, resolved layout, or storage
      * @throws NullPointerException if {@code input} or {@code kind} is null, checked in that order
@@ -77,7 +81,8 @@ final class TensorReductionExpressions {
      * @param input non-null floating tensor retained by exact reference as the sole provenance
      *     input; its metadata, storage association, and values remain unchanged
      * @param kind non-null aggregate kind; must be {@link AggregateReductionKind#SUM},
-     *     {@link AggregateReductionKind#MEAN}, or {@link AggregateReductionKind#PROD}
+     *     {@link AggregateReductionKind#MEAN}, {@link AggregateReductionKind#PROD}, {@link
+     *     AggregateReductionKind#MIN}, or {@link AggregateReductionKind#MAX}
      * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
      * @param keepDimensions {@code true} to replace the selected result dimension with extent one,
      *     or {@code false} to remove it
@@ -111,18 +116,21 @@ final class TensorReductionExpressions {
     }
 
     /**
-     * Restricts this helper to the three numeric aggregate kinds owned by the current task.
+     * Restricts this helper to its five floating numeric aggregate kinds.
      *
      * @param kind non-null reduction kind already checked by the package-private entry
-     * @throws IllegalArgumentException if {@code kind} is not {@code SUM}, {@code MEAN}, or
-     *     {@code PROD}, with the exact rejected enum value in the message
+     * @throws IllegalArgumentException if {@code kind} is not {@code SUM}, {@code MEAN},
+     *     {@code PROD}, {@code MIN}, or {@code MAX}, with the exact rejected enum value in the
+     *     message
      */
     private static void validateKind(AggregateReductionKind kind) {
         if (kind != AggregateReductionKind.SUM
                 && kind != AggregateReductionKind.MEAN
-                && kind != AggregateReductionKind.PROD) {
+                && kind != AggregateReductionKind.PROD
+                && kind != AggregateReductionKind.MIN
+                && kind != AggregateReductionKind.MAX) {
             throw new IllegalArgumentException(
-                    "kind must be SUM, MEAN, or PROD, but was " + kind);
+                    "kind must be SUM, MEAN, PROD, MIN, or MAX, but was " + kind);
         }
     }
 

@@ -1258,6 +1258,182 @@ public final class Tensor {
     }
 
     /**
+     * Builds an expression that selects the minimum over every input axis.
+     *
+     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
+     * scalar shape, preserves the exact input data type and gradient-eligibility request, leaves
+     * layout unresolved, and has no label or host storage. Its provenance contains aggregate
+     * {@link AggregateReductionKind#MIN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * tensor. This aggregate operation is distinct from the two-input elementwise
+     * {@link BinaryArithmeticKind#MIN} operation.</p>
+     *
+     * <p>Scalar, static, zero-extent, and dynamic shapes are accepted structurally. This method
+     * does not inspect or compare values, define empty-domain, NaN, signed-zero, or tie behavior,
+     * create an extrema gradient rule, capture a graph, or execute work. Preserving gradient
+     * eligibility therefore does not promise differentiation or a tie-distribution policy.</p>
+     *
+     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor min() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.MIN);
+    }
+
+    /**
+     * Builds a minimum expression over one axis and removes that axis.
+     *
+     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * selected dimension is removed, every unaffected immutable dimension reference is retained
+     * in order, and rank one reduces to the canonical rank-zero scalar shape. The fresh result
+     * preserves the exact input data type and gradient eligibility, leaves layout unresolved, has
+     * no label or storage, and records aggregate {@link AggregateReductionKind#MIN}, normalized
+     * single-axis attributes, and exactly this input.</p>
+     *
+     * <p>No values are inspected or compared. Empty-domain, NaN, signed-zero, tie, gradient,
+     * compiler, and execution behavior remain deferred. This one-input aggregate expression is
+     * distinct from {@link #min(Tensor)}.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
+     *     floating data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor min(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MIN, axis, false);
+    }
+
+    /**
+     * Builds a minimum expression over one axis and optionally retains it.
+     *
+     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
+     * one while preserving every other immutable dimension reference. The fresh result retains
+     * the exact input data type and gradient eligibility, has unresolved layout and no label or
+     * storage, and records aggregate {@link AggregateReductionKind#MIN}, normalized axis
+     * attributes, and this sole input.</p>
+     *
+     * <p>Zero and dynamic extents remain structurally valid. No values are inspected, and
+     * empty-domain, NaN, signed-zero, tie, gradient, compiler, and execution behavior remains
+     * deferred. Preserved eligibility does not install an extrema gradient rule.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
+     *     floating data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor min(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MIN, axis, keepDimensions);
+    }
+
+    /**
+     * Builds an expression that selects the maximum over every input axis.
+     *
+     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
+     * scalar shape, preserves the exact input data type and gradient-eligibility request, leaves
+     * layout unresolved, and has no label or host storage. Its provenance contains aggregate
+     * {@link AggregateReductionKind#MAX}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * tensor. This aggregate operation is distinct from the two-input elementwise
+     * {@link BinaryArithmeticKind#MAX} operation.</p>
+     *
+     * <p>Scalar, static, zero-extent, and dynamic shapes are accepted structurally. This method
+     * does not inspect or compare values, define empty-domain, NaN, signed-zero, or tie behavior,
+     * create an extrema gradient rule, capture a graph, or execute work. Preserving gradient
+     * eligibility therefore does not promise differentiation or a tie-distribution policy.</p>
+     *
+     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor max() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.MAX);
+    }
+
+    /**
+     * Builds a maximum expression over one axis and removes that axis.
+     *
+     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * selected dimension is removed, every unaffected immutable dimension reference is retained
+     * in order, and rank one reduces to the canonical rank-zero scalar shape. The fresh result
+     * preserves the exact input data type and gradient eligibility, leaves layout unresolved, has
+     * no label or storage, and records aggregate {@link AggregateReductionKind#MAX}, normalized
+     * single-axis attributes, and exactly this input.</p>
+     *
+     * <p>No values are inspected or compared. Empty-domain, NaN, signed-zero, tie, gradient,
+     * compiler, and execution behavior remain deferred. This one-input aggregate expression is
+     * distinct from {@link #max(Tensor)}.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
+     *     floating data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor max(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MAX, axis, false);
+    }
+
+    /**
+     * Builds a maximum expression over one axis and optionally retains it.
+     *
+     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
+     * one while preserving every other immutable dimension reference. The fresh result retains
+     * the exact input data type and gradient eligibility, has unresolved layout and no label or
+     * storage, and records aggregate {@link AggregateReductionKind#MAX}, normalized axis
+     * attributes, and this sole input.</p>
+     *
+     * <p>Zero and dynamic extents remain structurally valid. No values are inspected, and
+     * empty-domain, NaN, signed-zero, tie, gradient, compiler, and execution behavior remains
+     * deferred. Preserved eligibility does not install an extrema gradient rule.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
+     *     floating data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor max(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MAX, axis, keepDimensions);
+    }
+
+    /**
      * Returns a synchronized snapshot of the current borrowed host-storage association.
      *
      * <p>A present result contains the exact attached identity-bearing storage object. Storage is

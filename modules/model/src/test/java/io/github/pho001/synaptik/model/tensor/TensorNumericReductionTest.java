@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
@@ -42,7 +43,11 @@ class TensorNumericReductionTest {
             new ReductionFamily(
                     "mean", AggregateReductionKind.MEAN, Tensor::mean, Tensor::mean, Tensor::mean),
             new ReductionFamily(
-                    "prod", AggregateReductionKind.PROD, Tensor::prod, Tensor::prod, Tensor::prod));
+                    "prod", AggregateReductionKind.PROD, Tensor::prod, Tensor::prod, Tensor::prod),
+            new ReductionFamily(
+                    "min", AggregateReductionKind.MIN, Tensor::min, Tensor::min, Tensor::min),
+            new ReductionFamily(
+                    "max", AggregateReductionKind.MAX, Tensor::max, Tensor::max, Tensor::max));
     private static final AtomicLong NEXT_INPUT_ID = new AtomicLong(80_000);
 
     @Test
@@ -235,16 +240,30 @@ class TensorNumericReductionTest {
                 Optional.of(originalProvenance),
                 Optional.of(storage));
 
-        Tensor first = input.sum(1);
-        Tensor second = input.sum(1);
-        Tensor nested = first.prod();
+        Tensor firstSum = input.sum(1);
+        Tensor secondSum = input.sum(1);
+        Tensor nestedProduct = firstSum.prod();
+        Tensor firstMinimum = input.min(1);
+        Tensor secondMinimum = input.min(1);
+        Tensor nestedMaximum = firstMinimum.max();
 
         assertAll(
-                () -> assertNotSame(first, second),
-                () -> assertNotEquals(first.id(), second.id()),
-                () -> assertNotSame(first, nested),
-                () -> assertSame(input, first.provenance().orElseThrow().inputs().getFirst()),
-                () -> assertSame(first, nested.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertNotSame(firstSum, secondSum),
+                () -> assertNotEquals(firstSum.id(), secondSum.id()),
+                () -> assertNotSame(firstSum, nestedProduct),
+                () -> assertSame(
+                        input, firstSum.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertSame(
+                        firstSum,
+                        nestedProduct.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertNotSame(firstMinimum, secondMinimum),
+                () -> assertNotEquals(firstMinimum.id(), secondMinimum.id()),
+                () -> assertNotSame(firstMinimum, nestedMaximum),
+                () -> assertSame(
+                        input, firstMinimum.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertSame(
+                        firstMinimum,
+                        nestedMaximum.provenance().orElseThrow().inputs().getFirst()),
                 () -> assertSame(descriptor, input.descriptor()),
                 () -> assertSame(shape, input.descriptor().shape()),
                 () -> assertSame(layout, input.descriptor().layout().orElseThrow()),
@@ -252,9 +271,12 @@ class TensorNumericReductionTest {
                 () -> assertSame(originalProvenance, input.provenance().orElseThrow()),
                 () -> assertSame(storage, input.hostStorage().orElseThrow()),
                 () -> assertArrayEquals(new float[] {1.0f, 2.0f, 3.0f, 4.0f}, values),
-                () -> assertTrue(first.label().isEmpty()),
-                () -> assertTrue(first.hostStorage().isEmpty()),
-                () -> assertTrue(first.descriptor().layout().isEmpty()));
+                () -> assertTrue(firstSum.label().isEmpty()),
+                () -> assertTrue(firstSum.hostStorage().isEmpty()),
+                () -> assertTrue(firstSum.descriptor().layout().isEmpty()),
+                () -> assertTrue(firstMinimum.label().isEmpty()),
+                () -> assertTrue(firstMinimum.hostStorage().isEmpty()),
+                () -> assertTrue(firstMinimum.descriptor().layout().isEmpty()));
     }
 
     @Test
@@ -284,8 +306,6 @@ class TensorNumericReductionTest {
                 () -> assertEquals("kind", nullAxisKind.getMessage()));
 
         for (AggregateReductionKind kind : List.of(
-                AggregateReductionKind.MIN,
-                AggregateReductionKind.MAX,
                 AggregateReductionKind.ALL,
                 AggregateReductionKind.ANY,
                 AggregateReductionKind.ARG_MAX)) {
@@ -297,7 +317,7 @@ class TensorNumericReductionTest {
                     () -> TensorReductionExpressions.applyAxis(floating, kind, 9, false));
             assertAll(
                     () -> assertEquals(
-                            "kind must be SUM, MEAN, or PROD, but was " + kind,
+                            "kind must be SUM, MEAN, PROD, MIN, or MAX, but was " + kind,
                             fullFailure.getMessage()),
                     () -> assertEquals(fullFailure.getMessage(), axisFailure.getMessage()));
         }
@@ -330,6 +350,39 @@ class TensorNumericReductionTest {
                 () -> assertEquals("Axis -2 is outside shape rank 1", lowAxis.getMessage()),
                 () -> assertEquals("Axis 0 is outside shape rank 0", scalarAxis.getMessage()),
                 () -> assertEquals(before, nextId.get()));
+    }
+
+    @Test
+    void keepsAggregateAndBinaryMinimumAndMaximumAsDistinctTypedSemantics() {
+        Tensor left = tensor(DataType.FLOAT32, Shape.of(2, 3), true);
+        Tensor right = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
+
+        Tensor aggregateMinimum = left.min();
+        Tensor aggregateMaximum = left.max(1);
+        Tensor binaryMinimum = left.min(right);
+        Tensor binaryMaximum = left.max(right);
+
+        assertAll(
+                () -> assertSame(
+                        AggregateReductionKind.MIN,
+                        aggregateMinimum.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(
+                        AggregateReductionKind.MAX,
+                        aggregateMaximum.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(
+                        BinaryArithmeticKind.MIN,
+                        binaryMinimum.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(
+                        BinaryArithmeticKind.MAX,
+                        binaryMaximum.provenance().orElseThrow().operation().kind()),
+                () -> assertEquals(
+                        List.of(left), aggregateMinimum.provenance().orElseThrow().inputs()),
+                () -> assertEquals(
+                        List.of(left), aggregateMaximum.provenance().orElseThrow().inputs()),
+                () -> assertEquals(
+                        List.of(left, right), binaryMinimum.provenance().orElseThrow().inputs()),
+                () -> assertEquals(
+                        List.of(left, right), binaryMaximum.provenance().orElseThrow().inputs()));
     }
 
     @Test

@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016C Min and max Tensor reduction expressions — Draft; no detailed specification exists yet
+- 0016D Boolean all and any Tensor expressions — Draft; no detailed specification exists yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -81,8 +81,11 @@ complete; it defines aggregate semantic kinds, normalized single-axis/full param
 arg-max tie policy without Tensor behavior or execution. Task
 [0016B](modules/model/tasks/0016b-sum-mean-and-product-tensor-expressions.md) is complete. It adds
 floating full and one-axis sum/mean/product expressions, rank-zero full results, local Shape
-derivation, and provenance without value aggregation. Task 0016C is the next Draft planning
-frontier, and no detailed specification exists for it.
+derivation, and provenance without value aggregation. Task
+[0016C](modules/model/tasks/0016c-min-and-max-tensor-reduction-expressions.md) is complete. It extends
+the same bounded helper and focused test with full and one-axis floating min/max expressions while
+keeping reduction identities distinct from binary min/max and deferring numerical comparison,
+empty-domain, tie-gradient, compiler, and execution behavior.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -168,7 +171,7 @@ authorized Compile API status correction.
 | 40 | [0015H Cast Tensor expression](modules/model/tasks/0015h-cast-tensor-expression.md) | Complete |
 | 41 | [0016A Reduction semantic kinds and attributes](modules/model/tasks/0016a-reduction-semantic-kinds-and-attributes.md) | Complete |
 | 42 | [0016B Sum, mean, and product Tensor expressions](modules/model/tasks/0016b-sum-mean-and-product-tensor-expressions.md) | Complete |
-| 43 | 0016C Min and max Tensor reduction expressions | Draft |
+| 43 | [0016C Min and max Tensor reduction expressions](modules/model/tasks/0016c-min-and-max-tensor-reduction-expressions.md) | Complete |
 | 44 | 0016D Boolean all and any Tensor expressions | Draft |
 | 45 | 0016E Arg-max Tensor expressions | Draft |
 | 46 | 0016F Masked sum and mean Tensor expressions | Draft |
@@ -225,8 +228,10 @@ public Tensor construction with exact Shape retention, floating-only gradient el
 fresh explicit cast for every valid request. Compiler work later owns redundant same-type and
 cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J so
 aggregate semantics, focused Tensor expression groups, masked reductions, cumulative scan, and
-softmax do not share one oversized task. Tasks 0016A and 0016B are complete. Task 0016C is the next
-Draft planning frontier and remains without a detailed specification.
+softmax do not share one oversized task. Tasks 0016A through 0016C are complete. Task 0016D is the
+next Draft planning frontier and remains without a detailed specification. Completed task 0016C
+reuses the shared floating aggregate construction boundary for reduction min/max without adding
+value execution or gradient rules.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future
