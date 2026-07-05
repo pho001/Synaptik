@@ -78,14 +78,15 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(41, declaredPublicMethods.size());
+        assertEquals(44, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
                         "div", "min", "max", "pow", "abs", "neg", "inv", "log", "exp",
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
-                        "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo"),
+                        "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
+                        "logicalAnd", "logicalOr", "logicalNot"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -116,7 +117,7 @@ class TensorTest {
 
         for (String methodName : List.of(
                 "greaterThan", "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo",
-                "notEqualTo")) {
+                "notEqualTo", "logicalAnd", "logicalOr")) {
             var method = Tensor.class.getDeclaredMethod(methodName, Tensor.class);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -126,6 +127,14 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        var logicalNot = Tensor.class.getDeclaredMethod("logicalNot");
+        assertAll(
+                () -> assertEquals(Tensor.class, logicalNot.getReturnType()),
+                () -> assertEquals(0, logicalNot.getParameterCount()),
+                () -> assertTrue(Modifier.isPublic(logicalNot.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(logicalNot.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(logicalNot.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

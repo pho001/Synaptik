@@ -38,7 +38,9 @@ The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `
 public floating comparison Tensor expression construction with local broadcasting, fixed
 non-differentiable BOOL descriptors, and ordered provenance. The parameterless
 `BooleanLogicalKind` vocabulary is implemented for elementwise `AND`, `OR`, and `NOT` truth
-meanings; public logical Tensor expressions, BOOL descriptor rules, and provenance remain planned.
+meanings, plus matching public BOOL-only logical Tensor expression construction. Binary AND and OR
+use local broadcasting and ordered provenance; unary NOT retains the exact input shape; and every
+logical result has fixed non-differentiable BOOL descriptor facts.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -299,11 +301,12 @@ The fifth production family is `BooleanLogicalKind`, an enum containing exactly 
 `NOT`. These values identify parameterless elementwise boolean conjunction, disjunction, and
 negation and compose with `NoOperationAttrs.INSTANCE`. `AND` and `OR` have two logical input roles;
 `NOT` has one. Those roles are family context rather than stored or generically validated arity
-metadata. The enum defines no BOOL descriptor eligibility, binary broadcasting, unary shape
+metadata. The enum itself defines no BOOL descriptor eligibility, binary broadcasting, unary shape
 preservation, provenance, storage representation, numeric truthiness, gradient, execution, or
-backend support. Public logical Tensor methods remain planned. Its inherited names are diagnostic
-rather than serialization or dispatch keys, and an equally named kind from another family remains
-a different typed value.
+backend support. The implemented public logical Tensor methods separately own exact BOOL input
+validation, binary broadcast or unary shape rules, fixed BOOL results, and provenance. Its
+inherited names are diagnostic rather than serialization or dispatch keys, and an equally named
+kind from another family remains a different typed value.
 
 ### Partition
 
@@ -345,10 +348,12 @@ The implemented binary Tensor methods create provenance whose operation uses the
 `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
 receiver as left and argument as right. Binary comparison methods use the same exact ordered input
 contract with `BinaryComparisonKind`, including for symmetric equality and inequality, while
-producing a storage-free non-differentiable BOOL result. The implemented unary methods similarly
-use the exact matching `UnaryElementwiseKind` and canonical no-attributes value, with exactly the
-receiver as their one input. These construction paths do not change provenance's general role or
-make it graph membership.
+producing a storage-free non-differentiable BOOL result. Boolean logical AND and OR likewise
+retain exact ordered receiver/argument inputs with `BooleanLogicalKind`; NOT retains exactly the
+receiver as its one input. The implemented floating unary methods use the exact matching
+`UnaryElementwiseKind` and canonical no-attributes value, also with exactly the receiver as their
+one input. These construction paths do not change provenance's general role or make it graph
+membership.
 
 ### Publication binding
 
@@ -417,9 +422,14 @@ leave layout unresolved, propagate gradient eligibility as input OR, and retain 
 operation semantics plus ordered provenance. The current `greaterThan`, `greaterOrEqual`,
 `lessThan`, `lessOrEqual`, `equalTo`, and `notEqualTo` methods also accept ordered floating pairs
 and broadcast shapes, but create fixed BOOL descriptors with false gradient eligibility while
-retaining exact comparison semantics and ordered provenance. The current fifteen zero-argument
-unary methods also create fresh floating expression tensors. They retain the exact input data type
-and Shape,
+retaining exact comparison semantics and ordered provenance. The current `logicalAnd` and
+`logicalOr` methods accept only exact BOOL inputs, broadcast their shapes, retain ordered
+provenance, and create fresh fixed BOOL results. `logicalNot` also requires exact BOOL, but retains
+the exact input Shape and one-input provenance without broadcasting. All logical results have
+unresolved layout, false gradient eligibility, no label, and no storage, and construction does not
+read truth bytes, short-circuit, simplify, or execute them. The current fifteen zero-argument unary
+methods also create fresh floating expression tensors. They retain the exact input data type and
+Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
 plus exactly one input reference without domain checks or canonicalization. The current scalar
 `mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
@@ -673,8 +683,8 @@ A tensor or layout interpretation that aliases storage also used by another logi
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
 descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
-comparison, unary, and scalar Tensor expression construction are implemented. Gradient rules and
-objects, compiler graph
+comparison, unary, and scalar Tensor expression construction are implemented, as is BOOL-only
+logical expression construction. Gradient rules and objects, compiler graph
 capture, numerical execution, and publication behavior are not part of the current Tensor
 contract.
 
@@ -706,7 +716,7 @@ A kind distinguishes computations, while attributes carry parameters within a co
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, boolean logical, unary elementwise, and
 scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and comparison public Tensor
-construction paths are also implemented; boolean logical Tensor construction remains planned.
+construction paths are also implemented, together with boolean logical Tensor construction.
 Other concrete families, their family-specific attributes, compiler capture, and execution remain
 planned. The compiled graph container is implemented model state.
 

@@ -134,7 +134,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015A | [Binary comparison semantic kinds](tasks/0015a-binary-comparison-semantic-kinds.md) | Complete | 0005, 0006 | Define six typed parameterless ordered comparison meanings. |
 | 0015B | [Binary comparison Tensor expressions](tasks/0015b-binary-comparison-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015A | Build floating broadcast-aware comparisons with BOOL results and ordered provenance. |
 | 0015C | [Boolean logical semantic kinds](tasks/0015c-boolean-logical-semantic-kinds.md) | Complete | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
-| 0015D | Boolean logical Tensor expressions | Draft | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
+| 0015D | [Boolean logical Tensor expressions](tasks/0015d-boolean-logical-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
 | 0015E | Where selection semantic kind | Draft | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
 | 0015F | Where selection Tensor expression | Draft | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
 | 0015G | Cast semantic kind and attributes | Draft | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
@@ -159,8 +159,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015C complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015D is the next Draft planning frontier without a detailed specification.
+Draft, with tasks 0014A through 0015D complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015E is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -356,6 +356,16 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   `model.operation.elementwise.logical` with exact constants AND, OR, and NOT. Binary/unary input
   roles are documented family context, not arity metadata; BOOL validation, broadcasting, result
   descriptors, provenance, and Tensor methods remain in task 0015D.
+- Task 0015D implements `logicalAnd`, `logicalOr`, and `logicalNot` through one package-private
+  helper with explicit binary/unary entries. It enforces exact BOOL inputs and family arity,
+  broadcasts only binary inputs, preserves unary shape, creates unresolved non-differentiable BOOL
+  descriptors, and records exact provenance without storage access or execution.
+- The independent task-0015D documentation review finalized one helper Javadoc clarification,
+  Tensor API, Compile API, glossary, task evidence, master plan, and roadmap. Training API,
+  capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26 build
+  configuration, foundational contracts, and existing expression families remain accurate
+  unchanged because this task adds only model-owned logical expression construction without
+  compiler, training, dependency, truth-value, or executable behavior.
 - The independent task-0015C documentation review found the enum and every constant Javadoc
   complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
   API, Training API, capabilities, architecture/ADRs/tests, conformance and integration tests,
@@ -435,7 +445,8 @@ Task 0014E completed the scalar arithmetic/clamp semantic kinds and exact immuta
 task 0014F completed their public floating Tensor expression construction, task 0015A completed the
 six parameterless ordered binary comparison semantic kinds, and task 0015B completed their public
 floating comparison Tensor construction. Task 0015C completed the three parameterless boolean
-logical semantic kinds. Task 0015D is the next Draft planning frontier without a detailed
-specification; all later operation-family tasks remain Draft without detailed specifications.
+logical semantic kinds, and task 0015D completed their public BOOL-only binary/unary Tensor
+expression construction. Task 0015E is the next Draft planning frontier; all later
+operation-family tasks remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

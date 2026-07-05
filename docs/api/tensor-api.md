@@ -9,15 +9,16 @@ primitive-array import, independent dense constants including full-value and rec
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
 integral, and Bernoulli random population. The current concrete expression surface contains seven
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
-methods, fifteen floating unary elementwise methods, and five floating scalar arithmetic and
-clamp methods. Typed access, other expression families, gradient objects and publication behavior,
-native/runtime/backend allocation, compiler
+methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
+floating scalar arithmetic and clamp methods. Typed access, other expression families, gradient
+objects and publication behavior, native/runtime/backend allocation, compiler
 integration, runtime residency, and backend execution remain planned. The authoritative module
 boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current types describe logical values, construct storage-free arithmetic, comparison, unary,
-and scalar expressions, and provide one bounded host-allocation path without executing a tensor:
+The current types describe logical values, construct storage-free arithmetic, comparison, boolean
+logical, unary, and scalar expressions, and provide one bounded host-allocation path without
+executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -38,6 +39,8 @@ TensorFactory + static shape + primitive bounds + source      = copied dense INT
 TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
 left Tensor + comparison kind + right Tensor                   = fresh BOOL descriptor + provenance Tensor
+left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcast BOOL expression Tensor
+BOOL Tensor + NOT                                               = fresh shape-preserving BOOL expression Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
@@ -100,9 +103,7 @@ semantic parameters. The implemented `Operation` record keeps those two values t
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
-`ClampRangeAttrs`. The boolean-logical kinds are semantic vocabulary only: public logical Tensor
-methods, BOOL descriptor validation, broadcasting or shape preservation, and provenance remain
-planned. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
+`ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
@@ -111,9 +112,13 @@ from ordered floating inputs. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp
 kinds to create storage-free expressions from one floating input. The public scalar overloads
 `Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
 `clampMax(double)` use the scalar kinds and typed attributes to create one-input storage-free
-expressions while retaining every caller-supplied binary64 parameter bit. `TensorProvenance`
-retains the exact operation and ordered public-tensor inputs. All four currently exposed expression
-families derive result descriptors, but none assigns
+expressions while retaining every caller-supplied binary64 parameter bit. The public
+`Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods use the logical kinds to construct
+storage-free `BOOL` expressions from exact `BOOL` inputs. AND and OR derive a right-aligned
+broadcast shape and preserve receiver/argument order; NOT retains the exact input `Shape`
+reference without broadcasting. Every logical result has unresolved layout and false gradient
+eligibility. `TensorProvenance` retains the exact operation and ordered public-tensor inputs. All
+five currently exposed expression families derive result descriptors, but none assigns
 graph identity, captures a graph, calculates values, defines gradient rules, or executes
 computation.
 
@@ -1457,10 +1462,10 @@ be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
 package-private derived-construction seam used by the implemented binary arithmetic, comparison,
-unary, and scalar expression helpers attaches one already-validated provenance value, allocates
-exactly one ID through the existing allocator, and creates no storage. The factory seam itself does
-not inspect the operation or inputs, infer a descriptor, traverse an expression, capture a graph,
-or perform semantic validation.
+boolean logical, unary, and scalar expression helpers attaches one already-validated provenance
+value, allocates exactly one ID through the existing allocator, and creates no storage. The
+factory seam itself does not inspect the operation or inputs, infer a descriptor, traverse an
+expression, capture a graph, or perform semantic validation.
 
 ### Binary arithmetic expressions
 
@@ -1703,6 +1708,48 @@ policy, tolerance behavior, gradient handling by a future compiler, backend supp
   expansion remain valid.
 - Validation failures happen before result identity allocation. Exhausting the factory's tensor-ID
   space instead fails after the local descriptor, operation, and provenance values are built.
+
+### Boolean logical expressions
+
+The three current logical methods build elementwise truth semantics from exact `BOOL` tensors;
+they do not read or interpret stored truth bytes:
+
+| Method | Ordered meaning and shape rule |
+|---|---|
+| `logicalAnd(right)` | Conjunction of ordered receiver and argument values; right-aligned broadcasting derives the result shape. |
+| `logicalOr(right)` | Disjunction of ordered receiver and argument values; right-aligned broadcasting derives the result shape. |
+| `logicalNot()` | Negation of the receiver values; the result retains the exact input `Shape` reference without broadcasting. |
+
+AND and OR require both operands to have exactly `DataType.BOOL`; NOT requires the receiver to
+have exactly `DataType.BOOL`. No floating or integral value is accepted as truth, and construction
+does not insert a cast. Binary broadcasting uses the same local proof rules as other binary
+expressions: equal dimensions and singleton expansion are accepted, while incompatible or locally
+unprovable symbolic pairs fail. NOT performs no shape algebra and does not copy a resolved input
+layout.
+
+Every valid call returns a fresh Tensor with a new factory identity, fixed `BOOL` data type,
+unresolved layout, false gradient eligibility, no label, and no host storage. Its provenance
+contains the exact `BooleanLogicalKind` with `NoOperationAttrs.INSTANCE`. AND and OR preserve exact
+ordered inputs `[receiver, right]`, including self-use; NOT records exactly `[receiver]`. Repeated
+calls, commutative operand reversals, and double negation remain distinct expressions.
+
+Construction is eager only for descriptor, operation, provenance, and identity metadata. It does
+not short-circuit, inspect input storage, compute truth values, simplify self-use or double
+negation, reorder commutative inputs, propagate gradient eligibility, create a gradient rule,
+capture a graph, or execute a backend operation.
+
+#### Failures and useful variations
+
+- A null AND or OR argument fails with `NullPointerException` and message `right`.
+- A non-BOOL receiver or argument fails with `IllegalArgumentException`; binary checks the left
+  input before the right input, and unary reports the receiver as `input`.
+- Incompatible static shapes and locally unprovable symbolic pairs fail through local
+  broadcasting. Equal symbols and singleton-to-symbol expansion are valid.
+- Comparison results already have `BOOL` descriptors and can feed all three logical methods
+  directly. This chaining constructs metadata only and does not calculate either comparison or
+  logical truth values.
+- Validation failures occur before result identity allocation. Identifier exhaustion occurs only
+  after the fixed descriptor, operation, and provenance values have been built.
 
 The current class stores no graph-local `NodeId` or `ValueId`, gradient object or trainable role,
 publication state, typed element access, device buffer, runtime residency, prepared state, or
@@ -2229,13 +2276,13 @@ generic `Operation` descriptor does not validate that `AND` and `OR` have two lo
 that `NOT` has one; these roles are family context rather than stored arity metadata. The enum
 stores no input references and creates no Tensor, provenance, or result descriptor.
 
-This vocabulary defines conjunction, disjunction, and negation truth meaning only. Public
-`Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods remain planned, together with BOOL input
-eligibility, binary broadcasting, unary shape preservation, fixed BOOL result construction, and
-provenance. BOOL storage encoding, numeric truthiness, gradients, compiler capture, execution, and
-backend availability are also outside this semantic contract. Inherited enum names and text are
-diagnostic rather than serialization or dispatch keys, and an equally named kind from another
-family remains a different typed value.
+This vocabulary defines conjunction, disjunction, and negation truth meaning only. The current
+`Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods separately own exact BOOL eligibility,
+binary broadcasting, unary shape preservation, fixed BOOL result construction, and provenance.
+BOOL storage encoding, numeric truthiness, gradients, compiler capture, execution, and backend
+availability remain outside both semantic identity and current expression construction. Inherited
+enum names and text are diagnostic rather than serialization or dispatch keys, and an equally
+named kind from another family remains a different typed value.
 
 ### Unary elementwise semantic kinds
 
@@ -2532,9 +2579,9 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- expression families beyond binary arithmetic, binary comparison, unary elementwise, and scalar
-  elementwise operations, including public boolean logical expressions, plus gradient and
-  trainable state and publication behavior;
+- expression families beyond binary arithmetic, binary comparison, boolean logical, unary
+  elementwise, and scalar elementwise operations, plus gradient and trainable state and
+  publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, and scalar elementwise semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -2546,9 +2593,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`, `GraphPhase`,
 `CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary arithmetic,
 binary comparison, boolean logical, unary elementwise, and scalar elementwise semantics are the
-current production concrete kind families. The arithmetic, comparison, unary, and scalar families
-have matching public Tensor expression methods; boolean logical Tensor methods remain planned. The
-graph records can compose these or test-local semantics, but
+current production concrete kind families. All five families have matching public Tensor
+expression methods. The graph records can compose these or test-local semantics, but
 they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
@@ -2589,6 +2635,15 @@ they do not provide a compiler entry point or executable support.
   allocation; identity exhaustion follows local descriptor and provenance construction. These
   methods do not inspect values, define numerical comparison or tolerance behavior, create
   gradient rules, capture graphs, or provide backend execution.
+- `Tensor.logicalAnd` and `logicalOr` require a non-null right operand and exact `BOOL` data type
+  on both ordered inputs, then derive one locally provable right-aligned broadcast shape.
+  `Tensor.logicalNot` requires an exact `BOOL` receiver and retains its exact input `Shape`
+  reference without broadcasting. Every successful call returns a fresh unlabeled storage-free
+  `BOOL` Tensor with unresolved layout, false gradient eligibility, the exact parameterless
+  logical operation, and ordered binary or one-input provenance. Null, kind, type, and shape
+  failures precede ID allocation; identity exhaustion follows fixed descriptor and provenance
+  construction. These methods do not inspect truth bytes, short-circuit, simplify or reorder
+  expressions, insert casts, create gradient rules, capture graphs, or provide backend execution.
 - `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
   `sigmoid`, `tanh`, `fastExp`, and `fastTanh` accept only floating receiver data types and retain
   the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns

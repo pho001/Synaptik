@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
+import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -28,18 +29,22 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
  * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
- * parameterized scalar, and unary elementwise expression methods create fresh storage-free
- * tensors whose immutable provenance records the requested semantics and exact inputs; they do
- * not execute mathematics, validate numerical domains, create gradient rules, or capture a graph.
+ * boolean logical, parameterized scalar, and unary elementwise expression methods create fresh
+ * storage-free tensors whose immutable provenance records the requested semantics and exact
+ * inputs; they do not execute mathematics, validate numerical domains, create gradient rules, or
+ * capture a graph.
  * Binary arithmetic methods promote floating operands, broadcast shapes, and combine gradient
  * eligibility by logical OR. Binary comparison methods validate the same floating compatibility
- * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Scalar and
- * unary methods accept one floating input and retain its exact data type, shape reference, and
- * gradient eligibility. Scalar methods retain their exact binary64 parameters in typed
- * attributes. Every expression result leaves layout unresolved, has a fresh factory identity and
- * no label or storage, and records an exact matching {@link BinaryArithmeticKind},
- * {@link BinaryComparisonKind}, {@link ScalarElementwiseKind}, or
- * {@link UnaryElementwiseKind}. Gradient eligibility does not promise that a gradient rule exists.
+ * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Boolean
+ * logical methods accept only {@code BOOL}: conjunction and disjunction broadcast ordered inputs,
+ * while negation retains the exact input shape. Their results are also non-differentiable
+ * {@code BOOL} descriptors. Scalar and unary methods accept one floating input and retain its exact
+ * data type, shape reference, and gradient eligibility. Scalar methods retain their exact binary64
+ * parameters in typed attributes. Every expression result leaves layout unresolved, has a fresh
+ * factory identity and no label or storage, and records an exact matching
+ * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
+ * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}. Gradient eligibility does not
+ * promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
  */
@@ -480,6 +485,75 @@ public final class Tensor {
      */
     public Tensor notEqualTo(Tensor right) {
         return TensorComparisonExpressions.apply(this, right, BinaryComparisonKind.NOT_EQUAL);
+    }
+
+    /**
+     * Builds an elementwise boolean conjunction of this ordered left input and {@code right}.
+     *
+     * <p>Both inputs must have exactly {@code BOOL} data type, and their shapes must support
+     * locally provable right-aligned broadcasting. The fresh result is {@code BOOL}, has the
+     * broadcast shape, unresolved layout, false gradient eligibility, no label or host storage,
+     * and provenance containing {@link BooleanLogicalKind#AND},
+     * {@code NoOperationAttrs.INSTANCE}, and exact ordered inputs {@code [this, right]}. Operand
+     * order is retained even though conjunction is commutative. Construction does not inspect
+     * truth values or storage and does not provide Java-style short-circuiting, simplification,
+     * gradient rules, graph capture, or execution.</p>
+     *
+     * @param right non-null ordered right {@code BOOL} input; it is retained by exact reference in
+     *     result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either input is not {@code BOOL} or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor logicalAnd(Tensor right) {
+        return TensorLogicalExpressions.applyBinary(this, right, BooleanLogicalKind.AND);
+    }
+
+    /**
+     * Builds an elementwise boolean disjunction of this ordered left input and {@code right}.
+     *
+     * <p>Both inputs must have exactly {@code BOOL} data type, and their shapes must support
+     * locally provable right-aligned broadcasting. The fresh result is {@code BOOL}, has the
+     * broadcast shape, unresolved layout, false gradient eligibility, no label or host storage,
+     * and provenance containing {@link BooleanLogicalKind#OR},
+     * {@code NoOperationAttrs.INSTANCE}, and exact ordered inputs {@code [this, right]}. Operand
+     * order is retained even though disjunction is commutative. Construction does not inspect
+     * truth values or storage and does not provide Java-style short-circuiting, simplification,
+     * gradient rules, graph capture, or execution.</p>
+     *
+     * @param right non-null ordered right {@code BOOL} input; it is retained by exact reference in
+     *     result provenance and is not mutated
+     * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
+     *     false gradient eligibility, and no storage
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if either input is not {@code BOOL} or their shapes cannot
+     *     be broadcast under the local shape contract
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor logicalOr(Tensor right) {
+        return TensorLogicalExpressions.applyBinary(this, right, BooleanLogicalKind.OR);
+    }
+
+    /**
+     * Builds an elementwise boolean negation of this input.
+     *
+     * <p>This input must have exactly {@code BOOL} data type. The fresh result is {@code BOOL},
+     * retains the exact immutable input-shape reference, has unresolved layout, false gradient
+     * eligibility, no label or host storage, and provenance containing
+     * {@link BooleanLogicalKind#NOT}, {@code NoOperationAttrs.INSTANCE}, and exactly this input.
+     * Construction performs no broadcasting, truth-value or storage inspection, double-negation
+     * collapse, gradient rule, graph capture, or execution.</p>
+     *
+     * @return a non-null fresh derived {@code BOOL} tensor with the exact input shape, unresolved
+     *     layout, false gradient eligibility, and no storage
+     * @throws IllegalArgumentException if this input's data type is not {@code BOOL}
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor logicalNot() {
+        return TensorLogicalExpressions.applyUnary(this, BooleanLogicalKind.NOT);
     }
 
     /**
