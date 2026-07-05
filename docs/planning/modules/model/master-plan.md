@@ -174,7 +174,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017D | [Reshape Tensor expressions](tasks/0017d-reshape-tensor-expressions.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017C | Build raw-inferred and exact-Shape reshape expressions with locally provable view geometry. |
 | 0017D1 | [Expand Tensor expressions](tasks/0017d1-expand-tensor-expressions.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017C | Build right-aligned singleton/leading-axis expansion expressions and zero-stride view geometry. |
 | 0017E | [Axis-transform semantics](tasks/0017e-axis-transform-semantics.md) | Complete | 0002, 0005, 0006 | Define permutation, dimension insertion, and dimension removal meanings. |
-| 0017F | Permute, transpose, expand-dimensions, and squeeze expressions | Draft | 0002, 0003, 0013, 0017E | Build axis-reordering and rank-editing public Tensor expressions. |
+| 0017F | [Permute and transpose Tensor expressions](tasks/0017f-permute-and-transpose-tensor-expressions.md) | Ready | 0002, 0003, 0013, 0017E | Build arbitrary axis-reordering and rank-two transpose convenience with view geometry. |
+| 0017F1 | Expand-dimensions and squeeze Tensor expressions | Draft | 0002, 0003, 0013, 0017E | Build singleton-axis insertion/removal with rank-editing view geometry. |
 | 0017G | Slice semantics | Draft | 0002, 0005, 0006 | Define immutable general positive-step slice parameters and single-axis convenience meaning. |
 | 0017H | Slice Tensor expressions | Draft | 0002, 0003, 0013, 0017G | Build general and single-axis slice views with local shape and layout rules. |
 | 0017I | Pad and tile semantics | Draft | 0001, 0002, 0005, 0006 | Define constant-padding and axis-repeat meanings and immutable parameters. |
@@ -188,7 +189,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1, 0018–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected legacy baseline. |
 
 ## Milestones
@@ -196,7 +197,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1, and 0018–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, and 0018–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
@@ -206,8 +207,8 @@ recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 001
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
-0017D1. Tasks 0017D, 0017D1, and 0017E are complete. Task 0017F is the next Draft frontier and
-remains without a detailed specification, as do all later tasks.
+0017D1 and 0017F1. Tasks 0017D, 0017D1, and 0017E are complete. Task 0017F is the next Ready
+frontier; 0017F1 and later tasks remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -501,9 +502,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - The broad layout/view frontier is decomposed into tasks 0017A–0017N. Each semantic group is
   separated from public Tensor expression construction so immutable vocabulary, local shape/layout
   rules, provenance, and future materialization boundaries do not become one oversized task.
-  Contiguous semantics/expressions are 0017A–0017B; reshape/expand are 0017C–0017D; axis transforms
-  are 0017E–0017F; slicing is 0017G–0017H; pad/tile are 0017I–0017J; concat/stack/unstack are
-  0017K–0017L; and unfold/fold are 0017M–0017N.
+  Contiguous semantics/expressions are 0017A–0017B; reshape/expand are 0017C–0017D plus 0017D1;
+  axis transforms are 0017E–0017F plus 0017F1; slicing is 0017G–0017H; pad/tile are 0017I–0017J;
+  concat/stack/unstack are 0017K–0017L; and unfold/fold are 0017M–0017N.
 - Task 0017A adds the sole parameterless `CONTIGUOUS` identity in the new
   `model.operation.layout` package. It describes a request for logically equivalent canonical
   dense row-major zero-offset output, while remaining distinct from resolved
@@ -589,6 +590,14 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   existing layout-operation semantics, capabilities, Compile API, Training API, architecture/
   ADRs/tests, conformance/integration material, Java 26 Gradle configuration, dependencies, and
   other modules remain accurate unchanged because the task adds only model-owned semantic values.
+- The former combined task 0017F is split into permutation/transpose task 0017F and singleton
+  insertion/removal task 0017F1. Permutation reorders existing Dimension and stride entries,
+  whereas expand-dimensions and squeeze change rank and require different singleton and inserted-
+  stride rules.
+- Task 0017F is Ready for exactly `Tensor.permute(int...)` and rank-two `Tensor.transpose()` plus
+  one bounded package-private helper. It owns raw negative-axis normalization, complete
+  permutation validation, exact Dimension/stride reordering, PERMUTE attributes, and provenance.
+  Task 0017F1 remains Draft without a detailed specification.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -784,7 +793,7 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
-complete. Task 0017E is also complete. Task 0017F is the next Draft frontier, and every later
-operation-family task remains Draft without detailed specifications.
+complete. Task 0017E is also complete. Task 0017F is the next Ready frontier; task 0017F1 and every
+later operation-family task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
