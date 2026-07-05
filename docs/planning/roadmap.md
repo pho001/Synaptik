@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0015G Cast semantic kind and attributes — Draft; no detailed specification yet
+- 0015H Cast Tensor expression — Draft; no detailed specification yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -68,8 +68,11 @@ parameterless `WHERE` semantic identity and documents its ordered condition, tru
 false-branch roles without adding public Tensor construction or indexing behavior. Task
 [0015F](modules/model/tasks/0015f-where-selection-tensor-expression.md) is complete. It adds exact
 BOOL/floating validation, ordered pairwise broadcasting, branch-only gradient eligibility, and
-three-input provenance without value selection or execution. Task 0015G is the next Draft planning
-frontier and remains without a detailed specification.
+three-input provenance without value selection or execution. Task
+[0015G](modules/model/tasks/0015g-cast-semantic-kind-and-attributes.md) is complete. It adds the
+exact `CAST` semantic identity and immutable target-data-type attributes without public Tensor
+construction, inference, conversion policy, gradients, or execution. Task 0015H is the next Draft
+planning frontier and remains without a detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -151,7 +154,7 @@ authorized Compile API status correction.
 | 36 | [0015D Boolean logical Tensor expressions](modules/model/tasks/0015d-boolean-logical-tensor-expressions.md) | Complete |
 | 37 | [0015E Where selection semantic kind](modules/model/tasks/0015e-where-selection-semantic-kind.md) | Complete |
 | 38 | [0015F Where selection Tensor expression](modules/model/tasks/0015f-where-selection-tensor-expression.md) | Complete |
-| 39 | 0015G Cast semantic kind and attributes | Draft |
+| 39 | [0015G Cast semantic kind and attributes](modules/model/tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete |
 | 40 | 0015H Cast Tensor expression | Draft |
 | 41 | 0016 Reduction and scan operations | Draft |
 | 42 | 0017 Layout and view operations | Draft |
@@ -197,7 +200,9 @@ ternary logical roles separately from task 0015F's later Tensor validation, thre
 result construction, and provenance work. Task 0015F completed that public expression by composing
 the current BOOL, floating-promotion, pairwise-broadcast, descriptor, provenance, and
 derived-construction contracts without changing module boundaries or foundational APIs. Task
-0015G is the next Draft planning frontier and has no detailed specification.
+0015G completed the typed cast identity and target data-type parameter while isolating them from
+task 0015H's later Tensor/result construction and conversion-policy decisions. Task 0015H is now
+the next Draft planning frontier and has no detailed specification.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

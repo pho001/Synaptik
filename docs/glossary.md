@@ -48,6 +48,11 @@ floating branches, composes branch-first and condition-second local broadcasts, 
 unresolved result with branch-only gradient eligibility, and records exact three-input provenance.
 Value selection, gradient routing and rules, compiler capture, ONNX/backend execution, and
 scalar-index `select` remain separate or planned concerns.
+The parameterized `CastKind` vocabulary is implemented with the sole `CAST` identity, together
+with `CastAttrs` carrying one exact non-null target `DataType`. All six current data types are
+representable targets, but source type, public `Tensor.cast`, result inference, same-type and
+numerical conversion behavior, gradients, provenance, compiler capture, and backend execution
+remain planned or separately owned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -251,12 +256,13 @@ The implemented immutable value that keeps two parts of a computation descriptio
 The implemented zero-method marker contract for immutable, typed parameters that refine which
 computation an [`Operation`](#operation) describes. Implemented scalar-family values are
 `ScalarValueAttrs`, which holds one exact Java `double`, and `ClampRangeAttrs`, which holds exact
-ordered inclusive lower and upper bounds. Other families may define records for axes, padding, or
-another operation-specific value. Implementations use typed fields, defensively isolate mutable
-inputs, and provide structural equality and hashing; they do not use a primary string-keyed map or
-contain backend, compiler-service, mutable tensor, storage, or runtime state. Kinds without
-parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker identifies the role of
-a value but does not enforce immutability at runtime.
+ordered inclusive lower and upper bounds. Implemented cast-family `CastAttrs` holds one exact
+non-null target `DataType` without duplicating a source type. Other families may define records for
+axes, padding, or another operation-specific value. Implementations use typed fields, defensively
+isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
+string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
+Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
+identifies the role of a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
@@ -327,6 +333,15 @@ ONNX, execution, or backend-support behavior. Static `Tensor.where` separately o
 BOOL/floating validation, branch promotion, ordered pairwise broadcasting, descriptor derivation,
 and exact three-input provenance. Its inherited name is diagnostic rather than a serialization or
 dispatch key, and an equally named kind from another family remains a different typed value.
+
+The seventh production family is `CastKind`, an enum containing exactly `CAST`. This value
+identifies parameterized elementwise conversion of one logical input and pairs with `CastAttrs`,
+whose sole component is the exact non-null target `DataType`. Every current data type is a valid
+target. The source type remains a fact of the later input descriptor rather than duplicated
+attribute state, and generic `Operation` does not enforce the family pairing. The kind and
+attributes define no public Tensor expression, source compatibility, same-type handling, result
+descriptor, numerical conversion rules, gradients, provenance, compiler capture, execution, or
+backend support. Their text forms are diagnostic rather than serialization or dispatch contracts.
 
 ### Partition
 
@@ -732,8 +747,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, and scalar elementwise families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value and clamp-range values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, and cast families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, and cast-target values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -741,11 +756,12 @@ A kind distinguishes computations, while attributes carry parameters within a co
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
-unary elementwise, and scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and
-comparison public Tensor construction paths are also implemented, together with boolean logical
-and conditional-selection Tensor construction. Other concrete families, their family-specific
-attributes, compiler capture, and execution remain planned. The compiled graph container is
-implemented model state.
+unary elementwise, scalar elementwise, and cast kinds are implemented. Arithmetic, unary, scalar,
+and comparison public Tensor construction paths are also implemented, together with boolean
+logical and conditional-selection Tensor construction. Cast has semantic kind and attributes but
+no public Tensor construction yet. Other concrete families, their family-specific attributes,
+compiler capture, and execution remain planned. The compiled graph container is implemented model
+state.
 
 ### Compile versus prepare versus run
 

@@ -11,10 +11,10 @@ integral, and Bernoulli random population. The current concrete expression surfa
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
 methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
 floating scalar arithmetic and clamp methods, plus one static conditional-selection method. Typed
-access, other expression families, gradient objects and publication behavior,
-native/runtime/backend allocation, compiler
-integration, runtime residency, and backend execution remain planned. The authoritative module
-boundary remains
+cast semantics are also implemented as a kind plus target-data-type attributes, but no public
+`Tensor.cast` expression exists yet. Typed access, other expression families, gradient objects and
+publication behavior, native/runtime/backend allocation, compiler integration, runtime residency,
+and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
@@ -51,6 +51,7 @@ BinaryArithmeticKind                                          = seven parameterl
 BinaryComparisonKind                                          = six parameterless ordered comparison semantics
 BooleanLogicalKind                                            = three parameterless boolean logical semantics
 WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
+CastKind + CastAttrs                                          = explicit cast identity + target DataType
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -105,6 +106,9 @@ semantic parameters. The implemented `Operation` record keeps those two values t
 `BooleanLogicalKind` names parameterless boolean conjunction, disjunction, and negation meanings.
 `WhereSelectionKind` names one parameterless elementwise conditional-selection meaning with
 ordered condition, true-branch, and false-branch roles.
+`CastKind` names one parameterized elementwise data-type conversion meaning, and `CastAttrs`
+carries its exact non-null target `DataType`. This semantic pair stores no source type and does not
+construct a Tensor or result descriptor.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -167,7 +171,10 @@ Implicit promotion is defined only within the floating category:
 BFLOAT16 < FLOAT32 < FLOAT64
 ```
 
-`DataTypePromotion.promoteFloating(left, right)` returns the widest input precision. Integral, boolean, null, and cross-category inputs are rejected. Converting between categories requires a future explicit cast operation rather than an implicit promotion rule.
+`DataTypePromotion.promoteFloating(left, right)` returns the widest input precision. Integral,
+boolean, null, and cross-category inputs are rejected. The implemented cast semantic kind can
+represent an explicit target data type, but public cast expression construction and conversion
+behavior remain planned; promotion never inserts a cast implicitly.
 
 For example:
 
@@ -2303,6 +2310,8 @@ composition while the table also lists the current production families:
 | `BinaryComparisonKind` | The implemented production enum for six parameterless ordered tensor-to-tensor comparison meanings. |
 | `BooleanLogicalKind` | The implemented production enum for parameterless elementwise boolean conjunction, disjunction, and negation meanings. |
 | `WhereSelectionKind` | The implemented production enum for one parameterless ternary conditional-selection meaning. |
+| `CastKind` | The implemented production enum for one parameterized elementwise data-type conversion meaning. |
+| `CastAttrs` | The implemented immutable value for one exact non-null target `DataType`. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -2454,6 +2463,40 @@ construction, and exact three-input provenance. Its inherited name and text are 
 than serialization or dispatch keys, and an equally named kind from another family remains a
 different typed value.
 
+### Cast semantic kind and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind` implements `OperationKind`
+with exactly one constant:
+
+| Kind | Elementwise meaning | Required attributes |
+|---|---|---|
+| `CAST` | Convert each value from one logical input to a requested target data type. | `CastAttrs` |
+
+`CastAttrs` has exactly one component, `targetDataType`. It accepts and retains every current
+`DataType`: `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`. The source data type is
+not duplicated in the attributes because it belongs to the later input Tensor or graph-value
+descriptor. The explicit generic composition is:
+
+```java
+Operation cast = new Operation(
+        CastKind.CAST,
+        new CastAttrs(DataType.FLOAT64));
+```
+
+The resulting descriptor retains the exact kind and attributes values. Generic `Operation`
+checks only that both components are non-null; it does not enforce the documented
+`CAST`/`CastAttrs` pairing. A null target fails during `CastAttrs` construction with
+`NullPointerException` and message `targetDataType`.
+
+One logical input and elementwise conversion are family context rather than stored arity or input
+state. These contracts do not define source-to-target compatibility, same-type behavior, a result
+descriptor, shape preservation, numerical conversion rules, gradients, provenance, compiler
+capture, execution, or backend availability. In particular, accepting every target type is a
+representability contract, not a promise that every backend implements every conversion. Enum and
+record text remain diagnostic rather than serialization or dispatch contracts. Public
+`Tensor.cast(DataType)` expression construction remains planned.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -2579,8 +2622,9 @@ select a kernel, or execute computation. Production `BinaryArithmeticKind`,
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, and `UnaryElementwiseKind`
 provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
-`ClampRangeAttrs`. Additional kind families, compiler behavior, and executable support remain
-later work in their owning layers. Binary arithmetic, binary comparison, unary elementwise, and
+`ClampRangeAttrs`; `CastKind` provides the parameterized cast family with `CastAttrs`. Additional
+kind families, compiler behavior, and executable support remain later work in their owning layers.
+Binary arithmetic, binary comparison, unary elementwise, and
 scalar elementwise semantics have current public Tensor expression methods, as do boolean logical
 and conditional-selection semantics.
 
@@ -2751,23 +2795,24 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, unary elementwise, and scalar elementwise operations, plus gradient and trainable
-  state and publication behavior;
+  selection, unary elementwise, and scalar elementwise operations, including the public cast
+  expression, plus gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, scalar elementwise, and conditional selection semantics, plus their family-specific
-  attribute values;
+  elementwise, scalar elementwise, conditional selection, and cast semantics, plus their
+  family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
-`ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`,
-`GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary
-arithmetic, binary comparison, boolean logical, unary elementwise, scalar elementwise, and
-conditional selection semantics are the current production concrete kind families. All six
-families have matching public Tensor expression construction. The graph records can compose these
-or test-local semantics, but they do not provide a compiler entry point or executable support.
+`ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
+`GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
+current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
+elementwise, scalar elementwise, conditional selection, and cast semantics are the current
+production concrete kind families. The first six families have matching public Tensor expression
+construction; cast does not. The graph records can compose these or test-local semantics, but they
+do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -2777,6 +2822,9 @@ or test-local semantics, but they do not provide a compiler entry point or execu
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `CastAttrs` rejects a null target data type with `NullPointerException("targetDataType")`,
+  retains every valid `DataType` reference unchanged, and performs no source compatibility,
+  conversion, or backend-capability validation.
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.

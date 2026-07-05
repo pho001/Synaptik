@@ -89,6 +89,9 @@ io.github.pho001.synaptik.model.operation.elementwise.logical
 io.github.pho001.synaptik.model.operation.elementwise.selection
   Typed parameterless semantics for elementwise conditional branch selection.
 
+io.github.pho001.synaptik.model.operation.elementwise.cast
+  Typed explicit data-type conversion semantics and immutable target-type attributes.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -140,7 +143,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015D | [Boolean logical Tensor expressions](tasks/0015d-boolean-logical-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
 | 0015E | [Where selection semantic kind](tasks/0015e-where-selection-semantic-kind.md) | Complete | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
 | 0015F | [Where selection Tensor expression](tasks/0015f-where-selection-tensor-expression.md) | Complete | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
-| 0015G | Cast semantic kind and attributes | Draft | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
+| 0015G | [Cast semantic kind and attributes](tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
 | 0015H | Cast Tensor expression | Draft | 0001, 0013, 0015G | Build explicit cast expressions without eager conversion. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
@@ -162,8 +165,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015F complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015G is the next Draft planning frontier and has no detailed specification.
+Draft, with tasks 0014A through 0015G complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015H is the next Draft planning frontier and has no detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -395,6 +398,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   unchanged because the task composes existing model-owned validation and provenance without
   value selection, gradient routing, graph capture, ONNX mapping, backend behavior, dependencies,
   or execution.
+- Task 0015G adds `CastKind.CAST` and immutable `CastAttrs(targetDataType)` in
+  `model.operation.elementwise.cast`. The target is required and may be any current DataType;
+  source type, same-type behavior, result descriptors, conversion policy, gradients, provenance,
+  public `Tensor.cast`, and execution remain in task 0015H or later owning layers.
+- The independent task-0015G documentation review found the enum and record Javadocs complete,
+  then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
+  Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
+  build configuration, foundational and existing concrete operation contracts, and Tensor
+  expression contracts remain accurate unchanged because the task adds only model-owned cast
+  identity and target attributes without public expressions, inference, numerical conversion,
+  gradients, provenance, dependencies, or execution.
 - The independent task-0015C documentation review found the enum and every constant Javadoc
   complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
   API, Training API, capabilities, architecture/ADRs/tests, conformance and integration tests,
@@ -477,7 +491,8 @@ floating comparison Tensor construction. Task 0015C completed the three paramete
 logical semantic kinds, and task 0015D completed their public BOOL-only binary/unary Tensor
 expression construction. Task 0015E completed the sole parameterless `WHERE` conditional-selection
 semantic identity, and task 0015F completed its public static Tensor expression construction.
-Task 0015G is the next Draft planning frontier and remains without a detailed specification; all
+Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
+Task 0015H is the next Draft planning frontier and remains without a detailed specification; all
 later operation-family tasks also remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
