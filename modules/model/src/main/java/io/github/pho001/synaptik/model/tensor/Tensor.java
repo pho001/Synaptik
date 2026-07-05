@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,7 +34,8 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
  * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
- * boolean logical, conditional selection, explicit cast, parameterized scalar, and unary
+ * boolean logical, conditional selection, explicit cast, numeric aggregate reduction,
+ * parameterized scalar, and unary
  * elementwise expression methods create fresh storage-free tensors whose immutable provenance
  * records the requested semantics and exact inputs; they do not execute mathematics, validate
  * numerical domains, create gradient rules, or capture a graph.
@@ -46,13 +48,16 @@ import java.util.Optional;
  * floating branches, promotes the branch type, composes two pairwise broadcasts, and propagates
  * gradient eligibility from the branches only. Cast accepts every current source and target data
  * type, retains the exact input shape, and preserves a true gradient request only across a
- * floating-to-floating conversion. Scalar and unary methods accept one floating input and retain
- * its exact data type, shape reference, and gradient eligibility. Scalar methods retain their
- * exact binary64 parameters in typed attributes. Every expression result leaves layout unresolved,
- * has a fresh factory identity and no label or storage, and records an exact matching
+ * floating-to-floating conversion. Numeric aggregate methods accept one floating input and reduce
+ * either every axis to a scalar or one normalized axis, optionally retaining it with extent one;
+ * they preserve the exact input type and gradient eligibility without aggregating values. Scalar
+ * and unary methods accept one floating input and retain its exact data type, shape reference, and
+ * gradient eligibility. Scalar methods retain their exact binary64 parameters in typed attributes.
+ * Every expression result leaves layout unresolved, has a fresh factory identity and no label or
+ * storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
- * {@link WhereSelectionKind}, {@link CastKind}, {@link ScalarElementwiseKind}, or
- * {@link UnaryElementwiseKind}.
+ * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
+ * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -997,6 +1002,259 @@ public final class Tensor {
      */
     public Tensor cast(DataType targetDataType) {
         return TensorCastExpressions.apply(this, targetDataType);
+    }
+
+    /**
+     * Builds an expression that sums this tensor over every axis.
+     *
+     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
+     * scalar shape, retains the exact input data type and gradient-eligibility request, leaves
+     * layout unresolved, and has no label or host storage. Its provenance contains
+     * {@link AggregateReductionKind#SUM}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted without inspecting an
+     * element count or defining an empty-domain value.</p>
+     *
+     * <p>This method records aggregate semantics only. It does not read or sum values, choose
+     * accumulation precision or order, create a gradient rule, capture a graph, or execute work.
+     * Gradient eligibility therefore does not promise that differentiation is available.</p>
+     *
+     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor sum() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.SUM);
+    }
+
+    /**
+     * Builds an expression that sums this tensor over one axis and removes that axis.
+     *
+     * <p>The input must be floating. {@code axis} accepts the Shape contract's positive or
+     * negative indexing and is normalized exactly once against the input rank. The selected
+     * dimension is removed, every unaffected immutable dimension reference is retained in order,
+     * and reducing a rank-one tensor produces the canonical rank-zero scalar shape. The fresh
+     * result preserves the exact input data type and gradient eligibility, leaves layout
+     * unresolved, and has no label or storage. Provenance records
+     * {@link AggregateReductionKind#SUM} with normalized single-axis attributes and exactly this
+     * input.</p>
+     *
+     * <p>No values are read or summed, and no empty-domain, accumulation, gradient, compiler, or
+     * execution policy is defined.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
+     *     floating data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor sum(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.SUM, axis, false);
+    }
+
+    /**
+     * Builds an expression that sums this tensor over one axis and optionally retains it.
+     *
+     * <p>The input must be floating. {@code axis} is normalized exactly once using the Shape
+     * contract. When {@code keepDimensions} is false, the selected axis is removed; when true, it
+     * is replaced by a new static dimension of extent one. Every unaffected immutable dimension
+     * reference is retained in order. The fresh result preserves the exact input data type and
+     * gradient eligibility, leaves layout unresolved, has no label or storage, and records
+     * {@link AggregateReductionKind#SUM}, normalized axis attributes, and this sole input.</p>
+     *
+     * <p>Zero and dynamic extents are accepted structurally. This method does not inspect or sum
+     * values or define empty-domain, accumulation, gradient, compiler, or execution behavior.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
+     *     floating data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor sum(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.SUM, axis, keepDimensions);
+    }
+
+    /**
+     * Builds an expression that computes the arithmetic mean over every input axis.
+     *
+     * <p>The input must have a floating data type. The fresh result has canonical rank-zero scalar
+     * shape, preserves the exact input data type and gradient eligibility, leaves layout
+     * unresolved, and has no label or storage. Its provenance contains
+     * {@link AggregateReductionKind#MEAN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
+     *
+     * <p>This method neither reads values nor defines denominator, accumulation, empty-domain,
+     * numerical accuracy, gradient, compiler, or execution behavior.</p>
+     *
+     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor mean() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.MEAN);
+    }
+
+    /**
+     * Builds an arithmetic-mean expression over one axis and removes that axis.
+     *
+     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * selected dimension is removed, every unaffected dimension reference is retained in order,
+     * and rank one reduces to the canonical scalar shape. The fresh result has the exact input
+     * type and gradient eligibility, unresolved layout, no label or storage, and provenance with
+     * {@link AggregateReductionKind#MEAN}, normalized single-axis attributes, and this input.</p>
+     *
+     * <p>No values are read and no denominator, empty-domain, accumulation, gradient, compiler,
+     * or execution policy is defined.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
+     *     floating data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor mean(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MEAN, axis, false);
+    }
+
+    /**
+     * Builds an arithmetic-mean expression over one axis and optionally retains it.
+     *
+     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes the selected axis; true replaces it by a new static extent
+     * one while preserving every other dimension reference. The fresh result retains exact input
+     * type and gradient eligibility, has unresolved layout and no label or storage, and records
+     * {@link AggregateReductionKind#MEAN}, normalized axis attributes, and this sole input.</p>
+     *
+     * <p>Zero and dynamic extents remain structurally valid. No values are read, and denominator,
+     * empty-domain, accumulation, gradient, compiler, and execution policies remain deferred.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
+     *     floating data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor mean(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.MEAN, axis, keepDimensions);
+    }
+
+    /**
+     * Builds an expression that multiplies this tensor's values over every axis.
+     *
+     * <p>The input must have a floating data type. The fresh result has canonical rank-zero scalar
+     * shape, preserves the exact input data type and gradient-eligibility request, leaves layout
+     * unresolved, and has no label or storage. Its provenance contains
+     * {@link AggregateReductionKind#PROD}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * tensor. Preserving eligibility records model intent only; this method creates no product
+     * gradient rule. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
+     *
+     * <p>No values are multiplied, and multiplication order, overflow, empty-domain identity,
+     * numerical accuracy, gradients, compiler behavior, and execution remain deferred.</p>
+     *
+     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor prod() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.PROD);
+    }
+
+    /**
+     * Builds a product expression over one axis and removes that axis.
+     *
+     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * selected dimension is removed, every unaffected dimension reference is retained in order,
+     * and rank one reduces to the canonical scalar shape. The fresh result has exact input type
+     * and gradient eligibility, unresolved layout, no label or storage, and provenance with
+     * {@link AggregateReductionKind#PROD}, normalized axis attributes, and this input. Preserved
+     * eligibility does not imply that a product gradient rule exists.</p>
+     *
+     * <p>No values are multiplied and no empty-domain, ordering, numerical, gradient, compiler,
+     * or execution policy is defined.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
+     *     floating data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor prod(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.PROD, axis, false);
+    }
+
+    /**
+     * Builds a product expression over one axis and optionally retains it.
+     *
+     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes the selected axis; true replaces it by a new static extent
+     * one while preserving all other dimension references. The fresh result retains exact input
+     * type and gradient eligibility, has unresolved layout and no label or storage, and records
+     * {@link AggregateReductionKind#PROD}, normalized axis attributes, and this sole input.
+     * Preserved eligibility is model metadata and does not install a product gradient rule.</p>
+     *
+     * <p>Zero and dynamic extents remain structurally valid. No values are multiplied, and
+     * empty-domain, multiplication-order, numerical, gradient, compiler, and execution behavior
+     * remains deferred.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
+     *     floating data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
+     *     containing the rejected data type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor prod(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.PROD, axis, keepDimensions);
     }
 
     /**

@@ -78,7 +78,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(46, declaredPublicMethods.size());
+        assertEquals(55, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -86,7 +86,8 @@ class TensorTest {
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
-                        "logicalAnd", "logicalOr", "logicalNot", "where", "cast"),
+                        "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
+                        "mean", "prod"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -155,6 +156,27 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(cast.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(cast.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(cast.getModifiers())));
+
+        for (String methodName : List.of("sum", "mean", "prod")) {
+            var full = Tensor.class.getDeclaredMethod(methodName);
+            var axis = Tensor.class.getDeclaredMethod(methodName, int.class);
+            var retained = Tensor.class.getDeclaredMethod(
+                    methodName, int.class, boolean.class);
+            for (var method : List.of(full, axis, retained)) {
+                assertAll(
+                        () -> assertEquals(Tensor.class, method.getReturnType()),
+                        () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                        () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                        () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+            }
+            assertAll(
+                    () -> assertEquals(0, full.getParameterCount()),
+                    () -> assertEquals(
+                            List.of(int.class), Arrays.asList(axis.getParameterTypes())),
+                    () -> assertEquals(
+                            List.of(int.class, boolean.class),
+                            Arrays.asList(retained.getParameterTypes())));
+        }
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

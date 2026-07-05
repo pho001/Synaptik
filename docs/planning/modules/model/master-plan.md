@@ -149,7 +149,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015G | [Cast semantic kind and attributes](tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
 | 0015H | [Cast Tensor expression](tasks/0015h-cast-tensor-expression.md) | Complete | 0001, 0013, 0015G | Build fresh explicit cast expressions without eager conversion or model-time canonicalization. |
 | 0016A | [Reduction semantic kinds and attributes](tasks/0016a-reduction-semantic-kinds-and-attributes.md) | Complete | 0005, 0006 | Define ordinary aggregate meanings, axis/full parameters, and arg-max tie policy. |
-| 0016B | Sum, mean, and product Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build floating full and single-axis aggregate expressions. |
+| 0016B | [Sum, mean, and product Tensor expressions](tasks/0016b-sum-mean-and-product-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016A | Build floating full and single-axis aggregate expressions. |
 | 0016C | Min and max Tensor reduction expressions | Draft | 0001, 0002, 0013, 0016A | Build floating full and single-axis extrema expressions. |
 | 0016D | Boolean all and any Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build BOOL full and single-axis logical reductions. |
 | 0016E | Arg-max Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build numeric single-axis index reductions with explicit tie policy. |
@@ -179,7 +179,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Task 0016A is complete, and
-task 0016B is the next Draft planning frontier without a detailed specification.
+task 0016B is complete. Task 0016C is the next Draft planning frontier without a detailed
+specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -444,6 +445,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   families, and Tensor expression contracts remain accurate unchanged because this task adds only
   model-owned reduction semantic vocabulary without public expressions, inference, provenance,
   gradients, dependencies, or execution.
+- Task 0016B implements nine fluent full/axis/retained-axis `sum`, `mean`, and `prod` methods through
+  one package-private helper. It accepts only floating inputs, normalizes axes through Shape,
+  produces canonical rank-zero full results, preserves unaffected static/dynamic Dimension
+  references, retains input type and gradient eligibility, and records exact one-input provenance
+  without aggregation, numerical policy, gradient rules, graph capture, or execution.
+- The independent task-0016B documentation review found the Tensor and helper Javadocs complete,
+  then finalized Tensor API, Compile API current-expression inventory, glossary, task evidence,
+  master plan, and roadmap. Training API, capabilities, architecture/ADRs/tests, conformance and
+  integration tests, Java 26 build configuration, foundational contracts, and reduction semantic
+  contracts remain accurate unchanged because this task adds only model-owned aggregate
+  expression construction without numerical aggregation, gradient rules, compiler behavior,
+  dependencies, or execution.
 - The independent task-0015G documentation review found the enum and record Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
   Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
@@ -535,7 +548,8 @@ expression construction. Task 0015E completed the sole parameterless `WHERE` con
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
-0016 is decomposed into tasks 0016A–0016J. Task 0016A is complete; task 0016B and all later
-operation-family tasks remain Draft, and no detailed task-0016B specification exists.
+0016 is decomposed into tasks 0016A–0016J. Tasks 0016A and 0016B are complete. Task 0016C is the
+next Draft planning frontier without a detailed specification, and all later operation-family
+tasks remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

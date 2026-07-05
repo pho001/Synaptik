@@ -11,7 +11,9 @@ integral, and Bernoulli random population. The current concrete expression surfa
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
 methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
 floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
-explicit cast method. Typed access, other expression families, gradient objects and
+explicit cast method. Nine floating aggregate methods add full, one-axis, and retained-axis
+`sum`, `mean`, and `prod` expression construction. Typed access, other expression families,
+gradient objects and
 publication behavior, native/runtime/backend allocation, compiler integration, runtime residency,
 and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -45,6 +47,7 @@ BOOL condition + true/false floating branches                  = fresh broadcast
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
 input Tensor + target DataType                                 = fresh explicit cast Tensor
+floating Tensor + SUM/MEAN/PROD + full/axis attributes         = fresh reduced-shape Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -117,7 +120,9 @@ already normalized non-negative axis plus a retained-dimension choice for ordina
 forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negative axis sentinel
 means "all axes." `ArgMaxAttrs` carries the normalized axis, retained-dimension choice, and an
 explicit `ArgMaxTiePolicy`. These reduction semantics are implemented, but public Tensor reduction
-methods, result inference, numerical behavior, gradients, and execution remain planned.
+methods currently cover only `sum`, `mean`, and `prod`. Their full forms produce a canonical
+rank-zero scalar; their axis forms normalize the caller axis, then remove it or retain it with
+extent one. Other aggregate methods, numerical behavior, gradients, and execution remain planned.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -139,7 +144,11 @@ eligibility. Static `Tensor.where(condition, ifTrue, ifFalse)` requires an exact
 promotes the two floating branches, broadcasts the branches first and the condition with their
 common shape second, and creates a fresh result whose gradient eligibility is the branch-only OR.
 Its provenance preserves the exact ordered condition, true branch, and false branch references.
-`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All seven current
+`Tensor.sum`, `mean`, and `prod` construct full or single-axis floating aggregate expressions.
+They preserve the input type and gradient-eligibility request, derive the reduced shape, leave
+layout unresolved, and record the receiver as their sole provenance input. Product preserves
+eligibility metadata without claiming that a product gradient rule exists.
+`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All eight current
 expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
 
@@ -2293,6 +2302,140 @@ execution.
 - Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. Repeated calls and values
   such as multiplier `1.0` still create fresh expressions without canonicalization.
 
+### Numeric aggregate expressions
+
+The nine current numeric aggregate methods build sum, arithmetic-mean, and product expression
+metadata without reading or combining element values:
+
+| Family | Full form | Axis removed | Axis optionally retained |
+|---|---|---|---|
+| Sum | `sum()` | `sum(axis)` | `sum(axis, keepDimensions)` |
+| Arithmetic mean | `mean()` | `mean(axis)` | `mean(axis, keepDimensions)` |
+| Product | `prod()` | `prod(axis)` | `prod(axis, keepDimensions)` |
+
+Every method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64` and preserves that exact input data
+type. A full form reduces every input axis to the canonical rank-zero `Shape.scalar()` and records
+`NoOperationAttrs.INSTANCE`. An axis form accepts a positive or negative axis, normalizes it
+against the input `Shape`, and records `AxisReductionAttrs(normalizedAxis, keepDimensions)`. A
+false `keepDimensions` removes the selected axis; true replaces only that axis with a new static
+extent of one. Every unaffected static or dynamic `Dimension` object is retained by exact
+reference. Removing the only axis of a rank-one tensor also produces the canonical scalar shape.
+
+Every valid call returns a fresh Tensor with unchanged gradient eligibility, unresolved layout,
+no label, and no host storage. Its provenance contains the matching `SUM`, `MEAN`, or `PROD`
+operation and exactly the receiver reference. The eligibility flag remains a request in model
+metadata; in particular, preserving it for product does not install or promise a product gradient
+rule.
+
+Zero-sized and dynamic dimensions are valid structural inputs. Expression construction does not
+inspect element counts or define an empty-domain identity, a mean denominator, accumulation
+precision or order, overflow, NaN behavior, numerical values, compiler capture, gradients, backend
+support, or execution.
+
+#### Complete numeric-aggregate example
+
+##### Goal and inputs
+
+Build full, axis-removing, and retained-axis expressions from a storage-free `FLOAT32` tensor of
+shape `[batch, 3, 4]`, where `batch` is a symbolic dynamic dimension. The example observes
+result-shape and provenance metadata rather than aggregate values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class NumericAggregateExpressionExample {
+    public static void main(String[] args) {
+        DynamicDimension batch = new DynamicDimension("batch");
+        Shape inputShape = Shape.ofDimensions(
+                batch, new StaticDimension(3), new StaticDimension(4));
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.empty(), true));
+
+        Tensor full = input.sum();
+        Tensor removed = input.mean(-1);
+        Tensor retained = input.prod(1, true);
+        TensorProvenance fullFrom = full.provenance().orElseThrow();
+        TensorProvenance removedFrom = removed.provenance().orElseThrow();
+        TensorProvenance retainedFrom = retained.provenance().orElseThrow();
+
+        System.out.println("full=" + full.descriptor().shape());
+        System.out.println("fullKind=" + fullFrom.operation().kind());
+        System.out.println("fullParameterless="
+                + (fullFrom.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("removed=" + removed.descriptor().shape());
+        System.out.println("removedAttrs=" + removedFrom.operation().attrs());
+        System.out.println("retained=" + retained.descriptor().shape());
+        System.out.println("retainedAttrs=" + retainedFrom.operation().attrs());
+        System.out.println("sameBatch="
+                + (removed.descriptor().shape().dimensions().getFirst() == batch
+                && retained.descriptor().shape().dimensions().getFirst() == batch));
+        System.out.println("metadata="
+                + (retained.descriptor().dataType() == DataType.FLOAT32
+                && retained.descriptor().requiresGrad()
+                && retained.descriptor().layout().isEmpty()
+                && retained.label().isEmpty()
+                && retained.hostStorage().isEmpty()));
+        System.out.println("exactInputs="
+                + (fullFrom.inputs().getFirst() == input
+                && removedFrom.inputs().getFirst() == input
+                && retainedFrom.inputs().getFirst() == input));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `input.sum()` selects every axis. Its complete parameter value is the canonical no-attributes
+  singleton, and its result shape is the canonical scalar.
+- `input.mean(-1)` normalizes `-1` to axis `2` and removes the final extent `4`, producing
+  `[batch, 3]` with `AxisReductionAttrs[axis=2, keepDimensions=false]`.
+- `input.prod(1, true)` retains normalized axis `1` with extent one, producing
+  `[batch, 1, 4]` with `AxisReductionAttrs[axis=1, keepDimensions=true]`.
+- Both axis results retain the exact `batch` object. All results preserve `FLOAT32` and the true
+  gradient request while remaining unresolved, unlabeled, storage-free expressions.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+full=Shape[]
+fullKind=SUM
+fullParameterless=true
+removed=Shape[batch, 3]
+removedAttrs=AxisReductionAttrs[axis=2, keepDimensions=false]
+retained=Shape[batch, 1, 4]
+retainedAttrs=AxisReductionAttrs[axis=1, keepDimensions=true]
+sameBatch=true
+metadata=true
+exactInputs=true
+```
+
+The output proves local axis normalization, structural result-shape derivation, attribute choice,
+metadata retention, and one-input provenance. It does not prove a sum, mean, product, gradient
+formula, graph capture, backend implementation, or execution.
+
+##### Failures and useful variations
+
+- Calling any numeric aggregate method on `INT32`, `INT64`, or `BOOL` fails with
+  `IllegalArgumentException`; no cast is inserted. For an axis form, this type check precedes axis
+  validation.
+- An axis outside `[-rank, rank - 1]` fails with `IndexOutOfBoundsException`. Every axis is invalid
+  for a scalar input, while a scalar full reduction is valid and still returns a fresh scalar.
+- A rank-one axis removal returns `Shape.scalar()`. A zero extent or dynamic dimension does not
+  trigger numerical inspection at this boundary.
+- Repeated and nested calls always create fresh expression tensors; this API performs no
+  canonicalization or common-subexpression elimination.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -2674,8 +2817,10 @@ Operation axisSum = new Operation(
 The axis stored in `AxisReductionAttrs` is already normalized: it is a non-negative index, not a
 caller-facing negative axis. Construction accepts any non-negative `int` because these attributes
 do not retain a `Shape` or know an input rank. A negative value fails with
-`IllegalArgumentException` and a message containing the rejected value. A later public Tensor
-expression will normalize a caller axis through the input shape before creating attributes.
+`IllegalArgumentException` and a message containing the rejected value. The current `sum`, `mean`,
+and `prod` Tensor expressions normalize a caller axis through the input shape before creating
+attributes. Later aggregate families use the same boundary when their public expressions are
+implemented.
 
 When `keepDimensions` is false, the selected axis is removed from the eventual result. When it is
 true, the axis remains with extent one. The record stores that request but does not construct an
@@ -2699,9 +2844,10 @@ semantics, while their text remains diagnostic rather than serialization or disp
 Generic `Operation` still checks only that kind and attributes are non-null; it does not enforce
 these documented family pairings.
 
-This is the current boundary: the four reduction semantic types exist, but no public `Tensor.sum`,
-`mean`, `prod`, reduction `min` or `max`, `all`, `any`, or `argMax` method exists yet. The semantic
-values do not establish accepted input types, output types or shapes, empty-domain and numerical
+The semantic vocabulary is broader than the current Tensor surface. Public `Tensor.sum`, `mean`,
+and `prod` now provide floating full and single-axis expression construction with locally derived
+shapes and exact provenance. Reduction `min` and `max`, `all`, `any`, and `argMax` remain planned.
+Neither the semantic values nor current expression construction defines empty-domain or numerical
 policy, gradients, compiler capture, backend availability, or execution.
 
 ### Unary elementwise semantic kinds
@@ -3003,8 +3149,9 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary elementwise, and scalar elementwise operations—including all reduction
-  Tensor methods—plus gradient and trainable state and publication behavior;
+  selection, cast, unary elementwise, scalar elementwise, and numeric sum/mean/product aggregate
+  operations—including the other reduction Tensor methods—plus gradient and trainable state and
+  publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, and aggregate reduction semantics,
   plus their family-specific attribute values;
@@ -3020,8 +3167,9 @@ The following contracts appear in the architecture and planning documents but ar
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
-reduction is also a current production semantic family, but it has no public Tensor expression
-methods yet. The graph records can compose these or test-local semantics, but they
+reduction is also a current production semantic family; `sum`, `mean`, and `prod` have matching
+public Tensor expression methods, while its other kinds do not yet. The graph records can compose
+these or test-local semantics, but they
 do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
@@ -3039,8 +3187,9 @@ do not provide a compiler entry point or executable support.
   retains the exact non-negative axis and dimension choice. `ArgMaxAttrs` performs that axis check
   before rejecting a null `ArgMaxTiePolicy` with `NullPointerException("tiePolicy")`. Ordinary
   full reductions use `NoOperationAttrs.INSTANCE`; no negative all-axis sentinel exists. These
-  semantic values do not validate rank, construct Tensor results, or define numerical or backend
-  behavior, and no public reduction Tensor method is implemented yet.
+  semantic values do not by themselves validate rank, construct Tensor results, or define
+  numerical or backend behavior. Public `sum`, `mean`, and `prod` perform the local rank and result
+  construction described above; the other reduction Tensor methods remain planned.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and
