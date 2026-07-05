@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -474,10 +474,111 @@ Planning validation after synchronization:
 - Granularity review records why permutation/transpose is isolated from singleton rank editing;
   task 0017F1 remains a concise future row only.
 
+Implementation and independent documentation validation:
+
+- The implementation context added exactly the two public methods, one package-private final
+  field-free helper with the specified private constructor and six methods, the focused ten-test
+  suite, and the two Tensor API inventory checks. Initial focused tests, all 518 model tests,
+  generated model Javadoc, and the root test lifecycle passed before documentation review.
+- Clean documentation-focused context `/root/implement_model_0017f/docs_review_0017f` applied
+  General style, API and Javadoc style, Planning style, and Example format after reading the
+  architecture contract and focused boundary docs, documentation workflow, planning guide and
+  roadmap, model capabilities/master plan, tasks 0002/0003/0007/0011/0012/0013/0017E/0017F,
+  final source/tests, Tensor/Compile/Training APIs, glossary, generated Javadoc, related model
+  contracts, neighboring expression contracts, and Java 26 build configuration. It independently
+  inspected behavior and tests rather than relying on the implementation handoff.
+- Javadoc review found the two public methods and helper type, constructor, and all six methods
+  complete for output-to-input order, one-time negative normalization, ownership, scalar empty
+  permutation, failures, Shape/stride/offset rules, unresolved layout, result metadata,
+  provenance, freshness, identifier exhaustion, and cross-layer boundaries. The pass made only a
+  formatting correction in the affected Tensor type Javadoc; logic and signatures were unchanged.
+- Tensor API now documents current permute/transpose construction and includes a complete Java 26
+  example. `javac -cp modules/model/build/classes/java/main -d
+  /tmp/synaptik-permute-doc-example /tmp/PermuteExpressionExample.java` passed, and `java -cp
+  modules/model/build/classes/java/main:/tmp/synaptik-permute-doc-example
+  PermuteExpressionExample` printed the documented Shape `[3, 4, 2]`, strides `[4, 1, 12]`,
+  offset `5`, `STRIDED`, span `29`, normalized axes `[1, 2, 0]`, exact-input and storage-free
+  booleans, transpose Shape `[3, 2]`, axes `[1, 0]`, and unresolved-layout boolean.
+- Compile API now lists permutation and transpose among current expression inputs while preserving
+  capture, inference, canonicalization, materialization planning, backend lowering, and execution
+  as planned. Glossary axis-transform, permutation, provenance, Tensor, and status distinctions
+  now reflect the same current-versus-planned boundary without adding an unnecessary term.
+- `./gradlew --no-daemon :modules:model:test --tests
+  io.github.pho001.synaptik.model.tensor.TensorPermutationExpressionTest --tests
+  io.github.pho001.synaptik.model.tensor.TensorTest` passed after documentation review; focused XML
+  records 24 tests total (10 permutation-expression tests and 14 Tensor tests), with zero failures,
+  errors, or skips.
+- `./gradlew --no-daemon :modules:model:test` passed after documentation review; XML aggregation
+  records 518 tests with zero failures, errors, or skips.
+- `./gradlew --no-daemon :modules:model:javadoc` passed. Generated Tensor Javadoc contains both
+  methods, complete parameters/returns/failures, output-to-input order, and physical-alias/
+  zero-copy boundaries.
+- `./gradlew --no-daemon test` passed for the complete repository; the final run reported 36
+  actionable tasks and no failure.
+- `javap -p -c -s` confirmed the exact field-free helper, private zero-argument constructor, six
+  static methods, one long-arithmetic normalization path, exact Shape/stride reordering, and one
+  final `TensorFactory.createDerived` call. `javap -p -s` confirmed exactly `permute(int...)` and
+  parameterless `transpose()` on Tensor. Reflection tests confirmed the same public/helper shape.
+- Import and source inspection confirmed only JDK and local model contracts, no forbidden
+  compiler/planning/prepare/runtime/backend/training dependency, no value or storage access, and
+  no expand-dimensions or squeeze behavior. Existing task-0017F1 and task-0017G specifications do
+  not exist.
+- A targeted Ruby check resolved every local Markdown file link and heading anchor in the six
+  changed documentation/planning files. Fence counts are even, trailing-whitespace scans found no
+  matches, generated Javadoc inspection passed, every changed file ends with a newline, and
+  `git diff --check` passed including explicit checks of both new Java files.
+- Final scope inspection found exactly the ten permitted paths: two production files, two tests,
+  Tensor API, Compile API, glossary, this task, model master plan, and roadmap. Task 0017F is
+  `Complete` in all three planning locations; task 0017F1 and task 0017G remain `Draft` without
+  specifications.
+- Training API remains accurate unchanged because no trainable state, autograd rule, gradient
+  publication, optimizer, or prepared execution was added. Capabilities remains accurate because
+  it already lists permute/transpose at the model/public-API layer and distinguishes that layer
+  from compiler and executable parity.
+- `AxisTransformKind`, `PermutationAttrs`, `Operation`, Shape/Dimension, LayoutDescriptor/
+  LayoutKind, TensorDescriptor, TensorFactory, and TensorProvenance remain accurate unchanged:
+  the helper composes their existing semantic, immutable metadata, allocation, and provenance
+  contracts without changing them. Contiguous, reshape, and expand contracts also remain accurate
+  because permutation uses a distinct complete-axis validation and stride-reordering algebra.
+- Architecture and ADRs, architecture tests, backend conformance, integration tests, Gradle Java
+  26 configuration, dependencies, and other modules remain accurate unchanged because this task
+  changes no ownership, dependency, build, backend behavior, or end-to-end execution contract.
+
 ## Implementation notes
 
-Empty until implemented.
+- Added exactly `Tensor.permute(int...)` and `Tensor.transpose()` with complete public Javadocs and
+  one helper call each.
+- Added the exact six-method package-private construction helper with defensive normalization,
+  exact Dimension/stride reordering, conditional same-offset view layout, preserved type and
+  eligibility, and exact PERMUTE provenance through one derived-factory delegation.
+- Added focused coverage for API/helper shape, every data type and valid eligibility, ownership,
+  scalar/dynamic/zero Shapes, exact failures and precedence, transpose, every resolved layout kind,
+  unresolved geometry, freshness, storage/value non-interference, and identity side effects.
+- Finalized Tensor API, Compile API, glossary, task/master/roadmap status, generated Javadoc, and
+  the runnable Java 26 example without changing another contract or module.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Implemented and documented arbitrary complete Tensor permutation and rank-two
+  transpose as fresh storage-free PERMUTE expressions with conditional logical view geometry.
+- Files changed or created: Tensor, the new TensorPermutationExpressions helper, Tensor inventory
+  test, the new focused expression test, Tensor API, Compile API, glossary, this task, model master
+  plan, and roadmap.
+- Tests and validation: Focused 24 tests, all 518 model tests, model Javadoc, full repository tests,
+  runnable Java 26 example, bytecode/reflection/import/source inspection, link/anchor/fence/
+  whitespace checks, exact-scope review, and `git diff --check` passed.
+- Documentation-agent review: Clean context
+  `/root/implement_model_0017f/docs_review_0017f` independently finalized all affected Javadocs,
+  explanatory documentation, glossary impact, planning evidence, and status synchronization.
+- Documentation impact: Permute/transpose are current model expression construction; compiler
+  capture/canonicalization, materialization, backend lowering, gradients, and execution remain
+  planned in their owning layers.
+- Javadoc review: Affected Tensor/helper contracts are complete; related foundational and
+  neighboring expression Javadocs remain accurate unchanged for the reasons recorded above.
+- Glossary impact: Existing axis-transform, permutation, provenance, Tensor, and implementation-
+  status entries were updated; no new reusable domain term was needed.
+- Unresolved issues: None.
+- Follow-up required: None. Task 0017F1 remains the next Draft planning frontier without a detailed
+  specification; task 0017G also remains Draft without a specification.
+
+Status: Complete

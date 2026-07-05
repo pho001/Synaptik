@@ -20,7 +20,9 @@ normalization expressions. The parameterless `contiguous` method adds a shape-pr
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
 `Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
-repetition with locally derived zero-stride view geometry when possible. Typed access, other
+repetition with locally derived zero-stride view geometry when possible. `permute(int...)` adds
+arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
+Typed access, other
 expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -38,10 +40,10 @@ materialization, gradient, and execution behavior remains planned.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
-`AxisTransformAttrs` stores one normalized non-negative insertion or removal position. These
-values do not add public Tensor methods: `permute`, rank-two `transpose`, `expandDims`, and
-`squeeze`, together with input-rank checks, result Shape/layout derivation, and provenance, remain
-planned.
+`AxisTransformAttrs` stores one normalized non-negative insertion or removal position. Public
+`Tensor.permute` now owns input-rank checks, one-time negative-axis normalization, result
+Shape/layout derivation, and provenance; rank-two `Tensor.transpose()` uses the same `PERMUTE`
+meaning with `[1, 0]`. Public `expandDims` and `squeeze` construction remains planned.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -80,6 +82,7 @@ floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-pre
 Tensor + CONTIGUOUS                                = fresh static-resolved or dynamic-unresolved Tensor
 Tensor + raw/exact target Shape + RESHAPE          = fresh conditional-view reshape Tensor
 Tensor + raw/exact target Shape + EXPAND           = fresh conditional-view expand Tensor
+Tensor + complete output-to-input axes + PERMUTE   = fresh conditional-view permute Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -201,6 +204,12 @@ compatibility, leading-axis and input-singleton expansion, and conditional zero-
 derivation. The semantic values themselves still do not perform that work. Neither current
 expression family defines gradients, compiler behavior, materialization policy, backend behavior,
 or execution.
+Public `Tensor.permute` owns complete-permutation validation, raw negative-axis normalization,
+exact Dimension-reference reordering, conditional resolved-stride reordering, and one-input
+provenance. `Tensor.transpose()` supplies normalized axes `[1, 0]` after requiring rank two. These
+methods construct logical model metadata only; compiler capture and canonicalization, planning and
+prepare-time materialization, backend lowering, storage aliasing, gradients, and execution remain
+outside the current Tensor contract.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3290,6 +3299,136 @@ materialization, backend lowering, or execution.
 - Scalar input may expand to any target Shape. Static or dynamic identity-like requests remain
   fresh expressions rather than returning the input.
 
+### Permute and transpose expressions
+
+The current `Tensor.permute(int...)` method creates a fresh model expression for one complete axis
+reordering. The requested array uses output-to-input order: entry `i` identifies the input axis
+placed at output axis `i`. Its length must equal input rank, and its normalized entries must contain
+every input axis exactly once. Each negative entry adds the rank once, so rank-three axes
+`[1, -1, 0]` normalize to `[1, 2, 0]`. The method copies the array after count validation and never
+retains or mutates caller-owned storage. Empty axes form the valid rank-zero scalar permutation.
+
+The result Shape contains the exact immutable input `Dimension` references in reordered positions.
+If input layout is resolved, the result receives one new view-marked `LayoutDescriptor` with the
+same element offset and exact strides in the same reordered positions. Every resolved layout kind
+is accepted, and the descriptor derives the result kind and referenced span from the new geometry.
+If input layout is unresolved, including dynamic Shape cases, result layout remains unresolved.
+
+`Tensor.transpose()` requires rank two and delegates to the same construction with normalized axes
+`[1, 0]`. It records `AxisTransformKind.PERMUTE` and `PermutationAttrs([1, 0])`; there is no separate
+transpose kind. Both methods preserve exact data type and gradient eligibility, return a fresh
+unlabeled Tensor without host storage, and record exactly the receiver as their provenance input.
+Identity, inverse, repeated, and nested requests remain explicit expressions.
+
+Resolved view layout is logical metadata. It does not attach or inspect storage, prove a physical
+alias, promise zero-copy execution, or choose whether a backend must materialize a copy. Compiler
+capture and permutation canonicalization, planning and prepare-time materialization, backend
+lowering, gradients, runtime residency, and execution remain planned in their owning layers.
+
+#### Complete expression-construction example
+
+##### Goal and inputs
+
+Permute a resolved rank-three Tensor with one negative raw axis, then construct a rank-two
+transpose and inspect their normalized semantics. The example observes descriptors and provenance
+only.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class PermuteExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3, 4);
+        LayoutDescriptor layout = LayoutDescriptor.of(
+                shape, new long[] {12, 4, 1}, 5, true);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.of(layout), true));
+
+        int[] axes = {1, -1, 0};
+        Tensor result = input.permute(axes);
+        axes[0] = 0;
+        LayoutDescriptor resultLayout = result.descriptor().layout().orElseThrow();
+        PermutationAttrs attrs = (PermutationAttrs) result.provenance().orElseThrow()
+                .operation().attrs();
+
+        Tensor matrix = TensorFactory.create(new TensorDescriptor(
+                DataType.INT64, Shape.of(2, 3), Optional.empty(), false));
+        Tensor transposed = matrix.transpose();
+        PermutationAttrs transposeAttrs = (PermutationAttrs) transposed.provenance()
+                .orElseThrow().operation().attrs();
+
+        System.out.println(result.descriptor().shape());
+        System.out.println(Arrays.toString(resultLayout.strides()));
+        System.out.println(resultLayout.storageOffset());
+        System.out.println(resultLayout.kind());
+        System.out.println(resultLayout.referencedElementSpan());
+        System.out.println(attrs.axes());
+        System.out.println(result.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(result.hostStorage().isEmpty());
+        System.out.println(transposed.descriptor().shape());
+        System.out.println(transposeAttrs.axes());
+        System.out.println(transposed.descriptor().layout().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Rank-three raw axes `[1, -1, 0]` normalize once to `[1, 2, 0]`, so input Shape `[2, 3, 4]`
+  becomes `[3, 4, 2]`. Mutating the caller array later cannot change stored attributes.
+- Input strides `[12, 4, 1]` follow the same output-to-input mapping and become `[4, 1, 12]`.
+  Offset five remains unchanged. The greatest referenced index is 28, so the referenced element
+  span is 29.
+- The resolved result is a logical strided view descriptor. The method does not attach the input's
+  storage or claim that execution can consume the view without a copy.
+- Transpose swaps `[2, 3]` to `[3, 2]`, records normalized `[1, 0]`, and keeps layout unresolved
+  because its input layout was unresolved.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[3, 4, 2]
+[4, 1, 12]
+5
+STRIDED
+29
+[1, 2, 0]
+true
+true
+Shape[3, 2]
+[1, 0]
+true
+```
+
+The output demonstrates defensive raw-axis ownership, normalization, Shape/stride reordering,
+offset preservation, exact provenance, and rank-two transpose semantics. It does not demonstrate
+value movement, physical storage aliasing, gradients, compiler capture or canonicalization,
+materialization, backend lowering, or execution.
+
+##### Failures and useful variations
+
+- A null axis array fails with `NullPointerException` naming `requestedAxes`.
+- An axis count different from rank, a value outside the rank after one negative normalization, or
+  the first duplicated normalized axis fails with `IllegalArgumentException`. These failures occur
+  before Tensor identity allocation.
+- `transpose()` on any rank other than two fails with `IllegalStateException` reporting the rank.
+- Resolved layout classification or referenced-span overflow propagates as `ArithmeticException`
+  before identity allocation.
+- Exhausted Tensor identifier space fails with `IllegalStateException` only at final derived
+  construction after local immutable metadata has been built.
+- `scalar.permute()` is valid. Identity permutations still return fresh expressions rather than
+  the receiver.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -3967,12 +4106,13 @@ for removal. The record has no input rank or dimension, so it cannot prove the i
 bound or that a squeezed dimension has extent one. A later Shape-aware expression boundary owns
 raw negative-axis normalization and those input-dependent checks.
 
-A future parameterless rank-two `transpose()` method is a convenience over
+A parameterless rank-two `transpose()` method is now implemented as a convenience over
 `PERMUTE + PermutationAttrs(List.of(1, 0))`; `TRANSPOSE` is not a fourth semantic kind. Generic
 `Operation` retains the supplied kind and attributes but does not enforce the documented family
-pairings. Public `Tensor.permute`, `transpose`, `expandDims`, and `squeeze`, result descriptors,
-layout/view derivation, provenance, gradients, compiler behavior, materialization, backend
-support, and execution remain planned.
+pairings. Public `Tensor.permute` and `transpose` now construct result descriptors, logical view
+layout when input geometry is resolved, and exact one-input provenance. Public `expandDims` and
+`squeeze`, gradients, compiler behavior, materialization, backend support, and execution remain
+planned.
 
 ### Unary elementwise semantic kinds
 
@@ -4275,8 +4415,8 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, and expand requests, including public permute, transpose, expand-dimensions,
-  and squeeze construction, plus gradient and trainable state and publication behavior;
+  contiguous, reshape, expand, and permute requests, including public expand-dimensions and
+  squeeze construction, plus gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and
@@ -4308,8 +4448,8 @@ unresolved result-layout rules. Reshape and expand semantic values and both publ
 expression families are current, with their distinct count-preserving and directional-
 broadcasting validation and layout rules.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
-are current; their public Tensor expression methods and all input-dependent result construction
-remain planned.
+are current. Public permutation and rank-two transpose expression construction is also current;
+public expand-dimensions and squeeze construction remains planned.
 
 ## Failures and ownership summary
 
@@ -4339,6 +4479,14 @@ remain planned.
   singleton axes. Dynamic targets or unresolved input layouts remain unresolved. Every result
   retains exact type and gradient eligibility, records exact EXPAND/target-shape semantics and
   `[input]` provenance, and remains fresh, unlabeled, and storage-free.
+- `Tensor.permute(int...)` requires exactly one raw axis per input rank, copies the request after
+  count validation, normalizes each negative entry once, and rejects an out-of-range or duplicate
+  normalized axis before identity allocation. Empty axes are valid exactly for scalar input.
+- Every resolved permute input layout produces one new same-offset view layout with exact reordered
+  strides; unresolved input remains unresolved. `Tensor.transpose()` requires rank two and uses
+  normalized `[1, 0]`. Both methods retain exact type and eligibility, record PERMUTE attributes
+  and `[input]` provenance, and remain fresh, unlabeled, storage-free logical metadata without an
+  alias, copy, materialization, or execution guarantee.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.

@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(81, declaredPublicMethods.size());
+        assertEquals(83, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -89,7 +89,8 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
-                        "logSoftmax", "contiguous", "reshape", "expand"),
+                        "logSoftmax", "contiguous", "reshape", "expand", "permute",
+                        "transpose"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -261,6 +262,23 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(expand.getModifiers())),
                     () -> assertEquals(parameter == long[].class, expand.isVarArgs()));
         }
+
+        var permute = Tensor.class.getDeclaredMethod("permute", int[].class);
+        var transpose = Tensor.class.getDeclaredMethod("transpose");
+        assertAll(
+                () -> assertEquals(Tensor.class, permute.getReturnType()),
+                () -> assertEquals(List.of(int[].class),
+                        Arrays.asList(permute.getParameterTypes())),
+                () -> assertTrue(permute.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(permute.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(permute.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(permute.getModifiers())),
+                () -> assertEquals(Tensor.class, transpose.getReturnType()),
+                () -> assertEquals(0, transpose.getParameterCount()),
+                () -> assertFalse(transpose.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(transpose.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(transpose.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(transpose.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

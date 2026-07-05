@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
@@ -82,11 +83,15 @@ import java.util.Optional;
  * new leading axes. A static target and resolved input layout produce a new same-offset view
  * layout with preserved aligned strides and zero strides for new leading or expanded singleton
  * axes; other expand geometry remains unresolved. Neither transformation attaches storage or
- * chooses materialization. Every result records an exact matching
+ * chooses materialization. Permute reorders exact Dimension references and, when input layout is
+ * resolved, exact strides while preserving the input element offset in new logical view metadata.
+ * Rank-two transpose is the same PERMUTE operation with axes {@code [1, 0]}. Neither expression
+ * attaches storage or guarantees an executable alias. Every result records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
- * {@link ShapeTransformKind}, {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
+ * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link ScalarElementwiseKind}, or
+ * {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -2145,6 +2150,71 @@ public final class Tensor {
      */
     public Tensor expand(Shape targetShape) {
         return TensorExpandExpressions.apply(this, targetShape);
+    }
+
+    /**
+     * Creates a fresh expression that completely reorders this tensor's axes.
+     *
+     * <p>The caller-owned array must contain exactly one entry per input axis. Entries use
+     * output-to-input order: {@code requestedAxes[i]} identifies the input axis placed at output
+     * axis {@code i}. A negative entry adds the input rank once, so for rank three
+     * {@code [1, -3, 2]} normalizes to {@code [1, 0, 2]}. The normalized entries must contain every
+     * input axis exactly once. An empty array is the valid identity permutation for a rank-zero
+     * scalar. The array is defensively copied and is never retained or mutated.</p>
+     *
+     * <p>The result Shape contains the exact immutable input Dimension references in normalized
+     * output order. If input layout is resolved, every current layout kind produces one new
+     * view-marked layout whose strides are reordered in the same way and whose element offset is
+     * unchanged. Unresolved input layout remains unresolved. Resolved view metadata does not
+     * attach host storage, establish a physical alias, or promise zero-copy execution.</p>
+     *
+     * <p>The fresh result retains the exact input DataType and gradient eligibility, has no label
+     * or storage, and records {@link AxisTransformKind#PERMUTE}, normalized permutation
+     * attributes, and exactly this tensor as its provenance input. Identity, inverse, repeated,
+     * and nested requests remain explicit expressions without canonicalization.</p>
+     *
+     * @param requestedAxes non-null caller-owned complete output-to-input axis permutation;
+     *     negative entries count once from the input rank, and an empty array is valid only for a
+     *     scalar
+     * @return a non-null fresh permute expression retaining exact type and gradient eligibility,
+     *     reordered Shape and conditional resolved view geometry, and no label or storage
+     * @throws NullPointerException if {@code requestedAxes} is null, with message
+     *     {@code requestedAxes}
+     * @throws IllegalArgumentException if the axis count differs from input rank, a normalized
+     *     axis is outside the rank, or a normalized axis is duplicated; no tensor identity is
+     *     consumed
+     * @throws ArithmeticException if resolved layout classification or referenced-span arithmetic
+     *     overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor permute(int... requestedAxes) {
+        return TensorPermutationExpressions.apply(this, requestedAxes);
+    }
+
+    /**
+     * Creates a fresh rank-two transpose expression.
+     *
+     * <p>This tensor must have rank two. The operation is exactly
+     * {@link AxisTransformKind#PERMUTE} with normalized output-to-input axes {@code [1, 0]}; there
+     * is no separate transpose semantic kind. The result swaps the exact two Dimension references
+     * and, for resolved input geometry, swaps the exact two strides while preserving the element
+     * offset in a new view-marked layout. Unresolved geometry stays unresolved.</p>
+     *
+     * <p>Every successful call returns a fresh unlabeled, storage-free tensor with unchanged data
+     * type and gradient eligibility and exact one-input provenance. Logical view metadata neither
+     * attaches storage nor promises physical aliasing or execution without a copy.</p>
+     *
+     * @return a non-null fresh rank-two PERMUTE expression with axes {@code [1, 0]}, swapped Shape
+     *     and conditional resolved view geometry, exact metadata/provenance, and no label/storage
+     * @throws IllegalStateException if this tensor is not rank two, with message
+     *     {@code transpose() requires rank-2 tensor, got rank=<rank>}, or if tensor identifier
+     *     space is exhausted after all local immutable metadata has been constructed
+     * @throws ArithmeticException if resolved layout classification or referenced-span arithmetic
+     *     overflows; no tensor identity is consumed
+     */
+    public Tensor transpose() {
+        return TensorPermutationExpressions.transpose(this);
     }
 
     /**

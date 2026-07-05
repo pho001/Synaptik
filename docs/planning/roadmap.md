@@ -52,11 +52,13 @@ Its completed implementation frontier is:
   — Complete.
 - [0017E Axis-transform semantics](modules/model/tasks/0017e-axis-transform-semantics.md)
   — Complete.
-
-The next implementation frontier is:
-
 - [0017F Permute and transpose Tensor expressions](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md)
-  — Ready.
+  — Complete.
+
+The next planning frontier is:
+
+- 0017F1 Expand-dimensions and squeeze Tensor expressions — Draft without a detailed
+  specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -150,7 +152,7 @@ right-aligned singleton/leading-axis validation and resolved zero-stride view ge
 aliasing, materialization, gradients, compiler behavior, lowering, and execution remain deferred.
 Task [0017E](modules/model/tasks/0017e-axis-transform-semantics.md) is complete with exact PERMUTE,
 EXPAND_DIMS, and SQUEEZE meanings plus immutable normalized permutation/single-axis attributes.
-Task [0017F](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md) is Ready for
+Task [0017F](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md) is complete with
 arbitrary complete permutation and rank-two transpose over PERMUTE `[1, 0]`. The former combined
 expression row is split: task 0017F1 remains Draft for expand-dimensions and squeeze because
 singleton rank editing has different validation and layout algebra.
@@ -254,7 +256,7 @@ authorized Compile API status correction.
 | 55 | [0017D Reshape Tensor expressions](modules/model/tasks/0017d-reshape-tensor-expressions.md) | Complete |
 | 56 | [0017D1 Expand Tensor expressions](modules/model/tasks/0017d1-expand-tensor-expressions.md) | Complete |
 | 57 | [0017E Axis-transform semantics](modules/model/tasks/0017e-axis-transform-semantics.md) | Complete |
-| 58 | [0017F Permute and transpose Tensor expressions](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md) | Ready |
+| 58 | [0017F Permute and transpose Tensor expressions](modules/model/tasks/0017f-permute-and-transpose-tensor-expressions.md) | Complete |
 | 59 | 0017F1 Expand-dimensions and squeeze Tensor expressions | Draft |
 | 60 | 0017G Slice semantics | Draft |
 | 61 | 0017H Slice Tensor expressions | Draft |
@@ -315,7 +317,7 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017E, including 0017D1, are
-complete, 0017F is Ready, and every later subtask remains Draft without a detailed specification.
+complete, 0017F is complete, and every later subtask remains Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

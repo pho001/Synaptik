@@ -104,9 +104,10 @@ behavior, materialization, backend behavior, and execution remain planned.
 The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPAND_DIMS`, and
 `SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
 axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
-position. Public Tensor permute, rank-two transpose, expand-dimensions, and squeeze construction,
-including input-rank and singleton checks, Shape/layout derivation, provenance, gradients,
-compiler behavior, materialization, backend behavior, and execution, remains planned.
+position. Public `Tensor.permute` and rank-two `Tensor.transpose()` now construct fresh expressions
+with input-rank validation, Shape/layout derivation, and one-input provenance. Expand-dimensions,
+squeeze, gradients, compiler behavior, materialization, backend behavior, and execution remain
+planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -176,12 +177,12 @@ An implemented backend-independent semantic change to axis coordinates. The
 `AxisTransformAttrs` value whose non-negative axis is interpreted as an output insertion position
 or an input removal position, respectively.
 
-These values define meaning only. The attributes do not retain a Tensor, Shape, layout, or input
-rank and cannot prove an insertion bound, removal bound, or singleton dimension. Public Tensor
-construction, raw negative-axis normalization, result Shape/layout derivation, provenance,
-gradients, compiler behavior, materialization, backend behavior, and execution remain planned.
-Rank-two `transpose()` is a future convenience over `PERMUTE` mapping `[1, 0]`, not a separate
-semantic kind. See [Axis-transform semantic kinds and
+These semantic values do not retain a Tensor, Shape, layout, or input rank and cannot by themselves
+prove an insertion bound, removal bound, or singleton dimension. Public `Tensor.permute` now owns
+raw negative-axis normalization, complete input-rank validation, result Shape/layout derivation,
+and provenance. Rank-two `transpose()` is implemented over `PERMUTE` mapping `[1, 0]`, not a
+separate semantic kind. Expand-dimensions, squeeze, gradients, compiler behavior, materialization,
+backend behavior, and execution remain planned. See [Axis-transform semantic kinds and
 attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Architecture contract
@@ -643,8 +644,13 @@ output-axis labels `[columns, rows, channels]`.
 The list size defines the permutation rank. Every value must lie in `[0, rank)` and occur exactly
 once; an empty list is the rank-zero scalar identity. Construction validates elements in index
 order before taking one immutable snapshot. The attributes do not know an eventual input Tensor
-rank and do not construct a Shape, layout, storage view, provenance, gradient, or executable
-result. A rank-two transpose convenience uses mapping `[1, 0]`. See [Axis-transform semantic kinds
+rank or construct a Shape, layout, storage view, provenance, gradient, or executable result by
+themselves. Public `Tensor.permute` validates that rank, normalizes each negative raw axis once,
+reorders exact Dimension references and resolved strides, preserves resolved element offset, and
+records normalized attributes with provenance `[input]`. Unresolved layout remains unresolved. A
+rank-two transpose convenience uses mapping `[1, 0]`. The resulting view descriptor is logical
+metadata, not attached storage or a zero-copy guarantee. See [Permute and transpose
+expressions](api/tensor-api.md#permute-and-transpose-expressions) and [Axis-transform semantic kinds
 and attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Partition
@@ -703,6 +709,10 @@ normalized axis in `SoftmaxAttrs`, and record exactly the receiver as their sole
 `Tensor.contiguous()` uses `ContiguousKind.CONTIGUOUS` and `NoOperationAttrs.INSTANCE`, and records
 exactly the receiver even when it already has canonical dense layout. That provenance does not
 imply that a copy or materialization occurred.
+`Tensor.permute` and `Tensor.transpose()` use `AxisTransformKind.PERMUTE`, retain their complete
+normalized output-to-input mapping in `PermutationAttrs`, and record exactly the receiver as their
+sole input. Resolved view layout in the result does not imply that storage was attached, aliased,
+copied, or materialized.
 
 ### Publication binding
 
@@ -906,6 +916,12 @@ unprovable dynamic compatibility. Static target plus resolved input geometry pro
 view metadata with preserved aligned and zero leading/expanded strides; other geometry remains
 unresolved. Each result is fresh, unlabeled, storage-free, and records one-input EXPAND provenance
 without repeating values, attaching an alias, or choosing materialization.
+A `Tensor.permute` request accepts every data type and preserves exact gradient eligibility. It
+requires a complete output-to-input mapping, normalizes each negative axis once, and reorders exact
+Dimension references. Resolved input geometry produces a new same-offset view descriptor with
+reordered exact strides; unresolved input stays unresolved. `Tensor.transpose()` requires rank two
+and supplies `[1, 0]`. Every result is fresh, unlabeled, storage-free, and records one-input PERMUTE
+provenance without attaching an alias, canonicalizing, choosing materialization, or executing.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1161,6 +1177,8 @@ implemented with static-resolved and dynamic-unresolved result layout rules. Ord
 preserving reshape construction is implemented with raw inference, exact-Shape retention, and
 conditional contiguous-input/static-target view geometry. Directional right-aligned expand
 construction is implemented with exact target retention and conditional zero-stride view geometry.
+Complete axis-permutation and rank-two transpose construction is implemented with exact
+Dimension/stride reordering and conditional same-offset view geometry.
 Gradient rules and objects, compiler
 graph capture and canonicalization, dynamic constraint solving, truth or numerical execution,
 materialization, and publication behavior are not part of the current Tensor contract.
@@ -1200,8 +1218,9 @@ sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor con
 implemented. Contiguous-request semantics and public contiguous Tensor construction are also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
-attributes, and single-axis insertion/removal attributes are implemented; public permute,
-transpose, expand-dimensions, and squeeze Tensor construction remains planned. Other
+attributes, and single-axis insertion/removal attributes are implemented; public permute and
+transpose Tensor construction is current, while public expand-dimensions and squeeze construction
+remains planned. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

@@ -174,7 +174,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017D | [Reshape Tensor expressions](tasks/0017d-reshape-tensor-expressions.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017C | Build raw-inferred and exact-Shape reshape expressions with locally provable view geometry. |
 | 0017D1 | [Expand Tensor expressions](tasks/0017d1-expand-tensor-expressions.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017C | Build right-aligned singleton/leading-axis expansion expressions and zero-stride view geometry. |
 | 0017E | [Axis-transform semantics](tasks/0017e-axis-transform-semantics.md) | Complete | 0002, 0005, 0006 | Define permutation, dimension insertion, and dimension removal meanings. |
-| 0017F | [Permute and transpose Tensor expressions](tasks/0017f-permute-and-transpose-tensor-expressions.md) | Ready | 0002, 0003, 0013, 0017E | Build arbitrary axis-reordering and rank-two transpose convenience with view geometry. |
+| 0017F | [Permute and transpose Tensor expressions](tasks/0017f-permute-and-transpose-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017E | Build arbitrary axis-reordering and rank-two transpose convenience with view geometry. |
 | 0017F1 | Expand-dimensions and squeeze Tensor expressions | Draft | 0002, 0003, 0013, 0017E | Build singleton-axis insertion/removal with rank-editing view geometry. |
 | 0017G | Slice semantics | Draft | 0002, 0005, 0006 | Define immutable general positive-step slice parameters and single-axis convenience meaning. |
 | 0017H | Slice Tensor expressions | Draft | 0002, 0003, 0013, 0017G | Build general and single-axis slice views with local shape and layout rules. |
@@ -207,8 +207,8 @@ recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 001
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
-0017D1 and 0017F1. Tasks 0017D, 0017D1, and 0017E are complete. Task 0017F is the next Ready
-frontier; 0017F1 and later tasks remain Draft without detailed specifications.
+0017D1 and 0017F1. Tasks 0017D, 0017D1, 0017E, and 0017F are complete. Task 0017F1 is the next
+Draft frontier without a detailed specification; later tasks also remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -594,10 +594,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   insertion/removal task 0017F1. Permutation reorders existing Dimension and stride entries,
   whereas expand-dimensions and squeeze change rank and require different singleton and inserted-
   stride rules.
-- Task 0017F is Ready for exactly `Tensor.permute(int...)` and rank-two `Tensor.transpose()` plus
-  one bounded package-private helper. It owns raw negative-axis normalization, complete
-  permutation validation, exact Dimension/stride reordering, PERMUTE attributes, and provenance.
-  Task 0017F1 remains Draft without a detailed specification.
+- Task 0017F completed exactly `Tensor.permute(int...)` and rank-two `Tensor.transpose()` plus one
+  bounded package-private helper. It owns raw negative-axis normalization, complete permutation
+  validation, exact Dimension/stride reordering, PERMUTE attributes, and provenance. Resolved view
+  layout remains logical metadata without attached storage or an execution guarantee. Task 0017F1
+  remains Draft without a detailed specification.
+- Independent task-0017F documentation review finalized Tensor/helper Javadocs, Tensor API,
+  Compile API, glossary, task evidence, master plan, and roadmap after focused/model/root tests,
+  generated Javadoc, Java 26 example execution, bytecode/reflection/import/source, link/anchor/
+  fence/whitespace, exact ten-path scope, and status checks passed. Training API, capabilities,
+  related model contracts, architecture/ADRs/tests, conformance/integration, Gradle, dependencies,
+  and other modules remain accurate unchanged because this task adds only model-owned permutation
+  expression metadata without values, gradients, compiler behavior, materialization, backend
+  behavior, or execution.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -793,7 +802,7 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
-complete. Task 0017E is also complete. Task 0017F is the next Ready frontier; task 0017F1 and every
-later operation-family task remain Draft without detailed specifications.
+complete. Task 0017E and task 0017F are also complete. Task 0017F1 and every later operation-family
+task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
