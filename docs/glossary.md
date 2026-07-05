@@ -97,9 +97,10 @@ identities, together with `TargetShapeAttrs` carrying one exact normalized targe
 `RESHAPE` preserves ordered logical elements under new coordinates, while `EXPAND` logically
 repeats compatible singleton or leading axes. Public `Tensor.reshape(long...)` and
 `Tensor.reshape(Shape)` now construct fresh storage-free expressions with local count validation,
-conditional same-offset view geometry, and one-input provenance. Public expand construction,
-graph-wide dynamic constraints, gradients, compiler behavior, materialization, backend behavior,
-and execution remain planned.
+conditional same-offset view geometry, and one-input provenance. Public `Tensor.expand(long...)`
+and `Tensor.expand(Shape)` now add directional right-aligned compatibility plus conditional
+same-offset, zero-stride view geometry. Graph-wide dynamic constraints, gradients, compiler
+behavior, materialization, backend behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -733,11 +734,24 @@ a new view-marked layout with canonical target strides and the same element offs
 strided, broadcast, or dynamic geometry remains unresolved; no implicit contiguous operation or
 materialization is inserted. Every valid result is fresh, unlabeled, storage-free, retains input
 type and gradient eligibility, and records exact RESHAPE/target-shape semantics with provenance
-`[input]`. Public `Tensor.expand`, dynamic constraint solving, gradients, compiler
-canonicalization, materialization, backend support, and execution remain planned. Generic
+`[input]`.
+
+Public `Tensor.expand(long...)` treats raw extents as literal non-negative dimensions, with an
+empty request denoting scalar Shape and no `-1` inference. `Tensor.expand(Shape)` retains the exact
+target reference. Both align axes from the right, permit new leading target axes, and accept an
+aligned pair only when its dimensions are equal or the input dimension is a static singleton.
+Unprovable dynamic pairs are rejected without binding symbols. For a static target and any
+resolved input layout, expand preserves the input offset and unchanged aligned strides while
+assigning zero strides to leading and expanded-singleton axes. Dynamic targets or unresolved input
+layouts stay unresolved. Results are fresh, unlabeled, storage-free, retain exact input type and
+gradient eligibility, and record exact EXPAND/target-shape semantics with provenance `[input]`.
+
+Dynamic constraint solving, gradients, compiler canonicalization, materialization, backend
+support, and execution remain planned. Generic
 [`Operation`](#operation) composition retains the exact kind and attributes references but does
 not enforce the family pairing or one-input context. See [Reshape
-expressions](api/tensor-api.md#reshape-expressions).
+expressions](api/tensor-api.md#reshape-expressions) and [Expand
+expressions](api/tensor-api.md#expand-expressions).
 
 ### Tensor
 
@@ -836,6 +850,13 @@ retain their target reference and defer dynamic count equality. A resolved conti
 static target produce same-offset canonical view metadata, while other geometry remains
 unresolved. Each result is fresh, unlabeled, storage-free, and records one-input RESHAPE
 provenance without moving values or choosing materialization.
+A `Tensor.expand` request also accepts every data type and preserves exact type and gradient
+eligibility. It directionally right-aligns the input with a literal or exact target Shape, accepts
+equal aligned dimensions, input-side static singletons, and new leading axes, and rejects
+unprovable dynamic compatibility. Static target plus resolved input geometry produces same-offset
+view metadata with preserved aligned and zero leading/expanded strides; other geometry remains
+unresolved. Each result is fresh, unlabeled, storage-free, and records one-input EXPAND provenance
+without repeating values, attaching an alias, or choosing materialization.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1089,7 +1110,9 @@ arg-max, shape-preserving cumulative-sum construction, and shape-preserving soft
 construction are also implemented. Shape-preserving contiguous request construction is
 implemented with static-resolved and dynamic-unresolved result layout rules. Ordered-element-
 preserving reshape construction is implemented with raw inference, exact-Shape retention, and
-conditional contiguous-input/static-target view geometry. Gradient rules and objects, compiler
+conditional contiguous-input/static-target view geometry. Directional right-aligned expand
+construction is implemented with exact target retention and conditional zero-stride view geometry.
+Gradient rules and objects, compiler
 graph capture and canonicalization, dynamic constraint solving, truth or numerical execution,
 materialization, and publication behavior are not part of the current Tensor contract.
 
@@ -1127,7 +1150,7 @@ sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, 
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
 implemented. Contiguous-request semantics and public contiguous Tensor construction are also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
-reshape Tensor construction is current, while public expand construction remains planned. Other
+reshape and expand Tensor construction is current. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

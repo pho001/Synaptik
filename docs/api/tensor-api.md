@@ -19,7 +19,9 @@ scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving f
 normalization expressions. The parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
-`Shape`. Typed access, other expression families, gradient objects and publication behavior,
+`Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
+repetition with locally derived zero-stride view geometry when possible. Typed access, other
+expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -28,9 +30,11 @@ request for logically equivalent canonical dense row-major, zero-offset result g
 `Tensor.contiguous()` now constructs that request without allocating or copying storage.
 `ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` are also current semantic identities.
 Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape`.
-`Tensor.reshape(long...)` now normalizes raw dimensions and performs locally provable count
-validation, while `Tensor.reshape(Shape)` retains an exact normalized target. Public expand
-requests and all compiler, materialization, gradient, and execution behavior remain planned.
+`Tensor.reshape(long...)` normalizes raw dimensions and performs locally provable count
+validation, while `Tensor.reshape(Shape)` retains an exact normalized target. The matching
+`Tensor.expand` overloads retain literal or exact target Shapes, validate directional
+right-aligned compatibility, and derive logical view strides when geometry is resolved. Compiler,
+materialization, gradient, and execution behavior remains planned.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -68,6 +72,7 @@ numeric Tensor + CUM_SUM + axis/mode attributes                 = fresh shape-pr
 floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-preserving Tensor
 Tensor + CONTIGUOUS                                = fresh static-resolved or dynamic-unresolved Tensor
 Tensor + raw/exact target Shape + RESHAPE          = fresh conditional-view reshape Tensor
+Tensor + raw/exact target Shape + EXPAND           = fresh conditional-view expand Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -181,12 +186,13 @@ target-shape meanings. `RESHAPE` preserves the ordered logical element sequence 
 the coordinates through which it is interpreted. `EXPAND` logically repeats compatible
 singleton dimensions or adds leading dimensions. Both use `TargetShapeAttrs`, whose exact
 non-null `Shape` is already normalized model semantics. The attributes therefore contain neither
-raw public request syntax nor a numeric `-1` inference sentinel. Public `Tensor.reshape` now owns
+raw public request syntax nor a numeric `-1` inference sentinel. Public `Tensor.reshape` owns
 raw-request normalization, locally provable element-count validation, conditional result-layout
-derivation, and one-input provenance. The semantic values themselves still do not perform that
-work, and public expand construction remains planned. Neither the semantics nor current reshape
-construction defines gradients, compiler behavior, materialization policy, backend behavior, or
-execution.
+derivation, and one-input provenance. Public `Tensor.expand` owns directional right-aligned
+compatibility, leading-axis and input-singleton expansion, and conditional zero-stride view
+derivation. The semantic values themselves still do not perform that work. Neither current
+expression family defines gradients, compiler behavior, materialization policy, backend behavior,
+or execution.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3146,6 +3152,136 @@ backend lowering, or execution.
   compatibility is dynamic. `reshape(-1, 2)` on a zero-element input infers `[0, 2]`, while
   `reshape(0, -1)` is ambiguous and fails.
 
+### Expand expressions
+
+The current `Tensor.expand(long...)` and `Tensor.expand(Shape)` methods create fresh model
+expressions that logically repeat compatible input positions into an exact target Shape. Both
+overloads accept every current data type, retain the exact input data type and `requiresGrad`
+value, and return an unlabeled, storage-free Tensor. Provenance contains exactly
+`Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(targetShape))` and ordered input
+`[input]`. Identity-like, repeated, and nested calls remain explicit fresh expressions.
+
+Expansion is directional rather than symmetric broadcasting. Input and target axes align from
+the right. Each aligned input dimension must equal its target dimension structurally, or the input
+dimension must be the static singleton `1`. Extra leading target axes are valid because the
+missing input axes behave as logical singletons. The target cannot remove axes or shrink an input
+dimension. Equal dynamic symbols and a static input singleton expanding to a dynamic target are
+locally provable; unequal symbols and a dynamic input paired with another dimension are rejected
+without binding symbols or recording hidden constraints.
+
+The raw `long...` overload passes the caller-owned dimensions through `Shape.of(long...)`; the
+array is not retained or mutated. Every value is a literal non-negative extent, including zero,
+and an empty request denotes scalar Shape. Unlike reshape, numeric `-1` has no inference meaning
+and is rejected. The `Shape` overload instead retains the exact immutable target reference,
+including scalar, zero-extent, mixed dynamic, and fully dynamic Shapes when compatibility is
+provable.
+
+For a fully static target and any resolved input layout, expand publishes a new logical view
+layout. It preserves the input element offset and the exact aligned stride for unchanged axes,
+including an existing zero or non-canonical stride. New leading axes and changed input-singleton
+axes receive stride zero. Dynamic targets or unresolved input layouts leave result layout
+unresolved. The derived view metadata does not attach or alias host storage, repeat values, choose
+materialization, or promise zero-copy execution.
+
+#### Complete expression-construction example
+
+##### Goal and inputs
+
+Expand an offset-contiguous `[1, 3]` input to `[2, 4, 3]`, then retain an exact dynamic target for
+a separate singleton input. The example observes descriptors and provenance only.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class ExpandExpressionExample {
+    public static void main(String[] args) {
+        Shape inputShape = Shape.of(1, 3);
+        LayoutDescriptor inputLayout = LayoutDescriptor.of(
+                inputShape, new long[] {3, 1}, 5, true);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.of(inputLayout), true));
+
+        long[] request = {2, 4, 3};
+        Tensor staticResult = input.expand(request);
+        request[0] = 99;
+        LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
+
+        Tensor singleton = TensorFactory.create(new TensorDescriptor(
+                DataType.INT64, Shape.of(1), Optional.empty(), false));
+        Shape dynamicTarget = Shape.ofDimensions(new DynamicDimension("items"));
+        Tensor dynamicResult = singleton.expand(dynamicTarget);
+
+        System.out.println(staticResult.descriptor().shape());
+        System.out.println(Arrays.toString(resultLayout.strides()));
+        System.out.println(resultLayout.storageOffset());
+        System.out.println(resultLayout.kind());
+        System.out.println(resultLayout.referencedElementSpan());
+        System.out.println(resultLayout.isView());
+        System.out.println(staticResult.provenance().orElseThrow().operation().kind());
+        System.out.println(staticResult.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(dynamicResult.descriptor().shape() == dynamicTarget);
+        System.out.println(dynamicResult.descriptor().layout().isEmpty());
+        System.out.println(staticResult.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Right alignment maps input `[1, 3]` to the final two target axes in `[2, 4, 3]`. The new leading
+  extent `2` and expanded singleton extent `4` receive zero strides; the unchanged extent `3`
+  preserves stride one. The result strides are therefore `[0, 0, 1]`.
+- The input offset five is preserved. The greatest referenced element index is seven, so the
+  referenced element span is eight even though the result has 24 logical positions.
+- Mutating the raw request cannot change the normalized target Shape.
+- Static singleton `[1]` can expand to dynamic `[items]` locally. The exact target reference is
+  retained, while layout remains unresolved because the target extent is not numeric.
+- Both results record one-input `EXPAND` provenance and receive no label or host storage.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[2, 4, 3]
+[0, 0, 1]
+5
+BROADCAST_ZERO_STRIDE
+8
+true
+EXPAND
+true
+true
+true
+true
+```
+
+The result demonstrates directional compatibility, defensive raw-array ownership, exact dynamic-
+Shape retention, preserved and zero strides, same-offset view geometry, and provenance. It does
+not demonstrate value repetition, storage aliasing, gradients, compiler capture or constraints,
+materialization, backend lowering, or execution.
+
+##### Failures and useful variations
+
+- A null raw array or exact Shape fails with `NullPointerException` naming `requestedShape` or
+  `targetShape`, respectively.
+- A negative raw extent, lower-rank target, attempted shrink, unequal aligned dimensions, unequal
+  dynamic symbols, or another unprovable dynamic pair fails with `IllegalArgumentException`.
+- Resolved layout arithmetic overflow propagates as `ArithmeticException` before a Tensor identity
+  is consumed.
+- Exhausted Tensor identifier space fails with `IllegalStateException` only at final derived
+  construction after local validation and metadata construction.
+- Scalar input may expand to any target Shape. Static or dynamic identity-like requests remain
+  fresh expressions rather than returning the input.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -3760,10 +3896,12 @@ Expanding logical row `[a, b, c]` from `[1, 3]` to `[2, 3]` instead repeats it a
 and attributes perform neither transformation, compatibility validation, layout construction, nor
 value execution. Current `Tensor.reshape` overloads separately perform raw request normalization,
 locally provable count validation, result descriptor/layout derivation, and provenance
-construction as described under [Reshape expressions](#reshape-expressions).
+construction as described under [Reshape expressions](#reshape-expressions). Current
+`Tensor.expand` overloads separately validate directional right-aligned compatibility and derive
+same-offset zero-stride view geometry when numeric layout facts are resolved, as described under
+[Expand expressions](#expand-expressions).
 
-Public `Tensor.expand`, expand compatibility and zero-stride derivation, dynamic reshape
-constraint solving, gradients, compiler and planning behavior, materialization, backend support,
+Dynamic constraints, gradients, compiler and planning behavior, materialization, backend support,
 and execution remain planned.
 
 ### Unary elementwise semantic kinds
@@ -4067,8 +4205,8 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous and reshape requests, including public expand expressions, plus gradient and
-  trainable state and publication behavior;
+  contiguous, reshape, and expand requests, plus gradient and trainable state and publication
+  behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
   cumulative-sum scan, softmax normalization, contiguous-request semantics, and reshape/expand
@@ -4095,9 +4233,9 @@ records can compose these, current cumulative-sum expressions, or test-local sem
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
 values and their public Tensor expression construction are current. The contiguous semantic value
 and public Tensor expression construction are also current, including static resolved and dynamic
-unresolved result-layout rules. Reshape and expand semantic values are current; their public Tensor
-expression status differs: reshape construction is current, while expand construction remains
-planned.
+unresolved result-layout rules. Reshape and expand semantic values and both public Tensor
+expression families are current, with their distinct count-preserving and directional-
+broadcasting validation and layout rules.
 
 ## Failures and ownership summary
 
@@ -4117,6 +4255,16 @@ planned.
   for resolved contiguous input plus a fully static target; every other layout remains unresolved.
   Valid results retain exact type and gradient eligibility, use exact RESHAPE/target-shape
   semantics and `[input]` provenance, and remain fresh, unlabeled, and storage-free.
+- `Tensor.expand(long...)` accepts only literal non-negative extents, treats an empty request as
+  scalar Shape, and neither retains nor mutates the caller array. `Tensor.expand(Shape)` retains
+  the exact non-null target reference. Both require target rank at least input rank and accept a
+  right-aligned pair only when dimensions are equal or the input dimension is a static singleton;
+  leading target axes are valid, and unprovable dynamic pairs are rejected without binding.
+- A static expand target and any resolved input layout produce a fresh same-offset view layout
+  that preserves unchanged aligned strides and uses zero strides for leading and expanded-
+  singleton axes. Dynamic targets or unresolved input layouts remain unresolved. Every result
+  retains exact type and gradient eligibility, records exact EXPAND/target-shape semantics and
+  `[input]` provenance, and remains fresh, unlabeled, and storage-free.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.

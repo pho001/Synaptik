@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(79, declaredPublicMethods.size());
+        assertEquals(81, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -89,7 +89,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
-                        "logSoftmax", "contiguous", "reshape"),
+                        "logSoftmax", "contiguous", "reshape", "expand"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -250,6 +250,16 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(reshape.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(reshape.getModifiers())),
                     () -> assertEquals(parameter == long[].class, reshape.isVarArgs()));
+
+            var expand = Tensor.class.getDeclaredMethod("expand", parameter);
+            assertAll(
+                    () -> assertEquals(Tensor.class, expand.getReturnType()),
+                    () -> assertEquals(List.of(parameter),
+                            Arrays.asList(expand.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(expand.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(expand.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(expand.getModifiers())),
+                    () -> assertEquals(parameter == long[].class, expand.isVarArgs()));
         }
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {

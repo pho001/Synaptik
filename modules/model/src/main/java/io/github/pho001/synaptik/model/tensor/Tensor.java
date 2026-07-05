@@ -77,7 +77,12 @@ import java.util.Optional;
  * dynamic Shape. Reshape preserves the ordered logical element sequence under a normalized target
  * Shape. It publishes same-offset canonical alias-view geometry only when the input layout is
  * resolved and contiguous and the target is fully static; other reshape geometry remains
- * unresolved without inserting materialization. Every result records an exact matching
+ * unresolved without inserting materialization. Expand right-aligns the input with an exact
+ * target Shape and permits only equal aligned dimensions, statically known input singletons, and
+ * new leading axes. A static target and resolved input layout produce a new same-offset view
+ * layout with preserved aligned strides and zero strides for new leading or expanded singleton
+ * axes; other expand geometry remains unresolved. Neither transformation attaches storage or
+ * chooses materialization. Every result records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
@@ -2059,6 +2064,87 @@ public final class Tensor {
      */
     public Tensor reshape(Shape targetShape) {
         return TensorReshapeExpressions.apply(this, targetShape);
+    }
+
+    /**
+     * Creates a fresh expansion expression from raw non-negative target dimensions.
+     *
+     * <p>The caller-owned array is read by {@link Shape#of(long...)} and is neither retained nor
+     * mutated. Every value, including zero, is a literal static extent; numeric {@code -1} has no
+     * inference meaning and is rejected as a negative static dimension. An empty request denotes
+     * the canonical scalar Shape.</p>
+     *
+     * <p>The target rank must be at least the input rank. Axes are aligned from the right. Each
+     * aligned input dimension must either equal its target dimension structurally or be a
+     * statically known singleton; any additional leading target axes are valid. Consequently,
+     * equal dynamic symbols and singleton-to-dynamic expansion are locally provable, while other
+     * dynamic combinations are rejected without binding symbols or recording constraints.</p>
+     *
+     * <p>The fresh result retains this tensor's exact DataType and gradient eligibility and uses
+     * the normalized target Shape. For a fully static target and any resolved input layout, it
+     * receives a new view-marked layout with the exact input element offset, preserved strides on
+     * unchanged aligned axes, and zero strides on new leading or expanded singleton axes. A
+     * dynamic target or unresolved input layout leaves result layout unresolved. This logical
+     * view metadata neither attaches nor aliases host storage nor proves zero-copy execution.</p>
+     *
+     * <p>Every successful call returns a distinct unlabeled, storage-free tensor whose provenance
+     * records {@link ShapeTransformKind#EXPAND}, the normalized target, and this tensor as its sole
+     * input. Same-shape, repeated, scalar, and nested requests remain explicit expressions.</p>
+     *
+     * @param requestedShape non-null caller-owned literal target dimensions; each value must be
+     *     non-negative, zero is valid, and an empty array requests scalar Shape
+     * @return a non-null fresh expand expression retaining exact type and gradient eligibility,
+     *     normalized target Shape, conditional resolved zero-stride view geometry, and no label
+     *     or storage
+     * @throws NullPointerException if {@code requestedShape} is null, with message
+     *     {@code requestedShape}
+     * @throws IllegalArgumentException if a requested extent is negative, target rank is below
+     *     input rank, or an aligned dimension pair is not locally compatible
+     * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
+     *     overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     metadata has been constructed
+     */
+    public Tensor expand(long... requestedShape) {
+        return TensorExpandExpressions.apply(this, requestedShape);
+    }
+
+    /**
+     * Creates a fresh expansion expression for an exact target Shape.
+     *
+     * <p>The exact immutable {@code targetShape} reference is retained in both the result
+     * descriptor and target-shape attributes. Scalar, zero-extent, static, mixed dynamic, and
+     * fully dynamic Shapes are accepted when compatibility is locally provable. The target rank
+     * must be at least the input rank; right-aligned dimensions must be structurally equal or the
+     * input dimension must be a static singleton, while new leading target axes are unrestricted.
+     * Unequal symbols and dynamic-versus-non-singleton combinations are rejected rather than
+     * converted into hidden constraints.</p>
+     *
+     * <p>The result retains this tensor's exact DataType and gradient eligibility. A fully static
+     * target plus any resolved input layout produces a new view-marked layout that preserves the
+     * input offset and unchanged aligned strides and inserts zero strides for new leading or
+     * expanded singleton axes. Dynamic target or unresolved input geometry stays unresolved.
+     * Layout metadata does not attach host storage, promise an executable alias, or select
+     * materialization.</p>
+     *
+     * <p>Every valid call returns a distinct unlabeled, storage-free tensor with exact expand
+     * semantics and this tensor as its sole provenance input, including identity-like, repeated,
+     * scalar, and nested requests.</p>
+     *
+     * @param targetShape non-null exact semantic target Shape retained by reference
+     * @return a non-null fresh expand expression retaining exact type, target Shape, and gradient
+     *     eligibility with conditional resolved zero-stride view geometry and no label or storage
+     * @throws NullPointerException if {@code targetShape} is null, with message
+     *     {@code targetShape}
+     * @throws IllegalArgumentException if target rank is below input rank or an aligned dimension
+     *     pair is not locally compatible
+     * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
+     *     overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     metadata has been constructed
+     */
+    public Tensor expand(Shape targetShape) {
+        return TensorExpandExpressions.apply(this, targetShape);
     }
 
     /**

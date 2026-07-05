@@ -39,7 +39,8 @@ methods, two axis-removing masked aggregate methods, three axis-only `argMax` me
 one-axis `cumSum` methods, plus one-axis `softmax` and `logSoftmax` methods, construct storage-free
 expressions with immutable operation-and-input provenance. The parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
-overloads add normalized target-shape expressions.
+overloads add normalized target-shape expressions. Two `expand` overloads add directional
+right-aligned target-shape expressions.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -104,6 +105,17 @@ target produces same-offset canonical view metadata; all other result layout rem
 This is current model expression construction, not compiler capture, graph-wide dynamic constraint
 solving, reshape-chain canonicalization, materialization planning, backend alias/copy lowering, or
 execution.
+`Tensor.expand(long...)` treats every requested extent as a literal non-negative dimension, while
+`Tensor.expand(Shape)` retains the exact target reference. Both overloads require target rank at
+least input rank and accept aligned dimensions only when they are structurally equal or the input
+is a static singleton; new leading target axes are valid. A fully static target and any resolved
+input layout produce new same-offset view geometry with preserved aligned strides and zero strides
+for leading or expanded-singleton axes. Dynamic target or unresolved input geometry stays
+unresolved. Every result retains exact type and gradient eligibility, records exact
+EXPAND/target-shape semantics with one-input provenance, and remains fresh, unlabeled, and
+storage-free. This is current model construction, not value repetition, storage aliasing, dynamic
+constraint solving, gradient behavior, compiler capture or canonicalization, materialization,
+lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -123,12 +135,12 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
-  request construction and conditional-view reshape construction, are implemented; the compiler
-  entry point, traversal, capture,
+  request construction plus conditional-view reshape and expand construction, are implemented;
+  the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, and reshape-chain canonicalization, deferred dynamic
-  reshape count validation, layout materialization planning, and conversion into graph values and
-  nodes remain planned.
+  redundant-cast, redundant-contiguous, reshape-chain and expand-chain canonicalization, deferred
+  dynamic reshape count validation and expand compatibility constraints, layout materialization
+  planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
