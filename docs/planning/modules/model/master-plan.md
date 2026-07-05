@@ -175,7 +175,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017D1 | [Expand Tensor expressions](tasks/0017d1-expand-tensor-expressions.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017C | Build right-aligned singleton/leading-axis expansion expressions and zero-stride view geometry. |
 | 0017E | [Axis-transform semantics](tasks/0017e-axis-transform-semantics.md) | Complete | 0002, 0005, 0006 | Define permutation, dimension insertion, and dimension removal meanings. |
 | 0017F | [Permute and transpose Tensor expressions](tasks/0017f-permute-and-transpose-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017E | Build arbitrary axis-reordering and rank-two transpose convenience with view geometry. |
-| 0017F1 | Expand-dimensions and squeeze Tensor expressions | Draft | 0002, 0003, 0013, 0017E | Build singleton-axis insertion/removal with rank-editing view geometry. |
+| 0017F1 | [Expand-dimensions and squeeze Tensor expressions](tasks/0017f1-expand-dimensions-and-squeeze-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017E | Build singleton-axis insertion/removal with rank-editing view geometry. |
 | 0017G | Slice semantics | Draft | 0002, 0005, 0006 | Define immutable general positive-step slice parameters and single-axis convenience meaning. |
 | 0017H | Slice Tensor expressions | Draft | 0002, 0003, 0013, 0017G | Build general and single-axis slice views with local shape and layout rules. |
 | 0017I | Pad and tile semantics | Draft | 0001, 0002, 0005, 0006 | Define constant-padding and axis-repeat meanings and immutable parameters. |
@@ -207,8 +207,9 @@ recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 001
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
-0017D1 and 0017F1. Tasks 0017D, 0017D1, 0017E, and 0017F are complete. Task 0017F1 is the next
-Draft frontier without a detailed specification; later tasks also remain Draft.
+0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
+0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, and 0017F1 are complete. Task 0017G is the next Draft
+frontier and remains without a detailed specification; later tasks are also Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -597,8 +598,7 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Task 0017F completed exactly `Tensor.permute(int...)` and rank-two `Tensor.transpose()` plus one
   bounded package-private helper. It owns raw negative-axis normalization, complete permutation
   validation, exact Dimension/stride reordering, PERMUTE attributes, and provenance. Resolved view
-  layout remains logical metadata without attached storage or an execution guarantee. Task 0017F1
-  remains Draft without a detailed specification.
+  layout remains logical metadata without attached storage or an execution guarantee.
 - Independent task-0017F documentation review finalized Tensor/helper Javadocs, Tensor API,
   Compile API, glossary, task evidence, master plan, and roadmap after focused/model/root tests,
   generated Javadoc, Java 26 example execution, bytecode/reflection/import/source, link/anchor/
@@ -607,6 +607,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   and other modules remain accurate unchanged because this task adds only model-owned permutation
   expression metadata without values, gradients, compiler behavior, materialization, backend
   behavior, or execution.
+- Task 0017F1 completed exactly `Tensor.expandDims(int)` and `Tensor.squeeze(int)` plus one bounded
+  package-private rank-editing helper. It owns insertion-axis normalization, static singleton
+  proof, exact Dimension insertion/removal, resolved stride insertion/removal, semantic attributes,
+  and provenance.
+- Dynamic selected dimensions are not assumed to be singleton. Resolved results preserve offset
+  and view metadata without storage attachment; gradients, compiler canonicalization, planning,
+  lowering, and execution remain deferred.
+- Independent task-0017F1 documentation review retained the complete production Javadocs and
+  finalized Tensor API, Compile API, glossary, task evidence, master plan, and roadmap after
+  focused/model/root tests, generated Javadoc, Java 26 example execution, bytecode/reflection/
+  import/source, link/anchor/fence/whitespace, exact ten-path scope, and status checks passed.
+  Training API, capabilities, semantic/foundational/completed permutation contracts,
+  architecture/ADRs/tests, conformance/integration, Gradle, dependencies, and other modules remain
+  accurate unchanged because this task adds only model-owned rank-editing expression metadata.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -802,7 +816,7 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
-complete. Task 0017E and task 0017F are also complete. Task 0017F1 and every later operation-family
-task remain Draft without detailed specifications.
+complete. Task 0017E, task 0017F, and task 0017F1 are also complete. Task 0017G is the next Draft
+frontier without a detailed specification, and every later operation-family task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -86,7 +87,11 @@ import java.util.Optional;
  * chooses materialization. Permute reorders exact Dimension references and, when input layout is
  * resolved, exact strides while preserving the input element offset in new logical view metadata.
  * Rank-two transpose is the same PERMUTE operation with axes {@code [1, 0]}. Neither expression
- * attaches storage or guarantees an executable alias. Every result records an exact matching
+ * attaches storage or guarantees an executable alias. Expand-dimensions inserts one static
+ * singleton at a normalized result position; squeeze removes one selected dimension only when
+ * its singleton extent is statically proven. Resolved rank edits insert or remove one stride in
+ * new same-offset view metadata, while unresolved geometry stays unresolved. Every result records
+ * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
@@ -2150,6 +2155,82 @@ public final class Tensor {
      */
     public Tensor expand(Shape targetShape) {
         return TensorExpandExpressions.apply(this, targetShape);
+    }
+
+    /**
+     * Creates a fresh expression that inserts one singleton axis.
+     *
+     * <p>For input rank {@code r}, the raw insertion position may be in the inclusive range
+     * {@code [-r - 1, r]}. A negative value adds {@code r + 1} once, so rank-two axes {@code -3}
+     * and {@code 0} insert at the start, while {@code -1} and {@code 2} insert at the end. Scalar
+     * axes {@code -1} and {@code 0} both select its sole insertion position.</p>
+     *
+     * <p>The result Shape has rank one greater, contains one new static dimension of extent one,
+     * and preserves the exact immutable references and order of every input Dimension. For any
+     * resolved input layout kind, the result receives one new view-marked layout with the same
+     * element offset and exact existing strides. The inserted stride is one at the end; otherwise
+     * it is the checked product of the following input stride and extent. Unresolved input layout
+     * remains unresolved. This logical view metadata attaches no host storage and promises no
+     * physical alias or zero-copy execution.</p>
+     *
+     * <p>The fresh result retains exact data type and gradient eligibility, has no label or
+     * storage, and records {@link AxisTransformKind#EXPAND_DIMS}, one
+     * {@link AxisTransformAttrs} with the normalized insertion position, and exactly this tensor
+     * as its provenance input. Repeated, nested, and inverse-like requests remain explicit.</p>
+     *
+     * @param axis raw singleton insertion position relative to the result rank
+     * @return a non-null fresh expand-dimensions expression with inserted Shape and conditional
+     *     resolved same-offset view geometry, exact type/eligibility/provenance, and no label or
+     *     storage
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the insertion range, with
+     *     message {@code Axis <axis> is outside insertion range for shape rank <rank>}; no tensor
+     *     identity is consumed
+     * @throws ArithmeticException if inserted-stride multiplication, layout classification, or
+     *     referenced-span arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor expandDims(int axis) {
+        return TensorRankEditingExpressions.expandDims(this, axis);
+    }
+
+    /**
+     * Creates a fresh expression that removes one selected, statically known singleton axis.
+     *
+     * <p>The axis uses the existing Shape-axis range {@code [-rank, rank - 1]}; a negative value
+     * counts once from the end. The selected dimension must be statically known with extent
+     * exactly one. Zero, another static extent, and a dynamic dimension are rejected because this
+     * local model operation neither guesses a future binding nor records a symbolic singleton
+     * constraint. A scalar has no axis and therefore cannot be squeezed.</p>
+     *
+     * <p>The result Shape has rank one lower and preserves the exact immutable references and
+     * order of every unaffected Dimension; squeezing rank one produces the canonical scalar Shape.
+     * For any resolved input layout kind, the selected stride is omitted and all other exact
+     * strides plus the exact element offset are retained in one new view-marked layout. Unresolved
+     * input layout stays unresolved. This logical metadata attaches no storage and proves no
+     * physical alias or copy-free execution.</p>
+     *
+     * <p>The fresh result retains exact data type and gradient eligibility, has no label or
+     * storage, and records {@link AxisTransformKind#SQUEEZE}, one {@link AxisTransformAttrs} with
+     * the normalized input axis, and exactly this tensor as its provenance input. Repeated,
+     * nested, and inverse-like requests are not canonicalized.</p>
+     *
+     * @param axis positive or negative existing axis whose static singleton dimension is removed
+     * @return a non-null fresh squeeze expression with one axis removed and conditional resolved
+     *     same-offset view geometry, exact type/eligibility/provenance, and no label or storage
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the Shape rank, including every
+     *     axis for a scalar, with message {@code Axis <axis> is outside shape rank <rank>}; no
+     *     tensor identity is consumed
+     * @throws IllegalArgumentException if the normalized selected dimension is not statically
+     *     known as one, with message {@code cannot squeeze axis <normalizedAxis> of <shape>:
+     *     dimension must be statically known as 1}; no tensor identity is consumed
+     * @throws ArithmeticException if result-layout classification or referenced-span arithmetic
+     *     overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor squeeze(int axis) {
+        return TensorRankEditingExpressions.squeeze(this, axis);
     }
 
     /**

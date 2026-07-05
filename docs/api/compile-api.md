@@ -124,6 +124,15 @@ construction with normalized axes `[1, 0]`. Every result preserves type and grad
 records exact normalized attributes and one-input provenance, and remains fresh, unlabeled, and
 storage-free. This is current model expression construction, not graph capture, permutation
 canonicalization, physical aliasing, materialization, lowering, or execution.
+`Tensor.expandDims(int)` inserts one static singleton at a caller position normalized against the
+result rank. `Tensor.squeeze(int)` instead normalizes an existing input axis and removes it only
+when its dimension is statically known as one. Both preserve exact type and gradient eligibility,
+retain exact unaffected Dimension references, record matching `AxisTransformAttrs` and one-input
+provenance, and leave unresolved input geometry unresolved. Resolved input geometry produces one
+new same-offset logical view descriptor with a deterministic checked stride inserted or the
+selected stride removed. This is current model expression construction, not graph capture,
+dynamic singleton constraint solving, inverse-pair canonicalization, physical aliasing,
+materialization, gradient behavior, lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -144,10 +153,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
-  construction, are implemented;
+  construction and conditional-view expand-dimensions/squeeze construction, are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation-chain canonicalization, deferred
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit-chain canonicalization, deferred
   dynamic reshape count validation and expand compatibility constraints, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and

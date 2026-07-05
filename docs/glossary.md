@@ -105,9 +105,11 @@ The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPA
 `SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
 axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
 position. Public `Tensor.permute` and rank-two `Tensor.transpose()` now construct fresh expressions
-with input-rank validation, Shape/layout derivation, and one-input provenance. Expand-dimensions,
-squeeze, gradients, compiler behavior, materialization, backend behavior, and execution remain
-planned.
+with input-rank validation, Shape/layout derivation, and one-input provenance. Public
+`Tensor.expandDims` and `Tensor.squeeze` now construct fresh rank-editing expressions with their
+distinct normalization domains, static singleton proof for removal, conditional same-offset view
+geometry, and one-input provenance. Gradients, compiler behavior, materialization, backend
+behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -181,8 +183,13 @@ These semantic values do not retain a Tensor, Shape, layout, or input rank and c
 prove an insertion bound, removal bound, or singleton dimension. Public `Tensor.permute` now owns
 raw negative-axis normalization, complete input-rank validation, result Shape/layout derivation,
 and provenance. Rank-two `transpose()` is implemented over `PERMUTE` mapping `[1, 0]`, not a
-separate semantic kind. Expand-dimensions, squeeze, gradients, compiler behavior, materialization,
-backend behavior, and execution remain planned. See [Axis-transform semantic kinds and
+separate semantic kind. Public `Tensor.expandDims` normalizes against rank plus one and inserts a
+static singleton; public `Tensor.squeeze` normalizes an existing axis and removes it only when the
+dimension is statically known as one. Resolved geometry inserts or removes one stride in a new
+same-offset logical view descriptor, while unresolved geometry remains unresolved. Gradients,
+compiler behavior, materialization, backend behavior, and execution remain planned. See
+[Expand-dimensions and squeeze expressions](api/tensor-api.md#expand-dimensions-and-squeeze-expressions)
+and [Axis-transform semantic kinds and
 attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Architecture contract
@@ -453,9 +460,10 @@ Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creat
 `SoftmaxAttrs` likewise stores only an already normalized non-negative axis; current public
 Shape-aware `Tensor.softmax` and `Tensor.logSoftmax` construction normalizes the caller axis
 before creating it.
-`AxisTransformAttrs` stores one normalized non-negative position without a Shape or rank. A later
-public `expandDims` boundary will interpret it as an output insertion position, while `squeeze`
-will interpret it as an input removal position and validate the selected singleton dimension.
+`AxisTransformAttrs` stores one normalized non-negative position without a Shape or rank. The
+public boundary interprets it according to the operation kind: current `expandDims` uses an output
+insertion position normalized against rank plus one, while current `squeeze` uses an input removal
+position normalized against the existing Shape and validates the selected static singleton.
 
 ### Node
 
@@ -713,6 +721,10 @@ imply that a copy or materialization occurred.
 normalized output-to-input mapping in `PermutationAttrs`, and record exactly the receiver as their
 sole input. Resolved view layout in the result does not imply that storage was attached, aliased,
 copied, or materialized.
+`Tensor.expandDims` and `Tensor.squeeze` use `AxisTransformKind.EXPAND_DIMS` and `SQUEEZE`,
+respectively, retain one normalized position in `AxisTransformAttrs`, and record exactly the
+receiver as their sole input. Conditional resolved view geometry still does not imply attached or
+aliased storage, a copy-free route, or execution.
 
 ### Publication binding
 
@@ -922,6 +934,15 @@ Dimension references. Resolved input geometry produces a new same-offset view de
 reordered exact strides; unresolved input stays unresolved. `Tensor.transpose()` requires rank two
 and supplies `[1, 0]`. Every result is fresh, unlabeled, storage-free, and records one-input PERMUTE
 provenance without attaching an alias, canonicalizing, choosing materialization, or executing.
+A `Tensor.expandDims` request accepts every data type, normalizes one insertion position against
+rank plus one, inserts one static singleton, and preserves exact unaffected Dimension references.
+A `Tensor.squeeze` request likewise accepts every data type but normalizes an existing axis and
+requires its Dimension to be statically known as one before removing it. Resolved layouts produce
+new same-offset view descriptors by inserting a checked deterministic stride or removing one
+stride; unresolved layout remains unresolved. Every result preserves exact gradient eligibility,
+is fresh, unlabeled, and storage-free, and records matching one-input axis-transform provenance
+without binding a dynamic symbol, attaching an alias, canonicalizing inverse edits, choosing
+materialization, or executing.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1178,7 +1199,9 @@ preserving reshape construction is implemented with raw inference, exact-Shape r
 conditional contiguous-input/static-target view geometry. Directional right-aligned expand
 construction is implemented with exact target retention and conditional zero-stride view geometry.
 Complete axis-permutation and rank-two transpose construction is implemented with exact
-Dimension/stride reordering and conditional same-offset view geometry.
+Dimension/stride reordering and conditional same-offset view geometry. Singleton-axis insertion
+and selected static-singleton removal construction are implemented with exact unaffected
+Dimension retention and conditional same-offset stride insertion/removal.
 Gradient rules and objects, compiler
 graph capture and canonicalization, dynamic constraint solving, truth or numerical execution,
 materialization, and publication behavior are not part of the current Tensor contract.
@@ -1219,8 +1242,7 @@ implemented. Contiguous-request semantics and public contiguous Tensor construct
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
-transpose Tensor construction is current, while public expand-dimensions and squeeze construction
-remains planned. Other
+transpose, expand-dimensions, and squeeze Tensor construction is current. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

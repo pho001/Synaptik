@@ -22,7 +22,8 @@ preserving coordinate changes from either raw `long...` dimensions or an exact n
 `Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
 repetition with locally derived zero-stride view geometry when possible. `permute(int...)` adds
 arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
-Typed access, other
+`expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
+known singleton axis. Typed access, other
 expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -43,7 +44,9 @@ materialization, gradient, and execution behavior remains planned.
 `AxisTransformAttrs` stores one normalized non-negative insertion or removal position. Public
 `Tensor.permute` now owns input-rank checks, one-time negative-axis normalization, result
 Shape/layout derivation, and provenance; rank-two `Tensor.transpose()` uses the same `PERMUTE`
-meaning with `[1, 0]`. Public `expandDims` and `squeeze` construction remains planned.
+meaning with `[1, 0]`. Public `Tensor.expandDims` and `Tensor.squeeze` now own their distinct
+insertion-position and existing-axis normalization, result Shape/layout derivation, static
+singleton proof for removal, and provenance.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -83,6 +86,8 @@ Tensor + CONTIGUOUS                                = fresh static-resolved or dy
 Tensor + raw/exact target Shape + RESHAPE          = fresh conditional-view reshape Tensor
 Tensor + raw/exact target Shape + EXPAND           = fresh conditional-view expand Tensor
 Tensor + complete output-to-input axes + PERMUTE   = fresh conditional-view permute Tensor
+Tensor + insertion axis + EXPAND_DIMS              = fresh conditional-view rank-expanded Tensor
+Tensor + static singleton axis + SQUEEZE           = fresh conditional-view rank-reduced Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -3429,6 +3434,129 @@ materialization, backend lowering, or execution.
 - `scalar.permute()` is valid. Identity permutations still return fresh expressions rather than
   the receiver.
 
+### Expand-dimensions and squeeze expressions
+
+`Tensor.expandDims(int)` inserts one new static dimension of extent one. For input rank `r`, its
+caller-facing insertion position is normalized against the result rank `r + 1`: valid raw values
+are `[-r - 1, r]`, and a negative value adds `r + 1` once. Rank-two positions `-3` and `0`
+therefore insert at the start, while `-1` and `2` insert at the end. Both `-1` and `0` are valid
+for a scalar and produce rank one.
+
+`Tensor.squeeze(int)` instead selects an existing input axis through the ordinary Shape range
+`[-rank, rank - 1]`. The selected dimension must be a `StaticDimension` whose extent is exactly
+one. A zero extent, another static extent, or a dynamic dimension is rejected; expression
+construction neither guesses a future dynamic binding nor records a singleton constraint.
+Squeezing the only axis of a rank-one Tensor produces the canonical scalar Shape, while every
+axis is invalid for an already scalar Tensor.
+
+Both operations preserve the exact data type, gradient eligibility, and immutable references and
+order of every unaffected Dimension. Every valid call creates a fresh unlabeled, storage-free
+Tensor with one-input provenance. `expandDims` records `AxisTransformKind.EXPAND_DIMS` and an
+`AxisTransformAttrs` containing the normalized output insertion position; `squeeze` records
+`AxisTransformKind.SQUEEZE` and the normalized input removal position. Repeated, nested, and
+inverse-like requests remain explicit and are not canonicalized at this boundary.
+
+When input layout is unresolved, result layout stays unresolved. For any resolved input layout,
+`expandDims` constructs a new same-offset view descriptor by inserting one stride while preserving
+all existing strides. The inserted stride is one at the end; otherwise it is the checked product
+of the following input stride and extent. `squeeze` constructs a new same-offset view descriptor
+by omitting only the selected stride. These descriptors are logical geometry: neither operation
+attaches storage, proves a physical alias, promises zero-copy execution, or chooses
+materialization.
+
+#### Complete rank-editing example
+
+##### Goal and inputs
+
+Insert a trailing singleton into an unresolved-layout Tensor of Shape `[2, 1, 3]`, and separately
+remove its middle singleton. The example observes result Shapes, normalized attributes, and the
+storage-free model boundary; it does not edit stored values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class RankEditingExpressionExample {
+    public static void main(String[] args) {
+        Shape inputShape = Shape.of(2, 1, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, inputShape, Optional.empty(), true));
+
+        Tensor expanded = input.expandDims(-1);
+        Tensor squeezed = input.squeeze(-2);
+        AxisTransformAttrs expandedAttrs = (AxisTransformAttrs) expanded
+                .provenance().orElseThrow().operation().attrs();
+        AxisTransformAttrs squeezedAttrs = (AxisTransformAttrs) squeezed
+                .provenance().orElseThrow().operation().attrs();
+
+        System.out.println("input=" + input.descriptor().shape());
+        System.out.println("expanded=" + expanded.descriptor().shape());
+        System.out.println("expandedAxis=" + expandedAttrs.axis());
+        System.out.println("squeezed=" + squeezed.descriptor().shape());
+        System.out.println("squeezedAxis=" + squeezedAttrs.axis());
+        System.out.println("kinds="
+                + expanded.provenance().orElseThrow().operation().kind() + ","
+                + squeezed.provenance().orElseThrow().operation().kind());
+        System.out.println("unresolved="
+                + (expanded.descriptor().layout().isEmpty()
+                && squeezed.descriptor().layout().isEmpty()));
+        System.out.println("storageFree="
+                + (expanded.hostStorage().isEmpty()
+                && squeezed.hostStorage().isEmpty()));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- For rank three, insertion axis `-1` adds the result rank `4` and normalizes to output position
+  `3`, producing `[2, 1, 3, 1]` and `AxisTransformAttrs[axis=3]`.
+- Existing-axis value `-2` adds input rank `3` and normalizes to input position `1`. That
+  dimension is statically one, so removal produces `[2, 3]` and
+  `AxisTransformAttrs[axis=1]`.
+- Both results preserve `FLOAT32` and true gradient eligibility, retain exact one-input
+  provenance, and remain unresolved because the input layout is unresolved.
+- Neither result receives a label or host storage. The calls describe rank edits without reading,
+  moving, or attaching values.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+input=Shape[2, 1, 3]
+expanded=Shape[2, 1, 3, 1]
+expandedAxis=3
+squeezed=Shape[2, 3]
+squeezedAxis=1
+kinds=EXPAND_DIMS,SQUEEZE
+unresolved=true
+storageFree=true
+```
+
+The output proves the two different normalization domains, exact rank changes, typed operation
+identity, normalized attributes, unresolved layout propagation, and absent result storage. It
+does not prove value movement, physical aliasing, compiler canonicalization, gradient rules,
+materialization, backend support, or execution.
+
+##### Failures and useful variations
+
+- An expand-dimensions insertion outside `[-rank - 1, rank]` fails with
+  `IndexOutOfBoundsException`. An existing squeeze axis outside `[-rank, rank - 1]`, including
+  every axis for a scalar, fails through Shape normalization. Both failures occur before result
+  identity allocation.
+- Squeezing a zero, non-one, or dynamic dimension fails with `IllegalArgumentException` before
+  identity allocation because the singleton fact is not statically proven.
+- For resolved geometry, insertion-stride multiplication, layout classification, or referenced-
+  span overflow fails with `ArithmeticException` before identity allocation.
+- A resolved canonical, offset, strided, or broadcast input receives new same-offset view
+  geometry. Repeated edits and an expand/squeeze pair still return fresh expression identities.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -4103,16 +4231,17 @@ its own list size, not against a future input Tensor rank.
 `AxisTransformAttrs` accepts every non-negative `int`. With `EXPAND_DIMS`, its axis is the output
 position where the new singleton is inserted. With `SQUEEZE`, it is the input position selected
 for removal. The record has no input rank or dimension, so it cannot prove the insertion/removal
-bound or that a squeezed dimension has extent one. A later Shape-aware expression boundary owns
-raw negative-axis normalization and those input-dependent checks.
+bound or that a squeezed dimension has extent one. The current Shape-aware public expression
+boundary owns raw negative-axis normalization and those input-dependent checks.
 
 A parameterless rank-two `transpose()` method is now implemented as a convenience over
 `PERMUTE + PermutationAttrs(List.of(1, 0))`; `TRANSPOSE` is not a fourth semantic kind. Generic
 `Operation` retains the supplied kind and attributes but does not enforce the documented family
 pairings. Public `Tensor.permute` and `transpose` now construct result descriptors, logical view
 layout when input geometry is resolved, and exact one-input provenance. Public `expandDims` and
-`squeeze`, gradients, compiler behavior, materialization, backend support, and execution remain
-planned.
+`squeeze` now construct the corresponding rank-edited result descriptors, conditional logical
+view layouts, and exact one-input provenance. Gradients, compiler behavior, materialization,
+backend support, and execution remain planned.
 
 ### Unary elementwise semantic kinds
 
@@ -4415,8 +4544,8 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, expand, and permute requests, including public expand-dimensions and
-  squeeze construction, plus gradient and trainable state and publication behavior;
+  contiguous, reshape, expand, permute, expand-dimensions, and squeeze requests, plus gradient and
+  trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and
@@ -4448,8 +4577,8 @@ unresolved result-layout rules. Reshape and expand semantic values and both publ
 expression families are current, with their distinct count-preserving and directional-
 broadcasting validation and layout rules.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
-are current. Public permutation and rank-two transpose expression construction is also current;
-public expand-dimensions and squeeze construction remains planned.
+are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
+construction is also current.
 
 ## Failures and ownership summary
 
@@ -4487,6 +4616,18 @@ public expand-dimensions and squeeze construction remains planned.
   normalized `[1, 0]`. Both methods retain exact type and eligibility, record PERMUTE attributes
   and `[input]` provenance, and remain fresh, unlabeled, storage-free logical metadata without an
   alias, copy, materialization, or execution guarantee.
+- `Tensor.expandDims(int)` normalizes an insertion position against rank plus one, inserts exactly
+  one new static singleton while preserving exact unaffected Dimension references, and records
+  the normalized output position. For resolved input geometry it inserts one checked following-
+  axis stride, or one at the end, in a new same-offset view descriptor; unresolved input remains
+  unresolved.
+- `Tensor.squeeze(int)` uses existing Shape-axis normalization, requires the selected Dimension to
+  be statically known as one, and removes exactly that Dimension and stride while preserving exact
+  unaffected references and offset. Dynamic, zero, and non-one dimensions are rejected without a
+  symbolic constraint. Both rank-edit operations preserve exact type/eligibility, record matching
+  `AxisTransformAttrs` and `[input]` provenance, and remain fresh, unlabeled, storage-free logical
+  metadata without an alias, copy, canonicalization, gradient, materialization, or execution
+  guarantee.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
