@@ -21,6 +21,11 @@ and publication behavior, native/runtime/backend allocation, compiler integratio
 residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
+The current semantic vocabulary also includes `ContiguousKind.CONTIGUOUS`, a parameterless
+request for logically equivalent canonical dense row-major, zero-offset result geometry. This
+semantic kind does not add a public `Tensor.contiguous()` method or construct a result; that
+expression boundary remains planned.
+
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
 expressions, and provide one bounded host-allocation path without executing a tensor:
@@ -66,6 +71,7 @@ AggregateReductionKind + reduction attributes                = full/axis aggrega
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordered mask-axis mapping
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
+ContiguousKind                                               = parameterless canonical dense row-major geometry request
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -153,6 +159,12 @@ accept floating input, normalize a positive or negative caller axis, preserve th
 data type, and gradient-eligibility metadata in an unresolved descriptor, and record exact
 one-input provenance. Construction calculates no probability or logarithm and defines no
 numerical algorithm or gradient rule.
+`ContiguousKind.CONTIGUOUS` provides the parameterless semantic request that one logical input
+retain its values, Shape, DataType, and row-major element order while the result targets canonical
+dense row-major geometry with logical storage offset zero. The kind is distinct from
+`LayoutKind.DENSE_CONTIGUOUS`, which classifies geometry that has already been resolved for a
+static Shape. No public Tensor expression currently consumes this kind, and the enum does not
+inspect layout, construct a descriptor, or decide aliasing, copying, or materialization.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3027,6 +3039,7 @@ composition while the table also lists the current production families:
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
+| `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -3399,6 +3412,39 @@ provenance, numerical policy, gradient, compiler decomposition, storage, backend
 executable behavior. Public floating `Tensor.softmax` and `Tensor.logSoftmax` now add Shape-aware
 caller-axis normalization, exact shape/type/eligibility retention in unresolved descriptors, and
 fresh one-input provenance without changing that semantic boundary.
+
+### Contiguous semantic kind
+
+The public enum
+`io.github.pho001.synaptik.model.operation.layout.ContiguousKind` implements `OperationKind` with
+exactly one constant, `CONTIGUOUS`. It describes one logical input and requests a result with the
+same logical values, Shape, DataType, and row-major element order in canonical dense row-major
+geometry with logical storage offset zero. Input count and these preserved facts are semantic
+context; the enum stores no input, arity, descriptor, layout geometry, or result state.
+
+The kind has no intrinsic parameters and composes explicitly with the generic descriptor:
+
+```java
+Operation contiguous = new Operation(
+        ContiguousKind.CONTIGUOUS,
+        NoOperationAttrs.INSTANCE);
+```
+
+The resulting `Operation` retains the exact kind and canonical no-attributes singleton. Generic
+composition checks only that both references are non-null; it does not enforce this family pairing
+or validate one-input arity.
+
+`ContiguousKind.CONTIGUOUS` is a computation request.
+`LayoutKind.DENSE_CONTIGUOUS` instead classifies resolved strides and zero offset for a static
+Shape. The semantic kind therefore neither depends on nor replaces the layout classification. It
+also does not inspect whether an input is already contiguous, construct a `LayoutDescriptor`,
+return an alias, allocate or copy storage, derive a materialization requirement, select lowering,
+or execute work. A public `Tensor.contiguous()` expression remains planned; compiler, planning,
+prepare, backend, runtime, and training behavior remain with their owning later contracts.
+
+Inherited enum names are diagnostic typed vocabulary, not serialization, registry, dispatch,
+kernel, or reflection identifiers. An equally named constant from another kind family remains a
+different typed value.
 
 ### Unary elementwise semantic kinds
 

@@ -85,6 +85,12 @@ without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftma
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
 retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
 behavior, backend behavior, and execution remain planned.
+The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
+It preserves logical values, Shape, DataType, and row-major element order while requesting
+canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
+than the resolved `LayoutKind.DENSE_CONTIGUOUS` classification. Public `Tensor.contiguous()`,
+descriptor construction, input-layout inspection, alias or copy choice, materialization,
+compiler behavior, backend behavior, and execution remain planned or owned by later layers.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -208,6 +214,23 @@ backend-owned partitions, logical memory requirements, a compiler-owned publicat
 compile diagnostics. `CompileArtifacts` is not implemented. It will be a recipe for prepare, not
 executable state, and will contain no physical buffers, concrete kernel routes, runtime residency,
 or mutable run state.
+
+### Contiguous request
+
+The implemented parameterless `ContiguousKind.CONTIGUOUS` operation meaning. It describes one
+logical input and requests logically equivalent canonical dense row-major result geometry with
+logical storage offset zero. Logical values, Shape, DataType, and row-major element order are
+preserved. The kind composes with `Operation` and `NoOperationAttrs.INSTANCE`, but the generic
+descriptor does not validate its one-input family context.
+
+A contiguous request is not the implemented `LayoutKind.DENSE_CONTIGUOUS` classification: the
+request states desired computation semantics, while the layout kind classifies already-resolved
+strides and zero offset for a static Shape. It is also not a materialization decision. The enum
+does not inspect input geometry, construct a result descriptor, choose an alias or copy, allocate
+storage, or define compiler, planning, prepare, backend, runtime, gradient, or execution behavior.
+Public `Tensor.contiguous()` remains planned. See [Contiguous semantic
+kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
+[Materialization](#materialization).
 
 ### Compiled graph / `CompiledGraphModel`
 
@@ -1023,7 +1046,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, and softmax normalization families implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, and contiguous-request families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, and softmax values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -1037,7 +1060,8 @@ Arithmetic, unary, scalar, and comparison public Tensor construction paths are a
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
-implemented. Other concrete families and their family-specific attributes,
+implemented. Contiguous-request semantics are implemented, while public contiguous Tensor
+construction remains planned. Other concrete families and their family-specific attributes,
 compiler capture, and execution remain planned.
 The compiled graph container is implemented model state.
 
