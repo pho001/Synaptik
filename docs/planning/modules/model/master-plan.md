@@ -164,7 +164,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016G | [Cumulative-sum semantic kind and attributes](tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) | Complete | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
 | 0016H | [Cumulative-sum Tensor expressions](tasks/0016h-cumulative-sum-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
 | 0016I | [Softmax semantic kinds and attributes](tasks/0016i-softmax-semantic-kinds-and-attributes.md) | Complete | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
-| 0016J | Softmax Tensor expressions | Draft | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
+| 0016J | [Softmax Tensor expressions](tasks/0016j-softmax-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
@@ -186,8 +186,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
-complete. Tasks 0016F, 0016F1, 0016G, 0016H, and 0016I are also complete. Task 0016J is the next
-Draft planning frontier without a detailed specification; all later model tasks remain Draft.
+complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. Task 0017 is the
+next Draft planning frontier without a detailed specification; all later model tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -466,6 +466,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   behavior, and execution to later owners. The independent documentation pass found the submitted
   Javadocs complete unchanged and validated focused/model/root tests, generated Javadoc, bytecode,
   imports, Markdown, exact eight-path scope, and synchronized status.
+- Task 0016J adds exactly `Tensor.softmax(axis)` and `Tensor.logSoftmax(axis)` through one
+  dedicated package-private helper. It accepts floating inputs, normalizes one axis, retains exact
+  Shape/type/gradient-eligibility metadata in an unresolved descriptor, and records the requested
+  first-class normalization kind with one-input provenance without reading values, selecting an
+  algorithm, defining gradients, decomposing the operation, or executing work.
+- The independent task-0016J documentation review found the Tensor and helper Javadocs complete,
+  then finalized Tensor API, Compile API, glossary, task evidence, master plan, and roadmap.
+  Training API, capabilities, softmax semantic/foundational and other expression contracts,
+  architecture/ADRs/tests, backend conformance and integration tests, Gradle configuration, and
+  other modules remain accurate unchanged because this task adds only model-owned softmax
+  expression metadata without numerical evaluation, gradient rules, compiler capture or
+  decomposition, dependencies, backend behavior, or execution.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -658,8 +670,8 @@ expression construction. Task 0015E completed the sole parameterless `WHERE` con
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
-0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016I, including 0016F1, are
-complete. Task 0016J is the next Draft planning frontier without a detailed specification; all
+0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
+complete. Task 0017 is the next Draft planning frontier without a detailed specification; all
 later operation-family tasks remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

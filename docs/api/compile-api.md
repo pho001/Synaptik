@@ -36,8 +36,8 @@ comparison methods, three boolean logical methods, fifteen unary elementwise met
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
-one-axis `cumSum` methods construct storage-free expressions with immutable operation-and-input
-provenance.
+one-axis `cumSum` methods, plus one-axis `softmax` and `logSoftmax` methods, construct storage-free
+expressions with immutable operation-and-input provenance.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -80,6 +80,12 @@ and reverse flags. Every result retains the exact input Shape, data type, and gr
 leaves layout unresolved, and records `CUM_SUM` with exact one-input provenance. Construction does
 not read or accumulate values, create a gradient rule, capture a graph, lower a backend operation,
 or execute work.
+`Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
+Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
+unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input
+provenance. Construction does not read values, calculate probabilities or logarithms, select a
+numerical algorithm, define a gradient rule, capture or decompose a graph operation, lower a
+backend operation, or execute work.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -98,9 +104,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   selection, cast, unary, scalar, numeric aggregate expression construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
-  sum construction are implemented; the compiler entry point, traversal, capture, scan/reduction
-  inference and canonicalization, redundant-cast canonicalization, and conversion into graph
-  values and nodes remain planned.
+  sum and softmax/log-softmax construction are implemented; the compiler entry point, traversal,
+  capture, scan/reduction/normalization inference and canonicalization, optional softmax
+  decomposition, redundant-cast canonicalization, and conversion into graph values and nodes
+  remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

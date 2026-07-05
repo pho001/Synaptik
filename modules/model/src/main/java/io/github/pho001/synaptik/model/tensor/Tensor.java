@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
@@ -61,7 +62,9 @@ import java.util.Optional;
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
  * defining empty-axis behavior. Cumulative sum accepts one axis of a floating or integral input,
  * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
- * reading or accumulating values.
+ * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
+ * preserve its shape, type, and gradient eligibility, and record probability or log-probability
+ * normalization semantics without calculating values or selecting a numerical algorithm.
  * Scalar and unary methods accept one floating input and retain its exact data type, shape
  * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
  * typed attributes.
@@ -69,7 +72,7 @@ import java.util.Optional;
  * storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
- * {@link CumulativeSumKind},
+ * {@link CumulativeSumKind}, {@link SoftmaxKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -1878,6 +1881,69 @@ public final class Tensor {
      */
     public Tensor cumSum(int axis, boolean exclusive, boolean reverse) {
         return TensorCumulativeSumExpressions.apply(this, axis, exclusive, reverse);
+    }
+
+    /**
+     * Creates a fresh softmax expression along one logical axis.
+     *
+     * <p>A normalization slice contains positions that differ only along {@code axis}. For the
+     * slice {@code [1, 2, 3]}, ideal softmax probabilities are approximately
+     * {@code [0.09003057, 0.24472847, 0.66524096]} and sum to one. The axis may be positive or
+     * negative and is normalized against this Tensor's exact Shape.</p>
+     *
+     * <p>This Tensor must have FLOAT64, FLOAT32, or BFLOAT16 data type. The fresh result retains
+     * the exact input Shape, data type, and gradient-eligibility metadata, but has unresolved
+     * layout, no label or host storage, and exact one-input provenance. Construction does not
+     * inspect values, calculate probabilities, select a finite-precision algorithm, decompose the
+     * operation, define a gradient rule, capture a graph, or provide compiler, backend, runtime,
+     * or execution behavior.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free softmax expression preserving exact Shape, data type,
+     *     and gradient eligibility with normalized-axis metadata and one-input provenance
+     * @throws IllegalArgumentException if this Tensor does not have a floating data type, with
+     *     message {@code input must have a floating data type, but was <dataType>}; this check
+     *     precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this Tensor's Shape,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor softmax(int axis) {
+        return TensorSoftmaxExpressions.apply(this, SoftmaxKind.SOFTMAX, axis);
+    }
+
+    /**
+     * Creates a fresh log-softmax expression along one logical axis.
+     *
+     * <p>For each normalization slice, the ideal result is the natural logarithm of the
+     * corresponding {@link #softmax(int)} probability. For {@code [1, 2, 3]}, ideal values are
+     * approximately {@code [-2.40760596, -1.40760596, -0.40760596]}; exponentiating them yields
+     * approximately {@code [0.09003057, 0.24472847, 0.66524096]}, whose sum is one. The axis may
+     * be positive or negative and is normalized against this Tensor's exact Shape.</p>
+     *
+     * <p>This Tensor must have FLOAT64, FLOAT32, or BFLOAT16 data type. The fresh result retains
+     * the exact input Shape, data type, and gradient-eligibility metadata, but has unresolved
+     * layout, no label or host storage, and exact one-input provenance. Construction does not
+     * inspect values, calculate logarithms or probabilities, select a finite-precision algorithm,
+     * decompose the operation, define a gradient rule, capture a graph, or provide compiler,
+     * backend, runtime, or execution behavior.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free log-softmax expression preserving exact Shape, data
+     *     type, and gradient eligibility with normalized-axis metadata and one-input provenance
+     * @throws IllegalArgumentException if this Tensor does not have a floating data type, with
+     *     message {@code input must have a floating data type, but was <dataType>}; this check
+     *     precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this Tensor's Shape,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor logSoftmax(int axis) {
+        return TensorSoftmaxExpressions.apply(this, SoftmaxKind.LOG_SOFTMAX, axis);
     }
 
     /**

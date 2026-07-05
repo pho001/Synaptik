@@ -15,7 +15,8 @@ explicit cast method. Fifteen floating aggregate methods add full, one-axis, and
 `sum`, `mean`, `prod`, reduction `min`, and reduction `max` expression construction. Six BOOL
 aggregate methods add the same three forms for `all` and `any`, and three axis-only `argMax`
 methods add fixed INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
-scan expressions. Typed access, other expression families, gradient objects
+scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
+normalization expressions. Typed access, other expression families, gradient objects
 and publication behavior, native/runtime/backend allocation, compiler integration, runtime
 residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -53,6 +54,7 @@ floating Tensor + numeric aggregate kind + full/axis attributes = fresh reduced-
 BOOL Tensor + ALL/ANY + full/axis attributes                    = fresh reduced-shape BOOL Tensor
 numeric Tensor + ARG_MAX + axis/tie attributes                  = fresh reduced-shape INT64 Tensor
 numeric Tensor + CUM_SUM + axis/mode attributes                 = fresh shape-preserving Tensor
+floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-preserving Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -147,8 +149,10 @@ or accumulate values.
 `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 shape-preserving probability and log-probability normalization semantics. The attributes carry
 one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
-expression construction is not implemented yet; task 0016J will own caller-axis normalization,
-input eligibility, descriptor construction, and provenance.
+accept floating input, normalize a positive or negative caller axis, preserve the exact Shape,
+data type, and gradient-eligibility metadata in an unresolved descriptor, and record exact
+one-input provenance. Construction calculates no probability or logarithm and defines no
+numerical algorithm or gradient rule.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -188,7 +192,11 @@ input. Its short form is inclusive and forward; its complete form retains explic
 reverse choices. Every result preserves the exact input Shape, type, and gradient eligibility,
 leaves layout unresolved, and records exactly the receiver as provenance without accumulating
 values.
-`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All nine current
+`Tensor.softmax` and `Tensor.logSoftmax` construct single-axis normalization expressions from
+floating input. Both preserve the exact input Shape, type, and gradient eligibility, leave layout
+unresolved, and record exactly the receiver as provenance. They retain distinct first-class
+SOFTMAX or LOG_SOFTMAX semantics without calculating values or selecting a decomposition.
+`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All current
 expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
 
@@ -2743,6 +2751,117 @@ Failure behavior is local and deterministic:
 - Exhausted factory identity space fails only after descriptor, operation, and provenance
   metadata have been constructed.
 
+### Softmax expressions
+
+The two current softmax methods build shape-preserving normalization metadata along exactly one
+input axis:
+
+| Public form | Operation kind | Ideal slice meaning |
+|---|---|---|
+| `softmax(axis)` | `SoftmaxKind.SOFTMAX` | Positive normalized probabilities whose slice total is one |
+| `logSoftmax(axis)` | `SoftmaxKind.LOG_SOFTMAX` | Natural logarithms of the corresponding softmax probabilities |
+
+A normalization slice fixes every coordinate except the selected axis. For a rank-two tensor and
+axis `1`, each row is therefore normalized independently. The input must be `FLOAT64`, `FLOAT32`,
+or `BFLOAT16`; integral and BOOL inputs are rejected before axis validation. A positive or
+negative caller axis is normalized exactly once against the input Shape.
+
+Every valid result is a fresh unlabeled, storage-free Tensor. Its descriptor retains the exact
+input Shape reference, data type, and `requiresGrad` value, but its layout is unresolved even when
+the input layout is resolved. Provenance records the exact requested kind, one
+`SoftmaxAttrs(normalizedAxis)`, and exact ordered inputs `[input]`. Construction does not inspect
+input values or storage, calculate exponentials, logarithms, sums, or probabilities, select a
+finite-precision algorithm, define a gradient rule, capture a graph, decompose the operation, or
+execute backend work.
+
+For one ideal slice `[1, 2, 3]`, the requested mathematical values are:
+
+| Method | Approximate result | Relationship |
+|---|---|---|
+| `softmax(axis)` | `[0.09003057, 0.24472847, 0.66524096]` | The probabilities sum to approximately one. |
+| `logSoftmax(axis)` | `[-2.40760596, -1.40760596, -0.40760596]` | Exponentiating each value recovers the corresponding softmax probability. |
+
+These numbers explain the expression's meaning; the current API constructs only metadata for the
+request.
+
+#### Complete expression-construction example
+
+##### Goal and inputs
+
+Construct softmax and log-softmax expressions for a storage-free `FLOAT32` tensor with Shape
+`[2, 3]`. Axis `-1` and axis `1` both select the final dimension, so each logical row is one
+normalization slice.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class SoftmaxExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), true));
+
+        Tensor probabilities = input.softmax(-1);
+        Tensor logProbabilities = input.logSoftmax(1);
+        SoftmaxAttrs probabilitiesAttrs = (SoftmaxAttrs) probabilities
+                .provenance().orElseThrow().operation().attrs();
+
+        System.out.println(probabilities.descriptor().shape() == shape);
+        System.out.println(probabilities.descriptor().dataType());
+        System.out.println(probabilities.descriptor().requiresGrad());
+        System.out.println(probabilities.descriptor().layout().isEmpty());
+        System.out.println(probabilities.provenance().orElseThrow().operation().kind());
+        System.out.println(logProbabilities.provenance().orElseThrow().operation().kind());
+        System.out.println(probabilitiesAttrs.axis());
+        System.out.println(probabilities.provenance().orElseThrow().inputs().getFirst() == input);
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `input.softmax(-1)` normalizes `-1` to axis `1` and records `SOFTMAX`.
+- `input.logSoftmax(1)` stores the same normalized axis but records the distinct
+  `LOG_SOFTMAX` kind.
+- Both descriptors retain the exact `shape`, `FLOAT32`, and the true gradient-eligibility
+  metadata while leaving layout unresolved.
+- Each provenance value contains exactly `input`; neither expression receives label or storage.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+true
+FLOAT32
+true
+true
+SOFTMAX
+LOG_SOFTMAX
+1
+true
+```
+
+The result proves axis normalization, kind selection, descriptor retention, unresolved layout,
+and one-input provenance. It does not prove the ideal numerical values above, gradient support,
+compiler capture or decomposition, backend support, or execution.
+
+##### Failures and useful variations
+
+- `INT32`, `INT64`, and `BOOL` input fails with `IllegalArgumentException`; no conversion or
+  promotion is inserted. This type check occurs before axis validation.
+- An axis outside `[-rank, rank - 1]` fails with `IndexOutOfBoundsException`. Every axis is invalid
+  for a scalar input.
+- Dynamic and zero extents are accepted structurally when the selected axis exists. Repeated
+  equivalent requests still return fresh expression identities.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -3275,11 +3394,11 @@ no Shape and cannot prove that an axis exists for an eventual input. A negative 
 `Operation` retains either kind and the exact attributes reference but does not enforce family
 compatibility, one-input arity, rank bounds, or result facts.
 
-The semantic values store no Tensor, Shape, data-type rule, result descriptor, provenance,
-numerical policy, gradient, compiler decomposition, storage, backend support, or executable
-behavior. Public floating `Tensor.softmax` and `Tensor.logSoftmax` methods, including
-caller-facing positive or negative axis normalization and shape/type/eligibility retention, remain
-planned in task 0016J.
+The semantic values themselves store no Tensor, Shape, data-type rule, result descriptor,
+provenance, numerical policy, gradient, compiler decomposition, storage, backend support, or
+executable behavior. Public floating `Tensor.softmax` and `Tensor.logSoftmax` now add Shape-aware
+caller-axis normalization, exact shape/type/eligibility retention in unresolved descriptors, and
+fresh one-input provenance without changing that semantic boundary.
 
 ### Unary elementwise semantic kinds
 
@@ -3581,7 +3700,7 @@ The following contracts appear in the architecture and planning documents but ar
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
-  index-producing aggregate operations, and cumulative-sum scans, plus
+  index-producing aggregate operations, cumulative-sum scans, and softmax normalization, plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
@@ -3605,7 +3724,7 @@ reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have match
 expression methods, including the masked `sum(axis, mask)` and `mean(axis, mask)` forms. The graph
 records can compose these, current cumulative-sum expressions, or test-local semantics, but they
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
-values are current, while their public Tensor expression construction remains planned.
+values and their public Tensor expression construction are current.
 
 ## Failures and ownership summary
 
@@ -3649,9 +3768,12 @@ values are current, while their public Tensor expression construction remains pl
   capture, backend behavior, or execution.
 - `SoftmaxAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the exact
   message `axis must be non-negative: <axis>`. It retains every non-negative axis unchanged but
-  does not validate rank, construct a Tensor or provenance, evaluate normalization, define a
-  gradient or numerical algorithm, report backend support, or execute work. Public softmax and
-  log-softmax Tensor construction remains planned in task 0016J.
+  does not itself validate rank, construct a Tensor or provenance, evaluate normalization, define
+  a gradient or numerical algorithm, report backend support, or execute work. Public
+  `Tensor.softmax` and `Tensor.logSoftmax` separately require floating input, normalize one caller
+  axis, retain exact Shape/type/eligibility metadata in an unresolved descriptor, and create fresh
+  exact-kind one-input provenance without numerical, gradient, compiler, backend, or execution
+  behavior.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and

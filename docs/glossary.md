@@ -81,8 +81,10 @@ remain planned.
 The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
 `LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
 These semantic values preserve logical positions and describe complete normalization slices
-without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftmax` construction,
-numerical evaluation, gradients, compiler behavior, and execution remain planned.
+without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftmax` now construct
+fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
+retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
+behavior, backend behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -389,8 +391,9 @@ same boundary before constructing `ArgMaxAttrs`.
 expression construction resolves that axis and its mask mapping before creating the attributes.
 `CumulativeSumAttrs` also stores only an already normalized non-negative axis; current public
 Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creating it.
-`SoftmaxAttrs` likewise stores only an already normalized non-negative axis. Public Shape-aware
-softmax and log-softmax construction is not implemented yet and remains planned in task 0016J.
+`SoftmaxAttrs` likewise stores only an already normalized non-negative axis; current public
+Shape-aware `Tensor.softmax` and `Tensor.logSoftmax` construction normalizes the caller axis
+before creating it.
 
 ### Node
 
@@ -553,7 +556,9 @@ is distinct from both axis-contracting aggregate reduction and ordered-prefix sc
 Generic `Operation` does not enforce either pairing. The kind and attributes store no Tensor,
 Shape, data-type policy, result descriptor, provenance, numerical algorithm, gradient, compiler
 decomposition, storage, executable behavior, or backend support. Public `Tensor.softmax` and
-`Tensor.logSoftmax` expression construction remains planned in task 0016J.
+`Tensor.logSoftmax` separately own floating validation, Shape-aware axis normalization, exact
+Shape/type/eligibility retention in an unresolved descriptor, fresh identity, and one-input
+provenance without calculating values.
 
 ### Partition
 
@@ -606,6 +611,8 @@ not change provenance's general role or make it graph membership. `Tensor.cast` 
 one immediate input, including in same-type and chained requests. `Tensor.cumSum` uses
 `CumulativeSumKind.CUM_SUM`, retains its normalized axis and exact mode flags in
 `CumulativeSumAttrs`, and likewise records exactly the receiver as its sole input.
+`Tensor.softmax` and `Tensor.logSoftmax` use the exact corresponding `SoftmaxKind`, retain the
+normalized axis in `SoftmaxAttrs`, and record exactly the receiver as their sole input.
 
 ### Publication binding
 
@@ -649,8 +656,11 @@ The example states ideal mathematics, not a finite-precision algorithm.
 The semantic values do not retain a Tensor or Shape, normalize caller-facing negative axes,
 construct descriptors or provenance, define data-type eligibility or gradients, select compiler
 decomposition, report backend support, or execute normalization. Public `Tensor.softmax` and
-`Tensor.logSoftmax` expression construction remains planned in task 0016J. See [Softmax semantic
-kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
+`Tensor.logSoftmax` now add floating input validation, Shape-aware caller-axis normalization,
+exact Shape/type/eligibility retention with unresolved layout, and fresh one-input provenance.
+They still calculate none of the example values and define no gradient, compiler, backend, or
+execution behavior. See [Softmax expressions](api/tensor-api.md#softmax-expressions) and [Softmax
+semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
 
 ### Referenced element span
 
@@ -737,6 +747,11 @@ A `cumSum` request accepts floating or integral input, preserves its exact Shape
 gradient eligibility in an unresolved descriptor, and records one normalized axis plus exact
 exclusive/reverse flags. Each valid call is fresh and storage-free; construction performs no
 addition and defines no gradient, compiler, backend, or execution behavior.
+A `softmax` or `logSoftmax` request accepts floating input, preserves its exact Shape, data type,
+and gradient eligibility in an unresolved descriptor, and records one normalized axis plus the
+exact probability or log-probability kind. Each valid call is fresh, unlabeled, and storage-free;
+construction performs no normalization and defines no numerical algorithm, gradient, compiler,
+backend, or execution behavior.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -986,8 +1001,8 @@ comparison, unary, and scalar Tensor expression construction are implemented, as
 logical expression construction, explicit cast expression construction, floating numeric
 aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
 aggregate expression construction for all and any. Axis-only index-producing construction for
-arg-max and shape-preserving cumulative-sum construction are also implemented. Gradient rules and
-objects, compiler graph capture, truth or
+arg-max, shape-preserving cumulative-sum construction, and shape-preserving softmax/log-softmax
+construction are also implemented. Gradient rules and objects, compiler graph capture, truth or
 numerical execution, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
@@ -1021,9 +1036,8 @@ unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are i
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
-sum/mean. Cumulative-sum semantics and public Tensor construction are also implemented. Softmax
-and log-softmax semantic kinds and attributes are implemented, while their public Tensor
-construction remains planned. Other concrete families and their family-specific attributes,
+sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
+implemented. Other concrete families and their family-specific attributes,
 compiler capture, and execution remain planned.
 The compiled graph container is implemented model state.
 

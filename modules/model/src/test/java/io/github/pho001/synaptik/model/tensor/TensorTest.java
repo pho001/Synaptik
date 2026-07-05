@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(74, declaredPublicMethods.size());
+        assertEquals(76, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -88,7 +88,8 @@ class TensorTest {
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any", "argMax", "cumSum"),
+                        "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
+                        "logSoftmax"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -215,6 +216,17 @@ class TensorTest {
                     () -> assertEquals(Tensor.class, method.getReturnType()),
                     () -> assertEquals(List.of(parameters),
                             Arrays.asList(method.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
+        for (String methodName : List.of("softmax", "logSoftmax")) {
+            var method = Tensor.class.getDeclaredMethod(methodName, int.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(
+                            List.of(int.class), Arrays.asList(method.getParameterTypes())),
                     () -> assertTrue(Modifier.isPublic(method.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));

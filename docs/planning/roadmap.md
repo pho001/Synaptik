@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016J Softmax Tensor expressions — Draft. No detailed task specification exists.
+- 0017 Layout and view operations — Draft. No detailed task specification exists.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -109,8 +109,10 @@ backend behavior, or execution. Task
 [0016I](modules/model/tasks/0016i-softmax-semantic-kinds-and-attributes.md) is complete. It adds
 typed SOFTMAX and LOG_SOFTMAX identities plus their shared normalized-axis attributes and documents
 ideal probability/log-probability slice semantics without Tensor construction, numerical policy,
-gradients, compiler behavior, backend behavior, or execution. Task 0016J is the next Draft
-planning frontier without a detailed specification.
+gradients, compiler behavior, backend behavior, or execution. Task
+[0016J](modules/model/tasks/0016j-softmax-tensor-expressions.md) is complete. It adds public
+floating softmax/log-softmax expressions with axis normalization, shape-preserving descriptor
+construction, and one-input provenance without numerical evaluation or decomposition.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -204,7 +206,7 @@ authorized Compile API status correction.
 | 48 | [0016G Cumulative-sum semantic kind and attributes](modules/model/tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) | Complete |
 | 49 | [0016H Cumulative-sum Tensor expressions](modules/model/tasks/0016h-cumulative-sum-tensor-expressions.md) | Complete |
 | 50 | [0016I Softmax semantic kinds and attributes](modules/model/tasks/0016i-softmax-semantic-kinds-and-attributes.md) | Complete |
-| 51 | 0016J Softmax Tensor expressions | Draft |
+| 51 | [0016J Softmax Tensor expressions](modules/model/tasks/0016j-softmax-tensor-expressions.md) | Complete |
 | 52 | 0017 Layout and view operations | Draft |
 | 53 | 0018 Indexing and scatter operations | Draft |
 | 54 | 0019 Linear algebra and attention operations | Draft |
@@ -255,8 +257,8 @@ fresh explicit cast for every valid request. Compiler work later owns redundant 
 cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J plus
 0016F1 so aggregate semantics, focused Tensor expression groups, masked reductions, cumulative
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
-0016F, 0016F1, 0016G, 0016H, and 0016I are also complete; task 0016J is the next Draft planning
-frontier without a detailed specification. Completed task 0016E adds fixed-INT64, one-axis
+0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete; task 0017 is the next Draft
+planning frontier without a detailed specification. Completed task 0016E adds fixed-INT64, one-axis
 arg-max expression metadata without changing the ordinary reduction helper or adding value
 comparison, empty-axis policy, or execution.
 
