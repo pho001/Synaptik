@@ -33,14 +33,19 @@ state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
 comparison methods, three boolean logical methods, fifteen unary elementwise methods, and five
-scalar arithmetic and clamp methods construct storage-free expressions with immutable
-operation-and-input provenance. Arithmetic, unary, and scalar results remain floating;
+scalar arithmetic and clamp methods, plus static conditional-selection method, construct
+storage-free expressions with immutable operation-and-input provenance. Arithmetic, unary,
+scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
-binary64 operation attributes rather than Tensor inputs. That origin metadata gives a future
-compiler an expression to traverse, but no current API captures it into `CompiledGraphModel`,
-performs inference or optimization, or produces compile artifacts.
+binary64 operation attributes rather than Tensor inputs. `Tensor.where` requires an exact BOOL
+condition, promotes two floating branches, composes branch-first and condition-second local
+broadcasts, propagates gradient eligibility from the branches only, and records exact ordered
+condition/true-branch/false-branch provenance. It constructs no selected values or gradient rule.
+That origin metadata gives a future compiler an expression to traverse, but no current API
+captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
+artifacts.
 
 ## Current expression input and planned compiler output
 
@@ -52,9 +57,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 ```
 
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
-  Public Tensor state plus binary arithmetic, binary comparison, boolean logical, unary, and scalar
-  expression construction are implemented; the compiler entry point, traversal, capture, and
-  conversion into graph values and nodes remain planned.
+  Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
+  selection, unary, and scalar expression construction are implemented; the compiler entry point,
+  traversal, capture, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

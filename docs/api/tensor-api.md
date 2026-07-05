@@ -10,15 +10,16 @@ tensors, deterministic population, and explicit-source normal, continuous-unifor
 integral, and Bernoulli random population. The current concrete expression surface contains seven
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
 methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
-floating scalar arithmetic and clamp methods. Typed access, other expression families, gradient
-objects and publication behavior, native/runtime/backend allocation, compiler
+floating scalar arithmetic and clamp methods, plus one static conditional-selection method. Typed
+access, other expression families, gradient objects and publication behavior,
+native/runtime/backend allocation, compiler
 integration, runtime residency, and backend execution remain planned. The authoritative module
 boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
-logical, unary, and scalar expressions, provide conditional-selection semantic vocabulary, and
-provide one bounded host-allocation path without executing a tensor:
+logical, conditional-selection, unary, and scalar expressions, and provide one bounded
+host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -41,6 +42,7 @@ left Tensor + binary kind + right Tensor                       = fresh descripto
 left Tensor + comparison kind + right Tensor                   = fresh BOOL descriptor + provenance Tensor
 left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcast BOOL expression Tensor
 BOOL Tensor + NOT                                               = fresh shape-preserving BOOL expression Tensor
+BOOL condition + true/false floating branches                  = fresh broadcast selection Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
@@ -120,10 +122,13 @@ expressions while retaining every caller-supplied binary64 parameter bit. The pu
 storage-free `BOOL` expressions from exact `BOOL` inputs. AND and OR derive a right-aligned
 broadcast shape and preserve receiver/argument order; NOT retains the exact input `Shape`
 reference without broadcasting. Every logical result has unresolved layout and false gradient
-eligibility. `TensorProvenance` retains the exact operation and ordered public-tensor inputs. All
-five currently exposed expression families derive result descriptors, but none assigns
-graph identity, captures a graph, calculates values, defines gradient rules, or executes
-computation.
+eligibility. Static `Tensor.where(condition, ifTrue, ifFalse)` requires an exact BOOL condition,
+promotes the two floating branches, broadcasts the branches first and the condition with their
+common shape second, and creates a fresh result whose gradient eligibility is the branch-only OR.
+Its provenance preserves the exact ordered condition, true branch, and false branch references.
+`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All six currently
+exposed expression families derive result descriptors, but none assigns graph identity, captures
+a graph, calculates values, defines gradient rules, or executes computation.
 
 Comparison expression construction validates floating compatibility and local broadcasting, then
 derives an unresolved non-differentiable `BOOL` descriptor and exact ordered provenance. It does
@@ -1465,8 +1470,9 @@ be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
 package-private derived-construction seam used by the implemented binary arithmetic, comparison,
-boolean logical, unary, and scalar expression helpers attaches one already-validated provenance
-value, allocates exactly one ID through the existing allocator, and creates no storage. The
+boolean logical, conditional-selection, unary, and scalar expression helpers attaches one
+already-validated provenance value, allocates exactly one ID through the existing allocator, and
+creates no storage. The
 factory seam itself does not inspect the operation or inputs, infer a descriptor, traverse an
 expression, capture a graph, or perform semantic validation.
 
@@ -1758,6 +1764,133 @@ The current class stores no graph-local `NodeId` or `ValueId`, gradient object o
 publication state, typed element access, device buffer, runtime residency, prepared state, or
 backend support. Provenance does not add any of those roles; they remain separate planned
 contracts in their owning layers.
+
+### Conditional-selection expression
+
+The static `Tensor.where(condition, ifTrue, ifFalse)` method builds one elementwise conditional
+selection expression. It constructs metadata and does not read a condition value or choose a
+branch:
+
+```text
+branchShape = broadcast(ifTrue.shape, ifFalse.shape)
+resultShape = broadcast(condition.shape, branchShape)
+```
+
+The condition must have exactly `DataType.BOOL`. The true and false branches must each be
+`BFLOAT16`, `FLOAT32`, or `FLOAT64`; the shared floating-promotion hierarchy derives the result
+data type from the branches only. The first local broadcast proves branch compatibility. The
+second proves that the condition can address their common result shape. Equal dimensions and
+static singleton expansion are accepted, including locally provable dynamic cases; incompatible
+or locally unprovable symbolic pairs fail.
+
+Every valid call returns a fresh Tensor with the promoted branch data type, final three-way
+broadcast shape, unresolved layout, no label, and no host storage. Result `requiresGrad` is
+`ifTrue.requiresGrad || ifFalse.requiresGrad`; the non-differentiable BOOL condition does not
+contribute. Provenance contains `WhereSelectionKind.WHERE`, `NoOperationAttrs.INSTANCE`, and exact
+ordered inputs `[condition, ifTrue, ifFalse]`. Repeated branch references remain repeated, and
+repeated calls receive fresh identities.
+
+Construction is eager only for descriptor, operation, provenance, and identity metadata. It does
+not inspect input storage, evaluate either branch, define eager or lazy evaluation order, copy or
+convert values, simplify equal branches, create gradient-routing rules, capture a graph, map ONNX,
+or execute backend code. Conditional `where` is also distinct from scalar-index `select`, which
+belongs to the later indexing family.
+
+#### Complete conditional-selection example
+
+##### Goal and inputs
+
+Build a selection expression from a BOOL condition of shape `[2, 1]`, a gradient-eligible
+`BFLOAT16` true branch of shape `[1, 3]`, and a `FLOAT64` false branch of shape `[2, 1]`. All three
+inputs are storage-free leaves, so the example observes expression metadata rather than selected
+values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class WhereExpressionExample {
+    public static void main(String[] args) {
+        Tensor condition = TensorFactory.create(new TensorDescriptor(
+                DataType.BOOL, Shape.of(2, 1), Optional.empty(), false));
+        Tensor ifTrue = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(1, 3), Optional.empty(), true));
+        Tensor ifFalse = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(2, 1), Optional.empty(), false));
+
+        Tensor result = Tensor.where(condition, ifTrue, ifFalse);
+        TensorProvenance provenance = result.provenance().orElseThrow();
+
+        System.out.println("type=" + result.descriptor().dataType());
+        System.out.println("shape=" + result.descriptor().shape());
+        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
+        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + result.label().isEmpty());
+        System.out.println("storageFree=" + result.hostStorage().isEmpty());
+        System.out.println("kind=" + provenance.operation().kind());
+        System.out.println("parameterless="
+                + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("orderedInputs="
+                + (provenance.inputs().get(0) == condition
+                && provenance.inputs().get(1) == ifTrue
+                && provenance.inputs().get(2) == ifFalse));
+        System.out.println("fresh="
+                + (result != condition && result != ifTrue && result != ifFalse));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `BFLOAT16` and `FLOAT64` branches promote to `FLOAT64`; the BOOL condition does not participate
+  in promotion.
+- Broadcasting the branch shapes `[1, 3]` and `[2, 1]` first produces `[2, 3]`. Broadcasting the
+  condition shape `[2, 1]` with that branch shape then retains `[2, 3]`.
+- `Tensor.where` records exact ordered condition, true-branch, and false-branch references. The
+  operation kind is `WHERE`, and the attributes are the canonical parameterless singleton.
+- Only the true branch requests gradients, so the result's eligibility flag is true. This is
+  descriptor metadata, not a generated backward computation or routing rule.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+type=FLOAT64
+shape=Shape[2, 3]
+layoutUnresolved=true
+requiresGrad=true
+unlabeled=true
+storageFree=true
+kind=WHERE
+parameterless=true
+orderedInputs=true
+fresh=true
+```
+
+The output proves local branch promotion, ordered two-stage broadcasting, descriptor derivation,
+fresh identity, and exact three-input provenance. It does not prove which branch value is chosen,
+gradient routing, graph capture, ONNX mapping, backend support, or execution.
+
+##### Failures and useful variations
+
+- A null argument fails in condition, true-branch, then false-branch order with the parameter name
+  as the `NullPointerException` message.
+- A non-BOOL condition fails before branch promotion. An integral or BOOL branch fails through
+  floating promotion; no implicit cast is inserted.
+- Incompatible branches fail before the condition shape is combined. A condition incompatible
+  with the common branch shape fails in the second broadcast.
+- Scalar, zero-sized, rank-mismatched, singleton-expanded, and locally provable symbolic shapes
+  are valid. Different dynamic symbols and a dynamic dimension paired with a non-singleton static
+  size remain locally unprovable.
+- Validation failures happen before result identity allocation. Exhausting the factory's tensor-ID
+  space instead fails after the local descriptor, operation, and provenance values are built.
 
 ### Unary elementwise expressions
 
@@ -2313,11 +2446,13 @@ kind-to-attributes compatibility.
 
 This semantic identity describes elementwise conditional choice, not scalar-index `select`,
 gather, take, or scatter. The later indexing family owns those distinct capabilities. The enum
-does not add a public `Tensor.where` method or define condition and branch eligibility, branch
-promotion, three-way broadcasting, result descriptors, provenance, evaluation order, gradients,
-compiler capture, ONNX mapping, execution, or backend availability. Its inherited name and text
-are diagnostic rather than serialization or dispatch keys, and an equally named kind from another
-family remains a different typed value.
+does not itself define condition and branch eligibility, branch promotion, three-way broadcasting,
+result descriptors, provenance, evaluation order, gradients, compiler capture, ONNX mapping,
+execution, or backend availability. The current static `Tensor.where` expression method separately
+owns local BOOL/floating validation, branch promotion, ordered pairwise broadcasting, descriptor
+construction, and exact three-input provenance. Its inherited name and text are diagnostic rather
+than serialization or dispatch keys, and an equally named kind from another family remains a
+different typed value.
 
 ### Unary elementwise semantic kinds
 
@@ -2446,7 +2581,8 @@ provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`. Additional kind families, compiler behavior, and executable support remain
 later work in their owning layers. Binary arithmetic, binary comparison, unary elementwise, and
-scalar elementwise semantics have current public Tensor expression methods.
+scalar elementwise semantics have current public Tensor expression methods, as do boolean logical
+and conditional-selection semantics.
 
 ## Graph values and compiled nodes
 
@@ -2614,9 +2750,9 @@ The following contracts appear in the architecture and planning documents but ar
 
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
-- expression families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, and scalar elementwise operations, plus gradient and trainable state and
-  publication behavior;
+- expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
+  selection, unary elementwise, and scalar elementwise operations, plus gradient and trainable
+  state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, and conditional selection semantics, plus their family-specific
   attribute values;
@@ -2628,12 +2764,10 @@ The following contracts appear in the architecture and planning documents but ar
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary
-arithmetic,
-binary comparison, boolean logical, unary elementwise, scalar elementwise, and conditional
-selection semantics are the current production concrete kind families. Every family except
-conditional selection has matching public Tensor expression methods; conditional selection does
-not yet have one. The graph records can compose these or test-local semantics, but
-they do not provide a compiler entry point or executable support.
+arithmetic, binary comparison, boolean logical, unary elementwise, scalar elementwise, and
+conditional selection semantics are the current production concrete kind families. All six
+families have matching public Tensor expression construction. The graph records can compose these
+or test-local semantics, but they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -2682,6 +2816,15 @@ they do not provide a compiler entry point or executable support.
   failures precede ID allocation; identity exhaustion follows fixed descriptor and provenance
   construction. These methods do not inspect truth bytes, short-circuit, simplify or reorder
   expressions, insert casts, create gradient rules, capture graphs, or provide backend execution.
+- Static `Tensor.where` requires non-null condition, true-branch, and false-branch inputs in that
+  order, exact BOOL condition type, floating branches, and two locally provable broadcasts in
+  branch-first then condition-second order. Each successful call returns a fresh unlabeled,
+  storage-free Tensor with promoted branch type, final three-way shape, unresolved layout,
+  branch-only gradient eligibility OR, exact `WHERE` operation, and ordered
+  `[condition, ifTrue, ifFalse]` provenance. Validation failures precede ID allocation; identity
+  exhaustion follows local descriptor and provenance construction. The method does not inspect
+  values, choose or evaluate a branch, define gradient routing, capture a graph, or provide ONNX
+  or backend execution.
 - `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
   `sigmoid`, `tanh`, `fastExp`, and `fastTanh` accept only floating receiver data types and retain
   the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns

@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0015F Where selection Tensor expression — Draft; no detailed specification yet
+- 0015G Cast semantic kind and attributes — Draft; no detailed specification yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -65,8 +65,11 @@ BOOL-only AND/OR broadcasting and shape-preserving NOT expression construction w
 non-differentiable BOOL results and provenance, without truth-value execution. Task
 [0015E](modules/model/tasks/0015e-where-selection-semantic-kind.md) is complete. It adds the sole
 parameterless `WHERE` semantic identity and documents its ordered condition, true-branch, and
-false-branch roles without adding public Tensor construction or indexing behavior. Task 0015F is
-the next Draft planning frontier and remains without a detailed specification.
+false-branch roles without adding public Tensor construction or indexing behavior. Task
+[0015F](modules/model/tasks/0015f-where-selection-tensor-expression.md) is complete. It adds exact
+BOOL/floating validation, ordered pairwise broadcasting, branch-only gradient eligibility, and
+three-input provenance without value selection or execution. Task 0015G is the next Draft planning
+frontier and remains without a detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -147,7 +150,7 @@ authorized Compile API status correction.
 | 35 | [0015C Boolean logical semantic kinds](modules/model/tasks/0015c-boolean-logical-semantic-kinds.md) | Complete |
 | 36 | [0015D Boolean logical Tensor expressions](modules/model/tasks/0015d-boolean-logical-tensor-expressions.md) | Complete |
 | 37 | [0015E Where selection semantic kind](modules/model/tasks/0015e-where-selection-semantic-kind.md) | Complete |
-| 38 | 0015F Where selection Tensor expression | Draft |
+| 38 | [0015F Where selection Tensor expression](modules/model/tasks/0015f-where-selection-tensor-expression.md) | Complete |
 | 39 | 0015G Cast semantic kind and attributes | Draft |
 | 40 | 0015H Cast Tensor expression | Draft |
 | 41 | 0016 Reduction and scan operations | Draft |
@@ -191,8 +194,10 @@ provenance. Task 0015C completed the parameterless AND, OR, and NOT semantic ide
 0015D completed their BOOL-only binary/unary public Tensor construction with fixed result facts and
 exact provenance. Task 0015E completed the one parameterless `WHERE` identity and documented its
 ternary logical roles separately from task 0015F's later Tensor validation, three-way broadcasting,
-result construction, and provenance work. Task 0015F is the next Draft planning frontier and has
-no detailed specification.
+result construction, and provenance work. Task 0015F completed that public expression by composing
+the current BOOL, floating-promotion, pairwise-broadcast, descriptor, provenance, and
+derived-construction contracts without changing module boundaries or foundational APIs. Task
+0015G is the next Draft planning frontier and has no detailed specification.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

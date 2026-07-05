@@ -42,10 +42,12 @@ meanings, plus matching public BOOL-only logical Tensor expression construction.
 use local broadcasting and ordered provenance; unary NOT retains the exact input shape; and every
 logical result has fixed non-differentiable BOOL descriptor facts.
 The parameterless `WhereSelectionKind` vocabulary is implemented with the sole `WHERE` identity
-and ordered condition, true-branch, and false-branch roles. It defines conditional elementwise
-choice only; public `Tensor.where`, three-way broadcasting, result construction, provenance,
-gradients, and execution remain planned. Conditional `WHERE` is distinct from scalar-index
-`select` and the later indexing family.
+and ordered condition, true-branch, and false-branch roles, plus matching static public
+`Tensor.where` expression construction. The method requires an exact BOOL condition, promotes two
+floating branches, composes branch-first and condition-second local broadcasts, derives an
+unresolved result with branch-only gradient eligibility, and records exact three-input provenance.
+Value selection, gradient routing and rules, compiler capture, ONNX/backend execution, and
+scalar-index `select` remain separate or planned concerns.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -319,11 +321,12 @@ condition, true branch, and false branch. A true condition chooses the correspon
 value; otherwise it chooses the false-branch value. The roles are ternary family context rather
 than stored or generically validated arity metadata, and the kind composes with
 `NoOperationAttrs.INSTANCE`. It is distinct from scalar-index `select`, gather, take, and scatter.
-The enum defines no Tensor method, condition or branch eligibility, promotion, three-way
-broadcasting, result descriptor, provenance, evaluation order, gradient, compiler, ONNX,
-execution, or backend-support behavior. Its inherited name is diagnostic rather than a
-serialization or dispatch key, and an equally named kind from another family remains a different
-typed value.
+The enum itself defines no Tensor construction, condition or branch eligibility, promotion,
+three-way broadcasting, result descriptor, provenance, evaluation order, gradient, compiler,
+ONNX, execution, or backend-support behavior. Static `Tensor.where` separately owns local
+BOOL/floating validation, branch promotion, ordered pairwise broadcasting, descriptor derivation,
+and exact three-input provenance. Its inherited name is diagnostic rather than a serialization or
+dispatch key, and an equally named kind from another family remains a different typed value.
 
 ### Partition
 
@@ -369,8 +372,9 @@ producing a storage-free non-differentiable BOOL result. Boolean logical AND and
 retain exact ordered receiver/argument inputs with `BooleanLogicalKind`; NOT retains exactly the
 receiver as its one input. The implemented floating unary methods use the exact matching
 `UnaryElementwiseKind` and canonical no-attributes value, also with exactly the receiver as their
-one input. These construction paths do not change provenance's general role or make it graph
-membership.
+one input. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and retains exact ordered inputs
+`[condition, ifTrue, ifFalse]`, including repeated branch references. These construction paths do
+not change provenance's general role or make it graph membership.
 
 ### Publication binding
 
@@ -444,9 +448,14 @@ retaining exact comparison semantics and ordered provenance. The current `logica
 provenance, and create fresh fixed BOOL results. `logicalNot` also requires exact BOOL, but retains
 the exact input Shape and one-input provenance without broadcasting. All logical results have
 unresolved layout, false gradient eligibility, no label, and no storage, and construction does not
-read truth bytes, short-circuit, simplify, or execute them. The current fifteen zero-argument unary
-methods also create fresh floating expression tensors. They retain the exact input data type and
-Shape,
+read truth bytes, short-circuit, simplify, or execute them. Static `Tensor.where` requires an exact
+BOOL condition and two floating branches. It promotes the branch types, broadcasts the branches
+before combining the condition shape, creates a fresh unresolved storage-free result with
+branch-only gradient eligibility, and records exact ordered
+`[condition, ifTrue, ifFalse]` provenance. It does not inspect values, choose or evaluate a branch,
+define gradient routing, capture a graph, or execute selection. The current fifteen zero-argument
+unary methods also create fresh floating expression tensors. They retain the exact input data type
+and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
 plus exactly one input reference without domain checks or canonicalization. The current scalar
 `mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
@@ -734,9 +743,9 @@ values identifies where computation occurs in a graph; an implemented [node](#no
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
 unary elementwise, and scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and
 comparison public Tensor construction paths are also implemented, together with boolean logical
-Tensor construction. Conditional selection has semantic vocabulary but no public Tensor
-construction path yet. Other concrete families, their family-specific attributes, compiler
-capture, and execution remain planned. The compiled graph container is implemented model state.
+and conditional-selection Tensor construction. Other concrete families, their family-specific
+attributes, compiler capture, and execution remain planned. The compiled graph container is
+implemented model state.
 
 ### Compile versus prepare versus run
 

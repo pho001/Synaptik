@@ -78,7 +78,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(44, declaredPublicMethods.size());
+        assertEquals(45, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -86,7 +86,7 @@ class TensorTest {
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
-                        "logicalAnd", "logicalOr", "logicalNot"),
+                        "logicalAnd", "logicalOr", "logicalNot", "where"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -135,6 +135,17 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(logicalNot.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(logicalNot.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(logicalNot.getModifiers())));
+
+        var where = Tensor.class.getDeclaredMethod(
+                "where", Tensor.class, Tensor.class, Tensor.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, where.getReturnType()),
+                () -> assertEquals(
+                        List.of(Tensor.class, Tensor.class, Tensor.class),
+                        Arrays.asList(where.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(where.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(where.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(where.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

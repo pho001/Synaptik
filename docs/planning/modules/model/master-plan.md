@@ -139,7 +139,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015C | [Boolean logical semantic kinds](tasks/0015c-boolean-logical-semantic-kinds.md) | Complete | 0005, 0006 | Define parameterless AND, OR, and NOT semantic meanings. |
 | 0015D | [Boolean logical Tensor expressions](tasks/0015d-boolean-logical-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015C | Build BOOL-only broadcast-aware logical expressions. |
 | 0015E | [Where selection semantic kind](tasks/0015e-where-selection-semantic-kind.md) | Complete | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
-| 0015F | Where selection Tensor expression | Draft | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
+| 0015F | [Where selection Tensor expression](tasks/0015f-where-selection-tensor-expression.md) | Complete | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
 | 0015G | Cast semantic kind and attributes | Draft | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
 | 0015H | Cast Tensor expression | Draft | 0001, 0013, 0015G | Build explicit cast expressions without eager conversion. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
@@ -162,8 +162,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015E complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015F is the next Draft planning frontier and has no detailed specification.
+Draft, with tasks 0014A through 0015F complete and the post-0014B vertical-slice reassessment
+recorded. Task 0015G is the next Draft planning frontier and has no detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -372,8 +372,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Task 0015E implements one parameterless `WhereSelectionKind` enum in
   `model.operation.elementwise.selection` with the sole `WHERE` identity. Exact ordered condition,
   true-branch, and false-branch roles are documented ternary family context, not stored arity or
-  input state. BOOL/floating descriptor validation, branch promotion, three-way broadcasting,
-  result construction, provenance, gradients, and public `Tensor.where` remain in task 0015F or
+  input state. Task 0015F now owns public BOOL/floating validation, branch promotion, three-way
+  broadcasting, result construction, and provenance; gradients and executable behavior remain in
   later owning layers.
 - The independent task-0015E documentation review found the enum and constant Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
@@ -382,6 +382,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   Tensor remain accurate unchanged because the task adds only model-owned conditional-selection
   semantic vocabulary without public expressions, dependencies, inference, provenance, training,
   indexing behavior, or execution.
+- Task 0015F adds static public `Tensor.where(condition, ifTrue, ifFalse)` through one
+  package-private single-entry helper. It requires an exact BOOL condition, promotes floating
+  branches through the shared contract, composes two pairwise broadcasts in branch-first order,
+  creates an unresolved descriptor with branch-only gradient eligibility OR, and records exact
+  `[condition, ifTrue, ifFalse]` provenance without value access, gradient rules, graph capture, or
+  execution.
+- The independent task-0015F documentation review found the Tensor and helper Javadocs complete,
+  then finalized Tensor API, Compile API, glossary, task evidence, master plan, and roadmap.
+  Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
+  build configuration, foundational contracts, and existing expression families remain accurate
+  unchanged because the task composes existing model-owned validation and provenance without
+  value selection, gradient routing, graph capture, ONNX mapping, backend behavior, dependencies,
+  or execution.
 - The independent task-0015C documentation review found the enum and every constant Javadoc
   complete, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile
   API, Training API, capabilities, architecture/ADRs/tests, conformance and integration tests,
@@ -463,7 +476,8 @@ six parameterless ordered binary comparison semantic kinds, and task 0015B compl
 floating comparison Tensor construction. Task 0015C completed the three parameterless boolean
 logical semantic kinds, and task 0015D completed their public BOOL-only binary/unary Tensor
 expression construction. Task 0015E completed the sole parameterless `WHERE` conditional-selection
-semantic identity. Task 0015F is the next Draft planning frontier and remains without a detailed
-specification; all later operation-family tasks also remain Draft.
+semantic identity, and task 0015F completed its public static Tensor expression construction.
+Task 0015G is the next Draft planning frontier and remains without a detailed specification; all
+later operation-family tasks also remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithm
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
@@ -29,22 +30,24 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
  * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
- * boolean logical, parameterized scalar, and unary elementwise expression methods create fresh
- * storage-free tensors whose immutable provenance records the requested semantics and exact
- * inputs; they do not execute mathematics, validate numerical domains, create gradient rules, or
- * capture a graph.
+ * boolean logical, conditional selection, parameterized scalar, and unary elementwise expression
+ * methods create fresh storage-free tensors whose immutable provenance records the requested
+ * semantics and exact inputs; they do not execute mathematics, validate numerical domains, create
+ * gradient rules, or capture a graph.
  * Binary arithmetic methods promote floating operands, broadcast shapes, and combine gradient
  * eligibility by logical OR. Binary comparison methods validate the same floating compatibility
  * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Boolean
  * logical methods accept only {@code BOOL}: conjunction and disjunction broadcast ordered inputs,
  * while negation retains the exact input shape. Their results are also non-differentiable
- * {@code BOOL} descriptors. Scalar and unary methods accept one floating input and retain its exact
- * data type, shape reference, and gradient eligibility. Scalar methods retain their exact binary64
- * parameters in typed attributes. Every expression result leaves layout unresolved, has a fresh
- * factory identity and no label or storage, and records an exact matching
+ * {@code BOOL} descriptors. Conditional selection accepts one {@code BOOL} condition and two
+ * floating branches, promotes the branch type, composes two pairwise broadcasts, and propagates
+ * gradient eligibility from the branches only. Scalar and unary methods accept one floating input
+ * and retain its exact data type, shape reference, and gradient eligibility. Scalar methods retain
+ * their exact binary64 parameters in typed attributes. Every expression result leaves layout
+ * unresolved, has a fresh factory identity and no label or storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
- * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}. Gradient eligibility does not
- * promise that a gradient rule exists.
+ * {@link WhereSelectionKind}, {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
+ * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
  */
@@ -554,6 +557,43 @@ public final class Tensor {
      */
     public Tensor logicalNot() {
         return TensorLogicalExpressions.applyUnary(this, BooleanLogicalKind.NOT);
+    }
+
+    /**
+     * Builds an elementwise expression that conditionally selects between two ordered branches.
+     *
+     * <p>{@code condition} must have exact {@code BOOL} data type. {@code ifTrue} and
+     * {@code ifFalse} must be floating tensors; their data types are promoted through the shared
+     * floating hierarchy. Shape construction first broadcasts the true and false branches, then
+     * broadcasts the condition with that common branch shape. The fresh result has the promoted
+     * branch data type, unresolved layout, gradient eligibility equal only to the logical OR of
+     * the two branch requests, no label or host storage, and provenance containing
+     * {@link WhereSelectionKind#WHERE}, {@code NoOperationAttrs.INSTANCE}, and exact ordered inputs
+     * {@code [condition, ifTrue, ifFalse]}.</p>
+     *
+     * <p>This method eagerly constructs expression metadata only. It does not inspect values,
+     * choose or evaluate either branch, define evaluation order or gradient routing, create a
+     * ternary broadcast plan, or implement scalar-index selection. The supplied tensors and all
+     * of their metadata and storage associations remain unchanged.</p>
+     *
+     * @param condition non-null exact {@code BOOL} condition retained by exact reference as the
+     *     first provenance input; it is not mutated and does not contribute gradient eligibility
+     * @param ifTrue non-null ordered true branch with floating data type, retained by exact
+     *     reference as the second provenance input and not mutated
+     * @param ifFalse non-null ordered false branch with floating data type, retained by exact
+     *     reference as the third provenance input and not mutated
+     * @return a non-null fresh derived tensor with promoted branch type, locally proven three-way
+     *     broadcast shape, unresolved layout, branch-only gradient eligibility, and no storage
+     * @throws NullPointerException if {@code condition}, {@code ifTrue}, or {@code ifFalse} is
+     *     null, checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the condition is not {@code BOOL}, either branch is not
+     *     floating, the two branch shapes cannot be broadcast, or the condition cannot be
+     *     broadcast with the common branch shape
+     * @throws IllegalStateException if tensor identifier space is exhausted after local model
+     *     values have been constructed
+     */
+    public static Tensor where(Tensor condition, Tensor ifTrue, Tensor ifFalse) {
+        return TensorWhereExpressions.apply(condition, ifTrue, ifFalse);
     }
 
     /**
