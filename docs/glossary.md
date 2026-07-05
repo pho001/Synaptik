@@ -92,6 +92,12 @@ than the resolved `LayoutKind.DENSE_CONTIGUOUS` classification. Public `Tensor.c
 constructs a fresh storage-free expression: static Shapes receive newly resolved canonical
 geometry and dynamic Shapes remain unresolved. Input-layout inspection, alias or copy choice,
 materialization, compiler behavior, backend behavior, and execution remain owned by later layers.
+The `ShapeTransformKind` vocabulary is implemented with distinct `RESHAPE` and `EXPAND`
+identities, together with `TargetShapeAttrs` carrying one exact normalized target `Shape`.
+`RESHAPE` preserves ordered logical elements under new coordinates, while `EXPAND` logically
+repeats compatible singleton or leading axes. Public request normalization, compatibility
+validation, Tensor expression construction, layout derivation, provenance, gradients, compiler
+behavior, backend behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -455,8 +461,10 @@ non-null target `DataType` without duplicating a source type. Implemented reduct
 adds an explicit tie policy and `MaskedReductionAttrs` holds one reduction axis plus an immutable
 ordered mask-to-input axis mapping. Implemented scan-family `CumulativeSumAttrs` holds one
 normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
-`SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax. Other families may
-define records for padding or another operation-specific value. Implementations use typed fields, defensively
+`SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax. Implemented
+layout-operation `TargetShapeAttrs` holds one exact normalized semantic result Shape shared by
+reshape and expand. Other families may define records for padding or another operation-specific
+value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
@@ -695,6 +703,27 @@ semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attr
 ### Referenced element span
 
 The minimum count of storage elements needed to include every index referenced by a resolved layout. For non-empty shapes it is the greatest referenced element index plus one; for shapes with a zero-sized dimension it is zero. The span includes a storage offset and is not necessarily equal to the logical element count.
+
+### Reshape and expand semantics
+
+Two implemented one-input target-shape meanings represented by `ShapeTransformKind.RESHAPE` and
+`ShapeTransformKind.EXPAND`. Both pair with `TargetShapeAttrs`, which retains one exact non-null
+[`Shape`](#shape) as normalized semantic result state. Scalar, zero-extent, static, mixed dynamic,
+and fully dynamic Shapes are structurally valid attributes. A raw public reshape request and its
+numeric `-1` inference syntax are not stored; static Shape dimensions are non-negative and dynamic
+dimensions use explicit symbols.
+
+`RESHAPE` preserves the ordered logical element sequence while interpreting it through the target
+coordinates. `EXPAND` logically repeats compatible singleton dimensions or adds repeated leading
+dimensions. The shared attributes do not inspect an input, compare element counts, validate
+expansion compatibility, bind symbols, derive a [`Layout`](#layout), or decide whether a result is
+a [view](#view) or materialized copy.
+
+These semantic values are current, but public `Tensor.reshape` and `Tensor.expand`, request
+normalization, result descriptors, provenance, gradients, compiler behavior, materialization,
+backend support, and execution remain planned. Generic [`Operation`](#operation) composition
+retains the exact kind and attributes references but does not enforce the family pairing or
+one-input context.
 
 ### Tensor
 
@@ -1059,8 +1088,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, and contiguous-request families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, and softmax values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, and reshape/expand families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, and target-shape values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1074,8 +1103,10 @@ together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
 implemented. Contiguous-request semantics and public contiguous Tensor construction are also
-implemented. Other concrete families and their family-specific attributes, compiler capture and
-canonicalization, materialization policy, and execution remain planned.
+implemented. Reshape and expand semantics plus target-shape attributes are implemented, while
+their public Tensor expressions remain planned. Other concrete families and their family-specific
+attributes, compiler capture and canonicalization, materialization policy, and execution remain
+planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

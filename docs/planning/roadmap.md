@@ -44,14 +44,16 @@ Its completed implementation frontier is:
 - [0017A Contiguous semantic kind](modules/model/tasks/0017a-contiguous-semantic-kind.md) — Complete.
 - [0017B Contiguous Tensor expression](modules/model/tasks/0017b-contiguous-tensor-expression.md)
   — Complete.
+- [0017C Reshape and expand semantics](modules/model/tasks/0017c-reshape-and-expand-semantics.md)
+  — Complete.
 
-The next planning frontier is 0017C Reshape and expand semantics — Draft. No detailed task
-specification exists.
+The next planning frontier is 0017D Reshape and expand Tensor expressions — Draft. No detailed
+task specification exists.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Only
-tasks 0017A and 0017B have detailed specifications. Task 0017C and all later subtasks remain Draft.
+tasks 0017A–0017C have detailed specifications. Task 0017D and all later subtasks remain Draft.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -129,6 +131,10 @@ and later materialization. Task
 [0017B](modules/model/tasks/0017b-contiguous-tensor-expression.md) is complete. It adds the public
 storage-free expression with static-resolved and dynamic-unresolved result layout rules while
 leaving copy choice and materialization to later compiler/planning/prepare/backend work.
+Task [0017C](modules/model/tasks/0017c-reshape-and-expand-semantics.md) is complete. It defines only
+the two target-shape semantic identities and shared immutable Shape attributes; public request
+normalization, compatibility validation, layout derivation, and provenance remain in Draft task
+0017D.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -225,7 +231,7 @@ authorized Compile API status correction.
 | 51 | [0016J Softmax Tensor expressions](modules/model/tasks/0016j-softmax-tensor-expressions.md) | Complete |
 | 52 | [0017A Contiguous semantic kind](modules/model/tasks/0017a-contiguous-semantic-kind.md) | Complete |
 | 53 | [0017B Contiguous Tensor expression](modules/model/tasks/0017b-contiguous-tensor-expression.md) | Complete |
-| 54 | 0017C Reshape and expand semantics | Draft |
+| 54 | [0017C Reshape and expand semantics](modules/model/tasks/0017c-reshape-and-expand-semantics.md) | Complete |
 | 55 | 0017D Reshape and expand Tensor expressions | Draft |
 | 56 | 0017E Axis-transform semantics | Draft |
 | 57 | 0017F Permute, transpose, expand-dimensions, and squeeze expressions | Draft |
@@ -287,8 +293,8 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 0016F1 so aggregate semantics, focused Tensor expression groups, masked reductions, cumulative
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
-decomposed into 0017A–0017N; 0017A and 0017B are complete, 0017C is the next Draft frontier, and
-every later subtask remains Draft without a detailed specification. Completed task 0016E adds fixed-INT64,
+decomposed into 0017A–0017N; 0017A through 0017C are complete, 0017D is the next Draft frontier
+without a detailed specification, and every later subtask remains Draft. Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.
 

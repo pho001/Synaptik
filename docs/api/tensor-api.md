@@ -25,6 +25,10 @@ runtime residency, and backend execution remain planned. The authoritative modul
 The current semantic vocabulary also includes `ContiguousKind.CONTIGUOUS`, a parameterless
 request for logically equivalent canonical dense row-major, zero-offset result geometry. Public
 `Tensor.contiguous()` now constructs that request without allocating or copying storage.
+`ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` are also current semantic identities.
+Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape`; public reshape
+and expand request methods, compatibility checks, result descriptors, and provenance remain
+planned.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -73,6 +77,7 @@ SUM/MEAN + MaskedReductionAttrs                              = masked axis seman
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
+ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -168,6 +173,15 @@ static Shape. Public `Tensor.contiguous()` constructs a fresh expression with ex
 type, and gradient eligibility. Fully static Shapes receive newly resolved canonical geometry;
 dynamic Shapes remain unresolved. Construction does not inspect input layout or decide aliasing,
 copying, or materialization.
+`ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` provide distinct one-input
+target-shape meanings. `RESHAPE` preserves the ordered logical element sequence while changing
+the coordinates through which it is interpreted. `EXPAND` logically repeats compatible
+singleton dimensions or adds leading dimensions. Both use `TargetShapeAttrs`, whose exact
+non-null `Shape` is already normalized model semantics. The attributes therefore contain neither
+raw public request syntax nor a numeric `-1` inference sentinel. These semantic contracts do not
+construct Tensor expressions, inspect an input, validate element counts or expansion
+compatibility, derive layout, or define provenance, gradients, compiler behavior, backend
+behavior, or execution.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3158,6 +3172,8 @@ composition while the table also lists the current production families:
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
+| `ShapeTransformKind` | The implemented production enum for ordered-element-preserving `RESHAPE` and singleton/leading-axis-repeating `EXPAND` meanings. |
+| `TargetShapeAttrs` | The implemented immutable normalized target-`Shape` value shared by reshape and expand. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -3566,6 +3582,48 @@ Inherited enum names are diagnostic typed vocabulary, not serialization, registr
 kernel, or reflection identifiers. An equally named constant from another kind family remains a
 different typed value.
 
+### Reshape and expand semantic kinds and target-shape attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind` implements `OperationKind`
+with exactly `RESHAPE` and `EXPAND`, in that order. Both meanings have one logical input and one
+exact result `Shape`, carried by `TargetShapeAttrs(targetShape)` rather than stored on the enum.
+
+| Kind | Semantic meaning | Deferred input-dependent decision |
+|---|---|---|
+| `RESHAPE` | Preserve the ordered logical element sequence while interpreting it through `targetShape` coordinates. | Element-count compatibility, inferred request dimensions, and view or copy eligibility. |
+| `EXPAND` | Logically repeat compatible singleton dimensions or add repeated leading dimensions to produce `targetShape`. | Rank and singleton compatibility, symbolic constraints, and zero-stride or materialized geometry. |
+
+The pairings are explicit:
+
+```java
+TargetShapeAttrs attrs = new TargetShapeAttrs(Shape.of(3, 2));
+Operation reshape = new Operation(ShapeTransformKind.RESHAPE, attrs);
+Operation expand = new Operation(ShapeTransformKind.EXPAND, attrs);
+```
+
+Both operations retain the exact `attrs` reference. Generic `Operation` checks only that its two
+components are non-null; it does not enforce these family pairings or one-input context.
+`TargetShapeAttrs` rejects a null target with `NullPointerException("targetShape")`, retains every
+non-null immutable `Shape` reference unchanged, and accepts scalar, zero-extent, fully static,
+mixed static/dynamic, and fully dynamic Shapes without inspecting an input.
+
+The stored `Shape` is normalized semantic state. Its static dimensions are non-negative and its
+dynamic dimensions are explicit symbols, so a raw numeric `-1` reshape-inference sentinel cannot
+occur in the attributes. A future public reshape request boundary must normalize any caller-facing
+request syntax before constructing this value.
+
+Conceptually, reshaping logical sequence `[a, b, c, d, e, f]` from shape `[2, 3]` to `[3, 2]`
+preserves that sequence and changes only its coordinate grouping to `[[a, b], [c, d], [e, f]]`.
+Expanding logical row `[a, b, c]` from `[1, 3]` to `[2, 3]` instead repeats it as
+`[[a, b, c], [a, b, c]]`. These examples explain the semantic distinction; the implemented enum
+and attributes perform neither transformation, compatibility validation, layout construction, nor
+value execution.
+
+Public `Tensor.reshape` and `Tensor.expand`, raw request normalization, element-count and
+broadcast validation, descriptor and layout derivation, provenance, gradients, compiler and
+planning behavior, materialization, backend support, and execution remain planned.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -3867,11 +3925,12 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous requests, plus gradient and trainable state and publication behavior;
+  contiguous requests, including public reshape and expand expressions, plus gradient and
+  trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
-  cumulative-sum scan, softmax normalization, and contiguous-request semantics, plus their
-  family-specific attribute values;
+  cumulative-sum scan, softmax normalization, contiguous-request semantics, and reshape/expand
+  semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -3881,7 +3940,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
-`ContiguousKind`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
+`ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `GraphValue`, `CompiledNode`,
+`GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
@@ -3893,7 +3953,8 @@ records can compose these, current cumulative-sum expressions, or test-local sem
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
 values and their public Tensor expression construction are current. The contiguous semantic value
 and public Tensor expression construction are also current, including static resolved and dynamic
-unresolved result-layout rules.
+unresolved result-layout rules. Reshape and expand semantic values are current; their public Tensor
+expression construction remains planned.
 
 ## Failures and ownership summary
 
@@ -3907,6 +3968,8 @@ unresolved result-layout rules.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `TargetShapeAttrs` rejects a null target with `NullPointerException("targetShape")`, retains the
+  exact non-null immutable Shape reference, and performs no input-dependent compatibility check.
 - `CastAttrs` rejects a null target data type with `NullPointerException("targetDataType")`,
   retains every valid `DataType` reference unchanged, and performs no source compatibility,
   conversion, or backend-capability validation.

@@ -170,7 +170,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016J | [Softmax Tensor expressions](tasks/0016j-softmax-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
 | 0017A | [Contiguous semantic kind](tasks/0017a-contiguous-semantic-kind.md) | Complete | 0005, 0006 | Define the parameterless request for canonical dense row-major result geometry without materialization policy. |
 | 0017B | [Contiguous Tensor expression](tasks/0017b-contiguous-tensor-expression.md) | Complete | 0002, 0003, 0007, 0011–0013, 0017A | Build the public contiguous request with explicit static/dynamic descriptor and provenance rules. |
-| 0017C | Reshape and expand semantics | Draft | 0002, 0005, 0006 | Define immutable target-shape meanings without public Tensor construction. |
+| 0017C | [Reshape and expand semantics](tasks/0017c-reshape-and-expand-semantics.md) | Complete | 0002, 0005, 0006 | Define immutable target-shape meanings without public Tensor construction. |
 | 0017D | Reshape and expand Tensor expressions | Draft | 0002, 0003, 0013, 0017C | Build element-count-preserving reshape and broadcast-view expansion expressions. |
 | 0017E | Axis-transform semantics | Draft | 0002, 0005, 0006 | Define permutation, dimension insertion, and dimension removal meanings. |
 | 0017F | Permute, transpose, expand-dimensions, and squeeze expressions | Draft | 0002, 0003, 0013, 0017E | Build axis-reordering and rank-editing public Tensor expressions. |
@@ -204,7 +204,8 @@ Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
-is the next Draft frontier, and later tasks remain Draft without detailed specifications.
+is also complete. Task 0017D is the next Draft frontier without a detailed specification, and
+later tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -525,6 +526,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   example, link/anchor/fence/whitespace, scope, and status checks passed. Training API,
   capabilities, related model contracts, architecture and architecture tests, conformance,
   integration, Gradle, dependencies, and other modules remain accurate without modification.
+- Task 0017C adds `ShapeTransformKind` with exact `RESHAPE` and `EXPAND` identities plus one shared
+  immutable `TargetShapeAttrs`. The stored Shape is already normalized model semantics and accepts
+  scalar, zero-extent, static, and dynamic dimensions; public numeric `-1` inference, input count
+  compatibility, right-aligned singleton expansion, descriptors, layouts, and provenance remain
+  in task 0017D.
+- The independent task-0017C documentation review found both production Javadocs complete, then
+  finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation/attribute
+  foundations, Shape/Dimension, contiguous semantics, resolved layout values, Tensor descriptors
+  and expressions, capabilities, Compile API, Training API, focused architecture/ADRs/tests,
+  conformance and integration tests, Java 26 Gradle configuration, and other modules remain
+  accurate unchanged because this task adds only model-owned target-shape semantic vocabulary
+  without public Tensor construction, inference, provenance, gradients, dependencies, or
+  execution.
 - The independent task-0016G documentation review found both production Javadocs complete, then
   finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
   aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
@@ -719,7 +733,7 @@ Task 0015G completed the exact `CAST` semantic identity and immutable target-dat
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016J, including 0016F1, are
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
-task 0017B is complete. Task 0017C is the next Draft frontier, and every later operation-family
-task remains Draft without detailed specifications.
+task 0017B is complete, and task 0017C is complete. Task 0017D is the next Draft frontier without a
+detailed specification, and every later operation-family task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
