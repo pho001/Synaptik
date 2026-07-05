@@ -72,6 +72,11 @@ elementwise `AND`/`OR`. Axis-only `Tensor.argMax` now accepts floating or integr
 produces fixed non-differentiable INT64 expressions with explicit first- or last-index policy.
 Numerical or truth evaluation, empty-domain behavior, extrema comparison and tie execution,
 gradients, compiler capture, backend support, and execution remain planned.
+The `CumulativeSumKind` vocabulary is implemented with the sole `CUM_SUM` semantic identity,
+together with `CumulativeSumAttrs` carrying one normalized axis and exact exclusive/reverse mode
+flags. This scan family preserves logical positions and documents all four traversal/inclusion
+modes, but public `Tensor.cumSum`, descriptor/provenance construction, value accumulation,
+gradients, compiler behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -210,6 +215,20 @@ model. See the [Compile API](api/compile-api.md#current-model-contracts).
 ### Concrete backend
 
 A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`. It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization, kernel selection, executable units, storage, workspaces, and native integration. Concrete backends do not own public tensor semantics or global graph compilation. See [Module boundaries](architecture/module-boundaries.md).
+
+### Cumulative sum / scan
+
+An ordered one-input operation that cumulatively adds values along one axis while preserving one
+output position for every input position. The implemented `CumulativeSumKind.CUM_SUM` identifies
+this meaning, and `CumulativeSumAttrs(axis, exclusive, reverse)` carries an already normalized
+non-negative axis plus the two independent mode choices.
+
+For logical input `[1, 2, 3]`, inclusive forward produces `[1, 3, 6]`, exclusive forward produces
+`[0, 1, 3]`, inclusive reverse produces `[6, 5, 3]`, and exclusive reverse produces `[5, 3, 0]`.
+Exclusive mode omits the current value and therefore emits additive zero at the first traversed
+position. Reverse mode changes traversal direction, not output order. These examples define
+semantic meaning only; no public `Tensor.cumSum` construction or value execution exists yet. See
+[Cumulative-sum semantic kind and attributes](api/tensor-api.md#cumulative-sum-semantic-kind-and-attributes).
 
 ### Data type / `DataType`
 
@@ -354,8 +373,10 @@ and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, 
 `min`, reduction `max`, boolean `all`, and boolean `any` axis methods normalize against the input
 Shape before constructing semantic attributes. The current axis-only `argMax` methods use the
 same boundary before constructing `ArgMaxAttrs`.
-`MaskedReductionAttrs` follows the same normalized-axis boundary, but public Shape-aware masked
-expression construction is not implemented yet.
+`MaskedReductionAttrs` follows the same normalized-axis boundary, and current public masked
+expression construction resolves that axis and its mask mapping before creating the attributes.
+`CumulativeSumAttrs` also stores only an already normalized non-negative axis, while its public
+Shape-aware `Tensor.cumSum` construction remains planned.
 
 ### Node
 
@@ -388,8 +409,9 @@ ordered inclusive lower and upper bounds. Implemented cast-family `CastAttrs` ho
 non-null target `DataType` without duplicating a source type. Implemented reduction-family
 `AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
 adds an explicit tie policy and `MaskedReductionAttrs` holds one reduction axis plus an immutable
-ordered mask-to-input axis mapping. Other families may define records for padding or another
-operation-specific value. Implementations use typed fields, defensively
+ordered mask-to-input axis mapping. Implemented scan-family `CumulativeSumAttrs` holds one
+normalized axis plus exact exclusive and reverse flags. Other families may define records for
+padding or another operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
@@ -494,6 +516,16 @@ INT64 false-gradient results, explicit tie policy, axis-only shape derivation, a
 provenance. Public masked `sum` and `mean` separately own floating/BOOL validation, deterministic
 ordered Shape mapping, axis-removing result derivation, exact input type and gradient eligibility,
 and `[input, mask]` provenance.
+
+The ninth production family is `CumulativeSumKind`, an enum containing exactly `CUM_SUM`. It
+identifies one-input cumulative addition along the already normalized axis in
+`CumulativeSumAttrs`. The attributes also select inclusive or exclusive output and forward or
+reverse traversal. The family preserves logical positions; reverse traversal does not reverse
+output order, and exclusive traversal emits additive zero at its first visited position. Generic
+`Operation` does not enforce the kind/attributes pairing. The kind and attributes contain no
+Tensor, Shape, result descriptor, provenance, data-type policy, gradient rule, algorithm,
+executable behavior, or backend support. Public `Tensor.cumSum` expression construction remains
+planned.
 
 ### Partition
 
@@ -921,8 +953,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, and aggregate reduction families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, and masked-reduction values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, and cumulative-sum scan families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, and cumulative-sum values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -933,9 +965,10 @@ that occurrence. Binary arithmetic, binary comparison, boolean logical, conditio
 unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
-sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction. Other concrete
-families and their family-specific attributes, masked aggregate Tensor construction, compiler
-capture, and execution remain planned.
+sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
+sum/mean. Cumulative-sum semantics are implemented, while public cumulative-sum Tensor
+construction, other concrete families and their family-specific attributes, compiler capture,
+and execution remain planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

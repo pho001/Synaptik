@@ -95,6 +95,9 @@ io.github.pho001.synaptik.model.operation.elementwise.cast
 io.github.pho001.synaptik.model.operation.reduction
   Typed aggregate-reduction meanings, normalized single-axis parameters, and arg-max tie policy.
 
+io.github.pho001.synaptik.model.operation.scan
+  Typed shape-preserving ordered scan meanings and immutable scan parameters.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -155,7 +158,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016E | [Arg-max Tensor expressions](tasks/0016e-arg-max-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016A, 0016B, 0016C, 0016D | Build numeric single-axis INT64 index expressions with explicit or FIRST_INDEX tie policy. |
 | 0016F | [Masked reduction semantics and axis mapping](tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) | Complete | 0005, 0006, 0016A | Define typed SUM/MEAN masked attributes with explicit mask-dimension-to-input-axis mapping. |
 | 0016F1 | [Masked sum and mean Tensor expressions](tasks/0016f1-masked-sum-and-mean-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016B, 0016F | Resolve legacy-compatible mask alignment and build axis-removing public expressions. |
-| 0016G | Cumulative-sum semantic kind and attributes | Draft | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
+| 0016G | [Cumulative-sum semantic kind and attributes](tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) | Complete | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
 | 0016H | Cumulative-sum Tensor expressions | Draft | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
 | 0016I | Softmax semantic kinds and attributes | Draft | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
 | 0016J | Softmax Tensor expressions | Draft | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
@@ -180,8 +183,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
-complete. Tasks 0016F and 0016F1 are also complete. Task 0016G remains the next Draft planning
-frontier without a detailed specification.
+complete. Tasks 0016F, 0016F1, and 0016G are also complete. Task 0016H is the next Draft planning
+frontier without a detailed specification; all later model tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -435,6 +438,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   task 0016F1, cumulative-sum semantics/expressions 0016G–0016H, and softmax semantics/expressions
   0016I–0016J. This preserves the semantic/expression split and prevents public API, shape
   inference, masked reductions, scan options, and normalization from becoming one oversized task.
+- Task 0016G introduced the cohesive `model.operation.scan` package with exactly the
+  `CUM_SUM` semantic identity and immutable normalized-axis, exclusive, and reverse attributes.
+  Its four scan modes are documented as semantic meaning only; Tensor construction, input type
+  validation, Shape retention, provenance, numerical behavior, and execution remain outside this
+  task and are not inferred by the generic Operation contract.
+- The independent task-0016G documentation review found both production Javadocs complete, then
+  finalized Tensor API, glossary, task evidence, master plan, and roadmap. Operation foundations,
+  aggregate/masked reduction contracts, capabilities, Compile API, Training API, focused
+  architecture/ADRs/tests, conformance and integration tests, and Java 26 build configuration
+  remain accurate unchanged because this task adds only model-owned scan semantic vocabulary
+  without Tensor construction, inference, provenance, gradients, dependencies, or execution.
 - Task 0016A specifies `AggregateReductionKind` for SUM, MEAN, PROD, MIN, MAX, ALL, ANY, and
   ARG_MAX; `AxisReductionAttrs` for normalized single-axis ordinary reductions; explicit
   `NoOperationAttrs.INSTANCE` full forms; and `ArgMaxAttrs` plus FIRST_INDEX/LAST_INDEX tie policy.
@@ -621,8 +635,8 @@ expression construction. Task 0015E completed the sole parameterless `WHERE` con
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
-0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016F1 are complete. Task 0016G is
-the next Draft planning frontier; all later operation-family tasks remain Draft without detailed
-specifications.
+0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016G, including 0016F1, are
+complete. Task 0016H is the next Draft planning frontier without a detailed specification; all
+later operation-family tasks remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

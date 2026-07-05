@@ -60,6 +60,7 @@ WhereSelectionKind                                            = one parameterles
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
 AggregateReductionKind + reduction attributes                = full/axis aggregate semantics + arg-max tie policy
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordered mask-axis mapping
+CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -134,6 +135,9 @@ Masked `sum(axis, mask)` and `mean(axis, mask)` resolve their ordered Shape mapp
 remove the selected axis, and record exact `[input, mask]` provenance.
 Numerical or truth evaluation, ordinary empty-domain behavior, gradients, and execution also
 remain planned.
+`CumulativeSumKind.CUM_SUM` and `CumulativeSumAttrs` now provide the distinct shape-preserving
+scan semantic foundation. They represent a normalized axis plus inclusive/exclusive and
+forward/reverse traversal choices, but no public `Tensor.cumSum` expression method exists yet.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -2834,6 +2838,8 @@ composition while the table also lists the current production families:
 | `ArgMaxAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value for arg-max. |
 | `ArgMaxTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal maxima. |
 | `MaskedReductionAttrs` | The implemented immutable normalized reduction axis and ordered mask-dimension-to-input-axis mapping for masked, axis-removing sum and mean semantics. |
+| `CumulativeSumKind` | The implemented production enum whose sole `CUM_SUM` value identifies cumulative addition along one axis. |
+| `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -3114,6 +3120,51 @@ typed separately from equally named binary elementwise kinds, while aggregate AL
 separately from elementwise AND/OR. Neither the semantic values nor current expression
 construction defines empty-domain, numerical, or truth-evaluation policy, extrema comparison or
 tie behavior, gradients, compiler capture, backend availability, or execution.
+
+### Cumulative-sum semantic kind and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind` implements `OperationKind`
+with exactly one constant, `CUM_SUM`. It identifies cumulative addition along one logical input
+axis. Unlike an aggregate reduction, a cumulative-sum scan preserves one output position for
+every input position and therefore preserves the logical shape. The normalized axis and scan mode
+are carried by `CumulativeSumAttrs(axis, exclusive, reverse)` rather than stored in the kind.
+
+The semantic pairing is explicit:
+
+```java
+CumulativeSumAttrs attrs = new CumulativeSumAttrs(0, true, false);
+Operation cumulativeSum = new Operation(CumulativeSumKind.CUM_SUM, attrs);
+```
+
+The result is an immutable semantic descriptor for an exclusive forward cumulative sum on
+normalized axis zero. Generic `Operation` retains the exact kind and attributes references, but
+does not enforce their family pairing, input count, axis bounds for a particular shape, or result
+facts. `CumulativeSumAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, and
+rejects a negative axis with `IllegalArgumentException` and message
+`axis must be non-negative: <axis>`. A later Shape-aware expression contract must normalize and
+validate a caller-facing axis before constructing these attributes.
+
+For logical input `[1, 2, 3]`, the complete mode table is:
+
+| `exclusive` | `reverse` | Semantic output | Interpretation |
+|---|---|---|---|
+| `false` | `false` | `[1, 3, 6]` | Forward traversal includes the current value. |
+| `true` | `false` | `[0, 1, 3]` | Forward traversal excludes the current value, so the lowest-index output is additive zero. |
+| `false` | `true` | `[6, 5, 3]` | Reverse traversal includes the current value and accumulates from higher indices. |
+| `true` | `true` | `[5, 3, 0]` | Reverse traversal excludes the current value, so the highest-index output is additive zero. |
+
+The table describes requested mathematics; constructing the kind and attributes does not execute
+these additions. Reverse changes traversal direction, not output order: all four outputs retain
+the same logical index order as the input. Exclusive mode excludes only the current value, and
+its zero is the additive identity at the first traversed position rather than a stored Tensor or
+attribute.
+
+No public `Tensor.cumSum` method exists yet. Task 0016H remains planned for caller-axis
+normalization, numeric input eligibility, shape-preserving descriptor construction, provenance,
+and fresh Tensor identity. Data-type and accumulation policy, empty-axis behavior, numerical edge
+cases, gradients, compiler behavior, storage, backend support, and execution remain with later
+owning contracts.
 
 ### Unary elementwise semantic kinds
 
@@ -3415,11 +3466,11 @@ The following contracts appear in the architecture and planning documents but ar
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, and the current value- and
-  index-producing aggregate operations, plus gradient and trainable state and publication
-  behavior;
+  index-producing aggregate operations, including public cumulative-sum expressions, plus
+  gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, scalar elementwise, conditional selection, cast, and aggregate reduction semantics,
-  plus their family-specific attribute values;
+  elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
+  cumulative-sum scan semantics, plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -3428,7 +3479,7 @@ The following contracts appear in the architecture and planning documents but ar
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
-`MaskedReductionAttrs`,
+`MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
@@ -3436,8 +3487,9 @@ production concrete kind families with matching public Tensor expression constru
 reduction is also a current production semantic family; `sum`, `mean`, `prod`, reduction `min`,
 reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have matching public Tensor
 expression methods, including the masked `sum(axis, mask)` and `mean(axis, mask)` forms. The graph
-records can compose these or test-local semantics, but they do not provide a compiler entry point
-or executable support.
+records can compose these, the current cumulative-sum semantic pair, or test-local semantics, but
+they do not provide a compiler entry point or executable support. Cumulative sum has no public
+Tensor expression method yet.
 
 ## Failures and ownership summary
 
@@ -3471,6 +3523,10 @@ or executable support.
   provenance. Null, type, axis, rank, and alignment failures occur before result identity
   allocation. Construction performs no storage alignment, numerical work, gradient rule,
   compiler behavior, backend behavior, or execution.
+- `CumulativeSumAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the
+  exact message `axis must be non-negative: <axis>`. It retains every non-negative axis and both
+  mode flags unchanged. The value neither validates an input rank nor constructs or executes a
+  Tensor result; `Tensor.cumSum` remains planned.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and
