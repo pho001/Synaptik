@@ -10,9 +10,8 @@ tensors, deterministic population, and explicit-source normal, continuous-unifor
 integral, and Bernoulli random population. The current concrete expression surface contains seven
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
 methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
-floating scalar arithmetic and clamp methods, plus one static conditional-selection method. Typed
-cast semantics are also implemented as a kind plus target-data-type attributes, but no public
-`Tensor.cast` expression exists yet. Typed access, other expression families, gradient objects and
+floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
+explicit cast method. Typed access, other expression families, gradient objects and
 publication behavior, native/runtime/backend allocation, compiler integration, runtime residency,
 and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -45,6 +44,7 @@ BOOL Tensor + NOT                                               = fresh shape-pr
 BOOL condition + true/false floating branches                  = fresh broadcast selection Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
 input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
+input Tensor + target DataType                                 = fresh explicit cast Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -107,8 +107,9 @@ semantic parameters. The implemented `Operation` record keeps those two values t
 `WhereSelectionKind` names one parameterless elementwise conditional-selection meaning with
 ordered condition, true-branch, and false-branch roles.
 `CastKind` names one parameterized elementwise data-type conversion meaning, and `CastAttrs`
-carries its exact non-null target `DataType`. This semantic pair stores no source type and does not
-construct a Tensor or result descriptor.
+carries its exact non-null target `DataType`. The public `Tensor.cast` method composes that pair
+with the receiver's source descriptor to create a fresh storage-free expression for every current
+source/target combination, including a same-type request.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -130,8 +131,8 @@ eligibility. Static `Tensor.where(condition, ifTrue, ifFalse)` requires an exact
 promotes the two floating branches, broadcasts the branches first and the condition with their
 common shape second, and creates a fresh result whose gradient eligibility is the branch-only OR.
 Its provenance preserves the exact ordered condition, true branch, and false branch references.
-`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All six currently
-exposed expression families derive result descriptors, but none assigns graph identity, captures
+`TensorProvenance` retains the exact operation and ordered public-tensor inputs. All seven current
+expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
 
 Comparison expression construction validates floating compatibility and local broadcasting, then
@@ -172,9 +173,9 @@ BFLOAT16 < FLOAT32 < FLOAT64
 ```
 
 `DataTypePromotion.promoteFloating(left, right)` returns the widest input precision. Integral,
-boolean, null, and cross-category inputs are rejected. The implemented cast semantic kind can
-represent an explicit target data type, but public cast expression construction and conversion
-behavior remain planned; promotion never inserts a cast implicitly.
+boolean, null, and cross-category inputs are rejected. The implemented `Tensor.cast` method can
+represent an explicit target data type, but it constructs expression metadata rather than
+converting values; promotion never inserts a cast implicitly.
 
 For example:
 
@@ -1477,7 +1478,7 @@ be used as automatic common-subexpression elimination.
 
 Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
 package-private derived-construction seam used by the implemented binary arithmetic, comparison,
-boolean logical, conditional-selection, unary, and scalar expression helpers attaches one
+boolean logical, conditional-selection, cast, unary, and scalar expression helpers attaches one
 already-validated provenance value, allocates exactly one ID through the existing allocator, and
 creates no storage. The
 factory seam itself does not inspect the operation or inputs, infer a descriptor, traverse an
@@ -1898,6 +1899,134 @@ gradient routing, graph capture, ONNX mapping, backend support, or execution.
   size remain locally unprovable.
 - Validation failures happen before result identity allocation. Exhausting the factory's tensor-ID
   space instead fails after the local descriptor, operation, and provenance values are built.
+
+### Cast expressions
+
+`Tensor.cast(targetDataType)` records an explicit request to convert each logical input value to a
+target data type. The method accepts every ordered pair formed from the six current `DataType`
+values, so all 36 source/target combinations are representable. Representability means the model
+can preserve the request; it does not define the numerical result or promise that a backend can
+execute every pair.
+
+Cast changes the result data type but not its logical dimensions. The result descriptor therefore
+retains the input descriptor's exact immutable `Shape` reference. Its layout is always unresolved,
+including when the input has resolved geometry and when source and target types are equal. A cast
+may change element width, and expression construction does not decide whether storage can be
+reused, copied, or materialized. The result has no label and no host storage.
+
+Result gradient eligibility is true exactly when the input already requests gradients and both
+the source and target data types are floating. This flag is descriptor metadata only. It neither
+creates a backward rule nor promises that a backend supports differentiation through the cast.
+
+Every call returns a fresh Tensor with a new factory identity. A same-type call is still an
+explicit `CAST` expression rather than an early return of the receiver. Repeated calls remain
+distinct, and a chain retains only its immediately preceding Tensor at each provenance link.
+Compiler optimization later owns any legal redundant-cast or cast-chain simplification.
+
+Provenance contains one `Operation` with `CastKind.CAST`, one fresh
+`CastAttrs(targetDataType)`, and the exact one-input list `[input]`. The source type is read from
+the input descriptor and is not duplicated in `CastAttrs`. Construction does not read or mutate
+input storage, convert a value, attach output storage, define rounding or overflow behavior,
+capture a graph, or execute work.
+
+#### Complete cast-expression example
+
+##### Goal and inputs
+
+Build a same-type `FLOAT32` cast from a tensor with resolved dense layout, then cast that explicit
+result to `INT64`. The input requests gradients. The example observes descriptor, identity,
+ownership, and provenance boundaries; it does not observe converted element values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class CastExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        LayoutDescriptor inputLayout = LayoutDescriptor.contiguous(shape);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.of(inputLayout), true));
+
+        Tensor sameType = input.cast(DataType.FLOAT32);
+        Tensor integral = sameType.cast(DataType.INT64);
+        TensorProvenance firstOrigin = sameType.provenance().orElseThrow();
+        TensorProvenance secondOrigin = integral.provenance().orElseThrow();
+        CastAttrs firstAttrs = (CastAttrs) firstOrigin.operation().attrs();
+        CastAttrs secondAttrs = (CastAttrs) secondOrigin.operation().attrs();
+
+        System.out.println("sameTypeFresh=" + (sameType != input));
+        System.out.println("sameShape=" + (integral.descriptor().shape() == shape));
+        System.out.println("layoutUnresolved=" + integral.descriptor().layout().isEmpty());
+        System.out.println("sameTypeRequiresGrad="
+                + sameType.descriptor().requiresGrad());
+        System.out.println("integralRequiresGrad="
+                + integral.descriptor().requiresGrad());
+        System.out.println("unlabeled=" + integral.label().isEmpty());
+        System.out.println("storageFree=" + integral.hostStorage().isEmpty());
+        System.out.println("firstKind=" + firstOrigin.operation().kind());
+        System.out.println("firstTarget=" + firstAttrs.targetDataType());
+        System.out.println("firstInput=" + (firstOrigin.inputs().getFirst() == input));
+        System.out.println("secondTarget=" + secondAttrs.targetDataType());
+        System.out.println("immediateInput="
+                + (secondOrigin.inputs().getFirst() == sameType));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- The input has a resolved dense layout, but `input.cast(DataType.FLOAT32)` creates a fresh
+  same-type result whose layout is unresolved. The method records the request instead of returning
+  `input` or claiming physical storage reuse.
+- The same-type floating cast retains the true gradient request. Casting that result to `INT64`
+  sets eligibility to false because the target is not floating.
+- Both results retain the exact `shape` object. The first provenance link points to `input`; the
+  second points to `sameType`, so the chain remains explicit and local.
+- Each operation uses `CAST`; its `CastAttrs` stores only the exact target data type.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+sameTypeFresh=true
+sameShape=true
+layoutUnresolved=true
+sameTypeRequiresGrad=true
+integralRequiresGrad=false
+unlabeled=true
+storageFree=true
+firstKind=CAST
+firstTarget=FLOAT32
+firstInput=true
+secondTarget=INT64
+immediateInput=true
+```
+
+The output proves fresh same-type identity, exact shape-reference retention, unresolved result
+layout, the gradient-eligibility boundary, absent result label/storage, typed target attributes,
+and immediate-input provenance. It does not prove how any `FLOAT32` value becomes `INT64`, whether
+rounding or saturation occurs, whether a compiler removes the first cast, or whether a backend can
+execute either request.
+
+##### Failures and useful variations
+
+- A null target fails with `NullPointerException` and message `targetDataType` before result
+  identity allocation.
+- Scalar, zero-sized, fully static, and dynamic shapes are accepted without shape reconstruction.
+- Integral-to-floating, BOOL-to-floating, integral-to-integral, and BOOL-related casts are valid
+  expressions but always have false gradient eligibility because the source or target is
+  non-floating.
+- Exhausting the factory's tensor-ID space fails after the local descriptor, attributes,
+  operation, and provenance values are built.
 
 ### Unary elementwise expressions
 
@@ -2490,12 +2619,13 @@ checks only that both components are non-null; it does not enforce the documente
 `NullPointerException` and message `targetDataType`.
 
 One logical input and elementwise conversion are family context rather than stored arity or input
-state. These contracts do not define source-to-target compatibility, same-type behavior, a result
-descriptor, shape preservation, numerical conversion rules, gradients, provenance, compiler
-capture, execution, or backend availability. In particular, accepting every target type is a
-representability contract, not a promise that every backend implements every conversion. Enum and
-record text remain diagnostic rather than serialization or dispatch contracts. Public
-`Tensor.cast(DataType)` expression construction remains planned.
+state. The current `Tensor.cast(DataType)` method separately owns source-descriptor inspection,
+exact shape retention, unresolved result layout, floating-only gradient eligibility, fresh
+same-type identity, and one-input provenance. Neither the semantic pair nor expression
+construction defines numerical conversion rules, gradient rules, compiler capture, execution, or
+backend availability. Accepting every target type is a representability contract, not a promise
+that every backend implements every conversion. Enum and record text remain diagnostic rather than
+serialization or dispatch contracts.
 
 ### Unary elementwise semantic kinds
 
@@ -2626,7 +2756,8 @@ provide parameterless families, and
 kind families, compiler behavior, and executable support remain later work in their owning layers.
 Binary arithmetic, binary comparison, unary elementwise, and
 scalar elementwise semantics have current public Tensor expression methods, as do boolean logical
-and conditional-selection semantics.
+and conditional-selection semantics. Cast semantics also have current public Tensor expression
+construction.
 
 ## Graph values and compiled nodes
 
@@ -2795,8 +2926,8 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, unary elementwise, and scalar elementwise operations, including the public cast
-  expression, plus gradient and trainable state and publication behavior;
+  selection, cast, unary elementwise, and scalar elementwise operations, plus gradient and
+  trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, and cast semantics, plus their
   family-specific attribute values;
@@ -2810,8 +2941,8 @@ The following contracts appear in the architecture and planning documents but ar
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
-production concrete kind families. The first six families have matching public Tensor expression
-construction; cast does not. The graph records can compose these or test-local semantics, but they
+production concrete kind families. All seven families have matching public Tensor expression
+construction. The graph records can compose these or test-local semantics, but they
 do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
@@ -2825,6 +2956,12 @@ do not provide a compiler entry point or executable support.
 - `CastAttrs` rejects a null target data type with `NullPointerException("targetDataType")`,
   retains every valid `DataType` reference unchanged, and performs no source compatibility,
   conversion, or backend-capability validation.
+- `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
+  successful call returns a fresh unlabeled storage-free expression, including for a same-type
+  request, with the exact input Shape reference, unresolved layout, typed target attributes, and
+  exact one-input provenance. Gradient eligibility survives only an already-eligible
+  floating-to-floating cast. Construction neither reads values/storage nor defines conversion,
+  canonicalization, gradient-rule, compiler, or backend behavior.
 - `TensorDescriptor` rejects null components, resolved layouts incompatible with their paired
   shape, and gradient requests for non-differentiable data types. Layout reconstruction can report
   checked arithmetic overflow.

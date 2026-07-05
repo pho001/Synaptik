@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0015H Cast Tensor expression — Draft; no detailed specification yet
+- 0016 Reduction and scan operations — Draft; no detailed specification yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -71,8 +71,11 @@ BOOL/floating validation, ordered pairwise broadcasting, branch-only gradient el
 three-input provenance without value selection or execution. Task
 [0015G](modules/model/tasks/0015g-cast-semantic-kind-and-attributes.md) is complete. It adds the
 exact `CAST` semantic identity and immutable target-data-type attributes without public Tensor
-construction, inference, conversion policy, gradients, or execution. Task 0015H is the next Draft
-planning frontier and remains without a detailed specification.
+construction, inference, conversion policy, gradients, or execution. Task
+[0015H](modules/model/tasks/0015h-cast-tensor-expression.md) is complete. It adds a fresh explicit
+storage-free expression for every current source/target pair, including same-type requests, while
+leaving conversion, canonicalization, gradient rules, and execution to their owning layers. Task
+0016 is the next Draft planning frontier and has no detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -155,7 +158,7 @@ authorized Compile API status correction.
 | 37 | [0015E Where selection semantic kind](modules/model/tasks/0015e-where-selection-semantic-kind.md) | Complete |
 | 38 | [0015F Where selection Tensor expression](modules/model/tasks/0015f-where-selection-tensor-expression.md) | Complete |
 | 39 | [0015G Cast semantic kind and attributes](modules/model/tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete |
-| 40 | 0015H Cast Tensor expression | Draft |
+| 40 | [0015H Cast Tensor expression](modules/model/tasks/0015h-cast-tensor-expression.md) | Complete |
 | 41 | 0016 Reduction and scan operations | Draft |
 | 42 | 0017 Layout and view operations | Draft |
 | 43 | 0018 Indexing and scatter operations | Draft |
@@ -201,8 +204,11 @@ result construction, and provenance work. Task 0015F completed that public expre
 the current BOOL, floating-promotion, pairwise-broadcast, descriptor, provenance, and
 derived-construction contracts without changing module boundaries or foundational APIs. Task
 0015G completed the typed cast identity and target data-type parameter while isolating them from
-task 0015H's later Tensor/result construction and conversion-policy decisions. Task 0015H is now
-the next Draft planning frontier and has no detailed specification.
+task 0015H's Tensor/result construction and conversion-policy decisions. Task 0015H completed that
+public Tensor construction with exact Shape retention, floating-only gradient eligibility, and a
+fresh explicit cast for every valid request. Compiler work later owns redundant same-type and
+cast-chain canonicalization. Task 0016 is now the next Draft planning frontier without a detailed
+specification.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

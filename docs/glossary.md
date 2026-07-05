@@ -50,9 +50,12 @@ Value selection, gradient routing and rules, compiler capture, ONNX/backend exec
 scalar-index `select` remain separate or planned concerns.
 The parameterized `CastKind` vocabulary is implemented with the sole `CAST` identity, together
 with `CastAttrs` carrying one exact non-null target `DataType`. All six current data types are
-representable targets, but source type, public `Tensor.cast`, result inference, same-type and
-numerical conversion behavior, gradients, provenance, compiler capture, and backend execution
-remain planned or separately owned.
+representable targets, and public `Tensor.cast` now creates a fresh explicit storage-free
+expression for all 36 source/target pairs. It retains the exact input Shape, leaves layout
+unresolved, preserves a true gradient request only for floating-to-floating casts, and records
+typed target attributes plus exact one-input provenance. Numerical conversion behavior, gradient
+rules, compiler capture and canonicalization, and backend execution remain planned or separately
+owned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -96,6 +99,21 @@ The graph of gradient computations derived by autograd from a forward graph. It 
 ### Broadcasting
 
 A shape rule that combines compatible inputs by aligning axes from the right and expanding static singleton dimensions as needed. In the implemented local shape model, equal dimensions remain equal, size `1` expands to the opposing dimension, and symbolic compatibility must be provable from equal names or a singleton. Broadcasting describes logical repetition; a resolved layout may represent that repetition with a zero element stride.
+
+### Cast expression
+
+An implemented public `Tensor.cast(targetDataType)` request that records elementwise conversion
+metadata without converting a value. Every current source/target data-type pair is representable.
+The result is a fresh unlabeled, storage-free [`Tensor`](#tensor), including when source and target
+types are equal. It retains the input descriptor's exact [`Shape`](#shape), leaves layout
+unresolved, and records `CastKind.CAST`, `CastAttrs(targetDataType)`, and the exact input as its
+sole [provenance](#provenance) reference.
+
+Gradient eligibility survives only when it was already requested and both source and target are
+floating. That descriptor fact is not a gradient rule or backend differentiability promise.
+Numerical conversion, redundant-cast and cast-chain canonicalization, autograd expansion, backend
+support, and execution belong to later owning layers. A cast expression is therefore not converted
+storage, a compiler graph node, or proof that a requested conversion can execute.
 
 ### Compile
 
@@ -339,9 +357,11 @@ identifies parameterized elementwise conversion of one logical input and pairs w
 whose sole component is the exact non-null target `DataType`. Every current data type is a valid
 target. The source type remains a fact of the later input descriptor rather than duplicated
 attribute state, and generic `Operation` does not enforce the family pairing. The kind and
-attributes define no public Tensor expression, source compatibility, same-type handling, result
-descriptor, numerical conversion rules, gradients, provenance, compiler capture, execution, or
-backend support. Their text forms are diagnostic rather than serialization or dispatch contracts.
+attributes alone define no source compatibility, same-type handling, result descriptor, numerical
+conversion rules, gradients, provenance, compiler capture, execution, or backend support. The
+implemented public `Tensor.cast` method separately owns fresh expression construction, exact shape
+retention, unresolved layout, floating-only eligibility retention, and one-input provenance. Their
+text forms are diagnostic rather than serialization or dispatch contracts.
 
 ### Partition
 
@@ -389,7 +409,9 @@ receiver as its one input. The implemented floating unary methods use the exact 
 `UnaryElementwiseKind` and canonical no-attributes value, also with exactly the receiver as their
 one input. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and retains exact ordered inputs
 `[condition, ifTrue, ifFalse]`, including repeated branch references. These construction paths do
-not change provenance's general role or make it graph membership.
+not change provenance's general role or make it graph membership. `Tensor.cast` uses
+`CastKind.CAST`, retains its exact target in `CastAttrs`, and records exactly the receiver as its
+one immediate input, including in same-type and chained requests.
 
 ### Publication binding
 
@@ -468,9 +490,14 @@ BOOL condition and two floating branches. It promotes the branch types, broadcas
 before combining the condition shape, creates a fresh unresolved storage-free result with
 branch-only gradient eligibility, and records exact ordered
 `[condition, ifTrue, ifFalse]` provenance. It does not inspect values, choose or evaluate a branch,
-define gradient routing, capture a graph, or execute selection. The current fifteen zero-argument
-unary methods also create fresh floating expression tensors. They retain the exact input data type
-and Shape,
+define gradient routing, capture a graph, or execute selection. The current `cast` method accepts
+all current source/target pairs and creates a fresh explicit result even for a same-type request. It
+retains the exact input Shape, leaves layout unresolved, retains gradient eligibility only across
+an already-eligible floating-to-floating cast, and records typed target attributes plus exact
+one-input provenance. It does not inspect or convert values/storage, define numerical or gradient
+rules, canonicalize casts, capture a graph, or execute conversion. The current fifteen
+zero-argument unary methods also create fresh floating expression tensors. They retain the exact
+input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
 plus exactly one input reference without domain checks or canonicalization. The current scalar
 `mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
@@ -725,7 +752,8 @@ The implemented standalone `PublicationBinding` connects the two identity domain
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
 descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
 comparison, unary, and scalar Tensor expression construction are implemented, as is BOOL-only
-logical expression construction. Gradient rules and objects, compiler graph
+logical expression construction and explicit cast expression construction. Gradient rules and
+objects, compiler graph
 capture, numerical execution, and publication behavior are not part of the current Tensor
 contract.
 
@@ -758,8 +786,8 @@ values identifies where computation occurs in a graph; an implemented [node](#no
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
 unary elementwise, scalar elementwise, and cast kinds are implemented. Arithmetic, unary, scalar,
 and comparison public Tensor construction paths are also implemented, together with boolean
-logical and conditional-selection Tensor construction. Cast has semantic kind and attributes but
-no public Tensor construction yet. Other concrete families, their family-specific attributes,
+logical, conditional-selection, and cast Tensor construction. Other concrete families, their
+family-specific attributes,
 compiler capture, and execution remain planned. The compiled graph container is implemented model
 state.
 

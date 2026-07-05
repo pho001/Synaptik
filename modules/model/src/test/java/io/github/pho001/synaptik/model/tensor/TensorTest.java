@@ -78,7 +78,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(45, declaredPublicMethods.size());
+        assertEquals(46, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -86,7 +86,7 @@ class TensorTest {
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
-                        "logicalAnd", "logicalOr", "logicalNot", "where"),
+                        "logicalAnd", "logicalOr", "logicalNot", "where", "cast"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -146,6 +146,15 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(where.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(where.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(where.getModifiers())));
+
+        var cast = Tensor.class.getDeclaredMethod("cast", DataType.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, cast.getReturnType()),
+                () -> assertEquals(
+                        List.of(DataType.class), Arrays.asList(cast.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(cast.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(cast.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(cast.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

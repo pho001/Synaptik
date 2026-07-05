@@ -144,7 +144,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015E | [Where selection semantic kind](tasks/0015e-where-selection-semantic-kind.md) | Complete | 0005, 0006 | Define parameterless ternary conditional selection semantics. |
 | 0015F | [Where selection Tensor expression](tasks/0015f-where-selection-tensor-expression.md) | Complete | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
 | 0015G | [Cast semantic kind and attributes](tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
-| 0015H | Cast Tensor expression | Draft | 0001, 0013, 0015G | Build explicit cast expressions without eager conversion. |
+| 0015H | [Cast Tensor expression](tasks/0015h-cast-tensor-expression.md) | Complete | 0001, 0013, 0015G | Build fresh explicit cast expressions without eager conversion or model-time canonicalization. |
 | 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
@@ -165,8 +165,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 
 ## Current status
 
-Draft, with tasks 0014A through 0015G complete and the post-0014B vertical-slice reassessment
-recorded. Task 0015H is the next Draft planning frontier and has no detailed specification.
+Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
+recorded. Task 0016 is the next Draft planning frontier and has no detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -400,8 +400,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   or execution.
 - Task 0015G adds `CastKind.CAST` and immutable `CastAttrs(targetDataType)` in
   `model.operation.elementwise.cast`. The target is required and may be any current DataType;
-  source type, same-type behavior, result descriptors, conversion policy, gradients, provenance,
-  public `Tensor.cast`, and execution remain in task 0015H or later owning layers.
+  source type, same-type behavior, result descriptors, gradient eligibility, provenance, and
+  public `Tensor.cast` were assigned to task 0015H; conversion policy, gradient rules, and
+  execution remain in later owning layers.
+- Task 0015H implements fluent `Tensor.cast(DataType)` through one package-private helper. Every
+  current source/target pair creates a fresh explicit storage-free expression, including same-type
+  requests; the result retains the exact Shape, leaves layout unresolved, and retains gradient
+  eligibility only for an already-eligible floating-to-floating cast. Legacy same-type input
+  return is deliberately replaced by compiler-owned redundant-cast canonicalization.
+- The independent task-0015H documentation review found the Tensor and helper Javadocs complete,
+  then finalized the Tensor API, Compile API current-expression inventory, glossary, task evidence,
+  master plan, and roadmap. Training API, capabilities, architecture/ADRs/tests, conformance and
+  integration tests, Java 26 build configuration, foundational contracts, and existing expression
+  families remain accurate unchanged because this task adds only model-owned cast expression
+  construction without numerical conversion, gradient rules, compiler canonicalization, backend
+  behavior, dependencies, or execution.
 - The independent task-0015G documentation review found the enum and record Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
   Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
@@ -492,7 +505,8 @@ logical semantic kinds, and task 0015D completed their public BOOL-only binary/u
 expression construction. Task 0015E completed the sole parameterless `WHERE` conditional-selection
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
-Task 0015H is the next Draft planning frontier and remains without a detailed specification; all
-later operation-family tasks also remain Draft.
+Task 0015H completed its public storage-free Tensor expression construction. Task 0016 is the next
+Draft planning frontier without a detailed specification; all later operation-family tasks also
+remain Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

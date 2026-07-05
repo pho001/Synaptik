@@ -1,6 +1,9 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
@@ -30,10 +33,10 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
  * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
- * boolean logical, conditional selection, parameterized scalar, and unary elementwise expression
- * methods create fresh storage-free tensors whose immutable provenance records the requested
- * semantics and exact inputs; they do not execute mathematics, validate numerical domains, create
- * gradient rules, or capture a graph.
+ * boolean logical, conditional selection, explicit cast, parameterized scalar, and unary
+ * elementwise expression methods create fresh storage-free tensors whose immutable provenance
+ * records the requested semantics and exact inputs; they do not execute mathematics, validate
+ * numerical domains, create gradient rules, or capture a graph.
  * Binary arithmetic methods promote floating operands, broadcast shapes, and combine gradient
  * eligibility by logical OR. Binary comparison methods validate the same floating compatibility
  * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Boolean
@@ -41,12 +44,15 @@ import java.util.Optional;
  * while negation retains the exact input shape. Their results are also non-differentiable
  * {@code BOOL} descriptors. Conditional selection accepts one {@code BOOL} condition and two
  * floating branches, promotes the branch type, composes two pairwise broadcasts, and propagates
- * gradient eligibility from the branches only. Scalar and unary methods accept one floating input
- * and retain its exact data type, shape reference, and gradient eligibility. Scalar methods retain
- * their exact binary64 parameters in typed attributes. Every expression result leaves layout
- * unresolved, has a fresh factory identity and no label or storage, and records an exact matching
+ * gradient eligibility from the branches only. Cast accepts every current source and target data
+ * type, retains the exact input shape, and preserves a true gradient request only across a
+ * floating-to-floating conversion. Scalar and unary methods accept one floating input and retain
+ * its exact data type, shape reference, and gradient eligibility. Scalar methods retain their
+ * exact binary64 parameters in typed attributes. Every expression result leaves layout unresolved,
+ * has a fresh factory identity and no label or storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
- * {@link WhereSelectionKind}, {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
+ * {@link WhereSelectionKind}, {@link CastKind}, {@link ScalarElementwiseKind}, or
+ * {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -960,6 +966,37 @@ public final class Tensor {
      */
     public Tensor fastTanh() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FAST_TANH);
+    }
+
+    /**
+     * Builds an explicit elementwise expression that converts this tensor to
+     * {@code targetDataType}.
+     *
+     * <p>Every current source and target data-type pair is representable, including a request for
+     * the receiver's existing type. The fresh result retains the receiver descriptor's exact
+     * immutable shape reference, leaves layout unresolved, has no label or host storage, and
+     * records {@link CastKind#CAST}, a new {@link CastAttrs} containing the exact target, and this
+     * tensor as its sole provenance input. Gradient eligibility remains true only when the
+     * receiver already requests gradients and both source and target types are floating.</p>
+     *
+     * <p>A same-type request deliberately creates a fresh explicit expression rather than
+     * returning this tensor. Compiler optimization later owns redundant-cast elimination. This
+     * method records model semantics only: it does not inspect or convert values, preserve
+     * resolved layout, allocate storage, define numerical conversion policy or a cast-back
+     * gradient rule, promise backend differentiability, capture a graph, or execute work.</p>
+     *
+     * @param targetDataType non-null requested result data type; the exact enum reference is
+     *     retained in cast attributes
+     * @return a non-null fresh derived tensor with the target data type, exact input shape,
+     *     unresolved layout, derived gradient eligibility, exact one-input provenance, and no
+     *     label or host storage
+     * @throws NullPointerException if {@code targetDataType} is null, with message
+     *     {@code targetDataType}; this failure consumes no Tensor identity
+     * @throws IllegalStateException if tensor identifier space is exhausted after the cast's local
+     *     immutable model values have been constructed
+     */
+    public Tensor cast(DataType targetDataType) {
+        return TensorCastExpressions.apply(this, targetDataType);
     }
 
     /**
