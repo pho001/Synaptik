@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -78,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(67, declaredPublicMethods.size());
+        assertEquals(70, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -87,7 +88,7 @@ class TensorTest {
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any"),
+                        "mean", "prod", "all", "any", "argMax"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -178,6 +179,20 @@ class TensorTest {
                             List.of(int.class, boolean.class),
                             Arrays.asList(retained.getParameterTypes())));
         }
+
+        assertAll(
+                () -> assertEquals(
+                        Tensor.class,
+                        Tensor.class.getDeclaredMethod("argMax", int.class).getReturnType()),
+                () -> assertEquals(
+                        Tensor.class,
+                        Tensor.class.getDeclaredMethod("argMax", int.class, boolean.class)
+                                .getReturnType()),
+                () -> assertEquals(
+                        Tensor.class,
+                        Tensor.class.getDeclaredMethod(
+                                        "argMax", int.class, boolean.class, ArgMaxTiePolicy.class)
+                                .getReturnType()));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016E Arg-max Tensor expressions — Draft; no detailed specification exists yet
+- 0016F Masked sum and mean Tensor expressions — Draft; no detailed specification exists yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -89,6 +89,9 @@ empty-domain, tie-gradient, compiler, and execution behavior. Task
 [0016D](modules/model/tasks/0016d-boolean-all-and-any-tensor-expressions.md) is complete. It
 generalizes the same six-method helper with kind-aware numeric/BOOL validation and adds full and
 one-axis all/any expressions while deferring truth evaluation and empty-domain identity.
+Task [0016E](modules/model/tasks/0016e-arg-max-tensor-expressions.md) is complete. It adds axis-only
+numeric arg-max construction with explicit tie semantics, fixed INT64 results, and a dedicated
+helper while leaving value comparison and execution deferred.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -176,7 +179,7 @@ authorized Compile API status correction.
 | 42 | [0016B Sum, mean, and product Tensor expressions](modules/model/tasks/0016b-sum-mean-and-product-tensor-expressions.md) | Complete |
 | 43 | [0016C Min and max Tensor reduction expressions](modules/model/tasks/0016c-min-and-max-tensor-reduction-expressions.md) | Complete |
 | 44 | [0016D Boolean all and any Tensor expressions](modules/model/tasks/0016d-boolean-all-and-any-tensor-expressions.md) | Complete |
-| 45 | 0016E Arg-max Tensor expressions | Draft |
+| 45 | [0016E Arg-max Tensor expressions](modules/model/tasks/0016e-arg-max-tensor-expressions.md) | Complete |
 | 46 | 0016F Masked sum and mean Tensor expressions | Draft |
 | 47 | 0016G Cumulative-sum semantic kind and attributes | Draft |
 | 48 | 0016H Cumulative-sum Tensor expressions | Draft |
@@ -231,10 +234,10 @@ public Tensor construction with exact Shape retention, floating-only gradient el
 fresh explicit cast for every valid request. Compiler work later owns redundant same-type and
 cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J so
 aggregate semantics, focused Tensor expression groups, masked reductions, cumulative scan, and
-softmax do not share one oversized task. Tasks 0016A through 0016D are complete. Task 0016E is the
-next Draft planning frontier and remains without a detailed specification. Completed task 0016D
-generalizes the shared aggregate construction boundary for exact BOOL all/any while preserving
-numeric contracts and adding no truth execution, empty-domain policy, or gradient rules.
+softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Task 0016F is the
+next Draft planning frontier without a detailed specification. Completed task 0016E adds fixed-
+INT64, one-axis arg-max expression metadata without changing the ordinary reduction helper or
+adding value comparison, empty-axis policy, or execution.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

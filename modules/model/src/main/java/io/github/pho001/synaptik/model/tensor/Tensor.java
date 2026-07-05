@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,9 +52,12 @@ import java.util.Optional;
  * floating-to-floating conversion. Numeric aggregate methods accept one floating input and reduce
  * either every axis to a scalar or one normalized axis, optionally retaining it with extent one;
  * they preserve the exact input type and gradient eligibility without aggregating values. Boolean
- * aggregate methods require exact BOOL input and construct non-differentiable BOOL
- * results with the same full- or single-axis shape rules, without inspecting truth values or
- * defining empty-domain identities.
+     * aggregate methods require exact BOOL input and construct non-differentiable BOOL
+     * results with the same full- or single-axis shape rules, without inspecting truth values or
+     * defining empty-domain identities.
+     * Arg-max accepts one axis of a floating or integral input, uses an explicit first- or
+     * last-index tie policy, and produces a non-differentiable {@code INT64} result without
+     * comparing values or defining empty-axis behavior.
  * Scalar and unary methods accept one floating input and retain its exact data type, shape
  * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
  * typed attributes.
@@ -1592,6 +1596,118 @@ public final class Tensor {
     public Tensor any(int axis, boolean keepDimensions) {
         return TensorReductionExpressions.applyAxis(
                 this, AggregateReductionKind.ANY, axis, keepDimensions);
+    }
+
+    /**
+     * Builds an arg-max expression that removes one selected axis and requests the first index
+     * when maximum values are equal.
+     *
+     * <p>This tensor must have a floating or integral data type. The positive or negative
+     * {@code axis} is normalized exactly once, then removed from the result. Removing the sole
+     * axis of a rank-one input produces the canonical scalar shape, and every unaffected static
+     * or dynamic dimension reference is retained. The convenience policy is explicitly
+     * {@link ArgMaxTiePolicy#FIRST_INDEX}; {@code ArgMaxAttrs} itself supplies no default.</p>
+     *
+     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
+     * unresolved layout, no label or host storage, and one-input provenance containing
+     * {@link AggregateReductionKind#ARG_MAX} with the normalized axis, false retention flag, and
+     * first-index policy. Static zero extents and dynamic dimensions are accepted structurally.
+     * This method does not compare values, select an index, define NaN, signed-zero, infinity,
+     * equality, or empty-axis behavior, create a gradient rule, capture a graph, report backend
+     * support, or execute work.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @return a non-null fresh storage-free INT64 tensor whose selected axis is removed, with
+     *     false gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
+     *     with a message containing the rejected type; this check precedes axis validation and
+     *     consumes no Tensor identity
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input; this failure consumes no Tensor identity
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor argMax(int axis) {
+        return TensorArgMaxExpressions.apply(
+                this, axis, false, ArgMaxTiePolicy.FIRST_INDEX);
+    }
+
+    /**
+     * Builds an arg-max expression with optional selected-axis retention and an explicit
+     * first-index convenience policy.
+     *
+     * <p>This tensor must have a floating or integral data type. Its positive or negative
+     * {@code axis} is normalized exactly once. A false {@code keepDimensions} removes that axis;
+     * true replaces it with a new static extent of one while retaining every unaffected static
+     * or dynamic dimension reference. Rank-one removal produces the canonical scalar shape. The
+     * convenience overload supplies {@link ArgMaxTiePolicy#FIRST_INDEX} directly rather than
+     * weakening the explicit-policy requirement of {@code ArgMaxAttrs}.</p>
+     *
+     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
+     * unresolved layout, no label or host storage, and exact one-input
+     * {@link AggregateReductionKind#ARG_MAX} provenance. Static zero extents and dynamic
+     * dimensions are accepted without defining a maximum index for an empty selected axis. No
+     * value comparison, selected index, NaN, equality, empty-axis, gradient, compiler, backend,
+     * or execution behavior is provided.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free INT64 tensor with the requested result shape, false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
+     *     with a message containing the rejected type; this check precedes axis validation and
+     *     consumes no Tensor identity
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input; this failure consumes no Tensor identity
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor argMax(int axis, boolean keepDimensions) {
+        return TensorArgMaxExpressions.apply(
+                this, axis, keepDimensions, ArgMaxTiePolicy.FIRST_INDEX);
+    }
+
+    /**
+     * Builds an arg-max expression with explicit selected-axis retention and tie-selection policy.
+     *
+     * <p>The non-null {@code tiePolicy} is validated before input type or axis and retained by
+     * exact enum reference in {@code ArgMaxAttrs}. This tensor must have a floating or integral
+     * data type. Its positive or negative {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
+     * of one while retaining every unaffected static or dynamic dimension reference. Rank-one
+     * removal produces the canonical scalar shape.</p>
+     *
+     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
+     * unresolved layout, no label or host storage, and one-input provenance containing
+     * {@link AggregateReductionKind#ARG_MAX} with the normalized axis, exact retention flag, and
+     * exact policy. Dynamic dimensions and zero extents are accepted structurally without
+     * promising a valid maximum index for an empty selected axis. This method does not compare
+     * values, select an index, define NaN, signed-zero, infinity, equality, or empty-axis behavior,
+     * create a gradient rule, capture a graph, report backend support, or execute work.</p>
+     *
+     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
+     *     count from the final axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @param tiePolicy non-null explicit first- or last-index tie policy retained by exact enum
+     *     reference in result attributes
+     * @return a non-null fresh storage-free INT64 tensor with the requested result shape, false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws NullPointerException if {@code tiePolicy} is null, with message {@code tiePolicy};
+     *     this check precedes input-type and axis validation and consumes no Tensor identity
+     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
+     *     with a message containing the rejected type; this check precedes axis validation and
+     *     consumes no Tensor identity
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
+     *     every axis for a scalar input; this failure consumes no Tensor identity
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor argMax(int axis, boolean keepDimensions, ArgMaxTiePolicy tiePolicy) {
+        return TensorArgMaxExpressions.apply(this, axis, keepDimensions, tiePolicy);
     }
 
     /**

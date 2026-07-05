@@ -35,7 +35,8 @@ The public `Tensor` model is also current. Its seven binary arithmetic methods, 
 comparison methods, three boolean logical methods, fifteen unary elementwise methods, and five
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
-methods construct storage-free expressions with immutable operation-and-input provenance.
+methods, plus three axis-only `argMax` methods, construct storage-free expressions with immutable
+operation-and-input provenance.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -60,6 +61,12 @@ expressions with exact BOOL result type, false gradient eligibility, unresolved 
 one-input provenance. Aggregate `ALL`/`ANY` remain typed separately from elementwise `AND`/`OR`.
 Construction does not inspect truth values or define empty-domain identities, compiler behavior,
 backend support, or execution.
+`Tensor.argMax` accepts floating or integral input and one positive or negative axis. Its
+convenience forms explicitly use `FIRST_INDEX`, while the complete form retains an explicit
+first- or last-index policy. Axis removal or retention follows the same structural Shape rules as
+ordinary reductions, but every result is fixed unresolved-layout INT64 with false gradient
+eligibility and one-input provenance. Construction does not compare values, select an index, or
+define NaN, equality, empty-axis, gradient, compiler, backend, or execution behavior.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -76,10 +83,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
   Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary, scalar, numeric aggregate expression construction for sum, mean,
-  product, minimum, and maximum, and boolean aggregate expression construction for all and any are
-  implemented; the compiler entry point, traversal, capture, reduction inference and
-  canonicalization, redundant-cast canonicalization, and conversion into graph values and nodes
-  remain planned.
+  product, minimum, and maximum, boolean aggregate expression construction for all and any, and
+  axis-only arg-max construction are implemented; the compiler entry point, traversal, capture,
+  reduction inference and canonicalization, redundant-cast canonicalization, and conversion into
+  graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

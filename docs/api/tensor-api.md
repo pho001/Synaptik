@@ -13,15 +13,15 @@ methods, three BOOL-only logical methods, fifteen floating unary elementwise met
 floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
 explicit cast method. Fifteen floating aggregate methods add full, one-axis, and retained-axis
 `sum`, `mean`, `prod`, reduction `min`, and reduction `max` expression construction. Six BOOL
-aggregate methods add the same three forms for `all` and `any`. Typed access, other expression
-families, gradient objects and publication behavior, native/runtime/backend allocation, compiler
-integration, runtime residency, and backend execution remain planned. The authoritative module
-boundary remains
+aggregate methods add the same three forms for `all` and `any`, and three axis-only `argMax`
+methods add fixed INT64 index results. Typed access, other expression families, gradient objects
+and publication behavior, native/runtime/backend allocation, compiler integration, runtime
+residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
-logical, conditional-selection, unary, scalar, and numeric or boolean aggregate expressions, and
-provide one bounded host-allocation path without executing a tensor:
+logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
+expressions, and provide one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -50,6 +50,7 @@ input Tensor + scalar kind + exact double attributes           = fresh descripto
 input Tensor + target DataType                                 = fresh explicit cast Tensor
 floating Tensor + numeric aggregate kind + full/axis attributes = fresh reduced-shape Tensor
 BOOL Tensor + ALL/ANY + full/axis attributes                    = fresh reduced-shape BOOL Tensor
+numeric Tensor + ARG_MAX + axis/tie attributes                  = fresh reduced-shape INT64 Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -123,9 +124,10 @@ forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negati
 means "all axes." `ArgMaxAttrs` carries the normalized axis, retained-dimension choice, and an
 explicit `ArgMaxTiePolicy`. These reduction semantics are implemented, and public Tensor reduction
 methods currently cover `sum`, `mean`, `prod`, reduction `min`, reduction `max`, boolean `all`,
-and boolean `any`. Their full forms produce a canonical rank-zero scalar; their axis forms
-normalize the caller axis, then remove it or retain it with extent one. `argMax`, numerical or
-truth evaluation, empty-domain identities, gradients, and execution remain planned.
+boolean `any`, and numeric `argMax`. Ordinary full forms produce a canonical rank-zero scalar;
+all axis forms normalize the caller axis, then remove it or retain it with extent one. `argMax`
+has no full form, accepts floating and integral inputs, and produces fixed INT64 results.
+Numerical or truth evaluation, empty-domain behavior, gradients, and execution remain planned.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -156,6 +158,10 @@ gradient rule exists.
 input. They use the same shape and provenance rules, produce exact BOOL with false gradient
 eligibility, and do not inspect truth values or define empty-domain identities. Aggregate ALL and
 ANY remain typed separately from elementwise AND and OR.
+`Tensor.argMax` constructs single-axis index-producing expressions from floating or integral
+input. Its two convenience forms explicitly use `FIRST_INDEX`, while the complete form retains an
+explicit first- or last-index policy. Every result is exact INT64 with false gradient eligibility;
+construction does not compare values, select an index, or define empty-axis behavior.
 `TensorProvenance` retains the exact operation and ordered public-tensor inputs. All eight current
 expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
@@ -2494,6 +2500,47 @@ Failure behavior is local and deterministic:
 - Repeated and nested calls always create fresh expression tensors; no truth simplification,
   canonicalization, or common-subexpression elimination occurs here.
 
+### Arg-max expressions
+
+The three current `argMax` methods build index-producing aggregate metadata along exactly one
+input axis:
+
+| Public form | Retained dimension | Tie policy |
+|---|---|---|
+| `argMax(axis)` | Removed | Explicitly supplies `FIRST_INDEX` |
+| `argMax(axis, keepDimensions)` | Caller choice | Explicitly supplies `FIRST_INDEX` |
+| `argMax(axis, keepDimensions, tiePolicy)` | Caller choice | Exact non-null caller policy |
+
+The two convenience forms choose the smallest logical index among equal maxima by passing
+`ArgMaxTiePolicy.FIRST_INDEX` to the shared construction boundary. This is a public-overload
+convenience, not an implicit default in `ArgMaxAttrs`: the semantic attribute record continues to
+require an explicit non-null policy. The complete overload also accepts `LAST_INDEX`, which
+requests the largest logical index among equal maxima.
+
+Every form accepts `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, or `INT64` input and rejects BOOL;
+numeric inputs are neither promoted nor converted. The positive or negative caller axis is
+normalized exactly once against the input `Shape`. A false `keepDimensions` removes the selected
+axis; true replaces only that axis with a new static extent of one. Removing the sole axis of a
+rank-one tensor produces the canonical scalar shape. Every unaffected static or dynamic
+`Dimension` object is retained by exact reference.
+
+Every result is a fresh `DataType.INT64` Tensor with false gradient eligibility, unresolved
+layout, no label, and no host storage. Provenance records
+`AggregateReductionKind.ARG_MAX`, one `ArgMaxAttrs(normalizedAxis, keepDimensions, tiePolicy)`,
+and exactly the receiver as its sole input. Repeated or nested calls are not simplified or
+canonicalized.
+
+Construction accepts dynamic dimensions and zero extents structurally, including a zero selected
+axis, without claiming that a maximum index exists. It does not read storage, compare values,
+select an index, or define ordering for NaN, signed zero, infinity, or equality. Empty-axis
+behavior, gradients, graph capture, compiler canonicalization, backend support, and execution
+remain deferred to their owning layers.
+
+Failure behavior is deterministic: a null explicit policy fails before input-type or axis
+validation; BOOL input fails before axis validation; and an axis outside
+`[-rank, rank - 1]` fails with `IndexOutOfBoundsException`, including every axis for a scalar
+input. These local failures occur before result identity allocation.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -2877,8 +2924,8 @@ caller-facing negative axis. Construction accepts any non-negative `int` because
 do not retain a `Shape` or know an input rank. A negative value fails with
 `IllegalArgumentException` and a message containing the rejected value. The current `sum`, `mean`,
 `prod`, reduction `min`, reduction `max`, boolean `all`, and boolean `any` Tensor expressions
-normalize a caller axis through the input shape before creating attributes. Later index-producing
-aggregate expressions use the same boundary when implemented.
+and the current `argMax` expressions normalize a caller axis through the input shape before
+creating attributes.
 
 When `keepDimensions` is false, the selected axis is removed from the eventual result. When it is
 true, the axis remains with extent one. The record stores that request but does not construct an
@@ -2902,13 +2949,14 @@ semantics, while their text remains diagnostic rather than serialization or disp
 Generic `Operation` still checks only that kind and attributes are non-null; it does not enforce
 these documented family pairings.
 
-The semantic vocabulary is broader than the current Tensor surface. Public `Tensor.sum`, `mean`,
+The public Tensor surface now covers every current aggregate semantic kind. `Tensor.sum`, `mean`,
 `prod`, reduction `min`, and reduction `max` provide floating full and single-axis expression
 construction. Public `Tensor.all` and `Tensor.any` provide the corresponding exact-BOOL forms with fixed
-false gradient eligibility. Every current family derives shapes locally and records exact
-one-input provenance. Aggregate extrema remain typed separately from equally named binary
-elementwise kinds, while aggregate ALL/ANY remain typed separately from elementwise AND/OR.
-Index-producing `argMax` remains planned. Neither the semantic values nor current expression
+false gradient eligibility. Public `Tensor.argMax` provides axis-only floating/integral input
+construction with fixed INT64, false-gradient results and explicit tie semantics. Every current
+family derives shapes locally and records exact one-input provenance. Aggregate extrema remain
+typed separately from equally named binary elementwise kinds, while aggregate ALL/ANY remain typed
+separately from elementwise AND/OR. Neither the semantic values nor current expression
 construction defines empty-domain, numerical, or truth-evaluation policy, extrema comparison or
 tie behavior, gradients, compiler capture, backend availability, or execution.
 
@@ -3211,9 +3259,9 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary elementwise, scalar elementwise, and the current numeric and boolean
-  aggregate operations—including index-producing reductions—plus gradient and trainable state and
-  publication behavior;
+  selection, cast, unary elementwise, scalar elementwise, and the current value- and
+  index-producing aggregate operations, plus gradient and trainable state and publication
+  behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, and aggregate reduction semantics,
   plus their family-specific attribute values;
@@ -3230,9 +3278,9 @@ current Java API contracts. Binary arithmetic, binary comparison, boolean logica
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
 reduction is also a current production semantic family; `sum`, `mean`, `prod`, reduction `min`,
-reduction `max`, boolean `all`, and boolean `any` have matching public Tensor expression methods,
-while its index-producing kind does not yet. The graph records can compose these or test-local
-semantics, but they do not provide a compiler entry point or executable support.
+reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have matching public Tensor
+expression methods. The graph records can compose these or test-local semantics, but they do not
+provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
 
@@ -3251,8 +3299,10 @@ semantics, but they do not provide a compiler entry point or executable support.
   full reductions use `NoOperationAttrs.INSTANCE`; no negative all-axis sentinel exists. These
   semantic values do not by themselves validate rank, construct Tensor results, or define
   numerical or backend behavior. Public `sum`, `mean`, `prod`, reduction `min`, reduction `max`,
-  boolean `all`, and boolean `any` perform the local rank and result construction described above;
-  index-producing reduction Tensor methods remain planned.
+  boolean `all`, boolean `any`, and `argMax` perform the local rank and result construction
+  described above. `argMax` additionally accepts only floating or integral input, requires an
+  explicit policy at its helper boundary, and fixes the result to non-differentiable INT64 without
+  defining comparison or empty-axis behavior.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and
