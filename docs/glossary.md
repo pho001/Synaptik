@@ -41,6 +41,11 @@ non-differentiable BOOL descriptors, and ordered provenance. The parameterless
 meanings, plus matching public BOOL-only logical Tensor expression construction. Binary AND and OR
 use local broadcasting and ordered provenance; unary NOT retains the exact input shape; and every
 logical result has fixed non-differentiable BOOL descriptor facts.
+The parameterless `WhereSelectionKind` vocabulary is implemented with the sole `WHERE` identity
+and ordered condition, true-branch, and false-branch roles. It defines conditional elementwise
+choice only; public `Tensor.where`, three-way broadcasting, result construction, provenance,
+gradients, and execution remain planned. Conditional `WHERE` is distinct from scalar-index
+`select` and the later indexing family.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -307,6 +312,18 @@ backend support. The implemented public logical Tensor methods separately own ex
 validation, binary broadcast or unary shape rules, fixed BOOL results, and provenance. Its
 inherited names are diagnostic rather than serialization or dispatch keys, and an equally named
 kind from another family remains a different typed value.
+
+The sixth production family is `WhereSelectionKind`, an enum containing exactly `WHERE`. This
+parameterless value identifies elementwise conditional choice with three ordered logical roles:
+condition, true branch, and false branch. A true condition chooses the corresponding true-branch
+value; otherwise it chooses the false-branch value. The roles are ternary family context rather
+than stored or generically validated arity metadata, and the kind composes with
+`NoOperationAttrs.INSTANCE`. It is distinct from scalar-index `select`, gather, take, and scatter.
+The enum defines no Tensor method, condition or branch eligibility, promotion, three-way
+broadcasting, result descriptor, provenance, evaluation order, gradient, compiler, ONNX,
+execution, or backend-support behavior. Its inherited name is diagnostic rather than a
+serialization or dispatch key, and an equally named kind from another family remains a different
+typed value.
 
 ### Partition
 
@@ -706,7 +723,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, unary elementwise, and scalar elementwise families implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, and scalar elementwise families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value and clamp-range values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
@@ -714,11 +731,12 @@ without storing derived indexes.
 A kind distinguishes computations, while attributes carry parameters within a computation family.
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
-that occurrence. Binary arithmetic, binary comparison, boolean logical, unary elementwise, and
-scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and comparison public Tensor
-construction paths are also implemented, together with boolean logical Tensor construction.
-Other concrete families, their family-specific attributes, compiler capture, and execution remain
-planned. The compiled graph container is implemented model state.
+that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
+unary elementwise, and scalar elementwise kinds are implemented. Arithmetic, unary, scalar, and
+comparison public Tensor construction paths are also implemented, together with boolean logical
+Tensor construction. Conditional selection has semantic vocabulary but no public Tensor
+construction path yet. Other concrete families, their family-specific attributes, compiler
+capture, and execution remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

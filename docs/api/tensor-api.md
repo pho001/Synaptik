@@ -17,8 +17,8 @@ boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
-logical, unary, and scalar expressions, and provide one bounded host-allocation path without
-executing a tensor:
+logical, unary, and scalar expressions, provide conditional-selection semantic vocabulary, and
+provide one bounded host-allocation path without executing a tensor:
 
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
@@ -48,6 +48,7 @@ Operation                                                     = OperationKind + 
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
 BinaryComparisonKind                                          = six parameterless ordered comparison semantics
 BooleanLogicalKind                                            = three parameterless boolean logical semantics
+WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -100,6 +101,8 @@ semantic parameters. The implemented `Operation` record keeps those two values t
 `BinaryArithmeticKind` names seven parameterless tensor-to-tensor arithmetic meanings, and
 `BinaryComparisonKind` names six parameterless ordered tensor-to-tensor comparison meanings.
 `BooleanLogicalKind` names parameterless boolean conjunction, disjunction, and negation meanings.
+`WhereSelectionKind` names one parameterless elementwise conditional-selection meaning with
+ordered condition, true-branch, and false-branch roles.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -2166,6 +2169,7 @@ composition while the table also lists the current production families:
 | `BinaryArithmeticKind` | The implemented production enum for seven parameterless tensor-to-tensor arithmetic meanings. |
 | `BinaryComparisonKind` | The implemented production enum for six parameterless ordered tensor-to-tensor comparison meanings. |
 | `BooleanLogicalKind` | The implemented production enum for parameterless elementwise boolean conjunction, disjunction, and negation meanings. |
+| `WhereSelectionKind` | The implemented production enum for one parameterless ternary conditional-selection meaning. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -2283,6 +2287,37 @@ BOOL storage encoding, numeric truthiness, gradients, compiler capture, executio
 availability remain outside both semantic identity and current expression construction. Inherited
 enum names and text are diagnostic rather than serialization or dispatch keys, and an equally
 named kind from another family remains a different typed value.
+
+### Where selection semantic kind
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind` implements
+`OperationKind` with exactly one constant:
+
+| Kind | Elementwise meaning | Logical input roles |
+|---|---|---|
+| `WHERE` | Choose the true-branch value when the corresponding condition is true; otherwise choose the false-branch value. | Ordered condition, true branch, and false branch. |
+
+`WHERE` has no intrinsic parameters. Its explicit generic composition is:
+
+```java
+Operation selection = new Operation(
+        WhereSelectionKind.WHERE,
+        NoOperationAttrs.INSTANCE);
+```
+
+The resulting operation retains the exact `WHERE` kind and canonical no-attributes value. The
+three logical roles are ternary family context rather than stored arity metadata: the enum stores
+no inputs, and generic `Operation` validates neither the input count nor family-specific
+kind-to-attributes compatibility.
+
+This semantic identity describes elementwise conditional choice, not scalar-index `select`,
+gather, take, or scatter. The later indexing family owns those distinct capabilities. The enum
+does not add a public `Tensor.where` method or define condition and branch eligibility, branch
+promotion, three-way broadcasting, result descriptors, provenance, evaluation order, gradients,
+compiler capture, ONNX mapping, execution, or backend availability. Its inherited name and text
+are diagnostic rather than serialization or dispatch keys, and an equally named kind from another
+family remains a different typed value.
 
 ### Unary elementwise semantic kinds
 
@@ -2406,8 +2441,8 @@ semantics for an attributes-bearing test value. It does not establish that `Samp
 compatible with `SampleKind`: the generic descriptor checks only that neither component is null.
 It also does not create a graph node, infer a result shape or data type, report backend support,
 select a kernel, or execute computation. Production `BinaryArithmeticKind`,
-`BinaryComparisonKind`, `BooleanLogicalKind`, and `UnaryElementwiseKind` provide parameterless
-families, and
+`BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, and `UnaryElementwiseKind`
+provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`. Additional kind families, compiler behavior, and executable support remain
 later work in their owning layers. Binary arithmetic, binary comparison, unary elementwise, and
@@ -2583,18 +2618,21 @@ The following contracts appear in the architecture and planning documents but ar
   elementwise, and scalar elementwise operations, plus gradient and trainable state and
   publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, and scalar elementwise semantics, plus their family-specific attribute values;
+  elementwise, scalar elementwise, and conditional selection semantics, plus their family-specific
+  attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
-`BinaryComparisonKind`, `BooleanLogicalKind`, `UnaryElementwiseKind`, `ScalarElementwiseKind`,
-`ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`, `GraphPhase`,
-`CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary arithmetic,
-binary comparison, boolean logical, unary elementwise, and scalar elementwise semantics are the
-current production concrete kind families. All five families have matching public Tensor
-expression methods. The graph records can compose these or test-local semantics, but
+`BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
+`ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `GraphValue`, `CompiledNode`,
+`GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are current Java API contracts. Binary
+arithmetic,
+binary comparison, boolean logical, unary elementwise, scalar elementwise, and conditional
+selection semantics are the current production concrete kind families. Every family except
+conditional selection has matching public Tensor expression methods; conditional selection does
+not yet have one. The graph records can compose these or test-local semantics, but
 they do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
