@@ -74,9 +74,10 @@ Numerical or truth evaluation, empty-domain behavior, extrema comparison and tie
 gradients, compiler capture, backend support, and execution remain planned.
 The `CumulativeSumKind` vocabulary is implemented with the sole `CUM_SUM` semantic identity,
 together with `CumulativeSumAttrs` carrying one normalized axis and exact exclusive/reverse mode
-flags. This scan family preserves logical positions and documents all four traversal/inclusion
-modes, but public `Tensor.cumSum`, descriptor/provenance construction, value accumulation,
-gradients, compiler behavior, and execution remain planned.
+flags. Public `Tensor.cumSum` now constructs all four traversal/inclusion modes for floating and
+integral inputs, retaining exact Shape/type/eligibility metadata in an unresolved descriptor and
+recording one-input provenance. Value accumulation, gradients, compiler behavior, and execution
+remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -223,11 +224,17 @@ output position for every input position. The implemented `CumulativeSumKind.CUM
 this meaning, and `CumulativeSumAttrs(axis, exclusive, reverse)` carries an already normalized
 non-negative axis plus the two independent mode choices.
 
-For logical input `[1, 2, 3]`, inclusive forward produces `[1, 3, 6]`, exclusive forward produces
-`[0, 1, 3]`, inclusive reverse produces `[6, 5, 3]`, and exclusive reverse produces `[5, 3, 0]`.
-Exclusive mode omits the current value and therefore emits additive zero at the first traversed
-position. Reverse mode changes traversal direction, not output order. These examples define
-semantic meaning only; no public `Tensor.cumSum` construction or value execution exists yet. See
+For logical input `[1, 2, 3]`, inclusive forward produces `[1, 3, 6]` from `1`, `1 + 2`, and
+`1 + 2 + 3`. Exclusive forward produces `[0, 1, 3]` from the empty prefix, `1`, and `1 + 2`.
+Inclusive reverse produces `[6, 5, 3]` from `1 + 2 + 3`, `2 + 3`, and `3`. Exclusive reverse
+produces `[5, 3, 0]` from `2 + 3`, `3`, and the empty reverse prefix. Reverse changes traversal
+direction, not output order.
+
+Public `Tensor.cumSum(axis)` selects inclusive forward mode, and the complete overload preserves
+explicit exclusive and reverse flags. Both validate numeric input, normalize one caller axis,
+retain exact Shape/type/gradient-eligibility metadata with unresolved layout, and record exact
+one-input provenance in a fresh unlabeled, storage-free Tensor. They calculate none of the example
+values and define no accumulation, gradient, compiler, backend, or execution behavior. See
 [Cumulative-sum semantic kind and attributes](api/tensor-api.md#cumulative-sum-semantic-kind-and-attributes).
 
 ### Data type / `DataType`
@@ -375,8 +382,8 @@ Shape before constructing semantic attributes. The current axis-only `argMax` me
 same boundary before constructing `ArgMaxAttrs`.
 `MaskedReductionAttrs` follows the same normalized-axis boundary, and current public masked
 expression construction resolves that axis and its mask mapping before creating the attributes.
-`CumulativeSumAttrs` also stores only an already normalized non-negative axis, while its public
-Shape-aware `Tensor.cumSum` construction remains planned.
+`CumulativeSumAttrs` also stores only an already normalized non-negative axis; current public
+Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creating it.
 
 ### Node
 
@@ -524,8 +531,9 @@ reverse traversal. The family preserves logical positions; reverse traversal doe
 output order, and exclusive traversal emits additive zero at its first visited position. Generic
 `Operation` does not enforce the kind/attributes pairing. The kind and attributes contain no
 Tensor, Shape, result descriptor, provenance, data-type policy, gradient rule, algorithm,
-executable behavior, or backend support. Public `Tensor.cumSum` expression construction remains
-planned.
+executable behavior, or backend support. Public `Tensor.cumSum` separately owns numeric
+validation, Shape-aware axis normalization, descriptor construction, fresh identity, and
+one-input provenance without accumulating values.
 
 ### Partition
 
@@ -575,7 +583,9 @@ one input. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and retains exa
 `[condition, ifTrue, ifFalse]`, including repeated branch references. These construction paths do
 not change provenance's general role or make it graph membership. `Tensor.cast` uses
 `CastKind.CAST`, retains its exact target in `CastAttrs`, and records exactly the receiver as its
-one immediate input, including in same-type and chained requests.
+one immediate input, including in same-type and chained requests. `Tensor.cumSum` uses
+`CumulativeSumKind.CUM_SUM`, retains its normalized axis and exact mode flags in
+`CumulativeSumAttrs`, and likewise records exactly the receiver as its sole input.
 
 ### Publication binding
 
@@ -683,6 +693,10 @@ A masked `sum(axis, mask)` or `mean(axis, mask)` requires an exact BOOL mask, re
 mapping from mask dimensions to input axes, removes the selected axis, and records exact
 `[input, mask]` provenance. It preserves input type and gradient eligibility but does not align
 storage, select or aggregate values, count true positions, divide, or define a gradient rule.
+A `cumSum` request accepts floating or integral input, preserves its exact Shape, data type, and
+gradient eligibility in an unresolved descriptor, and records one normalized axis plus exact
+exclusive/reverse flags. Each valid call is fresh and storage-free; construction performs no
+addition and defines no gradient, compiler, backend, or execution behavior.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -932,7 +946,8 @@ comparison, unary, and scalar Tensor expression construction are implemented, as
 logical expression construction, explicit cast expression construction, floating numeric
 aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
 aggregate expression construction for all and any. Axis-only index-producing construction for
-arg-max is also implemented. Gradient rules and objects, compiler graph capture, truth or
+arg-max and shape-preserving cumulative-sum construction are also implemented. Gradient rules and
+objects, compiler graph capture, truth or
 numerical execution, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
@@ -966,9 +981,9 @@ unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are i
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
-sum/mean. Cumulative-sum semantics are implemented, while public cumulative-sum Tensor
-construction, other concrete families and their family-specific attributes, compiler capture,
-and execution remain planned.
+sum/mean. Cumulative-sum semantics and public Tensor construction are also implemented. Other
+concrete families and their family-specific attributes, compiler capture, and execution remain
+planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

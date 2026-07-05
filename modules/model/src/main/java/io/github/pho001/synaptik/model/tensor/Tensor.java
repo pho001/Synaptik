@@ -11,6 +11,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.Objects;
 import java.util.Optional;
@@ -58,7 +59,9 @@ import java.util.Optional;
  * axis, and record exact {@code [input, mask]} provenance without inspecting values. Arg-max
  * accepts one axis of a floating or integral input, uses an explicit first- or last-index tie
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
- * defining empty-axis behavior.
+ * defining empty-axis behavior. Cumulative sum accepts one axis of a floating or integral input,
+ * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
+ * reading or accumulating values.
  * Scalar and unary methods accept one floating input and retain its exact data type, shape
  * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
  * typed attributes.
@@ -66,6 +69,7 @@ import java.util.Optional;
  * storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
+ * {@link CumulativeSumKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -1799,6 +1803,81 @@ public final class Tensor {
      */
     public Tensor argMax(int axis, boolean keepDimensions, ArgMaxTiePolicy tiePolicy) {
         return TensorArgMaxExpressions.apply(this, axis, keepDimensions, tiePolicy);
+    }
+
+    /**
+     * Creates a fresh inclusive forward cumulative-sum expression along one axis.
+     *
+     * <p>A cumulative sum replaces each logical position with the sum of the prefix ending at
+     * that position. For input {@code [1, 2, 3]}, inclusive forward mode represents
+     * {@code [1, 3, 6]}: the first result includes {@code 1}, the second includes
+     * {@code 1 + 2}, and the third includes {@code 1 + 2 + 3}. This overload is exactly
+     * equivalent to {@code cumSum(axis, false, false)}.</p>
+     *
+     * <p>The axis may be positive or negative and is normalized against the input rank. The input
+     * must have FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 data type. Construction retains the
+     * exact input Shape, data type, and gradient-eligibility metadata, but leaves result layout
+     * unresolved. It returns a fresh unlabeled, storage-free Tensor whose provenance contains
+     * this Tensor as its sole input. Construction does not inspect or accumulate values and does
+     * not define numerical, gradient, compiler, backend, or execution behavior.</p>
+     *
+     * @param axis the positive or negative input axis accepted by
+     *     {@link io.github.pho001.synaptik.model.shape.Shape#normalizeAxis(int)}
+     * @return a non-null fresh inclusive forward cumulative-sum expression with unresolved
+     *     layout, no label or storage, and exact one-input provenance
+     * @throws IllegalArgumentException if this Tensor has BOOL data type, with message
+     *     {@code input must have a numeric data type, but was BOOL}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside this Tensor's shape rank,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor cumSum(int axis) {
+        return TensorCumulativeSumExpressions.apply(this, axis, false, false);
+    }
+
+    /**
+     * Creates a fresh cumulative-sum expression with explicit inclusion and direction modes.
+     *
+     * <p>For input {@code [1, 2, 3]}, the four modes represent these results while preserving
+     * output position order:</p>
+     * <ul>
+     *   <li>inclusive forward ({@code false, false}): {@code [1, 3, 6]}, from {@code 1},
+     *       {@code 1 + 2}, and {@code 1 + 2 + 3};</li>
+     *   <li>exclusive forward ({@code true, false}): {@code [0, 1, 3]}, from the empty prefix,
+     *       {@code 1}, and {@code 1 + 2};</li>
+     *   <li>inclusive reverse ({@code false, true}): {@code [6, 5, 3]}, from
+     *       {@code 1 + 2 + 3}, {@code 2 + 3}, and {@code 3}; and</li>
+     *   <li>exclusive reverse ({@code true, true}): {@code [5, 3, 0]}, where the final logical
+     *       results come from {@code 2 + 3}, {@code 3}, and the empty reverse prefix.</li>
+     * </ul>
+     *
+     * <p>Exclusive mode omits the current element from its prefix. Reverse mode changes traversal
+     * direction, not output Shape or dimension order. The axis may be positive or negative and is
+     * normalized against the input rank. FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 are
+     * accepted; BOOL is rejected before axis validation. Construction retains the exact input
+     * Shape, data type, and gradient-eligibility metadata in an unresolved-layout descriptor. It
+     * creates a fresh unlabeled, storage-free Tensor with exact one-input provenance, without
+     * inspecting values, executing a scan, or defining numerical, gradient, compiler, or backend
+     * behavior.</p>
+     *
+     * @param axis the positive or negative input axis accepted by
+     *     {@link io.github.pho001.synaptik.model.shape.Shape#normalizeAxis(int)}
+     * @param exclusive {@code true} to omit the current position from each traversed prefix, or
+     *     {@code false} to include it
+     * @param reverse {@code true} to traverse from the axis end toward its beginning while keeping
+     *     output positions ordered, or {@code false} to traverse forward
+     * @return a non-null fresh cumulative-sum expression retaining the requested mode flags,
+     *     unresolved layout, no label or storage, and exact one-input provenance
+     * @throws IllegalArgumentException if this Tensor has BOOL data type, with message
+     *     {@code input must have a numeric data type, but was BOOL}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside this Tensor's shape rank,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor cumSum(int axis, boolean exclusive, boolean reverse) {
+        return TensorCumulativeSumExpressions.apply(this, axis, exclusive, reverse);
     }
 
     /**

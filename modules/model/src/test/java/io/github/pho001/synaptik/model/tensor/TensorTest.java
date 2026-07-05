@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(72, declaredPublicMethods.size());
+        assertEquals(74, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -88,7 +88,7 @@ class TensorTest {
                         "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any", "argMax"),
+                        "mean", "prod", "all", "any", "argMax", "cumSum"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -206,6 +206,19 @@ class TensorTest {
                         Tensor.class.getDeclaredMethod(
                                         "argMax", int.class, boolean.class, ArgMaxTiePolicy.class)
                                 .getReturnType()));
+
+        for (Class<?>[] parameters : List.of(
+                new Class<?>[] {int.class},
+                new Class<?>[] {int.class, boolean.class, boolean.class})) {
+            var method = Tensor.class.getDeclaredMethod("cumSum", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(List.of(parameters),
+                            Arrays.asList(method.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

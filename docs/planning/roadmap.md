@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016H Cumulative-sum Tensor expressions — Draft. No detailed task specification exists.
+- 0016I Softmax semantic kinds and attributes — Draft. No detailed task specification exists.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -101,7 +101,11 @@ deterministic local Shape-based mapping resolution and public axis-removing mask
 expressions without value, storage, gradient, compiler, or backend behavior. Task
 [0016G](modules/model/tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) is complete. It
 defines only the cumulative-sum kind and immutable normalized-axis, exclusive, and reverse
-attributes; public Tensor construction remains in Draft task 0016H without a detailed
+attributes. Task
+[0016H](modules/model/tasks/0016h-cumulative-sum-tensor-expressions.md) is complete. It adds local
+numeric validation, axis normalization, exact shape/type/eligibility retention with unresolved
+layout, and one-input provenance without value accumulation, gradient rules, compiler capture,
+backend behavior, or execution. Task 0016I is the next Draft planning frontier without a detailed
 specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
@@ -194,7 +198,7 @@ authorized Compile API status correction.
 | 46 | [0016F Masked reduction semantics and axis mapping](modules/model/tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) | Complete |
 | 47 | [0016F1 Masked sum and mean Tensor expressions](modules/model/tasks/0016f1-masked-sum-and-mean-tensor-expressions.md) | Complete |
 | 48 | [0016G Cumulative-sum semantic kind and attributes](modules/model/tasks/0016g-cumulative-sum-semantic-kind-and-attributes.md) | Complete |
-| 49 | 0016H Cumulative-sum Tensor expressions | Draft |
+| 49 | [0016H Cumulative-sum Tensor expressions](modules/model/tasks/0016h-cumulative-sum-tensor-expressions.md) | Complete |
 | 50 | 0016I Softmax semantic kinds and attributes | Draft |
 | 51 | 0016J Softmax Tensor expressions | Draft |
 | 52 | 0017 Layout and view operations | Draft |
@@ -247,8 +251,8 @@ fresh explicit cast for every valid request. Compiler work later owns redundant 
 cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J plus
 0016F1 so aggregate semantics, focused Tensor expression groups, masked reductions, cumulative
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
-0016F, 0016F1, and 0016G are also complete; task 0016H is the next Draft planning frontier without
-a detailed specification. Completed task 0016E adds fixed-INT64, one-axis
+0016F, 0016F1, 0016G, and 0016H are also complete; task 0016I is the next Draft planning frontier
+without a detailed specification. Completed task 0016E adds fixed-INT64, one-axis
 arg-max expression metadata without changing the ordinary reduction helper or adding value
 comparison, empty-axis policy, or execution.
 
