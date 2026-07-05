@@ -92,6 +92,9 @@ io.github.pho001.synaptik.model.operation.elementwise.selection
 io.github.pho001.synaptik.model.operation.elementwise.cast
   Typed explicit data-type conversion semantics and immutable target-type attributes.
 
+io.github.pho001.synaptik.model.operation.reduction
+  Typed aggregate-reduction meanings, normalized single-axis parameters, and arg-max tie policy.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -145,14 +148,23 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0015F | [Where selection Tensor expression](tasks/0015f-where-selection-tensor-expression.md) | Complete | 0001, 0002, 0013, 0015E | Build condition/branch-validated broadcast selection with ordered provenance. |
 | 0015G | [Cast semantic kind and attributes](tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete | 0001, 0005, 0006 | Define typed target-data-type cast semantics. |
 | 0015H | [Cast Tensor expression](tasks/0015h-cast-tensor-expression.md) | Complete | 0001, 0013, 0015G | Build fresh explicit cast expressions without eager conversion or model-time canonicalization. |
-| 0016 | Reduction and scan operations | Draft | 0013 | Represent numeric and boolean reductions, scans, softmax, and tie policies. |
+| 0016A | [Reduction semantic kinds and attributes](tasks/0016a-reduction-semantic-kinds-and-attributes.md) | Complete | 0005, 0006 | Define ordinary aggregate meanings, axis/full parameters, and arg-max tie policy. |
+| 0016B | Sum, mean, and product Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build floating full and single-axis aggregate expressions. |
+| 0016C | Min and max Tensor reduction expressions | Draft | 0001, 0002, 0013, 0016A | Build floating full and single-axis extrema expressions. |
+| 0016D | Boolean all and any Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build BOOL full and single-axis logical reductions. |
+| 0016E | Arg-max Tensor expressions | Draft | 0001, 0002, 0013, 0016A | Build numeric single-axis index reductions with explicit tie policy. |
+| 0016F | Masked sum and mean Tensor expressions | Draft | 0016B | Define broadcast-aware masked floating reductions. |
+| 0016G | Cumulative-sum semantic kind and attributes | Draft | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
+| 0016H | Cumulative-sum Tensor expressions | Draft | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
+| 0016I | Softmax semantic kinds and attributes | Draft | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
+| 0016J | Softmax Tensor expressions | Draft | 0001, 0002, 0013, 0016I | Build floating shape-preserving softmax expressions. |
 | 0017 | Layout and view operations | Draft | 0002, 0003, 0013 | Represent reshape, view, slice, composition, pad, tile, unfold, and fold capabilities. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017–0022 | Represent backend-neutral backward and compiler-generated operation descriptors without autograd rules. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected legacy baseline. |
 
 ## Milestones
@@ -160,13 +172,14 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, and 0016–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J, and 0017–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
-recorded. Task 0016 is the next Draft planning frontier and has no detailed specification.
+recorded. The broad former task 0016 is decomposed into 0016A–0016J. Task 0016A is complete, and
+task 0016B is the next Draft planning frontier without a detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -415,6 +428,22 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   families remain accurate unchanged because this task adds only model-owned cast expression
   construction without numerical conversion, gradient rules, compiler canonicalization, backend
   behavior, dependencies, or execution.
+- The broad reduction-and-scan frontier is decomposed into aggregate semantics 0016A, focused
+  aggregate Tensor expression tasks 0016B–0016F, cumulative-sum semantics/expressions 0016G–0016H,
+  and softmax semantics/expressions 0016I–0016J. This preserves the semantic/expression split and
+  prevents public API, shape inference, masked reductions, scan options, and normalization from
+  becoming one oversized task.
+- Task 0016A specifies `AggregateReductionKind` for SUM, MEAN, PROD, MIN, MAX, ALL, ANY, and
+  ARG_MAX; `AxisReductionAttrs` for normalized single-axis ordinary reductions; explicit
+  `NoOperationAttrs.INSTANCE` full forms; and `ArgMaxAttrs` plus FIRST_INDEX/LAST_INDEX tie policy.
+  Tensor/Shape/data-type/result behavior remains in later tasks.
+- The independent task-0016A documentation review found all four production Javadocs complete,
+  then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
+  Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
+  build configuration, Shape axis normalization, operation foundations, existing concrete
+  families, and Tensor expression contracts remain accurate unchanged because this task adds only
+  model-owned reduction semantic vocabulary without public expressions, inference, provenance,
+  gradients, dependencies, or execution.
 - The independent task-0015G documentation review found the enum and record Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
   Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
@@ -505,8 +534,8 @@ logical semantic kinds, and task 0015D completed their public BOOL-only binary/u
 expression construction. Task 0015E completed the sole parameterless `WHERE` conditional-selection
 semantic identity, and task 0015F completed its public static Tensor expression construction.
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
-Task 0015H completed its public storage-free Tensor expression construction. Task 0016 is the next
-Draft planning frontier without a detailed specification; all later operation-family tasks also
-remain Draft.
+Task 0015H completed its public storage-free Tensor expression construction. The former broad task
+0016 is decomposed into tasks 0016A–0016J. Task 0016A is complete; task 0016B and all later
+operation-family tasks remain Draft, and no detailed task-0016B specification exists.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

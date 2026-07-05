@@ -56,6 +56,11 @@ unresolved, preserves a true gradient request only for floating-to-floating cast
 typed target attributes plus exact one-input provenance. Numerical conversion behavior, gradient
 rules, compiler capture and canonicalization, and backend execution remain planned or separately
 owned.
+The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
+`ALL`, `ANY`, and `ARG_MAX`, together with normalized single-axis `AxisReductionAttrs`, explicit
+full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, and `ArgMaxTiePolicy`. This is semantic
+representation only: public reduction Tensor methods, result inference, numerical and empty-domain
+behavior, gradients, compiler capture, backend support, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -63,6 +68,30 @@ runtime, concrete backends, traces, and training remain architecture or planning
 definition explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
+
+### Aggregate reduction
+
+A computation that combines values from a selected reduction domain into fewer logical positions.
+The implemented `AggregateReductionKind` vocabulary includes numeric `SUM`, `MEAN`, `PROD`,
+`MIN`, and `MAX`, boolean `ALL` and `ANY`, and index-producing `ARG_MAX`. An ordinary full
+reduction selects every input axis and uses `NoOperationAttrs.INSTANCE`; an ordinary single-axis
+reduction uses `AxisReductionAttrs`. Representing the full form through parameter absence avoids a
+negative numeric all-axis sentinel.
+
+For a single-axis form, `keepDimensions == false` requests removal of the selected axis, while
+`true` requests retaining it with extent one. `ARG_MAX` instead uses `ArgMaxAttrs` because its tie
+policy is an intrinsic semantic parameter, and it has no full form in the current contract. These
+types describe requested meaning only. No public reduction Tensor method, result shape or data
+type rule, numerical or empty-domain policy, gradient rule, or executable behavior is implemented
+yet. See [Aggregate reduction semantic kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes).
+
+### Arg-max tie policy
+
+The implemented `ArgMaxTiePolicy` choice for selecting a logical axis index when several values
+share a maximum. `FIRST_INDEX` requests the smallest logical index, and `LAST_INDEX` requests the
+largest. A logical index is a position along the selected axis rather than a physical storage
+offset. `ArgMaxAttrs` requires an explicit non-null policy; the semantic value does not supply a
+default. Equality, NaN, and comparison behavior remain later numerical and execution contracts.
 
 ### Architecture contract
 
@@ -247,6 +276,15 @@ A position in a prepared memory plan for a physical buffer or workspace used dur
 
 The implemented canonical immutable attribute value for an operation kind that has no semantic parameters. It is a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. The singleton makes “no parameters” explicit and non-null rather than representing absence with `null`, an empty map, or a newly allocated placeholder. See [`OperationAttrs`](#operationattrs).
 
+### Normalized axis
+
+A non-negative axis index in the range established by a tensor's rank. The implemented
+`Shape.normalizeAxis` method accepts a caller-facing positive or negative axis and returns this
+form. Reduction attributes store only an already normalized non-negative `int`; they do not retain
+a Shape or prove that the index exists for a particular input. A negative stored axis is invalid,
+and no negative value is reused as an all-axis sentinel. Future public reduction Tensor methods
+will normalize against the input Shape before constructing semantic attributes.
+
 ### Node
 
 One occurrence of computation in a graph. The implemented immutable `CompiledNode` record stores a
@@ -275,8 +313,10 @@ The implemented zero-method marker contract for immutable, typed parameters that
 computation an [`Operation`](#operation) describes. Implemented scalar-family values are
 `ScalarValueAttrs`, which holds one exact Java `double`, and `ClampRangeAttrs`, which holds exact
 ordered inclusive lower and upper bounds. Implemented cast-family `CastAttrs` holds one exact
-non-null target `DataType` without duplicating a source type. Other families may define records for
-axes, padding, or another operation-specific value. Implementations use typed fields, defensively
+non-null target `DataType` without duplicating a source type. Implemented reduction-family
+`AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
+adds an explicit tie policy. Other families may define records for padding or another
+operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
@@ -362,6 +402,16 @@ conversion rules, gradients, provenance, compiler capture, execution, or backend
 implemented public `Tensor.cast` method separately owns fresh expression construction, exact shape
 retention, unresolved layout, floating-only eligibility retention, and one-input provenance. Their
 text forms are diagnostic rather than serialization or dispatch contracts.
+
+The eighth production family is `AggregateReductionKind`, an enum containing exactly `SUM`,
+`MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, `ANY`, and `ARG_MAX`. The first seven ordinary kinds pair
+with `NoOperationAttrs.INSTANCE` for a full reduction over every input axis or with
+`AxisReductionAttrs` for one already normalized axis. `ARG_MAX` pairs with `ArgMaxAttrs`, which
+adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Generic `Operation` does not enforce
+these family pairings. The family stores no Tensor input, result descriptor, negative all-axis
+sentinel, numerical or empty-domain policy, gradient rule, executable behavior, or backend
+support. Public Tensor expression construction and axis normalization against an input Shape
+remain planned.
 
 ### Partition
 
@@ -775,8 +825,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, and cast families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, and cast-target values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, and aggregate reduction families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, reduction-axis, and arg-max values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -784,10 +834,10 @@ A kind distinguishes computations, while attributes carry parameters within a co
 `Operation` stores both as one value but does not validate family compatibility. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
-unary elementwise, scalar elementwise, and cast kinds are implemented. Arithmetic, unary, scalar,
-and comparison public Tensor construction paths are also implemented, together with boolean
-logical, conditional-selection, and cast Tensor construction. Other concrete families, their
-family-specific attributes,
+unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.
+Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
+together with boolean logical, conditional-selection, and cast Tensor construction. Reduction
+Tensor construction remains planned. Other concrete families and their family-specific attributes,
 compiler capture, and execution remain planned. The compiled graph container is implemented model
 state.
 

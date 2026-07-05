@@ -52,6 +52,7 @@ BinaryComparisonKind                                          = six parameterles
 BooleanLogicalKind                                            = three parameterless boolean logical semantics
 WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
+AggregateReductionKind + reduction attributes                = full/axis aggregate semantics + arg-max tie policy
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -110,6 +111,13 @@ ordered condition, true-branch, and false-branch roles.
 carries its exact non-null target `DataType`. The public `Tensor.cast` method composes that pair
 with the receiver's source descriptor to create a fresh storage-free expression for every current
 source/target combination, including a same-type request.
+`AggregateReductionKind` names numeric sum, mean, product, minimum, and maximum reductions,
+boolean all and any reductions, and index-producing arg-max. `AxisReductionAttrs` carries one
+already normalized non-negative axis plus a retained-dimension choice for ordinary single-axis
+forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negative axis sentinel
+means "all axes." `ArgMaxAttrs` carries the normalized axis, retained-dimension choice, and an
+explicit `ArgMaxTiePolicy`. These reduction semantics are implemented, but public Tensor reduction
+methods, result inference, numerical behavior, gradients, and execution remain planned.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -2441,6 +2449,10 @@ composition while the table also lists the current production families:
 | `WhereSelectionKind` | The implemented production enum for one parameterless ternary conditional-selection meaning. |
 | `CastKind` | The implemented production enum for one parameterized elementwise data-type conversion meaning. |
 | `CastAttrs` | The implemented immutable value for one exact non-null target `DataType`. |
+| `AggregateReductionKind` | The implemented production enum for seven ordinary aggregate meanings plus axis-only arg-max. |
+| `AxisReductionAttrs` | The implemented immutable normalized-axis and retained-dimension value for ordinary single-axis reductions. |
+| `ArgMaxAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value for arg-max. |
+| `ArgMaxTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal maxima. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -2626,6 +2638,71 @@ construction defines numerical conversion rules, gradient rules, compiler captur
 backend availability. Accepting every target type is a representability contract, not a promise
 that every backend implements every conversion. Enum and record text remain diagnostic rather than
 serialization or dispatch contracts.
+
+### Aggregate reduction semantic kinds and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind` implements
+`OperationKind` with exactly these constants in declaration order:
+
+| Kind | Requested aggregate meaning | Supported semantic forms |
+|---|---|---|
+| `SUM` | Add values in the selected reduction domain. | Full or one normalized axis. |
+| `MEAN` | Compute the arithmetic mean in the selected reduction domain. | Full or one normalized axis. |
+| `PROD` | Multiply values in the selected reduction domain. | Full or one normalized axis. |
+| `MIN` | Select the minimum value in the selected reduction domain. | Full or one normalized axis. |
+| `MAX` | Select the maximum value in the selected reduction domain. | Full or one normalized axis. |
+| `ALL` | Compute boolean conjunction in the selected reduction domain. | Full or one normalized axis. |
+| `ANY` | Compute boolean disjunction in the selected reduction domain. | Full or one normalized axis. |
+| `ARG_MAX` | Select a logical index of a maximum value along one axis. | One normalized axis with an explicit tie policy. |
+
+A full ordinary reduction combines every input axis and pairs the kind with
+`NoOperationAttrs.INSTANCE`. A single-axis ordinary reduction pairs the same kind with
+`AxisReductionAttrs(axis, keepDimensions)`. This distinction represents "all axes" through the
+absence of axis parameters rather than a negative numeric sentinel:
+
+```java
+Operation fullSum = new Operation(
+        AggregateReductionKind.SUM,
+        NoOperationAttrs.INSTANCE);
+
+Operation axisSum = new Operation(
+        AggregateReductionKind.SUM,
+        new AxisReductionAttrs(1, true));
+```
+
+The axis stored in `AxisReductionAttrs` is already normalized: it is a non-negative index, not a
+caller-facing negative axis. Construction accepts any non-negative `int` because these attributes
+do not retain a `Shape` or know an input rank. A negative value fails with
+`IllegalArgumentException` and a message containing the rejected value. A later public Tensor
+expression will normalize a caller axis through the input shape before creating attributes.
+
+When `keepDimensions` is false, the selected axis is removed from the eventual result. When it is
+true, the axis remains with extent one. The record stores that request but does not construct an
+output shape. Full reductions in this contract have no `keepDimensions` parameter, and
+`ARG_MAX` has no full form.
+
+Arg-max pairs only with `ArgMaxAttrs(axis, keepDimensions, tiePolicy)`. `FIRST_INDEX` requests the
+smallest logical index among equal maxima along the selected axis; `LAST_INDEX` requests the
+largest. A logical index is an axis position rather than a storage offset. The policy must be
+supplied explicitly and is never defaulted by the semantic value:
+
+```java
+Operation argMax = new Operation(
+        AggregateReductionKind.ARG_MAX,
+        new ArgMaxAttrs(1, false, ArgMaxTiePolicy.FIRST_INDEX));
+```
+
+`ArgMaxAttrs` rejects a negative axis before checking the tie policy and rejects a null policy
+with `NullPointerException("tiePolicy")`. Both attribute records use generated record value
+semantics, while their text remains diagnostic rather than serialization or dispatch syntax.
+Generic `Operation` still checks only that kind and attributes are non-null; it does not enforce
+these documented family pairings.
+
+This is the current boundary: the four reduction semantic types exist, but no public `Tensor.sum`,
+`mean`, `prod`, reduction `min` or `max`, `all`, `any`, or `argMax` method exists yet. The semantic
+values do not establish accepted input types, output types or shapes, empty-domain and numerical
+policy, gradients, compiler capture, backend availability, or execution.
 
 ### Unary elementwise semantic kinds
 
@@ -2926,11 +3003,11 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary elementwise, and scalar elementwise operations, plus gradient and
-  trainable state and publication behavior;
+  selection, cast, unary elementwise, and scalar elementwise operations—including all reduction
+  Tensor methods—plus gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, scalar elementwise, conditional selection, and cast semantics, plus their
-  family-specific attribute values;
+  elementwise, scalar elementwise, conditional selection, cast, and aggregate reduction semantics,
+  plus their family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -2938,11 +3015,13 @@ The following contracts appear in the architecture and planning documents but ar
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
+`AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
-production concrete kind families. All seven families have matching public Tensor expression
-construction. The graph records can compose these or test-local semantics, but they
+production concrete kind families with matching public Tensor expression construction. Aggregate
+reduction is also a current production semantic family, but it has no public Tensor expression
+methods yet. The graph records can compose these or test-local semantics, but they
 do not provide a compiler entry point or executable support.
 
 ## Failures and ownership summary
@@ -2956,6 +3035,12 @@ do not provide a compiler entry point or executable support.
 - `CastAttrs` rejects a null target data type with `NullPointerException("targetDataType")`,
   retains every valid `DataType` reference unchanged, and performs no source compatibility,
   conversion, or backend-capability validation.
+- `AxisReductionAttrs` rejects a negative normalized axis with `IllegalArgumentException` and
+  retains the exact non-negative axis and dimension choice. `ArgMaxAttrs` performs that axis check
+  before rejecting a null `ArgMaxTiePolicy` with `NullPointerException("tiePolicy")`. Ordinary
+  full reductions use `NoOperationAttrs.INSTANCE`; no negative all-axis sentinel exists. These
+  semantic values do not validate rank, construct Tensor results, or define numerical or backend
+  behavior, and no public reduction Tensor method is implemented yet.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and

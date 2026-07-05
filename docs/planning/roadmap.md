@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016 Reduction and scan operations — Draft; no detailed specification yet
+- 0016B Sum, mean, and product Tensor expressions — Draft; no detailed specification yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -74,8 +74,12 @@ exact `CAST` semantic identity and immutable target-data-type attributes without
 construction, inference, conversion policy, gradients, or execution. Task
 [0015H](modules/model/tasks/0015h-cast-tensor-expression.md) is complete. It adds a fresh explicit
 storage-free expression for every current source/target pair, including same-type requests, while
-leaving conversion, canonicalization, gradient rules, and execution to their owning layers. Task
-0016 is the next Draft planning frontier and has no detailed specification.
+leaving conversion, canonicalization, gradient rules, and execution to their owning layers.
+The broad former task 0016 is decomposed into focused aggregate, scan, and softmax semantic/
+expression tasks. [0016A](modules/model/tasks/0016a-reduction-semantic-kinds-and-attributes.md) is
+complete; it defines aggregate semantic kinds, normalized single-axis/full parameters, and
+arg-max tie policy without Tensor behavior or execution. Task 0016B is the next Draft planning
+frontier without a detailed specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -159,15 +163,24 @@ authorized Compile API status correction.
 | 38 | [0015F Where selection Tensor expression](modules/model/tasks/0015f-where-selection-tensor-expression.md) | Complete |
 | 39 | [0015G Cast semantic kind and attributes](modules/model/tasks/0015g-cast-semantic-kind-and-attributes.md) | Complete |
 | 40 | [0015H Cast Tensor expression](modules/model/tasks/0015h-cast-tensor-expression.md) | Complete |
-| 41 | 0016 Reduction and scan operations | Draft |
-| 42 | 0017 Layout and view operations | Draft |
-| 43 | 0018 Indexing and scatter operations | Draft |
-| 44 | 0019 Linear algebra and attention operations | Draft |
-| 45 | 0020 Convolution and pooling operations | Draft |
-| 46 | 0021 Normalization operations | Draft |
-| 47 | 0022 Loss operations | Draft |
-| 48 | 0023 Compiler-generated semantic operations | Draft |
-| 49 | 0024 Model capability parity audit | Draft |
+| 41 | [0016A Reduction semantic kinds and attributes](modules/model/tasks/0016a-reduction-semantic-kinds-and-attributes.md) | Complete |
+| 42 | 0016B Sum, mean, and product Tensor expressions | Draft |
+| 43 | 0016C Min and max Tensor reduction expressions | Draft |
+| 44 | 0016D Boolean all and any Tensor expressions | Draft |
+| 45 | 0016E Arg-max Tensor expressions | Draft |
+| 46 | 0016F Masked sum and mean Tensor expressions | Draft |
+| 47 | 0016G Cumulative-sum semantic kind and attributes | Draft |
+| 48 | 0016H Cumulative-sum Tensor expressions | Draft |
+| 49 | 0016I Softmax semantic kinds and attributes | Draft |
+| 50 | 0016J Softmax Tensor expressions | Draft |
+| 51 | 0017 Layout and view operations | Draft |
+| 52 | 0018 Indexing and scatter operations | Draft |
+| 53 | 0019 Linear algebra and attention operations | Draft |
+| 54 | 0020 Convolution and pooling operations | Draft |
+| 55 | 0021 Normalization operations | Draft |
+| 56 | 0022 Loss operations | Draft |
+| 57 | 0023 Compiler-generated semantic operations | Draft |
+| 58 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -207,8 +220,10 @@ derived-construction contracts without changing module boundaries or foundationa
 task 0015H's Tensor/result construction and conversion-policy decisions. Task 0015H completed that
 public Tensor construction with exact Shape retention, floating-only gradient eligibility, and a
 fresh explicit cast for every valid request. Compiler work later owns redundant same-type and
-cast-chain canonicalization. Task 0016 is now the next Draft planning frontier without a detailed
-specification.
+cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J so
+aggregate semantics, focused Tensor expression groups, masked reductions, cumulative scan, and
+softmax do not share one oversized task. Task 0016A is complete, and 0016B remains Draft without a
+detailed specification.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future
