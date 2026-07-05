@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * axis. Full forms of {@link #SUM}, {@link #MEAN}, {@link #PROD}, {@link #MIN}, {@link #MAX},
  * {@link #ALL}, and {@link #ANY} pair with {@link NoOperationAttrs#INSTANCE}. Their single-axis
  * forms pair with {@link AxisReductionAttrs}, whose axis is already normalized and non-negative.
+ * Masked, axis-removing {@link #SUM} and {@link #MEAN} forms pair with
+ * {@link MaskedReductionAttrs}; their later ordered provenance is {@code [input, mask]}.
  * {@link #ARG_MAX} pairs only with {@link ArgMaxAttrs} because choosing among equal maxima is part
  * of that operation's semantics. The generic operation descriptor does not enforce these typed
  * family pairings.</p>
@@ -25,8 +27,11 @@ public enum AggregateReductionKind implements OperationKind {
      * Requests addition of values in the selected reduction domain.
      *
      * <p>The full form pairs with {@link NoOperationAttrs#INSTANCE}; a single-axis form pairs with
-     * {@link AxisReductionAttrs}. Input and output types, accumulation order and precision,
-     * empty-domain behavior, gradients, execution, and backend support are deliberately deferred.</p>
+     * {@link AxisReductionAttrs}. A masked axis-removing form pairs with
+     * {@link MaskedReductionAttrs}: false mask positions exclude their aligned input values, and
+     * selecting no values produces zero. Mask-shape resolution, input and output types,
+     * accumulation order and precision, gradients, execution, and backend support are deliberately
+     * deferred.</p>
      */
     SUM,
 
@@ -34,8 +39,11 @@ public enum AggregateReductionKind implements OperationKind {
      * Requests the arithmetic mean of values in the selected reduction domain.
      *
      * <p>The full form pairs with {@link NoOperationAttrs#INSTANCE}; a single-axis form pairs with
-     * {@link AxisReductionAttrs}. Input and output types, denominator and accumulation policy,
-     * empty-domain behavior, gradients, execution, and backend support are deliberately deferred.</p>
+     * {@link AxisReductionAttrs}. A masked axis-removing form pairs with
+     * {@link MaskedReductionAttrs}: false mask positions are excluded, the denominator is the
+     * selected true-count for each output, and a zero selected-count produces zero. Mask-shape
+     * resolution, input and output types, accumulation policy, gradients, execution, and backend
+     * support are deliberately deferred.</p>
      */
     MEAN,
 

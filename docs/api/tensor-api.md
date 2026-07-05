@@ -59,6 +59,7 @@ BooleanLogicalKind                                            = three parameterl
 WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
 AggregateReductionKind + reduction attributes                = full/axis aggregate semantics + arg-max tie policy
+SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordered mask-axis mapping
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -122,12 +123,16 @@ boolean all and any reductions, and index-producing arg-max. `AxisReductionAttrs
 already normalized non-negative axis plus a retained-dimension choice for ordinary single-axis
 forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negative axis sentinel
 means "all axes." `ArgMaxAttrs` carries the normalized axis, retained-dimension choice, and an
-explicit `ArgMaxTiePolicy`. These reduction semantics are implemented, and public Tensor reduction
+explicit `ArgMaxTiePolicy`. `MaskedReductionAttrs` carries a normalized reduction axis plus an
+immutable ordered mapping from mask dimensions to input axes for masked, axis-removing `SUM` and
+`MEAN`. These reduction semantics are implemented, and public Tensor reduction
 methods currently cover `sum`, `mean`, `prod`, reduction `min`, reduction `max`, boolean `all`,
 boolean `any`, and numeric `argMax`. Ordinary full forms produce a canonical rank-zero scalar;
 all axis forms normalize the caller axis, then remove it or retain it with extent one. `argMax`
 has no full form, accepts floating and integral inputs, and produces fixed INT64 results.
-Numerical or truth evaluation, empty-domain behavior, gradients, and execution remain planned.
+Public masked Tensor expressions and Shape-based mask mapping resolution remain planned.
+Numerical or truth evaluation, ordinary empty-domain behavior, gradients, and execution also
+remain planned.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -2701,6 +2706,7 @@ composition while the table also lists the current production families:
 | `AxisReductionAttrs` | The implemented immutable normalized-axis and retained-dimension value for ordinary single-axis reductions. |
 | `ArgMaxAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value for arg-max. |
 | `ArgMaxTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal maxima. |
+| `MaskedReductionAttrs` | The implemented immutable normalized reduction axis and ordered mask-dimension-to-input-axis mapping for masked, axis-removing sum and mean semantics. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -2895,8 +2901,8 @@ The public enum
 
 | Kind | Requested aggregate meaning | Supported semantic forms |
 |---|---|---|
-| `SUM` | Add values in the selected reduction domain. | Full or one normalized axis. |
-| `MEAN` | Compute the arithmetic mean in the selected reduction domain. | Full or one normalized axis. |
+| `SUM` | Add values in the selected reduction domain. | Ordinary full/one-axis forms or a masked, axis-removing form. |
+| `MEAN` | Compute the arithmetic mean in the selected reduction domain. | Ordinary full/one-axis forms or a masked, axis-removing form. |
 | `PROD` | Multiply values in the selected reduction domain. | Full or one normalized axis. |
 | `MIN` | Select the minimum value in the selected reduction domain. | Full or one normalized axis. |
 | `MAX` | Select the maximum value in the selected reduction domain. | Full or one normalized axis. |
@@ -2948,6 +2954,28 @@ with `NullPointerException("tiePolicy")`. Both attribute records use generated r
 semantics, while their text remains diagnostic rather than serialization or dispatch syntax.
 Generic `Operation` still checks only that kind and attributes are non-null; it does not enforce
 these documented family pairings.
+
+A masked sum or mean pairs its existing kind with
+`MaskedReductionAttrs(axis, maskInputAxes)`. The axis is already normalized, non-negative, and
+removed from the eventual result. Element `maskInputAxes[i]` gives the input axis aligned with
+mask dimension `i`. For example, mapping `[0, 1]` aligns a mask shaped like `[batch, time]` with
+the first two axes of input `[batch, time, features]`; the omitted features axis is an implicit
+broadcast dimension. Mapping `[0, 2]` instead aligns the same two mask dimensions with the first
+and third input axes. An empty mapping represents a scalar mask.
+
+The mapping must contain non-null, non-negative, strictly increasing input-axis positions. This
+preserves mask-dimension order, prevents duplicate target axes, and permits an immutable snapshot
+without storing Shapes or an expanded mask. `Integer.MAX_VALUE` is structurally valid because the
+attribute cannot know the eventual input rank. A later Shape-aware Tensor-expression contract will
+resolve and validate bounds and dimension compatibility. No public masked `Tensor.sum` or
+`Tensor.mean` overload exists yet.
+
+The eventual provenance order is `[input, mask]`. False mask positions exclude their aligned
+input values. When no values are selected, a masked sum produces zero. A masked mean divides by the
+true selected-count for each output and produces zero when that count is zero. These are semantic
+requirements for later execution; constructing `MaskedReductionAttrs` does not inspect a mask,
+count values, divide, derive an output descriptor, or execute computation. Generic `Operation`
+does not enforce that only `SUM` and `MEAN` use this attributes type.
 
 The public Tensor surface now covers every current aggregate semantic kind. `Tensor.sum`, `mean`,
 `prod`, reduction `min`, and reduction `max` provide floating full and single-axis expression
@@ -3273,14 +3301,17 @@ The following contracts appear in the architecture and planning documents but ar
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
+`MaskedReductionAttrs`,
 `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
 current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
 reduction is also a current production semantic family; `sum`, `mean`, `prod`, reduction `min`,
 reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have matching public Tensor
-expression methods. The graph records can compose these or test-local semantics, but they do not
-provide a compiler entry point or executable support.
+expression methods. Masked sum/mean attributes are current semantic values, but their public
+Tensor expressions and Shape-based mapping resolution remain planned. The graph records can
+compose these or test-local semantics, but they do not provide a compiler entry point or
+executable support.
 
 ## Failures and ownership summary
 
@@ -3303,6 +3334,12 @@ provide a compiler entry point or executable support.
   described above. `argMax` additionally accepts only floating or integral input, requires an
   explicit policy at its helper boundary, and fixes the result to non-differentiable INT64 without
   defining comparison or empty-axis behavior.
+- `MaskedReductionAttrs` rejects a negative normalized reduction axis before inspecting its
+  mapping. It then rejects a null mapping, a null or negative mapped axis in index order, and a
+  repeated or descending position before copying the validated list. The stored mapping is an
+  immutable snapshot; empty and `Integer.MAX_VALUE` positions are structurally valid. The value
+  records masked SUM/MEAN semantics only and performs no Shape resolution, Tensor construction,
+  provenance construction, value selection, counting, or execution.
 - `Tensor.cast` requires a non-null target and accepts all 36 current source/target pairs. Each
   successful call returns a fresh unlabeled storage-free expression, including for a same-type
   request, with the exact input Shape reference, unresolved layout, typed target attributes, and

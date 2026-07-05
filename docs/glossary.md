@@ -58,7 +58,9 @@ rules, compiler capture and canonicalization, and backend execution remain plann
 owned.
 The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
 `ALL`, `ANY`, and `ARG_MAX`, together with normalized single-axis `AxisReductionAttrs`, explicit
-full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, and `ArgMaxTiePolicy`. Public floating
+full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, `ArgMaxTiePolicy`, and masked SUM/MEAN
+`MaskedReductionAttrs`. The masked attributes preserve an ordered mask-dimension-to-input-axis
+mapping and fixed all-false zero semantics without constructing a Tensor. Public floating
 `Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
 axis-removing, and retained-axis expressions with locally derived shapes and one-input provenance.
 Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
@@ -68,6 +70,7 @@ elementwise `AND`/`OR`. Axis-only `Tensor.argMax` now accepts floating or integr
 produces fixed non-differentiable INT64 expressions with explicit first- or last-index policy.
 Numerical or truth evaluation, empty-domain behavior, extrema comparison and tie execution,
 gradients, compiler capture, backend support, and execution remain planned.
+Public masked sum/mean Tensor expressions and Shape-based mapping resolution also remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -84,6 +87,13 @@ The implemented `AggregateReductionKind` vocabulary includes numeric `SUM`, `MEA
 reduction selects every input axis and uses `NoOperationAttrs.INSTANCE`; an ordinary single-axis
 reduction uses `AxisReductionAttrs`. Representing the full form through parameter absence avoids a
 negative numeric all-axis sentinel.
+
+A masked, axis-removing `SUM` or `MEAN` instead uses `MaskedReductionAttrs`. Its immutable mapping
+states which ordered input axis receives each mask dimension, and later provenance will use exact
+input order `[input, mask]`. False mask positions are excluded. Selecting no values produces zero
+for masked sum; masked mean divides by the selected true-count and also produces zero when that
+count is zero. The attributes represent those semantics but perform no Shape resolution, Tensor
+construction, value selection, counting, or execution.
 
 For a single-axis form, `keepDimensions == false` requests removal of the selected axis, while
 `true` requests retaining it with extent one. `ARG_MAX` instead uses `ArgMaxAttrs` because its tie
@@ -292,6 +302,32 @@ Translation from a planned, backend-neutral graph region into a backend-specific
 
 Creating a concrete stored representation when a logical value or view cannot be consumed in its current form. For example, a backend route may require a contiguous copy of a strided view. Planning expresses logical materialization requirements; prepare and backend/runtime mechanisms realize the required storage and copy work. Materialization is not a property decided by `LayoutDescriptor` alone.
 
+### Masked reduction
+
+An aggregate `SUM` or `MEAN` that excludes input positions whose aligned boolean mask position is
+false. The implemented `MaskedReductionAttrs` semantic value stores one already normalized,
+non-negative reduction axis and an immutable [mask-to-input axis mapping](#mask-to-input-axis-mapping).
+The selected public baseline removes the reduction axis. A masked sum with no selected values is
+zero. A masked mean divides by the number of true selected positions for each output and is zero
+when that count is zero.
+
+Only semantic representability is current. Public masked Tensor expressions, BOOL-mask and
+data-type validation, deterministic Shape-based mapping resolution, output-shape derivation,
+`[input, mask]` provenance construction, gradients, and numerical execution remain planned.
+
+### Mask-to-input axis mapping
+
+The ordered structural mapping stored by `MaskedReductionAttrs`. Element
+`maskInputAxes[i]` names the zero-based input axis aligned with mask dimension `i`. Values must be
+non-negative and strictly increasing, which preserves mask-dimension order and prevents two mask
+dimensions from claiming one input axis. Omitted input axes are implicit broadcast dimensions;
+an empty mapping represents a scalar mask. For example, `[0, 1]` maps mask `[batch, time]` onto
+the first two axes of input `[batch, time, features]` and leaves the features axis implicit.
+
+The mapping value does not contain either Shape. It therefore cannot prove input-rank bounds,
+dimension compatibility, or that one mapping should be selected over another. The planned public
+masked-expression task owns deterministic resolution from concrete input and mask Shapes.
+
 ### Memory slot
 
 A position in a prepared memory plan for a physical buffer or workspace used during execution. Slots let a prepared schedule refer to reusable storage without embedding raw addresses. A memory slot is a physical execution resource and must not be confused with a logical [`ValueId`](#valueid).
@@ -310,6 +346,8 @@ and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, 
 `min`, reduction `max`, boolean `all`, and boolean `any` axis methods normalize against the input
 Shape before constructing semantic attributes. The current axis-only `argMax` methods use the
 same boundary before constructing `ArgMaxAttrs`.
+`MaskedReductionAttrs` follows the same normalized-axis boundary, but public Shape-aware masked
+expression construction is not implemented yet.
 
 ### Node
 
@@ -341,7 +379,8 @@ computation an [`Operation`](#operation) describes. Implemented scalar-family va
 ordered inclusive lower and upper bounds. Implemented cast-family `CastAttrs` holds one exact
 non-null target `DataType` without duplicating a source type. Implemented reduction-family
 `AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
-adds an explicit tie policy. Other families may define records for padding or another
+adds an explicit tie policy and `MaskedReductionAttrs` holds one reduction axis plus an immutable
+ordered mask-to-input axis mapping. Other families may define records for padding or another
 operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
@@ -434,14 +473,17 @@ The eighth production family is `AggregateReductionKind`, an enum containing exa
 with `NoOperationAttrs.INSTANCE` for a full reduction over every input axis or with
 `AxisReductionAttrs` for one already normalized axis. `ARG_MAX` pairs with `ArgMaxAttrs`, which
 adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Generic `Operation` does not enforce
-these family pairings. The family stores no Tensor input, result descriptor, negative all-axis
+these family pairings. Masked axis-removing `SUM` and `MEAN` pair with
+`MaskedReductionAttrs`, whose strictly increasing list aligns mask dimensions to input axes and
+whose semantic contract fixes false-value exclusion and zero output when the selected count is
+zero. The family stores no Tensor input, result descriptor, negative all-axis
 sentinel, numerical or empty-domain policy, gradient rule, executable behavior, or backend
 support. Public `sum`, `mean`, `prod`, reduction `min`, and reduction `max` separately own
 floating eligibility, while public `all` and `any` own exact BOOL eligibility and fixed false
 gradient eligibility. All seven ordinary families own axis normalization, result-shape derivation,
 and one-input provenance. Public `argMax` separately owns floating-or-integral eligibility, fixed
 INT64 false-gradient results, explicit tie policy, axis-only shape derivation, and one-input
-provenance.
+provenance. Public masked reduction construction and Shape mapping remain planned.
 
 ### Partition
 
@@ -866,7 +908,7 @@ without storing derived indexes.
 | Concept | Meaning | Current status |
 |---|---|---|
 | `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, and aggregate reduction families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, reduction-axis, and arg-max values implemented; other family-specific values planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, and masked-reduction values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -878,7 +920,8 @@ unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are i
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction. Other concrete
-families and their family-specific attributes, compiler capture, and execution remain planned.
+families and their family-specific attributes, masked aggregate Tensor construction, compiler
+capture, and execution remain planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

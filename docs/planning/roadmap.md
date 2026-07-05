@@ -41,7 +41,7 @@ The current project area is [`modules/model`](modules/model/master-plan.md).
 
 Its next planning frontier is:
 
-- 0016F Masked sum and mean Tensor expressions — Draft; no detailed specification exists yet
+- 0016F1 Masked sum and mean Tensor expressions — Draft; no detailed specification exists yet
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -92,6 +92,11 @@ one-axis all/any expressions while deferring truth evaluation and empty-domain i
 Task [0016E](modules/model/tasks/0016e-arg-max-tensor-expressions.md) is complete. It adds axis-only
 numeric arg-max construction with explicit tie semantics, fixed INT64 results, and a dedicated
 helper while leaving value comparison and execution deferred.
+Task [0016F](modules/model/tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) is complete.
+It adds the typed semantic contract and explicit ordered mask-dimension-to-input-axis mapping
+needed to preserve legacy-compatible masks that ordinary right-aligned broadcasting cannot
+represent. Draft task 0016F1 will later own deterministic Shape-based mapping resolution and the
+public axis-removing masked sum/mean expressions; it has no detailed specification yet.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -180,19 +185,20 @@ authorized Compile API status correction.
 | 43 | [0016C Min and max Tensor reduction expressions](modules/model/tasks/0016c-min-and-max-tensor-reduction-expressions.md) | Complete |
 | 44 | [0016D Boolean all and any Tensor expressions](modules/model/tasks/0016d-boolean-all-and-any-tensor-expressions.md) | Complete |
 | 45 | [0016E Arg-max Tensor expressions](modules/model/tasks/0016e-arg-max-tensor-expressions.md) | Complete |
-| 46 | 0016F Masked sum and mean Tensor expressions | Draft |
-| 47 | 0016G Cumulative-sum semantic kind and attributes | Draft |
-| 48 | 0016H Cumulative-sum Tensor expressions | Draft |
-| 49 | 0016I Softmax semantic kinds and attributes | Draft |
-| 50 | 0016J Softmax Tensor expressions | Draft |
-| 51 | 0017 Layout and view operations | Draft |
-| 52 | 0018 Indexing and scatter operations | Draft |
-| 53 | 0019 Linear algebra and attention operations | Draft |
-| 54 | 0020 Convolution and pooling operations | Draft |
-| 55 | 0021 Normalization operations | Draft |
-| 56 | 0022 Loss operations | Draft |
-| 57 | 0023 Compiler-generated semantic operations | Draft |
-| 58 | 0024 Model capability parity audit | Draft |
+| 46 | [0016F Masked reduction semantics and axis mapping](modules/model/tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) | Complete |
+| 47 | 0016F1 Masked sum and mean Tensor expressions | Draft |
+| 48 | 0016G Cumulative-sum semantic kind and attributes | Draft |
+| 49 | 0016H Cumulative-sum Tensor expressions | Draft |
+| 50 | 0016I Softmax semantic kinds and attributes | Draft |
+| 51 | 0016J Softmax Tensor expressions | Draft |
+| 52 | 0017 Layout and view operations | Draft |
+| 53 | 0018 Indexing and scatter operations | Draft |
+| 54 | 0019 Linear algebra and attention operations | Draft |
+| 55 | 0020 Convolution and pooling operations | Draft |
+| 56 | 0021 Normalization operations | Draft |
+| 57 | 0022 Loss operations | Draft |
+| 58 | 0023 Compiler-generated semantic operations | Draft |
+| 59 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -232,12 +238,13 @@ derived-construction contracts without changing module boundaries or foundationa
 task 0015H's Tensor/result construction and conversion-policy decisions. Task 0015H completed that
 public Tensor construction with exact Shape retention, floating-only gradient eligibility, and a
 fresh explicit cast for every valid request. Compiler work later owns redundant same-type and
-cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J so
-aggregate semantics, focused Tensor expression groups, masked reductions, cumulative scan, and
-softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Task 0016F is the
-next Draft planning frontier without a detailed specification. Completed task 0016E adds fixed-
-INT64, one-axis arg-max expression metadata without changing the ordinary reduction helper or
-adding value comparison, empty-axis policy, or execution.
+cast-chain canonicalization. The broad former task 0016 is now decomposed into 0016A–0016J plus
+0016F1 so aggregate semantics, focused Tensor expression groups, masked reductions, cumulative
+scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Task
+0016F is also complete; task 0016F1 is the next Draft frontier for later public masked Tensor
+expressions and has no detailed specification. Completed task 0016E adds fixed-INT64, one-axis
+arg-max expression metadata without changing the ordinary reduction helper or adding value
+comparison, empty-axis policy, or execution.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future

@@ -153,7 +153,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0016C | [Min and max Tensor reduction expressions](tasks/0016c-min-and-max-tensor-reduction-expressions.md) | Complete | 0001, 0002, 0013, 0014A, 0014B, 0016A, 0016B | Extend the shared floating aggregate boundary with full and single-axis extrema expressions. |
 | 0016D | [Boolean all and any Tensor expressions](tasks/0016d-boolean-all-and-any-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0015C, 0015D, 0016A, 0016B, 0016C | Generalize the shared aggregate boundary with BOOL full and single-axis all/any expressions. |
 | 0016E | [Arg-max Tensor expressions](tasks/0016e-arg-max-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0016A, 0016B, 0016C, 0016D | Build numeric single-axis INT64 index expressions with explicit or FIRST_INDEX tie policy. |
-| 0016F | Masked sum and mean Tensor expressions | Draft | 0016B | Define broadcast-aware masked floating reductions. |
+| 0016F | [Masked reduction semantics and axis mapping](tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) | Complete | 0005, 0006, 0016A | Define typed SUM/MEAN masked attributes with explicit mask-dimension-to-input-axis mapping. |
+| 0016F1 | Masked sum and mean Tensor expressions | Draft | 0001, 0002, 0013, 0016B, 0016F | Resolve legacy-compatible mask alignment and build axis-removing public expressions. |
 | 0016G | Cumulative-sum semantic kind and attributes | Draft | 0005, 0006 | Define typed axis, exclusive, and reverse scan semantics. |
 | 0016H | Cumulative-sum Tensor expressions | Draft | 0001, 0002, 0013, 0016G | Build shape-preserving numeric cumulative-sum expressions. |
 | 0016I | Softmax semantic kinds and attributes | Draft | 0005, 0006 | Define typed softmax and log-softmax axis semantics. |
@@ -172,14 +173,15 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J, and 0017–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, and 0017–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
 
 Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
-complete. Task 0016F is the next Draft planning frontier without a detailed specification.
+complete. Task 0016F is also complete. Task 0016F1 is the next Draft planning frontier without a
+detailed specification.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -429,10 +431,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   construction without numerical conversion, gradient rules, compiler canonicalization, backend
   behavior, dependencies, or execution.
 - The broad reduction-and-scan frontier is decomposed into aggregate semantics 0016A, focused
-  aggregate Tensor expression tasks 0016B–0016F, cumulative-sum semantics/expressions 0016G–0016H,
-  and softmax semantics/expressions 0016I–0016J. This preserves the semantic/expression split and
-  prevents public API, shape inference, masked reductions, scan options, and normalization from
-  becoming one oversized task.
+  ordinary aggregate Tensor expression tasks 0016B–0016E, masked semantic task 0016F and expression
+  task 0016F1, cumulative-sum semantics/expressions 0016G–0016H, and softmax semantics/expressions
+  0016I–0016J. This preserves the semantic/expression split and prevents public API, shape
+  inference, masked reductions, scan options, and normalization from becoming one oversized task.
 - Task 0016A specifies `AggregateReductionKind` for SUM, MEAN, PROD, MIN, MAX, ALL, ANY, and
   ARG_MAX; `AxisReductionAttrs` for normalized single-axis ordinary reductions; explicit
   `NoOperationAttrs.INSTANCE` full forms; and `ArgMaxAttrs` plus FIRST_INDEX/LAST_INDEX tie policy.
@@ -499,6 +501,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   configuration, ordinary reductions, and related foundational/reduction contracts remain
   accurate unchanged because this task adds only model-owned index-expression metadata without
   comparison, empty-axis policy, gradients, compiler behavior, dependencies, or execution.
+- Task 0016F adds `MaskedReductionAttrs(axis, maskInputAxes)` and documents SUM/MEAN pairing
+  without public Tensor construction. The immutable strictly increasing mapping records
+  which input axis receives each mask dimension, so masks such as `[batch, time]` for
+  `[batch, time, features]` remain representable without hiding reshape/expand behavior in a
+  backend. False positions are excluded; all-false masked sum and masked mean both produce zero.
+  Task 0016F1 remains Draft for Shape-based mapping resolution and public axis-removing
+  expressions.
+- The independent task-0016F documentation review finalized exact constructor-failure Javadocs,
+  the Tensor API semantic reference, glossary terminology, task evidence, master plan, and
+  roadmap. Compile API, Training API, capabilities, focused architecture/ADRs/tests, conformance
+  and integration tests, Gradle configuration, operation foundations, ordinary/arg-max reduction
+  attributes, other aggregate constants, and existing Tensor expressions remain accurate
+  unchanged because this task adds only model-owned masked semantic attributes without public
+  Tensor construction, Shape resolution, gradients, dependencies, compiler behavior, or
+  execution.
 - The independent task-0015G documentation review found the enum and record Javadocs complete,
   then finalized Tensor API, glossary, task evidence, master plan, and roadmap. Compile API,
   Training API, capabilities, architecture/ADRs/tests, conformance and integration tests, Java 26
@@ -591,7 +608,7 @@ semantic identity, and task 0015F completed its public static Tensor expression 
 Task 0015G completed the exact `CAST` semantic identity and immutable target-data-type attributes.
 Task 0015H completed its public storage-free Tensor expression construction. The former broad task
 0016 is decomposed into tasks 0016A–0016J. Tasks 0016A through 0016E are complete. Task 0016F is
-the next Draft planning frontier without a detailed specification, and all later operation-family
-tasks remain Draft.
+also complete. Task 0016F1 is the next Draft planning frontier, and it and all later
+operation-family tasks remain without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
