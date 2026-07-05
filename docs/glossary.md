@@ -62,9 +62,11 @@ full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, and `ArgMaxTiePolicy`. Pub
 `Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
 axis-removing, and retained-axis expressions with locally derived shapes and one-input provenance.
 Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
-and index-producing aggregate Tensor methods, numerical and empty-domain behavior, extrema
-comparison and tie handling, gradients, compiler capture, backend support, and execution remain
-planned.
+`Tensor.all` and `Tensor.any` now provide the corresponding exact-BOOL expressions with false gradient
+eligibility and one-input provenance; aggregate `ALL`/`ANY` remain typed separately from
+elementwise `AND`/`OR`. Index-producing aggregate Tensor methods, numerical or truth evaluation,
+empty-domain behavior, extrema comparison and tie handling, gradients, compiler capture, backend
+support, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -91,9 +93,14 @@ derivation, exact type and gradient-eligibility retention, and provenance. Aggre
 one input and `AggregateReductionKind.MIN` or `AggregateReductionKind.MAX`; binary elementwise
 extrema use two ordered inputs and the distinct `BinaryArithmeticKind` constants. The aggregate
 methods still define no numerical or empty-domain policy, comparison, NaN or signed-zero handling,
-extrema-tie gradient rule, or executable behavior. See [Numeric aggregate
+extrema-tie gradient rule, or executable behavior. Public `all` and `any` instead require exact
+BOOL input and produce exact BOOL with false gradient eligibility, using the same shape and
+provenance rules. They do not inspect truth values or define empty-domain identities. Aggregate
+ALL/ANY use one input and `AggregateReductionKind`; elementwise AND/OR use two ordered inputs and
+the distinct `BooleanLogicalKind` constants. See [Numeric aggregate
 expressions](api/tensor-api.md#numeric-aggregate-expressions) and [Aggregate reduction semantic
-kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes).
+kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes), plus
+[Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions).
 
 ### Arg-max tie policy
 
@@ -293,9 +300,9 @@ A non-negative axis index in the range established by a tensor's rank. The imple
 form. Reduction attributes store only an already normalized non-negative `int`; they do not retain
 a Shape or prove that the index exists for a particular input. A negative stored axis is invalid,
 and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, `prod`, reduction
-`min`, and reduction `max` axis methods normalize against the input Shape before constructing
-semantic attributes; later boolean and index-producing aggregate families retain that same
-boundary.
+`min`, reduction `max`, boolean `all`, and boolean `any` axis methods normalize against the input
+Shape before constructing semantic attributes; later index-producing aggregate families retain
+that same boundary.
 
 ### Node
 
@@ -423,8 +430,9 @@ adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Generic `Operation` d
 these family pairings. The family stores no Tensor input, result descriptor, negative all-axis
 sentinel, numerical or empty-domain policy, gradient rule, executable behavior, or backend
 support. Public `sum`, `mean`, `prod`, reduction `min`, and reduction `max` separately own
-floating eligibility, axis normalization, result-shape derivation, and provenance; boolean and
-index-producing aggregate Tensor expressions remain planned.
+floating eligibility, while public `all` and `any` own exact BOOL eligibility and fixed false
+gradient eligibility. All seven ordinary families own axis normalization, result-shape derivation,
+and one-input provenance; index-producing aggregate Tensor expressions remain planned.
 
 ### Partition
 
@@ -569,11 +577,12 @@ store exact binary64 attributes without conversion or canonicalization; range cl
 first-class `CLAMP` operation. Other expression families, gradient rules and objects, trainable
 role, publication behavior, compiler integration, device buffers, numerical execution, and
 runtime residency remain planned. The current `sum`, `mean`, `prod`, reduction `min`, and
-reduction `max` methods create floating full or single-axis aggregate expressions. Full forms
-produce canonical rank-zero shape; axis forms normalize, then remove or retain the selected axis
-with extent one. Results preserve exact input type and gradient eligibility, leave layout
-unresolved, and record one-input provenance without aggregating or comparing values or defining
-numerical, tie-gradient, or executable behavior.
+reduction `max` methods create floating full or single-axis aggregate expressions. Current `all`
+and `any` create exact-BOOL, non-differentiable forms. Full forms produce canonical rank-zero
+shape; axis forms normalize, then remove or retain the selected axis with extent one. Results
+preserve the family-specific type and eligibility, leave layout unresolved, and record one-input
+provenance without aggregating, comparing, or evaluating values or defining empty-domain,
+tie-gradient, compiler, backend, or executable behavior.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -820,10 +829,11 @@ The implemented standalone `PublicationBinding` connects the two identity domain
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
 descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
 comparison, unary, and scalar Tensor expression construction are implemented, as is BOOL-only
-logical expression construction, explicit cast expression construction, and floating numeric
-aggregate expression construction for sum, mean, product, minimum, and maximum. Gradient rules
-and objects, compiler graph capture, numerical execution, and publication behavior are not part of
-the current Tensor contract.
+logical expression construction, explicit cast expression construction, floating numeric
+aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
+aggregate expression construction for all and any. Gradient rules and objects, compiler graph
+capture, truth or numerical execution, and publication behavior are not part of the current Tensor
+contract.
 
 ### Node versus value
 
@@ -855,9 +865,9 @@ that occurrence. Binary arithmetic, binary comparison, boolean logical, conditio
 unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.
 Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
-sum/mean/product/minimum/maximum aggregate Tensor construction. Boolean and index-producing
-aggregate expressions, other concrete families and their family-specific attributes, compiler
-capture, and execution remain planned. The compiled graph container is implemented model state.
+sum/mean/product/minimum/maximum/all/any aggregate Tensor construction. Index-producing aggregate
+expressions, other concrete families and their family-specific attributes, compiler capture, and
+execution remain planned. The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 

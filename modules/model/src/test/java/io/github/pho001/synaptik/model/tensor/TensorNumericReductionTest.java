@@ -89,7 +89,8 @@ class TensorNumericReductionTest {
                 boolean.class);
         assertHelperMethod(
                 "validateKind", true, void.class, AggregateReductionKind.class);
-        assertHelperMethod("validateFloatingInput", true, void.class, Tensor.class);
+        assertHelperMethod(
+                "validateInput", true, void.class, Tensor.class, AggregateReductionKind.class);
         assertHelperMethod(
                 "reduceShape", true, Shape.class, Shape.class, int.class, boolean.class);
         assertHelperMethod(
@@ -305,10 +306,7 @@ class TensorNumericReductionTest {
                 () -> assertEquals("input", nullAxisInput.getMessage()),
                 () -> assertEquals("kind", nullAxisKind.getMessage()));
 
-        for (AggregateReductionKind kind : List.of(
-                AggregateReductionKind.ALL,
-                AggregateReductionKind.ANY,
-                AggregateReductionKind.ARG_MAX)) {
+        for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MAX)) {
             IllegalArgumentException fullFailure = assertThrows(
                     IllegalArgumentException.class,
                     () -> TensorReductionExpressions.applyFull(floating, kind));
@@ -317,7 +315,7 @@ class TensorNumericReductionTest {
                     () -> TensorReductionExpressions.applyAxis(floating, kind, 9, false));
             assertAll(
                     () -> assertEquals(
-                            "kind must be SUM, MEAN, PROD, MIN, or MAX, but was " + kind,
+                            "kind must be SUM, MEAN, PROD, MIN, MAX, ALL, or ANY, but was " + kind,
                             fullFailure.getMessage()),
                     () -> assertEquals(fullFailure.getMessage(), axisFailure.getMessage()));
         }

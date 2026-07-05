@@ -34,7 +34,7 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. It is not graph-local node or value identity and does not
  * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
- * boolean logical, conditional selection, explicit cast, numeric aggregate reduction,
+ * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
  * elementwise expression methods create fresh storage-free tensors whose immutable provenance
  * records the requested semantics and exact inputs; they do not execute mathematics, validate
@@ -50,9 +50,13 @@ import java.util.Optional;
  * type, retains the exact input shape, and preserves a true gradient request only across a
  * floating-to-floating conversion. Numeric aggregate methods accept one floating input and reduce
  * either every axis to a scalar or one normalized axis, optionally retaining it with extent one;
- * they preserve the exact input type and gradient eligibility without aggregating values. Scalar
- * and unary methods accept one floating input and retain its exact data type, shape reference, and
- * gradient eligibility. Scalar methods retain their exact binary64 parameters in typed attributes.
+ * they preserve the exact input type and gradient eligibility without aggregating values. Boolean
+ * aggregate methods require exact BOOL input and construct non-differentiable BOOL
+ * results with the same full- or single-axis shape rules, without inspecting truth values or
+ * defining empty-domain identities.
+ * Scalar and unary methods accept one floating input and retain its exact data type, shape
+ * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
+ * typed attributes.
  * Every expression result leaves layout unresolved, has a fresh factory identity and no label or
  * storage, and records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
@@ -1431,6 +1435,163 @@ public final class Tensor {
     public Tensor max(int axis, boolean keepDimensions) {
         return TensorReductionExpressions.applyAxis(
                 this, AggregateReductionKind.MAX, axis, keepDimensions);
+    }
+
+    /**
+     * Builds a boolean conjunction reduction over every input axis.
+     *
+     * <p>This tensor must have exact {@link DataType#BOOL} type. The fresh result is a canonical
+     * rank-zero BOOL scalar with false gradient eligibility, unresolved layout, no label or host
+     * storage, and one-input provenance containing {@link AggregateReductionKind#ALL} with
+     * {@code NoOperationAttrs.INSTANCE}. Scalar, static, zero-extent, and dynamic shapes are
+     * accepted structurally.</p>
+     *
+     * <p>This method does not inspect truth values or storage, define an empty-domain identity,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate
+     * ALL is distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
+     *
+     * @return a non-null fresh storage-free BOOL scalar with false gradient eligibility,
+     *     unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ALL} and the rejected type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor all() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.ALL);
+    }
+
+    /**
+     * Builds a boolean conjunction reduction over one axis and removes that axis.
+     *
+     * <p>The BOOL input's positive or negative {@code axis} is normalized exactly once. The
+     * selected dimension is removed, unaffected dimension references are retained, and rank one
+     * produces the canonical scalar shape. The fresh BOOL result is non-differentiable, has
+     * unresolved layout and no label or storage, and records normalized axis attributes and this
+     * sole provenance input.</p>
+     *
+     * <p>This method does not inspect truth values, define an empty-domain identity, create a
+     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
+     * distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
+     * @return a non-null fresh storage-free BOOL tensor whose selected axis is removed, with false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ALL} and the rejected type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor all(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.ALL, axis, false);
+    }
+
+    /**
+     * Builds a boolean conjunction reduction over one axis and optionally retains it.
+     *
+     * <p>The BOOL input's positive or negative {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes it; true replaces it with a new static extent one while
+     * retaining every unaffected dimension reference. The fresh result is exact BOOL with false
+     * gradient eligibility, unresolved layout, no label or storage, normalized axis attributes,
+     * and exact one-input aggregate provenance. Zero and dynamic extents are accepted
+     * structurally.</p>
+     *
+     * <p>This method does not inspect truth values, define an empty-domain identity, create a
+     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
+     * distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
+     * @param keepDimensions {@code true} to retain the selected axis with extent one;
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free BOOL tensor with the requested reduction shape, false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ALL} and the rejected type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor all(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.ALL, axis, keepDimensions);
+    }
+
+    /**
+     * Builds a boolean disjunction reduction over every input axis.
+     *
+     * <p>This tensor must have exact {@link DataType#BOOL} type. The fresh result is a canonical
+     * rank-zero BOOL scalar with false gradient eligibility, unresolved layout, no label or host
+     * storage, and one-input provenance containing {@link AggregateReductionKind#ANY} with
+     * {@code NoOperationAttrs.INSTANCE}. Scalar, static, zero-extent, and dynamic shapes are
+     * accepted structurally.</p>
+     *
+     * <p>This method does not inspect truth values or storage, define an empty-domain identity,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate
+     * ANY is distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
+     *
+     * @return a non-null fresh storage-free BOOL scalar with false gradient eligibility,
+     *     unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ANY} and the rejected type; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor any() {
+        return TensorReductionExpressions.applyFull(this, AggregateReductionKind.ANY);
+    }
+
+    /**
+     * Builds a boolean disjunction reduction over one axis and removes that axis.
+     *
+     * <p>The BOOL input's axis is normalized exactly once. The selected dimension is removed,
+     * unaffected references are retained, and rank one becomes a scalar. The fresh result is
+     * non-differentiable BOOL with unresolved layout, no label or storage, normalized axis
+     * attributes, and this sole provenance input.</p>
+     *
+     * <p>This method does not inspect truth values, define an empty-domain identity, create a
+     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
+     * distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
+     * @return a non-null fresh storage-free BOOL tensor whose selected axis is removed, with false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ANY} and the rejected type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor any(int axis) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.ANY, axis, false);
+    }
+
+    /**
+     * Builds a boolean disjunction reduction over one axis and optionally retains it.
+     *
+     * <p>The BOOL input's positive or negative {@code axis} is normalized exactly once. A false
+     * {@code keepDimensions} removes it; true replaces it with a new static extent one while
+     * retaining every unaffected dimension reference. The fresh result is exact BOOL with false
+     * gradient eligibility, unresolved layout, no label or storage, normalized axis attributes,
+     * and exact one-input aggregate provenance. Zero and dynamic extents are accepted
+     * structurally.</p>
+     *
+     * <p>This method does not inspect truth values, define an empty-domain identity, create a
+     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
+     * distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
+     * @param keepDimensions {@code true} to retain the selected axis with extent one;
+     *     {@code false} to remove it
+     * @return a non-null fresh storage-free BOOL tensor with the requested reduction shape, false
+     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @throws IllegalArgumentException if this tensor is not BOOL, with a message containing
+     *     {@code ANY} and the rejected type; this check precedes axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor any(int axis, boolean keepDimensions) {
+        return TensorReductionExpressions.applyAxis(
+                this, AggregateReductionKind.ANY, axis, keepDimensions);
     }
 
     /**
