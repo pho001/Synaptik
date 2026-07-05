@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(76, declaredPublicMethods.size());
+        assertEquals(77, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -89,7 +89,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
-                        "logSoftmax"),
+                        "logSoftmax", "contiguous"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -231,6 +231,14 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        var contiguous = Tensor.class.getDeclaredMethod("contiguous");
+        assertAll(
+                () -> assertEquals(Tensor.class, contiguous.getReturnType()),
+                () -> assertEquals(0, contiguous.getParameterCount()),
+                () -> assertTrue(Modifier.isPublic(contiguous.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(contiguous.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(contiguous.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

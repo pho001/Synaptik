@@ -88,9 +88,10 @@ behavior, backend behavior, and execution remain planned.
 The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
 It preserves logical values, Shape, DataType, and row-major element order while requesting
 canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
-than the resolved `LayoutKind.DENSE_CONTIGUOUS` classification. Public `Tensor.contiguous()`,
-descriptor construction, input-layout inspection, alias or copy choice, materialization,
-compiler behavior, backend behavior, and execution remain planned or owned by later layers.
+than the resolved `LayoutKind.DENSE_CONTIGUOUS` classification. Public `Tensor.contiguous()` now
+constructs a fresh storage-free expression: static Shapes receive newly resolved canonical
+geometry and dynamic Shapes remain unresolved. Input-layout inspection, alias or copy choice,
+materialization, compiler behavior, backend behavior, and execution remain owned by later layers.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -225,10 +226,13 @@ descriptor does not validate its one-input family context.
 
 A contiguous request is not the implemented `LayoutKind.DENSE_CONTIGUOUS` classification: the
 request states desired computation semantics, while the layout kind classifies already-resolved
-strides and zero offset for a static Shape. It is also not a materialization decision. The enum
-does not inspect input geometry, construct a result descriptor, choose an alias or copy, allocate
-storage, or define compiler, planning, prepare, backend, runtime, gradient, or execution behavior.
-Public `Tensor.contiguous()` remains planned. See [Contiguous semantic
+strides and zero offset for a static Shape. It is also not a materialization decision. Public
+`Tensor.contiguous()` constructs a fresh expression that preserves exact Shape, DataType, and
+gradient eligibility. Fully static results receive newly resolved canonical layout geometry;
+dynamic results remain unresolved. Construction records exact one-input provenance without
+inspecting input geometry or storage and without choosing an alias or copy, allocating storage,
+or defining compiler, planning, prepare, backend, runtime, gradient, or execution behavior. See
+[Contiguous expressions](api/tensor-api.md#contiguous-expressions), [Contiguous semantic
 kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
 [Materialization](#materialization).
 
@@ -636,6 +640,9 @@ one immediate input, including in same-type and chained requests. `Tensor.cumSum
 `CumulativeSumAttrs`, and likewise records exactly the receiver as its sole input.
 `Tensor.softmax` and `Tensor.logSoftmax` use the exact corresponding `SoftmaxKind`, retain the
 normalized axis in `SoftmaxAttrs`, and record exactly the receiver as their sole input.
+`Tensor.contiguous()` uses `ContiguousKind.CONTIGUOUS` and `NoOperationAttrs.INSTANCE`, and records
+exactly the receiver even when it already has canonical dense layout. That provenance does not
+imply that a copy or materialization occurred.
 
 ### Publication binding
 
@@ -775,6 +782,10 @@ and gradient eligibility in an unresolved descriptor, and records one normalized
 exact probability or log-probability kind. Each valid call is fresh, unlabeled, and storage-free;
 construction performs no normalization and defines no numerical algorithm, gradient, compiler,
 backend, or execution behavior.
+A `contiguous` request accepts every data type and preserves exact Shape, type, and gradient
+eligibility. A fully static result receives new canonical dense row-major, zero-offset geometry;
+a dynamic result remains unresolved. Every request is fresh, unlabeled, and storage-free, records
+exact one-input provenance, and neither inspects input layout or values nor performs a copy.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1025,8 +1036,10 @@ logical expression construction, explicit cast expression construction, floating
 aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
 aggregate expression construction for all and any. Axis-only index-producing construction for
 arg-max, shape-preserving cumulative-sum construction, and shape-preserving softmax/log-softmax
-construction are also implemented. Gradient rules and objects, compiler graph capture, truth or
-numerical execution, and publication behavior are not part of the current Tensor contract.
+construction are also implemented. Shape-preserving contiguous request construction is
+implemented with static-resolved and dynamic-unresolved result layout rules. Gradient rules and
+objects, compiler graph capture and canonicalization, truth or numerical execution,
+materialization, and publication behavior are not part of the current Tensor contract.
 
 ### Node versus value
 
@@ -1060,9 +1073,9 @@ Arithmetic, unary, scalar, and comparison public Tensor construction paths are a
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
-implemented. Contiguous-request semantics are implemented, while public contiguous Tensor
-construction remains planned. Other concrete families and their family-specific attributes,
-compiler capture, and execution remain planned.
+implemented. Contiguous-request semantics and public contiguous Tensor construction are also
+implemented. Other concrete families and their family-specific attributes, compiler capture and
+canonicalization, materialization policy, and execution remain planned.
 The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run

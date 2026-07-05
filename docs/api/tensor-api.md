@@ -16,15 +16,15 @@ explicit cast method. Fifteen floating aggregate methods add full, one-axis, and
 aggregate methods add the same three forms for `all` and `any`, and three axis-only `argMax`
 methods add fixed INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
 scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
-normalization expressions. Typed access, other expression families, gradient objects
-and publication behavior, native/runtime/backend allocation, compiler integration, runtime
-residency, and backend execution remain planned. The authoritative module boundary remains
+normalization expressions. The parameterless `contiguous` method adds a shape-preserving request
+for canonical dense row-major result geometry. Typed access, other expression families, gradient
+objects and publication behavior, native/runtime/backend allocation, compiler integration,
+runtime residency, and backend execution remain planned. The authoritative module boundary remains
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current semantic vocabulary also includes `ContiguousKind.CONTIGUOUS`, a parameterless
-request for logically equivalent canonical dense row-major, zero-offset result geometry. This
-semantic kind does not add a public `Tensor.contiguous()` method or construct a result; that
-expression boundary remains planned.
+request for logically equivalent canonical dense row-major, zero-offset result geometry. Public
+`Tensor.contiguous()` now constructs that request without allocating or copying storage.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -60,6 +60,7 @@ BOOL Tensor + ALL/ANY + full/axis attributes                    = fresh reduced-
 numeric Tensor + ARG_MAX + axis/tie attributes                  = fresh reduced-shape INT64 Tensor
 numeric Tensor + CUM_SUM + axis/mode attributes                 = fresh shape-preserving Tensor
 floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-preserving Tensor
+Tensor + CONTIGUOUS                                = fresh static-resolved or dynamic-unresolved Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -163,8 +164,10 @@ numerical algorithm or gradient rule.
 retain its values, Shape, DataType, and row-major element order while the result targets canonical
 dense row-major geometry with logical storage offset zero. The kind is distinct from
 `LayoutKind.DENSE_CONTIGUOUS`, which classifies geometry that has already been resolved for a
-static Shape. No public Tensor expression currently consumes this kind, and the enum does not
-inspect layout, construct a descriptor, or decide aliasing, copying, or materialization.
+static Shape. Public `Tensor.contiguous()` constructs a fresh expression with exact Shape, data
+type, and gradient eligibility. Fully static Shapes receive newly resolved canonical geometry;
+dynamic Shapes remain unresolved. Construction does not inspect input layout or decide aliasing,
+copying, or materialization.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -208,6 +211,11 @@ values.
 floating input. Both preserve the exact input Shape, type, and gradient eligibility, leave layout
 unresolved, and record exactly the receiver as provenance. They retain distinct first-class
 SOFTMAX or LOG_SOFTMAX semantics without calculating values or selecting a decomposition.
+`Tensor.contiguous()` accepts every current data type and preserves the exact input Shape, type, and
+gradient eligibility. A fully static result receives a newly constructed canonical dense
+row-major layout; a dynamic result remains unresolved. Each call records `CONTIGUOUS` with
+`NoOperationAttrs.INSTANCE` and exactly the receiver as provenance, without reading input layout,
+storage, or values or performing a copy.
 `TensorProvenance` retains the exact operation and ordered public-tensor inputs. All current
 expression families derive result descriptors, but none assigns graph identity, captures
 a graph, calculates values, defines gradient rules, or executes computation.
@@ -2874,6 +2882,116 @@ compiler capture or decomposition, backend support, or execution.
 - Dynamic and zero extents are accepted structurally when the selected axis exists. Repeated
   equivalent requests still return fresh expression identities.
 
+### Contiguous expressions
+
+The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result
+geometry for one logical input. It accepts all six data types and preserves the exact input Shape
+reference, data type, and `requiresGrad` value. Every valid call creates a fresh unlabeled,
+storage-free Tensor with `CONTIGUOUS`, `NoOperationAttrs.INSTANCE`, and exact ordered provenance
+`[input]`.
+
+For a fully static Shape, construction creates a new resolved `LayoutDescriptor` with canonical
+row-major strides, logical storage offset zero, `isView() == false`, and the checked referenced
+element span. A rank-zero scalar therefore has no strides and span one; any zero-extent Shape has
+span zero. For a Shape containing a dynamic dimension, layout remains unresolved because numeric
+strides and span cannot yet be calculated.
+
+Construction does not inspect the input layout, label, provenance, storage, liveness, or values.
+An unresolved, already dense, offset-contiguous, strided, or broadcast input therefore follows the
+same Shape-based result rule. Repeated requests and a request on an already-contiguous expression
+remain distinct until a later compiler proves a legal canonicalization. Resolved result geometry
+describes the requested logical representation; it does not prove allocation, copying, distinct
+physical storage, runtime residency, backend support, or execution.
+
+#### Complete expression-construction example
+
+##### Goal and inputs
+
+Construct contiguous expressions from a static strided `FLOAT32` tensor and a dynamic `INT64`
+tensor. Neither input needs host storage because this boundary creates expression metadata only.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class ContiguousExpressionExample {
+    public static void main(String[] args) {
+        Shape staticShape = Shape.of(2, 3);
+        LayoutDescriptor strided = LayoutDescriptor.of(
+                staticShape, new long[] {1, 2}, 4, true);
+        Tensor staticInput = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, staticShape, Optional.of(strided), true));
+
+        Shape dynamicShape = Shape.ofDimensions(
+                new DynamicDimension("batch"), new StaticDimension(3));
+        Tensor dynamicInput = TensorFactory.create(new TensorDescriptor(
+                DataType.INT64, dynamicShape, Optional.empty(), false));
+
+        Tensor staticResult = staticInput.contiguous();
+        Tensor dynamicResult = dynamicInput.contiguous();
+        LayoutDescriptor resultLayout = staticResult.descriptor().layout().orElseThrow();
+
+        System.out.println(staticResult.descriptor().shape() == staticShape);
+        System.out.println(Arrays.toString(resultLayout.strides()));
+        System.out.println(resultLayout.storageOffset());
+        System.out.println(resultLayout.isView());
+        System.out.println(resultLayout.referencedElementSpan());
+        System.out.println(dynamicResult.descriptor().layout().isEmpty());
+        System.out.println(staticResult.provenance().orElseThrow().operation().kind());
+        System.out.println(staticResult.provenance().orElseThrow().inputs().getFirst()
+                == staticInput);
+        System.out.println(staticResult.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- The input uses non-canonical strides `[1, 2]`, offset `4`, and view metadata, but
+  `staticInput.contiguous()` derives result geometry only from `staticShape`.
+- The static result retains the exact Shape, `FLOAT32`, and true gradient-eligibility metadata,
+  but receives newly constructed canonical strides `[3, 1]`, offset zero, non-view metadata, and
+  span six.
+- The dynamic result retains its exact Shape and `INT64` metadata while leaving layout unresolved.
+- Provenance records exactly `staticInput`; neither result receives label or storage.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+true
+[3, 1]
+0
+false
+6
+true
+CONTIGUOUS
+true
+true
+```
+
+The result demonstrates static and dynamic descriptor derivation plus one-input provenance. It
+does not demonstrate a copy, materialization, compiler canonicalization, backend route, or
+execution.
+
+##### Failures and useful variations
+
+- Canonical stride or span overflow for a fully static Shape throws `ArithmeticException` before
+  a Tensor identity is consumed. Dynamic Shapes do not perform that numeric layout calculation.
+- Exhausted Tensor identifier space throws `IllegalStateException` only after local immutable
+  descriptor, operation, and provenance metadata has been constructed.
+- Scalar and zero-extent Shapes are valid, as are all current data types. Repeated or nested
+  requests always return fresh expression identities.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -3437,10 +3555,12 @@ or validate one-input arity.
 `ContiguousKind.CONTIGUOUS` is a computation request.
 `LayoutKind.DENSE_CONTIGUOUS` instead classifies resolved strides and zero offset for a static
 Shape. The semantic kind therefore neither depends on nor replaces the layout classification. It
-also does not inspect whether an input is already contiguous, construct a `LayoutDescriptor`,
+does not itself inspect whether an input is already contiguous, construct a `LayoutDescriptor`,
 return an alias, allocate or copy storage, derive a materialization requirement, select lowering,
-or execute work. A public `Tensor.contiguous()` expression remains planned; compiler, planning,
-prepare, backend, runtime, and training behavior remain with their owning later contracts.
+or execute work. Public `Tensor.contiguous()` now supplies the Shape-aware expression boundary:
+fully static results receive new canonical geometry, while dynamic results remain unresolved.
+Compiler canonicalization, materialization policy, planning, prepare, backend, runtime, training,
+and execution behavior remain with their owning later contracts.
 
 Inherited enum names are diagnostic typed vocabulary, not serialization, registry, dispatch,
 kernel, or reflection identifiers. An equally named constant from another kind family remains a
@@ -3746,12 +3866,12 @@ The following contracts appear in the architecture and planning documents but ar
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
-  index-producing aggregate operations, cumulative-sum scans, and softmax normalization, plus
-  gradient and trainable state and publication behavior;
+  index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
+  contiguous requests, plus gradient and trainable state and publication behavior;
 - operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
   elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
-  cumulative-sum scan and softmax normalization semantics, plus their family-specific attribute
-  values;
+  cumulative-sum scan, softmax normalization, and contiguous-request semantics, plus their
+  family-specific attribute values;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -3761,8 +3881,9 @@ The following contracts appear in the architecture and planning documents but ar
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
-`GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and `PublicationBinding` are
-current Java API contracts. Binary arithmetic, binary comparison, boolean logical, unary
+`ContiguousKind`, `GraphValue`, `CompiledNode`, `GraphPhase`, `CompiledGraphModel`, and
+`PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
+boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
 reduction is also a current production semantic family; `sum`, `mean`, `prod`, reduction `min`,
@@ -3770,13 +3891,19 @@ reduction `max`, boolean `all`, boolean `any`, and axis-only `argMax` have match
 expression methods, including the masked `sum(axis, mask)` and `mean(axis, mask)` forms. The graph
 records can compose these, current cumulative-sum expressions, or test-local semantics, but they
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
-values and their public Tensor expression construction are current.
+values and their public Tensor expression construction are current. The contiguous semantic value
+and public Tensor expression construction are also current, including static resolved and dynamic
+unresolved result-layout rules.
 
 ## Failures and ownership summary
 
 - Null inputs are rejected where documented by each current method's Javadoc.
 - Negative sizes, offsets, strides, and identifiers are rejected.
 - Checked size, stride, and span arithmetic throws `ArithmeticException` on overflow.
+- `Tensor.contiguous()` accepts every data type, preserves exact Shape, type, and gradient
+  eligibility, and performs checked canonical layout construction only for fully static Shapes.
+  Overflow consumes no Tensor identity; identifier exhaustion occurs after local immutable
+  expression metadata construction. Valid results remain unlabeled and storage-free.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.

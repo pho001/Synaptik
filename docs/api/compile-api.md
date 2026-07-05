@@ -37,7 +37,8 @@ scalar arithmetic and clamp methods, plus one static conditional-selection metho
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax` and `logSoftmax` methods, construct storage-free
-expressions with immutable operation-and-input provenance.
+expressions with immutable operation-and-input provenance. The parameterless `contiguous` method
+adds the same expression provenance for a canonical-layout request.
 Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
@@ -86,6 +87,13 @@ unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind wi
 provenance. Construction does not read values, calculate probabilities or logarithms, select a
 numerical algorithm, define a gradient rule, capture or decompose a graph operation, lower a
 backend operation, or execute work.
+`Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
+gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
+fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
+storage-free, records `CONTIGUOUS` with the canonical no-attributes singleton and exact one-input
+provenance, and does not inspect input layout, storage, or values. Resolved result geometry does
+not allocate or copy storage. Compiler capture, redundant-request canonicalization,
+materialization policy, lowering, and execution remain planned.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -104,10 +112,11 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   selection, cast, unary, scalar, numeric aggregate expression construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
-  sum and softmax/log-softmax construction are implemented; the compiler entry point, traversal,
-  capture, scan/reduction/normalization inference and canonicalization, optional softmax
-  decomposition, redundant-cast canonicalization, and conversion into graph values and nodes
-  remain planned.
+  sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
+  request construction, are implemented; the compiler entry point, traversal, capture,
+  scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
+  redundant-cast and redundant-contiguous canonicalization, layout materialization planning, and
+  conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
@@ -68,11 +69,13 @@ import java.util.Optional;
  * Scalar and unary methods accept one floating input and retain its exact data type, shape
  * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
  * typed attributes.
- * Every expression result leaves layout unresolved, has a fresh factory identity and no label or
- * storage, and records an exact matching
+ * Every expression result has a fresh factory identity and no label or storage. Most expression
+ * results leave layout unresolved; a contiguous request instead publishes newly resolved
+ * canonical dense row-major geometry for a fully static Shape and remains unresolved for a
+ * dynamic Shape. Every result records an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
- * {@link CumulativeSumKind}, {@link SoftmaxKind},
+ * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -1944,6 +1947,38 @@ public final class Tensor {
      */
     public Tensor logSoftmax(int axis) {
         return TensorSoftmaxExpressions.apply(this, SoftmaxKind.LOG_SOFTMAX, axis);
+    }
+
+    /**
+     * Creates a fresh expression requesting canonical dense row-major result geometry.
+     *
+     * <p>The result preserves this tensor's exact logical Shape, DataType, and gradient-
+     * eligibility value. A fully static Shape receives a newly constructed resolved layout with
+     * canonical row-major strides, logical storage offset zero, non-view metadata, and its checked
+     * referenced element span. A Shape containing a dynamic dimension remains unresolved because
+     * numeric geometry cannot yet be calculated.</p>
+     *
+     * <p>The fresh result has a factory-assigned identity, no label or host storage, and provenance
+     * containing {@link ContiguousKind#CONTIGUOUS}, {@code NoOperationAttrs.INSTANCE}, and exactly
+     * this tensor as its sole input. Construction does not inspect this tensor's layout, label,
+     * provenance, storage, liveness, or values. An already-contiguous input and repeated or nested
+     * requests therefore remain distinct expressions until a later compiler proves a legal
+     * canonicalization.</p>
+     *
+     * <p>Resolved result geometry describes the requested logical representation; it does not
+     * prove eager allocation, copying, distinct physical storage, runtime residency, or a backend
+     * route.</p>
+     *
+     * @return a non-null fresh derived tensor preserving exact Shape, DataType, and gradient
+     *     eligibility, with static canonical layout or dynamic unresolved layout, exact one-input
+     *     provenance, and no label or storage
+     * @throws ArithmeticException if checked canonical stride or referenced-span arithmetic
+     *     overflows for a fully static Shape; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor contiguous() {
+        return TensorContiguousExpressions.apply(this);
     }
 
     /**
