@@ -36,6 +36,13 @@ validation, while `Tensor.reshape(Shape)` retains an exact normalized target. Th
 right-aligned compatibility, and derive logical view strides when geometry is resolved. Compiler,
 materialization, gradient, and execution behavior remains planned.
 
+`AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
+`PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
+`AxisTransformAttrs` stores one normalized non-negative insertion or removal position. These
+values do not add public Tensor methods: `permute`, rank-two `transpose`, `expandDims`, and
+`squeeze`, together with input-rank checks, result Shape/layout derivation, and provenance, remain
+planned.
+
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
 expressions, and provide one bounded host-allocation path without executing a tensor:
@@ -86,6 +93,7 @@ CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving 
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
+AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -3450,6 +3458,9 @@ composition while the table also lists the current production families:
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
 | `ShapeTransformKind` | The implemented production enum for ordered-element-preserving `RESHAPE` and singleton/leading-axis-repeating `EXPAND` meanings. |
 | `TargetShapeAttrs` | The implemented immutable normalized target-`Shape` value shared by reshape and expand. |
+| `AxisTransformKind` | The implemented production enum for complete axis permutation, singleton-axis insertion, and selected singleton-axis removal meanings. |
+| `PermutationAttrs` | The implemented immutable complete normalized output-to-input axis permutation. |
+| `AxisTransformAttrs` | The implemented immutable normalized non-negative position shared by singleton-axis insertion and removal. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -3904,6 +3915,65 @@ same-offset zero-stride view geometry when numeric layout facts are resolved, as
 Dynamic constraints, gradients, compiler and planning behavior, materialization, backend support,
 and execution remain planned.
 
+### Axis-transform semantic kinds and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.layout.AxisTransformKind` implements `OperationKind`
+with exactly `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`, in that order. These are one-input semantic
+meanings; the enum stores no input, rank, Shape, layout, or result state.
+
+| Kind | Semantic meaning | Required attributes |
+|---|---|---|
+| `PERMUTE` | Reorder every axis through one complete output-to-input mapping. | `PermutationAttrs` |
+| `EXPAND_DIMS` | Insert one extent-one axis at a normalized output position. | `AxisTransformAttrs` |
+| `SQUEEZE` | Remove one selected extent-one input axis at a normalized input position. | `AxisTransformAttrs` |
+
+#### Output-to-input order example
+
+##### Goal and inputs
+
+Describe a permutation that swaps the conceptual `rows` and `columns` axes while retaining the
+`channels` axis, then show all three exact kind/attributes pairings. The input-axis labels are
+`[rows, columns, channels]`, and the normalized permutation is `[1, 0, 2]`.
+
+```java
+PermutationAttrs permutation = new PermutationAttrs(List.of(1, 0, 2));
+AxisTransformAttrs position = new AxisTransformAttrs(1);
+
+Operation permute = new Operation(AxisTransformKind.PERMUTE, permutation);
+Operation expandDims = new Operation(AxisTransformKind.EXPAND_DIMS, position);
+Operation squeeze = new Operation(AxisTransformKind.SQUEEZE, position);
+```
+
+##### Result and interpretation
+
+`PermutationAttrs.axes()` uses output-to-input order: element `i` names the normalized input axis
+occupying output position `i`. The mapping therefore yields output-axis labels
+`[columns, rows, channels]`. The three `Operation` values retain their exact supplied attributes.
+This example demonstrates semantic coordinate order and composition only; it does not construct a
+Tensor, calculate a result Shape or layout, move values, or execute an operation.
+
+##### Failure variation
+
+The permutation must contain every integer in `[0, axes.size())` exactly once. An empty list is the
+valid identity permutation for a rank-zero scalar. Construction validates the caller list in
+ascending index order and stores an immutable snapshot, so later caller mutation cannot change
+the attributes and the returned list cannot be mutated. The record proves completeness against
+its own list size, not against a future input Tensor rank.
+
+`AxisTransformAttrs` accepts every non-negative `int`. With `EXPAND_DIMS`, its axis is the output
+position where the new singleton is inserted. With `SQUEEZE`, it is the input position selected
+for removal. The record has no input rank or dimension, so it cannot prove the insertion/removal
+bound or that a squeezed dimension has extent one. A later Shape-aware expression boundary owns
+raw negative-axis normalization and those input-dependent checks.
+
+A future parameterless rank-two `transpose()` method is a convenience over
+`PERMUTE + PermutationAttrs(List.of(1, 0))`; `TRANSPOSE` is not a fourth semantic kind. Generic
+`Operation` retains the supplied kind and attributes but does not enforce the documented family
+pairings. Public `Tensor.permute`, `transpose`, `expandDims`, and `squeeze`, result descriptors,
+layout/view derivation, provenance, gradients, compiler behavior, materialization, backend
+support, and execution remain planned.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -4205,12 +4275,12 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, and expand requests, plus gradient and trainable state and publication
-  behavior;
-- operation-kind families beyond binary arithmetic, binary comparison, boolean logical, unary
-  elementwise, scalar elementwise, conditional selection, cast, aggregate reduction, and
-  cumulative-sum scan, softmax normalization, contiguous-request semantics, and reshape/expand
-  semantics, plus their family-specific attribute values;
+  contiguous, reshape, and expand requests, including public permute, transpose, expand-dimensions,
+  and squeeze construction, plus gradient and trainable state and publication behavior;
+- operation-kind families beyond the current binary arithmetic, binary comparison, boolean
+  logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
+  reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and
+  axis-transform semantics, plus family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -4220,7 +4290,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
-`ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `GraphValue`, `CompiledNode`,
+`ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
+`PermutationAttrs`, `AxisTransformAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
@@ -4236,6 +4307,9 @@ and public Tensor expression construction are also current, including static res
 unresolved result-layout rules. Reshape and expand semantic values and both public Tensor
 expression families are current, with their distinct count-preserving and directional-
 broadcasting validation and layout rules.
+Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
+are current; their public Tensor expression methods and all input-dependent result construction
+remain planned.
 
 ## Failures and ownership summary
 
@@ -4270,6 +4344,13 @@ broadcasting validation and layout rules.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
 - `TargetShapeAttrs` rejects a null target with `NullPointerException("targetShape")`, retains the
   exact non-null immutable Shape reference, and performs no input-dependent compatibility check.
+- `PermutationAttrs` validates a non-null list and indexed elements in encounter order, rejects a
+  negative, out-of-range, or first duplicate axis with the documented indexed message, and only
+  then stores one immutable snapshot. An empty axes list is the rank-zero identity. The value
+  validates a complete permutation of its own list size but no eventual input rank.
+- `AxisTransformAttrs` rejects a negative normalized position with `IllegalArgumentException` and
+  exact message `axis must be non-negative: <axis>`. It retains every non-negative value without
+  proving an insertion bound, removal bound, or singleton input dimension.
 - `CastAttrs` rejects a null target data type with `NullPointerException("targetDataType")`,
   retains every valid `DataType` reference unchanged, and performs no source compatibility,
   conversion, or backend-capability validation.

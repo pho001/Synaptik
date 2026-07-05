@@ -101,6 +101,12 @@ conditional same-offset view geometry, and one-input provenance. Public `Tensor.
 and `Tensor.expand(Shape)` now add directional right-aligned compatibility plus conditional
 same-offset, zero-stride view geometry. Graph-wide dynamic constraints, gradients, compiler
 behavior, materialization, backend behavior, and execution remain planned.
+The `AxisTransformKind` vocabulary is implemented with distinct `PERMUTE`, `EXPAND_DIMS`, and
+`SQUEEZE` meanings. `PermutationAttrs` stores an immutable complete normalized output-to-input
+axis mapping, and `AxisTransformAttrs` stores one normalized non-negative insertion or removal
+position. Public Tensor permute, rank-two transpose, expand-dimensions, and squeeze construction,
+including input-rank and singleton checks, Shape/layout derivation, provenance, gradients,
+compiler behavior, materialization, backend behavior, and execution, remains planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -161,6 +167,22 @@ offset. `ArgMaxAttrs` requires an explicit non-null policy; the semantic value d
 default. The public `Tensor.argMax` convenience overloads supply `FIRST_INDEX` explicitly, while
 the complete overload retains an explicit caller policy. Equality, NaN, comparison, and
 empty-axis behavior remain later numerical and execution contracts.
+
+### Axis transform
+
+An implemented backend-independent semantic change to axis coordinates. The
+`AxisTransformKind` vocabulary contains exactly `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`.
+`PERMUTE` uses [`PermutationAttrs`](#permutation); `EXPAND_DIMS` and `SQUEEZE` use one
+`AxisTransformAttrs` value whose non-negative axis is interpreted as an output insertion position
+or an input removal position, respectively.
+
+These values define meaning only. The attributes do not retain a Tensor, Shape, layout, or input
+rank and cannot prove an insertion bound, removal bound, or singleton dimension. Public Tensor
+construction, raw negative-axis normalization, result Shape/layout derivation, provenance,
+gradients, compiler behavior, materialization, backend behavior, and execution remain planned.
+Rank-two `transpose()` is a future convenience over `PERMUTE` mapping `[1, 0]`, not a separate
+semantic kind. See [Axis-transform semantic kinds and
+attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Architecture contract
 
@@ -430,6 +452,9 @@ Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creat
 `SoftmaxAttrs` likewise stores only an already normalized non-negative axis; current public
 Shape-aware `Tensor.softmax` and `Tensor.logSoftmax` construction normalizes the caller axis
 before creating it.
+`AxisTransformAttrs` stores one normalized non-negative position without a Shape or rank. A later
+public `expandDims` boundary will interpret it as an output insertion position, while `squeeze`
+will interpret it as an input removal position and validate the selected singleton dimension.
 
 ### Node
 
@@ -466,8 +491,10 @@ ordered mask-to-input axis mapping. Implemented scan-family `CumulativeSumAttrs`
 normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
 `SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax. Implemented
 layout-operation `TargetShapeAttrs` holds one exact normalized semantic result Shape shared by
-reshape and expand. Other families may define records for padding or another operation-specific
-value. Implementations use typed fields, defensively
+reshape and expand. Layout-operation `PermutationAttrs` holds one complete normalized
+output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
+insertion or removal position. Other families may define records for padding or another
+operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
@@ -597,6 +624,28 @@ decomposition, storage, executable behavior, or backend support. Public `Tensor.
 `Tensor.logSoftmax` separately own floating validation, Shape-aware axis normalization, exact
 Shape/type/eligibility retention in an unresolved descriptor, fresh identity, and one-input
 provenance without calculating values.
+
+The eleventh production family is `ContiguousKind`, whose sole `CONTIGUOUS` value is a
+parameterless request for canonical dense row-major, zero-offset result geometry. The twelfth is
+`ShapeTransformKind`, whose `RESHAPE` and `EXPAND` values pair with `TargetShapeAttrs`. The
+thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` values pair with
+`PermutationAttrs` or `AxisTransformAttrs` as described under [axis transform](#axis-transform).
+These semantic families do not by themselves construct Tensors or define compiler, backend, or
+execution behavior.
+
+### Permutation
+
+An implemented complete reordering of logical axes represented by `PermutationAttrs`. Its
+`axes` list uses output-to-input order: `axes[i]` is the normalized input axis occupying output
+position `i`. For input-axis labels `[rows, columns, channels]`, mapping `[1, 0, 2]` produces
+output-axis labels `[columns, rows, channels]`.
+
+The list size defines the permutation rank. Every value must lie in `[0, rank)` and occur exactly
+once; an empty list is the rank-zero scalar identity. Construction validates elements in index
+order before taking one immutable snapshot. The attributes do not know an eventual input Tensor
+rank and do not construct a Shape, layout, storage view, provenance, gradient, or executable
+result. A rank-two transpose convenience uses mapping `[1, 0]`. See [Axis-transform semantic kinds
+and attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Partition
 
@@ -1134,8 +1183,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, and reshape/expand families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, and target-shape values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and axis-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, and single-axis-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1150,7 +1199,9 @@ sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, 
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
 implemented. Contiguous-request semantics and public contiguous Tensor construction are also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
-reshape and expand Tensor construction is current. Other
+reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
+attributes, and single-axis insertion/removal attributes are implemented; public permute,
+transpose, expand-dimensions, and squeeze Tensor construction remains planned. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.
