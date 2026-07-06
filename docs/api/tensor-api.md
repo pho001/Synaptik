@@ -58,6 +58,15 @@ dimensions, derive same-rank result Shapes and conditional logical view geometry
 one-input provenance. Gradients, compiler behavior, materialization, backend lowering, ONNX
 mapping, and execution remain planned in their owning layers.
 
+`PadKind.PAD` with `PadAttrs` and `TileKind.TILE` with `TileAttrs` are current semantic contracts.
+Padding attributes store immutable ordered before/after widths plus one uninterpreted binary64
+constant. Tiling attributes store immutable positive complete-pattern repeat counts. Empty lists
+describe rank-zero scalar identity parameters. These semantic values do not construct Tensors,
+match an input rank, derive a Shape or layout, convert the padding constant to a `DataType`, record
+provenance, materialize values, or define gradients, compiler behavior, backend behavior, ONNX
+mapping, or execution. Those responsibilities remain planned for task 0017J or later owning
+layers.
+
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
 expressions, and provide one bounded host-allocation path without executing a tensor:
@@ -115,6 +124,8 @@ ContiguousKind                                               = parameterless can
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
 SliceKind + SliceAttrs                                      = positive-step parallel half-open slice semantics
+PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/raw constant
+TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -236,6 +247,15 @@ against selected static dimensions, derives same-rank Shape and conditional view
 records normalized attributes plus one-input provenance. `Tensor.sliceAxis` delegates one
 step-one entry through the same path. Neither form reads values, attaches storage, defines
 gradients, captures a graph, or executes work.
+`PadKind.PAD` pairs with `PadAttrs`, whose immutable ordered `before` and `after` lists carry one
+non-negative width per normalized axis position and whose `constantValue` retains every supplied
+Java `double` unchanged. `TileKind.TILE` pairs with `TileAttrs`, whose immutable ordered list
+carries one positive complete-pattern repeat count per normalized axis position. Both attributes
+accept empty scalar-identity lists and `Long.MAX_VALUE` structurally. They contain no input Tensor
+or Shape, so rank matching, checked result-Shape arithmetic, padding-constant conversion, result
+descriptors, layout, provenance, gradients, materialization, compiler behavior, backend behavior,
+ONNX mapping, and execution remain outside these semantic values. No public pad or tile Tensor
+expression is implemented yet.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3907,6 +3927,10 @@ composition while the table also lists the current production families:
 | `AxisTransformAttrs` | The implemented immutable normalized non-negative position shared by singleton-axis insertion and removal. |
 | `SliceKind` | The implemented production enum whose sole `SLICE` value identifies positive-step parallel half-open logical selection. |
 | `SliceAttrs` | The implemented immutable normalized inclusive starts, exclusive ends, distinct axes, and positive steps for a slice. |
+| `PadKind` | The implemented production enum whose sole `PAD` value identifies constant padding around every input axis. |
+| `PadAttrs` | The implemented immutable ordered before/after widths and uninterpreted binary64 padding constant. |
+| `TileKind` | The implemented production enum whose sole `TILE` value identifies complete-pattern per-axis tiling. |
+| `TileAttrs` | The implemented immutable ordered positive complete-pattern repeat counts. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -4494,6 +4518,100 @@ It is not a second kind such as `SLICE_AXIS`. Negative or reverse steps are not 
 These semantic values also define no storage view, materialization, gradient or backward scatter,
 compiler canonicalization, ONNX mapping, backend route, or execution behavior.
 
+### Pad and tile semantic kinds and normalized attributes
+
+The public enums `io.github.pho001.synaptik.model.operation.layout.PadKind` and
+`io.github.pho001.synaptik.model.operation.layout.TileKind` implement `OperationKind` with exactly
+`PAD` and `TILE`, respectively. `PAD` means adding constant-filled logical positions before and
+after every input axis without changing rank. `TILE` means repeating the complete input pattern a
+positive number of times along every axis without changing rank. The kinds identify meaning only;
+they do not inspect an input or calculate values or extents.
+
+`PadAttrs(before, after, constantValue)` stores two ordered equal-size `List<Long>` width lists and
+one raw Java `double`. Entry `i` in each list applies before or after the same normalized axis
+position. `TileAttrs(repeats)` stores one ordered `List<Long>` whose entry `i` is the number of
+complete input-pattern repetitions along normalized axis position `i`.
+
+#### Constant-padding example
+
+##### Goal and inputs
+
+Describe one-dimensional constant padding for conceptual input `[10, 20]`: add one position
+before, two positions after, and fill those logical positions with `-1`.
+
+```java
+PadAttrs attrs = new PadAttrs(List.of(1L), List.of(2L), -1.0d);
+Operation padded = new Operation(PadKind.PAD, attrs);
+```
+
+##### Result and interpretation
+
+The request means `[-1, 10, 20, -1, -1]`. `padded.kind()` is exactly `PadKind.PAD`, and
+`padded.attrs()` is exactly the supplied `attrs` reference. This is a conceptual semantic result:
+construction does not create a Tensor, populate values, derive a Shape or layout, convert `-1.0d`
+to an input `DataType`, or execute padding.
+
+#### Complete-pattern tiling example
+
+##### Goal and inputs
+
+Describe tiling conceptual input `[[1, 2], [3, 4]]` twice along axis zero and three times along
+axis one.
+
+```java
+TileAttrs attrs = new TileAttrs(List.of(2L, 3L));
+Operation tiled = new Operation(TileKind.TILE, attrs);
+```
+
+##### Result and interpretation
+
+The complete row pattern repeats three times and the complete two-row pattern repeats twice:
+
+```text
+[[1, 2, 1, 2, 1, 2],
+ [3, 4, 3, 4, 3, 4],
+ [1, 2, 1, 2, 1, 2],
+ [3, 4, 3, 4, 3, 4]]
+```
+
+This is complete-pattern tiling, not scalar-element repeat: it does not transform `[1, 2]` into
+`[1, 1, 1, 2, 2, 2]`. `tiled.kind()` is exactly `TileKind.TILE`, and `tiled.attrs()` is exactly
+the supplied `attrs` reference. The example states requested logical meaning without claiming
+Tensor construction, value materialization, or execution.
+
+##### Ownership, validation, and useful variations
+
+Both records validate caller-owned lists in ascending index order and copy only after every
+element passes. The stored immutable snapshots preserve order and values but not caller list
+identity; later caller mutation cannot change them, and accessor mutation fails. Empty pad lists
+and an empty repeat list are valid rank-zero scalar identity parameters. `Long.MAX_VALUE` is also
+structurally valid because these records perform no input-rank matching or result-Shape arithmetic.
+
+`PadAttrs` validation order is exact:
+
+1. Null-check `before`, then `after`, producing `NullPointerException` with the component name.
+2. Reject unequal sizes with `IllegalArgumentException("before and after must have matching sizes")`.
+3. At each ascending index, null-check `before[i]`, then `after[i]`, using that indexed message.
+4. Reject a negative before width with `before[i] must be non-negative: value`, then a negative
+   after width with `after[i] must be non-negative: value`.
+5. Snapshot `before`, then `after` exactly once each.
+
+Every `constantValue` is retained bit-for-bit as the supplied primitive, including positive and
+negative zero, finite values, NaN payloads, and either infinity. No finiteness, range, rounding,
+saturation, BOOL normalization, or `DataType` compatibility rule is applied. Ordinary Java record
+and `double` equality/hash semantics still apply; raw-bit retention is not a custom equality or
+serialization contract.
+
+`TileAttrs` first null-checks `repeats`, then visits entries in ascending order. A null entry fails
+with `NullPointerException("repeats[i]")`; a zero or negative entry fails with
+`IllegalArgumentException("repeats[i] must be positive: value")`. Only then does construction take
+its single immutable snapshot. Result-Shape multiplication and overflow checks are deferred.
+
+Generic `Operation` retains each exact kind and attributes reference but does not enforce these
+family pairings. Neither family defines public Tensor request syntax, result inference, layout or
+storage behavior, materialization, provenance, gradients, compiler or planning behavior, backend
+or ONNX behavior, or execution.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -4800,7 +4918,7 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, and slice semantics, plus family-specific attribute values beyond those
+  axis-transform, slice, pad, and tile semantics, plus family-specific attribute values beyond those
   documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -4812,7 +4930,8 @@ The following contracts appear in the architecture and planning documents but ar
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
-`PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `GraphValue`, `CompiledNode`,
+`PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
+`TileKind`, `TileAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
@@ -4833,6 +4952,10 @@ are current. Public permutation, rank-two transpose, expand-dimensions, and sque
 construction is also current. Positive-step slice semantics and public general/single-axis slice
 expression construction are current, including static selected-dimension normalization,
 zero-extent results, and conditional resolved view geometry.
+Constant-padding and complete-pattern tiling semantic kinds and immutable normalized attributes
+are current. Public pad/tile Tensor request validation, Shape/DataType/layout derivation,
+provenance, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
+remain planned.
 
 ## Failures and ownership summary
 
@@ -4896,6 +5019,14 @@ zero-extent results, and conditional resolved view geometry.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `PadAttrs` null-checks `before` and `after` in component order, rejects unequal sizes, then
+  validates paired entries in ascending index order: before null, after null, before negative,
+  after negative. Only complete valid input is snapshotted in component order. Empty lists,
+  `Long.MAX_VALUE`, signed zero, NaN, and infinities are structurally valid; no rank, Shape,
+  `DataType`, or result behavior is inferred.
+- `TileAttrs` null-checks `repeats`, then rejects the first null, zero, or negative entry in
+  ascending order before taking one immutable snapshot. Empty lists and `Long.MAX_VALUE` are
+  structurally valid; no input rank or result-Shape multiplication is performed.
 - `TargetShapeAttrs` rejects a null target with `NullPointerException("targetShape")`, retains the
   exact non-null immutable Shape reference, and performs no input-dependent compatibility check.
 - `PermutationAttrs` validates a non-null list and indexed elements in encounter order, rejects a

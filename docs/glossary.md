@@ -118,6 +118,13 @@ construction now adds raw negative request normalization and clamping against se
 dimensions, same-rank Shape derivation, conditional resolved view geometry, and exact one-input
 provenance. Gradients, compiler capture/canonicalization, materialization, backend behavior, ONNX
 mapping, and execution remain planned in later owning layers.
+The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
+respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one raw
+binary64 constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat counts.
+Empty lists are scalar identity parameters, and structurally valid extreme longs or double values
+are retained without rank, Shape, DataType, layout, or result interpretation. Public Tensor
+construction, provenance, gradients, materialization, compiler/backend/ONNX behavior, and execution
+remain planned for later owning tasks and layers.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -514,8 +521,9 @@ layout-operation `TargetShapeAttrs` holds one exact normalized semantic result S
 reshape and expand. Layout-operation `PermutationAttrs` holds one complete normalized
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
-inclusive starts, exclusive ends, distinct axes, and positive steps. Other families may define
-records for padding or another
+inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` holds immutable
+ordered before/after widths and one raw binary64 constant, while `TileAttrs` holds immutable
+ordered positive complete-pattern repeat counts. Other families may define records for another
 operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
@@ -653,8 +661,27 @@ parameterless request for canonical dense row-major, zero-offset result geometry
 thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` values pair with
 `PermutationAttrs` or `AxisTransformAttrs` as described under [axis transform](#axis-transform).
 The fourteenth is `SliceKind`, whose sole `SLICE` value pairs with `SliceAttrs` as described under
-[slice](#slice). These semantic families do not by themselves construct Tensors or define
+[slice](#slice). The fifteenth and sixteenth are `PadKind` and `TileKind`, whose sole `PAD` and
+`TILE` values pair with `PadAttrs` and `TileAttrs` as described under [padding](#padding) and
+[tiling](#tiling). These semantic families do not by themselves construct Tensors or define
 compiler, backend, or execution behavior.
+
+### Padding
+
+An implemented backend-independent constant-padding meaning represented by `PadKind.PAD` and
+`PadAttrs`. For each normalized axis position `i`, `before[i]` and `after[i]` give the
+non-negative numbers of constant-filled logical positions requested before and after the complete
+input extent. The two equal-size lists are immutable ordered snapshots. Two empty lists are the
+rank-zero scalar identity parameters.
+
+For conceptual input `[10, 20]`, before `[1]`, after `[2]`, and constant `-1`, the requested
+logical result is `[-1, 10, 20, -1, -1]`. The raw Java `double` constant is retained unchanged,
+including signed zero, NaN payloads, and infinities. The attributes do not know an input Tensor,
+Shape, or DataType, so they do not match rank, add result extents, check overflow, convert the
+constant, derive layout or provenance, materialize values, define gradients, or execute padding.
+`Long.MAX_VALUE` widths are therefore structurally valid. Public Tensor construction and all
+Shape/DataType-dependent policy remain planned. See [Pad and tile semantic kinds and normalized
+attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
 ### Permutation
 
@@ -1203,6 +1230,23 @@ tensor objects remain unequal even when their IDs compare equal. An implemented
 `PublicationBinding` can associate an ID with a graph value without storing graph-local IDs on the
 tensor. See [Identifiers](api/tensor-api.md#typed-identifiers).
 
+### Tiling
+
+An implemented backend-independent complete-pattern repetition meaning represented by
+`TileKind.TILE` and `TileAttrs`. Entry `repeats[i]` is the strictly positive number of times the
+complete input pattern is requested along normalized axis position `i`; this differs from
+repeating each scalar into one adjacent run. The ordered list is an immutable snapshot, and an
+empty list is the rank-zero scalar identity parameter.
+
+For conceptual input `[[1, 2], [3, 4]]` and repeats `[2, 3]`, each complete row pattern occurs
+three times along axis one and the complete two-row pattern occurs twice along axis zero, producing
+the conceptual pattern `[[1, 2, 1, 2, 1, 2], [3, 4, 3, 4, 3, 4], [1, 2, 1, 2, 1, 2],
+[3, 4, 3, 4, 3, 4]]`. The attributes have no input Tensor or Shape, so they do not match rank,
+multiply extents, check overflow, derive layout or provenance, materialize values, define
+gradients, or execute tiling. `Long.MAX_VALUE` is structurally valid. Public Tensor construction
+and Shape-dependent policy remain planned. See [Pad and tile semantic kinds and normalized
+attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
+
 ### Trace
 
 Structured diagnostic information emitted by compile, prepare, run, and backend activity. A trace helps people and tools understand what happened without becoming business logic or execution state. The trace module is a dependency leaf and uses trace-local identifiers rather than importing producer-layer domain objects. See [Tracing](architecture/tracing.md).
@@ -1274,8 +1318,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, and slice families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, and slice values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, and tile families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, and tile values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1294,7 +1338,8 @@ reshape and expand Tensor construction is current. Axis-transform semantics, com
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
 transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
 normalized parallel attributes plus public general and single-axis slice Tensor construction are
-current. Other
+current. Pad and tile semantics plus normalized immutable attributes are current, while public
+Tensor construction remains planned. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.
