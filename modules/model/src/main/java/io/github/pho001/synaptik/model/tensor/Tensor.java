@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
@@ -90,13 +91,17 @@ import java.util.Optional;
  * attaches storage or guarantees an executable alias. Expand-dimensions inserts one static
  * singleton at a normalized result position; squeeze removes one selected dimension only when
  * its singleton extent is statically proven. Resolved rank edits insert or remove one stride in
- * new same-offset view metadata, while unresolved geometry stays unresolved. Every result records
+ * new same-offset view metadata, while unresolved geometry stays unresolved. Slice accepts
+ * parallel half-open bounds, distinct axes, and positive steps. It preserves rank, normalizes and
+ * clamps against selected static dimensions, and derives checked resolved view geometry only for
+ * non-empty results with resolved input layout. Empty and unresolved results remain unresolved.
+ * Every result records
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
- * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link ScalarElementwiseKind}, or
- * {@link UnaryElementwiseKind}.
+ * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind},
+ * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -2296,6 +2301,70 @@ public final class Tensor {
      */
     public Tensor transpose() {
         return TensorPermutationExpressions.transpose(this);
+    }
+
+    /**
+     * Creates a fresh general positive-step slice expression from four parallel arrays.
+     *
+     * <p>At each entry, {@code starts[i]} is an inclusive raw bound, {@code ends[i]} is exclusive,
+     * {@code axes[i]} is a positive or negative input axis, and {@code steps[i]} is strictly
+     * positive. The arrays must have equal lengths and are defensively cloned before inspection.
+     * Empty arrays produce a fresh explicit identity slice. Axes are normalized once and must be
+     * distinct; negative bounds add the selected static dimension size once, then every bound is
+     * clamped into {@code [0, size]}. Selected dynamic dimensions are rejected.</p>
+     *
+     * <p>The result preserves rank and the exact references of every unaffected Dimension. A
+     * selected axis receives a new static extent equal to its positive-step half-open selection;
+     * start at or beyond end is valid and produces zero. With resolved input geometry and a
+     * non-empty result, the new logical view offset advances by each normalized start times its
+     * original input stride and selected strides are multiplied by their steps using checked
+     * arithmetic. Every resolved input layout kind is accepted. Unresolved input geometry and
+     * empty results stay unresolved, and no physical storage alias is attached or promised.</p>
+     *
+     * <p>The fresh result retains exact data type and gradient eligibility, has no label or
+     * storage, and records {@link SliceKind#SLICE}, normalized attributes in caller entry order,
+     * and exactly this tensor as its provenance input. Values, gradients, compiler behavior,
+     * materialization, backend lowering, and execution are deferred.</p>
+     *
+     * @param starts non-null caller-owned inclusive raw starts; paired by index and never retained
+     * @param ends non-null caller-owned exclusive raw ends; paired by index and never retained
+     * @param axes non-null caller-owned positive or negative axes; paired by index and never retained
+     * @param steps non-null caller-owned strictly positive steps; paired by index and never retained
+     * @return a non-null fresh storage-free SLICE expression with normalized Shape, conditional
+     *     resolved view layout, preserved type/eligibility, and exact one-input provenance
+     * @throws NullPointerException if any array is null, with its parameter name as the message
+     * @throws IllegalArgumentException if lengths differ, an axis is invalid or duplicated after
+     *     normalization, a step is non-positive, or a selected dimension is dynamic
+     * @throws ArithmeticException if checked result element-count, layout-offset, stride,
+     *     classification, or span arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor slice(long[] starts, long[] ends, int[] axes, long[] steps) {
+        return TensorSliceExpressions.apply(this, starts, ends, axes, steps);
+    }
+
+    /**
+     * Creates a fresh single-axis step-one slice expression through the general slice path.
+     *
+     * <p>This convenience is exactly one {@link SliceKind#SLICE} entry with {@code step = 1}; it
+     * has no separate semantic kind. Axis and half-open bounds use the same one-time negative
+     * normalization, clamping, selected-static-dimension requirement, empty-result policy, Shape
+     * derivation, conditional view geometry, provenance, and identifier behavior as
+     * {@link #slice(long[], long[], int[], long[])}.</p>
+     *
+     * @param axis positive or negative selected input axis
+     * @param fromInclusive raw inclusive bound normalized and clamped against the selected extent
+     * @param toExclusive raw exclusive bound normalized and clamped against the selected extent
+     * @return a non-null fresh storage-free one-axis SLICE expression with step one
+     * @throws IllegalArgumentException if the axis is invalid or its dimension is dynamic
+     * @throws ArithmeticException if checked result element-count, layout-offset, stride,
+     *     classification, or span arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor sliceAxis(int axis, long fromInclusive, long toExclusive) {
+        return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive);
     }
 
     /**

@@ -133,6 +133,16 @@ new same-offset logical view descriptor with a deterministic checked stride inse
 selected stride removed. This is current model expression construction, not graph capture,
 dynamic singleton constraint solving, inverse-pair canonicalization, physical aliasing,
 materialization, gradient behavior, lowering, or execution.
+`Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw
+axes and bounds against selected static dimensions, clamps bounds, derives a same-rank Shape, and
+records normalized positive-step half-open `SliceAttrs`. Empty arrays and zero-extent results are
+valid. Resolved non-empty dense, offset, strided, or broadcast input geometry produces checked
+start-adjusted, step-multiplied logical view geometry; unresolved input and empty results remain
+unresolved. `Tensor.sliceAxis(int, long, long)` delegates the same operation with one step-one
+entry. Both forms preserve exact type and gradient eligibility, record exact one-input provenance,
+and remain fresh, unlabeled, and storage-free. This is current model expression construction, not
+graph capture, slice-chain or identity canonicalization, physical aliasing, gradient-scatter
+construction, materialization, backend/ONNX lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -153,10 +163,12 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
-  construction and conditional-view expand-dimensions/squeeze construction, are implemented;
+  construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
+  positive-step slice construction, are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit-chain canonicalization, deferred
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain
+  canonicalization, deferred
   dynamic reshape count validation and expand compatibility constraints, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and

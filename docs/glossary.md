@@ -113,10 +113,11 @@ behavior, and execution remain planned.
 The `SliceKind` vocabulary is implemented with the sole `SLICE` meaning, together with
 `SliceAttrs` carrying immutable parallel lists of normalized inclusive starts, exclusive ends,
 distinct axes, and positive steps. These semantic values describe positive-step half-open logical
-selection without a Tensor or Shape. Public slice expression construction, raw negative request
-normalization, result Shape/layout derivation, provenance, gradients, compiler behavior,
-materialization, backend behavior, ONNX mapping, and execution remain planned in task 0017H or
-later owning layers.
+selection without a Tensor or Shape. Public `Tensor.slice` and `Tensor.sliceAxis` expression
+construction now adds raw negative request normalization and clamping against selected static
+dimensions, same-rank Shape derivation, conditional resolved view geometry, and exact one-input
+provenance. Gradients, compiler capture/canonicalization, materialization, backend behavior, ONNX
+mapping, and execution remain planned in later owning layers.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -738,6 +739,10 @@ copied, or materialized.
 respectively, retain one normalized position in `AxisTransformAttrs`, and record exactly the
 receiver as their sole input. Conditional resolved view geometry still does not imply attached or
 aliased storage, a copy-free route, or execution.
+`Tensor.slice` and `Tensor.sliceAxis` use `SliceKind.SLICE`, retain normalized parallel half-open
+bounds, distinct axes, and positive steps in `SliceAttrs`, and record exactly the receiver as their
+sole input. Conditional resolved view geometry does not imply attached or physically aliased
+storage, materialization, or execution.
 
 ### Publication binding
 
@@ -775,14 +780,25 @@ Starts, ends, and steps use `long`, while axes use `int`. The lists are immutabl
 their values and entry order define record equality. Axes are non-negative and distinct, bounds
 are non-negative, and four empty lists describe a normalized identity slice. The semantic value
 has no input Shape, so it does not check rank or dimension bounds, compare a start with its end,
-calculate extents, or decide empty-result policy. Raw negative requests, clamping, result Shape
-and layout, and provenance remain planned for task 0017H. Negative or reverse steps are not
+calculate extents, or decide empty-result policy. The public Tensor expression boundary owns that
+input-dependent work: it clones four equal-length arrays, normalizes each negative axis or bound
+once, clamps bounds, requires selected dimensions to be static, rejects repeated normalized axes,
+and preserves rank plus exact unselected Dimension references. Negative or reverse steps are not
 represented.
 
 For conceptual Shape `[3, 6]`, starts `[0, 1]`, ends `[3, 6]`, axes `[0, 1]`, and steps `[1, 2]`
-select rows `0`, `1`, and `2` and columns `1`, `3`, and `5`. This states logical selection rather
-than Tensor construction or execution. A future single-axis convenience is the same `SLICE`
-meaning with one entry and step one, not a separate kind. See [Slice semantic kind and normalized
+select rows `0`, `1`, and `2` and columns `1`, `3`, and `5`, producing Shape `[3, 3]`. A start at
+or beyond its normalized end instead produces a valid zero extent. For resolved non-empty input
+geometry, the public expression derives a checked start-adjusted offset and multiplies the
+original selected strides by their steps in a view-marked descriptor. Unresolved input and empty
+results remain unresolved. This view metadata attaches no storage and promises no physical alias.
+
+Every public slice result preserves exact data type and gradient eligibility, remains fresh,
+unlabeled, and storage-free, and records normalized `SliceAttrs` plus provenance `[input]`.
+`sliceAxis` is the same `SLICE` meaning with one entry and step one, not a separate kind. Neither
+form reads values, defines gradients, captures or canonicalizes a graph, materializes storage,
+lowers a backend or ONNX operation, or executes selection. See [Slice expressions](api/tensor-api.md#slice-expressions)
+and [Slice semantic kind and normalized
 attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
 
 ### Softmax / log-softmax
@@ -1277,8 +1293,8 @@ implemented. Reshape and expand semantics plus target-shape attributes are imple
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
 transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
-normalized parallel attributes are implemented, while public slice Tensor construction remains
-planned in task 0017H. Other
+normalized parallel attributes plus public general and single-axis slice Tensor construction are
+current. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

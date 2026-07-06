@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(85, declaredPublicMethods.size());
+        assertEquals(87, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -90,7 +90,7 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
-                        "transpose", "expandDims", "squeeze"),
+                        "transpose", "expandDims", "squeeze", "slice", "sliceAxis"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -295,6 +295,28 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(squeeze.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(squeeze.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(squeeze.getModifiers())));
+
+        var slice = Tensor.class.getDeclaredMethod(
+                "slice", long[].class, long[].class, int[].class, long[].class);
+        var sliceAxis = Tensor.class.getDeclaredMethod(
+                "sliceAxis", int.class, long.class, long.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, slice.getReturnType()),
+                () -> assertEquals(
+                        List.of(long[].class, long[].class, int[].class, long[].class),
+                        Arrays.asList(slice.getParameterTypes())),
+                () -> assertFalse(slice.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(slice.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(slice.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(slice.getModifiers())),
+                () -> assertEquals(Tensor.class, sliceAxis.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class, long.class, long.class),
+                        Arrays.asList(sliceAxis.getParameterTypes())),
+                () -> assertFalse(sliceAxis.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(sliceAxis.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(sliceAxis.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(sliceAxis.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

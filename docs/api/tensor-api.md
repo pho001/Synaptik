@@ -23,7 +23,9 @@ preserving coordinate changes from either raw `long...` dimensions or an exact n
 repetition with locally derived zero-stride view geometry when possible. `permute(int...)` adds
 arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
-known singleton axis. Typed access, other
+known singleton axis. `slice(long[], long[], int[], long[])` adds general positive-step half-open
+selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience. Typed
+access, other
 expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -50,9 +52,11 @@ singleton proof for removal, and provenance.
 
 `SliceKind.SLICE` is also a current one-input semantic identity. It pairs with `SliceAttrs`, whose
 four immutable parallel lists store normalized inclusive starts, exclusive ends, distinct axes,
-and positive steps. These values define positive-step half-open logical selection only. Public
-`Tensor.slice` construction, raw negative request normalization, Shape and layout derivation,
-provenance, gradients, compiler behavior, and execution remain planned in task 0017H.
+and positive steps. These values define positive-step half-open logical selection. Public
+`Tensor.slice` and `Tensor.sliceAxis` now normalize raw axes and bounds against selected static
+dimensions, derive same-rank result Shapes and conditional logical view geometry, and record fresh
+one-input provenance. Gradients, compiler behavior, materialization, backend lowering, ONNX
+mapping, and execution remain planned in their owning layers.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -94,6 +98,8 @@ Tensor + raw/exact target Shape + EXPAND           = fresh conditional-view expa
 Tensor + complete output-to-input axes + PERMUTE   = fresh conditional-view permute Tensor
 Tensor + insertion axis + EXPAND_DIMS              = fresh conditional-view rank-expanded Tensor
 Tensor + static singleton axis + SQUEEZE           = fresh conditional-view rank-reduced Tensor
+Tensor + parallel bounds/axes/steps + SLICE        = fresh conditional-view sliced Tensor
+Tensor + one axis and half-open bounds + SLICE     = fresh step-one sliced Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
 BinaryArithmeticKind                                          = seven parameterless binary arithmetic semantics
@@ -224,10 +230,12 @@ prepare-time materialization, backend lowering, storage aliasing, gradients, and
 outside the current Tensor contract.
 `SliceKind.SLICE` and `SliceAttrs` define a separate positive-step slicing vocabulary. At each
 entry index, the attributes pair one inclusive start, exclusive end, normalized input axis, and
-positive step. The semantic values contain no input Tensor or Shape and therefore perform no raw
-negative normalization, rank or bound validation, result-Shape calculation, layout derivation,
-provenance construction, or value execution. Those public-expression responsibilities remain in
-task 0017H.
+positive step. The semantic values contain no input Tensor or Shape. Public `Tensor.slice`
+separately clones four equal-length request arrays, normalizes and clamps their raw axes and bounds
+against selected static dimensions, derives same-rank Shape and conditional view metadata, and
+records normalized attributes plus one-input provenance. `Tensor.sliceAxis` delegates one
+step-one entry through the same path. Neither form reads values, attaches storage, defines
+gradients, captures a graph, or executes work.
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3570,6 +3578,162 @@ materialization, backend support, or execution.
 - A resolved canonical, offset, strided, or broadcast input receives new same-offset view
   geometry. Repeated edits and an expand/squeeze pair still return fresh expression identities.
 
+### Slice expressions
+
+`Tensor.slice(long[] starts, long[] ends, int[] axes, long[] steps)` constructs a fresh general
+positive-step slice expression. The four arrays are parallel: entry `i` supplies inclusive raw
+start `starts[i]`, exclusive raw end `ends[i]`, input axis `axes[i]`, and strictly positive
+increment `steps[i]`. Their lengths must match, and their entry order is preserved. After checking
+the four references and lengths, construction clones every array before inspecting its elements;
+it neither mutates nor retains caller-owned arrays.
+
+Each negative axis adds the input rank once and must then be in range. Axes must be distinct after
+normalization. Every selected dimension must be a `StaticDimension`; an unselected static or
+dynamic `Dimension` is retained by exact reference. A negative bound adds the selected dimension
+size once, then every bound is clamped into `[0, size]`. The normalized half-open interval
+`[start, end)` has extent zero when `start >= end`; otherwise its positive-step extent is
+`1 + (end - 1 - start) / step`. The selected axis receives that new static extent, while result
+rank and all unselected Dimension references remain unchanged.
+
+Four empty arrays are valid and create a fresh explicit identity slice, including for a scalar.
+An empty selection is also valid and produces a zero extent. Empty results deliberately have
+unresolved layout: they reference no storage element, so recording one-past-end offset and stride
+facts would be arbitrary and could overflow without adding observable geometry.
+
+When input layout is unresolved, result layout remains unresolved. When input layout is resolved
+and the result is non-empty, every resolved input kind—dense contiguous, dense with offset,
+strided, or broadcast zero-stride—produces one new view-marked logical `LayoutDescriptor`. Starting
+from the input element offset and original input strides, entry `i` performs checked calculations:
+
+```text
+resultOffset       += normalizedStart[i] * originalInputStride[axis[i]]
+resultStride[axis]  = originalInputStride[axis[i]] * step[i]
+```
+
+`LayoutDescriptor` reclassifies the resulting geometry and calculates its referenced element
+span. The view flag records logical view metadata only. Slice construction attaches no host
+storage and does not promise a physical alias, zero-copy route, or executable view.
+
+Every successful result preserves the exact input data type and gradient eligibility, has no
+label or host storage, and records `SliceKind.SLICE`, one normalized `SliceAttrs`, and provenance
+`[input]`. Identity, unit-step, repeated, and nested requests remain explicit and consume one fresh
+Tensor identifier each. `Tensor.sliceAxis(int axis, long fromInclusive, long toExclusive)` uses the
+same path with one entry and step `1L`; there is no separate `SLICE_AXIS` kind.
+
+#### Complete slice-expression example
+
+##### Goal and inputs
+
+Slice all rows and alternating columns from a resolved Tensor of Shape `[3, 6]`, then inspect the
+normalized semantics and logical view geometry. The input starts with canonical strides `[6, 1]`
+and offset zero.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class SliceExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(3, 6);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true));
+
+        long[] starts = {0, 1};
+        long[] ends = {3, 6};
+        int[] axes = {0, 1};
+        long[] steps = {1, 2};
+        Tensor result = input.slice(starts, ends, axes, steps);
+        starts[1] = 5;
+        axes[1] = 0;
+
+        SliceAttrs attrs = (SliceAttrs) result.provenance().orElseThrow()
+                .operation().attrs();
+        LayoutDescriptor resultLayout = result.descriptor().layout().orElseThrow();
+        Tensor oneAxis = input.sliceAxis(-1, -2, -1);
+        SliceAttrs oneAxisAttrs = (SliceAttrs) oneAxis.provenance().orElseThrow()
+                .operation().attrs();
+
+        System.out.println(result.descriptor().shape());
+        System.out.println(attrs.starts());
+        System.out.println(attrs.ends());
+        System.out.println(attrs.axes());
+        System.out.println(attrs.steps());
+        System.out.println(Arrays.toString(resultLayout.strides()));
+        System.out.println(resultLayout.storageOffset());
+        System.out.println(resultLayout.kind());
+        System.out.println(resultLayout.referencedElementSpan());
+        System.out.println(resultLayout.isView());
+        System.out.println(result.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(result.hostStorage().isEmpty());
+        System.out.println(oneAxis.descriptor().shape());
+        System.out.println(oneAxisAttrs);
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Entries `[0, 3)` step one and `[1, 6)` step two select three coordinates on each axis, so the
+  result Shape is `[3, 3]`. Mutating the request arrays afterward does not change stored
+  attributes because construction used private clones and `SliceAttrs` immutable snapshots.
+- Input strides `[6, 1]` become `[6, 2]`. The selected column start advances offset from zero to
+  one. The greatest referenced element index is 17, so the referenced span is 18.
+- Axis `-1` in the convenience call normalizes to axis one. Bounds `-2` and `-1` add size six once
+  and normalize to `[4, 5)`, producing Shape `[3, 1]` with a one-entry step-one `SliceAttrs`.
+- Both results retain `FLOAT32` and true gradient eligibility, record exact one-input provenance,
+  and remain unlabeled and storage-free.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[3, 3]
+[0, 1]
+[3, 6]
+[0, 1]
+[1, 2]
+[6, 2]
+1
+STRIDED
+18
+true
+true
+true
+Shape[3, 1]
+SliceAttrs[starts=[4], ends=[5], axes=[1], steps=[1]]
+```
+
+The output demonstrates parallel-array ownership, half-open positive-step extent calculation,
+negative normalization, Shape derivation, checked logical view geometry, exact semantics, and
+fresh provenance. It does not demonstrate value access, physical storage aliasing, gradients,
+compiler capture or canonicalization, materialization, backend lowering, ONNX mapping, or
+execution.
+
+##### Failures and useful variations
+
+- A null request array fails with `NullPointerException` naming that parameter. Unequal lengths
+  fail before the arrays are cloned or the input descriptor is read.
+- An axis outside rank after one normalization, the first repeated normalized axis, a zero or
+  negative step, or selection of a dynamic dimension fails with `IllegalArgumentException`.
+- Every raw `long` bound is accepted, normalized once when negative, and clamped. Start at or
+  beyond end is a valid empty selection, not a failure.
+- Result element-count, offset, stride, layout-classification, or referenced-span overflow
+  propagates as `ArithmeticException`. These local failures occur before Tensor identity
+  allocation.
+- Identifier exhaustion occurs only at final derived construction after normalized attributes,
+  Shape, and optional layout have been created.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -4312,10 +4476,11 @@ Four empty lists form a normalized identity slice that constrains no axes. A sta
 exceed its paired end because `SliceAttrs` has no input Shape and does not calculate an extent or
 choose empty-result policy. For the same reason, a non-negative axis may still exceed a future
 input rank, and bounds may exceed a future dimension. Raw negative axes or coordinates, clamping,
-rank and dimension checks, extent arithmetic, public empty-slice policy, result Shape and layout,
-and provenance belong to planned task 0017H.
+rank and dimension checks, extent arithmetic, empty-result policy, result Shape and layout, and
+provenance are supplied by the current public expression boundary described under
+[Slice expressions](#slice-expressions), not by this attributes record.
 
-A future single-axis convenience uses the same semantic kind with one step-one entry:
+The current single-axis convenience uses the same semantic kind with one step-one entry:
 
 ```java
 new SliceAttrs(
@@ -4630,12 +4795,13 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, expand, permute, expand-dimensions, and squeeze requests, plus gradient and
-  trainable state and publication behavior;
+  contiguous, reshape, expand, permute, expand-dimensions, squeeze, and slice requests, plus
+  gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
-  reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, and
-  axis-transform semantics, plus family-specific attribute values beyond those documented above;
+  reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
+  axis-transform, and slice semantics, plus family-specific attribute values beyond those
+  documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -4646,7 +4812,7 @@ The following contracts appear in the architecture and planning documents but ar
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
-`PermutationAttrs`, `AxisTransformAttrs`, `GraphValue`, `CompiledNode`,
+`PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
@@ -4664,7 +4830,9 @@ expression families are current, with their distinct count-preserving and direct
 broadcasting validation and layout rules.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
-construction is also current.
+construction is also current. Positive-step slice semantics and public general/single-axis slice
+expression construction are current, including static selected-dimension normalization,
+zero-extent results, and conditional resolved view geometry.
 
 ## Failures and ownership summary
 
@@ -4714,6 +4882,17 @@ construction is also current.
   `AxisTransformAttrs` and `[input]` provenance, and remain fresh, unlabeled, storage-free logical
   metadata without an alias, copy, canonicalization, gradient, materialization, or execution
   guarantee.
+- `Tensor.slice(long[], long[], int[], long[])` requires four non-null equal-length arrays and
+  clones them before element inspection. It normalizes each axis and negative bound once, clamps
+  bounds to the selected static extent, rejects repeated normalized axes and non-positive steps,
+  and preserves rank plus exact unselected Dimension references. Empty arrays and zero-extent
+  results are valid.
+- A non-empty slice of resolved dense, offset, strided, or broadcast geometry derives a new
+  checked start-adjusted offset and step-multiplied original strides in a view-marked descriptor.
+  Unresolved input and empty results remain unresolved. Every success preserves exact type and
+  eligibility, records normalized `SliceAttrs` and `[input]` provenance, and is fresh, unlabeled,
+  and storage-free. `Tensor.sliceAxis` is the same operation with one step-one entry; neither form
+  promises a physical alias, canonicalization, gradient, materialization, or execution.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
