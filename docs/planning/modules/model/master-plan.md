@@ -180,7 +180,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017H | [Slice Tensor expressions](tasks/0017h-slice-tensor-expressions.md) | Complete | 0002, 0003, 0013, 0017G | Build general and single-axis slice views with local shape and layout rules. |
 | 0017I | [Pad and tile semantics](tasks/0017i-pad-and-tile-semantics.md) | Complete | 0001, 0002, 0005, 0006 | Define constant-padding and axis-repeat meanings and immutable parameters. |
 | 0017J | [Pad and tile Tensor expressions](tasks/0017j-pad-and-tile-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017I | Build shape-validated constant-pad and tile expressions without eager execution. |
-| 0017K | Tensor composition semantics | Draft | 0002, 0005, 0006 | Define concat, stack, and unstack meanings and immutable axis parameters. |
+| 0017K | [Tensor composition semantics](tasks/0017k-tensor-composition-semantics.md) | Complete | 0002, 0005, 0006 | Define concat, stack, and unstack meanings and immutable axis parameters. |
 | 0017L | Tensor composition expressions | Draft | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
 | 0017M | Unfold and fold semantics | Draft | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
 | 0017N | Unfold and fold Tensor expressions | Draft | 0001, 0002, 0013, 0017M | Build shape-validated unfold and fold expressions without execution or kernels. |
@@ -209,7 +209,8 @@ task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B 
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
-Task 0017K is the next Draft frontier without a detailed specification; later tasks remain Draft.
+Task 0017K is complete. Task 0017L is the next Draft frontier without a detailed specification;
+later tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -506,6 +507,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   Contiguous semantics/expressions are 0017A–0017B; reshape/expand are 0017C–0017D plus 0017D1;
   axis transforms are 0017E–0017F plus 0017F1; slicing is 0017G–0017H; pad/tile are 0017I–0017J;
   concat/stack/unstack are 0017K–0017L; and unfold/fold are 0017M–0017N.
+- Task 0017K is complete with first-class CONCAT, STACK, and individually indexed UNSTACK-output
+  semantics. Concat/stack share one normalized axis value; each unstack output carries normalized
+  axis plus outputIndex so current one-provenance-per-Tensor metadata remains unambiguous without
+  producer grouping or graph-contract changes. Public APIs and result construction remain 0017L.
+- The independent task-0017K documentation review retained all three complete production
+  Javadocs, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. The
+  focused 11-test suite, all 588 model tests, generated Javadoc, root tests, javap/reflection/
+  import/source checks, link/anchor/fence/whitespace checks, exact nine-path scope, synchronized
+  statuses, and no-0017L-spec check passed. Compile API, Training API, capabilities, related model
+  contracts, architecture/ADRs/tests, conformance/integration, Java 26 Gradle configuration,
+  dependencies, and other modules remain accurate unchanged because this task adds only
+  model-owned composition semantic values without Tensor construction, provenance attachment,
+  graph grouping, gradients, compiler/backend behavior, or execution.
 - Task 0017G is complete with one `SLICE` identity and one immutable normalized `SliceAttrs` value.
   Four equal-size parallel lists carry long half-open bounds and positive steps plus distinct int
   axes. Single-axis slicing remains one entry with step one rather than a second operation kind;
@@ -858,7 +872,7 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
 complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 0017I are also
-complete. Task 0017J is also complete. Task 0017K is the next Draft frontier without a detailed
+complete. Task 0017J and task 0017K are also complete. Task 0017L is the next Draft frontier without a detailed
 specification, and every later operation-family task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

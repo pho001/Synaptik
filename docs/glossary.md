@@ -122,9 +122,19 @@ The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` an
 respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one raw
 binary64 constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat counts.
 Empty lists are scalar identity parameters, and structurally valid extreme longs or double values
-are retained without rank, Shape, DataType, layout, or result interpretation. Public Tensor
-construction, provenance, gradients, materialization, compiler/backend/ONNX behavior, and execution
-remain planned for later owning tasks and layers.
+are retained without rank, Shape, DataType, layout, or result interpretation. Public
+`Tensor.pad` and `Tensor.tile` construction now adds rank validation, checked Shape derivation,
+unresolved result layout, exact one-input provenance, and fresh result identity. Gradients,
+materialization, compiler/backend/ONNX behavior, and execution remain planned for later owning
+tasks and layers.
+The `TensorCompositionKind` vocabulary is implemented with distinct ordered `CONCAT`, inserted-axis
+`STACK`, and individually indexed `UNSTACK` output meanings. `CompositionAxisAttrs` stores one
+normalized non-negative axis shared by concat and stack. `UnstackOutputAttrs` stores a normalized
+source axis plus the logical coordinate identifying one result of a public logical multi-result
+unstack request. The output index distinguishes future result tensors under the current
+one-provenance-per-Tensor model; it is not a graph output slot or producer-group identity. Public
+composition expressions, Shape/type/input validation, result collection construction, provenance
+attachment, compiler capture, gradients, materialization, lowering, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -482,6 +492,10 @@ position normalized against the existing Shape and validates the selected static
 `SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
 or rank, so it cannot prove that an axis exists for a future input. Raw negative slice axes are
 planned public request syntax that must be normalized before constructing these attributes.
+`CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
+axis, with the paired kind supplying the interpretation. `UnstackOutputAttrs` stores a normalized
+source axis plus one non-negative logical coordinate on that axis. Neither value contains rank or
+extent context, so public composition construction must validate those bounds later.
 
 ### Node
 
@@ -523,7 +537,9 @@ output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized no
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
 inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` holds immutable
 ordered before/after widths and one raw binary64 constant, while `TileAttrs` holds immutable
-ordered positive complete-pattern repeat counts. Other families may define records for another
+ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
+shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
+one individually identified unstack result. Other families may define records for another
 operation-specific value. Implementations use typed fields, defensively
 isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
@@ -663,8 +679,10 @@ thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`
 The fourteenth is `SliceKind`, whose sole `SLICE` value pairs with `SliceAttrs` as described under
 [slice](#slice). The fifteenth and sixteenth are `PadKind` and `TileKind`, whose sole `PAD` and
 `TILE` values pair with `PadAttrs` and `TileAttrs` as described under [padding](#padding) and
-[tiling](#tiling). These semantic families do not by themselves construct Tensors or define
-compiler, backend, or execution behavior.
+[tiling](#tiling). The seventeenth is `TensorCompositionKind`, whose `CONCAT` and `STACK` values
+pair with `CompositionAxisAttrs` and whose `UNSTACK` value pairs with `UnstackOutputAttrs`, as
+described under [tensor composition](#tensor-composition). These semantic families do not by
+themselves construct Tensors or define compiler, backend, or execution behavior.
 
 ### Padding
 
@@ -904,6 +922,33 @@ support, and execution remain planned. Generic
 not enforce the family pairing or one-input context. See [Reshape
 expressions](api/tensor-api.md#reshape-expressions) and [Expand
 expressions](api/tensor-api.md#expand-expressions).
+
+### Tensor composition
+
+The implemented backend-independent semantic vocabulary for joining tensors or identifying one
+result of a logical multi-result split. `TensorCompositionKind` contains exactly `CONCAT`, `STACK`,
+and `UNSTACK`.
+
+CONCAT joins an ordered, non-empty input sequence along one existing normalized input axis and
+preserves rank. STACK joins an ordered, non-empty sequence of same-shaped inputs along one newly
+inserted normalized result axis and increases rank by one. Both pair with
+`CompositionAxisAttrs(axis)`; the kind determines whether the axis is existing or inserted. Input
+order is semantic, but these attributes contain no input list or count.
+
+UNSTACK describes one result obtained by fixing a normalized source axis at the logical coordinate
+in `UnstackOutputAttrs(axis, outputIndex)` and removing that axis. For conceptual input Shape
+`[2, 3, 4]`, source axis `1` has output indices `0`, `1`, and `2`; each identifies one conceptual
+result Shape `[2, 4]`. The index distinguishes the future result tensors because each current
+public Tensor can carry only one independent provenance value. It is not a graph output slot,
+`ValueId`, `NodeId`, producer-group identity, output count, storage offset, or runtime memory slot.
+
+Both attributes records accept every non-negative `int`, including `Integer.MAX_VALUE`, because
+they contain no rank or selected-axis extent. The public expression boundary planned in task 0017L
+will own raw-axis normalization, input and output-count validation, Shape/type/eligibility rules,
+result collection and descriptor construction, and provenance attachment. These semantic values
+do not group results into one `CompiledNode`, prescribe compiler decomposition, define gradients,
+choose materialization or lowering, map ONNX, or execute work. See [Tensor composition semantic
+kinds and attributes](api/tensor-api.md#tensor-composition-semantic-kinds-and-attributes).
 
 ### Tensor
 
@@ -1334,8 +1379,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, and tile families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, and tile values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, and tensor-composition families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, and indexed-unstack-output values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1354,8 +1399,9 @@ reshape and expand Tensor construction is current. Axis-transform semantics, com
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
 transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
 normalized parallel attributes plus public general and single-axis slice Tensor construction are
-current. Pad and tile semantics plus normalized immutable attributes are current, while public
-Tensor construction remains planned. Other
+current. Pad and tile semantics, normalized immutable attributes, and public Tensor construction
+are current. Tensor-composition semantics plus normalized axis/index attributes are current, while
+public concat, stack, and unstack Tensor construction remains planned. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

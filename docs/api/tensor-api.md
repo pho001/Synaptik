@@ -68,6 +68,16 @@ retention, and fresh one-input provenance. The semantic values themselves still 
 Tensors or define conversion of a padding constant, gradients, materialization, compiler or
 backend behavior, ONNX mapping, or execution.
 
+`TensorCompositionKind.CONCAT`, `STACK`, and `UNSTACK` are current semantic identities.
+`CompositionAxisAttrs` stores one normalized non-negative axis shared by concat and stack, while
+the kind distinguishes an existing concat axis from a newly inserted stack result-axis position.
+`UnstackOutputAttrs` stores a normalized source axis plus the logical coordinate identifying one
+individual result of a public logical multi-result unstack request. The output index keeps those
+future result tensors semantically distinct under the current one-provenance-per-Tensor model; it
+is not a graph output slot or producer-group identity. Public composition methods, input and
+result validation, Shape derivation, result collection construction, provenance attachment,
+compiler capture, gradients, materialization, and execution remain planned.
+
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
 expressions, and provide one bounded host-allocation path without executing a tensor:
@@ -127,6 +137,7 @@ AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/inse
 SliceKind + SliceAttrs                                      = positive-step parallel half-open slice semantics
 PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/raw constant
 TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
+TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -4078,6 +4089,9 @@ composition while the table also lists the current production families:
 | `PadAttrs` | The implemented immutable ordered before/after widths and uninterpreted binary64 padding constant. |
 | `TileKind` | The implemented production enum whose sole `TILE` value identifies complete-pattern per-axis tiling. |
 | `TileAttrs` | The implemented immutable ordered positive complete-pattern repeat counts. |
+| `TensorCompositionKind` | The implemented production enum for ordered `CONCAT`, inserted-axis `STACK`, and individually indexed `UNSTACK` output meanings. |
+| `CompositionAxisAttrs` | The implemented immutable normalized non-negative axis shared by concat and stack. |
+| `UnstackOutputAttrs` | The implemented immutable normalized source axis and non-negative logical output coordinate for one unstack result. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -4759,6 +4773,82 @@ family pairings. Neither family defines public Tensor request syntax, result inf
 storage behavior, materialization, provenance, gradients, compiler or planning behavior, backend
 or ONNX behavior, or execution.
 
+### Tensor composition semantic kinds and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind` implements
+`OperationKind` with exactly `CONCAT`, `STACK`, and `UNSTACK`, in that order. These kinds describe
+how logical tensor axes compose; they do not construct a public Tensor or derive a result Shape.
+
+| Kind | Semantic meaning | Required attributes |
+|---|---|---|
+| `CONCAT` | Join an ordered, non-empty input sequence along one existing normalized input axis, preserving rank. | `CompositionAxisAttrs` |
+| `STACK` | Join an ordered, non-empty sequence of same-shaped inputs along one newly inserted normalized result axis, increasing rank by one. | `CompositionAxisAttrs` |
+| `UNSTACK` | Represent one result obtained by fixing one normalized source axis at a logical coordinate and removing that axis. | `UnstackOutputAttrs` |
+
+Input order is part of concat and stack meaning. Conceptually, concatenating Shapes `[2, 3]` and
+`[2, 5]` on existing axis `1` places the first input's three positions before the second input's
+five positions and produces Shape `[2, 8]`. Stacking two inputs of Shape `[2, 3]` at insertion
+position `1` instead creates a new result axis and produces conceptual Shape `[2, 2, 3]`.
+`CompositionAxisAttrs(1)` can represent either normalized position because the paired kind supplies
+the existing-axis versus inserted-axis interpretation.
+
+STACK remains a first-class semantic request. A later compiler may choose to decompose it into
+dimension insertion plus concatenation, but that implementation choice does not replace the
+model-level STACK identity.
+
+#### Individually indexed unstack example
+
+##### Goal and inputs
+
+Describe the three individual results of logically unstacking conceptual input Shape `[2, 3, 4]`
+along normalized source axis `1`. That axis has three coordinates, so the output indices are `0`,
+`1`, and `2`.
+
+```java
+Operation first = new Operation(
+        TensorCompositionKind.UNSTACK,
+        new UnstackOutputAttrs(1, 0));
+Operation second = new Operation(
+        TensorCompositionKind.UNSTACK,
+        new UnstackOutputAttrs(1, 1));
+Operation third = new Operation(
+        TensorCompositionKind.UNSTACK,
+        new UnstackOutputAttrs(1, 2));
+```
+
+##### Result and interpretation
+
+Each operation describes one conceptual output Shape `[2, 4]`: fixing a coordinate on axis `1`
+removes that axis while retaining axes `0` and `2`. The three operations are unequal because their
+`outputIndex` values differ.
+
+The index is necessary because each current public Tensor can carry only one independent
+`TensorProvenance` value. A later public multi-result unstack request can therefore give every
+result distinguishable UNSTACK semantics without changing provenance. `outputIndex` is the fixed
+logical coordinate on the removed source axis; it is not a graph output slot, `ValueId`, `NodeId`,
+producer-group identity, output count, storage offset, or runtime memory slot. Task 0017K neither
+groups these operations into one `CompiledNode` nor forbids a separately designed grouped compiler
+representation later.
+
+##### Validation and boundaries
+
+`CompositionAxisAttrs` rejects a negative axis with
+`IllegalArgumentException("axis must be non-negative: <axis>")`.
+`UnstackOutputAttrs` checks its axis first, then rejects a negative output index with
+`IllegalArgumentException("outputIndex must be non-negative: <outputIndex>")`. Both records retain
+zero, positive values, and `Integer.MAX_VALUE` unchanged. They have no rank or axis-extent context,
+so structural acceptance does not prove that an axis exists or an unstack output index is in
+range.
+
+Generic `Operation` retains the exact kind and attributes references but does not enforce the
+documented family pairings. These semantic values store no Tensor, input list, input or output
+count, Shape, descriptor, layout, provenance, graph grouping, gradient, compiler policy, backend
+or ONNX behavior, or execution state. Public concat, stack, and unstack methods; local input,
+axis, Shape, type, eligibility, and output-count validation; result collection construction;
+provenance attachment; graph capture; gradients; materialization; lowering; and execution remain
+planned.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -5060,13 +5150,14 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, expand, permute, expand-dimensions, squeeze, and slice requests, plus
+  contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, and tile requests,
+  including public concat, stack, and unstack construction, plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, and tile semantics, plus family-specific attribute values beyond those
-  documented above;
+  axis-transform, slice, pad, tile, and tensor-composition semantics, plus family-specific
+  attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -5078,7 +5169,8 @@ The following contracts appear in the architecture and planning documents but ar
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
-`TileKind`, `TileAttrs`, `GraphValue`, `CompiledNode`,
+`TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
+`UnstackOutputAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
@@ -5104,6 +5196,10 @@ are current, as are public pad/tile Tensor request validation, checked Shape der
 result-layout policy, exact metadata retention, and one-input provenance. Padding-constant
 conversion, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
 remain planned.
+Tensor-composition semantic kinds and normalized attributes are current. Public concat, stack,
+and multi-result unstack expression construction remains planned, including Shape/type/input
+validation, result collection and descriptor construction, provenance attachment, and any future
+grouped compiler representation.
 
 ## Failures and ownership summary
 
@@ -5178,6 +5274,13 @@ remain planned.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `CompositionAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and
+  exact message `axis must be non-negative: <axis>`. `UnstackOutputAttrs` performs that axis check
+  before rejecting a negative output index with exact message
+  `outputIndex must be non-negative: <outputIndex>`. Both records retain every non-negative
+  `int`, including `Integer.MAX_VALUE`, without proving rank or output-count bounds. The output
+  index identifies one logical coordinate/result under the current one-provenance-per-Tensor
+  model; it is not a graph output slot or producer-group identity.
 - `PadAttrs` null-checks `before` and `after` in component order, rejects unequal sizes, then
   validates paired entries in ascending index order: before null, after null, before negative,
   after negative. Only complete valid input is snapshotted in component order. Empty lists,
