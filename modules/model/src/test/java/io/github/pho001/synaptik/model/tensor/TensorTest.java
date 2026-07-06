@@ -79,7 +79,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(89, declaredPublicMethods.size());
+        assertEquals(92, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -91,7 +91,7 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "pad",
-                        "tile"),
+                        "tile", "concat", "stack", "unstack"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -338,6 +338,34 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(tile.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(tile.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(tile.getModifiers())));
+
+        var concat = Tensor.class.getDeclaredMethod("concat", int.class, Tensor[].class);
+        var stack = Tensor.class.getDeclaredMethod("stack", int.class, Tensor[].class);
+        var unstack = Tensor.class.getDeclaredMethod("unstack", int.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, concat.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class, Tensor[].class),
+                        Arrays.asList(concat.getParameterTypes())),
+                () -> assertTrue(concat.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(concat.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(concat.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(concat.getModifiers())),
+                () -> assertEquals(Tensor.class, stack.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class, Tensor[].class),
+                        Arrays.asList(stack.getParameterTypes())),
+                () -> assertTrue(stack.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(stack.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(stack.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(stack.getModifiers())),
+                () -> assertEquals(List.class, unstack.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class), Arrays.asList(unstack.getParameterTypes())),
+                () -> assertFalse(unstack.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(unstack.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(unstack.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(unstack.getModifiers())));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

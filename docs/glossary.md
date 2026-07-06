@@ -131,10 +131,11 @@ The `TensorCompositionKind` vocabulary is implemented with distinct ordered `CON
 `STACK`, and individually indexed `UNSTACK` output meanings. `CompositionAxisAttrs` stores one
 normalized non-negative axis shared by concat and stack. `UnstackOutputAttrs` stores a normalized
 source axis plus the logical coordinate identifying one result of a public logical multi-result
-unstack request. The output index distinguishes future result tensors under the current
+unstack request. The output index distinguishes current result tensors under the current
 one-provenance-per-Tensor model; it is not a graph output slot or producer-group identity. Public
-composition expressions, Shape/type/input validation, result collection construction, provenance
-attachment, compiler capture, gradients, materialization, lowering, and execution remain planned.
+composition expressions now provide Shape/type/input validation, immutable result collection
+construction, and exact provenance attachment. Compiler capture or decomposition, producer
+grouping, gradients, materialization, lowering, ONNX mapping, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -792,6 +793,12 @@ aliased storage, a copy-free route, or execution.
 bounds, distinct axes, and positive steps in `SliceAttrs`, and record exactly the receiver as their
 sole input. Conditional resolved view geometry does not imply attached or physically aliased
 storage, materialization, or execution.
+Static `Tensor.concat` and `Tensor.stack` retain immutable ordered snapshots of their exact input
+Tensor references in provenance with matching `TensorCompositionKind` and normalized
+`CompositionAxisAttrs`. Each `Tensor.unstack` output instead carries its own UNSTACK operation,
+`UnstackOutputAttrs` with increasing output index, and exactly the source Tensor as input. Those
+individual origins distinguish outputs without establishing one shared producer occurrence,
+grouped result identity, or graph output slot.
 
 ### Publication binding
 
@@ -938,16 +945,21 @@ order is semantic, but these attributes contain no input list or count.
 UNSTACK describes one result obtained by fixing a normalized source axis at the logical coordinate
 in `UnstackOutputAttrs(axis, outputIndex)` and removing that axis. For conceptual input Shape
 `[2, 3, 4]`, source axis `1` has output indices `0`, `1`, and `2`; each identifies one conceptual
-result Shape `[2, 4]`. The index distinguishes the future result tensors because each current
+result Shape `[2, 4]`. The index distinguishes the current result tensors because each current
 public Tensor can carry only one independent provenance value. It is not a graph output slot,
 `ValueId`, `NodeId`, producer-group identity, output count, storage offset, or runtime memory slot.
 
 Both attributes records accept every non-negative `int`, including `Integer.MAX_VALUE`, because
-they contain no rank or selected-axis extent. The public expression boundary planned in task 0017L
-will own raw-axis normalization, input and output-count validation, Shape/type/eligibility rules,
-result collection and descriptor construction, and provenance attachment. These semantic values
-do not group results into one `CompiledNode`, prescribe compiler decomposition, define gradients,
-choose materialization or lowering, map ONNX, or execute work. See [Tensor composition semantic
+they contain no rank or selected-axis extent. The implemented public expression boundary owns
+raw-axis normalization, ordered input snapshotting, output-count validation, exact
+Shape/type/eligibility rules, unresolved descriptor construction, immutable result collection,
+and provenance attachment. CONCAT accepts only an all-static checked extent sum or one dynamic
+extent with static-zero companions; STACK inserts a static input-count Dimension; UNSTACK
+requires a static count no larger than `Integer.MAX_VALUE` and returns an empty immutable List
+without consuming IDs when that count is zero. Each UNSTACK result remains independently indexed
+without grouping into one `CompiledNode`. Compiler capture or decomposition, gradients,
+materialization, lowering, ONNX mapping, and execution remain planned. See [Tensor composition
+expressions](api/tensor-api.md#tensor-composition-expressions) and [Tensor composition semantic
 kinds and attributes](api/tensor-api.md#tensor-composition-semantic-kinds-and-attributes).
 
 ### Tensor
@@ -1077,6 +1089,13 @@ repeat per axis, derives static extents with checked multiplication, and retains
 Dimension only for repeat one. Both clone caller arrays, preserve exact gradient eligibility,
 always produce fresh unresolved unlabeled storage-free results, and record their normalized
 attributes plus provenance `[input]` without materializing values or defining execution.
+Static `Tensor.concat` and `Tensor.stack` accept ordered non-empty inputs of one exact data type.
+CONCAT validates equal rank and non-axis Dimensions, derives a checked or locally unchanged
+dynamic axis extent, and preserves rank. STACK requires identical Shapes and inserts one
+input-count Dimension. Both propagate gradient eligibility by input OR. Instance `Tensor.unstack`
+removes one static `int`-sized axis and returns an immutable ordered List of individually indexed
+outputs. All created composition results are fresh, unresolved, unlabeled, and storage-free;
+unstack does not claim shared producer grouping, and its zero-count result creates no Tensor or ID.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1357,6 +1376,9 @@ Complete axis-permutation and rank-two transpose construction is implemented wit
 Dimension/stride reordering and conditional same-offset view geometry. Singleton-axis insertion
 and selected static-singleton removal construction are implemented with exact unaffected
 Dimension retention and conditional same-offset stride insertion/removal.
+Ordered concat and stack construction plus immutable-list unstack construction are implemented
+with unresolved layouts and exact ordered or individually indexed provenance. The unstack list is
+not evidence of one grouped graph producer.
 Gradient rules and objects, compiler
 graph capture and canonicalization, dynamic constraint solving, truth or numerical execution,
 materialization, and publication behavior are not part of the current Tensor contract.
@@ -1400,8 +1422,8 @@ attributes, and single-axis insertion/removal attributes are implemented; public
 transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
 normalized parallel attributes plus public general and single-axis slice Tensor construction are
 current. Pad and tile semantics, normalized immutable attributes, and public Tensor construction
-are current. Tensor-composition semantics plus normalized axis/index attributes are current, while
-public concat, stack, and unstack Tensor construction remains planned. Other
+are current. Tensor-composition semantics, normalized axis/index attributes, and public concat,
+stack, and immutable-list unstack Tensor construction are current. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

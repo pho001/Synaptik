@@ -9,19 +9,21 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -101,13 +103,18 @@ import java.util.Optional;
  * static extents, and preserve dynamic Dimension references only for identity transformations.
  * Both accept every current data type, leave layout unresolved, and retain the raw padding
  * constant or complete-pattern repeat counts without inspecting or materializing values.
+ * Concat joins a non-empty ordered sequence along an existing axis after exact data-type, rank,
+ * and non-axis Dimension validation. Stack joins exactly same-shaped inputs along one inserted
+ * axis. Unstack removes one statically sized axis and returns an immutable ordered list of
+ * independently indexed result tensors. Composition results have unresolved layout, and unstack
+ * outputs deliberately carry no shared producer-group identity.
  * Every result records
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
  * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind}, {@link PadKind},
- * {@link TileKind},
+ * {@link TileKind}, {@link TensorCompositionKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -2458,6 +2465,104 @@ public final class Tensor {
      */
     public Tensor tile(long... repeats) {
         return TensorPadTileExpressions.tile(this, repeats);
+    }
+
+    /**
+     * Creates a fresh expression that concatenates an ordered non-empty input sequence.
+     *
+     * <p>The caller-owned varargs array is cloned once and is never retained. Input references,
+     * including repeated references, remain in exact order in result provenance. Every input must
+     * have the same exact data type and rank, and dimensions outside the selected existing axis
+     * must be structurally equal. Validation rejects a null array, an empty array, and the first
+     * null copied element before reading any descriptor. It then normalizes the axis, followed by
+     * encounter-order data-type, rank, non-axis Dimension, and selected-extent validation.</p>
+     *
+     * <p>Static selected extents are added with checked {@code long} arithmetic. A dynamic extent
+     * is representable only when exactly one input supplies it and every other selected extent is
+     * static zero; the exact dynamic Dimension is then retained. The fresh result has unresolved
+     * layout, gradient eligibility equal to the logical OR of all input requests, no label or
+     * storage, and exact {@link TensorCompositionKind#CONCAT} provenance. This method neither
+     * reads values nor materializes, executes, groups, or defines gradients for the result.</p>
+     *
+     * @param axis existing input axis along which ordered extents are joined; for rank {@code r},
+     *     the accepted raw range is {@code [-r, r - 1]} and a negative value is normalized once
+     * @param inputs non-null caller-owned non-empty ordered input array with no null elements;
+     *     the array is defensively snapshotted and the tensors are not mutated
+     * @return a non-null fresh storage-free CONCAT tensor with checked same-rank Shape,
+     *     unresolved layout, propagated gradient eligibility, and ordered provenance
+     * @throws NullPointerException if {@code inputs} or an indexed element is null
+     * @throws IllegalArgumentException if no inputs are supplied, data types or ranks differ,
+     *     non-concat dimensions differ, or selected dynamic extents cannot be represented locally
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank
+     * @throws ArithmeticException if checked static extent addition overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public static Tensor concat(int axis, Tensor... inputs) {
+        return TensorCompositionExpressions.concat(axis, inputs);
+    }
+
+    /**
+     * Creates a fresh expression that stacks an ordered non-empty input sequence.
+     *
+     * <p>The caller-owned varargs array is cloned once and is never retained. All inputs must have
+     * the same exact data type and structurally identical Shape. The axis is an insertion position
+     * in the result; negative syntax is normalized once against {@code inputRank + 1}. The result
+     * inserts one static dimension equal to the input count and preserves the first input's exact
+     * Dimension references around it. Validation rejects a null array, an empty array, and the
+     * first null copied element before reading any descriptor. It then normalizes the insertion
+     * axis before checking each input's data type and Shape in encounter order.</p>
+     *
+     * <p>The fresh result has unresolved layout, gradient eligibility equal to the logical OR of
+     * all input requests, no label or storage, and exact ordered
+     * {@link TensorCompositionKind#STACK} provenance. Even a one-input request remains an explicit
+     * stack. Construction does not broadcast or promote inputs, inspect values, materialize,
+     * execute, capture a graph, or define gradient behavior.</p>
+     *
+     * @param axis insertion position in the result Shape; for input rank {@code r}, the accepted
+     *     raw range is {@code [-(r + 1), r]} and a negative value is normalized once
+     * @param inputs non-null caller-owned non-empty ordered input array with no null elements;
+     *     the array is defensively snapshotted and the tensors are not mutated
+     * @return a non-null fresh storage-free STACK tensor with one inserted count dimension,
+     *     unresolved layout, propagated gradient eligibility, and ordered provenance
+     * @throws NullPointerException if {@code inputs} or an indexed element is null
+     * @throws IllegalArgumentException if no inputs are supplied, data types differ, or Shapes are
+     *     not structurally identical
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the insertion range
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public static Tensor stack(int axis, Tensor... inputs) {
+        return TensorCompositionExpressions.stack(axis, inputs);
+    }
+
+    /**
+     * Creates independently indexed expressions for every coordinate of one selected axis.
+     *
+     * <p>The positive or negative existing axis is normalized once and must have a statically
+     * known extent no larger than {@link Integer#MAX_VALUE}. Each result removes that axis,
+     * preserves every other exact Dimension reference, and retains this tensor's exact data type
+     * and gradient-eligibility value. Results occur in increasing source-coordinate order in an
+     * immutable list and carry distinct {@link TensorCompositionKind#UNSTACK} attributes with the
+     * normalized axis and their individual output index.</p>
+     *
+     * <p>Every output is fresh, unlabeled, storage-free, and layout-unresolved. The outputs are not
+     * grouped under one public producer identity or graph output-slot contract. A zero extent
+     * returns an empty immutable list without consuming a tensor identifier. Identifier
+     * exhaustion during a non-empty request may consume identifiers for earlier attempted
+     * outputs, but no partial list is returned. This method does not inspect values, materialize,
+     * execute, capture a graph, or define gradient behavior.</p>
+     *
+     * @param axis existing input axis to remove; for rank {@code r}, the accepted raw range is
+     *     {@code [-r, r - 1]} and a negative value is normalized once before extent validation
+     * @return a non-null immutable ordered list of fresh UNSTACK outputs; empty exactly when the
+     *     selected static extent is zero
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's rank
+     * @throws IllegalArgumentException if the selected dimension is dynamic or its static extent
+     *     exceeds {@link Integer#MAX_VALUE}
+     * @throws IllegalStateException if tensor identifier space is exhausted while creating an
+     *     output; identifiers already consumed during this request are not rolled back
+     */
+    public List<Tensor> unstack(int axis) {
+        return TensorCompositionExpressions.unstack(this, axis);
     }
 
     /**

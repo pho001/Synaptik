@@ -26,8 +26,10 @@ arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]`
 known singleton axis. `slice(long[], long[], int[], long[])` adds general positive-step half-open
 selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
-`tile(long...)` repeats each complete input pattern along every axis. Typed access, other
-expression families, gradient objects and publication behavior,
+`tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
+ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
+same-shaped inputs, and instance `unstack` returns an immutable ordered list of individually
+indexed outputs. Typed access, other expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
@@ -73,10 +75,11 @@ backend behavior, ONNX mapping, or execution.
 the kind distinguishes an existing concat axis from a newly inserted stack result-axis position.
 `UnstackOutputAttrs` stores a normalized source axis plus the logical coordinate identifying one
 individual result of a public logical multi-result unstack request. The output index keeps those
-future result tensors semantically distinct under the current one-provenance-per-Tensor model; it
+result tensors semantically distinct under the current one-provenance-per-Tensor model; it
 is not a graph output slot or producer-group identity. Public composition methods, input and
-result validation, Shape derivation, result collection construction, provenance attachment,
-compiler capture, gradients, materialization, and execution remain planned.
+result validation, Shape derivation, immutable result collection construction, and provenance
+attachment are current. Compiler capture or decomposition, producer grouping, gradients,
+materialization, and execution remain planned.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -3912,6 +3915,158 @@ materialization, compiler canonicalization, backend or ONNX lowering, or executi
 - Identifier exhaustion can occur only at final derived Tensor construction, after all local
   immutable metadata has been prepared.
 
+### Tensor composition expressions
+
+Composition combines or separates logical axes without calculating or moving values. The current
+API provides exactly these methods:
+
+```java
+Tensor.concat(int axis, Tensor... inputs)
+Tensor.stack(int axis, Tensor... inputs)
+tensor.unstack(int axis)
+```
+
+`concat` and `stack` first validate and clone the caller-owned non-empty varargs array. They retain
+the exact Tensor references, including repeated inputs, in the same semantic order, but never
+retain either the caller's array or its clone. A null array, an empty array, or the first null
+copied element fails before any descriptor is read or Tensor identity is allocated.
+
+`concat` normalizes an existing axis in `[-rank, rank - 1]`, requires exact matching data types and
+ranks, and requires every non-concat Dimension to be structurally equal to the corresponding first
+input Dimension. All-static selected extents are added with checked `long` arithmetic. The only
+accepted dynamic case contains exactly one dynamic selected extent and static-zero selected
+extents on every other input; the result then retains that exact dynamic Dimension reference.
+Other dynamic sums are not representable by the current Shape model and fail locally. The result
+preserves all first-input non-axis Dimension references.
+
+`stack` normalizes an insertion position in `[-(rank + 1), rank]`, requires exact matching data
+types and structurally identical Shapes, and inserts one new static Dimension equal to the number
+of inputs. Dimensions before and after it retain the exact first-input references. A one-input
+request remains an explicit STACK expression rather than returning the input.
+
+Both methods accept every current data type. Their result requests gradients exactly when at least
+one input does; non-differentiable descriptors cannot request gradients, as usual. Each valid call
+returns a fresh unlabeled, storage-free Tensor with unresolved layout. CONCAT provenance contains
+`TensorCompositionKind.CONCAT`, `CompositionAxisAttrs(normalizedAxis)`, and the exact ordered input
+snapshot. STACK uses the matching kind and the same axis-attributes type. Neither method promotes,
+broadcasts, inserts casts, reads input labels/layout/provenance/values/storage, or performs
+materialization.
+
+`unstack` normalizes an existing axis in `[-rank, rank - 1]`. Its selected extent must be static
+and no larger than `Integer.MAX_VALUE`, because the complete public result count must be known and
+representable by one Java List immediately. The method removes that Dimension, preserves every
+other exact Dimension reference, and returns one output per source coordinate in increasing order.
+Every output retains the input data type and gradient-eligibility value, shares the same immutable
+result Shape, and is fresh, unlabeled, storage-free, and layout-unresolved.
+
+The returned List is immutable. Each element has its own UNSTACK provenance with
+`UnstackOutputAttrs(normalizedAxis, outputIndex)` and exactly `[input]`. These independent output
+indices distinguish logical results; they do not claim a shared producer occurrence, graph output
+slot, or grouped `CompiledNode`. A zero selected extent returns the empty immutable List without
+creating an Operation or consuming a Tensor ID. If factory ID exhaustion occurs partway through a
+non-empty request, earlier IDs remain consumed but no partial List is returned.
+
+#### Complete tensor-composition expression example
+
+##### Goal and inputs
+
+Construct CONCAT and STACK expressions from storage-free `FLOAT32` tensors, then construct the
+individually indexed outputs of unstacking the CONCAT result. The example observes Shape,
+ownership, and provenance metadata; it does not calculate composition values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.List;
+import java.util.Optional;
+
+public final class TensorCompositionExpressionExample {
+    public static void main(String[] args) {
+        Tensor first = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 1), Optional.empty(), false));
+        Tensor second = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
+
+        Tensor concatenated = Tensor.concat(-1, first, second);
+        Tensor stacked = Tensor.stack(0, first, first);
+        List<Tensor> outputs = concatenated.unstack(1);
+
+        TensorProvenance concatOrigin = concatenated.provenance().orElseThrow();
+        TensorProvenance stackOrigin = stacked.provenance().orElseThrow();
+        TensorProvenance firstOutputOrigin = outputs.getFirst().provenance().orElseThrow();
+
+        System.out.println(concatenated.descriptor().shape());
+        System.out.println(stacked.descriptor().shape());
+        System.out.println(outputs.size());
+        System.out.println(outputs.getFirst().descriptor().shape());
+        System.out.println(concatOrigin.operation().kind());
+        System.out.println((CompositionAxisAttrs) concatOrigin.operation().attrs());
+        System.out.println(stackOrigin.operation().kind());
+        System.out.println((UnstackOutputAttrs) firstOutputOrigin.operation().attrs());
+        System.out.println(concatOrigin.inputs().equals(List.of(first, second)));
+        System.out.println(firstOutputOrigin.inputs().getFirst() == concatenated);
+        System.out.println(concatenated.descriptor().requiresGrad());
+        System.out.println(outputs.getFirst().descriptor().layout().isEmpty()
+                && outputs.getFirst().hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- `Tensor.concat(-1, first, second)` normalizes axis `-1` to existing axis `1`, adds extents one
+  and two, and retains exact ordered provenance `[first, second]`. The true gradient request on
+  `second` makes the CONCAT result eligible.
+- `Tensor.stack(0, first, first)` preserves the repeated input in both semantic roles and inserts
+  the input count at result axis zero, producing Shape `[2, 2, 1]`.
+- `concatenated.unstack(1)` removes the static extent-three axis and returns three immutable-list
+  entries of Shape `[2]`. The first entry has output index zero and records only `concatenated` as
+  its exact input.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[2, 3]
+Shape[2, 2, 1]
+3
+Shape[2]
+CONCAT
+CompositionAxisAttrs[axis=1]
+STACK
+UnstackOutputAttrs[axis=1, outputIndex=0]
+true
+true
+true
+true
+```
+
+The output demonstrates axis normalization, checked Shape derivation, ordered and repeated input
+roles, eligibility OR, immutable individually indexed unstack semantics, and deliberately
+unresolved storage-free results. It does not demonstrate concatenated or selected element values,
+gradient rules, shared producer grouping, graph capture or decomposition, materialization,
+backend lowering, ONNX mapping, or execution.
+
+##### Failures and useful variations
+
+- CONCAT or STACK rejects null/empty input containers and indexed null elements before descriptor
+  inspection. Axis validation then precedes encounter-order type and Shape validation.
+- CONCAT rejects mixed types, ranks, or non-axis dimensions, an unrepresentable dynamic sum, and
+  checked static-extent overflow. STACK rejects mixed types or any Shape difference; neither
+  method promotes or broadcasts.
+- UNSTACK rejects a dynamic selected extent or one greater than `Integer.MAX_VALUE`. A zero extent
+  instead returns an empty immutable List without consuming an ID.
+- Exhausting the factory's Tensor-ID space fails only during final result construction. CONCAT and
+  STACK create no result; UNSTACK may have consumed IDs for earlier attempted outputs but returns
+  no partial List.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -4824,7 +4979,7 @@ removes that axis while retaining axes `0` and `2`. The three operations are une
 `outputIndex` values differ.
 
 The index is necessary because each current public Tensor can carry only one independent
-`TensorProvenance` value. A later public multi-result unstack request can therefore give every
+`TensorProvenance` value. The implemented multi-result unstack request therefore gives every
 result distinguishable UNSTACK semantics without changing provenance. `outputIndex` is the fixed
 logical coordinate on the removed source axis; it is not a graph output slot, `ValueId`, `NodeId`,
 producer-group identity, output count, storage offset, or runtime memory slot. Task 0017K neither
@@ -4844,10 +4999,11 @@ range.
 Generic `Operation` retains the exact kind and attributes references but does not enforce the
 documented family pairings. These semantic values store no Tensor, input list, input or output
 count, Shape, descriptor, layout, provenance, graph grouping, gradient, compiler policy, backend
-or ONNX behavior, or execution state. Public concat, stack, and unstack methods; local input,
-axis, Shape, type, eligibility, and output-count validation; result collection construction;
-provenance attachment; graph capture; gradients; materialization; lowering; and execution remain
-planned.
+or ONNX behavior, or execution state. Public concat, stack, and unstack now supply the local input,
+axis, Shape, type, eligibility, output-count, result collection, descriptor, and provenance work
+described under [tensor composition expressions](#tensor-composition-expressions). Graph capture
+or decomposition, gradients, producer grouping, materialization, lowering, ONNX mapping, and
+execution remain planned.
 
 ### Unary elementwise semantic kinds
 
@@ -5150,8 +5306,8 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
-  contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, and tile requests,
-  including public concat, stack, and unstack construction, plus
+  contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
+  stack, and unstack requests, plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
@@ -5196,10 +5352,12 @@ are current, as are public pad/tile Tensor request validation, checked Shape der
 result-layout policy, exact metadata retention, and one-input provenance. Padding-constant
 conversion, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
 remain planned.
-Tensor-composition semantic kinds and normalized attributes are current. Public concat, stack,
-and multi-result unstack expression construction remains planned, including Shape/type/input
-validation, result collection and descriptor construction, provenance attachment, and any future
-grouped compiler representation.
+Tensor-composition semantic kinds, normalized attributes, and public concat, stack, and
+multi-result unstack expression construction are current. Input snapshotting, normalized axes,
+exact type/Shape validation, locally representable result Shapes, unresolved descriptors,
+eligibility propagation, immutable result lists, and individually indexed provenance are model
+behavior. Any grouped producer representation, compiler capture or decomposition, gradients,
+materialization, lowering, ONNX mapping, and execution remain planned.
 
 ## Failures and ownership summary
 
@@ -5359,6 +5517,19 @@ grouped compiler representation.
   input list with `List.copyOf`; preserves order, empty inputs, repeated references, and exact
   Tensor identities; and retains the exact Operation reference. Its record value methods do not
   establish producer-occurrence identity, graph membership, or semantic compatibility.
+- Static `Tensor.concat` and `Tensor.stack` reject a null input array, empty input sequence, or the
+  first null copied element before descriptor inspection. Axis validation precedes encounter-order
+  type/Shape checks. Both preserve ordered exact inputs, require exact data types, OR gradient
+  eligibility, and return fresh unresolved unlabeled storage-free results. CONCAT additionally
+  requires equal rank and non-axis Dimensions, checked-adds static extents, and accepts one dynamic
+  extent only with static-zero companions. STACK requires identical Shapes and inserts a static
+  input-count Dimension. Neither promotes, broadcasts, reads values/storage, or materializes.
+- `Tensor.unstack` normalizes one existing axis, rejects a dynamic selected extent or a static
+  extent above `Integer.MAX_VALUE`, removes that axis, and returns one fresh unresolved unlabeled
+  storage-free result per coordinate in an immutable ordered List. Each output preserves the input
+  type and eligibility and has its own indexed UNSTACK provenance over `[input]`; no producer
+  grouping is implied. A zero extent consumes no ID. Mid-request ID exhaustion may consume earlier
+  IDs but returns no partial List.
 - `Tensor.add`, `sub`, `mul`, `div`, `min`, `max`, and tensor-valued `pow` require a non-null right
   operand, promote only floating data types, and require locally provable right-aligned
   broadcasting. Each successful call returns a fresh unlabeled storage-free Tensor with unresolved

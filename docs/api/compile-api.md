@@ -143,6 +143,15 @@ entry. Both forms preserve exact type and gradient eligibility, record exact one
 and remain fresh, unlabeled, and storage-free. This is current model expression construction, not
 graph capture, slice-chain or identity canonicalization, physical aliasing, gradient-scatter
 construction, materialization, backend/ONNX lowering, or execution.
+Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapshot ordered non-empty
+inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
+rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
+Instance `Tensor.unstack(int)` requires a static `int`-sized selected extent, removes that axis,
+and returns an immutable ordered List whose fresh results have individually indexed UNSTACK
+provenance over the same input. A zero extent returns no result or ID, and the output indices do
+not establish a shared producer occurrence or graph output-slot contract. This is current model
+expression construction, not compiler capture, decomposition, grouping, backward construction,
+materialization, backend lowering, ONNX mapping, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -165,11 +174,12 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   positive-step slice construction, plus unresolved constant-pad and complete-pattern tile
-  construction, are implemented;
+  construction, plus ordered concat/stack and immutable individually indexed unstack construction,
+  are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/pad/tile
-  canonicalization, deferred
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/pad/tile/
+  composition canonicalization or decomposition, grouped producer design, deferred
   dynamic reshape count validation and expand compatibility constraints, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and

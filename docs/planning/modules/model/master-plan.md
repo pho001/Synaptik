@@ -181,7 +181,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017I | [Pad and tile semantics](tasks/0017i-pad-and-tile-semantics.md) | Complete | 0001, 0002, 0005, 0006 | Define constant-padding and axis-repeat meanings and immutable parameters. |
 | 0017J | [Pad and tile Tensor expressions](tasks/0017j-pad-and-tile-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017I | Build shape-validated constant-pad and tile expressions without eager execution. |
 | 0017K | [Tensor composition semantics](tasks/0017k-tensor-composition-semantics.md) | Complete | 0002, 0005, 0006 | Define concat, stack, and unstack meanings and immutable axis parameters. |
-| 0017L | Tensor composition expressions | Draft | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
+| 0017L | [Tensor composition expressions](tasks/0017l-tensor-composition-expressions.md) | Complete | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
 | 0017M | Unfold and fold semantics | Draft | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
 | 0017N | Unfold and fold Tensor expressions | Draft | 0001, 0002, 0013, 0017M | Build shape-validated unfold and fold expressions without execution or kernels. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
@@ -209,8 +209,8 @@ task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B 
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
-Task 0017K is complete. Task 0017L is the next Draft frontier without a detailed specification;
-later tasks remain Draft.
+Tasks 0017K and 0017L are complete. Task 0017M is the next Draft frontier without a detailed
+specification; later tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -510,7 +510,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Task 0017K is complete with first-class CONCAT, STACK, and individually indexed UNSTACK-output
   semantics. Concat/stack share one normalized axis value; each unstack output carries normalized
   axis plus outputIndex so current one-provenance-per-Tensor metadata remains unambiguous without
-  producer grouping or graph-contract changes. Public APIs and result construction remain 0017L.
+  producer grouping or graph-contract changes. Public APIs and result construction are implemented
+  by completed task 0017L.
+- Task 0017L is complete with ordered varargs CONCAT/STACK and immutable-list UNSTACK APIs. It applies
+  exact type/Shape rules, limited provable dynamic concat, insertion/removal Shape derivation,
+  eligibility OR/preservation, unresolved layouts, and individually indexed unstack provenance
+  without grouped producers, values, storage, gradients, or cross-layer behavior.
+- The independent task-0017L documentation review finalized Tensor/helper Javadocs, Tensor API,
+  Compile API, glossary, task evidence, master plan, and roadmap. Focused 27-test, all 601 model-
+  test, generated-Javadoc, root-test, executable-example, bytecode/reflection/import/source,
+  link/anchor/fence/whitespace, exact ten-path, synchronized-status, and no-0017M-spec checks
+  passed. Training API, capabilities, semantic/provenance/graph/foundational contracts,
+  architecture/ADRs/tests, conformance/integration, Java 26 Gradle configuration, dependencies,
+  and other modules remain accurate unchanged because this task adds only model-owned composition
+  expression metadata without grouped producers, values, gradients, or cross-layer behavior.
 - The independent task-0017K documentation review retained all three complete production
   Javadocs, then finalized Tensor API, glossary, task evidence, master plan, and roadmap. The
   focused 11-test suite, all 588 model tests, generated Javadoc, root tests, javap/reflection/
@@ -872,7 +885,7 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
 complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 0017I are also
-complete. Task 0017J and task 0017K are also complete. Task 0017L is the next Draft frontier without a detailed
-specification, and every later operation-family task remains Draft.
+complete. Tasks 0017J, 0017K, and 0017L are also complete. Task 0017M is the next Draft frontier
+without a detailed specification, and every later operation-family task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
