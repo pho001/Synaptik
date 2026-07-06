@@ -12,8 +12,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
@@ -95,12 +97,17 @@ import java.util.Optional;
  * parallel half-open bounds, distinct axes, and positive steps. It preserves rank, normalizes and
  * clamps against selected static dimensions, and derives checked resolved view geometry only for
  * non-empty results with resolved input layout. Empty and unresolved results remain unresolved.
+ * Constant padding and per-axis tiling require complete rank-aligned long arrays, derive checked
+ * static extents, and preserve dynamic Dimension references only for identity transformations.
+ * Both accept every current data type, leave layout unresolved, and retain the raw padding
+ * constant or complete-pattern repeat counts without inspecting or materializing values.
  * Every result records
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
- * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind},
+ * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind}, {@link PadKind},
+ * {@link TileKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -2365,6 +2372,92 @@ public final class Tensor {
      */
     public Tensor sliceAxis(int axis, long fromInclusive, long toExclusive) {
         return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive);
+    }
+
+    /**
+     * Creates a fresh expression that adds constant-filled positions around every input axis.
+     *
+     * <p>The two caller-owned arrays must be non-null and contain exactly one non-negative width
+     * per input axis. They are defensively cloned and are never retained or mutated. At axis
+     * {@code i}, the result extent is the checked sum
+     * {@code inputExtent + before[i] + after[i]}; for example, Shape {@code [2, 3]} with before
+     * widths {@code [1, 0]} and after widths {@code [2, 4]} produces Shape {@code [5, 7]}.
+     * Static zero extents and empty arrays for a scalar are valid. A dynamic dimension can be
+     * retained by exact reference only when both corresponding widths are zero, because the
+     * current Shape model cannot represent a symbolic affine sum.</p>
+     *
+     * <p>Every current DataType is accepted. The result preserves the exact input data type and
+     * gradient-eligibility value. {@code constantValue} is retained unchanged as a raw
+     * {@code double}, including signed zero, NaN, and infinity; this model method neither converts
+     * it to the result data type nor validates a future backend representation.</p>
+     *
+     * <p>The fresh result always has unresolved layout, including a zero-width identity request,
+     * because constant padding is an output-materialization operation rather than input view
+     * geometry. It has no label or storage and records {@link PadKind#PAD}, immutable normalized
+     * padding attributes, and exactly this tensor as its sole provenance input. Construction does
+     * not inspect or copy values, attach an alias, define a gradient, capture or canonicalize a
+     * graph, select a backend, map ONNX, materialize storage, or execute padding.</p>
+     *
+     * @param before non-null caller-owned before widths, exactly one per input axis; every width
+     *     must be non-negative, and an empty array is valid for a scalar
+     * @param after non-null caller-owned after widths, exactly one per input axis; every width
+     *     must be non-negative, and an empty array is valid for a scalar
+     * @param constantValue exact raw binary64 padding constant retained without conversion or
+     *     validation
+     * @return a non-null fresh storage-free PAD expression with checked same-rank Shape,
+     *     preserved data type and gradient eligibility, unresolved layout, and one-input
+     *     provenance
+     * @throws NullPointerException if {@code before} or {@code after} is null, with that parameter
+     *     name as the message
+     * @throws IllegalArgumentException if either array length differs from input rank, a width is
+     *     negative, or non-zero padding is requested for a dynamic dimension
+     * @throws ArithmeticException if checked static result-extent addition overflows; no tensor
+     *     identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor pad(long[] before, long[] after, double constantValue) {
+        return TensorPadTileExpressions.pad(this, before, after, constantValue);
+    }
+
+    /**
+     * Creates a fresh expression that repeats the complete input pattern along every axis.
+     *
+     * <p>The caller-owned varargs array must be non-null and contain exactly one strictly positive
+     * repeat count per input axis. It is defensively cloned and is never retained or mutated. At
+     * axis {@code i}, the result extent is the checked product
+     * {@code inputExtent * repeats[i]}; for example, Shape {@code [2, 3]} with repeats
+     * {@code [2, 4]} produces Shape {@code [4, 12]}. This is complete-pattern tiling rather than
+     * repetition of each scalar into a consecutive run. Static zero extents and empty repeats for
+     * a scalar are valid. A dynamic dimension can be retained by exact reference only when its
+     * repeat is one, because the current Shape model cannot represent symbolic multiplication.</p>
+     *
+     * <p>Every current DataType is accepted, and the result preserves the exact input data type
+     * and gradient-eligibility value. The fresh result always has unresolved layout, including a
+     * repeat-one identity request, because tiling requires output materialization and cannot be
+     * represented as an ordinary input view. It has no label or storage and records
+     * {@link TileKind#TILE}, immutable repeat attributes, and exactly this tensor as its sole
+     * provenance input.</p>
+     *
+     * <p>Construction does not inspect or repeat values, attach an alias, define a gradient,
+     * capture or canonicalize a graph, select a backend, map ONNX, materialize storage, or execute
+     * tiling.</p>
+     *
+     * @param repeats non-null caller-owned complete-pattern repeat counts, exactly one positive
+     *     value per input axis; an empty array is valid for a scalar
+     * @return a non-null fresh storage-free TILE expression with checked same-rank Shape,
+     *     preserved data type and gradient eligibility, unresolved layout, and one-input
+     *     provenance
+     * @throws NullPointerException if {@code repeats} is null, with message {@code repeats}
+     * @throws IllegalArgumentException if the array length differs from input rank, a repeat is
+     *     non-positive, or a repeat other than one is requested for a dynamic dimension
+     * @throws ArithmeticException if checked static result-extent multiplication overflows; no
+     *     tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable metadata has been constructed
+     */
+    public Tensor tile(long... repeats) {
+        return TensorPadTileExpressions.tile(this, repeats);
     }
 
     /**

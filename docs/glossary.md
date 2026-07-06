@@ -679,9 +679,13 @@ logical result is `[-1, 10, 20, -1, -1]`. The raw Java `double` constant is reta
 including signed zero, NaN payloads, and infinities. The attributes do not know an input Tensor,
 Shape, or DataType, so they do not match rank, add result extents, check overflow, convert the
 constant, derive layout or provenance, materialize values, define gradients, or execute padding.
-`Long.MAX_VALUE` widths are therefore structurally valid. Public Tensor construction and all
-Shape/DataType-dependent policy remain planned. See [Pad and tile semantic kinds and normalized
-attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
+`Long.MAX_VALUE` widths are therefore structurally valid. Public `Tensor.pad` separately requires
+one width per input axis, clones the arrays, performs checked static-extent addition, retains a
+dynamic Dimension only for zero widths, preserves exact type and gradient eligibility, and creates
+a fresh unresolved storage-free expression with normalized attributes and provenance `[input]`.
+It does not convert the constant or materialize values. See [Pad and tile
+expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
+normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
 ### Permutation
 
@@ -1020,6 +1024,14 @@ stride; unresolved layout remains unresolved. Every result preserves exact gradi
 is fresh, unlabeled, and storage-free, and records matching one-input axis-transform provenance
 without binding a dynamic symbol, attaching an alias, canonicalizing inverse edits, choosing
 materialization, or executing.
+A `Tensor.pad` request accepts every data type, requires non-negative before/after widths for
+every input axis, and derives static extents with checked addition. A dynamic Dimension is
+retained only for zero widths. The exact raw binary64 constant is stored without conversion.
+A `Tensor.tile` request likewise accepts every data type, requires one positive complete-pattern
+repeat per axis, derives static extents with checked multiplication, and retains a dynamic
+Dimension only for repeat one. Both clone caller arrays, preserve exact gradient eligibility,
+always produce fresh unresolved unlabeled storage-free results, and record their normalized
+attributes plus provenance `[input]` without materializing values or defining execution.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1243,9 +1255,13 @@ three times along axis one and the complete two-row pattern occurs twice along a
 the conceptual pattern `[[1, 2, 1, 2, 1, 2], [3, 4, 3, 4, 3, 4], [1, 2, 1, 2, 1, 2],
 [3, 4, 3, 4, 3, 4]]`. The attributes have no input Tensor or Shape, so they do not match rank,
 multiply extents, check overflow, derive layout or provenance, materialize values, define
-gradients, or execute tiling. `Long.MAX_VALUE` is structurally valid. Public Tensor construction
-and Shape-dependent policy remain planned. See [Pad and tile semantic kinds and normalized
-attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
+gradients, or execute tiling. `Long.MAX_VALUE` is structurally valid. Public `Tensor.tile`
+separately requires one repeat per input axis, clones the array, performs checked static-extent
+multiplication, retains a dynamic Dimension only for repeat one, preserves exact type and gradient
+eligibility, and creates a fresh unresolved storage-free expression with normalized attributes and
+provenance `[input]`. It does not repeat or materialize values. See [Pad and tile
+expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
+normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
 ### Trace
 

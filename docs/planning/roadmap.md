@@ -60,16 +60,18 @@ Its completed implementation frontier is:
 - [0017H Slice Tensor expressions](modules/model/tasks/0017h-slice-tensor-expressions.md)
   — Complete.
 - [0017I Pad and tile semantics](modules/model/tasks/0017i-pad-and-tile-semantics.md) — Complete.
+- [0017J Pad and tile Tensor expressions](modules/model/tasks/0017j-pad-and-tile-tensor-expressions.md)
+  — Complete.
 
-The next implementation frontier is:
+The next planning frontier is:
 
-- 0017J Pad and tile Tensor expressions — Draft; no detailed task specification exists yet.
+- 0017K Tensor composition semantics — Draft, without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
-0017A–0017I have detailed specifications and are complete. Task 0017J and all later subtasks
-remain Draft without detailed specifications.
+0017A–0017J have detailed specifications and are complete. Task 0017K and all later subtasks
+remain Draft.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -172,8 +174,11 @@ long-bound/step requests, static-axis normalization/clamping, zero-extent result
 Shape/view geometry, and fresh provenance. Task
 [0017I](modules/model/tasks/0017i-pad-and-tile-semantics.md) is complete with separate typed
 constant-padding and positive complete-pattern per-axis tiling semantics, immutable ordered
-attributes, scalar identity parameters, and uninterpreted raw padding constants. Tensor
-construction remains in Draft task 0017J, the next frontier without a detailed specification.
+attributes, scalar identity parameters, and uninterpreted raw padding constants. Task
+[0017J](modules/model/tasks/0017j-pad-and-tile-tensor-expressions.md) is complete with public Tensor
+construction, checked Shape arithmetic, identity-only dynamic preservation, unresolved result
+layout, and fresh provenance. Task 0017K is the next Draft planning frontier without a detailed
+specification.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -279,7 +284,7 @@ authorized Compile API status correction.
 | 60 | [0017G Slice semantics](modules/model/tasks/0017g-slice-semantics.md) | Complete |
 | 61 | [0017H Slice Tensor expressions](modules/model/tasks/0017h-slice-tensor-expressions.md) | Complete |
 | 62 | [0017I Pad and tile semantics](modules/model/tasks/0017i-pad-and-tile-semantics.md) | Complete |
-| 63 | 0017J Pad and tile Tensor expressions | Draft |
+| 63 | [0017J Pad and tile Tensor expressions](modules/model/tasks/0017j-pad-and-tile-tensor-expressions.md) | Complete |
 | 64 | 0017K Tensor composition semantics | Draft |
 | 65 | 0017L Tensor composition expressions | Draft |
 | 66 | 0017M Unfold and fold semantics | Draft |
@@ -335,8 +340,8 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
-complete, and 0017F1, 0017G, 0017H, and 0017I are also complete. Task 0017J and every later
-subtask remain Draft without detailed specifications.
+complete, and 0017F1, 0017G, 0017H, 0017I, and 0017J are also complete. Task 0017K and every later
+subtask remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

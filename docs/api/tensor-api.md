@@ -24,8 +24,9 @@ repetition with locally derived zero-stride view geometry when possible. `permut
 arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general positive-step half-open
-selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience. Typed
-access, other
+selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience.
+`pad(long[], long[], double)` adds constant-filled positions around every axis, and
+`tile(long...)` repeats each complete input pattern along every axis. Typed access, other
 expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -61,11 +62,11 @@ mapping, and execution remain planned in their owning layers.
 `PadKind.PAD` with `PadAttrs` and `TileKind.TILE` with `TileAttrs` are current semantic contracts.
 Padding attributes store immutable ordered before/after widths plus one uninterpreted binary64
 constant. Tiling attributes store immutable positive complete-pattern repeat counts. Empty lists
-describe rank-zero scalar identity parameters. These semantic values do not construct Tensors,
-match an input rank, derive a Shape or layout, convert the padding constant to a `DataType`, record
-provenance, materialize values, or define gradients, compiler behavior, backend behavior, ONNX
-mapping, or execution. Those responsibilities remain planned for task 0017J or later owning
-layers.
+describe rank-zero scalar identity parameters. Public `Tensor.pad` and `Tensor.tile` now own exact
+rank validation, checked result-Shape derivation, unresolved result layout, exact metadata
+retention, and fresh one-input provenance. The semantic values themselves still do not construct
+Tensors or define conversion of a padding constant, gradients, materialization, compiler or
+backend behavior, ONNX mapping, or execution.
 
 The current types describe logical values, construct storage-free arithmetic, comparison, boolean
 logical, conditional-selection, unary, scalar, and value- or index-producing aggregate
@@ -254,8 +255,9 @@ carries one positive complete-pattern repeat count per normalized axis position.
 accept empty scalar-identity lists and `Long.MAX_VALUE` structurally. They contain no input Tensor
 or Shape, so rank matching, checked result-Shape arithmetic, padding-constant conversion, result
 descriptors, layout, provenance, gradients, materialization, compiler behavior, backend behavior,
-ONNX mapping, and execution remain outside these semantic values. No public pad or tile Tensor
-expression is implemented yet.
+ONNX mapping, and execution remain outside these semantic values. Public `Tensor.pad` and
+`Tensor.tile` separately perform the input-dependent model validation and metadata construction
+described under [pad and tile expressions](#pad-and-tile-expressions).
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
@@ -3754,6 +3756,151 @@ execution.
 - Identifier exhaustion occurs only at final derived construction after normalized attributes,
   Shape, and optional layout have been created.
 
+### Pad and tile expressions
+
+`Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
+expression. The two arrays must contain exactly one non-negative width per input axis. Construction
+checks both references and ranks, clones both arrays, and then validates and derives metadata from
+the private copies; it never retains or mutates caller-owned arrays. At axis `i`, a static input
+extent produces this checked result extent:
+
+```text
+inputExtent + before[i] + after[i]
+```
+
+For example, Shape `[2, 3]`, before widths `[1, 0]`, and after widths `[2, 4]` produce Shape
+`[5, 7]`. Static zero extents and empty arrays for a scalar are valid. A dynamic dimension is
+retained by exact reference only when both corresponding widths are zero. Non-zero padding of a
+dynamic extent is rejected because the current Shape model has no symbolic affine-sum dimension.
+
+The supplied padding value is retained as the exact raw Java `double`, including signed zero,
+NaN, and infinity. Construction accepts every current `DataType`; it does not convert the value to
+that type or decide whether a future backend can represent it.
+
+`Tensor.tile(long... repeats)` constructs a fresh complete-pattern tiling expression. Its array
+must contain exactly one strictly positive repeat count per input axis, is cloned before element
+inspection, and is neither retained nor mutated. At axis `i`, a static input extent produces the
+checked product `inputExtent * repeats[i]`. Shape `[2, 3]` with repeats `[2, 4]` therefore produces
+Shape `[4, 12]`. Tiling repeats the complete logical pattern, not each scalar into one consecutive
+run. A static zero extent and an empty scalar request are valid. A dynamic dimension is retained
+by exact reference only when its repeat is one; any other repeat would require symbolic
+multiplication that the current Shape model cannot represent.
+
+Both methods preserve the input's exact data type and gradient-eligibility value. Every successful
+call returns a distinct unlabeled, storage-free Tensor with unresolved layout, even for an
+identity-like request and even when the input has resolved canonical, offset, strided, or
+broadcast geometry. Padding and tiling require future output materialization; unlike reshape,
+expand, permutation, rank editing, or non-empty slice, they are not ordinary input-view geometry.
+The results respectively record `PadKind.PAD` with one normalized `PadAttrs`, or `TileKind.TILE`
+with one normalized `TileAttrs`, and exact provenance `[input]`.
+
+#### Complete pad-and-tile expression example
+
+##### Goal and inputs
+
+Construct both expressions from one resolved Tensor and inspect their checked Shapes, immutable
+attributes, operation identity, and deliberately unresolved storage-free results.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class PadTileExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true));
+
+        long[] before = {1, 0};
+        long[] after = {2, 4};
+        long[] repeats = {2, 4};
+        Tensor padded = input.pad(before, after, -1.0);
+        Tensor tiled = input.tile(repeats);
+        before[0] = 99;
+        repeats[0] = 99;
+
+        PadAttrs padAttrs = (PadAttrs) padded.provenance().orElseThrow()
+                .operation().attrs();
+        TileAttrs tileAttrs = (TileAttrs) tiled.provenance().orElseThrow()
+                .operation().attrs();
+
+        System.out.println(padded.descriptor().shape());
+        System.out.println(padAttrs.before());
+        System.out.println(padAttrs.after());
+        System.out.println(padAttrs.constantValue());
+        System.out.println(tiled.descriptor().shape());
+        System.out.println(tileAttrs.repeats());
+        System.out.println(padded.provenance().orElseThrow().operation().kind());
+        System.out.println(tiled.provenance().orElseThrow().operation().kind());
+        System.out.println(padded.provenance().orElseThrow().inputs().getFirst() == input
+                && tiled.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(padded.descriptor().layout().isEmpty()
+                && tiled.descriptor().layout().isEmpty());
+        System.out.println(padded.hostStorage().isEmpty()
+                && tiled.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Checked addition derives padded Shape `[5, 7]`; checked multiplication derives tiled Shape
+  `[4, 12]`.
+- Mutating the input arrays after construction cannot change the normalized attributes, which
+  remain `[1, 0]`, `[2, 4]`, and `[2, 4]`.
+- Both expressions retain `FLOAT32` and true gradient eligibility, record their distinct semantic
+  kinds, and preserve the exact input Tensor in one-input provenance.
+- The resolved input geometry does not propagate. Both fresh results remain unresolved and have
+  no host storage because these calls describe materializing operations without performing them.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[5, 7]
+[1, 0]
+[2, 4]
+-1.0
+Shape[4, 12]
+[2, 4]
+PAD
+TILE
+true
+true
+true
+```
+
+This output demonstrates rank-coupled request ownership, checked Shape derivation, exact semantic
+attributes, one-input provenance, and unresolved storage-free results. It does not demonstrate
+padding or repeated values, padding-constant conversion, gradient rules, graph capture,
+materialization, compiler canonicalization, backend or ONNX lowering, or execution.
+
+##### Failures and useful variations
+
+- A null array fails with `NullPointerException` naming that parameter. A length different from
+  input rank, a negative padding width, or a non-positive repeat fails with
+  `IllegalArgumentException` before result identity allocation.
+- Non-zero padding or a repeat other than one on a dynamic dimension fails locally because the
+  requested result extent is not representable by the current Shape model.
+- Static extent addition or multiplication overflow propagates as `ArithmeticException` before
+  result identity allocation. The attributes themselves can represent `Long.MAX_VALUE`; the
+  input-dependent Tensor expression is where checked result geometry is enforced.
+- Zero-width padding and repeat-one tiling still produce distinct explicit expression identities
+  with unresolved layouts. Scalar calls use empty arrays and are valid.
+- Identifier exhaustion can occur only at final derived Tensor construction, after all local
+  immutable metadata has been prepared.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -4953,8 +5100,9 @@ construction is also current. Positive-step slice semantics and public general/s
 expression construction are current, including static selected-dimension normalization,
 zero-extent results, and conditional resolved view geometry.
 Constant-padding and complete-pattern tiling semantic kinds and immutable normalized attributes
-are current. Public pad/tile Tensor request validation, Shape/DataType/layout derivation,
-provenance, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
+are current, as are public pad/tile Tensor request validation, checked Shape derivation, unresolved
+result-layout policy, exact metadata retention, and one-input provenance. Padding-constant
+conversion, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
 remain planned.
 
 ## Failures and ownership summary
@@ -5016,6 +5164,17 @@ remain planned.
   eligibility, records normalized `SliceAttrs` and `[input]` provenance, and is fresh, unlabeled,
   and storage-free. `Tensor.sliceAxis` is the same operation with one step-one entry; neither form
   promises a physical alias, canonicalization, gradient, materialization, or execution.
+- `Tensor.pad(long[], long[], double)` requires two non-null rank-sized arrays, clones them before
+  element inspection, rejects negative widths, and performs checked static-extent addition.
+  Static zero extents and empty scalar arrays are valid; a dynamic Dimension is retained by exact
+  reference only for zero widths. The raw `double` constant is retained without conversion.
+- `Tensor.tile(long...)` requires one non-null rank-sized array, clones it before element
+  inspection, rejects non-positive repeats, and performs checked static-extent multiplication.
+  Static zero extents and empty scalar arrays are valid; a dynamic Dimension is retained by exact
+  reference only for repeat one. Both operations accept every data type, preserve exact type and
+  gradient eligibility, always leave result layout unresolved, record normalized attributes and
+  `[input]` provenance, and remain fresh, unlabeled, and storage-free without performing
+  materialization or execution.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.

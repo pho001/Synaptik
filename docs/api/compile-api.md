@@ -164,10 +164,11 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
-  positive-step slice construction, are implemented;
+  positive-step slice construction, plus unresolved constant-pad and complete-pattern tile
+  construction, are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/pad/tile
   canonicalization, deferred
   dynamic reshape count validation and expand compatibility constraints, layout materialization
   planning, and conversion into graph values and nodes remain planned.
