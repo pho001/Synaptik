@@ -112,6 +112,14 @@ The primitive `take` overload first snapshots a non-empty `int[]` and creates on
 INT32 index Tensor through `TensorFactory`; the other methods consume an existing index Tensor.
 None of the methods interprets index values or checks their bounds.
 
+`GatherNdKind.GATHER_ND` is the current tuple-index semantic identity. It pairs with
+`GatherNdAttrs(batchDimensions)`, which stores only the normalized non-negative count of shared
+leading batch Dimensions. Ordered logical inputs are `[data, indices]`; the final indices
+Dimension supplies tuple depth `K`, so that occurrence-specific fact is not duplicated in the
+attributes. Public `Tensor.gatherNd`, input-rank and batch compatibility checks, tuple-depth and
+index-type validation, result construction, provenance, gradients, compiler behavior, backend
+behavior, and execution remain planned.
+
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` now own raw-axis normalization, static Shape and compatibility checks,
@@ -190,6 +198,7 @@ TileKind + TileAttrs                                        = complete-pattern p
 TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
 AxisGatherKind + IndexAxisAttrs                            = three axis tensor-index meanings + normalized data axis
+GatherNdKind + GatherNdAttrs                              = tuple-index meaning + normalized shared batch count
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
@@ -5637,6 +5646,69 @@ gather-ND, which uses multi-axis index tuples; and functional scatter, which wri
 updates rather than reading indexed data. Gradients, graph/compiler behavior, backend support,
 materialization, and execution remain unimplemented.
 
+### Gather-ND semantic kind and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.GatherNdKind` implements
+`OperationKind` with exactly one constant, `GATHER_ND`. It consumes ordered logical inputs
+`[data, indices]`: `data` supplies values, while `indices` supplies coordinate tuples. The final
+indices Dimension is the tuple depth `K`. `GatherNdAttrs(batchDimensions)` stores only the
+already normalized, non-negative number `B` of shared leading batch Dimensions.
+
+For data rank `R` and indices rank `Q`, every tuple indexes data axes `[B, B + K)`. Data axes
+`[B + K, R)` form the untouched suffix of the selected value. The conceptual result Shape is:
+
+```text
+indices.shape[0:Q-1] + data.shape[B+K:R]
+```
+
+The first term is equivalently `indices.shape[:-1]`: every indices Dimension except the final
+tuple-depth Dimension remains in the result.
+
+#### Tuple-index Shape examples
+
+##### Goal and inputs
+
+Compare zero-batch selection, batched selection, and selection of one complete scalar:
+
+```java
+GatherNdAttrs attrs = new GatherNdAttrs(1);
+Operation gatherNd = new Operation(GatherNdKind.GATHER_ND, attrs);
+```
+
+- Data `[2, 3, 4]`, indices `[5, 2]`, `B=0`, and `K=2` select two data axes per tuple.
+- Data `[2, 3, 4]`, indices `[2, 5, 1]`, `B=1`, and `K=1` share the leading extent `2` and select
+  one later data axis per tuple.
+- Data `[2, 3]`, indices `[2]`, `B=0`, and `K=2` select every data axis with one tuple.
+
+##### Results and interpretation
+
+- The first result is `[5, 4]`: indices prefix `[5]` is followed by untouched data suffix `[4]`.
+- The second result is `[2, 5, 4]`: indices prefix `[2, 5]` is followed by suffix `[4]`.
+- The third result is canonical scalar Shape `[]`, not `[1]`, because both formula terms are
+  empty.
+
+The `Operation` in the code example retains exactly `GatherNdKind.GATHER_ND` and the supplied
+`attrs` reference. A future zero-batch convenience will use `new GatherNdAttrs(0)` rather than a
+second kind or a default attributes value.
+
+##### Validation and boundaries
+
+`GatherNdAttrs` rejects a negative count with
+`IllegalArgumentException("batchDimensions must be non-negative: <batchDimensions>")`. Zero,
+positive values, and `Integer.MAX_VALUE` are structurally valid and retained unchanged. The value
+contains no input ranks or Shapes, so it cannot prove that `B` fits the inputs, that leading batch
+Dimensions match, that the final indices Dimension supplies a valid tuple depth, or that an index
+data type is permitted. Generic `Operation` also does not enforce the kind/attributes pairing or
+ordered two-input context.
+
+Tuple depth remains the final indices Dimension instead of an attribute because it varies with
+each operation occurrence. Task 0018F will own public Tensor construction and validation of data
+and indices ranks, shared batch Dimensions, tuple depth, index type, and result Shape. Gather-ND
+is distinct from scalar `SELECT`, which stores one coordinate; axis gather, which indexes one
+selected axis; and scatter-ND, which writes or combines updates. These semantic values define no
+Tensor result, provenance, index bounds, numerical algorithm, gradient, compiler behavior,
+backend behavior, or execution.
+
 ### Window-transform semantic kinds and attributes
 
 The public enum
@@ -6085,13 +6157,14 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
-  stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, unfold, fold-axis,
+  stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, gather-ND Tensor
+  construction, unfold, fold-axis,
   unfold2d, and fold2d requests; plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, and
+  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, and
   window-transform semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -6107,6 +6180,7 @@ The following contracts appear in the architecture and planning documents but ar
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
 `UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
+`GatherNdKind`, `GatherNdAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
@@ -6155,6 +6229,11 @@ two-input provenance. Primitive-array `take` is also current: it copies one non-
 a dense rank-one INT32 leaf Tensor before delegating to the tensor-index path. Index-value access
 and bounds checks, gradients, compiler behavior, lowering, and execution remain planned or
 separately owned.
+Gather-ND semantic identity and normalized batch attributes are current. `GATHER_ND` uses ordered
+`[data, indices]` roles, takes tuple depth from the final indices Dimension, and pairs with
+`GatherNdAttrs(batchDimensions)`. Public Tensor construction and all input-aware rank, batch,
+tuple-depth, index-type, result-Shape, and provenance work remain planned in task 0018F; gradients,
+compiler behavior, lowering, index bounds, and execution remain separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,

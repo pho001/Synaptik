@@ -154,6 +154,12 @@ construction now validates exact `INT32`/`INT64` index type, normalizes the data
 family-specific structural Shape rule, preserves data metadata with unresolved layout, and records
 fresh ordered two-input provenance. Index-value access and bounds checks, gradients, compiler
 behavior, backend behavior, and execution remain planned or separately owned.
+The `GatherNdKind` vocabulary is implemented with the sole tuple-index `GATHER_ND` meaning,
+together with `GatherNdAttrs` carrying one normalized non-negative count of shared leading batch
+Dimensions. Gather-ND has ordered logical inputs `[data, indices]`; the final indices Dimension
+supplies tuple depth rather than duplicating that occurrence-specific fact in attributes. Public
+Tensor construction, rank/batch/tuple/index-type/result validation, provenance, gradients,
+compiler behavior, backend behavior, and execution remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -271,6 +277,39 @@ identifier in place without a result identifier. Final result-identifier exhaust
 does not roll back the generated Tensor, storage, or identifier. Null or empty primitive input
 fails before those allocations. Every signed `int`, including negative and extreme values, is
 copied unchanged and remains unchecked as a coordinate.
+
+### Gather-ND
+
+An implemented backend-independent tuple-index meaning represented by
+`GatherNdKind.GATHER_ND` and `GatherNdAttrs(batchDimensions)`. Its ordered logical inputs are
+`[data, indices]`. The normalized non-negative batch count `B` identifies shared leading data and
+indices Dimensions `[0, B)`. The final indices Dimension supplies tuple depth `K`; each tuple
+indexes data axes `[B, B + K)`, while data axes after `B + K` form the untouched suffix.
+
+For data rank `R` and indices rank `Q`, the conceptual result Shape is:
+
+```text
+indices.shape[0:Q-1] + data.shape[B+K:R]
+```
+
+The indices prefix is equivalently `indices.shape[:-1]`. Data `[2, 3, 4]` with indices `[5, 2]`,
+`B=0`, and `K=2` therefore means result `[5, 4]`. The same data with indices `[2, 5, 1]`, `B=1`,
+and `K=1` means `[2, 5, 4]`. Data `[2, 3]` with indices `[2]`, `B=0`, and `K=2` means the canonical
+scalar Shape `[]` because neither formula term contributes a Dimension.
+
+`GatherNdAttrs` rejects a negative batch count but stores no input rank, Shape, tuple depth, or
+index type. Tuple depth is not an attribute because it belongs to the final indices Dimension of
+each operation occurrence. Generic `Operation` retains the exact kind and attributes but does not
+enforce their pairing or ordered inputs. A future zero-batch convenience uses
+`new GatherNdAttrs(0)`, not another kind or default value.
+
+Task 0018F owns public Tensor construction and input-aware data/indices rank, batch-prefix,
+tuple-depth, index-type, and result-Shape validation. The semantic values define no Tensor result,
+provenance, index bounds, numerical algorithm, gradient, compiler behavior, backend behavior, or
+execution. Gather-ND differs from [scalar select](#scalar-select), whose coordinate is an intrinsic
+attribute; [axis gather](#axis-gather), whose index values address one selected data axis; and
+scatter-ND, which writes or combines updates. See [Gather-ND semantic kind and
+attributes](api/tensor-api.md#gather-nd-semantic-kind-and-attributes).
 
 ### Axis transform
 
@@ -621,7 +660,9 @@ ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds on
 shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
 one individually identified unstack result. `SelectAttrs` holds one normalized source axis and
 one normalized scalar coordinate for axis-removing scalar select. `IndexAxisAttrs` holds one
-normalized data axis shared by `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS`. `UnfoldAxisAttrs`
+normalized data axis shared by `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS`. `GatherNdAttrs`
+holds the normalized count of shared leading batch Dimensions for `GATHER_ND`; tuple depth remains
+the final indices Dimension rather than attribute state. `UnfoldAxisAttrs`
 carries normalized general-axis window size and step; `FoldAxisAttrs` carries normalized target axis,
 explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
 kernel/stride/padding/dilation geometry and its
@@ -771,7 +812,9 @@ described under [tensor composition](#tensor-composition). The eighteenth is `Se
 sole `SELECT` value pairs with `SelectAttrs` as described under [scalar select](#scalar-select).
 The nineteenth is `AxisGatherKind`, whose `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` values
 pair with `IndexAxisAttrs` as described under [axis gather](#axis-gather). The twentieth is
-`WindowTransformKind`: `UNFOLD_AXIS` pairs with `UnfoldAxisAttrs`, `FOLD_AXIS` with
+`GatherNdKind`, whose sole `GATHER_ND` value pairs with `GatherNdAttrs` as described under
+[Gather-ND](#gather-nd). The twenty-first is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
+`UnfoldAxisAttrs`, `FOLD_AXIS` with
 `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
 under [window transform](#window-transform). These semantic families do not by themselves
 construct Tensors or define compiler, backend, or execution behavior.
@@ -1579,8 +1622,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, axis-gather, gather-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
