@@ -189,7 +189,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017M | [Unfold and fold semantics](tasks/0017m-unfold-and-fold-semantics.md) | Complete | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
 | 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
 | 0018A | [Scalar select semantics](tasks/0018a-scalar-select-semantics.md) | Complete | 0002, 0005, 0006 | Define scalar-index axis-selection meaning and immutable normalized axis/index attributes. |
-| 0018B | Scalar select Tensor expression | Draft | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
+| 0018B | [Scalar select Tensor expression](tasks/0018b-scalar-select-tensor-expression.md) | Complete | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
 | 0018C | Axis gather semantics | Draft | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
 | 0018D | Axis gather Tensor expressions | Draft | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
 | 0018E | Gather-ND semantics | Draft | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
@@ -223,8 +223,8 @@ is also complete. The former combined 0017D is split into reshape task 0017D and
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
 Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
-focused tasks 0018A–0018J. Task 0018A is complete; task 0018B is the next Draft frontier without a
-detailed specification, and tasks 0018C–0018J and later tasks remain Draft.
+focused tasks 0018A–0018J. Tasks 0018A and 0018B are complete; tasks 0018C–0018J and later tasks
+remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -259,6 +259,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Java 26 is the project baseline. Stable Java 26 APIs require no preview opt-in; preview and incubator features remain disabled unless a focused owning-module task explicitly configures and validates them.
 - The broad indexing/scatter frontier is split into select, axis-gather, gather-ND, axis-scatter,
   and scatter-ND semantic/expression pairs so each task owns one concept and one validation model.
+- Scalar select accepts a negative public index only when the selected static extent can normalize
+  it locally. A non-negative index on a dynamic selected extent remains representable with
+  deferred bounds validation; a negative dynamic index is not locally representable.
 - Task 0018A completed exactly `SelectKind.SELECT`, normalized non-negative `SelectAttrs(axis,
   index)`, and focused structural/validation/composition coverage without public Tensor, Shape,
   layout, provenance, compiler, backend, or execution behavior.
@@ -269,6 +272,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   passed. Compile API, Training API, capabilities, related model contracts,
   architecture/ADRs/tests, conformance/integration, Java 26 Gradle, dependencies, and other modules
   remain accurate unchanged because the task adds only model-owned scalar-select semantics.
+- Task 0018B completed exactly public `Tensor.select(int, long)` plus one field-free five-method
+  package-private helper. The expression normalizes one raw axis, normalizes and bounds-checks a
+  coordinate for a static selected extent, accepts a non-negative dynamic coordinate with its
+  upper bound deferred, removes the selected axis, and preserves exact unaffected Dimension
+  references.
+- Resolved input geometry with a non-empty result receives one new checked logical view descriptor
+  with selected-stride removal and offset advancement; unresolved input and empty results remain
+  unresolved. Every result preserves exact type/eligibility, records `SELECT`/normalized
+  `SelectAttrs`/`[input]`, and is fresh, unlabeled, and storage-free without a physical-alias,
+  value, gradient, compiler, backend, or execution promise.
+- Independent task-0018B documentation review finalized Tensor/helper Javadocs, Tensor API,
+  Compile API, glossary, task evidence, master plan, and roadmap. Training API, capabilities,
+  semantic/foundational/adjacent contracts, architecture/ADRs/tests, conformance/integration,
+  Java 26 Gradle configuration, dependencies, and other modules remain accurate unchanged because
+  this task adds only model-owned scalar-select expression metadata.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
 - `HostTensorStorage` is a sealed model boundary with one final identity-based
@@ -938,7 +956,8 @@ task 0017B is complete, task 0017C is complete, task 0017D is complete, and task
 complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 0017I are also
 complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. The former broad task
 0018 is decomposed into 0018A–0018J. Task 0018A is complete with first-class scalar-select
-semantics and normalized axis/index attributes; task 0018B and every later operation-family task
-remain Draft without detailed specifications.
+semantics and normalized axis/index attributes. Task 0018B is also complete with public scalar-
+select expression construction; tasks 0018C–0018J and every later operation-family task remain
+Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -25,6 +25,8 @@ arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]`
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general positive-step half-open
 selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience.
+`select(int, long)` fixes one scalar coordinate and removes its source axis, with locally derived
+logical view geometry when the input layout is resolved and the result is non-empty.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -88,8 +90,9 @@ materialization, and execution remain planned.
 logical position on one source axis and remove that axis from the conceptual result. For source
 Shape `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual result Shape `[2, 4]`.
 The attributes contain no input Shape, so they cannot prove that the axis exists or that the index
-is in bounds. Public `Tensor.select`, caller-facing negative normalization, result Shape/layout
-construction, provenance, gradients, compiler behavior, lowering, and execution remain planned.
+is in bounds. Public `Tensor.select` now owns caller-facing negative normalization, local bounds
+validation, result Shape/layout construction, and exact one-input provenance. Gradients, compiler
+capture, materialization, backend lowering, and execution remain planned.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -140,6 +143,7 @@ Tensor + insertion axis + EXPAND_DIMS              = fresh conditional-view rank
 Tensor + static singleton axis + SQUEEZE           = fresh conditional-view rank-reduced Tensor
 Tensor + parallel bounds/axes/steps + SLICE        = fresh conditional-view sliced Tensor
 Tensor + one axis and half-open bounds + SLICE     = fresh step-one sliced Tensor
+Tensor + one axis and scalar coordinate + SELECT  = fresh conditional-view rank-reduced Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
 rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
@@ -162,6 +166,7 @@ SliceKind + SliceAttrs                                      = positive-step para
 PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/raw constant
 TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
 TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
+SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
@@ -3792,6 +3797,125 @@ execution.
 - Identifier exhaustion occurs only at final derived construction after normalized attributes,
   Shape, and optional layout have been created.
 
+### Scalar select expressions
+
+`Tensor.select(int axis, long index)` fixes one scalar coordinate on an existing source axis and
+removes that axis from a fresh result. The operation is a single-result scalar selection, not
+elementwise conditional `WHERE`, the multi-result `UNSTACK` request, half-open interval `SLICE`,
+or a gather whose indices come from a Tensor.
+
+The caller may address an input axis from the front with a non-negative value or from the end with
+a negative value in `[-rank, rank - 1]`. Construction normalizes that axis exactly once. When the
+selected Dimension is static, one negative index adds the selected extent once, and every
+normalized index must be in `[0, extent)`. A selected zero extent therefore rejects every index.
+When the selected Dimension is dynamic, a non-negative index is retained unchanged and its upper-
+bound check is deferred; a negative index is rejected because no numeric extent exists for local
+normalization.
+
+The result Shape omits exactly the selected Dimension. Every unaffected static or dynamic
+Dimension remains the exact input reference in its original order. Selecting the only axis of a
+rank-one Tensor produces the canonical scalar Shape `[]`.
+
+Unresolved input layout produces unresolved result layout. An empty result also stays unresolved
+because it references no storage element and needs no arbitrary offset geometry. Otherwise,
+resolved dense, offset, strided, or zero-stride input geometry produces one new view-marked
+logical `LayoutDescriptor`: the selected stride is removed, and checked arithmetic advances the
+element offset by `normalizedIndex * selectedStride`. This metadata describes a logical view; the
+result has no host storage and does not promise a physical alias or zero-copy execution.
+
+Every successful result preserves the exact input data type and gradient eligibility, has no
+label or host storage, and records `SelectKind.SELECT`, one normalized
+`SelectAttrs(normalizedAxis, normalizedIndex)`, and provenance `[input]`. Repeated, nested, and
+same-coordinate requests remain distinct fresh expressions.
+
+#### Complete scalar-select expression example
+
+##### Goal and inputs
+
+Select the final coordinate of axis one from a resolved `FLOAT32` Tensor with Shape `[2, 3, 4]`,
+then inspect the normalized semantics and logical view geometry. The input has canonical strides
+`[12, 4, 1]` and offset zero.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class ScalarSelectExpressionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3, 4);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true));
+
+        Tensor selected = input.select(-2, -1);
+        SelectAttrs attrs = (SelectAttrs) selected.provenance().orElseThrow()
+                .operation().attrs();
+        LayoutDescriptor layout = selected.descriptor().layout().orElseThrow();
+
+        System.out.println(selected.descriptor().shape());
+        System.out.println(attrs);
+        System.out.println(Arrays.toString(layout.strides()));
+        System.out.println(layout.storageOffset());
+        System.out.println(layout.isView());
+        System.out.println(selected.provenance().orElseThrow().inputs().getFirst() == input);
+        System.out.println(selected.descriptor().requiresGrad());
+        System.out.println(selected.label().isEmpty() && selected.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Raw axis `-2` adds rank three once and becomes axis `1`. Its static extent is three, so raw index
+  `-1` adds three once and becomes index `2`. The equivalent positive request is
+  `select(1, 2)`.
+- Removing axis one from Shape `[2, 3, 4]` leaves Shape `[2, 4]`. The input strides
+  `[12, 4, 1]` lose selected stride `4`, producing `[12, 1]`.
+- The checked result offset is `0 + 2 * 4 = 8`. The result retains `FLOAT32` and true gradient
+  eligibility, records exact one-input provenance, and remains unlabeled and storage-free.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[2, 4]
+SelectAttrs[axis=1, index=2]
+[12, 1]
+8
+true
+true
+true
+true
+```
+
+The output demonstrates raw axis/index normalization, axis removal, checked logical view geometry,
+exact semantics, and fresh provenance. It does not demonstrate selected values, a physical storage
+alias, a gradient rule, compiler capture, materialization, backend lowering, or execution.
+
+##### Failures and useful variations
+
+- Every axis is invalid for a scalar input. Other axes outside `[-rank, rank - 1]` fail through
+  Shape normalization before result identity allocation.
+- A static selected extent rejects an index below `-extent` or at least `extent` after one
+  normalization. A dynamic selected extent accepts every non-negative `long` unchanged with its
+  upper bound deferred, but rejects a negative value because it cannot normalize it locally.
+- Selecting the only axis of Shape `[5]` produces scalar Shape `[]`. Selecting a dynamic axis
+  removes it while preserving exact unaffected Dimension references, but current dynamic input
+  descriptors cannot provide resolved numeric layout geometry.
+- Result-element-count, offset, layout-classification, or referenced-span overflow propagates as
+  `ArithmeticException` before Tensor identity allocation. Identifier exhaustion can occur only
+  during final derived construction.
+
 ### Pad and tile expressions
 
 `Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
@@ -5185,9 +5309,10 @@ the exact kind and attributes but does not enforce this family pairing or one-in
 position; individually indexed `UNSTACK`, which identifies one result of a public logical
 multi-result request; and general `SLICE`, which selects half-open intervals without removing an
 axis. It also differs from gather operations whose indices are tensors rather than one intrinsic
-scalar coordinate. Public request syntax, negative request normalization, input validation,
-result Shape/layout construction, provenance, gradients, graph/compiler behavior,
-materialization, backend lowering, and execution remain planned.
+scalar coordinate. Public `Tensor.select` now supplies input-aware axis/index normalization,
+validation, result Shape and conditional logical-view layout, and exact one-input provenance as
+described under [scalar select expressions](#scalar-select-expressions). Gradients, graph/compiler
+capture and canonicalization, materialization, backend lowering, and execution remain planned.
 
 ### Window-transform semantic kinds and attributes
 
@@ -5637,12 +5762,13 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
-  stack, unstack, unfold, fold-axis, unfold2d, and fold2d requests; plus
+  stack, unstack, scalar select, unfold, fold-axis, unfold2d, and fold2d requests; plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, tensor-composition, and window-transform semantics, plus
+  axis-transform, slice, pad, tile, tensor-composition, scalar-select, and window-transform
+  semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -5656,7 +5782,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
-`UnstackOutputAttrs`, `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
+`UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `WindowTransformKind`, `UnfoldAxisAttrs`,
+`FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
@@ -5689,6 +5816,12 @@ exact type/Shape validation, locally representable result Shapes, unresolved des
 eligibility propagation, immutable result lists, and individually indexed provenance are model
 behavior. Any grouped producer representation, compiler capture or decomposition, gradients,
 materialization, lowering, ONNX mapping, and execution remain planned.
+Scalar-select semantics and public `Tensor.select` expression construction are current. The public
+method normalizes a raw axis, normalizes and bounds-checks an index when the selected extent is
+static, accepts a non-negative index on a dynamic selected extent with its upper bound deferred,
+removes the selected axis, derives conditional resolved logical-view geometry, and records fresh
+one-input provenance. Value access, a physical alias guarantee, gradients, compiler capture and
+canonicalization, materialization, backend lowering, and execution remain planned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,
@@ -5756,6 +5889,16 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   eligibility, records normalized `SliceAttrs` and `[input]` provenance, and is fresh, unlabeled,
   and storage-free. `Tensor.sliceAxis` is the same operation with one step-one entry; neither form
   promises a physical alias, canonicalization, gradient, materialization, or execution.
+- `Tensor.select(int, long)` normalizes one existing axis. A static selected extent normalizes one
+  negative index and bounds-checks every resulting coordinate; a dynamic selected extent retains
+  a non-negative index with its upper bound deferred and rejects a negative index. The result
+  removes exactly that Dimension, preserves every unaffected exact reference, and maps rank one
+  to the canonical scalar Shape.
+- Resolved input geometry with a non-empty select result produces one new view descriptor after
+  checked offset advancement and selected-stride removal. Unresolved input and empty results stay
+  unresolved. Every success preserves exact type and eligibility, records normalized
+  `SelectAttrs` and `[input]` provenance, and remains fresh, unlabeled, and storage-free without a
+  physical alias, gradient, compiler, materialization, backend, or execution guarantee.
 - `Tensor.pad(long[], long[], double)` requires two non-null rank-sized arrays, clones them before
   element inspection, rejects negative widths, and performs checked static-extent addition.
   Static zero extents and empty scalar arrays are valid; a dynamic Dimension is retained by exact

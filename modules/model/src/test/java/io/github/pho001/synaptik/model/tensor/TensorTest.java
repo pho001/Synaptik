@@ -80,7 +80,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(96, declaredPublicMethods.size());
+        assertEquals(97, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -91,7 +91,7 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
-                        "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "pad",
+                        "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "select", "pad",
                         "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
                         "unfold2d", "fold2d"),
                 publicMethods);
@@ -320,6 +320,17 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(sliceAxis.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(sliceAxis.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(sliceAxis.getModifiers())));
+
+        var select = Tensor.class.getDeclaredMethod("select", int.class, long.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, select.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class, long.class),
+                        Arrays.asList(select.getParameterTypes())),
+                () -> assertFalse(select.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(select.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(select.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(select.getModifiers())));
 
         var pad = Tensor.class.getDeclaredMethod(
                 "pad", long[].class, long[].class, double.class);

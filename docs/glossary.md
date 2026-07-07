@@ -47,7 +47,7 @@ and ordered condition, true-branch, and false-branch roles, plus matching static
 floating branches, composes branch-first and condition-second local broadcasts, derives an
 unresolved result with branch-only gradient eligibility, and records exact three-input provenance.
 Value selection, gradient routing and rules, compiler capture, ONNX/backend execution, and
-scalar-index `select` remain separate or planned concerns.
+scalar-index `select` remain separate concerns.
 The parameterized `CastKind` vocabulary is implemented with the sole `CAST` identity, together
 with `CastAttrs` carrying one exact non-null target `DataType`. All six current data types are
 representable targets, and public `Tensor.cast` now creates a fresh explicit storage-free
@@ -139,9 +139,12 @@ grouping, gradients, materialization, lowering, ONNX mapping, and execution rema
 The `SelectKind` vocabulary is implemented with the sole scalar-index `SELECT` meaning, together
 with `SelectAttrs` carrying one normalized non-negative source axis and one normalized
 non-negative scalar coordinate. Selection fixes that coordinate and removes its axis from the
-conceptual result. The semantic values contain no input Shape, so rank and bounds validation,
-public Tensor construction, result Shape/layout derivation, provenance, gradients, compiler and
-backend behavior, and execution remain planned.
+conceptual result. The semantic values contain no input Shape, so they perform no rank or bounds
+validation. Public `Tensor.select` now normalizes a raw axis and scalar coordinate, validates
+static selected extents, accepts a non-negative index on a dynamic selected extent with its upper
+bound deferred, removes the selected axis, derives conditional logical-view geometry, and records
+fresh one-input provenance. Value access, physical aliasing, gradients, compiler behavior,
+materialization, backend behavior, and execution remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -868,13 +871,23 @@ Shape, rank, or selected-axis extent. They consequently cannot prove that an axi
 an index is in bounds. Generic `Operation` retains the exact `SELECT` and `SelectAttrs` references
 without enforcing the pairing or one-input context.
 
+Public `Tensor.select(axis, index)` supplies that input-aware expression boundary. It normalizes a
+positive or negative axis against input rank. A static selected extent normalizes one negative
+index and bounds-checks the resulting coordinate; a dynamic selected extent accepts a non-negative
+coordinate unchanged with its upper bound deferred and rejects a negative coordinate. The fresh
+result removes exactly that axis, retains every unaffected exact Dimension reference, preserves
+data type and gradient eligibility, and records exact `[input]` provenance. Rank-one selection
+produces the scalar Shape. Resolved input geometry with a non-empty result removes the selected
+stride and advances the element offset in new logical view metadata; unresolved input and empty
+results remain unresolved. No host storage is attached, and view metadata is not a physical alias
+promise.
+
 Scalar select differs from conditional `WHERE`, which chooses between branch values at
 corresponding positions; individually indexed `UNSTACK`, which identifies one result of a public
 logical multi-result request; and general `SLICE`, which selects half-open intervals without
-removing an axis. Tensor-index gather instead uses one or more tensors to supply indices. Public
-`Tensor.select`, input-aware normalization and validation, result Shape/layout construction,
-provenance, gradients, compiler behavior, materialization, backend lowering, and execution remain
-planned. See [Scalar select semantic kind and
+removing an axis. Tensor-index gather instead uses one or more tensors to supply indices.
+Gradients, compiler capture and canonicalization, materialization, backend lowering, and execution
+remain planned. See [Scalar select semantic kind and
 attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
 ### Slice

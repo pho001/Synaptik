@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
@@ -2386,6 +2387,54 @@ public final class Tensor {
      */
     public Tensor sliceAxis(int axis, long fromInclusive, long toExclusive) {
         return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive);
+    }
+
+    /**
+     * Creates a fresh expression that fixes one scalar coordinate on one input axis and removes
+     * that axis.
+     *
+     * <p>The positive or negative {@code axis} is normalized against this tensor's rank. When the
+     * selected extent is static, a negative {@code index} adds that extent once and the normalized
+     * coordinate must be in bounds. For example, both {@code select(1, 2)} and
+     * {@code select(-2, -1)} on Shape {@code [2, 3, 4]} record normalized axis {@code 1}, index
+     * {@code 2}, and produce Shape {@code [2, 4]}. A non-negative index on a dynamic selected
+     * extent is retained with upper-bound validation deferred; a negative index cannot be
+     * normalized locally and is rejected.</p>
+     *
+     * <p>The result Shape removes the selected Dimension while retaining every unaffected exact
+     * Dimension reference. Selecting the only axis of a rank-one tensor produces the canonical
+     * scalar Shape. For resolved input geometry and a non-empty result, the result removes the
+     * selected stride and advances the element offset in a new logical view descriptor. Thus
+     * contiguous Shape {@code [2, 3, 4]} with strides {@code [12, 4, 1]} selected at axis
+     * {@code 1}, index {@code 2} produces strides {@code [12, 1]} and offset {@code 8}.
+     * Unresolved input geometry and empty results remain unresolved. View metadata neither
+     * attaches storage nor promises a physical alias.</p>
+     *
+     * <p>The fresh result preserves exact data type and gradient eligibility, has no label or
+     * storage, and records {@link SelectKind#SELECT} with normalized attributes and exactly this
+     * tensor as its provenance input. Scalar select is distinct from conditional {@code WHERE},
+     * multi-result {@code UNSTACK}, half-open {@code SLICE}, and tensor-index gather. This method
+     * does not read values, define a gradient rule, capture a graph, choose materialization or a
+     * backend, or execute selection.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count once from the
+     *     final axis
+     * @param index scalar coordinate; negative values count once from a static selected extent,
+     *     while a dynamic selected extent accepts only a non-negative coordinate with deferred
+     *     upper-bound validation
+     * @return a non-null fresh storage-free SELECT tensor with one axis removed, preserved type
+     *     and gradient eligibility, conditional logical view geometry, and exact provenance
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every axis for a
+     *     scalar input, or a statically normalized index is outside the selected extent
+     * @throws IllegalArgumentException if {@code index} is negative for a dynamic selected extent
+     * @throws ArithmeticException if checked result-element-count, view-offset,
+     *     layout-classification, or referenced-span arithmetic overflows; no tensor identity is
+     *     consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     metadata has been constructed
+     */
+    public Tensor select(int axis, long index) {
+        return TensorSelectExpressions.apply(this, axis, index);
     }
 
     /**

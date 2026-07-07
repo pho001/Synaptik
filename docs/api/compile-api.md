@@ -36,8 +36,9 @@ comparison methods, three boolean logical methods, fifteen unary elementwise met
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
-one-axis `cumSum` methods, plus one-axis `softmax` and `logSoftmax` methods, construct storage-free
-expressions with immutable operation-and-input provenance. The parameterless `contiguous` method
+one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, and scalar `select` methods,
+construct storage-free expressions with immutable operation-and-input provenance. The
+parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
 right-aligned target-shape expressions.
@@ -143,6 +144,16 @@ entry. Both forms preserve exact type and gradient eligibility, record exact one
 and remain fresh, unlabeled, and storage-free. This is current model expression construction, not
 graph capture, slice-chain or identity canonicalization, physical aliasing, gradient-scatter
 construction, materialization, backend/ONNX lowering, or execution.
+`Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
+selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
+`SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
+negative-index normalization and bounds checks; a non-negative coordinate on a dynamic selected
+extent remains representable with its upper bound deferred, while a negative coordinate is
+rejected. Resolved input geometry with a non-empty result produces checked selected-stride removal
+and offset advancement in one new logical view descriptor; unresolved input and empty results stay
+unresolved. The fresh result preserves exact type and eligibility and has no label or storage.
+This is current model expression construction, not value selection, physical aliasing, gradient
+construction, graph capture or canonicalization, materialization, backend lowering, or execution.
 Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapshot ordered non-empty
 inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
 rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
@@ -179,16 +190,18 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
-  positive-step slice construction, plus unresolved constant-pad and complete-pattern tile
+  positive-step slice construction, plus conditional-view scalar-select construction, plus
+  unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable individually indexed unstack construction,
   plus general-axis and NCHW unfold/fold window-transform construction,
   are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/pad/tile/
-  composition/window-transform canonicalization or decomposition, grouped producer design,
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
+  pad/tile/composition/window-transform canonicalization or decomposition, grouped producer design,
   compiler-generated `FOLD_AXIS` construction, deferred
-  dynamic reshape count validation and expand compatibility constraints, layout materialization
+  dynamic reshape count validation, expand compatibility constraints, and dynamic select upper-
+  bound validation placement, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
