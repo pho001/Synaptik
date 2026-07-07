@@ -10,8 +10,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -81,8 +83,13 @@ import java.util.Optional;
  * Shape rules without reading index values or checking their bounds. Gather-ND methods consume
  * the same ordered inputs as coordinate tuples, validate a structurally equal shared batch
  * prefix and statically known positive tuple depth, and derive an indices-prefix-plus-data-suffix
- * Shape without reading index values. Cumulative sum accepts one axis of a floating or integral
- * input,
+ * Shape without reading index values. Axis scatter methods consume ordered
+ * {@code [data, indices, updates]} inputs, require exact INT32 or INT64 indices and matching
+ * data/update types, and retain exact data Shape/type with unresolved layout. Fixed-add scatter
+ * accepts floating values; configurable scatter-elements permits replacement for every current
+ * type and arithmetic reduction for numeric types. Construction reads no index or update values,
+ * performs no writes or reductions, and never mutates data. Cumulative sum accepts one axis of a
+ * floating or integral input,
  * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
@@ -130,6 +137,7 @@ import java.util.Optional;
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link GatherNdKind},
+ * {@link AxisScatterKind},
  * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
@@ -2677,6 +2685,140 @@ public final class Tensor {
      */
     public Tensor gatherNd(Tensor indices, int batchDimensions) {
         return TensorGatherNdExpressions.gatherNd(this, indices, batchDimensions);
+    }
+
+    /**
+     * Creates a fresh functional expression that adds reduced-rank updates along one data axis.
+     *
+     * <p>The ordered logical inputs are {@code [this, indices, updates]}. Indices must be exact
+     * {@link DataType#INT32} or {@link DataType#INT64}. This tensor and updates must use the same
+     * floating data type, and both indices and updates Shapes must equal this tensor's Shape with
+     * the selected axis removed. For data {@code [2, 3, 4]}, axis {@code 1}, and indices/updates
+     * {@code [2, 4]}, the result retains data Shape {@code [2, 3, 4]}. Selecting the only axis of
+     * rank-one data requires scalar indices and updates.</p>
+     *
+     * <p>The fresh result preserves exact data Shape/type, combines data/update gradient
+     * eligibility by logical OR, leaves layout unresolved, and records
+     * {@link AxisScatterKind#SCATTER_ADD}, one normalized axis, and exact ordered provenance. It
+     * has no label or storage. Construction never mutates data, reads index or update values,
+     * checks bounds or duplicate targets, performs addition, defines gradients, captures a graph,
+     * chooses a backend, or executes work.</p>
+     *
+     * @param indices non-null INT32 or INT64 tensor with data Shape minus the selected axis;
+     *     retained by exact reference in provenance and not inspected for values
+     * @param updates non-null matching-floating tensor with data Shape minus the selected axis;
+     *     retained by exact reference in provenance and not mutated or read
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh storage-free SCATTER_ADD tensor with exact data metadata,
+     *     unresolved layout, and exact three-input provenance
+     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
+     * @throws IllegalArgumentException if index type, update type, floating eligibility, or either
+     *     reduced Shape is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterAdd(Tensor indices, Tensor updates, int axis) {
+        return TensorAxisScatterExpressions.scatterAdd(this, indices, updates, axis);
+    }
+
+    /**
+     * Creates a fresh functional fixed-add scatter aligned like inverse axis gather.
+     *
+     * <p>The ordered inputs are {@code [this, indices, updates]}. Indices must be exact INT32 or
+     * INT64, while this tensor and updates must have the same floating type. The updates Shape is
+     * the result Shape of {@link #gatherAxis(Tensor, int)} for the same data, indices, and axis:
+     * data {@code [2, 3, 4]}, axis {@code 1}, and indices {@code [5, 6]} require updates
+     * {@code [2, 5, 6, 4]}. Scalar indices require updates {@code [2, 4]}. The result always
+     * retains exact data Shape {@code [2, 3, 4]}.</p>
+     *
+     * <p>The result is fresh, unlabeled, storage-free, and layout-unresolved. It preserves exact
+     * data type, uses the logical OR of data/update gradient eligibility, and records
+     * {@link AxisScatterKind#SCATTER_AXIS_ADD}, normalized axis attributes, and exact ordered
+     * provenance. No operand value, bound, duplicate target, write, reduction, gradient, compiler,
+     * backend, or execution behavior is inspected or performed.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate tensor retained by exact reference
+     * @param updates non-null matching-floating tensor with the gather-axis result Shape; retained
+     *     by exact reference and never read or mutated
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh SCATTER_AXIS_ADD tensor with exact data Shape/type, unresolved
+     *     layout, and exact three-input provenance
+     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
+     * @throws IllegalArgumentException if index type, update type, floating eligibility, or updates
+     *     Shape is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterAxisAdd(Tensor indices, Tensor updates, int axis) {
+        return TensorAxisScatterExpressions.scatterAxisAdd(this, indices, updates, axis);
+    }
+
+    /**
+     * Creates a fresh same-rank scatter-elements expression with replacement semantics.
+     *
+     * <p>This convenience is exactly
+     * {@link #scatterElements(Tensor, Tensor, int, ScatterReduction) scatterElements(indices,
+     * updates, axis, ScatterReduction.NONE)}. It accepts every current data type when updates
+     * match this tensor exactly. Replacement requires unique target coordinates, but duplicate
+     * detection needs index values and therefore remains outside this metadata-only construction.</p>
+     *
+     * @param indices non-null same-rank INT32 or INT64 tensor matching data away from the axis
+     * @param updates non-null exact-data-type tensor with Shape equal to indices
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh SCATTER_ELEMENTS tensor with NONE reduction, exact data metadata,
+     *     unresolved layout, and exact three-input provenance
+     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
+     * @throws IllegalArgumentException if index type, update type, rank, or Shape is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterElements(Tensor indices, Tensor updates, int axis) {
+        return TensorAxisScatterExpressions.scatterElements(this, indices, updates, axis);
+    }
+
+    /**
+     * Creates a fresh same-rank scatter-elements expression with an explicit reduction.
+     *
+     * <p>The ordered inputs are {@code [this, indices, updates]}. Indices must be exact INT32 or
+     * INT64; updates must have this tensor's exact type. Indices and updates ranks and Dimensions
+     * must match, and every non-selected indices Dimension must equal data. The selected
+     * indices/updates extent may differ from data. For data {@code [2, 3, 4]}, axis {@code 1},
+     * and indices/updates {@code [2, 5, 4]}, the result retains data Shape {@code [2, 3, 4]}.</p>
+     *
+     * <p>{@link ScatterReduction#NONE} accepts every current type. {@link ScatterReduction#ADD},
+     * {@link ScatterReduction#MUL}, {@link ScatterReduction#MAX}, and
+     * {@link ScatterReduction#MIN} accept floating and integral values and reject BOOL. The
+     * reduction defines semantic combination at a target; this method does not inspect values,
+     * detect NONE duplicates, apply writes/reductions, define numerical order or gradients,
+     * capture a graph, select a backend, or execute work.</p>
+     *
+     * <p>The fresh result has exact data Shape/type, data/update eligibility OR, unresolved layout,
+     * no label or storage, exact {@link AxisScatterKind#SCATTER_ELEMENTS} attributes, and ordered
+     * provenance. Data and all inputs remain unchanged.</p>
+     *
+     * @param indices non-null same-rank INT32 or INT64 tensor matching data away from the axis;
+     *     retained by exact reference and never read
+     * @param updates non-null exact-data-type tensor with Shape equal to indices; retained by
+     *     exact reference and never read or mutated
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @param reduction non-null explicit replacement or arithmetic combination meaning
+     * @return a non-null fresh SCATTER_ELEMENTS tensor with exact data metadata, unresolved layout,
+     *     and exact three-input provenance
+     * @throws NullPointerException if {@code indices}, {@code updates}, or {@code reduction} is
+     *     null, checked in order
+     * @throws IllegalArgumentException if index type, update type, BOOL reduction, rank, or Shape
+     *     compatibility is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterElements(
+            Tensor indices, Tensor updates, int axis, ScatterReduction reduction) {
+        return TensorAxisScatterExpressions.scatterElements(
+                this, indices, updates, axis, reduction);
     }
 
     /**

@@ -47,8 +47,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * <p>Axis scatter differs from {@link AxisGatherKind axis gather} and
  * {@link GatherNdKind#GATHER_ND Gather-ND}, which read selected data; scatter-ND, which uses
  * multi-axis coordinate tuples; fold, which reconstructs overlapping windows; and in-place
- * mutation. The later public Tensor-expression contract in task 0018H owns caller-axis
- * normalization and input-aware index-type, data-type, and shape validation. This enum stores no
+ * mutation. The public Tensor-expression contract owns caller-axis normalization and input-aware
+ * index-type, data-type, and shape validation. This enum stores no
  * operands, shapes, result metadata, provenance, gradient policy, graph or compiler behavior,
  * backend support, numerical policy, or execution state.</p>
  */

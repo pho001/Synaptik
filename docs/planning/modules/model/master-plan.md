@@ -196,7 +196,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018E | [Gather-ND semantics](tasks/0018e-gather-nd-semantics.md) | Complete | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
 | 0018F | [Gather-ND Tensor expressions](tasks/0018f-gather-nd-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
 | 0018G | [Axis scatter semantics](tasks/0018g-axis-scatter-semantics.md) | Complete | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
-| 0018H | Axis scatter Tensor expressions | Draft | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
+| 0018H | [Axis scatter Tensor expressions](tasks/0018h-axis-scatter-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
 | 0018I | Scatter-ND semantics | Draft | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
 | 0018J | Scatter-ND Tensor expression | Draft | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
@@ -228,8 +228,9 @@ focused tasks 0018A–0018J plus primitive-convenience task 0018D1. Tasks 0018A 
 complete. Task 0018E is complete with tuple-index semantics and normalized batch attributes. Task
 0018F is complete with public Gather-ND expression construction. Task 0018G is complete with the
 three axis-scatter meanings, reusable reduction vocabulary, and explicit scatter-elements
-attributes. Task 0018H is the next Draft frontier without a detailed specification; tasks
-0018I–0018J and later tasks also remain Draft without detailed specifications.
+attributes. Task 0018H is complete with public metadata-only axis-scatter expression construction.
+Task 0018I is the next Draft frontier without a detailed specification; task 0018J and later tasks
+also remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -289,11 +290,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Scatter reduction is one reusable typed vocabulary in exact `NONE`, `ADD`, `MUL`, `MAX`, and
   `MIN` order. `NONE` represents unambiguous replacement and rejects duplicate targets in later
   value-aware validation rather than defining traversal-order-dependent overwrite behavior.
+- Axis-scatter public construction uses four methods and one field-free helper. Fixed-add paths
+  require matching floating data/updates; scatter-elements permits `NONE` for every current type
+  and arithmetic reductions for floating/integral types. All paths require INT32/INT64 indices,
+  preserve exact data Shape/type with unresolved layout, and never inspect index values.
 - Task 0018G completed exactly `AxisScatterKind`, `ScatterReduction`, and
   `ScatterElementsAttrs`, plus unchanged reuse of `IndexAxisAttrs` for fixed-add kinds. Ordered
   `[data, indices, updates]`, functional data-shaped results, all three Shape relationships, every
   reduction meaning, and value-aware `NONE` duplicate rejection are semantic contracts only;
-  task 0018H owns public type/Shape/axis validation and Tensor construction.
+  completed task 0018H owns public type/Shape/axis validation and Tensor construction.
+- Task 0018H completed exactly four public Tensor methods and one field-free eleven-method helper.
+  Fixed-add paths require matching floating data/updates; scatter-elements permits `NONE` for every
+  current type and arithmetic reductions for floating/integral types. Results retain exact data
+  Shape/type, data/update eligibility OR, unresolved layout, and exact ordered provenance without
+  value access, writes, reductions, mutation, gradients, compiler behavior, or execution.
 - Independent task-0018G documentation review retained all three new production Javadocs,
   clarified only `IndexAxisAttrs` ownership wording, and finalized Tensor API, glossary, task
   evidence, master plan, and roadmap. Focused 12-test, all 706-model-test/82-suite, model-Javadoc,
@@ -1065,7 +1075,8 @@ and their shared normalized-axis attributes. Task 0018D is complete with the fou
 Tensor-index expressions. Task 0018D1 is complete with the primitive-take convenience. Task 0018E
 is complete with `GATHER_ND` and normalized batch-dimension attributes. Task 0018F is complete with
 public Gather-ND expression construction. Task 0018G is complete with functional axis-scatter
-semantic values. Task 0018H is the next Draft frontier without a detailed specification; tasks
-0018I–0018J and every later operation-family task remain Draft without detailed specifications.
+semantic values. Task 0018H is complete with public functional axis-scatter expression
+construction. Task 0018I is the next Draft frontier without a detailed specification; task 0018J
+and every later operation-family task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

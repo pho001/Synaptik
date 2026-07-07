@@ -21,8 +21,9 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * rules. Zero, positive values, and {@link Integer#MAX_VALUE} are structurally valid and retained
  * unchanged. The current public axis-gather Tensor-expression contract owns caller-facing
  * negative-axis normalization, rank and shape checks, and the requirement that index tensors use
- * {@code INT32} or {@code INT64}. Task 0018H owns the corresponding public fixed-add axis-scatter
- * checks. This attributes value reads no index values and therefore performs no index-value bounds
+ * {@code INT32} or {@code INT64}. The current public fixed-add axis-scatter expressions own the
+ * corresponding caller-axis, index-type, matching floating data/update-type, and shape checks.
+ * This attributes value reads no index values and therefore performs no index-value bounds
  * check.</p>
  *
  * <p>The immutable record stores only the primitive axis. Record-generated equality and hashing

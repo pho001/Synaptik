@@ -37,6 +37,10 @@ non-selected Dimension.
 after zero or more structurally equal shared batch Dimensions. They require a static positive
 tuple depth, derive the result from the indices prefix plus the untouched data suffix, and never
 inspect index values.
+`scatterAdd`, `scatterAxisAdd`, and the two `scatterElements` overloads construct functional
+axis-scatter expressions from ordered `[data, indices, updates]` inputs. They preserve the exact
+data Shape and type, combine data/update gradient eligibility, and never inspect values or mutate
+the data input.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -132,8 +136,10 @@ none mutates `data` in place. The two fixed-add kinds reuse `IndexAxisAttrs`, wh
 `SCATTER_ELEMENTS` uses `ScatterElementsAttrs(axis, reduction)` and the reusable
 `ScatterReduction` vocabulary `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. Replacement with `NONE`
 requires unique target coordinates; value-aware duplicate detection is deferred. Public Tensor
-construction, input type and Shape validation, caller-axis normalization, index bounds,
-provenance, gradients, compiler behavior, backend behavior, and execution remain planned.
+construction now owns caller-axis normalization, exact index and data/update type checks, the
+three family-specific Shape rules, result metadata, and ordered provenance. Index-value bounds,
+duplicate detection, gradients, compiler behavior, backend behavior, and execution remain planned
+or separately owned.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -190,6 +196,9 @@ Tensor + arbitrary indices + GATHER_AXIS          = fresh inserted-Shape axis-ga
 Tensor + non-empty copied int[] + GATHER_AXIS     = eager dense index Tensor + fresh axis-gather Tensor
 Tensor + same-rank aligned indices + TAKE_ALONG_AXIS = fresh exact-indices-Shape Tensor
 Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-data-suffix Tensor
+Tensor + reduced-Shape indices/updates + SCATTER_ADD = fresh data-Shape fixed-add Tensor
+Tensor + arbitrary indices + gather-axis-shaped updates + SCATTER_AXIS_ADD = fresh data-Shape fixed-add Tensor
+Tensor + same-rank indices/updates + SCATTER_ELEMENTS = fresh data-Shape replacement/reduction Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
 rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
@@ -4331,6 +4340,161 @@ backend lowering, or execution.
 - Checked result-rank overflow propagates as `ArithmeticException`; identifier exhaustion can
   occur only during final derived Tensor construction.
 
+### Axis-scatter expressions
+
+The four public axis-scatter methods construct functional expressions from ordered logical inputs
+`[data, indices, updates]`. `data` is the receiver and unchanged base value. `indices` identifies
+a target coordinate along one selected data axis, and `updates` supplies the value associated with
+each index position. A reduction defines how the base and updates for one target are combined. A
+duplicate target occurs when multiple index positions identify that same result coordinate.
+
+All paths require exact `INT32` or `INT64` indices and require updates to have the exact data type;
+no input is implicitly cast or promoted. The fixed-add methods accept only `FLOAT64`, `FLOAT32`,
+or `BFLOAT16` data and updates. Scatter-elements with `NONE` accepts all six current data types.
+Its `ADD`, `MUL`, `MAX`, and `MIN` reductions accept floating or integral data and reject `BOOL`.
+The three-argument `scatterElements` method delegates to the explicit overload with
+`ScatterReduction.NONE`.
+
+After null and type validation, each method normalizes the raw positive or negative axis exactly
+once against the data Shape. The normalized non-negative axis is stored in `IndexAxisAttrs` for
+the two fixed-add kinds or in `ScatterElementsAttrs` with the explicit reduction.
+
+The methods apply three distinct Shape rules:
+
+| Public method | Semantic kind | Shape rule and example |
+|---|---|---|
+| `scatterAdd(indices, updates, axis)` | `SCATTER_ADD` | Indices and updates must both equal the data Shape with `axis` removed. Data `[2, 3, 4]`, axis `1`, indices `[2, 4]`, and updates `[2, 4]` produce result `[2, 3, 4]`. At reduced coordinate `[0, 2]`, index `1` conceptually targets data coordinate `[0, 1, 2]`. |
+| `scatterAxisAdd(indices, updates, axis)` | `SCATTER_AXIS_ADD` | Updates must have the Shape obtained by replacing the selected data axis with the complete indices Shape. Data `[2, 3, 4]`, axis `1`, indices `[5, 6]`, and updates `[2, 5, 6, 4]` produce result `[2, 3, 4]`. Update coordinate `[0, i, j, 2]` conceptually targets `[0, indices[i, j], 2]`. |
+| `scatterElements(indices, updates, axis[, reduction])` | `SCATTER_ELEMENTS` | Indices and updates must have equal same-rank Shapes and must match data away from `axis`; their selected extent may differ from data. Data `[2, 3, 4]`, axis `1`, and indices/updates `[2, 5, 4]` produce result `[2, 3, 4]`. At update coordinate `[0, 4, 2]`, the corresponding index conceptually selects target `[0, index, 2]`. |
+
+Structural equality governs dynamic Dimensions. Equal symbols pass; different symbols fail rather
+than creating a graph-wide constraint. Rank-one `scatterAdd` requires scalar indices and updates.
+Scalar indices for `scatterAxisAdd` remove the selected axis from the required updates Shape.
+
+Every valid call returns a fresh, unlabeled, storage-free Tensor. The result retains the exact
+data Shape reference and data type, combines data and updates `requiresGrad` eligibility by
+logical OR, and leaves layout unresolved. Indices never contribute type or eligibility. Exact
+provenance contains the selected kind and normalized attributes plus the original Tensor
+references in `[data, indices, updates]` order.
+
+Expression construction reads no data, index, or update values. It does not normalize or
+bounds-check an index value, detect a duplicate target, apply a write or reduction, mutate data,
+define accumulation order or numerical edge behavior, construct a gradient, capture or transform
+a graph, choose materialization or a backend, or execute work. In particular, `NONE` semantically
+requires unique targets, but this metadata-only boundary cannot detect duplicates.
+
+#### Complete axis-scatter expression example
+
+##### Goal and inputs
+
+Construct all three axis-scatter Shape relationships for `FLOAT32` data with Shape `[2, 3, 4]`.
+The tensors are storage-free because expression construction uses only immutable metadata.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class AxisScatterExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
+        Tensor reducedIndices = tensor(DataType.INT32, Shape.of(2, 4), false);
+        Tensor reducedUpdates = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
+        Tensor axisIndices = tensor(DataType.INT64, Shape.of(5, 6), false);
+        Tensor axisUpdates = tensor(DataType.FLOAT32, Shape.of(2, 5, 6, 4), true);
+        Tensor elementIndices = tensor(DataType.INT32, Shape.of(2, 5, 4), false);
+        Tensor elementUpdates = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), false);
+
+        Tensor reduced = data.scatterAdd(reducedIndices, reducedUpdates, -2);
+        Tensor axisAligned = data.scatterAxisAdd(axisIndices, axisUpdates, 1);
+        Tensor replacement = data.scatterElements(elementIndices, elementUpdates, -2);
+        Tensor maximum = data.scatterElements(
+                elementIndices, elementUpdates, 1, ScatterReduction.MAX);
+
+        TensorProvenance provenance = replacement.provenance().orElseThrow();
+        IndexAxisAttrs reducedAttrs = (IndexAxisAttrs) reduced.provenance().orElseThrow()
+                .operation().attrs();
+        ScatterElementsAttrs replacementAttrs =
+                (ScatterElementsAttrs) provenance.operation().attrs();
+
+        System.out.println(reduced.descriptor().shape());
+        System.out.println(axisAligned.descriptor().shape());
+        System.out.println(replacement.descriptor().shape());
+        System.out.println(maximum.descriptor().shape());
+        System.out.println(reduced.provenance().orElseThrow().operation().kind());
+        System.out.println(reducedAttrs);
+        System.out.println(replacementAttrs);
+        System.out.println(axisAligned.descriptor().requiresGrad());
+        System.out.println(provenance.inputs().get(0) == data
+                && provenance.inputs().get(1) == elementIndices
+                && provenance.inputs().get(2) == elementUpdates);
+        System.out.println(replacement.descriptor().shape() == data.descriptor().shape()
+                && replacement.descriptor().layout().isEmpty()
+                && replacement.label().isEmpty()
+                && replacement.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Raw axis `-2` normalizes once against rank three to normalized axis `1`.
+- `scatterAdd` removes extent `3` when checking the required `[2, 4]` indices and updates Shapes,
+  but its result retains exact data Shape `[2, 3, 4]`.
+- `scatterAxisAdd` inserts complete indices Shape `[5, 6]` when checking updates Shape
+  `[2, 5, 6, 4]`; the result still retains the data Shape.
+- The short scatter-elements call selects explicit `NONE`. The complete call retains `MAX`.
+  Both accept selected extent `5` even though the corresponding data extent is `3`.
+- Only `axisUpdates` requests gradient eligibility, so its result is eligible through the
+  data/update logical OR. Indices never contribute eligibility.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[2, 3, 4]
+Shape[2, 3, 4]
+Shape[2, 3, 4]
+Shape[2, 3, 4]
+SCATTER_ADD
+IndexAxisAttrs[axis=1]
+ScatterElementsAttrs[axis=1, reduction=NONE]
+true
+true
+true
+```
+
+The output demonstrates raw-axis normalization, all three Shape relationships, explicit default
+reduction, exact data metadata, eligibility OR, unresolved layout, and ordered provenance. It does
+not demonstrate stored values, valid index bounds, duplicate-target detection, writes,
+reductions, gradients, compiler capture, backend lowering, or execution.
+
+##### Failures and useful variations
+
+- Null data, indices, updates, and explicit reduction fail in that order. Index type then fails
+  before data/update type equality, reduction eligibility, axis normalization, or Shape checks.
+- Fixed-add paths reject non-floating data after exact data/update type equality. Scatter-elements
+  rejects a non-`NONE` BOOL reduction before axis normalization.
+- `scatterAdd` checks the reduced indices Shape before the reduced updates Shape.
+  `scatterAxisAdd` checks its one required updates Shape.
+- Scatter-elements checks indices rank, updates rank, every updates/indices Dimension in increasing
+  axis order, then every non-selected indices/data Dimension in increasing axis order.
+- Local validation failures occur before result identity allocation. Identifier exhaustion may
+  occur only during final derived construction.
+
 ### Pad and tile expressions
 
 `Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
@@ -5938,12 +6102,13 @@ cannot prove that the axis exists. `ScatterElementsAttrs` validates the axis bef
 non-null reduction; `null` never means `NONE`. Generic `Operation` retains each exact kind and
 attributes reference without enforcing the documented pairing or three-input context.
 
-Task 0018H owns public caller-axis normalization plus index-type, data/update-type, rank, Shape,
-descriptor, and provenance validation. Index bounds and duplicate targets require values and
-remain outside model metadata construction. Axis scatter is distinct from axis gather and
-Gather-ND, which read selected data; scatter-ND, which uses multi-axis index tuples; fold, which
-reconstructs overlapping windows; and in-place mutation. These semantics define no Tensor result
-method, gradient, compiler behavior, materialization, lowering, backend behavior, or execution.
+The current public axis-scatter expressions own caller-axis normalization plus index-type,
+data/update-type, reduction-eligibility, rank, Shape, descriptor, and provenance validation.
+Index bounds and duplicate targets require values and remain outside model metadata construction.
+Axis scatter is distinct from axis gather and Gather-ND, which read selected data; scatter-ND,
+which uses multi-axis index tuples; fold, which reconstructs overlapping windows; and in-place
+mutation. The semantic values themselves define no Tensor result method, gradient, compiler
+behavior, materialization, lowering, backend behavior, or execution.
 
 ### Window-transform semantic kinds and attributes
 
@@ -6394,7 +6559,7 @@ The following contracts appear in the architecture and planning documents but ar
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, gather-ND Tensor
-  construction, unfold, fold-axis,
+  construction, axis-scatter construction, unfold, fold-axis,
   unfold2d, and fold2d requests; plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
@@ -6472,14 +6637,17 @@ structurally equal batch prefixes, and static positive tuple depth before derivi
 indices-prefix-plus-data-suffix Shape and recording exact provenance. Results retain data type and
 gradient eligibility, leave layout unresolved, and remain unlabeled and storage-free. Index-value
 bounds, gradients, compiler behavior, lowering, and execution remain separately owned.
-Axis-scatter semantics are current, while public Tensor construction remains planned.
+Axis-scatter semantics and public Tensor construction are current.
 `SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` use ordered
 `[data, indices, updates]`, preserve the exact data Shape in a new functional result, and remain
 distinct by their reduced-rank, rank-changing, and same-rank update alignment. The two fixed-add
 kinds reuse `IndexAxisAttrs`; scatter-elements uses `ScatterElementsAttrs` with explicit
-`NONE`/`ADD`/`MUL`/`MAX`/`MIN` reduction meaning. `NONE` requires unique targets, but duplicate
-detection, index bounds, public type/Shape/axis validation, Tensor result construction, gradients,
-compiler behavior, lowering, and execution remain later responsibilities.
+`NONE`/`ADD`/`MUL`/`MAX`/`MIN` reduction meaning. Public construction validates exact integral
+index type, matching data/update type, fixed-add floating eligibility, scatter-elements reduction
+eligibility, raw axis, and family-specific Shapes. Results retain exact data Shape/type, combine
+data/update gradient eligibility, leave layout unresolved, and record exact ordered provenance.
+`NONE` requires unique targets, but duplicate detection, index bounds, value writes/reductions,
+gradient rules, compiler behavior, lowering, and execution remain later responsibilities.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,

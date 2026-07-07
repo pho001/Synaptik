@@ -16,10 +16,11 @@ import java.util.Objects;
  *
  * <p>This value stores no input rank or shape, so it cannot prove that the axis exists or validate
  * that indices and updates have equal shapes and match data away from the axis. Zero, positive
- * values, and {@link Integer#MAX_VALUE} are structurally valid axes. The later public
- * Tensor-expression contract in task 0018H owns caller-axis normalization and index-type,
- * data-type, and input-aware shape checks. Index bounds and duplicate-target detection require
- * values and do not occur during this metadata construction. In particular,
+ * values, and {@link Integer#MAX_VALUE} are structurally valid axes. The current public
+ * scatter-elements expressions own caller-axis normalization, exact integral index-type checks,
+ * exact data/update-type matching, reduction eligibility, and input-aware rank and shape checks.
+ * Index bounds and duplicate-target detection require values and do not occur during this
+ * metadata construction. In particular,
  * {@link ScatterReduction#NONE} is structurally valid here even though duplicate targets make a
  * concrete replacement operation invalid.</p>
  *
