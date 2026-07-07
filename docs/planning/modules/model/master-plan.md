@@ -183,7 +183,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017K | [Tensor composition semantics](tasks/0017k-tensor-composition-semantics.md) | Complete | 0002, 0005, 0006 | Define concat, stack, and unstack meanings and immutable axis parameters. |
 | 0017L | [Tensor composition expressions](tasks/0017l-tensor-composition-expressions.md) | Complete | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
 | 0017M | [Unfold and fold semantics](tasks/0017m-unfold-and-fold-semantics.md) | Complete | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
-| 0017N | Unfold and fold Tensor expressions | Draft | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
+| 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
 | 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
@@ -209,7 +209,7 @@ task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B 
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
-Tasks 0017K, 0017L, and 0017M are complete. Task 0017N is the next Draft frontier without a
+Tasks 0017K, 0017L, 0017M, and 0017N are complete. Task 0018 is the next Draft frontier without a
 detailed specification; later tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
@@ -518,10 +518,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   without grouped producers, values, storage, gradients, or cross-layer behavior.
 - Task 0017M is complete with distinct UNFOLD_AXIS, FOLD_AXIS, UNFOLD2D, and FOLD2D semantic
   identities; normalized long-valued axis/window geometry; and explicit fold target extents.
-  FOLD_AXIS is both the semantic basis for a public task-0017N Tensor expression and the later
+  FOLD_AXIS is both the semantic basis for the public task-0017N Tensor expression and the later
   compiler/autograd scatter-add adjoint owned by task 0023. Task 0017M defines NCHW im2col/col2im
   meaning and overlap summation without Tensor construction, Shape arithmetic, provenance,
   gradients, materialization, compiler behavior, backend behavior, or execution.
+- Task 0017N is complete with four public storage-free Tensor expressions, checked long-valued local
+  Shape derivation, conservative dynamic-dimension preservation, unresolved result layouts, and
+  exact one-input provenance. Public FOLD_AXIS remains distinct from task-0023 compiler generation;
+  neither path executes scatter-add or adds gradient behavior here.
+- The independent task-0017N documentation review finalized Tensor/helper and temporal semantic
+  Javadocs, Tensor API, Compile API, glossary, task evidence, master plan, and roadmap. Focused
+  16-test, all 629 model-test across 74 suites, model-Javadoc, root-test, executable-example,
+  javap/reflection/bytecode/import/source/generated-page, 370-link/108-anchor, fence/whitespace,
+  exact fifteen-path, synchronized-status, and no-0018-spec checks passed. Training API,
+  capabilities, related model declarations, architecture/ADRs/tests, conformance/integration,
+  Java 26 Gradle/dependencies, other modules, and task 0023 remain accurate unchanged.
 - The independent task-0017M documentation review finalized all five new Javadocs, Tensor API,
   glossary, task evidence, master plan, and roadmap. Focused 12-test, all 613 model-test across 73
   suites, generated-Javadoc, root-test, javap/reflection/import/source, link/anchor/fence/
@@ -899,7 +910,8 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
 complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 0017I are also
-complete. Tasks 0017J, 0017K, 0017L, and 0017M are also complete. Task 0017N is the next Draft
-frontier without a detailed specification, and every later operation-family task remains Draft.
+complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. Task 0018 is the next
+Draft frontier without a detailed specification, and every later operation-family task remains
+Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

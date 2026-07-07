@@ -152,6 +152,12 @@ provenance over the same input. A zero extent returns no result or ID, and the o
 not establish a shared producer occurrence or graph output-slot contract. This is current model
 expression construction, not compiler capture, decomposition, grouping, backward construction,
 materialization, backend lowering, ONNX mapping, or execution.
+`Tensor.unfold`, `Tensor.foldAxis`, `Tensor.unfold2d`, and `Tensor.fold2d` construct current
+storage-free window-transform expressions. They normalize and validate axes against the relevant
+source or target rank, use checked static Shape arithmetic, preserve the input data type and
+gradient-eligibility flag, leave layout unresolved, and record exact one-input provenance. They
+describe materialized windows or overlap-summing scatter-add; they do not read values or provide
+compiler capture, canonicalization, gradient generation, lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -175,11 +181,13 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   positive-step slice construction, plus unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable individually indexed unstack construction,
+  plus general-axis and NCHW unfold/fold window-transform construction,
   are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/pad/tile/
-  composition canonicalization or decomposition, grouped producer design, deferred
+  composition/window-transform canonicalization or decomposition, grouped producer design,
+  compiler-generated `FOLD_AXIS` construction, deferred
   dynamic reshape count validation and expand compatibility constraints, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and

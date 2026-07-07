@@ -17,6 +17,8 @@ import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
@@ -108,13 +110,18 @@ import java.util.Optional;
  * axis. Unstack removes one statically sized axis and returns an immutable ordered list of
  * independently indexed result tensors. Composition results have unresolved layout, and unstack
  * outputs deliberately carry no shared producer-group identity.
+ * General-axis unfold replaces one static extent with checked window positions and appends the
+ * window size, while fold-axis removes the final window dimension and restores one explicit
+ * target extent. Two-dimensional unfold and fold use checked static NCHW window geometry and
+ * canonical column Shapes. All four window-transform results have unresolved layout and describe
+ * materialization or scatter-add semantics without reading, allocating, or accumulating values.
  * Every result records
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
  * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind}, {@link PadKind},
- * {@link TileKind}, {@link TensorCompositionKind},
+ * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -2563,6 +2570,156 @@ public final class Tensor {
      */
     public List<Tensor> unstack(int axis) {
         return TensorCompositionExpressions.unstack(this, axis);
+    }
+
+    /**
+     * Creates a fresh expression that materializes sliding windows along one input axis.
+     *
+     * <p>A window is one consecutive group of {@code size} logical elements, and {@code step} is
+     * the positive distance between successive window starts. The positive or negative
+     * {@code axis} is normalized against this tensor's rank. Its dimension must be static and at
+     * least {@code size}. The selected extent {@code D} is replaced by
+     * {@code floor((D - size) / step) + 1}, and a new final dimension of extent {@code size} is
+     * appended. For example, Shape {@code [2, 5, 3]}, axis one, size three, and step one produces
+     * Shape {@code [2, 3, 3, 3]}: the new axis-one extent counts three window positions, the
+     * original final extent remains three, and the appended extent is the window size.</p>
+     *
+     * <p>Every current data type is accepted. The result preserves all unaffected Dimension
+     * references, the exact data type, and gradient eligibility. It is fresh, unlabeled,
+     * storage-free, and layout-unresolved, with {@link WindowTransformKind#UNFOLD_AXIS} and this
+     * tensor as its sole provenance input. Construction uses checked count arithmetic but does
+     * not inspect or materialize values, promise a view, define a gradient rule, capture a graph,
+     * or execute work.</p>
+     *
+     * @param axis raw input axis in {@code [-rank, rank - 1]}; negative values count once from
+     *     the final axis
+     * @param size positive window extent in logical elements; must fit the selected dimension
+     * @param step positive distance between consecutive window starts in logical elements
+     * @return a non-null fresh storage-free UNFOLD_AXIS tensor with the derived Shape, unresolved
+     *     layout, preserved type and gradient eligibility, and exact one-input provenance
+     * @throws IllegalArgumentException if the input rank is zero, {@code size} or {@code step} is
+     *     non-positive, the selected dimension is dynamic, or {@code size} exceeds its extent
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the input rank
+     * @throws ArithmeticException if checked window-count arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor unfold(int axis, long size, long step) {
+        return TensorWindowExpressions.unfoldAxis(this, axis, size, step);
+    }
+
+    /**
+     * Creates a fresh expression that scatter-adds general-axis windows into a target extent.
+     *
+     * <p>The final input dimension is the positive window size. The remaining dimensions form
+     * the target rank against which {@code axis} is normalized; negative axes therefore never
+     * select the final window dimension. The selected input dimension is the static window count.
+     * It is replaced by {@code outputSize}, and the final window dimension is removed. For
+     * positive output size, the count must equal
+     * {@code floor((outputSize - windowSize) / step) + 1}. Output size zero accepts exactly zero
+     * windows.</p>
+     *
+     * <p>Scatter-add means that window element {@code offset} from window {@code index} targets
+     * {@code index * step + offset}; contributions to the same coordinate are added. Thus windows
+     * {@code [1,2,3]}, {@code [2,3,4]}, and {@code [3,4,5]} with step one produce conceptual
+     * accumulated values {@code [1,4,9,8,5]}. This method records that meaning but performs no
+     * addition. It accepts floating and integral inputs, rejects BOOL, and preserves exact type,
+     * gradient eligibility, and unaffected Dimension references.</p>
+     *
+     * <p>The fresh result is unlabeled, storage-free, and layout-unresolved, with
+     * {@link WindowTransformKind#FOLD_AXIS} and exact one-input provenance. Public fold and later
+     * compiler-generated unfold-adjoint use share this semantic kind; this method adds no gradient
+     * or compiler behavior.</p>
+     *
+     * @param axis raw target axis in {@code [-targetRank, targetRank - 1]}, where target rank is
+     *     one less than input rank
+     * @param outputSize non-negative restored target extent in logical elements
+     * @param step positive distance between consecutive window starts in logical elements
+     * @return a non-null fresh storage-free FOLD_AXIS tensor with the restored Shape, unresolved
+     *     layout, preserved type and gradient eligibility, and exact one-input provenance
+     * @throws IllegalArgumentException if input rank is below two, the input is BOOL, attributes
+     *     are invalid, required dimensions are dynamic, the final dimension is not positive, or
+     *     count, window-size, and target geometry are incompatible
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the target rank
+     * @throws ArithmeticException if checked expected-window arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor foldAxis(int axis, long outputSize, long step) {
+        return TensorWindowExpressions.foldAxis(this, axis, outputSize, step);
+    }
+
+    /**
+     * Creates canonical two-dimensional image-window columns from a rank-four NCHW tensor.
+     *
+     * <p>NCHW orders dimensions as batch, channel, height, and width. The channel and spatial
+     * dimensions must be static; the exact batch Dimension may remain dynamic. The supplied
+     * immutable window defines positive kernel, stride, and dilation values, non-negative
+     * symmetric padding on both sides of each spatial dimension, and floor or ceil output-size
+     * rounding. Dilation is the spacing between kernel samples, and the effective kernel span is
+     * {@code dilation * (kernel - 1) + 1}.</p>
+     *
+     * <p>For height and width independently, checked arithmetic calculates
+     * {@code numerator = input + 2 * padding - effectiveKernel}. The effective kernel must fit the
+     * padded dimension. Floor mode uses {@code numerator / stride + 1}; ceil mode increments the
+     * quotient when a remainder exists and then adds one. This avoids the overflow-prone
+     * {@code numerator + stride - 1} form. Result Shape is
+     * {@code [N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]}. For input
+     * {@code [1,1,3,3]} and a 2-by-2 unit-stride, zero-padding, unit-dilation floor-mode window,
+     * the result is {@code [1,4,4]}: one batch, four channel-kernel positions, and four windows.</p>
+     *
+     * <p>This im2col expression accepts only floating input. The fresh result preserves exact
+     * type and gradient eligibility, leaves layout unresolved, has no label or storage, and
+     * records {@link WindowTransformKind#UNFOLD2D} with this tensor as its sole input. It does not
+     * sample padding, read values, materialize columns, define gradients, or execute work.</p>
+     *
+     * @param window non-null immutable symmetric two-dimensional window geometry retained by
+     *     exact reference in operation attributes
+     * @return a non-null fresh rank-three canonical-column tensor with unresolved layout,
+     *     preserved floating type and gradient eligibility, and exact one-input provenance
+     * @throws NullPointerException if {@code window} is null, with message {@code window}
+     * @throws IllegalArgumentException if input is not rank-four NCHW, is not floating, has a
+     *     dynamic channel/height/width dimension, or an effective kernel does not fit
+     * @throws ArithmeticException if checked effective-kernel, padding, channel-window, spatial,
+     *     or output-count arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor unfold2d(Window2dAttrs window) {
+        return TensorWindowExpressions.unfold2d(this, window);
+    }
+
+    /**
+     * Creates an overlap-accumulating two-dimensional fold into an explicit NCHW Shape.
+     *
+     * <p>The input must be floating canonical im2col data with rank-three Shape
+     * {@code [N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]}. The requested output
+     * must have rank four in NCHW order, its exact batch Dimension must equal the column batch,
+     * and channel, height, width, column-channel, and column-count dimensions must be static. The
+     * same checked effective-kernel and floor/ceil formulas documented by
+     * {@link #unfold2d(Window2dAttrs)} determine compatibility.</p>
+     *
+     * <p>Col2im scatters each column entry to its image coordinate. Overlapping entries are added,
+     * uncovered positions are conceptually zero, and no overlap averaging occurs. For compatible
+     * 2-by-2 unit-stride columns folded to {@code [1,1,3,3]}, the center receives four
+     * contributions while each corner receives one. This expression records the operation only;
+     * it neither reads columns nor performs accumulation.</p>
+     *
+     * <p>The result retains the exact supplied Shape reference, input floating type, and gradient
+     * eligibility. It is fresh, unlabeled, storage-free, and layout-unresolved, with
+     * {@link WindowTransformKind#FOLD2D} and exact one-input provenance.</p>
+     *
+     * @param outputShape non-null explicit rank-four NCHW result Shape retained by exact reference
+     * @param window non-null immutable symmetric window geometry retained by exact reference
+     * @return a non-null fresh FOLD2D tensor with the exact output Shape, unresolved layout,
+     *     preserved floating type and gradient eligibility, and exact one-input provenance
+     * @throws NullPointerException if {@code outputShape} or {@code window} is null, checked in
+     *     that order with the parameter name as message
+     * @throws IllegalArgumentException if ranks, data type, batch identity, static dimensions,
+     *     channel-window extent, window count, or effective-kernel fit are incompatible
+     * @throws ArithmeticException if checked effective-kernel, padding, channel-window, spatial,
+     *     or window-count arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor fold2d(Shape outputShape, Window2dAttrs window) {
+        return TensorWindowExpressions.fold2d(this, outputShape, window);
     }
 
     /**

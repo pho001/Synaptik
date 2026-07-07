@@ -5,8 +5,8 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 /**
  * Carries normalized parameters for materializing sliding windows along one general axis.
  *
- * <p>The axis is already normalized to a non-negative value. A future public expression may
- * accept negative syntax, but only after input-rank context normalizes it. This record has no
+ * <p>The axis is already normalized to a non-negative value. The public Tensor expression accepts
+ * negative syntax only while input-rank context is available to normalize it. This record has no
  * rank or input Shape, so it cannot prove that the axis exists, that {@code size} fits the selected
  * extent, or that window-count arithmetic is representable.</p>
  *

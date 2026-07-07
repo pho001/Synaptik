@@ -20,7 +20,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  *
  * <p>The axis is already normalized in the target rank. This record has no input Shape, rank,
  * window size, or window count and therefore cannot validate bounds or compatibility. It names
- * the same semantic operation that task 0017N will expose publicly and task 0023 may later
+ * the same semantic operation that the public Tensor expression exposes and task 0023 may later
  * generate during autograd, without defining Tensor, gradient, compiler, backend, or execution
  * behavior.</p>
  *

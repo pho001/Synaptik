@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
+import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -79,7 +80,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(92, declaredPublicMethods.size());
+        assertEquals(96, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -91,7 +92,8 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "pad",
-                        "tile", "concat", "stack", "unstack"),
+                        "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
+                        "unfold2d", "fold2d"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -366,6 +368,22 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(unstack.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(unstack.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(unstack.getModifiers())));
+
+        for (var method : List.of(
+                Tensor.class.getDeclaredMethod(
+                        "unfold", int.class, long.class, long.class),
+                Tensor.class.getDeclaredMethod(
+                        "foldAxis", int.class, long.class, long.class),
+                Tensor.class.getDeclaredMethod("unfold2d", Window2dAttrs.class),
+                Tensor.class.getDeclaredMethod(
+                        "fold2d", Shape.class, Window2dAttrs.class))) {
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())),
+                    () -> assertFalse(method.isVarArgs()));
+        }
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

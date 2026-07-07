@@ -68,17 +68,18 @@ Its completed implementation frontier is:
   — Complete.
 - [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md)
   — Complete.
+- [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md)
+  — Complete.
 
 The next planning frontier is:
 
-- 0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions — Draft, without a
-  detailed specification.
+- 0018 Indexing and scatter operations — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
-0017A–0017M have detailed specifications and are complete. Task 0017N and all later subtasks
-remain Draft without detailed specifications.
+0017A–0017N have detailed specifications and are complete. Task 0018 and all later tasks remain
+Draft without detailed specifications.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -193,8 +194,14 @@ ordered or individually indexed provenance without producer grouping or cross-la
 Task [0017M](modules/model/tasks/0017m-unfold-and-fold-semantics.md) is complete. It defines
 general-axis sliding windows and their public/compiler-facing scatter-add fold, NCHW
 im2col columns, and overlap-accumulating col2im through typed immutable semantic parameters.
-Task 0017N will own all four public Tensor expressions. Task 0023 will later own compiler-generated
+Task 0017N owns all four public Tensor expressions. Task 0023 will later own compiler-generated
 FOLD_AXIS use for backward graphs; neither task changes the semantic identity defined by 0017M.
+Task [0017N](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) is complete with exact
+public signatures, locally provable static/dynamic Shape rules, checked window arithmetic,
+unresolved layouts, and one-input provenance without values, gradients, compiler behavior, or
+execution. Its independent documentation review passed focused 16-test, all 629 model-test across
+74 suites, model-Javadoc, root-test, executable-example, bytecode/reflection, generated-page,
+370-link/108-anchor, exact fifteen-path, synchronized-status, and no-0018-spec checks.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -304,7 +311,7 @@ authorized Compile API status correction.
 | 64 | [0017K Tensor composition semantics](modules/model/tasks/0017k-tensor-composition-semantics.md) | Complete |
 | 65 | [0017L Tensor composition expressions](modules/model/tasks/0017l-tensor-composition-expressions.md) | Complete |
 | 66 | [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md) | Complete |
-| 67 | 0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions | Draft |
+| 67 | [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete |
 | 68 | 0018 Indexing and scatter operations | Draft |
 | 69 | 0019 Linear algebra and attention operations | Draft |
 | 70 | 0020 Convolution and pooling operations | Draft |
@@ -356,8 +363,8 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
-complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, and 0017M are also complete. Task
-0017N and every later subtask remain Draft without a detailed specification.
+complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
+complete. Task 0018 and every later task remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

@@ -10,13 +10,13 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * each padding value applies symmetrically to both sides of its spatial dimension. Positions in
  * that padding sampled by {@link WindowTransformKind#UNFOLD2D} are conceptual zeros.</p>
  *
- * <p>For either spatial dimension, later static-Shape construction calculates
+ * <p>For either spatial dimension, current public static-Shape construction calculates
  * {@code effectiveKernel = dilation * (kernel - 1) + 1} and
  * {@code numerator = input + 2 * padding - effectiveKernel}. Floor mode uses
  * {@code floor(numerator / stride) + 1}; ceil mode uses
  * {@code ceil(numerator / stride) + 1}. Effective kernel is the span covered after dilation.
- * Task 0017N owns checked long arithmetic, fit checks, and result descriptors; this record performs
- * no multiplication, addition, division, or Shape validation.</p>
+ * Public Tensor expression construction owns checked long arithmetic, fit checks, and result
+ * descriptors; this record performs no multiplication, addition, division, or Shape validation.</p>
  *
  * <p>The same exact value contract parameterizes {@link WindowTransformKind#UNFOLD2D} directly
  * and is nested by {@link Fold2dAttrs} for {@link WindowTransformKind#FOLD2D}. It contains no

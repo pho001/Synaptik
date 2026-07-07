@@ -144,10 +144,10 @@ dimension supplies window size. `Window2dAttrs` stores positive kernel, stride, 
 non-negative symmetric padding, and a floor/ceil rounding choice. `Fold2dAttrs` retains one exact
 output Shape and one exact window-geometry reference. These values define materialized windows,
 scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction. Public
-`unfold`, `foldAxis`, `unfold2d`, and `fold2d` expressions remain planned for task 0017N. Task 0023
-separately owns compiler-generated `FOLD_AXIS` use for the unfold adjoint. Shape arithmetic,
-provenance, gradients, materialization, lowering, backend/ONNX behavior, and execution remain
-planned.
+`unfold`, `foldAxis`, `unfold2d`, and `fold2d` expressions now add checked Shape arithmetic,
+unresolved result layout, preserved data type and gradient eligibility, and one-input provenance.
+Task 0023 separately owns compiler-generated `FOLD_AXIS` use for the unfold adjoint. Gradients,
+materialization, compiler capture, lowering, backend/ONNX behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -510,8 +510,9 @@ axis, with the paired kind supplying the interpretation. `UnstackOutputAttrs` st
 source axis plus one non-negative logical coordinate on that axis. Neither value contains rank or
 extent context, so public composition construction must validate those bounds later.
 `UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
-restored target axis. Neither contains rank context, so the planned public task-0017N expressions
-must normalize raw negative syntax and prove bounds before constructing them.
+restored target axis. Neither contains rank context. Current public `unfold` normalizes raw syntax
+against the input rank; `foldAxis` normalizes it against the target rank after removing the final
+window dimension, then both prove bounds before constructing their attributes.
 
 ### Node
 
@@ -1377,7 +1378,7 @@ with `Fold2dAttrs`. Generic `Operation` retains these values but does not enforc
 
 General-axis unfold materializes windows along one normalized source axis without padding,
 dilation, or image assumptions. For static selected extent `D`, positive window `size`, and
-positive `step`, later Shape construction uses
+positive `step`, current public expression Shape construction uses
 `floor((D - size) / step) + 1` window positions after proving that `size <= D`. It replaces the
 selected extent with that count and appends `size` as the final result axis. Conceptual Shape
 `[2, 5, 3]` with axis `1`, size `3`, and step `1` therefore becomes `[2, 3, 3, 3]`. The semantic
@@ -1388,10 +1389,9 @@ as window size, removes it, restores one normalized target axis to the explicit 
 adds overlapping contributions. Conceptual windows of Shape `[3, 3]` with values
 `[[1, 2, 3], [4, 5, 6], [7, 8, 9]]`, target axis `0`, output size `5`, and step `1` produce Shape
 `[5]` with values `[1, 6, 15, 14, 9]`. Uncovered valid positions remain zero. Output size cannot
-always be inferred because trailing source positions might have appeared in no window. The
-planned public `foldAxis` expression in task 0017N and planned compiler-generated unfold adjoint
-in task 0023 share this one semantic identity; task 0017M defines neither consumer's construction
-logic.
+always be inferred because trailing source positions might have appeared in no window. The current
+public `foldAxis` expression and planned compiler-generated unfold adjoint in task 0023 share this
+one semantic identity.
 
 The two-dimensional forms use NCHW axis order: batch, channel, height, width. Im2col places
 sampled image windows into canonical rank-three columns; col2im scatters column entries back into
@@ -1403,7 +1403,8 @@ Shape `[1, 1, 3, 3]` gives four contributions to the center and one to each corn
 Stride is the positive distance between consecutive window starts. Dilation is the positive
 spacing between kernel samples. Symmetric padding is the same non-negative width on both sides of
 one spatial dimension, and unfold samples outside the source as conceptual zero. Effective kernel
-is the span after dilation. For each spatial dimension, later checked arithmetic uses:
+is the span after dilation. For each spatial dimension, current public expression construction
+uses checked arithmetic:
 
 ```text
 effectiveKernel = dilation * (kernel - 1) + 1
@@ -1414,9 +1415,12 @@ output          = ceil(numerator / stride) + 1        in ceil mode
 
 The immutable attributes validate only intrinsic component signs and nullness. They retain valid
 values and exact immutable Shape/window references without calculating geometry or proving rank,
-axis bounds, fit, column compatibility, or arithmetic representability. Public Tensor expression
-construction, Shape and data-type rules, layout, provenance, gradients, compiler behavior,
-materialization, lowering, backend/ONNX behavior, and execution remain planned. See
+axis bounds, fit, column compatibility, or arithmetic representability. Current public Tensor
+expression construction supplies that local validation, checked Shape arithmetic, preserved data
+type and gradient eligibility, unresolved layout, and exact one-input provenance. For fold-axis,
+the target rank is the result rank obtained after removing the input's final window dimension;
+the raw axis is normalized against that rank. Gradient rules, compiler behavior, materialization,
+lowering, backend/ONNX behavior, and execution remain planned. See
 [Window-transform semantic kinds and
 attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
 
@@ -1474,8 +1478,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, and tensor-composition families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, and indexed-unstack-output values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
