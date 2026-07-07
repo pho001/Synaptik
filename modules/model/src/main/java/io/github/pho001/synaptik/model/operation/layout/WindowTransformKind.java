@@ -1,0 +1,61 @@
+package io.github.pho001.synaptik.model.operation.layout;
+
+import io.github.pho001.synaptik.model.operation.OperationKind;
+
+/**
+ * Identifies backend-independent meanings for materializing and accumulating sliding windows.
+ *
+ * <p>{@link #UNFOLD_AXIS} and {@link #FOLD_AXIS} are general-axis operations with no image,
+ * padding, or dilation assumption. For example, unfolding conceptual Shape {@code [2, 5, 3]}
+ * along axis one with size three and step one produces conceptual Shape {@code [2, 3, 3, 3]}:
+ * the selected extent becomes three window positions and the window size is appended as the final
+ * axis. Unfold means materialized window semantics and does not promise a storage view.</p>
+ *
+ * <p>Folding is the scatter-add adjoint. Conceptual windows of Shape {@code [3, 3]} with values
+ * {@code [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}, axis zero, output size five, and step one produce
+ * conceptual Shape {@code [5]} with values {@code [1, 6, 15, 14, 9]}; overlapping contributions
+ * are summed. The explicit output size is required because window count, window size, and step do
+ * not identify trailing uncovered positions. The same semantic identity supports a public Tensor
+ * expression planned by task 0017N and later compiler-generated autograd use planned by task
+ * 0023.</p>
+ *
+ * <p>{@link #UNFOLD2D} and {@link #FOLD2D} use NCHW (batch, channel, height, width) image geometry.
+ * Two-dimensional unfold is im2col: conceptual Shape {@code [1, 1, 3, 3]} with a 2-by-2 kernel,
+ * unit stride and dilation, zero symmetric padding, and floor mode produces canonical columns of
+ * conceptual Shape {@code [1, 4, 4]}. Fold is overlap-summing col2im into an explicit
+ * {@code [1, 1, 3, 3]} output: the center receives four contributions while each corner receives
+ * one, with no overlap averaging.</p>
+ *
+ * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
+ * with {@link FoldAxisAttrs}, UNFOLD2D with {@link Window2dAttrs}, and FOLD2D with
+ * {@link Fold2dAttrs}. The generic {@code Operation} contract remains open and does not enforce
+ * these pairings. This enum performs no Tensor construction, Shape calculation, sampling,
+ * accumulation, layout or storage selection, gradient construction, graph/compiler work,
+ * lowering, backend dispatch, or execution.</p>
+ */
+public enum WindowTransformKind implements OperationKind {
+    /**
+     * Materializes no-padding, no-dilation sliding windows along the normalized axis in
+     * {@link UnfoldAxisAttrs}, replacing that extent with window positions and appending window
+     * size as the final result axis.
+     */
+    UNFOLD_AXIS,
+
+    /**
+     * Scatter-adds the final input window dimension along the normalized target axis in
+     * {@link FoldAxisAttrs}, restoring its explicit output extent and summing overlaps.
+     */
+    FOLD_AXIS,
+
+    /**
+     * Materializes a rank-four NCHW input as canonical rank-three im2col columns parameterized by
+     * {@link Window2dAttrs}.
+     */
+    UNFOLD2D,
+
+    /**
+     * Accumulates canonical rank-three columns into the explicit rank-four NCHW result described
+     * by {@link Fold2dAttrs}, summing rather than averaging overlapping contributions.
+     */
+    FOLD2D
+}

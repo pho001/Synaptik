@@ -5005,6 +5005,150 @@ described under [tensor composition expressions](#tensor-composition-expressions
 or decomposition, gradients, producer grouping, materialization, lowering, ONNX mapping, and
 execution remain planned.
 
+### Window-transform semantic kinds and attributes
+
+The public enum
+`io.github.pho001.synaptik.model.operation.layout.WindowTransformKind` implements `OperationKind`
+with exactly `UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D`, in that order. These
+backend-independent meanings materialize sliding windows or scatter-add window contributions;
+they do not construct Tensors, calculate result Shapes, or execute values.
+
+| Kind | Semantic meaning | Required attributes |
+|---|---|---|
+| `UNFOLD_AXIS` | Materialize no-padding, no-dilation windows along one normalized general axis; replace that extent with window positions and append window size as the final axis. | `UnfoldAxisAttrs` |
+| `FOLD_AXIS` | Interpret the eventual input's final dimension as window size, remove it, and scatter-add windows along one normalized target axis with an explicit restored extent. | `FoldAxisAttrs` |
+| `UNFOLD2D` | Convert one conceptual rank-four NCHW image tensor to canonical rank-three im2col columns. | `Window2dAttrs` |
+| `FOLD2D` | Accumulate canonical rank-three columns through col2im into one explicit rank-four NCHW result Shape. | `Fold2dAttrs` |
+
+NCHW orders axes as batch, channel, height, and width. Im2col places sampled image windows into
+columns; col2im scatters those column entries back to image coordinates and adds entries that
+target the same coordinate. These names explain the `UNFOLD2D` and `FOLD2D` meanings; they are
+not additional operation kinds.
+
+#### General-axis unfold and fold
+
+##### Goal and inputs
+
+Describe an axis unfold for conceptual input Shape `[2, 5, 3]`, then the matching one-dimensional
+scatter-add behavior independently. The unfold uses normalized axis `1`, window size `3`, and
+step `1`. The fold uses conceptual window input Shape `[3, 3]`, normalized target axis `0`,
+explicit output size `5`, and step `1`.
+
+```java
+UnfoldAxisAttrs unfoldAttrs = new UnfoldAxisAttrs(1, 3, 1);
+FoldAxisAttrs foldAttrs = new FoldAxisAttrs(0, 5, 1);
+
+Operation axisUnfold = new Operation(
+        WindowTransformKind.UNFOLD_AXIS,
+        unfoldAttrs);
+Operation axisFold = new Operation(
+        WindowTransformKind.FOLD_AXIS,
+        foldAttrs);
+```
+
+##### Result and interpretation
+
+For the unfold, the selected extent `5` has three window starts. Its conceptual result Shape is
+`[2, 3, 3, 3]`: axis `1` becomes the three-position window count, the former trailing extent `3`
+stays in place, and the window size `3` is appended as the new final axis. For a static selected
+extent `D`, later Shape construction calculates:
+
+```text
+windowCount = floor((D - size) / step) + 1
+```
+
+It first must prove `size <= D` and use checked `long` arithmetic. `UnfoldAxisAttrs` implements
+neither check nor calculation. General-axis unfold has no image, padding, or dilation assumption,
+and its meaning is materialized windows rather than a promise that a storage view exists.
+
+For the fold, suppose the conceptual `[3, 3]` windows contain
+`[[1, 2, 3], [4, 5, 6], [7, 8, 9]]`. Window element `offset` from window `windowIndex` targets
+`windowIndex * step + offset`. Scatter-add therefore gives conceptual Shape `[5]` with values
+`[1, 6, 15, 14, 9]`. Overlaps sum, and valid target positions receiving no contribution remain
+zero. `outputSize` is explicit because window count, final-dimension window size, and step do not
+identify trailing positions that the windows did not cover.
+
+The input's final dimension supplies `FOLD_AXIS` window size; `FoldAxisAttrs` deliberately does
+not duplicate it. The same `FOLD_AXIS` semantic identity is intended for the public
+`Tensor.foldAxis` expression planned by task 0017N and compiler-generated unfold adjoints planned
+by task 0023. Task 0017M defines only the shared meaning, not public Tensor construction or an
+autograd rule.
+
+##### Validation and ownership
+
+Both records store an already normalized non-negative `axis`. A later public API may accept a
+negative axis only while it has a target rank available to normalize and bounds-check the request.
+`UnfoldAxisAttrs` requires positive `size` and `step`. `FoldAxisAttrs` accepts non-negative
+`outputSize`, including zero, and requires positive `step`. Both check components in declaration
+order and retain every valid primitive unchanged, including their maximum values. They contain no
+rank or Shape, so construction cannot prove axis bounds, size fit, input-window compatibility, or
+arithmetic representability.
+
+#### NCHW im2col and overlap-summing col2im
+
+##### Goal and inputs
+
+Describe `UNFOLD2D` for conceptual NCHW Shape `[1, 1, 3, 3]` with a 2-by-2 kernel, unit stride,
+zero symmetric padding, unit dilation, and floor mode, then pair the same window geometry with an
+explicit fold output Shape.
+
+```java
+Window2dAttrs window = new Window2dAttrs(
+        2, 2,
+        1, 1,
+        0, 0,
+        1, 1,
+        false);
+Fold2dAttrs fold = new Fold2dAttrs(Shape.of(1, 1, 3, 3), window);
+
+Operation imageUnfold = new Operation(
+        WindowTransformKind.UNFOLD2D,
+        window);
+Operation imageFold = new Operation(
+        WindowTransformKind.FOLD2D,
+        fold);
+```
+
+##### Geometry and result
+
+Stride is the positive distance between consecutive window starts. Dilation is the positive
+spacing between adjacent kernel samples. Symmetric padding adds the same non-negative logical
+width on both sides of a spatial dimension; `UNFOLD2D` treats sampled positions outside the
+source as conceptual zeros. Effective kernel is the spatial span covered after dilation. For
+height and width independently, later static-Shape construction uses:
+
+```text
+effectiveKernel = dilation * (kernel - 1) + 1
+numerator       = input + 2 * padding - effectiveKernel
+output          = floor(numerator / stride) + 1       when ceilMode is false
+output          = ceil(numerator / stride) + 1        when ceilMode is true
+```
+
+Floor mode rounds the quotient down; ceil mode rounds it up. Task 0017N must perform these
+calculations with checked `long` arithmetic and require the effective kernel to fit the padded
+dimension. `Window2dAttrs` stores the exact geometry and rounding flag but evaluates no formula.
+
+The example has output height and width `2`. Canonical im2col Shape is
+`[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`, so the conceptual result is
+`[1, 4, 4]`. Folding compatible columns into explicit Shape `[1, 1, 3, 3]` scatter-adds repeated
+coordinates: the center receives four contributions and each corner receives one. Col2im does not
+divide by overlap count, and uncovered output positions remain zero.
+
+##### Structural boundary
+
+`Window2dAttrs` requires positive kernel, stride, and dilation dimensions and non-negative
+padding dimensions, validating them in component order. It retains valid `long` values and
+`ceilMode` unchanged without arithmetic. `Fold2dAttrs` null-checks `outputShape` before `window`
+and retains both exact immutable references. The structural record accepts every current Shape
+category, including scalar, non-rank-four, zero-extent, and dynamic Shapes, because it has no input
+columns to compare. Task 0017N must establish the public rank-four NCHW/static compatibility
+boundary before constructing a fold expression.
+
+Generic `Operation` retains each exact kind and attributes reference but does not enforce the four
+documented pairings. None of these semantic values defines Tensor construction, result-data-type
+rules, resolved layout, storage, provenance, gradients, graph/compiler behavior, planning,
+prepare, runtime, backend or ONNX behavior, materialization, or execution.
+
 ### Unary elementwise semantic kinds
 
 The public enum
@@ -5307,13 +5451,14 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
-  stack, and unstack requests, plus
+  stack, and unstack requests; public unfold, fold-axis, unfold2d, and fold2d requests; plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, and tensor-composition semantics, plus family-specific
-  attribute values beyond those documented above;
+  axis-transform, slice, pad, tile, tensor-composition, and window-transform semantics, plus
+  family-specific attribute values beyond those documented above; public expression construction
+  for the current window-transform semantic family;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
 - planning, prepare, runtime, publication execution, and backend execution.
@@ -5326,7 +5471,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
-`UnstackOutputAttrs`, `GraphValue`, `CompiledNode`,
+`UnstackOutputAttrs`, `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
+`Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
 boolean logical, unary
@@ -5358,6 +5504,13 @@ exact type/Shape validation, locally representable result Shapes, unresolved des
 eligibility propagation, immutable result lists, and individually indexed provenance are model
 behavior. Any grouped producer representation, compiler capture or decomposition, gradients,
 materialization, lowering, ONNX mapping, and execution remain planned.
+Window-transform semantic kinds and immutable normalized attributes are current. They represent
+general-axis window materialization and scatter-add fold, plus NCHW im2col and overlap-summing
+col2im, without Tensor construction. Public `unfold`, `foldAxis`, `unfold2d`, and `fold2d`
+expression construction remains planned for task 0017N. Task 0023 separately owns future
+compiler-generated `FOLD_AXIS` use for the unfold adjoint; both consumers reuse the current
+semantic identity. Shape calculation, provenance, gradients, compiler behavior, materialization,
+lowering, backend/ONNX behavior, and execution remain planned.
 
 ## Failures and ownership summary
 

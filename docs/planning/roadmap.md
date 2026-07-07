@@ -66,15 +66,18 @@ Its completed implementation frontier is:
   — Complete.
 - [0017L Tensor composition expressions](modules/model/tasks/0017l-tensor-composition-expressions.md)
   — Complete.
+- [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md)
+  — Complete.
 
 The next planning frontier is:
 
-- 0017M Unfold and fold semantics — Draft, without a detailed specification.
+- 0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions — Draft, without a
+  detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
-0017A–0017L have detailed specifications and are complete. Task 0017M and all later subtasks
+0017A–0017M have detailed specifications and are complete. Task 0017N and all later subtasks
 remain Draft without detailed specifications.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
@@ -187,6 +190,11 @@ and individually indexed UNSTACK-output semantics without provenance or graph ch
 [0017L](modules/model/tasks/0017l-tensor-composition-expressions.md) is complete with ordered public
 concat/stack, immutable-list unstack expression construction, unresolved result layouts, and exact
 ordered or individually indexed provenance without producer grouping or cross-layer behavior.
+Task [0017M](modules/model/tasks/0017m-unfold-and-fold-semantics.md) is complete. It defines
+general-axis sliding windows and their public/compiler-facing scatter-add fold, NCHW
+im2col columns, and overlap-accumulating col2im through typed immutable semantic parameters.
+Task 0017N will own all four public Tensor expressions. Task 0023 will later own compiler-generated
+FOLD_AXIS use for backward graphs; neither task changes the semantic identity defined by 0017M.
 
 Package migrations `0003A` through `0003C` and tasks `0004`–`0012` are complete. Task `0012`
 implemented only descriptor-based construction, optional borrowed storage attachment, and
@@ -295,8 +303,8 @@ authorized Compile API status correction.
 | 63 | [0017J Pad and tile Tensor expressions](modules/model/tasks/0017j-pad-and-tile-tensor-expressions.md) | Complete |
 | 64 | [0017K Tensor composition semantics](modules/model/tasks/0017k-tensor-composition-semantics.md) | Complete |
 | 65 | [0017L Tensor composition expressions](modules/model/tasks/0017l-tensor-composition-expressions.md) | Complete |
-| 66 | 0017M Unfold and fold semantics | Draft |
-| 67 | 0017N Unfold and fold Tensor expressions | Draft |
+| 66 | [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md) | Complete |
+| 67 | 0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions | Draft |
 | 68 | 0018 Indexing and scatter operations | Draft |
 | 69 | 0019 Linear algebra and attention operations | Draft |
 | 70 | 0020 Convolution and pooling operations | Draft |
@@ -348,8 +356,8 @@ cast-chain canonicalization. The broad former task 0016 is now decomposed into 0
 scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are complete. Tasks
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
-complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, and 0017L are also complete. Task 0017M
-and every later subtask remain Draft without detailed specifications.
+complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, and 0017M are also complete. Task
+0017N and every later subtask remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

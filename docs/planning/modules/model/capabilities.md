@@ -222,11 +222,18 @@ Comparison and logical results use `BOOL`. Logical inputs must follow the new da
 - constant `pad`;
 - `tile`;
 - `concat`, `stack`, and `unstack`;
-- single-axis `unfold`;
+- single-axis `unfold` and overlap-accumulating `foldAxis`;
 - `unfold2d`; and
 - `fold2d`.
 
 The two-dimensional unfold/fold window contract includes kernel, stride, symmetric padding, dilation, and `ceilMode` options.
+
+`foldAxis` is an intentional capability addition beyond the legacy public surface. It restores an
+explicit target extent by scatter-adding the final window dimension along one target axis. The
+same first-class semantic operation supports both a public Tensor expression and later
+compiler-generated use as the adjoint of single-axis `unfold`. Its planned public form is
+`foldAxis(int axis, long outputSize, long step)`; window size comes from the input's final
+dimension.
 
 The model expresses alias and view semantics. Backend-neutral planning derives logical materialization requirements from those semantics, and prepare/runtime/backend layers realize the required storage and copies.
 

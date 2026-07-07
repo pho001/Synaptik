@@ -136,6 +136,18 @@ one-provenance-per-Tensor model; it is not a graph output slot or producer-group
 composition expressions now provide Shape/type/input validation, immutable result collection
 construction, and exact provenance attachment. Compiler capture or decomposition, producer
 grouping, gradients, materialization, lowering, ONNX mapping, and execution remain planned.
+The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
+`FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
+normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
+target axis, explicit non-negative output extent, and positive step; the eventual input's final
+dimension supplies window size. `Window2dAttrs` stores positive kernel, stride, and dilation,
+non-negative symmetric padding, and a floor/ceil rounding choice. `Fold2dAttrs` retains one exact
+output Shape and one exact window-geometry reference. These values define materialized windows,
+scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction. Public
+`unfold`, `foldAxis`, `unfold2d`, and `fold2d` expressions remain planned for task 0017N. Task 0023
+separately owns compiler-generated `FOLD_AXIS` use for the unfold adjoint. Shape arithmetic,
+provenance, gradients, materialization, lowering, backend/ONNX behavior, and execution remain
+planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
@@ -497,6 +509,9 @@ planned public request syntax that must be normalized before constructing these 
 axis, with the paired kind supplying the interpretation. `UnstackOutputAttrs` stores a normalized
 source axis plus one non-negative logical coordinate on that axis. Neither value contains rank or
 extent context, so public composition construction must validate those bounds later.
+`UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
+restored target axis. Neither contains rank context, so the planned public task-0017N expressions
+must normalize raw negative syntax and prove bounds before constructing them.
 
 ### Node
 
@@ -540,9 +555,12 @@ inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` 
 ordered before/after widths and one raw binary64 constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
 shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
-one individually identified unstack result. Other families may define records for another
-operation-specific value. Implementations use typed fields, defensively
-isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
+one individually identified unstack result. `UnfoldAxisAttrs` carries normalized general-axis
+window size and step; `FoldAxisAttrs` carries normalized target axis, explicit restored extent,
+and step. `Window2dAttrs` carries symmetric NCHW kernel/stride/padding/dilation geometry and its
+rounding flag, while `Fold2dAttrs` carries one exact output Shape plus that shared geometry. Other
+families may define records for another operation-specific value. Implementations use typed
+fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
 Kinds without parameters use [`NoOperationAttrs.INSTANCE`](#nooperationattrs). The marker
 identifies the role of a value but does not enforce immutability at runtime.
@@ -682,8 +700,11 @@ The fourteenth is `SliceKind`, whose sole `SLICE` value pairs with `SliceAttrs` 
 `TILE` values pair with `PadAttrs` and `TileAttrs` as described under [padding](#padding) and
 [tiling](#tiling). The seventeenth is `TensorCompositionKind`, whose `CONCAT` and `STACK` values
 pair with `CompositionAxisAttrs` and whose `UNSTACK` value pairs with `UnstackOutputAttrs`, as
-described under [tensor composition](#tensor-composition). These semantic families do not by
-themselves construct Tensors or define compiler, backend, or execution behavior.
+described under [tensor composition](#tensor-composition). The eighteenth is
+`WindowTransformKind`: `UNFOLD_AXIS` pairs with `UnfoldAxisAttrs`, `FOLD_AXIS` with
+`FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
+under [window transform](#window-transform). These semantic families do not by themselves
+construct Tensors or define compiler, backend, or execution behavior.
 
 ### Padding
 
@@ -1346,6 +1367,58 @@ A validated non-negative identifier for an input, intermediate, or output logica
 ### View
 
 A tensor or layout interpretation that aliases storage also used by another logical tensor representation. A view may change shape, strides, or offset without copying elements. In the implemented `LayoutDescriptor`, view is explicit metadata independent of geometric kind, except that broadcast repetition through a zero stride must be marked as a view.
+
+### Window transform
+
+An implemented backend-independent sliding-window meaning represented by
+`WindowTransformKind`. The exact kind/attributes pairings are `UNFOLD_AXIS` with
+`UnfoldAxisAttrs`, `FOLD_AXIS` with `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D`
+with `Fold2dAttrs`. Generic `Operation` retains these values but does not enforce the pairings.
+
+General-axis unfold materializes windows along one normalized source axis without padding,
+dilation, or image assumptions. For static selected extent `D`, positive window `size`, and
+positive `step`, later Shape construction uses
+`floor((D - size) / step) + 1` window positions after proving that `size <= D`. It replaces the
+selected extent with that count and appends `size` as the final result axis. Conceptual Shape
+`[2, 5, 3]` with axis `1`, size `3`, and step `1` therefore becomes `[2, 3, 3, 3]`. The semantic
+contract describes materialized windows rather than promising a storage view.
+
+General-axis fold is the scatter-add adjoint. It interprets the eventual input's final dimension
+as window size, removes it, restores one normalized target axis to the explicit `outputSize`, and
+adds overlapping contributions. Conceptual windows of Shape `[3, 3]` with values
+`[[1, 2, 3], [4, 5, 6], [7, 8, 9]]`, target axis `0`, output size `5`, and step `1` produce Shape
+`[5]` with values `[1, 6, 15, 14, 9]`. Uncovered valid positions remain zero. Output size cannot
+always be inferred because trailing source positions might have appeared in no window. The
+planned public `foldAxis` expression in task 0017N and planned compiler-generated unfold adjoint
+in task 0023 share this one semantic identity; task 0017M defines neither consumer's construction
+logic.
+
+The two-dimensional forms use NCHW axis order: batch, channel, height, width. Im2col places
+sampled image windows into canonical rank-three columns; col2im scatters column entries back into
+an explicit NCHW output and sums entries targeting the same coordinate without overlap averaging.
+For conceptual NCHW Shape `[1, 1, 3, 3]`, a 2-by-2 kernel, unit stride and dilation, zero symmetric
+padding, and floor mode produce im2col Shape `[1, 4, 4]`. Folding compatible columns into explicit
+Shape `[1, 1, 3, 3]` gives four contributions to the center and one to each corner.
+
+Stride is the positive distance between consecutive window starts. Dilation is the positive
+spacing between kernel samples. Symmetric padding is the same non-negative width on both sides of
+one spatial dimension, and unfold samples outside the source as conceptual zero. Effective kernel
+is the span after dilation. For each spatial dimension, later checked arithmetic uses:
+
+```text
+effectiveKernel = dilation * (kernel - 1) + 1
+numerator       = input + 2 * padding - effectiveKernel
+output          = floor(numerator / stride) + 1       in floor mode
+output          = ceil(numerator / stride) + 1        in ceil mode
+```
+
+The immutable attributes validate only intrinsic component signs and nullness. They retain valid
+values and exact immutable Shape/window references without calculating geometry or proving rank,
+axis bounds, fit, column compatibility, or arithmetic representability. Public Tensor expression
+construction, Shape and data-type rules, layout, provenance, gradients, compiler behavior,
+materialization, lowering, backend/ONNX behavior, and execution remain planned. See
+[Window-transform semantic kinds and
+attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
 
 ## Common distinctions
 
