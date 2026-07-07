@@ -79,17 +79,19 @@ Its completed implementation frontier is:
 - [0018D1 Primitive take convenience](modules/model/tasks/0018d1-primitive-take-convenience.md)
   — Complete.
 - [0018E Gather-ND semantics](modules/model/tasks/0018e-gather-nd-semantics.md) — Complete.
+- [0018F Gather-ND Tensor expressions](modules/model/tasks/0018f-gather-nd-tensor-expressions.md)
+  — Complete.
 
 The next planning frontier is:
 
-- 0018F Gather-ND Tensor expression — Draft without a detailed specification.
+- 0018G Axis scatter semantics — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018E are complete; tasks 0018F–0018J and all later tasks remain
+expressions. Tasks 0018A through 0018F are complete; tasks 0018G–0018J and all later tasks remain
 Draft without detailed specifications.
 
 Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
@@ -136,9 +138,22 @@ Task [0018E](modules/model/tasks/0018e-gather-nd-semantics.md) is complete with 
 documentation review finalized both production Javadocs, Tensor API, glossary, task evidence,
 model master plan, and roadmap after focused 9-test, all 684-model-test/80-suite, model-Javadoc,
 root-test, bytecode/reflection/import/source/generated-page, Markdown, exact eight-path,
-synchronized-status, and no-0018F-spec checks passed. Task 0018F retains all public Tensor,
+synchronized-status, and no-0018F-spec checks passed. Task 0018F now completes the public Tensor,
 rank/batch/tuple-depth/index-type/result-Shape, and provenance work; gradients, compiler behavior,
 lowering, bounds, and execution remain deferred to their owning layers.
+
+Task [0018F](modules/model/tasks/0018f-gather-nd-tensor-expressions.md) is complete with exact
+zero-batch and explicit-batch public Gather-ND expressions. Its independent documentation review
+finalized Tensor/helper and the two authorized semantic temporal Javadocs, Tensor and Compile API
+references, glossary, task evidence, model master plan, and roadmap after focused 10-test and
+14-test suites, all 694 model tests across 81 suites, model Javadoc, root tests, executable
+example, bytecode/reflection/import/source/generated-page, 417-link/121-anchor,
+fence/whitespace/newline, exact twelve-path, synchronized-status, semantic-bytecode-equivalence,
+and no-0018G-spec checks passed. Construction validates exact integral index metadata, ranks,
+structural batch prefixes, and static positive tuple depth, derives exact prefix-plus-suffix Shape
+including canonical scalar, and records fresh ordered provenance without reading values. Index
+bounds, gradients, compiler behavior, materialization, lowering, backend behavior, and execution
+remain deferred.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -377,7 +392,7 @@ authorized Compile API status correction.
 | 71 | [0018D Axis gather Tensor expressions](modules/model/tasks/0018d-axis-gather-tensor-expressions.md) | Complete |
 | 72 | [0018D1 Primitive take convenience](modules/model/tasks/0018d1-primitive-take-convenience.md) | Complete |
 | 73 | [0018E Gather-ND semantics](modules/model/tasks/0018e-gather-nd-semantics.md) | Complete |
-| 74 | 0018F Gather-ND Tensor expression | Draft |
+| 74 | [0018F Gather-ND Tensor expressions](modules/model/tasks/0018f-gather-nd-tensor-expressions.md) | Complete |
 | 75 | 0018G Axis scatter semantics | Draft |
 | 76 | 0018H Axis scatter Tensor expressions | Draft |
 | 77 | 0018I Scatter-ND semantics | Draft |
@@ -434,8 +449,8 @@ scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
-complete. Tasks 0018C, 0018D, 0018D1, and 0018E are also complete; tasks 0018F–0018J and every
-later task remain Draft without a detailed specification.
+complete. Tasks 0018C, 0018D, 0018D1, 0018E, and 0018F are also complete. Tasks 0018G–0018J and
+every later task remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

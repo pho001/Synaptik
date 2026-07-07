@@ -22,16 +22,16 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * <p>This value stores neither input nor its rank, Shape, or final indices Dimension. It therefore
  * cannot verify that {@code B < Q}, that the batch Dimensions match, or that
  * {@code 1 <= K <= R - B}. Tuple depth remains occurrence-specific input Shape data rather than
- * duplicated attribute state. A later input-aware expression boundary owns those checks, index
- * data-type validation, and result construction. Zero and {@link Integer#MAX_VALUE} are
- * structurally valid here because no input ranks are present.</p>
+ * duplicated attribute state. The public input-aware Tensor expression boundary owns those
+ * checks, index data-type validation, and result construction. Zero and
+ * {@link Integer#MAX_VALUE} are structurally valid here because no input ranks are present.</p>
  *
  * <p>The exact semantic composition is an {@code Operation} whose kind is
  * {@link GatherNdKind#GATHER_ND} and whose attributes are this value. Generic operation
  * composition retains both values but does not enforce their compatibility. The immutable record
  * retains its primitive component unchanged. Record-generated equality and hashing use that
  * component, and generated text is diagnostic rather than a serialization, request, parsing,
- * compiler-dispatch, or backend contract. Future zero-batch convenience uses
+ * compiler-dispatch, or backend contract. The public zero-batch convenience uses
  * {@code new GatherNdAttrs(0)} rather than a default constructor, singleton, or separate kind.</p>
  *
  * <p>These attributes define no Tensor construction, descriptor, provenance, storage, value

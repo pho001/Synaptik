@@ -27,9 +27,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *
  * <p>The kind pairs explicitly with {@link GatherNdAttrs}. The final indices Dimension supplies
  * tuple depth for each operation occurrence, so that input-specific value is not duplicated in
- * the attributes. A later input-aware expression boundary validates ranks, the shared batch
- * prefix, tuple depth, index data type, and the result Shape. This enum performs no input
- * inspection, validation, result construction, bounds checking, or execution.</p>
+ * the attributes. The public input-aware Tensor expression boundary validates ranks, the shared
+ * batch prefix, tuple depth, index data type, and the result Shape. This enum itself performs no
+ * input inspection, validation, result construction, bounds checking, or execution.</p>
  *
  * <p>Gather-ND differs from scalar {@link SelectKind#SELECT}, whose one intrinsic coordinate
  * removes one axis, and from {@link AxisGatherKind}, whose index values address one selected data
@@ -43,10 +43,10 @@ public enum GatherNdKind implements OperationKind {
      * Reads values or suffix slices selected by coordinate tuples after a shared batch prefix.
      *
      * <p>The ordered logical inputs are {@code [data, indices]}, tuple depth comes from the final
-     * indices Dimension, and the normalized batch count comes from {@link GatherNdAttrs}. Future
-     * zero-batch convenience uses {@code new GatherNdAttrs(0)} rather than another operation kind.
-     * This constant does not validate inputs, calculate a result Shape, inspect index values, or
-     * execute work.</p>
+     * indices Dimension, and the normalized batch count comes from {@link GatherNdAttrs}. The
+     * public zero-batch convenience uses {@code new GatherNdAttrs(0)} rather than another
+     * operation kind. This constant does not validate inputs, calculate a result Shape, inspect
+     * index values, or execute work.</p>
      */
     GATHER_ND
 }

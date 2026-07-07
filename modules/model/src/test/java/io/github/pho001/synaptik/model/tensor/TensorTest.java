@@ -80,7 +80,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(102, declaredPublicMethods.size());
+        assertEquals(104, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -92,7 +92,7 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "select",
-                        "gather", "gatherAxis", "take", "takeAlongAxis", "pad",
+                        "gather", "gatherAxis", "take", "takeAlongAxis", "gatherNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
                         "unfold2d", "fold2d"),
                 publicMethods);
@@ -345,6 +345,20 @@ class TensorTest {
                     () -> assertTrue(Modifier.isPublic(method.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
+        for (Class<?>[] parameters : List.of(
+                new Class<?>[] {Tensor.class},
+                new Class<?>[] {Tensor.class, int.class})) {
+            var gatherNd = Tensor.class.getDeclaredMethod("gatherNd", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, gatherNd.getReturnType()),
+                    () -> assertEquals(
+                            List.of(parameters), Arrays.asList(gatherNd.getParameterTypes())),
+                    () -> assertFalse(gatherNd.isVarArgs()),
+                    () -> assertTrue(Modifier.isPublic(gatherNd.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(gatherNd.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(gatherNd.getModifiers())));
         }
 
         for (Class<?> indexType : List.of(Tensor.class, int[].class)) {

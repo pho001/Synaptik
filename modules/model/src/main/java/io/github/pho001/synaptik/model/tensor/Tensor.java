@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
+import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -76,8 +78,11 @@ import java.util.Optional;
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
  * defining empty-axis behavior. Axis gather methods consume ordered {@code [data, indices]}
  * inputs, require exact INT32 or INT64 indices, and apply distinct reduced, inserted, or aligned
- * Shape rules without reading index values or checking their bounds. Cumulative sum accepts one
- * axis of a floating or integral input,
+ * Shape rules without reading index values or checking their bounds. Gather-ND methods consume
+ * the same ordered inputs as coordinate tuples, validate a structurally equal shared batch
+ * prefix and statically known positive tuple depth, and derive an indices-prefix-plus-data-suffix
+ * Shape without reading index values. Cumulative sum accepts one axis of a floating or integral
+ * input,
  * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
@@ -124,8 +129,9 @@ import java.util.Optional;
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
- * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link ContiguousKind},
- * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind}, {@link PadKind},
+ * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link GatherNdKind},
+ * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
+ * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
@@ -2597,6 +2603,80 @@ public final class Tensor {
      */
     public Tensor takeAlongAxis(Tensor indices, int axis) {
         return TensorAxisGatherExpressions.takeAlongAxis(this, indices, axis);
+    }
+
+    /**
+     * Creates a fresh tuple-index expression with no shared leading batch Dimensions.
+     *
+     * <p>This convenience is exactly {@code gatherNd(indices, 0)}. The non-null
+     * {@code indices} tensor must have exact {@link DataType#INT32} or
+     * {@link DataType#INT64} type and rank at least one. Its final Dimension must have a
+     * statically known positive extent {@code K} no greater than this tensor's rank. That extent
+     * is tuple depth: each tuple addresses the first {@code K} data axes. The result Shape is the
+     * indices Shape without its final Dimension followed by the remaining data Dimensions. For
+     * data {@code [2, 3, 4]} and indices {@code [5, 2]}, the result is {@code [5, 4]}; data
+     * {@code [2, 3]} and indices {@code [2]} produce the canonical scalar Shape {@code []}.</p>
+     *
+     * <p>The result preserves this tensor's exact data type and gradient eligibility, has
+     * unresolved layout, no label or storage, and records {@link GatherNdKind#GATHER_ND},
+     * {@code new GatherNdAttrs(0)}, and ordered exact provenance {@code [this, indices]}. No index
+     * value or bound is inspected. This method defines no gradient, scatter, compiler capture,
+     * materialization, backend support, or execution behavior.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate-tuple tensor; its final static Dimension
+     *     supplies tuple depth, and it is retained by exact reference without mutation
+     * @return a non-null fresh storage-free GATHER_ND tensor with the derived Shape, preserved
+     *     data metadata, unresolved layout, and exact provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if index type, rank, tuple depth, or data-rank compatibility
+     *     is invalid
+     * @throws ArithmeticException if checked result-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor gatherNd(Tensor indices) {
+        return TensorGatherNdExpressions.gatherNd(this, indices);
+    }
+
+    /**
+     * Creates a fresh tuple-index expression after shared leading batch Dimensions.
+     *
+     * <p>The ordered logical inputs are {@code [this, indices]}. Indices must have exact
+     * {@link DataType#INT32} or {@link DataType#INT64} type and rank at least one. The non-negative
+     * {@code batchDimensions} count must be smaller than both input ranks, and each leading batch
+     * Dimension must be structurally equal in increasing axis order. Equal static sizes and equal
+     * dynamic symbols pass; broadcasting and symbolic constraint generation are not performed.</p>
+     *
+     * <p>The final indices Dimension must be static. Its positive extent {@code K} is tuple depth
+     * and must not exceed {@code dataRank - batchDimensions}. Each tuple indexes data axes
+     * {@code [batchDimensions, batchDimensions + K)}. The result Shape is the indices prefix
+     * excluding only its final tuple-depth Dimension, followed by the untouched data suffix. Data
+     * {@code [2, 3, 4]}, indices {@code [2, 5, 1]}, and one batch Dimension produce
+     * {@code [2, 5, 4]}. Data {@code [N, 3, 4]}, indices {@code [N, M, 1]}, and one batch
+     * Dimension produce {@code [N, M, 4]} while retaining the exact {@code N}, {@code M}, and
+     * suffix Dimension references.</p>
+     *
+     * <p>The fresh result preserves this tensor's exact data type and gradient eligibility, has
+     * unresolved layout, no label or storage, and records {@link GatherNdKind#GATHER_ND}, exact
+     * {@link GatherNdAttrs}, and ordered provenance. Validation never reads index values or checks
+     * bounds. This tuple-index operation is distinct from one-axis gather and scatter-ND and
+     * defines no gradient, compiler capture, materialization, backend support, or execution.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate-tuple tensor; retained by exact reference
+     *     in provenance without mutation or value access
+     * @param batchDimensions non-negative number of shared leading data and indices Dimensions;
+     *     must be smaller than both ranks
+     * @return a non-null fresh storage-free GATHER_ND tensor with derived Shape, preserved data
+     *     metadata, unresolved layout, and exact provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if batch count, index type or rank, shared batch prefix, or
+     *     static positive tuple depth is invalid
+     * @throws ArithmeticException if checked result-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor gatherNd(Tensor indices, int batchDimensions) {
+        return TensorGatherNdExpressions.gatherNd(this, indices, batchDimensions);
     }
 
     /**

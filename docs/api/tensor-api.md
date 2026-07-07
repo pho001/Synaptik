@@ -33,6 +33,10 @@ logical view geometry when the input layout is resolved and the result is non-em
 primitive sequence to that same operation through one dense rank-one INT32 index Tensor.
 `takeAlongAxis(Tensor, int)` retains the exact same-rank indices Shape after checking every
 non-selected Dimension.
+`gatherNd(Tensor)` and `gatherNd(Tensor, int)` use coordinate tuples to index several data axes
+after zero or more structurally equal shared batch Dimensions. They require a static positive
+tuple depth, derive the result from the indices prefix plus the untouched data suffix, and never
+inspect index values.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -116,9 +120,10 @@ None of the methods interprets index values or checks their bounds.
 `GatherNdAttrs(batchDimensions)`, which stores only the normalized non-negative count of shared
 leading batch Dimensions. Ordered logical inputs are `[data, indices]`; the final indices
 Dimension supplies tuple depth `K`, so that occurrence-specific fact is not duplicated in the
-attributes. Public `Tensor.gatherNd`, input-rank and batch compatibility checks, tuple-depth and
-index-type validation, result construction, provenance, gradients, compiler behavior, backend
-behavior, and execution remain planned.
+attributes. Public `Tensor.gatherNd` construction now owns exact `INT32`/`INT64` index-type checks,
+input-rank and batch compatibility, structural batch-prefix equality, static positive tuple-depth
+validation, result Shape construction, and exact ordered provenance. Index-value bounds,
+gradients, compiler behavior, backend behavior, and execution remain planned or separately owned.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -174,6 +179,7 @@ Tensor + reduced-Shape indices + GATHER           = fresh reduced-Shape gather T
 Tensor + arbitrary indices + GATHER_AXIS          = fresh inserted-Shape axis-gather Tensor
 Tensor + non-empty copied int[] + GATHER_AXIS     = eager dense index Tensor + fresh axis-gather Tensor
 Tensor + same-rank aligned indices + TAKE_ALONG_AXIS = fresh exact-indices-Shape Tensor
+Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-data-suffix Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
 rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
@@ -4177,6 +4183,143 @@ execute the expression.
 - If final result-identifier allocation is exhausted, the generated index Tensor and its
   identifier already exist. The convenience performs no storage or identifier rollback.
 
+### Gather-ND expressions
+
+The two public Gather-ND methods consume ordered logical inputs `[data, indices]`. The receiver is
+`data`; `indices` must use exact `INT32` or `INT64` elements and have rank at least one. The
+one-argument method is exactly the zero-batch form of `gatherNd(indices, batchDimensions)`.
+
+The explicit non-negative batch count `B` must be smaller than both input ranks. Data and indices
+Dimensions on axes `[0, B)` must be structurally equal: equal static sizes and equal dynamic
+symbols pass, while broadcasting and new symbolic constraints are not introduced. The final
+indices Dimension must have a statically known positive extent `K`, the tuple depth, no greater
+than `dataRank - B`. Each tuple indexes data axes `[B, B + K)`.
+
+For data rank `R` and indices rank `Q`, expression construction creates the result Shape once as:
+
+```text
+indices.shape[0:Q-1] + data.shape[B+K:R]
+```
+
+The result retains the exact Dimension references from the indices prefix and untouched data
+suffix. If both parts are empty, `Shape.ofDimensions` returns the canonical rank-zero scalar
+Shape. Every valid request creates a fresh, unlabeled, storage-free Tensor with the data Tensor's
+exact type and gradient eligibility, unresolved layout, `GatherNdKind.GATHER_ND`, one exact
+`GatherNdAttrs(B)`, and provenance containing exact references in `[data, indices]` order.
+
+#### Complete Gather-ND expression example
+
+##### Goal and inputs
+
+Construct zero-batch, batched, scalar-result, and dynamic-Dimension Gather-ND expressions. The
+index tensors are storage-free because metadata construction needs their descriptors, not their
+values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class GatherNdExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+        Tensor zeroBatchIndices = tensor(DataType.INT32, Shape.of(5, 2), false);
+        Tensor batchedIndices = tensor(DataType.INT64, Shape.of(2, 5, 1), false);
+        Tensor zeroBatch = data.gatherNd(zeroBatchIndices);
+        Tensor batched = data.gatherNd(batchedIndices, 1);
+
+        Tensor scalar = tensor(DataType.BOOL, Shape.of(2, 3), false)
+                .gatherNd(tensor(DataType.INT32, Shape.of(2), false));
+
+        DynamicDimension batch = new DynamicDimension("N");
+        DynamicDimension queries = new DynamicDimension("M");
+        StaticDimension suffix = new StaticDimension(4);
+        Tensor dynamicData = tensor(DataType.BFLOAT16,
+                Shape.ofDimensions(batch, new StaticDimension(3), suffix), true);
+        Tensor dynamicIndices = tensor(DataType.INT64,
+                Shape.ofDimensions(new DynamicDimension("N"), queries,
+                        new StaticDimension(1)), false);
+        Tensor dynamic = dynamicData.gatherNd(dynamicIndices, 1);
+
+        GatherNdAttrs attrs = (GatherNdAttrs) batched.provenance().orElseThrow()
+                .operation().attrs();
+        System.out.println(zeroBatch.descriptor().shape());
+        System.out.println(batched.descriptor().shape());
+        System.out.println(scalar.descriptor().shape() == Shape.scalar());
+        System.out.println(dynamic.descriptor().shape());
+        System.out.println(attrs);
+        System.out.println(dynamic.descriptor().shape().dimensions().get(1) == queries);
+        System.out.println(dynamic.descriptor().shape().dimensions().get(2) == suffix);
+        System.out.println(batched.provenance().orElseThrow().inputs().get(0) == data);
+        System.out.println(batched.provenance().orElseThrow().inputs().get(1)
+                == batchedIndices);
+        System.out.println(batched.descriptor().requiresGrad()
+                && batched.descriptor().layout().isEmpty()
+                && batched.label().isEmpty()
+                && batched.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Zero-batch indices `[5, 2]` have tuple depth `2`. They retain prefix `[5]`, index data axes `0`
+  and `1`, and leave data suffix `[4]`, producing `[5, 4]`.
+- Batched indices `[2, 5, 1]` share leading Dimension `2`, retain indices prefix `[2, 5]`, index
+  data axis `1`, and leave suffix `[4]`, producing `[2, 5, 4]`.
+- Indices Shape `[2]` over data Shape `[2, 3]` has no retained indices prefix or data suffix, so
+  the result is the canonical scalar `Shape.scalar()`.
+- The dynamic case accepts independently constructed but structurally equal `N` batch Dimensions.
+  Its result `[N, M, 4]` retains the exact `M` reference from indices and exact suffix Dimension
+  reference from data.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[5, 4]
+Shape[2, 5, 4]
+true
+Shape[N, M, 4]
+GatherNdAttrs[batchDimensions=1]
+true
+true
+true
+true
+true
+```
+
+The output demonstrates both overloads, all four Shape cases, exact retained metadata and
+Dimension identities, normalized attributes, and ordered provenance. It does not demonstrate
+index-value validity, gathered values, gradient behavior, compiler capture, materialization,
+backend lowering, or execution.
+
+##### Failures and useful variations
+
+- Validation checks null data and indices, index type, indices rank, non-negative batch count,
+  indices-rank fit, data-rank fit, batch-prefix equality, and tuple depth in that order. Every
+  local failure occurs before result identifier allocation.
+- A dynamic final indices Dimension fails because tuple depth controls which data axes remain in
+  the result. Static depth zero or a depth greater than `dataRank - B` also fails.
+- Different dynamic batch symbols fail structural equality; no broadcast or equality constraint
+  is recorded.
+- Construction never reads, normalizes, clamps, or bounds-checks an index value. Negative and
+  out-of-range coordinate policy remains outside this model metadata boundary.
+- Checked result-rank overflow propagates as `ArithmeticException`; identifier exhaustion can
+  occur only during final derived Tensor construction.
+
 ### Pad and tile expressions
 
 `Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
@@ -5688,8 +5831,8 @@ Operation gatherNd = new Operation(GatherNdKind.GATHER_ND, attrs);
   empty.
 
 The `Operation` in the code example retains exactly `GatherNdKind.GATHER_ND` and the supplied
-`attrs` reference. A future zero-batch convenience will use `new GatherNdAttrs(0)` rather than a
-second kind or a default attributes value.
+`attrs` reference. The current zero-batch `Tensor.gatherNd(indices)` convenience uses
+`new GatherNdAttrs(0)` rather than a second kind or a default attributes value.
 
 ##### Validation and boundaries
 
@@ -5702,12 +5845,13 @@ data type is permitted. Generic `Operation` also does not enforce the kind/attri
 ordered two-input context.
 
 Tuple depth remains the final indices Dimension instead of an attribute because it varies with
-each operation occurrence. Task 0018F will own public Tensor construction and validation of data
-and indices ranks, shared batch Dimensions, tuple depth, index type, and result Shape. Gather-ND
-is distinct from scalar `SELECT`, which stores one coordinate; axis gather, which indexes one
-selected axis; and scatter-ND, which writes or combines updates. These semantic values define no
-Tensor result, provenance, index bounds, numerical algorithm, gradient, compiler behavior,
-backend behavior, or execution.
+each operation occurrence. The current public Tensor boundary validates data and indices ranks,
+shared batch Dimensions, tuple depth, index type, and result Shape and records exact provenance as
+described under [Gather-ND expressions](#gather-nd-expressions). The semantic values themselves do
+none of that input-aware work. Gather-ND is distinct from scalar `SELECT`, which stores one
+coordinate; axis gather, which indexes one selected axis; and scatter-ND, which writes or combines
+updates. Neither semantic values nor current expression construction define index-value bounds,
+a numerical algorithm, gradients, compiler behavior, backend behavior, or execution.
 
 ### Window-transform semantic kinds and attributes
 
@@ -6229,11 +6373,13 @@ two-input provenance. Primitive-array `take` is also current: it copies one non-
 a dense rank-one INT32 leaf Tensor before delegating to the tensor-index path. Index-value access
 and bounds checks, gradients, compiler behavior, lowering, and execution remain planned or
 separately owned.
-Gather-ND semantic identity and normalized batch attributes are current. `GATHER_ND` uses ordered
+Gather-ND semantics and public Tensor construction are current. `GATHER_ND` uses ordered
 `[data, indices]` roles, takes tuple depth from the final indices Dimension, and pairs with
-`GatherNdAttrs(batchDimensions)`. Public Tensor construction and all input-aware rank, batch,
-tuple-depth, index-type, result-Shape, and provenance work remain planned in task 0018F; gradients,
-compiler behavior, lowering, index bounds, and execution remain separately owned.
+`GatherNdAttrs(batchDimensions)`. The public methods validate exact index type, both ranks,
+structurally equal batch prefixes, and static positive tuple depth before deriving an
+indices-prefix-plus-data-suffix Shape and recording exact provenance. Results retain data type and
+gradient eligibility, leave layout unresolved, and remain unlabeled and storage-free. Index-value
+bounds, gradients, compiler behavior, lowering, and execution remain separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,

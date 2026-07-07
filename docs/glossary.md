@@ -158,8 +158,10 @@ The `GatherNdKind` vocabulary is implemented with the sole tuple-index `GATHER_N
 together with `GatherNdAttrs` carrying one normalized non-negative count of shared leading batch
 Dimensions. Gather-ND has ordered logical inputs `[data, indices]`; the final indices Dimension
 supplies tuple depth rather than duplicating that occurrence-specific fact in attributes. Public
-Tensor construction, rank/batch/tuple/index-type/result validation, provenance, gradients,
-compiler behavior, backend behavior, and execution remain planned or separately owned.
+`Tensor.gatherNd` construction now validates exact index type, both ranks, structural shared batch
+prefix, static positive tuple depth, and result Shape; it records fresh ordered provenance while
+preserving data metadata with unresolved layout. Index-value bounds, gradients, compiler behavior,
+backend behavior, and execution remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -300,16 +302,21 @@ scalar Shape `[]` because neither formula term contributes a Dimension.
 `GatherNdAttrs` rejects a negative batch count but stores no input rank, Shape, tuple depth, or
 index type. Tuple depth is not an attribute because it belongs to the final indices Dimension of
 each operation occurrence. Generic `Operation` retains the exact kind and attributes but does not
-enforce their pairing or ordered inputs. A future zero-batch convenience uses
-`new GatherNdAttrs(0)`, not another kind or default value.
+enforce their pairing or ordered inputs. The current zero-batch `Tensor.gatherNd(indices)`
+convenience uses `new GatherNdAttrs(0)`, not another kind or default value.
 
-Task 0018F owns public Tensor construction and input-aware data/indices rank, batch-prefix,
-tuple-depth, index-type, and result-Shape validation. The semantic values define no Tensor result,
-provenance, index bounds, numerical algorithm, gradient, compiler behavior, backend behavior, or
-execution. Gather-ND differs from [scalar select](#scalar-select), whose coordinate is an intrinsic
-attribute; [axis gather](#axis-gather), whose index values address one selected data axis; and
-scatter-ND, which writes or combines updates. See [Gather-ND semantic kind and
-attributes](api/tensor-api.md#gather-nd-semantic-kind-and-attributes).
+The current public Tensor boundary accepts only `INT32` or `INT64` indices, requires both ranks to
+fit the batch count, compares shared batch Dimensions structurally, and requires static positive
+tuple depth no greater than the remaining data rank. It constructs the formula above once,
+retaining exact prefix/suffix Dimension references and returning canonical scalar Shape when both
+parts are empty. Each result preserves the data type and gradient eligibility, leaves layout
+unresolved, has no label or storage, and records fresh exact `[data, indices]` provenance. It never
+reads an index value or checks its bounds. Gather-ND differs from [scalar select](#scalar-select),
+whose coordinate is an intrinsic attribute; [axis gather](#axis-gather), whose index values
+address one selected data axis; and scatter-ND, which writes or combines updates. Gradients,
+compiler behavior, materialization, backend behavior, and execution remain separately owned. See
+[Gather-ND semantic kind and attributes](api/tensor-api.md#gather-nd-semantic-kind-and-attributes)
+and [Gather-ND expressions](api/tensor-api.md#gather-nd-expressions).
 
 ### Axis transform
 
