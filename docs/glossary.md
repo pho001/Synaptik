@@ -173,6 +173,14 @@ data/update type, reduction eligibility, raw axis, and the three family-specific
 retains exact data Shape/type, combines data/update gradient eligibility, leaves layout unresolved,
 and records ordered provenance. Index bounds, duplicate detection, value writes/reductions,
 gradients, compiler behavior, backend behavior, and execution remain planned or separately owned.
+The `ScatterNdKind` vocabulary is implemented with the sole functional tuple-index `SCATTER_ND`
+meaning, together with `ScatterNdAttrs` carrying a normalized non-negative shared-batch count and
+an explicit `ScatterReduction`. Its ordered logical inputs are `[data, indices, updates]`; tuple
+depth remains the final indices Dimension, updates follow the Gather-ND result-Shape formula, and
+the conceptual result is a new value with the exact data Shape. Public Scatter-ND Tensor
+construction remains planned in task 0018J. Input-aware type, rank, batch-prefix, tuple-depth,
+updates-Shape, descriptor, and provenance validation, plus values, bounds, duplicate detection,
+gradients, compiler behavior, backend behavior, and execution, remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -377,6 +385,33 @@ address one selected data axis; and scatter-ND, which writes or combines updates
 compiler behavior, materialization, backend behavior, and execution remain separately owned. See
 [Gather-ND semantic kind and attributes](api/tensor-api.md#gather-nd-semantic-kind-and-attributes)
 and [Gather-ND expressions](api/tensor-api.md#gather-nd-expressions).
+
+### Scatter-ND
+
+An implemented backend-independent functional tuple-index scatter meaning represented by
+`ScatterNdKind.SCATTER_ND` and `ScatterNdAttrs(batchDimensions, reduction)`. It has ordered logical
+inputs `[data, indices, updates]`. `data` supplies the base and exact result Shape, `indices`
+supplies coordinate tuples, and `updates` supplies the values applied at addressed targets. The
+result is a new value and does not mutate `data` in place.
+
+For data rank `R`, indices rank `Q`, normalized shared-batch count `B`, and tuple depth `K` from
+the final indices Dimension, each tuple indexes data axes `[B, B + K)`. Data axes `[B + K, R)`
+form the untouched suffix represented by one update slice. The exact updates formula is
+`updates.shape == indices.shape[0:Q-1] + data.shape[B+K:R]`, equivalently
+`indices.shape[:-1] + data.shape[batchDimensions + K:]`, and the result Shape is exactly the data
+Shape. Data `[2, 3, 4]` with indices `[5, 2]`, `B=0`, and `K=2` therefore uses updates `[5, 4]`;
+the same data with indices `[2, 5, 1]`, `B=1`, and `K=1` uses updates `[2, 5, 4]`. Data `[2, 3]`
+with indices `[2]`, `B=0`, and `K=2` uses canonical scalar updates `[]`. Their respective result
+Shapes are `[2, 3, 4]`, `[2, 3, 4]`, and `[2, 3]`.
+
+The shared `ScatterReduction` values mean replacement, addition, multiplication, maximum, or
+minimum. `NONE` replacement requires unique target tuples; duplicate tuples are invalid, but
+detection requires index values and does not occur in the current semantic values. The attributes
+reject a negative batch count before rejecting a null reduction. They store no inputs, ranks,
+Shapes, tuple depth, types, descriptor, or provenance, so task 0018J remains the Draft owner of
+public input-aware Tensor construction. Scatter-ND differs from [Gather-ND](#gather-nd), which
+reads selected data, and [axis scatter](#axis-scatter), whose indices address one selected axis.
+See [Scatter-ND semantic kind and attributes](api/tensor-api.md#scatter-nd-semantic-kind-and-attributes).
 
 ### Axis transform
 
@@ -735,7 +770,9 @@ normalized data axis shared by `GATHER`, `GATHER_AXIS`, `TAKE_ALONG_AXIS`, `SCAT
 `SCATTER_AXIS_ADD`. `GatherNdAttrs` holds the normalized count of shared leading batch Dimensions
 for `GATHER_ND`; tuple depth remains the final indices Dimension rather than attribute state.
 `ScatterElementsAttrs` holds one normalized data axis plus an explicit non-null
-`ScatterReduction` for `SCATTER_ELEMENTS`. `UnfoldAxisAttrs`
+`ScatterReduction` for `SCATTER_ELEMENTS`. `ScatterNdAttrs` holds one normalized non-negative
+shared-batch count plus an explicit non-null `ScatterReduction` for `SCATTER_ND`; tuple depth
+remains the final indices Dimension. `UnfoldAxisAttrs`
 carries normalized general-axis window size and step; `FoldAxisAttrs` carries normalized target axis,
 explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
 kernel/stride/padding/dilation geometry and its
@@ -889,7 +926,9 @@ pair with `IndexAxisAttrs` as described under [axis gather](#axis-gather). The t
 [Gather-ND](#gather-nd). The twenty-first is `AxisScatterKind`: `SCATTER_ADD` and
 `SCATTER_AXIS_ADD` pair with `IndexAxisAttrs`, while `SCATTER_ELEMENTS` pairs with
 `ScatterElementsAttrs` and one `ScatterReduction`, as described under [axis scatter](#axis-scatter).
-The twenty-second is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
+The twenty-second is `ScatterNdKind`, whose sole `SCATTER_ND` value pairs with `ScatterNdAttrs`
+and the shared reduction vocabulary, as described under [Scatter-ND](#scatter-nd). The
+twenty-third is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with
 `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
 under [window transform](#window-transform). These semantic families do not by themselves
@@ -1702,8 +1741,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, shared gather/fixed-add-scatter axis, gather-ND, scatter-elements, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, shared gather/fixed-add-scatter axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1727,7 +1766,8 @@ are current. Tensor-composition semantics, normalized axis/index attributes, and
 stack, and immutable-list unstack Tensor construction are current. Scalar-select semantics and
 normalized axis/index attributes plus public scalar-select Tensor construction are current.
 Axis-gather, Gather-ND, and axis-scatter semantics, attributes, and public Tensor construction are
-also current. Other
+also current. Scatter-ND semantics and attributes are current, while its public Tensor
+construction remains planned in task 0018J. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

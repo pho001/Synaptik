@@ -197,7 +197,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018F | [Gather-ND Tensor expressions](tasks/0018f-gather-nd-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
 | 0018G | [Axis scatter semantics](tasks/0018g-axis-scatter-semantics.md) | Complete | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
 | 0018H | [Axis scatter Tensor expressions](tasks/0018h-axis-scatter-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
-| 0018I | Scatter-ND semantics | Draft | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
+| 0018I | [Scatter-ND semantics](tasks/0018i-scatter-nd-semantics.md) | Complete | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
 | 0018J | Scatter-ND Tensor expression | Draft | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
@@ -229,8 +229,9 @@ complete. Task 0018E is complete with tuple-index semantics and normalized batch
 0018F is complete with public Gather-ND expression construction. Task 0018G is complete with the
 three axis-scatter meanings, reusable reduction vocabulary, and explicit scatter-elements
 attributes. Task 0018H is complete with public metadata-only axis-scatter expression construction.
-Task 0018I is the next Draft frontier without a detailed specification; task 0018J and later tasks
-also remain Draft without detailed specifications.
+Task 0018I is complete with functional tuple-index semantics and immutable batch-count plus
+shared-reduction attributes. Task 0018J is the next Draft frontier without a detailed
+specification; later tasks also remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -294,6 +295,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   require matching floating data/updates; scatter-elements permits `NONE` for every current type
   and arithmetic reductions for floating/integral types. All paths require INT32/INT64 indices,
   preserve exact data Shape/type with unresolved layout, and never inspect index values.
+- Scatter-ND uses one semantic kind plus immutable normalized batch count and the existing shared
+  reduction vocabulary. Tuple depth remains the final indices Dimension; updates use the
+  Gather-ND result Shape and the functional result keeps exact data Shape.
+- Task 0018I completed exactly `ScatterNdKind.SCATTER_ND` and
+  `ScatterNdAttrs(batchDimensions, reduction)` while reusing unchanged `ScatterReduction`.
+  Independent documentation review retained both complete production Javadocs and finalized
+  Tensor API, glossary, task evidence, master plan, and roadmap after focused 9-test, all
+  725-model-test/84-suite, model-Javadoc, root-test, javap/reflection/import/source/generated-page,
+  425-link/131-anchor, fence/whitespace/newline, exact eight-path, synchronized-status, and
+  no-0018J-spec checks passed. Compile API, Training API, capabilities, related contracts,
+  architecture/ADRs/tests, conformance/integration, Java 26 Gradle/dependencies, other modules,
+  and later tasks remain accurate unchanged for the recorded reasons.
 - Task 0018G completed exactly `AxisScatterKind`, `ScatterReduction`, and
   `ScatterElementsAttrs`, plus unchanged reuse of `IndexAxisAttrs` for fixed-add kinds. Ordered
   `[data, indices, updates]`, functional data-shaped results, all three Shape relationships, every
@@ -1076,7 +1089,8 @@ Tensor-index expressions. Task 0018D1 is complete with the primitive-take conven
 is complete with `GATHER_ND` and normalized batch-dimension attributes. Task 0018F is complete with
 public Gather-ND expression construction. Task 0018G is complete with functional axis-scatter
 semantic values. Task 0018H is complete with public functional axis-scatter expression
-construction. Task 0018I is the next Draft frontier without a detailed specification; task 0018J
-and every later operation-family task remain Draft without detailed specifications.
+construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
+the next Draft frontier without a detailed specification, and every later operation-family task
+also remains Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -141,6 +141,16 @@ three family-specific Shape rules, result metadata, and ordered provenance. Inde
 duplicate detection, gradients, compiler behavior, backend behavior, and execution remain planned
 or separately owned.
 
+`ScatterNdKind.SCATTER_ND` is the current functional tuple-index scatter semantic identity. It
+pairs with `ScatterNdAttrs(batchDimensions, reduction)`, which stores an already normalized
+non-negative shared-batch count and one explicit `ScatterReduction`. Ordered logical inputs are
+`[data, indices, updates]`; the final indices Dimension supplies tuple depth `K`, and updates have
+the Shape that Gather-ND would read from the same data and indices. The conceptual result is a new
+value with the exact data Shape, so the operation does not mutate `data`. Public Scatter-ND Tensor
+construction and its input-aware type, rank, batch-prefix, tuple-depth, and updates-Shape checks
+remain planned in task 0018J. Index bounds, `NONE` duplicate detection, gradients, compiler
+behavior, backend behavior, and execution also remain planned or separately owned.
+
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` now own raw-axis normalization, static Shape and compatibility checks,
@@ -225,6 +235,7 @@ SelectKind + SelectAttrs                                   = scalar coordinate +
 AxisGatherKind + IndexAxisAttrs                            = three axis tensor-index meanings + normalized data axis
 GatherNdKind + GatherNdAttrs                              = tuple-index meaning + normalized shared batch count
 AxisScatterKind + IndexAxisAttrs / ScatterElementsAttrs   = functional axis-scatter meaning + axis/reduction
+ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
@@ -6110,6 +6121,68 @@ which uses multi-axis index tuples; fold, which reconstructs overlapping windows
 mutation. The semantic values themselves define no Tensor result method, gradient, compiler
 behavior, materialization, lowering, backend behavior, or execution.
 
+### Scatter-ND semantic kind and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.ScatterNdKind` implements
+`OperationKind` with exactly one constant, `SCATTER_ND`. Functional Scatter-ND starts from base
+`data`, uses coordinate tuples from `indices` to address result targets, applies `updates` through
+an explicit `ScatterReduction`, and produces a new result with the exact data Shape. It does not
+mutate `data` in place. Its ordered logical inputs are `[data, indices, updates]`.
+
+`ScatterNdAttrs(batchDimensions, reduction)` stores the already normalized non-negative count
+`B` of shared leading data and indices batch Dimensions, followed by the explicit non-null
+reduction. If data rank is `R`, indices rank is `Q`, and the final indices Dimension has extent
+`K`, that extent is the tuple depth. Each tuple indexes data axes `[B, B + K)`, while data axes
+`[B + K, R)` form the untouched suffix represented by one update slice. The required updates
+Shape is:
+
+```text
+indices.shape[0:Q-1] + data.shape[B+K:R]
+```
+
+Equivalently, it is `indices.shape[:-1] + data.shape[batchDimensions + K:]`.
+
+#### Tuple-index update Shape examples
+
+These examples are conceptual; the current semantic values do not inspect operands or construct
+Tensors.
+
+- Data `[2, 3, 4]`, indices `[5, 2]`, `B=0`, and `K=2` require updates `[5, 4]`; the result is
+  `[2, 3, 4]`.
+- Data `[2, 3, 4]`, indices `[2, 5, 1]`, `B=1`, and `K=1` require updates `[2, 5, 4]`; the result
+  is `[2, 3, 4]`.
+- Data `[2, 3]`, indices `[2]`, `B=0`, and `K=2` require canonical rank-zero scalar updates `[]`;
+  the result is `[2, 3]`.
+
+Each reduction describes how a base value and all updates addressed to one target combine:
+
+- `NONE` replaces the base value and requires unique target tuples. Duplicate tuples are invalid,
+  but detecting them requires index values and is not performed by these semantic values.
+- `ADD` combines them by addition.
+- `MUL` combines them by multiplication.
+- `MAX` combines them by maximum.
+- `MIN` combines them by minimum.
+
+The following is a conceptual composition example, not a public Tensor expression:
+
+```java
+ScatterNdAttrs attrs = new ScatterNdAttrs(1, ScatterReduction.ADD);
+Operation scatterNd = new Operation(ScatterNdKind.SCATTER_ND, attrs);
+```
+
+The `Operation` retains the exact kind and attributes references but does not enforce their
+pairing or three-input context. `ScatterNdAttrs` rejects a negative batch count before checking
+the reduction, and `null` never means `NONE`. Zero, positive values, and `Integer.MAX_VALUE` are
+structurally valid batch counts because the attributes contain no input ranks.
+
+Tuple depth remains in the final indices Dimension because it varies by operation occurrence; it
+is not duplicated in the attributes. Task 0018J remains Draft and will own public Tensor methods
+plus index/update data-type, rank, shared-batch-prefix, tuple-depth, updates-Shape, result metadata,
+and provenance validation. The current semantic values read no values, check no bounds or
+duplicates, define no gradients or numerical algorithm, capture no graph, report no backend
+support, and execute no work. Scatter-ND differs from Gather-ND, which reads selected data, and
+from axis scatter, whose indices address one selected axis rather than multi-axis tuples.
+
 ### Window-transform semantic kinds and attributes
 
 The public enum
@@ -6560,13 +6633,13 @@ The following contracts appear in the architecture and planning documents but ar
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, gather-ND Tensor
   construction, axis-scatter construction, unfold, fold-axis,
-  unfold2d, and fold2d requests; plus
-  gradient and trainable state and publication behavior;
+  unfold2d, and fold2d requests, including public Scatter-ND Tensor construction; plus gradient
+  and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
   axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND,
-  axis-scatter, and window-transform semantics, plus
+  axis-scatter, scatter-ND, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -6582,6 +6655,7 @@ The following contracts appear in the architecture and planning documents but ar
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
 `UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
 `GatherNdKind`, `GatherNdAttrs`, `AxisScatterKind`, `ScatterReduction`, `ScatterElementsAttrs`,
+`ScatterNdKind`, `ScatterNdAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
@@ -6648,6 +6722,14 @@ eligibility, raw axis, and family-specific Shapes. Results retain exact data Sha
 data/update gradient eligibility, leave layout unresolved, and record exact ordered provenance.
 `NONE` requires unique targets, but duplicate detection, index bounds, value writes/reductions,
 gradient rules, compiler behavior, lowering, and execution remain later responsibilities.
+Scatter-ND semantics are current, while public Tensor construction remains planned.
+`SCATTER_ND` uses ordered `[data, indices, updates]` roles, takes tuple depth from the final
+indices Dimension, and pairs with `ScatterNdAttrs(batchDimensions, reduction)`. Updates follow the
+exact Gather-ND result-Shape formula, and the functional result has the exact data Shape without
+in-place mutation. The semantic values perform no input-aware rank, Shape, type, bounds, duplicate,
+descriptor, or provenance validation. Task 0018J remains Draft and owns that public expression
+boundary; gradients, compiler behavior, lowering, backend behavior, and execution also remain
+planned or separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,
