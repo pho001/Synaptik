@@ -38,8 +38,9 @@ import java.util.Objects;
  * batch Dimensions match, that {@code K} is valid, or that the updates formula holds. Tuple depth
  * remains occurrence-specific final-indices-Dimension data rather than duplicated attribute
  * state. Zero and {@link Integer#MAX_VALUE} are structurally valid batch counts because no ranks
- * are present. Task 0018J owns those future public input-aware rank, Shape, type, and result checks
- * because they depend on concrete operands and those facts are not stored here.</p>
+ * are present. The public {@code Tensor.scatterNd} overloads now own those input-aware rank,
+ * Shape, type, and result checks because they depend on concrete operands and those facts are not
+ * stored here.</p>
  *
  * <p>The exact semantic composition is an {@code Operation} whose kind is
  * {@link ScatterNdKind#SCATTER_ND} and whose attributes are this value. Generic operation

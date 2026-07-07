@@ -38,8 +38,8 @@ cast method, fifteen full/axis numeric aggregate methods, and six full/axis bool
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, four
 tensor-index axis-gather methods, one primitive-array take convenience, and two Gather-ND methods,
-plus four functional axis-scatter methods, construct storage-free expressions with immutable
-operation-and-input provenance. The
+plus four functional axis-scatter methods and three functional Scatter-ND methods, construct
+storage-free expressions with immutable operation-and-input provenance. The
 parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
@@ -187,6 +187,17 @@ eligibility OR, unresolved layout, and exact three-input provenance. Constructio
 checks no index bound or duplicate target, mutates no input, and performs no write or reduction.
 It adds no gradient rule, graph capture, compiler transformation, materialization, lowering,
 backend behavior, or execution behavior.
+The three `Tensor.scatterNd` overloads consume exact ordered `[data, indices, updates]` inputs with
+`INT32` or `INT64` indices and exact matching data/update types. Their defaults select
+`ScatterReduction.NONE` and zero shared batch Dimensions; complete construction retains the exact
+supplied reduction and normalized non-negative batch count. Construction validates reduction
+eligibility, both ranks, structurally equal leading batch Dimensions, static positive tuple depth
+from the final indices Dimension, and the exact indices-prefix-plus-data-suffix updates Shape.
+Every result is fresh, unlabeled, storage-free, and unresolved-layout, retains the exact data
+Shape/type, combines data/update gradient eligibility, and records `SCATTER_ND` with exact
+three-input provenance. It reads no index or update value, checks no index bound or duplicate
+target, mutates no input, performs no write or reduction, and adds no gradient, graph capture,
+compiler transformation, materialization, lowering, backend behavior, or execution behavior.
 Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapshot ordered non-empty
 inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
 rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
@@ -225,7 +236,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   positive-step slice construction, plus conditional-view scalar-select construction and
   unresolved-layout axis-gather construction, including copied primitive take input adaptation,
-  plus unresolved-layout Gather-ND and functional axis-scatter construction, plus
+  plus unresolved-layout Gather-ND, functional axis-scatter, and functional Scatter-ND
+  construction, plus
   unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable individually indexed unstack construction,
   plus general-axis and NCHW unfold/fold window-transform construction,
@@ -233,8 +245,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
-  axis-gather/Gather-ND/axis-scatter/pad/tile/composition/window-transform canonicalization or
-  decomposition,
+  axis-gather/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
+  canonicalization or decomposition,
   grouped
   producer design,
   compiler-generated `FOLD_AXIS` construction, deferred

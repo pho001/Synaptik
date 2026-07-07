@@ -81,7 +81,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(108, declaredPublicMethods.size());
+        assertEquals(111, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -94,7 +94,7 @@ class TensorTest {
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "select",
                         "gather", "gatherAxis", "take", "takeAlongAxis", "gatherNd",
-                        "scatterAdd", "scatterAxisAdd", "scatterElements", "pad",
+                        "scatterAdd", "scatterAxisAdd", "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
                         "unfold2d", "fold2d"),
                 publicMethods);
@@ -361,6 +361,25 @@ class TensorTest {
                     () -> assertTrue(Modifier.isPublic(gatherNd.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(gatherNd.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(gatherNd.getModifiers())));
+        }
+
+        for (Class<?>[] parameters : List.of(
+                new Class<?>[] {Tensor.class, Tensor.class},
+                new Class<?>[] {
+                    Tensor.class, Tensor.class, ScatterReduction.class
+                },
+                new Class<?>[] {
+                    Tensor.class, Tensor.class, ScatterReduction.class, int.class
+                })) {
+            var scatterNd = Tensor.class.getDeclaredMethod("scatterNd", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, scatterNd.getReturnType()),
+                    () -> assertEquals(
+                            List.of(parameters), Arrays.asList(scatterNd.getParameterTypes())),
+                    () -> assertFalse(scatterNd.isVarArgs()),
+                    () -> assertTrue(Modifier.isPublic(scatterNd.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(scatterNd.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(scatterNd.getModifiers())));
         }
 
         for (String methodName : List.of("scatterAdd", "scatterAxisAdd")) {

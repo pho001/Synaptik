@@ -41,6 +41,10 @@ inspect index values.
 axis-scatter expressions from ordered `[data, indices, updates]` inputs. They preserve the exact
 data Shape and type, combine data/update gradient eligibility, and never inspect values or mutate
 the data input.
+The three `scatterNd` overloads construct functional tuple-index scatter expressions with
+replacement or an explicit reduction and with zero or an explicit shared-batch count. They apply
+the Gather-ND result-Shape formula to `updates`, preserve exact data metadata in a fresh unresolved
+result, and never inspect values or mutate an input.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -147,9 +151,11 @@ non-negative shared-batch count and one explicit `ScatterReduction`. Ordered log
 `[data, indices, updates]`; the final indices Dimension supplies tuple depth `K`, and updates have
 the Shape that Gather-ND would read from the same data and indices. The conceptual result is a new
 value with the exact data Shape, so the operation does not mutate `data`. Public Scatter-ND Tensor
-construction and its input-aware type, rank, batch-prefix, tuple-depth, and updates-Shape checks
-remain planned in task 0018J. Index bounds, `NONE` duplicate detection, gradients, compiler
-behavior, backend behavior, and execution also remain planned or separately owned.
+construction now owns exact index and update type checks, reduction eligibility, input-rank and
+batch compatibility, structural batch-prefix equality, static positive tuple depth, exact updates-
+Shape validation, result metadata, and ordered provenance. Index bounds, `NONE` duplicate
+detection, gradients, compiler behavior, backend behavior, and execution remain planned or
+separately owned.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -209,6 +215,7 @@ Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-dat
 Tensor + reduced-Shape indices/updates + SCATTER_ADD = fresh data-Shape fixed-add Tensor
 Tensor + arbitrary indices + gather-axis-shaped updates + SCATTER_AXIS_ADD = fresh data-Shape fixed-add Tensor
 Tensor + same-rank indices/updates + SCATTER_ELEMENTS = fresh data-Shape replacement/reduction Tensor
+Tensor + coordinate-tuple indices/updates + SCATTER_ND = fresh data-Shape replacement/reduction Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
 rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
@@ -4506,6 +4513,168 @@ reductions, gradients, compiler capture, backend lowering, or execution.
 - Local validation failures occur before result identity allocation. Identifier exhaustion may
   occur only during final derived construction.
 
+### Scatter-ND expressions
+
+The three public Scatter-ND overloads construct functional tuple-index updates from ordered
+logical inputs `[data, indices, updates]`. `data` is the receiver and unchanged base value.
+`indices` supplies coordinate tuples, and `updates` supplies one value or suffix slice for each
+tuple position. A target is the result coordinate or suffix slice addressed by one tuple; a
+duplicate target occurs when multiple tuples address that same target.
+
+The overloads delegate to one validation path:
+
+| Public method | Reduction | Shared batch count |
+|---|---|---|
+| `scatterNd(indices, updates)` | `NONE` | `0` |
+| `scatterNd(indices, updates, reduction)` | Exact supplied reduction | `0` |
+| `scatterNd(indices, updates, reduction, batchDimensions)` | Exact supplied reduction | Exact supplied non-negative count |
+
+All paths require exact `INT32` or `INT64` indices and exact matching data/update types.
+`ScatterReduction.NONE` accepts every current data type. `ADD`, `MUL`, `MAX`, and `MIN` accept
+floating or integral data and reject `BOOL`; no input is converted or promoted.
+
+For data rank `R`, indices rank `Q`, shared-batch count `B`, and tuple depth `K` from the final
+indices Dimension, construction requires `0 <= B < Q`, `B < R`, structurally equal data and
+indices Dimensions on axes `[0, B)`, and `1 <= K <= R - B`. Tuple depth must be statically known.
+The exact updates Shape is:
+
+```text
+indices.shape[0:Q-1] + data.shape[B+K:R]
+```
+
+The result retains the exact data Shape and type, combines data/update gradient eligibility by
+logical OR, and has unresolved layout, no label, and no storage. Provenance records
+`ScatterNdKind.SCATTER_ND`, one exact `ScatterNdAttrs(B, reduction)`, and the exact ordered
+references `[data, indices, updates]`. Every valid request is fresh, including repeated requests
+with identical operands and attributes.
+
+#### Complete Scatter-ND expression example
+
+##### Goal and inputs
+
+Construct zero-batch replacement, zero-batch addition, explicit batched maximum, and scalar-update
+Scatter-ND expressions. The inputs are storage-free because construction needs only immutable
+descriptor metadata; it does not read any index or update value.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class ScatterNdExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
+        Tensor zeroBatchIndices = tensor(DataType.INT32, Shape.of(5, 2), false);
+        Tensor zeroBatchUpdates = tensor(DataType.FLOAT32, Shape.of(5, 4), true);
+        Tensor replacement = data.scatterNd(zeroBatchIndices, zeroBatchUpdates);
+        Tensor addition = data.scatterNd(
+                zeroBatchIndices, zeroBatchUpdates, ScatterReduction.ADD);
+
+        Tensor batchedIndices = tensor(DataType.INT64, Shape.of(2, 5, 1), false);
+        Tensor batchedUpdates = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), false);
+        Tensor batched = data.scatterNd(
+                batchedIndices, batchedUpdates, ScatterReduction.MAX, 1);
+
+        Tensor boolData = tensor(DataType.BOOL, Shape.of(2, 3), false);
+        Tensor scalarUpdates = tensor(DataType.BOOL, Shape.scalar(), false);
+        Tensor scalar = boolData.scatterNd(
+                tensor(DataType.INT32, Shape.of(2), false), scalarUpdates);
+
+        TensorProvenance origin = replacement.provenance().orElseThrow();
+        ScatterNdAttrs defaultAttrs = (ScatterNdAttrs) origin.operation().attrs();
+        ScatterNdAttrs additionAttrs = (ScatterNdAttrs) addition
+                .provenance().orElseThrow().operation().attrs();
+        ScatterNdAttrs batchedAttrs = (ScatterNdAttrs) batched
+                .provenance().orElseThrow().operation().attrs();
+
+        System.out.println(zeroBatchUpdates.descriptor().shape());
+        System.out.println(replacement.descriptor().shape());
+        System.out.println(batchedUpdates.descriptor().shape());
+        System.out.println(batched.descriptor().shape());
+        System.out.println(scalarUpdates.descriptor().shape() == Shape.scalar());
+        System.out.println(scalar.descriptor().shape());
+        System.out.println(defaultAttrs);
+        System.out.println(additionAttrs);
+        System.out.println(batchedAttrs);
+        System.out.println(origin.inputs().get(0) == data
+                && origin.inputs().get(1) == zeroBatchIndices
+                && origin.inputs().get(2) == zeroBatchUpdates);
+        System.out.println(replacement.descriptor().dataType() == DataType.FLOAT32
+                && replacement.descriptor().requiresGrad()
+                && replacement.descriptor().layout().isEmpty()
+                && replacement.label().isEmpty()
+                && replacement.hostStorage().isEmpty());
+        System.out.println(replacement != addition
+                && !replacement.id().equals(addition.id()));
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Zero-batch indices `[5, 2]` have tuple depth `2`. Their prefix `[5]` combines with the untouched
+  data suffix `[4]`, so updates must be `[5, 4]`; the result remains data-shaped `[2, 3, 4]`.
+- Batched indices `[2, 5, 1]` share leading Dimension `2`, use tuple depth `1` to address data axis
+  `1`, and retain suffix `[4]`. Updates are `[2, 5, 4]`, and `ScatterNdAttrs` retains batch count
+  `1` and `MAX`.
+- Indices `[2]` over BOOL data `[2, 3]` have tuple depth `2` and leave no prefix or suffix, so the
+  required updates Shape is the canonical scalar `Shape.scalar()`. The result remains `[2, 3]`.
+- The short overload records `NONE` and batch count zero. The reduction overload records `ADD`
+  and batch count zero. The true update eligibility on `zeroBatchUpdates` makes the replacement
+  result eligible; indices never contribute eligibility.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[5, 4]
+Shape[2, 3, 4]
+Shape[2, 5, 4]
+Shape[2, 3, 4]
+true
+Shape[2, 3]
+ScatterNdAttrs[batchDimensions=0, reduction=NONE]
+ScatterNdAttrs[batchDimensions=0, reduction=ADD]
+ScatterNdAttrs[batchDimensions=1, reduction=MAX]
+true
+true
+true
+```
+
+The output proves overload defaults, both Shape formulas, canonical scalar updates, exact
+attributes, ordered provenance, data/update eligibility OR, unresolved storage-free result
+metadata, and fresh identity. It does not prove that an index is in bounds, detect duplicate
+targets, apply replacement or reduction, calculate values, construct gradients, capture a graph,
+select a backend, or execute work.
+
+##### Failures and useful variations
+
+- Validation checks null data, indices, updates, and reduction; exact index type; exact
+  data/update type; reduction eligibility; indices rank; non-negative batch count; indices-rank
+  fit; data-rank fit; batch-prefix equality; tuple depth; and updates Shape in that order. Every
+  local failure occurs before result identity allocation.
+- A dynamic final indices Dimension fails because tuple depth determines which data axes are
+  indexed. Static depth zero or greater than `dataRank - batchDimensions` also fails.
+- Structurally equal dynamic batch symbols pass. Different symbols fail; construction creates no
+  broadcast or compiler-style equality constraint.
+- `BOOL` accepts `NONE` but rejects every arithmetic reduction before Shape validation. Floating
+  and integral data accept all five reductions.
+- Construction never reads, normalizes, clamps, or bounds-checks an index value. It does not
+  detect the duplicate targets that make `NONE` invalid. Identifier exhaustion can occur only at
+  final derived Tensor construction.
+
 ### Pad and tile expressions
 
 `Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
@@ -6176,9 +6345,9 @@ the reduction, and `null` never means `NONE`. Zero, positive values, and `Intege
 structurally valid batch counts because the attributes contain no input ranks.
 
 Tuple depth remains in the final indices Dimension because it varies by operation occurrence; it
-is not duplicated in the attributes. Task 0018J remains Draft and will own public Tensor methods
-plus index/update data-type, rank, shared-batch-prefix, tuple-depth, updates-Shape, result metadata,
-and provenance validation. The current semantic values read no values, check no bounds or
+is not duplicated in the attributes. The current public `Tensor.scatterNd` overloads separately
+own index/update data-type, rank, shared-batch-prefix, tuple-depth, updates-Shape, result metadata,
+and provenance validation. The semantic values themselves read no values, check no bounds or
 duplicates, define no gradients or numerical algorithm, capture no graph, report no backend
 support, and execute no work. Scatter-ND differs from Gather-ND, which reads selected data, and
 from axis scatter, whose indices address one selected axis rather than multi-axis tuples.
@@ -6632,8 +6801,8 @@ The following contracts appear in the architecture and planning documents but ar
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, gather-ND Tensor
-  construction, axis-scatter construction, unfold, fold-axis,
-  unfold2d, and fold2d requests, including public Scatter-ND Tensor construction; plus gradient
+  construction, axis-scatter construction, Scatter-ND construction, unfold, fold-axis,
+  unfold2d, and fold2d requests; plus gradient
   and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
@@ -6722,14 +6891,16 @@ eligibility, raw axis, and family-specific Shapes. Results retain exact data Sha
 data/update gradient eligibility, leave layout unresolved, and record exact ordered provenance.
 `NONE` requires unique targets, but duplicate detection, index bounds, value writes/reductions,
 gradient rules, compiler behavior, lowering, and execution remain later responsibilities.
-Scatter-ND semantics are current, while public Tensor construction remains planned.
+Scatter-ND semantics and public Tensor construction are current.
 `SCATTER_ND` uses ordered `[data, indices, updates]` roles, takes tuple depth from the final
 indices Dimension, and pairs with `ScatterNdAttrs(batchDimensions, reduction)`. Updates follow the
 exact Gather-ND result-Shape formula, and the functional result has the exact data Shape without
-in-place mutation. The semantic values perform no input-aware rank, Shape, type, bounds, duplicate,
-descriptor, or provenance validation. Task 0018J remains Draft and owns that public expression
-boundary; gradients, compiler behavior, lowering, backend behavior, and execution also remain
-planned or separately owned.
+in-place mutation. Public construction validates exact index and update types, reduction
+eligibility, ranks, shared batch prefix, static positive tuple depth, and the exact updates Shape.
+It returns a fresh unresolved-layout, unlabeled, storage-free result with exact data Shape/type,
+data/update eligibility OR, and exact ordered provenance. Index values and bounds, duplicate-target
+detection, value writes or reductions, gradients, compiler behavior, lowering, backend behavior,
+and execution remain planned or separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,

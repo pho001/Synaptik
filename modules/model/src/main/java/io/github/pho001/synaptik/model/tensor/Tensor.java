@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
+import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
@@ -83,7 +85,10 @@ import java.util.Optional;
  * Shape rules without reading index values or checking their bounds. Gather-ND methods consume
  * the same ordered inputs as coordinate tuples, validate a structurally equal shared batch
  * prefix and statically known positive tuple depth, and derive an indices-prefix-plus-data-suffix
- * Shape without reading index values. Axis scatter methods consume ordered
+ * Shape without reading index values. Scatter-ND methods consume ordered
+ * {@code [data, indices, updates]} inputs as coordinate tuples, require the updates Shape to equal
+ * the corresponding Gather-ND result Shape, and retain exact data Shape/type with unresolved
+ * layout. Axis scatter methods consume ordered
  * {@code [data, indices, updates]} inputs, require exact INT32 or INT64 indices and matching
  * data/update types, and retain exact data Shape/type with unresolved layout. Fixed-add scatter
  * accepts floating values; configurable scatter-elements permits replacement for every current
@@ -137,7 +142,7 @@ import java.util.Optional;
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
  * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link GatherNdKind},
- * {@link AxisScatterKind},
+ * {@link AxisScatterKind}, {@link ScatterNdKind},
  * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
@@ -2685,6 +2690,121 @@ public final class Tensor {
      */
     public Tensor gatherNd(Tensor indices, int batchDimensions) {
         return TensorGatherNdExpressions.gatherNd(this, indices, batchDimensions);
+    }
+
+    /**
+     * Creates a fresh tuple-index scatter expression with replacement and no shared batch prefix.
+     *
+     * <p>This convenience is exactly
+     * {@link #scatterNd(Tensor, Tensor, ScatterReduction, int) scatterNd(indices, updates,
+     * ScatterReduction.NONE, 0)}. The ordered logical inputs are
+     * {@code [this, indices, updates]}. Indices must use exact {@link DataType#INT32} or
+     * {@link DataType#INT64}; updates must use this tensor's exact data type. The final indices
+     * Dimension is a statically known positive tuple depth. Updates must have the indices prefix
+     * without that final Dimension followed by the unindexed data suffix.</p>
+     *
+     * <p>The fresh result preserves this tensor's exact Shape and type, combines data/update
+     * gradient eligibility by logical OR, leaves layout unresolved, and records exact
+     * {@link ScatterNdKind#SCATTER_ND}, {@code new ScatterNdAttrs(0, ScatterReduction.NONE)}, and
+     * ordered provenance. Construction reads no values, checks no bounds or duplicate targets,
+     * performs no replacement, mutates no input, and defines no gradient, compiler, backend, or
+     * execution behavior.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate-tuple tensor retained by exact reference;
+     *     its values are never inspected
+     * @param updates non-null exact-data-type tensor whose Shape equals the corresponding
+     *     Gather-ND result Shape; retained by exact reference and never read or mutated
+     * @return a non-null fresh storage-free SCATTER_ND tensor with NONE reduction, zero batch
+     *     Dimensions, exact data Shape/type, unresolved layout, and three-input provenance
+     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
+     * @throws IllegalArgumentException if index type, update type, rank, tuple depth, or updates
+     *     Shape is invalid
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterNd(Tensor indices, Tensor updates) {
+        return TensorScatterNdExpressions.scatterNd(this, indices, updates);
+    }
+
+    /**
+     * Creates a fresh tuple-index scatter expression with an explicit zero-batch reduction.
+     *
+     * <p>This convenience is exactly
+     * {@link #scatterNd(Tensor, Tensor, ScatterReduction, int) scatterNd(indices, updates,
+     * reduction, 0)}. {@link ScatterReduction#NONE} permits every current data type. Arithmetic
+     * reductions permit floating and integral data but reject BOOL. The updates Shape is the
+     * indices prefix without tuple depth followed by the unindexed data suffix.</p>
+     *
+     * <p>The result retains exact data Shape/type and data/update gradient-eligibility OR, has
+     * unresolved layout, no label or storage, and exact ordered SCATTER_ND provenance. This method
+     * reads no index or update value, detects no duplicate target, performs no write or reduction,
+     * and defines no numerical order, gradient, compiler, backend, or execution behavior.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate-tuple tensor retained by exact reference
+     *     without value access
+     * @param updates non-null exact-data-type tensor with the required tuple-scatter updates Shape;
+     *     retained by exact reference and never read or mutated
+     * @param reduction non-null replacement or arithmetic combination meaning retained exactly
+     * @return a non-null fresh storage-free SCATTER_ND tensor with zero batch Dimensions, the
+     *     supplied reduction, exact data metadata, unresolved layout, and ordered provenance
+     * @throws NullPointerException if {@code indices}, {@code updates}, or {@code reduction} is
+     *     null, checked in order
+     * @throws IllegalArgumentException if type, reduction, rank, tuple depth, or Shape validation
+     *     fails
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterNd(
+            Tensor indices, Tensor updates, ScatterReduction reduction) {
+        return TensorScatterNdExpressions.scatterNd(this, indices, updates, reduction);
+    }
+
+    /**
+     * Creates a fresh functional Scatter-ND expression after shared leading batch Dimensions.
+     *
+     * <p>For data rank {@code R}, indices rank {@code Q}, batch count {@code B}, and tuple depth
+     * {@code K} from the final indices Dimension, the leading {@code B} data and indices
+     * Dimensions must be structurally equal. Each tuple indexes data axes {@code [B, B + K)}.
+     * Updates must have exact Shape {@code indices[0:Q-1] + data[B+K:R]}. Thus data
+     * {@code [2,3,4]} with indices {@code [5,2]} and {@code B=0} requires updates
+     * {@code [5,4]}; indices {@code [2,5,1]} and {@code B=1} require updates
+     * {@code [2,5,4]}; and data {@code [2,3]} with indices {@code [2]} requires canonical scalar
+     * updates {@code []}.</p>
+     *
+     * <p>The fresh result preserves exact data Shape/type, combines data/update gradient
+     * eligibility, leaves layout unresolved, and records exact {@link ScatterNdAttrs} and ordered
+     * {@code [this, indices, updates]} provenance. A target is the result coordinate or suffix
+     * slice addressed by one tuple; duplicate targets are multiple tuples addressing the same
+     * target. Construction does not inspect values, validate bounds or duplicates, apply writes or
+     * reductions, mutate data, define numeric order, create gradients, capture a graph, select a
+     * backend, or execute work.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate-tuple tensor whose leading batch prefix
+     *     structurally matches data and whose final static Dimension supplies tuple depth
+     * @param updates non-null exact-data-type tensor with Shape equal to the indices prefix plus
+     *     unindexed data suffix; retained without value access or mutation
+     * @param reduction non-null explicit replacement or arithmetic combination meaning
+     * @param batchDimensions non-negative number of structurally equal leading data and indices
+     *     Dimensions; must be smaller than both ranks
+     * @return a non-null fresh storage-free SCATTER_ND tensor with exact data metadata, unresolved
+     *     layout, supplied attributes, and exact three-input provenance
+     * @throws NullPointerException if {@code indices}, {@code updates}, or {@code reduction} is
+     *     null, checked in order
+     * @throws IllegalArgumentException if index/update type, reduction eligibility, indices rank,
+     *     batch fit/prefix, tuple depth, or updates Shape is invalid
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor scatterNd(
+            Tensor indices,
+            Tensor updates,
+            ScatterReduction reduction,
+            int batchDimensions) {
+        return TensorScatterNdExpressions.scatterNd(
+                this, indices, updates, reduction, batchDimensions);
     }
 
     /**

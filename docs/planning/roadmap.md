@@ -85,18 +85,20 @@ Its completed implementation frontier is:
 - [0018H Axis scatter Tensor expressions](modules/model/tasks/0018h-axis-scatter-tensor-expressions.md)
   — Complete.
 - [0018I Scatter-ND semantics](modules/model/tasks/0018i-scatter-nd-semantics.md) — Complete.
+- [0018J Scatter-ND Tensor expression](modules/model/tasks/0018j-scatter-nd-tensor-expression.md)
+  — Complete.
 
 The next planning frontier is:
 
-- 0018J Scatter-ND Tensor expression — Draft without a detailed specification.
+- 0019 Linear algebra and attention operations — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018I are complete. Task 0018J and all later tasks remain Draft
-without detailed specifications.
+expressions. Tasks 0018A through 0018J are complete; all later tasks remain Draft without detailed
+specifications.
 
 Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
 `SELECT` identity and normalized scalar axis/index attributes. Its independent documentation
@@ -192,6 +194,19 @@ javap/reflection/import/source/generated-page, 425-link/131-anchor, fence/whites
 exact eight-path, synchronized-status, and no-0018J-spec checks passed. Public Tensor
 construction, input-aware validation, values, gradients, lowering, and execution remain outside
 this semantic task.
+
+Task [0018J](modules/model/tasks/0018j-scatter-nd-tensor-expression.md) is complete with three
+public overloads and one field-free eleven-method helper for zero-batch replacement, zero-batch
+explicit reduction, and explicit reduction plus batch count. The shared path validates exact
+types, reduction eligibility, ranks, batch prefix, tuple depth, and updates Shape before creating
+one fresh unresolved-layout result with exact data metadata and ordered provenance. Independent
+documentation review finalized semantic and public Javadocs, Tensor and Compile APIs, glossary,
+task evidence, model master plan, and roadmap after focused 10-test, Tensor API 14-test, all
+735-model-test/85-suite, model-Javadoc, root-test, javap/reflection/import/source/generated-page,
+Java 26 example, 442-link/134-anchor Markdown, fence/whitespace/newline, exact twelve-path,
+semantic-bytecode-equivalence, and no-task-0019-spec checks passed. Index/update values, bounds,
+duplicates, writes/reductions, gradients, compiler behavior, lowering, backend behavior, and
+execution remain separately owned.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -434,7 +449,7 @@ authorized Compile API status correction.
 | 75 | [0018G Axis scatter semantics](modules/model/tasks/0018g-axis-scatter-semantics.md) | Complete |
 | 76 | [0018H Axis scatter Tensor expressions](modules/model/tasks/0018h-axis-scatter-tensor-expressions.md) | Complete |
 | 77 | [0018I Scatter-ND semantics](modules/model/tasks/0018i-scatter-nd-semantics.md) | Complete |
-| 78 | 0018J Scatter-ND Tensor expression | Draft |
+| 78 | [0018J Scatter-ND Tensor expression](modules/model/tasks/0018j-scatter-nd-tensor-expression.md) | Complete |
 | 79 | 0019 Linear algebra and attention operations | Draft |
 | 80 | 0020 Convolution and pooling operations | Draft |
 | 81 | 0021 Normalization operations | Draft |
@@ -488,7 +503,7 @@ decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, inclu
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
-also complete. Task 0018I is complete. Task 0018J and every later task remain Draft without a
+also complete. Tasks 0018I and 0018J are complete. Every later task remains Draft without a
 detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding

@@ -178,9 +178,10 @@ meaning, together with `ScatterNdAttrs` carrying a normalized non-negative share
 an explicit `ScatterReduction`. Its ordered logical inputs are `[data, indices, updates]`; tuple
 depth remains the final indices Dimension, updates follow the Gather-ND result-Shape formula, and
 the conceptual result is a new value with the exact data Shape. Public Scatter-ND Tensor
-construction remains planned in task 0018J. Input-aware type, rank, batch-prefix, tuple-depth,
-updates-Shape, descriptor, and provenance validation, plus values, bounds, duplicate detection,
-gradients, compiler behavior, backend behavior, and execution, remain planned or separately owned.
+construction is current: it validates input types, reduction eligibility, ranks, the shared batch
+prefix, tuple depth, and updates Shape before producing an unresolved-layout result with exact
+ordered provenance. Values, bounds, duplicate detection, writes or reductions, gradients,
+compiler behavior, backend behavior, and execution remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -406,12 +407,21 @@ Shapes are `[2, 3, 4]`, `[2, 3, 4]`, and `[2, 3]`.
 
 The shared `ScatterReduction` values mean replacement, addition, multiplication, maximum, or
 minimum. `NONE` replacement requires unique target tuples; duplicate tuples are invalid, but
-detection requires index values and does not occur in the current semantic values. The attributes
-reject a negative batch count before rejecting a null reduction. They store no inputs, ranks,
-Shapes, tuple depth, types, descriptor, or provenance, so task 0018J remains the Draft owner of
-public input-aware Tensor construction. Scatter-ND differs from [Gather-ND](#gather-nd), which
+detection requires index values and does not occur during current expression construction. The
+attributes reject a negative batch count before rejecting a null reduction. They store no inputs,
+ranks, Shapes, tuple depth, types, descriptor, or provenance. The three current public overloads
+default to `NONE` and zero batch Dimensions, accept an explicit reduction with zero batch
+Dimensions, or accept both values explicitly. They require exact `INT32`/`INT64` indices and exact
+matching data/update types; `NONE` accepts every current data type, while arithmetic reductions
+accept floating or integral values and reject `BOOL`. They validate both ranks, the structurally
+equal shared batch prefix, static positive tuple depth, and the exact updates Shape. Every valid
+request is fresh and produces an unlabeled, storage-free, unresolved-layout result with exact data
+Shape/type, data/update gradient-eligibility OR, and ordered `[data, indices, updates]` provenance.
+Construction does not read values, check bounds or duplicates, mutate data, write, or reduce.
+Scatter-ND differs from [Gather-ND](#gather-nd), which
 reads selected data, and [axis scatter](#axis-scatter), whose indices address one selected axis.
-See [Scatter-ND semantic kind and attributes](api/tensor-api.md#scatter-nd-semantic-kind-and-attributes).
+See [Scatter-ND semantic kind and attributes](api/tensor-api.md#scatter-nd-semantic-kind-and-attributes)
+and [Scatter-ND expressions](api/tensor-api.md#scatter-nd-expressions).
 
 ### Axis transform
 
@@ -715,8 +725,9 @@ source axis plus one non-negative logical coordinate on that axis. Neither value
 extent context, so public composition construction must validate those bounds later.
 `IndexAxisAttrs` stores the normalized data axis for current axis gather and the two fixed-add
 axis-scatter meanings. `ScatterElementsAttrs` stores the corresponding axis plus an explicit
-reduction for scatter-elements. The current gather and axis-scatter expression boundaries
-validate their public caller axes before constructing these attributes.
+reduction for scatter-elements. `ScatterNdAttrs` instead stores a shared batch count and reduction;
+tuple depth remains in the final indices Dimension. The current gather and scatter expression
+boundaries validate their public caller parameters before constructing these attributes.
 `UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
 restored target axis. Neither contains rank context. Current public `unfold` normalizes raw syntax
 against the input rank; `foldAxis` normalizes it against the target rank after removing the final
@@ -1712,8 +1723,8 @@ Complete axis-permutation and rank-two transpose construction is implemented wit
 Dimension/stride reordering and conditional same-offset view geometry. Singleton-axis insertion
 and selected static-singleton removal construction are implemented with exact unaffected
 Dimension retention and conditional same-offset stride insertion/removal.
-Scalar select, axis gather, Gather-ND, and axis-scatter expression construction are implemented
-with their family-specific local type, axis, and Shape validation plus exact provenance. These
+Scalar select, axis gather, Gather-ND, axis-scatter, and Scatter-ND expression construction are
+implemented with their family-specific local type, axis, and Shape validation plus exact provenance. These
 metadata-only expressions do not read index/update values, apply scatter writes or reductions, or
 define index bounds, duplicate-target detection, gradients, compiler behavior, or execution.
 Ordered concat and stack construction plus immutable-list unstack construction are implemented
@@ -1765,9 +1776,8 @@ current. Pad and tile semantics, normalized immutable attributes, and public Ten
 are current. Tensor-composition semantics, normalized axis/index attributes, and public concat,
 stack, and immutable-list unstack Tensor construction are current. Scalar-select semantics and
 normalized axis/index attributes plus public scalar-select Tensor construction are current.
-Axis-gather, Gather-ND, and axis-scatter semantics, attributes, and public Tensor construction are
-also current. Scatter-ND semantics and attributes are current, while its public Tensor
-construction remains planned in task 0018J. Other
+Axis-gather, Gather-ND, axis-scatter, and Scatter-ND semantics, attributes, and public Tensor
+construction are also current. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

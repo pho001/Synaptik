@@ -45,11 +45,11 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *
  * <p>The kind pairs explicitly with {@link ScatterNdAttrs}. Tuple depth remains the final indices
  * Dimension because it is specific to one operation occurrence and is not intrinsic attribute
- * state. Task 0018J owns the future public input-aware Tensor expression boundary for rank,
- * shared-batch-prefix, tuple-depth, Shape, data-type, result, and provenance validation because
- * those facts depend on concrete operands and are not stored here. This enum performs none of
- * those checks and does not read values, check bounds or duplicates, define gradients, capture a
- * graph, select backend support, or execute work.</p>
+ * state. The public {@code Tensor.scatterNd} overloads now own input-aware rank, shared-batch-
+ * prefix, tuple-depth, Shape, data-type, result, and provenance validation because those facts
+ * depend on concrete operands and are not stored here. This enum performs none of those checks
+ * and does not read values, check bounds or duplicates, define gradients, capture a graph, select
+ * backend support, or execute work.</p>
  *
  * <p>Scatter-ND differs from {@link GatherNdKind#GATHER_ND Gather-ND}, which reads selected data,
  * and from {@link AxisScatterKind axis scatter}, whose indices address one selected axis rather
