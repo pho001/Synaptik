@@ -27,6 +27,10 @@ known singleton axis. `slice(long[], long[], int[], long[])` adds general positi
 selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience.
 `select(int, long)` fixes one scalar coordinate and removes its source axis, with locally derived
 logical view geometry when the input layout is resolved and the result is non-empty.
+`gather(Tensor, int)` removes one data axis and requires one index for every remaining coordinate.
+`gatherAxis(Tensor, int)` replaces one data axis with the complete indices Shape, and
+`take(int, Tensor)` is its exact tensor-index alias. `takeAlongAxis(Tensor, int)` retains the exact
+same-rank indices Shape after checking every non-selected Dimension.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -99,8 +103,10 @@ identities. Each pairs with `IndexAxisAttrs`, which stores one already normalize
 data-axis position, and each has ordered logical inputs `[data, indices]`. Their index alignment
 and conceptual result Shapes deliberately differ. These semantic values do not inspect either
 input, validate index data type or Shape compatibility, construct a Tensor or provenance, define
-gradients, or execute indexing. Public `gather`, `gatherAxis`/`take`, and `takeAlongAxis` Tensor
-expressions remain planned for task 0018D.
+gradients, or execute indexing. Public `Tensor.gather`, `gatherAxis`, tensor-index `take`, and
+`takeAlongAxis` now own raw-axis normalization, exact `INT32`/`INT64` index-type validation,
+family-specific structural Shape checks and construction, and exact ordered two-input provenance.
+They do not read index values or check their bounds.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -152,6 +158,9 @@ Tensor + static singleton axis + SQUEEZE           = fresh conditional-view rank
 Tensor + parallel bounds/axes/steps + SLICE        = fresh conditional-view sliced Tensor
 Tensor + one axis and half-open bounds + SLICE     = fresh step-one sliced Tensor
 Tensor + one axis and scalar coordinate + SELECT  = fresh conditional-view rank-reduced Tensor
+Tensor + reduced-Shape indices + GATHER           = fresh reduced-Shape gather Tensor
+Tensor + arbitrary indices + GATHER_AXIS          = fresh inserted-Shape axis-gather Tensor
+Tensor + same-rank aligned indices + TAKE_ALONG_AXIS = fresh exact-indices-Shape Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
 rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
@@ -3925,6 +3934,134 @@ alias, a gradient rule, compiler capture, materialization, backend lowering, or 
   `ArithmeticException` before Tensor identity allocation. Identifier exhaustion can occur only
   during final derived construction.
 
+### Axis-gather expressions
+
+The four public axis-gather methods consume ordered logical inputs `[data, indices]`. `data` is
+the receiver and supplies the result data type and gradient eligibility. `indices` must have exact
+data type `INT32` or `INT64`; no floating or BOOL index tensor is accepted or implicitly cast.
+Each method normalizes one positive or negative axis exactly once against the data Shape after the
+null and index-type checks.
+
+The methods differ in how they relate the two input Shapes to the result:
+
+| Public method | Semantic kind | Shape rule |
+|---|---|---|
+| `gather(indices, axis)` | `GATHER` | Remove `axis` from the data Shape. The indices Shape must be structurally equal to that reduced Shape, and a newly derived reduced Shape becomes the result. |
+| `gatherAxis(indices, axis)` | `GATHER_AXIS` | Replace the selected data Dimension with every indices Dimension in order. |
+| `take(axis, indices)` | `GATHER_AXIS` | Delegate exactly to `gatherAxis`; validation, result metadata, provenance, errors, and identity effects are identical. |
+| `takeAlongAxis(indices, axis)` | `TAKE_ALONG_AXIS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
+
+Structural equality is conservative for dynamic Dimensions. The same dynamic symbol passes where
+equality is required; different symbols fail rather than creating a new symbolic constraint.
+`gatherAxis` needs no compatibility check between the inserted indices Shape and the omitted data
+Dimension. Scalar indices insert no Dimensions. Removing the only data axis for `gather` requires
+scalar indices and produces the canonical scalar Shape.
+
+Every successful request returns a fresh unlabeled, storage-free Tensor with unresolved layout,
+even when both inputs have resolved geometry. Its provenance contains the exact semantic kind,
+one `IndexAxisAttrs` with the normalized axis, and exact input references in `[data, indices]`
+order. Expression construction never reads either tensor's storage or values, normalizes or
+clamps index values, or checks index-value bounds. It defines no gradient or repeated-index rule,
+compiler capture or canonicalization, materialization, backend lowering, or execution behavior.
+
+#### Complete axis-gather expression example
+
+##### Goal and inputs
+
+Compare all three Shape relationships for `FLOAT32` data with Shape `[2, 3, 4]`. The example uses
+storage-free index tensors because current expression construction needs only their immutable
+descriptors.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class AxisGatherExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+        Tensor reducedIndices = tensor(DataType.INT32, Shape.of(2, 4), false);
+        Tensor insertedIndices = tensor(DataType.INT64, Shape.of(5, 6), false);
+        Tensor alignedIndices = tensor(DataType.INT32, Shape.of(2, 7, 4), false);
+
+        Tensor gathered = data.gather(reducedIndices, -2);
+        Tensor gatheredAxis = data.gatherAxis(insertedIndices, 1);
+        Tensor taken = data.take(1, insertedIndices);
+        Tensor takenAlong = data.takeAlongAxis(alignedIndices, -2);
+
+        IndexAxisAttrs attrs = (IndexAxisAttrs) gathered.provenance().orElseThrow()
+                .operation().attrs();
+        System.out.println(gathered.descriptor().shape());
+        System.out.println(gatheredAxis.descriptor().shape());
+        System.out.println(taken.descriptor().shape());
+        System.out.println(taken.provenance().orElseThrow().operation().kind());
+        System.out.println(takenAlong.descriptor().shape());
+        System.out.println(attrs);
+        System.out.println(gathered.provenance().orElseThrow().inputs().get(0) == data);
+        System.out.println(gathered.provenance().orElseThrow().inputs().get(1) == reducedIndices);
+        System.out.println(gathered.descriptor().requiresGrad());
+        System.out.println(gathered.descriptor().layout().isEmpty()
+                && gathered.label().isEmpty()
+                && gathered.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Raw axis `-2` normalizes once against rank three to axis `1`.
+- `gather` removes extent `3`; the required indices and result Shape are both `[2, 4]`.
+- `gatherAxis` and `take` insert complete Shape `[5, 6]` where extent `3` was, producing
+  `[2, 5, 6, 4]`. Both use `GATHER_AXIS`, but each valid call still creates a fresh Tensor.
+- `takeAlongAxis` verifies the aligned extents `2` and `4`, ignores the selected extents `3` and
+  `7`, and retains exact indices Shape `[2, 7, 4]`.
+- All results retain `FLOAT32` and true gradient eligibility from `data`; the index tensors do not
+  contribute either fact.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[2, 4]
+Shape[2, 5, 6, 4]
+Shape[2, 5, 6, 4]
+GATHER_AXIS
+Shape[2, 7, 4]
+IndexAxisAttrs[axis=1]
+true
+true
+true
+true
+```
+
+The output demonstrates axis normalization, all three Shape rules, the exact tensor-index take
+alias, metadata retention, unresolved layout, and ordered provenance. It does not demonstrate
+gathered values, valid index-value bounds, gradient behavior, compiler capture, backend lowering,
+or execution.
+
+##### Failures and useful variations
+
+- Null data and indices fail in that order. An unsupported indices data type fails before axis
+  normalization. An invalid axis then fails through `Shape.normalizeAxis`.
+- `gather` rejects structural inequality with the exact expected reduced Shape and actual indices
+  Shape in its message. Equal dynamic symbols pass; different symbols fail.
+- `takeAlongAxis` checks rank first, then non-axis Dimensions in increasing axis order and reports
+  the first mismatch. Its selected-axis extents may differ.
+- Scalar indices passed to `gatherAxis` remove the selected data axis without inserting another
+  one. Rank-one `gather` with scalar indices produces scalar Shape `[]`.
+- Local validation completes before Tensor identity allocation. Identifier exhaustion can occur
+  only during final derived construction.
+
 ### Pad and tile expressions
 
 `Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
@@ -5336,7 +5473,7 @@ non-negative data-axis position.
 
 The kinds are separate because they relate data, indices, and result Shapes differently:
 
-| Kind | Conceptual Shape relationship | Future public name |
+| Kind | Conceptual Shape relationship | Current public name |
 |---|---|---|
 | `GATHER` | The indices Shape equals the data Shape with `axis` removed; the result has that same reduced Shape. | `gather` |
 | `GATHER_AXIS` | The complete indices Shape replaces the selected data axis in the result. | `gatherAxis` and its exact alias `take` |
@@ -5368,10 +5505,10 @@ Operation takeAlongAxis = new Operation(AxisGatherKind.TAKE_ALONG_AXIS, attrs);
 - `GATHER` conceptually produces `[2, 4]`: one index corresponds to every coordinate left after
   removing data axis `1`.
 - `GATHER_AXIS` conceptually produces `[2, 5, 6, 4]`: the complete `[5, 6]` indices Shape replaces
-  the selected extent `3`. The future public `take` method names this same operation; there is no
+  the selected extent `3`. The public `take` method names this same operation; there is no
   separate `TAKE` semantic kind.
 - `TAKE_ALONG_AXIS` conceptually produces `[2, 7, 4]`: the result has the exact indices Shape,
-  subject to later compatibility checks for the non-selected axes.
+  subject to the public compatibility checks for the non-selected axes.
 
 Each `Operation` retains the exact shared `attrs` reference. The example proves only semantic
 composition and explains conceptual Shape relationships; it does not construct index tensors,
@@ -5385,9 +5522,10 @@ result descriptors, provenance, or values.
 rank, so structural validity does not prove that the axis exists. Generic `Operation` also does
 not enforce these kind/attributes pairings or the ordered two-input context.
 
-Task 0018D will own caller-facing negative-axis normalization, data-rank checks, the exact
-requirement that indices use `INT32` or `INT64`, family-specific Shape compatibility and result
-Shape construction, bounds policy, result metadata, and `[data, indices]` provenance. Axis gather
+The current public methods own caller-facing negative-axis normalization, data-rank checks, the
+exact requirement that indices use `INT32` or `INT64`, family-specific Shape compatibility and
+result Shape construction, result metadata, and `[data, indices]` provenance. They inspect no
+index values and therefore perform no index-value bounds check. Axis gather
 is distinct from scalar `SELECT`, which uses one intrinsic scalar coordinate and removes an axis;
 gather-ND, which uses multi-axis index tuples; and functional scatter, which writes or combines
 updates rather than reading indexed data. Gradients, graph/compiler behavior, backend support,
@@ -5841,7 +5979,8 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
-  stack, unstack, scalar select, unfold, fold-axis, unfold2d, and fold2d requests; plus
+  stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, unfold, fold-axis,
+  unfold2d, and fold2d requests; plus
   gradient and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
@@ -5901,12 +6040,13 @@ static, accepts a non-negative index on a dynamic selected extent with its upper
 removes the selected axis, derives conditional resolved logical-view geometry, and records fresh
 one-input provenance. Value access, a physical alias guarantee, gradients, compiler capture and
 canonicalization, materialization, backend lowering, and execution remain planned.
-Axis-gather semantics and their shared normalized `IndexAxisAttrs` are current. `GATHER`,
-`GATHER_AXIS`, and `TAKE_ALONG_AXIS` preserve distinct ordered `[data, indices]` meanings and
-conceptual Shape relationships; future public `take` is an alias for `GATHER_AXIS`, not another
-kind. Public Tensor construction, `INT32`/`INT64` index validation, input-dependent axis, Shape,
-bounds checks, result metadata, provenance, gradients, compiler behavior, lowering, and execution
-remain planned.
+Axis-gather semantics and their public Tensor construction are current. `GATHER`, `GATHER_AXIS`,
+and `TAKE_ALONG_AXIS` preserve distinct ordered `[data, indices]` meanings and Shape relationships;
+public tensor-index `take` is an exact alias for `GATHER_AXIS`, not another kind. Expression
+construction validates `INT32`/`INT64` index type, normalizes the data axis, derives and validates
+family-specific Shapes, preserves data metadata, leaves layout unresolved, and records fresh
+two-input provenance. Index-value access and bounds checks, primitive-array take convenience,
+gradients, compiler behavior, lowering, and execution remain planned or separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,

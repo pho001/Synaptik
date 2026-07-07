@@ -191,7 +191,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018A | [Scalar select semantics](tasks/0018a-scalar-select-semantics.md) | Complete | 0002, 0005, 0006 | Define scalar-index axis-selection meaning and immutable normalized axis/index attributes. |
 | 0018B | [Scalar select Tensor expression](tasks/0018b-scalar-select-tensor-expression.md) | Complete | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
 | 0018C | [Axis gather semantics](tasks/0018c-axis-gather-semantics.md) | Complete | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
-| 0018D | Axis gather Tensor expressions | Draft | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
+| 0018D | [Axis gather Tensor expressions](tasks/0018d-axis-gather-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
+| 0018D1 | Primitive take convenience | Draft | 0012B, 0018D | Add legacy `take(int, int[])` by creating one copied dense INT32 index Tensor and delegating to tensor-index take. |
 | 0018E | Gather-ND semantics | Draft | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
 | 0018F | Gather-ND Tensor expression | Draft | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
 | 0018G | Axis scatter semantics | Draft | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
@@ -202,7 +203,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J, 0019–0022 | Represent backend-neutral backward/compiler-generated semantics and authorize FOLD_AXIS generation without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J including 0018D1, 0019–0022 | Represent backend-neutral backward/compiler-generated semantics and authorize FOLD_AXIS generation without implementing autograd traversal. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected capability baseline, including documented legacy parity and intentional additions. |
 
 ## Milestones
@@ -210,7 +211,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J, and 0019–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J including 0018D1, and 0019–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
@@ -223,9 +224,9 @@ is also complete. The former combined 0017D is split into reshape task 0017D and
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
 Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
-focused tasks 0018A–0018J. Tasks 0018A, 0018B, and 0018C are complete; task 0018D is the next
-Draft frontier without a detailed specification, and tasks 0018E–0018J and later tasks remain
-Draft.
+focused tasks 0018A–0018J plus primitive-convenience task 0018D1. Tasks 0018A through 0018D are
+complete. Task 0018D1, tasks 0018E–0018J, and later tasks remain Draft without detailed
+specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -263,8 +264,12 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Scalar select accepts a negative public index only when the selected static extent can normalize
   it locally. A non-negative index on a dynamic selected extent remains representable with
   deferred bounds validation; a negative dynamic index is not locally representable.
-- Axis indexing keeps `GATHER`, ONNX-style `GATHER_AXIS` (also exposed later through `take`), and
+- Axis indexing keeps `GATHER`, ONNX-style `GATHER_AXIS` (also exposed through tensor-index
+  `take`), and
   `TAKE_ALONG_AXIS` distinct because their index alignment and result-Shape rules differ.
+- Tensor-index gather expression construction remains separate from primitive-array `take`
+  convenience: task 0018D validates and composes existing index Tensors, while task 0018D1 will
+  own copied eager INT32 index-Tensor creation and delegation.
 - Task 0018A completed exactly `SelectKind.SELECT`, normalized non-negative `SelectAttrs(axis,
   index)`, and focused structural/validation/composition coverage without public Tensor, Shape,
   layout, provenance, compiler, backend, or execution behavior.
@@ -292,7 +297,7 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   this task adds only model-owned scalar-select expression metadata.
 - Task 0018C completed exactly `AxisGatherKind.GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` plus
   shared normalized non-negative `IndexAxisAttrs(axis)`. Ordered `[data, indices]` roles, three
-  distinct result-Shape relationships, and future public `take` as an exact `GATHER_AXIS` alias
+  distinct result-Shape relationships, and public tensor-index `take` as an exact `GATHER_AXIS` alias
   are semantic documentation rather than stored inputs, validation, or result construction.
 - Independent task-0018C documentation review finalized both production Javadocs, Tensor API,
   glossary, task evidence, master plan, and roadmap after focused 9-test, all 657-model-test/
@@ -303,6 +308,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   and other modules remain accurate unchanged because the task adds only model-owned semantic
   vocabulary without Tensor input validation, result metadata, provenance, gradients, compiler,
   backend, or execution behavior.
+- Task 0018D completed exactly four public Tensor-index methods and one field-free nine-method
+  helper. It accepts only INT32/INT64 indices, normalizes one data axis, implements the distinct
+  reduced, inserted, and aligned Shape rules, leaves every result layout unresolved, and creates
+  fresh exact `[data, indices]` provenance without value, bounds, storage, gradient, compiler,
+  backend, or execution behavior. Tensor-index `take` delegates exactly to GATHER_AXIS.
+- Independent task-0018D documentation review finalized Tensor/helper and two explicitly
+  authorized semantic Javadoc corrections, Tensor API, Compile API, glossary, task evidence,
+  master plan, and roadmap after focused tests, all model tests, model Javadoc, root tests,
+  bytecode/reflection/import/source/generated-page review, an executable example, Markdown and
+  exact twelve-path checks passed. Training API, capabilities, architecture/ADRs/tests,
+  conformance/integration, Java 26 Gradle configuration, dependencies, related foundational
+  behavior, and other modules remain accurate unchanged for the recorded reasons.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
 - `HostTensorStorage` is a sealed model boundary with one final identity-based
@@ -974,7 +991,8 @@ complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. The for
 0018 is decomposed into 0018A–0018J. Task 0018A is complete with first-class scalar-select
 semantics and normalized axis/index attributes. Task 0018B is also complete with public scalar-
 select expression construction. Task 0018C is complete with the three exact axis-gather meanings
-and their shared normalized-axis attributes; tasks 0018D–0018J and every later operation-family
-task remain Draft without detailed specifications.
+and their shared normalized-axis attributes. Task 0018D is complete with the four public
+Tensor-index expressions. Task 0018D1, tasks 0018E–0018J, and every later operation-family task
+remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

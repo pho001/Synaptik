@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogi
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
@@ -73,7 +74,10 @@ import java.util.Optional;
  * axis, and record exact {@code [input, mask]} provenance without inspecting values. Arg-max
  * accepts one axis of a floating or integral input, uses an explicit first- or last-index tie
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
- * defining empty-axis behavior. Cumulative sum accepts one axis of a floating or integral input,
+ * defining empty-axis behavior. Axis gather methods consume ordered {@code [data, indices]}
+ * inputs, require exact INT32 or INT64 indices, and apply distinct reduced, inserted, or aligned
+ * Shape rules without reading index values or checking their bounds. Cumulative sum accepts one
+ * axis of a floating or integral input,
  * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
@@ -120,7 +124,7 @@ import java.util.Optional;
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
- * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link ContiguousKind},
+ * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link ContiguousKind},
  * {@link ShapeTransformKind}, {@link AxisTransformKind}, {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
@@ -2435,6 +2439,119 @@ public final class Tensor {
      */
     public Tensor select(int axis, long index) {
         return TensorSelectExpressions.apply(this, axis, index);
+    }
+
+    /**
+     * Creates a fresh expression that gathers one indexed value for every coordinate remaining
+     * after one data axis is removed.
+     *
+     * <p>The ordered logical inputs are {@code [this, indices]}. The {@code indices} tensor must
+     * have exact {@link DataType#INT32} or {@link DataType#INT64} type and a Shape structurally
+     * equal to this tensor's Shape with the normalized {@code axis} removed. For data Shape
+     * {@code [2, 3, 4]}, axis {@code 1}, and indices Shape {@code [2, 4]}, the result Shape is
+     * {@code [2, 4]}. Rank-one data requires scalar indices and produces a scalar. Equal dynamic
+     * Dimensions pass through existing structural equality; different symbols are rejected.</p>
+     *
+     * <p>The fresh result preserves this tensor's exact data type and gradient eligibility, has
+     * unresolved layout, no label or storage, and records {@link AxisGatherKind#GATHER}, the
+     * normalized axis, and ordered exact provenance. No index value or bound is inspected, and no
+     * gradient rule, compiler capture, materialization, backend support, or execution behavior is
+     * defined. This is distinct from scalar {@link #select(int, long)}, gather-ND, and scatter.</p>
+     *
+     * @param indices non-null INT32 or INT64 tensor whose Shape equals the data Shape with the
+     *     selected axis removed; retained by exact reference in provenance and not mutated
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh storage-free GATHER tensor with reduced Shape, preserved data type
+     *     and gradient eligibility, unresolved layout, and exact provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if index type or reduced Shape compatibility is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor gather(Tensor indices, int axis) {
+        return TensorAxisGatherExpressions.gather(this, indices, axis);
+    }
+
+    /**
+     * Creates a fresh ONNX-style axis-gather expression that replaces one data axis with the
+     * complete indices Shape.
+     *
+     * <p>The ordered logical inputs are {@code [this, indices]}, and indices must be exact INT32
+     * or INT64. Data Shape {@code [2, 3, 4]}, axis {@code 1}, and indices Shape {@code [5, 6]}
+     * produce {@code [2, 5, 6, 4]}. Scalar indices instead produce {@code [2, 4]}. Every
+     * unaffected data Dimension and inserted indices Dimension is retained exactly.</p>
+     *
+     * <p>The result records {@link AxisGatherKind#GATHER_AXIS}, preserves data type and gradient
+     * eligibility, and has unresolved layout, no label, and no storage. {@link #take(int, Tensor)}
+     * is an exact alias; primitive-array take remains deferred. No values or bounds are inspected,
+     * and no gradient, compiler, materialization, backend, or execution behavior is defined.</p>
+     *
+     * @param indices non-null INT32 or INT64 tensor whose complete Shape replaces the selected
+     *     data axis; retained by exact reference in provenance and not mutated
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh storage-free GATHER_AXIS tensor with inserted indices Shape,
+     *     preserved data metadata, unresolved layout, and exact provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor gatherAxis(Tensor indices, int axis) {
+        return TensorAxisGatherExpressions.gatherAxis(this, indices, axis);
+    }
+
+    /**
+     * Creates the exact tensor-index alias of {@link #gatherAxis(Tensor, int)}.
+     *
+     * <p>This method has the same GATHER_AXIS semantics, Shape insertion, validation, errors,
+     * normalized attributes, ordered {@code [this, indices]} provenance, unresolved layout,
+     * metadata retention, freshness, and identifier behavior. The primitive
+     * {@code take(int, int[])} convenience remains deferred to task 0018D1.</p>
+     *
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @param indices non-null INT32 or INT64 tensor passed unchanged to the GATHER_AXIS path
+     * @return a non-null fresh storage-free GATHER_AXIS tensor equivalent to
+     *     {@code gatherAxis(indices, axis)}
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor take(int axis, Tensor indices) {
+        return TensorAxisGatherExpressions.take(this, axis, indices);
+    }
+
+    /**
+     * Creates a fresh same-rank expression whose indices align with data away from one axis.
+     *
+     * <p>Indices must be exact INT32 or INT64, have the same rank as data, and have equal
+     * Dimensions on every non-selected axis. The selected extents may differ. Data Shape
+     * {@code [2, 3, 4]}, indices Shape {@code [2, 7, 4]}, and axis {@code 1} retain the exact
+     * indices Shape {@code [2, 7, 4]} as the result. Equal dynamic symbols pass, while different
+     * symbols fail on their first non-axis mismatch.</p>
+     *
+     * <p>The result preserves exact data type and gradient eligibility, has unresolved layout, no
+     * label or storage, and records {@link AxisGatherKind#TAKE_ALONG_AXIS}, normalized attributes,
+     * and ordered {@code [this, indices]} provenance. It reads no values, checks no value bounds,
+     * and defines no gradient, compiler, materialization, backend, or execution behavior. It is
+     * distinct from scalar select, gather-ND, and functional scatter.</p>
+     *
+     * @param indices non-null same-rank INT32 or INT64 tensor matching data away from the selected
+     *     axis; its exact Shape becomes the result Shape and it is not mutated
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh storage-free TAKE_ALONG_AXIS tensor retaining exact indices Shape,
+     *     data metadata, unresolved layout, and exact provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if index type, rank, or non-axis alignment is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor takeAlongAxis(Tensor indices, int axis) {
+        return TensorAxisGatherExpressions.takeAlongAxis(this, indices, axis);
     }
 
     /**

@@ -15,9 +15,10 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * <p>This value contains no input rank, data shape, selected-axis extent, indices shape, or result
  * shape. It therefore cannot prove that the axis exists or validate the family-specific shape
  * rules. Zero, positive values, and {@link Integer#MAX_VALUE} are structurally valid and retained
- * unchanged. Task 0018D's later input-aware Tensor-expression contract owns caller-facing
- * negative-axis normalization, rank and shape checks, index bounds, and the requirement that
- * index tensors use {@code INT32} or {@code INT64}.</p>
+ * unchanged. The public input-aware Tensor-expression contract owns caller-facing negative-axis
+ * normalization, rank and shape checks, and the requirement that index tensors use
+ * {@code INT32} or {@code INT64}. It reads no index values and therefore performs no index-value
+ * bounds check.</p>
  *
  * <p>The immutable record stores only the primitive axis. Record-generated equality and hashing
  * use that component, and generated text is diagnostic rather than a serialization, request,

@@ -18,12 +18,12 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *       shape is {@code [2, 4]}.</li>
  *   <li>{@link #GATHER_AXIS} replaces the selected data axis with the complete indices shape. For
  *       data shape {@code [2, 3, 4]}, axis {@code 1}, and indices shape {@code [5, 6]}, the
- *       conceptual result shape is {@code [2, 5, 6, 4]}. A future public {@code take} method is an
+ *       conceptual result shape is {@code [2, 5, 6, 4]}. Public tensor-index {@code take} is an
  *       alias for this exact meaning, not another enum constant.</li>
  *   <li>{@link #TAKE_ALONG_AXIS} aligns same-rank indices with data coordinates away from the
  *       selected axis and has the exact indices shape as its conceptual result. For data shape
  *       {@code [2, 3, 4]}, axis {@code 1}, and indices shape {@code [2, 7, 4]}, the conceptual
- *       result shape is {@code [2, 7, 4]}, subject to later non-axis compatibility checks.</li>
+ *       result shape is {@code [2, 7, 4]}, subject to public non-axis compatibility checks.</li>
  * </ul>
  *
  * <p>All three kinds pair explicitly with {@link IndexAxisAttrs}; the generic operation
@@ -33,11 +33,12 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * from functional scatter, which writes or combines updates rather than reading indexed data.</p>
  *
  * <p>This enum stores no input, shape, data type, bounds, result descriptor, provenance, gradient,
- * graph or compiler policy, backend support, or execution state. Task 0018D's later public
- * Tensor-expression contract validates that indices use {@code INT32} or {@code INT64},
- * normalizes a caller-facing axis, checks input-dependent shape and bounds rules, and constructs
- * result metadata. The inherited enum name is diagnostic text rather than a serialization,
- * dispatch, registry, route, or kernel identifier.</p>
+ * graph or compiler policy, backend support, or execution state. The public Tensor-expression
+ * contract validates that indices use {@code INT32} or {@code INT64}, normalizes a caller-facing
+ * axis, checks input-dependent shape relationships, and constructs result metadata and
+ * provenance. It reads no index values and therefore performs no index-value bounds check. The
+ * inherited enum name is diagnostic text rather than a serialization, dispatch, registry, route,
+ * or kernel identifier.</p>
  */
 public enum AxisGatherKind implements OperationKind {
     /**
@@ -56,7 +57,7 @@ public enum AxisGatherKind implements OperationKind {
      *
      * <p>The ordered logical inputs are {@code [data, indices]}. For data {@code [2, 3, 4]}, axis
      * {@code 1}, and indices {@code [5, 6]}, the conceptual result is {@code [2, 5, 6, 4]}. A
-     * future public {@code take} method names this same operation; there is deliberately no
+     * public tensor-index {@code take} names this same operation; there is deliberately no
      * separate {@code TAKE} kind. This enum performs no shape validation or result construction.</p>
      */
     GATHER_AXIS,
@@ -67,7 +68,7 @@ public enum AxisGatherKind implements OperationKind {
      *
      * <p>The ordered logical inputs are {@code [data, indices]}. For data {@code [2, 3, 4]}, axis
      * {@code 1}, and indices {@code [2, 7, 4]}, the conceptual result is {@code [2, 7, 4]}, subject
-     * to later non-axis compatibility checks. This kind performs neither those checks nor value
+     * to public non-axis compatibility checks. This kind performs neither those checks nor value
      * selection.</p>
      */
     TAKE_ALONG_AXIS

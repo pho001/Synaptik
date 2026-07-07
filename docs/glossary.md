@@ -148,10 +148,12 @@ materialization, backend behavior, and execution remain planned or separately ow
 The `AxisGatherKind` vocabulary is implemented with distinct `GATHER`, `GATHER_AXIS`, and
 `TAKE_ALONG_AXIS` tensor-index meanings, together with `IndexAxisAttrs` carrying one normalized
 non-negative data axis. Every kind has ordered logical inputs `[data, indices]`, but the three
-index-alignment and result-Shape relationships differ. Future public `take` is an exact alias for
-`GATHER_AXIS`, not another kind. Public Tensor construction, index-type and input-dependent Shape
-validation, result metadata, provenance, gradients, compiler behavior, backend behavior, and
-execution remain planned.
+index-alignment and result-Shape relationships differ. Public tensor-index `take` is an exact alias
+for `GATHER_AXIS`, not another kind. Public `gather`, `gatherAxis`, `take`, and `takeAlongAxis`
+construction now validates exact `INT32`/`INT64` index type, normalizes the data axis, applies the
+family-specific structural Shape rule, preserves data metadata with unresolved layout, and records
+fresh ordered two-input provenance. Index-value access and bounds checks, gradients, compiler
+behavior, backend behavior, and execution remain planned or separately owned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -238,22 +240,25 @@ The three meanings are deliberately distinct:
   conceptual result has that reduced Shape. Data `[2, 3, 4]`, axis `1`, and indices `[2, 4]`
   therefore mean result `[2, 4]`.
 - `GATHER_AXIS` replaces the selected data axis with the complete indices Shape. Data
-  `[2, 3, 4]`, axis `1`, and indices `[5, 6]` mean result `[2, 5, 6, 4]`. Future public `take`
+  `[2, 3, 4]`, axis `1`, and indices `[5, 6]` mean result `[2, 5, 6, 4]`. Public tensor-index `take`
   is an alias for this exact operation, so there is no separate `TAKE` kind.
 - `TAKE_ALONG_AXIS` aligns same-rank indices with data coordinates away from the selected axis and
   has the exact indices Shape as its conceptual result. Data `[2, 3, 4]`, axis `1`, and indices
-  `[2, 7, 4]` mean result `[2, 7, 4]`, subject to later non-axis compatibility checks.
+  `[2, 7, 4]` mean result `[2, 7, 4]`, subject to public non-axis compatibility checks.
 
 `IndexAxisAttrs` rejects negative axes but contains no data rank, selected extent, input, or Shape.
 It cannot prove that the axis exists or validate any of the three Shape relationships. Generic
 `Operation` retains an exact kind and attributes pair but does not enforce the pairing or ordered
-two-input context. Task 0018D owns the future public input-aware boundary, including raw-axis
-normalization, the requirement that indices use `INT32` or `INT64`, Shape and bounds checks,
-result metadata, and provenance. Axis gather differs from [scalar select](#scalar-select), which
+two-input context. The current public input-aware boundary normalizes a raw data axis, requires
+indices to use `INT32` or `INT64`, derives or validates the family-specific Shape, preserves data
+type and gradient eligibility with unresolved result layout, and records exact `[data, indices]`
+provenance. It never reads index values and therefore performs no index-value bounds check. Axis
+gather differs from [scalar select](#scalar-select), which
 uses one intrinsic scalar coordinate; gather-ND, which uses multi-axis index tuples; and
 functional scatter, which writes or combines updates. Gradients, compiler behavior, backend
 support, materialization, and execution remain planned. See [Axis-gather semantic kinds and
-attributes](api/tensor-api.md#axis-gather-semantic-kinds-and-attributes).
+attributes](api/tensor-api.md#axis-gather-semantic-kinds-and-attributes) and [Axis-gather
+expressions](api/tensor-api.md#axis-gather-expressions).
 
 ### Axis transform
 
