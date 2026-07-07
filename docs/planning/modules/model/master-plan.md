@@ -195,7 +195,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018D1 | [Primitive take convenience](tasks/0018d1-primitive-take-convenience.md) | Complete | 0012B, 0018D | Add legacy `take(int, int[])` by creating one copied dense INT32 index Tensor and delegating to tensor-index take. |
 | 0018E | [Gather-ND semantics](tasks/0018e-gather-nd-semantics.md) | Complete | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
 | 0018F | [Gather-ND Tensor expressions](tasks/0018f-gather-nd-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
-| 0018G | Axis scatter semantics | Draft | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
+| 0018G | [Axis scatter semantics](tasks/0018g-axis-scatter-semantics.md) | Complete | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
 | 0018H | Axis scatter Tensor expressions | Draft | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
 | 0018I | Scatter-ND semantics | Draft | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
 | 0018J | Scatter-ND Tensor expression | Draft | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
@@ -226,8 +226,10 @@ is also complete. The former combined 0017D is split into reshape task 0017D and
 Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
 focused tasks 0018A–0018J plus primitive-convenience task 0018D1. Tasks 0018A through 0018D1 are
 complete. Task 0018E is complete with tuple-index semantics and normalized batch attributes. Task
-0018F is complete with public Gather-ND expression construction. Task 0018G is the next Draft
-frontier without a detailed specification; tasks 0018H–0018J and later tasks remain Draft.
+0018F is complete with public Gather-ND expression construction. Task 0018G is complete with the
+three axis-scatter meanings, reusable reduction vocabulary, and explicit scatter-elements
+attributes. Task 0018H is the next Draft frontier without a detailed specification; tasks
+0018I–0018J and later tasks also remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -280,6 +282,26 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Gather-ND public construction requires INT32/INT64 indices, statically known positive tuple
   depth, structurally equal shared batch Dimensions, and unresolved result layout; index values
   and bounds remain outside model metadata construction.
+- Axis-scatter planning keeps `SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` distinct
+  because reduced-rank gather inverse, rank-changing gather-axis inverse, and same-rank indexed
+  updates use different Shape relationships. The two fixed-add kinds reuse `IndexAxisAttrs`;
+  scatter-elements owns explicit normalized-axis plus reduction attributes.
+- Scatter reduction is one reusable typed vocabulary in exact `NONE`, `ADD`, `MUL`, `MAX`, and
+  `MIN` order. `NONE` represents unambiguous replacement and rejects duplicate targets in later
+  value-aware validation rather than defining traversal-order-dependent overwrite behavior.
+- Task 0018G completed exactly `AxisScatterKind`, `ScatterReduction`, and
+  `ScatterElementsAttrs`, plus unchanged reuse of `IndexAxisAttrs` for fixed-add kinds. Ordered
+  `[data, indices, updates]`, functional data-shaped results, all three Shape relationships, every
+  reduction meaning, and value-aware `NONE` duplicate rejection are semantic contracts only;
+  task 0018H owns public type/Shape/axis validation and Tensor construction.
+- Independent task-0018G documentation review retained all three new production Javadocs,
+  clarified only `IndexAxisAttrs` ownership wording, and finalized Tensor API, glossary, task
+  evidence, master plan, and roadmap. Focused 12-test, all 706-model-test/82-suite, model-Javadoc,
+  root-test, javap/reflection/import/source/generated-page, 392-link/100-anchor,
+  fence/whitespace/newline, exact ten-path, synchronized-status, `IndexAxisAttrs` bytecode-
+  equivalence, and no-0018H-spec checks passed. Compile API, Training API, capabilities, related
+  contracts, architecture/ADRs/tests, conformance/integration, Java 26 Gradle/dependencies, other
+  modules, and later tasks remain accurate unchanged for the recorded reasons.
 - Task 0018F completed exactly two public `Tensor.gatherNd` methods and one field-free eight-method
   helper. It validates index metadata, ranks, normalized batch count, structurally equal shared
   batch prefixes, and static positive tuple depth before deriving the exact indices-prefix plus
@@ -1042,7 +1064,8 @@ select expression construction. Task 0018C is complete with the three exact axis
 and their shared normalized-axis attributes. Task 0018D is complete with the four public
 Tensor-index expressions. Task 0018D1 is complete with the primitive-take convenience. Task 0018E
 is complete with `GATHER_ND` and normalized batch-dimension attributes. Task 0018F is complete with
-public Gather-ND expression construction. Task 0018G is the next Draft frontier without a detailed
-specification; tasks 0018H–0018J and every later operation-family task remain Draft.
+public Gather-ND expression construction. Task 0018G is complete with functional axis-scatter
+semantic values. Task 0018H is the next Draft frontier without a detailed specification; tasks
+0018I–0018J and every later operation-family task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

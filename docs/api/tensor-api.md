@@ -125,6 +125,16 @@ input-rank and batch compatibility, structural batch-prefix equality, static pos
 validation, result Shape construction, and exact ordered provenance. Index-value bounds,
 gradients, compiler behavior, backend behavior, and execution remain planned or separately owned.
 
+`AxisScatterKind.SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` are current functional
+axis-scatter semantic identities. Every kind has ordered logical inputs
+`[data, indices, updates]` and conceptually produces a new result with the exact `data` Shape;
+none mutates `data` in place. The two fixed-add kinds reuse `IndexAxisAttrs`, while
+`SCATTER_ELEMENTS` uses `ScatterElementsAttrs(axis, reduction)` and the reusable
+`ScatterReduction` vocabulary `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. Replacement with `NONE`
+requires unique target coordinates; value-aware duplicate detection is deferred. Public Tensor
+construction, input type and Shape validation, caller-axis normalization, index bounds,
+provenance, gradients, compiler behavior, backend behavior, and execution remain planned.
+
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` now own raw-axis normalization, static Shape and compatibility checks,
@@ -205,6 +215,7 @@ TensorCompositionKind + composition attributes              = concat/stack/unsta
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
 AxisGatherKind + IndexAxisAttrs                            = three axis tensor-index meanings + normalized data axis
 GatherNdKind + GatherNdAttrs                              = tuple-index meaning + normalized shared batch count
+AxisScatterKind + IndexAxisAttrs / ScatterElementsAttrs   = functional axis-scatter meaning + axis/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
@@ -4912,7 +4923,10 @@ composition while the table also lists the current production families:
 | `SelectKind` | The implemented production enum whose sole `SELECT` value fixes one scalar coordinate on one source axis and removes that axis. |
 | `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
 | `AxisGatherKind` | The implemented production enum for distinct reduced-shape gather, ONNX-style axis gather, and aligned same-rank take-along-axis meanings. |
-| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by all three axis-gather kinds. |
+| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by all three axis-gather kinds and the two fixed-add axis-scatter kinds. |
+| `AxisScatterKind` | The implemented production enum for reduced-rank fixed-add scatter, rank-changing fixed-add axis scatter, and configurable same-rank scatter-elements meanings. |
+| `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
+| `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -5853,6 +5867,84 @@ coordinate; axis gather, which indexes one selected axis; and scatter-ND, which 
 updates. Neither semantic values nor current expression construction define index-value bounds,
 a numerical algorithm, gradients, compiler behavior, backend behavior, or execution.
 
+### Axis-scatter semantic kinds, reduction, and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.AxisScatterKind` implements
+`OperationKind` with exactly `SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS`, in that
+order. A functional scatter starts from base `data`, uses `indices` to select result target
+coordinates, applies `updates` at those targets, and produces a new value with the exact `data`
+Shape. It does not mutate `data` in place. A duplicate target occurs when more than one index entry
+addresses the same result coordinate.
+
+Every kind has ordered logical inputs `[data, indices, updates]`, but the Shape relationships and
+attribute pairings differ:
+
+| Kind | Conceptual Shape relationship | Attributes and reduction |
+|---|---|---|
+| `SCATTER_ADD` | `indices.shape == updates.shape == remove(data.shape, axis)` | `IndexAxisAttrs`; addition is fixed by the kind |
+| `SCATTER_AXIS_ADD` | `updates.shape` equals the result Shape of `gatherAxis(data, indices, axis)` | `IndexAxisAttrs`; addition is fixed by the kind |
+| `SCATTER_ELEMENTS` | Indices and updates have equal rank and Shape and match data away from `axis` | `ScatterElementsAttrs`; reduction is explicit |
+
+These rows define semantic relationships; the types do not inspect operands or calculate Shapes.
+The result Shape is the exact data Shape in all three cases.
+
+#### Three-way Shape and coordinate example
+
+For conceptual data Shape `[2, 3, 4]` and normalized axis `1`:
+
+- `SCATTER_ADD` uses indices and updates Shapes `[2, 4]`. At reduced coordinate `[0, 2]`, index
+  `1` adds update `[0, 2]` to target `[0, 1, 2]`; the result Shape is `[2, 3, 4]`.
+- `SCATTER_AXIS_ADD` uses indices Shape `[5, 6]` and updates Shape `[2, 5, 6, 4]`. Update
+  `[0, i, j, 2]` targets `[0, indices[i, j], 2]`; the result Shape is `[2, 3, 4]`.
+- `SCATTER_ELEMENTS` uses equal indices and updates Shapes `[2, 5, 4]`. At update coordinate
+  `[0, 4, 2]`, the corresponding index selects target `[0, index, 2]`; the result Shape is
+  `[2, 3, 4]`.
+
+The examples explain coordinate roles and Shape relationships only. They do not construct a
+Tensor, validate an index value, or calculate a numerical result.
+
+#### Reduction meaning and composition
+
+`ScatterReduction` contains exactly `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`, in that order:
+
+- `NONE` replaces the base value with one update. Target coordinates must be unique; duplicate
+  targets are invalid rather than resolved by first-write, last-write, or another update order.
+- `ADD` combines the base value and every update for one target by addition.
+- `MUL` combines them by multiplication.
+- `MAX` combines them by maximum.
+- `MIN` combines them by minimum.
+
+The vocabulary defines mathematical combination choices, not traversal or accumulation order,
+numeric edge behavior, supported data types, determinism, atomicity, or backend implementation.
+Duplicate detection for `NONE` requires index values and therefore occurs after semantic metadata
+construction.
+
+The fixed-add kinds compose with the existing normalized-axis attributes, while scatter-elements
+stores its caller-selected reduction explicitly:
+
+```java
+IndexAxisAttrs axis = new IndexAxisAttrs(1);
+Operation scatterAdd = new Operation(AxisScatterKind.SCATTER_ADD, axis);
+Operation scatterAxisAdd = new Operation(AxisScatterKind.SCATTER_AXIS_ADD, axis);
+
+ScatterElementsAttrs elementsAttrs =
+        new ScatterElementsAttrs(1, ScatterReduction.ADD);
+Operation scatterElements = new Operation(
+        AxisScatterKind.SCATTER_ELEMENTS, elementsAttrs);
+```
+
+Both attribute types require an already normalized non-negative axis but contain no rank, so they
+cannot prove that the axis exists. `ScatterElementsAttrs` validates the axis before requiring a
+non-null reduction; `null` never means `NONE`. Generic `Operation` retains each exact kind and
+attributes reference without enforcing the documented pairing or three-input context.
+
+Task 0018H owns public caller-axis normalization plus index-type, data/update-type, rank, Shape,
+descriptor, and provenance validation. Index bounds and duplicate targets require values and
+remain outside model metadata construction. Axis scatter is distinct from axis gather and
+Gather-ND, which read selected data; scatter-ND, which uses multi-axis index tuples; fold, which
+reconstructs overlapping windows; and in-place mutation. These semantics define no Tensor result
+method, gradient, compiler behavior, materialization, lowering, backend behavior, or execution.
+
 ### Window-transform semantic kinds and attributes
 
 The public enum
@@ -6308,8 +6400,8 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, and
-  window-transform semantics, plus
+  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND,
+  axis-scatter, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -6324,7 +6416,7 @@ The following contracts appear in the architecture and planning documents but ar
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
 `UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
-`GatherNdKind`, `GatherNdAttrs`,
+`GatherNdKind`, `GatherNdAttrs`, `AxisScatterKind`, `ScatterReduction`, `ScatterElementsAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
@@ -6380,6 +6472,14 @@ structurally equal batch prefixes, and static positive tuple depth before derivi
 indices-prefix-plus-data-suffix Shape and recording exact provenance. Results retain data type and
 gradient eligibility, leave layout unresolved, and remain unlabeled and storage-free. Index-value
 bounds, gradients, compiler behavior, lowering, and execution remain separately owned.
+Axis-scatter semantics are current, while public Tensor construction remains planned.
+`SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` use ordered
+`[data, indices, updates]`, preserve the exact data Shape in a new functional result, and remain
+distinct by their reduced-rank, rank-changing, and same-rank update alignment. The two fixed-add
+kinds reuse `IndexAxisAttrs`; scatter-elements uses `ScatterElementsAttrs` with explicit
+`NONE`/`ADD`/`MUL`/`MAX`/`MIN` reduction meaning. `NONE` requires unique targets, but duplicate
+detection, index bounds, public type/Shape/axis validation, Tensor result construction, gradients,
+compiler behavior, lowering, and execution remain later responsibilities.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,
@@ -6487,6 +6587,11 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
 - `IndexAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and exact
   message `axis must be non-negative: <axis>`. It retains every non-negative `int`, including
   `Integer.MAX_VALUE`, without proving that the axis exists for an eventual data input.
+- `ScatterElementsAttrs` checks its normalized axis first with the same exact negative-axis
+  failure, then requires a non-null `ScatterReduction` with `NullPointerException("reduction")`.
+  It retains every non-negative axis and exact reduction unchanged without validating an input
+  rank, Shape, data type, index bound, or duplicate target. `NONE` duplicates remain invalid but
+  require later value-aware detection.
 - `CompositionAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and
   exact message `axis must be non-negative: <axis>`. `UnstackOutputAttrs` performs that axis check
   before rejecting a negative output index with exact message

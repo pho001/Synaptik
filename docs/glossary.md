@@ -162,6 +162,14 @@ supplies tuple depth rather than duplicating that occurrence-specific fact in at
 prefix, static positive tuple depth, and result Shape; it records fresh ordered provenance while
 preserving data metadata with unresolved layout. Index-value bounds, gradients, compiler behavior,
 backend behavior, and execution remain planned or separately owned.
+The `AxisScatterKind` vocabulary is implemented with distinct functional `SCATTER_ADD`,
+`SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` meanings. All use ordered logical inputs
+`[data, indices, updates]` and conceptually produce a new result with the exact data Shape without
+mutating the base data. The two fixed-add kinds reuse normalized `IndexAxisAttrs`;
+`SCATTER_ELEMENTS` uses `ScatterElementsAttrs` and the reusable `ScatterReduction` choices
+`NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. `NONE` duplicate targets are invalid, with value-aware
+detection deferred. Public Tensor construction, input-aware type/Shape/axis validation, index
+bounds, provenance, gradients, compiler behavior, backend behavior, and execution remain planned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -279,6 +287,45 @@ identifier in place without a result identifier. Final result-identifier exhaust
 does not roll back the generated Tensor, storage, or identifier. Null or empty primitive input
 fails before those allocations. Every signed `int`, including negative and extreme values, is
 copied unchanged and remains unchecked as a coordinate.
+
+### Axis scatter
+
+An implemented family of backend-independent functional-scatter meanings represented by
+`AxisScatterKind`, `IndexAxisAttrs`, `ScatterElementsAttrs`, and `ScatterReduction`. Functional
+scatter starts from base `data`, uses `indices` to select target coordinates, applies `updates` at
+those targets, and produces a new result with the exact data Shape. It does not mutate data in
+place. A duplicate target occurs when multiple index entries address the same result coordinate.
+
+Every kind has ordered logical inputs `[data, indices, updates]`, but their Shape relationships
+differ:
+
+- `SCATTER_ADD` requires indices and updates Shapes equal to the data Shape with the selected axis
+  removed. For data `[2, 3, 4]`, axis `1`, and Shapes `[2, 4]`, reduced coordinate `[0, 2]` with
+  index `1` adds update `[0, 2]` to target `[0, 1, 2]`.
+- `SCATTER_AXIS_ADD` requires the updates Shape produced by replacing the selected data axis with
+  the complete indices Shape. Data `[2, 3, 4]`, axis `1`, indices `[5, 6]`, and updates
+  `[2, 5, 6, 4]` target data as `[0, indices[i, j], 2]` from update `[0, i, j, 2]`.
+- `SCATTER_ELEMENTS` requires equal same-rank indices and updates Shapes that match data away from
+  the selected axis. Data `[2, 3, 4]`, axis `1`, and indices/updates `[2, 5, 4]` use the index at
+  each update coordinate to choose that coordinate's middle result position.
+
+All three examples produce conceptual Shape `[2, 3, 4]`. The first two kinds have intrinsic fixed
+addition and reuse `IndexAxisAttrs`. Scatter-elements uses `ScatterElementsAttrs(axis, reduction)`:
+`NONE` replaces one target and requires unique targets, `ADD` adds, `MUL` multiplies, `MAX` takes
+the maximum, and `MIN` takes the minimum of the base value and all updates for that target. These
+choices define mathematical meaning, not traversal order, numeric edge behavior, or an execution
+algorithm.
+
+Both attribute types store an already normalized non-negative axis without rank context.
+`ScatterElementsAttrs` validates the axis before requiring a non-null reduction; null does not
+mean `NONE`. Task 0018H owns caller-axis normalization and public index-type, data/update-type,
+rank, Shape, descriptor, and provenance validation. Index bounds and `NONE` duplicate detection
+require values and remain outside metadata construction. Axis scatter differs from [axis
+gather](#axis-gather) and [Gather-ND](#gather-nd), which read selected data; scatter-ND, which uses
+multi-axis coordinate tuples; [window transform](#window-transform) fold, which reconstructs
+overlapping windows; and in-place mutation. Gradients, compiler behavior, materialization,
+lowering, backend behavior, and execution remain planned. See [Axis-scatter semantic kinds,
+reduction, and attributes](api/tensor-api.md#axis-scatter-semantic-kinds-reduction-and-attributes).
 
 ### Gather-ND
 
@@ -618,6 +665,10 @@ planned public request syntax that must be normalized before constructing these 
 axis, with the paired kind supplying the interpretation. `UnstackOutputAttrs` stores a normalized
 source axis plus one non-negative logical coordinate on that axis. Neither value contains rank or
 extent context, so public composition construction must validate those bounds later.
+`IndexAxisAttrs` stores the normalized data axis for current axis gather and the two fixed-add
+axis-scatter meanings. `ScatterElementsAttrs` stores the corresponding axis plus an explicit
+reduction for scatter-elements. The current gather boundary validates its public caller axis;
+task 0018H owns that validation for public axis-scatter construction.
 `UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
 restored target axis. Neither contains rank context. Current public `unfold` normalizes raw syntax
 against the input rank; `foldAxis` normalizes it against the target rank after removing the final
@@ -667,9 +718,11 @@ ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds on
 shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
 one individually identified unstack result. `SelectAttrs` holds one normalized source axis and
 one normalized scalar coordinate for axis-removing scalar select. `IndexAxisAttrs` holds one
-normalized data axis shared by `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS`. `GatherNdAttrs`
-holds the normalized count of shared leading batch Dimensions for `GATHER_ND`; tuple depth remains
-the final indices Dimension rather than attribute state. `UnfoldAxisAttrs`
+normalized data axis shared by `GATHER`, `GATHER_AXIS`, `TAKE_ALONG_AXIS`, `SCATTER_ADD`, and
+`SCATTER_AXIS_ADD`. `GatherNdAttrs` holds the normalized count of shared leading batch Dimensions
+for `GATHER_ND`; tuple depth remains the final indices Dimension rather than attribute state.
+`ScatterElementsAttrs` holds one normalized data axis plus an explicit non-null
+`ScatterReduction` for `SCATTER_ELEMENTS`. `UnfoldAxisAttrs`
 carries normalized general-axis window size and step; `FoldAxisAttrs` carries normalized target axis,
 explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
 kernel/stride/padding/dilation geometry and its
@@ -820,7 +873,10 @@ sole `SELECT` value pairs with `SelectAttrs` as described under [scalar select](
 The nineteenth is `AxisGatherKind`, whose `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` values
 pair with `IndexAxisAttrs` as described under [axis gather](#axis-gather). The twentieth is
 `GatherNdKind`, whose sole `GATHER_ND` value pairs with `GatherNdAttrs` as described under
-[Gather-ND](#gather-nd). The twenty-first is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
+[Gather-ND](#gather-nd). The twenty-first is `AxisScatterKind`: `SCATTER_ADD` and
+`SCATTER_AXIS_ADD` pair with `IndexAxisAttrs`, while `SCATTER_ELEMENTS` pairs with
+`ScatterElementsAttrs` and one `ScatterReduction`, as described under [axis scatter](#axis-scatter).
+The twenty-second is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with
 `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
 under [window transform](#window-transform). These semantic families do not by themselves
@@ -1629,8 +1685,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, axis-gather, gather-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, shared gather/fixed-add-scatter axis, gather-ND, scatter-elements, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
