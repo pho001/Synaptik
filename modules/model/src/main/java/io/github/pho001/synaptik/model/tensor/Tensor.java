@@ -2484,8 +2484,9 @@ public final class Tensor {
      *
      * <p>The result records {@link AxisGatherKind#GATHER_AXIS}, preserves data type and gradient
      * eligibility, and has unresolved layout, no label, and no storage. {@link #take(int, Tensor)}
-     * is an exact alias; primitive-array take remains deferred. No values or bounds are inspected,
-     * and no gradient, compiler, materialization, backend, or execution behavior is defined.</p>
+     * is an exact tensor-index alias, while {@link #take(int, int[])} first creates an independent
+     * dense INT32 index tensor. No index values or bounds are inspected, and no gradient,
+     * compiler, materialization, backend, or execution behavior is defined.</p>
      *
      * @param indices non-null INT32 or INT64 tensor whose complete Shape replaces the selected
      *     data axis; retained by exact reference in provenance and not mutated
@@ -2507,8 +2508,8 @@ public final class Tensor {
      *
      * <p>This method has the same GATHER_AXIS semantics, Shape insertion, validation, errors,
      * normalized attributes, ordered {@code [this, indices]} provenance, unresolved layout,
-     * metadata retention, freshness, and identifier behavior. The primitive
-     * {@code take(int, int[])} convenience remains deferred to task 0018D1.</p>
+     * metadata retention, freshness, and result-identifier behavior. The primitive-array
+     * overload creates its own copied INT32 index tensor before invoking this path.</p>
      *
      * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
      * @param indices non-null INT32 or INT64 tensor passed unchanged to the GATHER_AXIS path
@@ -2522,6 +2523,50 @@ public final class Tensor {
      */
     public Tensor take(int axis, Tensor indices) {
         return TensorAxisGatherExpressions.take(this, axis, indices);
+    }
+
+    /**
+     * Creates a fresh GATHER_AXIS expression from a copied non-empty primitive index sequence.
+     *
+     * <p>The caller-owned array is cloned once before any tensor is created. The snapshot is
+     * imported through {@link TensorFactory#fromFlatArray(TensorDescriptor, Optional, int[])} as
+     * one unlabeled, provenance-free, non-differentiable INT32 tensor with Shape
+     * {@code [indices.length]}, canonical dense-contiguous layout, and independent JVM-managed
+     * heap storage. Factory import copies the snapshot again into that storage, so neither the
+     * caller array nor the helper snapshot is retained. Every signed {@code int}, including
+     * negative and extreme values, is preserved unchanged and is not bounds-checked.</p>
+     *
+     * <p>The generated index tensor is then passed once to the tensor-index
+     * {@link #take(int, Tensor)} path. For data Shape {@code [2, 3, 4]}, axis {@code 1}, and
+     * indices {@code [2, 0]}, the generated index Shape is {@code [2]} and the result Shape is
+     * {@code [2, 2, 4]}. The fresh result has GATHER_AXIS semantics and exact ordered provenance
+     * {@code [this, generatedIndices]}.</p>
+     *
+     * <p>Null and empty requests fail before storage or identifier allocation. Index-tensor
+     * creation precedes axis validation, so an invalid axis leaves that eager tensor allocated
+     * and its identifier consumed, without consuming a result identifier. If identifier space is
+     * exhausted while creating the final result, the generated tensor and its identifier already
+     * exist. No storage or identifier is rolled back. This method defines no gradient, compiler,
+     * materialization, backend, or execution behavior.</p>
+     *
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis and are validated only after the index tensor is created
+     * @param indices non-null, non-empty caller-owned signed coordinates; cloned once, never
+     *     retained or mutated, and copied unchanged without bounds validation
+     * @return a non-null fresh storage-free GATHER_AXIS tensor with exact
+     *     {@code [this, generatedIndices]} provenance
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices},
+     *     before allocation
+     * @throws IllegalArgumentException if {@code indices} is empty, with message
+     *     {@code take indices must not be empty}, before allocation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank, after the
+     *     generated index tensor and its identifier have been allocated
+     * @throws IllegalStateException if tensor identifier space is exhausted during index-tensor
+     *     creation or final result creation; completed allocation is not rolled back
+     * @throws OutOfMemoryError if snapshot or index-storage allocation fails
+     */
+    public Tensor take(int axis, int[] indices) {
+        return TensorPrimitiveTakeExpressions.take(this, axis, indices);
     }
 
     /**

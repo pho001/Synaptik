@@ -76,18 +76,20 @@ Its completed implementation frontier is:
 - [0018C Axis gather semantics](modules/model/tasks/0018c-axis-gather-semantics.md) — Complete.
 - [0018D Axis gather Tensor expressions](modules/model/tasks/0018d-axis-gather-tensor-expressions.md)
   — Complete.
+- [0018D1 Primitive take convenience](modules/model/tasks/0018d1-primitive-take-convenience.md)
+  — Complete.
 
 The next planning frontier is:
 
-- 0018D1 Primitive take convenience — Draft without a detailed specification.
+- 0018E Gather-ND semantics — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018D are complete. Task 0018D1, tasks 0018E–0018J, and all later
-tasks remain Draft without detailed specifications.
+expressions. Tasks 0018A through 0018D1 are complete. Tasks 0018E–0018J and all later tasks remain
+Draft without detailed specifications.
 
 Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
 `SELECT` identity and normalized scalar axis/index attributes. Its independent documentation
@@ -119,6 +121,14 @@ master plan, and roadmap. Construction validates INT32/INT64 index metadata and 
 structural Shape rules, preserves data metadata with unresolved layout, and records fresh ordered
 provenance without reading values or defining bounds, gradients, compiler, backend, or execution
 behavior.
+
+Task [0018D1](modules/model/tasks/0018d1-primitive-take-convenience.md) is complete with exact
+public `take(int, int[])` adaptation. It copies one non-empty caller array into an independent
+dense rank-one INT32 index Tensor before delegating once to tensor-index take, retaining
+GATHER_AXIS semantics and exact `[data, generatedIndices]` provenance. Its independent
+documentation review finalized Tensor/helper Javadocs, Tensor and Compile API status, glossary,
+task evidence, model master plan, and roadmap after all required validation passed. Index bounds,
+gradients, compiler capture, backend behavior, and execution remain outside this task.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -355,7 +365,7 @@ authorized Compile API status correction.
 | 69 | [0018B Scalar select Tensor expression](modules/model/tasks/0018b-scalar-select-tensor-expression.md) | Complete |
 | 70 | [0018C Axis gather semantics](modules/model/tasks/0018c-axis-gather-semantics.md) | Complete |
 | 71 | [0018D Axis gather Tensor expressions](modules/model/tasks/0018d-axis-gather-tensor-expressions.md) | Complete |
-| 72 | 0018D1 Primitive take convenience | Draft |
+| 72 | [0018D1 Primitive take convenience](modules/model/tasks/0018d1-primitive-take-convenience.md) | Complete |
 | 73 | 0018E Gather-ND semantics | Draft |
 | 74 | 0018F Gather-ND Tensor expression | Draft |
 | 75 | 0018G Axis scatter semantics | Draft |
@@ -414,8 +424,8 @@ scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
-complete. Tasks 0018C and 0018D are also complete. Task 0018D1, tasks 0018E–0018J, and every later
-task remain Draft without a detailed specification.
+complete. Tasks 0018C, 0018D, and 0018D1 are also complete. Tasks 0018E–0018J and every later task
+remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

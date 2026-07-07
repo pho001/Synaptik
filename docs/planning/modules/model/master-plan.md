@@ -192,7 +192,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018B | [Scalar select Tensor expression](tasks/0018b-scalar-select-tensor-expression.md) | Complete | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
 | 0018C | [Axis gather semantics](tasks/0018c-axis-gather-semantics.md) | Complete | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
 | 0018D | [Axis gather Tensor expressions](tasks/0018d-axis-gather-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
-| 0018D1 | Primitive take convenience | Draft | 0012B, 0018D | Add legacy `take(int, int[])` by creating one copied dense INT32 index Tensor and delegating to tensor-index take. |
+| 0018D1 | [Primitive take convenience](tasks/0018d1-primitive-take-convenience.md) | Complete | 0012B, 0018D | Add legacy `take(int, int[])` by creating one copied dense INT32 index Tensor and delegating to tensor-index take. |
 | 0018E | Gather-ND semantics | Draft | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
 | 0018F | Gather-ND Tensor expression | Draft | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
 | 0018G | Axis scatter semantics | Draft | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
@@ -224,9 +224,9 @@ is also complete. The former combined 0017D is split into reshape task 0017D and
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
 Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
-focused tasks 0018A–0018J plus primitive-convenience task 0018D1. Tasks 0018A through 0018D are
-complete. Task 0018D1, tasks 0018E–0018J, and later tasks remain Draft without detailed
-specifications.
+focused tasks 0018A–0018J plus primitive-convenience task 0018D1. Tasks 0018A through 0018D1 are
+complete. Task 0018E is the next Draft frontier without a detailed specification; tasks
+0018E–0018J and later tasks remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -268,8 +268,11 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   `take`), and
   `TAKE_ALONG_AXIS` distinct because their index alignment and result-Shape rules differ.
 - Tensor-index gather expression construction remains separate from primitive-array `take`
-  convenience: task 0018D validates and composes existing index Tensors, while task 0018D1 will
-  own copied eager INT32 index-Tensor creation and delegation.
+  convenience: task 0018D validates and composes existing index Tensors, while task 0018D1 owns
+  copied eager INT32 index-Tensor creation and delegation.
+- Primitive-array take preserves the legacy non-empty `int[]` surface, snapshots caller input,
+  creates one dense INT32 leaf Tensor through the existing factory, and then uses the completed
+  tensor-index take path without duplicating gather semantics.
 - Task 0018A completed exactly `SelectKind.SELECT`, normalized non-negative `SelectAttrs(axis,
   index)`, and focused structural/validation/composition coverage without public Tensor, Shape,
   layout, provenance, compiler, backend, or execution behavior.
@@ -320,6 +323,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   exact twelve-path checks passed. Training API, capabilities, architecture/ADRs/tests,
   conformance/integration, Java 26 Gradle configuration, dependencies, related foundational
   behavior, and other modules remain accurate unchanged for the recorded reasons.
+- Task 0018D1 completed exactly one public `Tensor.take(int, int[])` overload and one field-free
+  two-method helper. It validates a non-null, non-empty primitive source, clones it once, creates
+  one dense rank-one non-differentiable INT32 leaf Tensor through existing flat import, and
+  delegates once to completed tensor-index take. Every signed value is copied unchanged without
+  bounds inspection; final provenance is exact `[data, generatedIndices]` with GATHER_AXIS
+  semantics.
+- Independent task-0018D1 documentation review finalized Tensor/helper Javadocs, Tensor and
+  Compile API references, glossary, task evidence, master plan, and roadmap after focused/model/
+  root tests, model Javadoc, bytecode/reflection/import/source/generated-page review, an executable
+  Java 26 example, Markdown and exact ten-path checks passed. Training API, capabilities, related
+  foundational and axis-gather contracts, architecture/ADRs/tests, conformance/integration,
+  Gradle configuration, dependencies, and other modules remain accurate unchanged because the
+  task adds only model-owned primitive input adaptation and existing expression composition.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
 - `HostTensorStorage` is a sealed model boundary with one final identity-based
@@ -992,7 +1008,7 @@ complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. The for
 semantics and normalized axis/index attributes. Task 0018B is also complete with public scalar-
 select expression construction. Task 0018C is complete with the three exact axis-gather meanings
 and their shared normalized-axis attributes. Task 0018D is complete with the four public
-Tensor-index expressions. Task 0018D1, tasks 0018E–0018J, and every later operation-family task
-remain Draft without detailed specifications.
+Tensor-index expressions. Task 0018D1 is complete with the primitive-take convenience; tasks
+0018E–0018J and every later operation-family task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

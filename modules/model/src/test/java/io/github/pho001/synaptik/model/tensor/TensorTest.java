@@ -80,7 +80,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(101, declaredPublicMethods.size());
+        assertEquals(102, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -347,16 +347,18 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
 
-        var take = Tensor.class.getDeclaredMethod("take", int.class, Tensor.class);
-        assertAll(
-                () -> assertEquals(Tensor.class, take.getReturnType()),
-                () -> assertEquals(
-                        List.of(int.class, Tensor.class),
-                        Arrays.asList(take.getParameterTypes())),
-                () -> assertFalse(take.isVarArgs()),
-                () -> assertTrue(Modifier.isPublic(take.getModifiers())),
-                () -> assertFalse(Modifier.isStatic(take.getModifiers())),
-                () -> assertFalse(Modifier.isSynchronized(take.getModifiers())));
+        for (Class<?> indexType : List.of(Tensor.class, int[].class)) {
+            var take = Tensor.class.getDeclaredMethod("take", int.class, indexType);
+            assertAll(
+                    () -> assertEquals(Tensor.class, take.getReturnType()),
+                    () -> assertEquals(
+                            List.of(int.class, indexType),
+                            Arrays.asList(take.getParameterTypes())),
+                    () -> assertFalse(take.isVarArgs()),
+                    () -> assertTrue(Modifier.isPublic(take.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(take.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(take.getModifiers())));
+        }
 
         var pad = Tensor.class.getDeclaredMethod(
                 "pad", long[].class, long[].class, double.class);

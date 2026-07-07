@@ -241,7 +241,9 @@ The three meanings are deliberately distinct:
   therefore mean result `[2, 4]`.
 - `GATHER_AXIS` replaces the selected data axis with the complete indices Shape. Data
   `[2, 3, 4]`, axis `1`, and indices `[5, 6]` mean result `[2, 5, 6, 4]`. Public tensor-index `take`
-  is an alias for this exact operation, so there is no separate `TAKE` kind.
+  is an alias for this exact operation, so there is no separate `TAKE` kind. Primitive-array
+  `take` copies a non-empty `int[]` into one dense rank-one INT32 index Tensor and then uses that
+  same alias; it does not introduce another semantic meaning.
 - `TAKE_ALONG_AXIS` aligns same-rank indices with data coordinates away from the selected axis and
   has the exact indices Shape as its conceptual result. Data `[2, 3, 4]`, axis `1`, and indices
   `[2, 7, 4]` mean result `[2, 7, 4]`, subject to public non-axis compatibility checks.
@@ -259,6 +261,16 @@ functional scatter, which writes or combines updates. Gradients, compiler behavi
 support, materialization, and execution remain planned. See [Axis-gather semantic kinds and
 attributes](api/tensor-api.md#axis-gather-semantic-kinds-and-attributes) and [Axis-gather
 expressions](api/tensor-api.md#axis-gather-expressions).
+
+The primitive overload's caller retains its array and may mutate it after the call. The overload
+clones the values once, and `TensorFactory` copies that private snapshot into independent
+JVM-managed heap storage without retaining either source. The generated index Tensor is
+unlabeled, provenance-free, non-differentiable, and uses canonical dense layout. Its creation and
+identifier allocation precede axis validation; an invalid axis therefore leaves that Tensor and
+identifier in place without a result identifier. Final result-identifier exhaustion likewise
+does not roll back the generated Tensor, storage, or identifier. Null or empty primitive input
+fails before those allocations. Every signed `int`, including negative and extreme values, is
+copied unchanged and remains unchecked as a coordinate.
 
 ### Axis transform
 

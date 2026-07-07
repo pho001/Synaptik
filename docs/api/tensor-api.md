@@ -29,8 +29,10 @@ selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one conve
 logical view geometry when the input layout is resolved and the result is non-empty.
 `gather(Tensor, int)` removes one data axis and requires one index for every remaining coordinate.
 `gatherAxis(Tensor, int)` replaces one data axis with the complete indices Shape, and
-`take(int, Tensor)` is its exact tensor-index alias. `takeAlongAxis(Tensor, int)` retains the exact
-same-rank indices Shape after checking every non-selected Dimension.
+`take(int, Tensor)` is its exact tensor-index alias. `take(int, int[])` adapts a non-empty copied
+primitive sequence to that same operation through one dense rank-one INT32 index Tensor.
+`takeAlongAxis(Tensor, int)` retains the exact same-rank indices Shape after checking every
+non-selected Dimension.
 `pad(long[], long[], double)` adds constant-filled positions around every axis, and
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
@@ -103,10 +105,12 @@ identities. Each pairs with `IndexAxisAttrs`, which stores one already normalize
 data-axis position, and each has ordered logical inputs `[data, indices]`. Their index alignment
 and conceptual result Shapes deliberately differ. These semantic values do not inspect either
 input, validate index data type or Shape compatibility, construct a Tensor or provenance, define
-gradients, or execute indexing. Public `Tensor.gather`, `gatherAxis`, tensor-index `take`, and
-`takeAlongAxis` now own raw-axis normalization, exact `INT32`/`INT64` index-type validation,
+gradients, or execute indexing. Public `Tensor.gather`, `gatherAxis`, both `take` overloads, and
+`takeAlongAxis` now own raw-axis normalization, exact `INT32`/`INT64` index representation,
 family-specific structural Shape checks and construction, and exact ordered two-input provenance.
-They do not read index values or check their bounds.
+The primitive `take` overload first snapshots a non-empty `int[]` and creates one eager dense
+INT32 index Tensor through `TensorFactory`; the other methods consume an existing index Tensor.
+None of the methods interprets index values or checks their bounds.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
@@ -160,6 +164,7 @@ Tensor + one axis and half-open bounds + SLICE     = fresh step-one sliced Tenso
 Tensor + one axis and scalar coordinate + SELECT  = fresh conditional-view rank-reduced Tensor
 Tensor + reduced-Shape indices + GATHER           = fresh reduced-Shape gather Tensor
 Tensor + arbitrary indices + GATHER_AXIS          = fresh inserted-Shape axis-gather Tensor
+Tensor + non-empty copied int[] + GATHER_AXIS     = eager dense index Tensor + fresh axis-gather Tensor
 Tensor + same-rank aligned indices + TAKE_ALONG_AXIS = fresh exact-indices-Shape Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
 Tensor + target axis/extent/step + FOLD_AXIS       = fresh general-axis fold Tensor
@@ -3936,11 +3941,16 @@ alias, a gradient rule, compiler capture, materialization, backend lowering, or 
 
 ### Axis-gather expressions
 
-The four public axis-gather methods consume ordered logical inputs `[data, indices]`. `data` is
-the receiver and supplies the result data type and gradient eligibility. `indices` must have exact
-data type `INT32` or `INT64`; no floating or BOOL index tensor is accepted or implicitly cast.
-Each method normalizes one positive or negative axis exactly once against the data Shape after the
-null and index-type checks.
+The five public axis-gather method signatures produce expressions with ordered logical inputs
+`[data, indices]`. `data` is the receiver and supplies the result data type and gradient
+eligibility. The four tensor-index signatures require exact `INT32` or `INT64` indices; no floating
+or BOOL index tensor is accepted or implicitly cast. The primitive `take(int, int[])` signature
+instead requires a non-empty array, copies it, and creates one eager dense INT32 index Tensor
+before using the existing tensor-index take path.
+
+The tensor-index methods normalize one positive or negative axis exactly once against the data
+Shape after their null and index-type checks. Primitive take deliberately creates its index Tensor
+before that same axis validation. This ordering matters for allocation and identifier failures.
 
 The methods differ in how they relate the two input Shapes to the result:
 
@@ -3948,7 +3958,8 @@ The methods differ in how they relate the two input Shapes to the result:
 |---|---|---|
 | `gather(indices, axis)` | `GATHER` | Remove `axis` from the data Shape. The indices Shape must be structurally equal to that reduced Shape, and a newly derived reduced Shape becomes the result. |
 | `gatherAxis(indices, axis)` | `GATHER_AXIS` | Replace the selected data Dimension with every indices Dimension in order. |
-| `take(axis, indices)` | `GATHER_AXIS` | Delegate exactly to `gatherAxis`; validation, result metadata, provenance, errors, and identity effects are identical. |
+| `take(axis, Tensor indices)` | `GATHER_AXIS` | Delegate exactly to `gatherAxis`; validation, result metadata, provenance, errors, and result-identity effects are identical. |
+| `take(axis, int[] indices)` | `GATHER_AXIS` | Copy a non-empty primitive sequence into one dense rank-one INT32 index Tensor, then delegate once to tensor-index take. |
 | `takeAlongAxis(indices, axis)` | `TAKE_ALONG_AXIS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
 
 Structural equality is conservative for dynamic Dimensions. The same dynamic symbol passes where
@@ -3957,12 +3968,14 @@ equality is required; different symbols fail rather than creating a new symbolic
 Dimension. Scalar indices insert no Dimensions. Removing the only data axis for `gather` requires
 scalar indices and produces the canonical scalar Shape.
 
-Every successful request returns a fresh unlabeled, storage-free Tensor with unresolved layout,
-even when both inputs have resolved geometry. Its provenance contains the exact semantic kind,
-one `IndexAxisAttrs` with the normalized axis, and exact input references in `[data, indices]`
-order. Expression construction never reads either tensor's storage or values, normalizes or
-clamps index values, or checks index-value bounds. It defines no gradient or repeated-index rule,
-compiler capture or canonicalization, materialization, backend lowering, or execution behavior.
+Every successful request returns a fresh unlabeled, storage-free result Tensor with unresolved
+layout, even when both provenance inputs have resolved geometry. Its provenance contains the exact
+semantic kind, one `IndexAxisAttrs` with the normalized axis, and exact input references in
+`[data, indices]` order. Primitive take's generated provenance input is a separate eager Tensor
+with dense heap storage; the result does not retain the caller array or the helper's snapshot.
+Expression construction never interprets, normalizes, clamps, or bounds-checks index values. It
+defines no gradient or repeated-index rule, compiler capture or canonicalization, materialization,
+backend lowering, or execution behavior.
 
 #### Complete axis-gather expression example
 
@@ -4059,8 +4072,101 @@ or execution.
   the first mismatch. Its selected-axis extents may differ.
 - Scalar indices passed to `gatherAxis` remove the selected data axis without inserting another
   one. Rank-one `gather` with scalar indices produces scalar Shape `[]`.
-- Local validation completes before Tensor identity allocation. Identifier exhaustion can occur
-  only during final derived construction.
+- For the four tensor-index signatures, local validation completes before result identity
+  allocation. Identifier exhaustion can occur only during final derived construction.
+
+#### Complete primitive take example
+
+##### Goal and inputs
+
+Show how primitive take snapshots caller-owned indices, creates its internal INT32 index Tensor,
+and produces the same `GATHER_AXIS` result as tensor-index take. The data Tensor has Shape
+`[2, 3, 4]`, the selected axis is `1`, and the requested coordinates are `[2, 0]`.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Arrays;
+import java.util.Optional;
+
+public final class PrimitiveTakeExample {
+    public static void main(String[] args) {
+        Tensor data = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 3, 4), Optional.empty(), true));
+        int[] requested = {2, 0};
+
+        Tensor result = data.take(1, requested);
+        Tensor generatedIndices = result.provenance().orElseThrow().inputs().get(1);
+        requested[0] = 17;
+        requested[1] = 19;
+        int[] storedIndices = (int[]) generatedIndices.hostStorage().orElseThrow()
+                .segment().heapBase().orElseThrow();
+
+        System.out.println(generatedIndices.descriptor().dataType());
+        System.out.println(generatedIndices.descriptor().shape());
+        System.out.println(generatedIndices.descriptor().layout().orElseThrow().kind());
+        System.out.println(Arrays.toString(storedIndices));
+        System.out.println(result.descriptor().shape());
+        System.out.println(result.provenance().orElseThrow().operation().kind());
+        System.out.println(result.provenance().orElseThrow().inputs().get(0) == data);
+        System.out.println(result.provenance().orElseThrow().inputs().get(1)
+                == generatedIndices);
+        System.out.println(!generatedIndices.descriptor().requiresGrad()
+                && generatedIndices.label().isEmpty()
+                && generatedIndices.provenance().isEmpty());
+        System.out.println(result.hostStorage().isEmpty());
+    }
+}
+```
+
+##### Meaningful lines and intermediate results
+
+- Primitive take checks that `requested` is non-null and non-empty, clones it once, and passes the
+  private snapshot to `TensorFactory.fromFlatArray`. The factory copies those values into a new
+  rank-one dense-contiguous INT32 Tensor with Shape `[2]`, false gradient eligibility, no label,
+  and no provenance.
+- Tensor-index take replaces data axis `1`, whose extent is `3`, with the complete generated index
+  Shape `[2]`. The result Shape is therefore `[2, 2, 4]`.
+- Mutating the caller array after the call changes it to `[17, 19]`, but the generated Tensor still
+  contains `[2, 0]`. Neither the caller array nor the helper snapshot is retained.
+- Result provenance retains the exact `data` and generated-index Tensor references in that order.
+  The generated Tensor has eager heap storage; the final expression result remains storage-free.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+INT32
+Shape[2]
+DENSE_CONTIGUOUS
+[2, 0]
+Shape[2, 2, 4]
+GATHER_AXIS
+true
+true
+true
+true
+```
+
+The output demonstrates copied source ownership, the generated descriptor and storage, axis
+replacement, exact semantics, and ordered provenance. It does not show numerical gathering,
+prove that an index value is in bounds, define gradients, capture a graph, choose a backend, or
+execute the expression.
+
+##### Failures and useful variations
+
+- Null and empty primitive arrays fail before snapshot, storage, or identifier allocation. Empty
+  input uses the exact message `take indices must not be empty`.
+- Negative values, `Integer.MIN_VALUE`, and `Integer.MAX_VALUE` are copied unchanged. Expression
+  construction does not inspect whether any coordinate is valid for the selected extent.
+- Index-Tensor creation precedes axis validation. An invalid axis therefore leaves that eager
+  Tensor allocated and its identifier consumed, but consumes no result identifier.
+- If final result-identifier allocation is exhausted, the generated index Tensor and its
+  identifier already exist. The convenience performs no storage or identifier rollback.
 
 ### Pad and tile expressions
 
@@ -6045,8 +6151,10 @@ and `TAKE_ALONG_AXIS` preserve distinct ordered `[data, indices]` meanings and S
 public tensor-index `take` is an exact alias for `GATHER_AXIS`, not another kind. Expression
 construction validates `INT32`/`INT64` index type, normalizes the data axis, derives and validates
 family-specific Shapes, preserves data metadata, leaves layout unresolved, and records fresh
-two-input provenance. Index-value access and bounds checks, primitive-array take convenience,
-gradients, compiler behavior, lowering, and execution remain planned or separately owned.
+two-input provenance. Primitive-array `take` is also current: it copies one non-empty `int[]` into
+a dense rank-one INT32 leaf Tensor before delegating to the tensor-index path. Index-value access
+and bounds checks, gradients, compiler behavior, lowering, and execution remain planned or
+separately owned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,
