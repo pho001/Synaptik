@@ -83,6 +83,14 @@ result validation, Shape derivation, immutable result collection construction, a
 attachment are current. Compiler capture or decomposition, producer grouping, gradients,
 materialization, and execution remain planned.
 
+`SelectKind.SELECT` is a current scalar-index semantic identity. It pairs with
+`SelectAttrs(axis, index)`, whose normalized non-negative axis and scalar coordinate fix one
+logical position on one source axis and remove that axis from the conceptual result. For source
+Shape `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual result Shape `[2, 4]`.
+The attributes contain no input Shape, so they cannot prove that the axis exists or that the index
+is in bounds. Public `Tensor.select`, caller-facing negative normalization, result Shape/layout
+construction, provenance, gradients, compiler behavior, lowering, and execution remain planned.
+
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` now own raw-axis normalization, static Shape and compatibility checks,
@@ -4373,6 +4381,8 @@ composition while the table also lists the current production families:
 | `TensorCompositionKind` | The implemented production enum for ordered `CONCAT`, inserted-axis `STACK`, and individually indexed `UNSTACK` output meanings. |
 | `CompositionAxisAttrs` | The implemented immutable normalized non-negative axis shared by concat and stack. |
 | `UnstackOutputAttrs` | The implemented immutable normalized source axis and non-negative logical output coordinate for one unstack result. |
+| `SelectKind` | The implemented production enum whose sole `SELECT` value fixes one scalar coordinate on one source axis and removes that axis. |
+| `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -5130,6 +5140,54 @@ axis, Shape, type, eligibility, output-count, result collection, descriptor, and
 described under [tensor composition expressions](#tensor-composition-expressions). Graph capture
 or decomposition, gradients, producer grouping, materialization, lowering, ONNX mapping, and
 execution remain planned.
+
+### Scalar select semantic kind and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.SelectKind` implements
+`OperationKind` with exactly one constant, `SELECT`. It identifies scalar-index selection: fix
+one coordinate on one existing source axis and remove that axis from the logical result.
+`SelectAttrs(axis, index)` carries the normalized zero-based source-axis position as an `int` and
+the normalized zero-based scalar coordinate as a `long`.
+
+#### Scalar-axis removal example
+
+##### Goal and inputs
+
+Describe selecting coordinate `2` on axis `1` from a conceptual source with Shape `[2, 3, 4]`.
+
+```java
+SelectAttrs attrs = new SelectAttrs(1, 2L);
+Operation select = new Operation(SelectKind.SELECT, attrs);
+```
+
+##### Result and interpretation
+
+Axis `1` has extent `3`. Fixing its coordinate at index `2` leaves axes `0` and `2`, so the
+conceptual result Shape is `[2, 4]`. `select.kind()` is exactly `SelectKind.SELECT`, and
+`select.attrs()` is exactly the supplied `attrs` reference.
+
+The example explains semantic meaning only. Constructing these values does not inspect an input,
+derive a result Shape or layout, construct a Tensor or provenance, read a value, or execute work.
+
+##### Validation and boundaries
+
+`SelectAttrs` checks the axis first and rejects a negative value with
+`IllegalArgumentException("axis must be non-negative: <axis>")`. Once the axis is valid, it
+rejects a negative index with
+`IllegalArgumentException("index must be non-negative: <index>")`. Zero, `Integer.MAX_VALUE`,
+and `Long.MAX_VALUE` are structurally valid, and both primitive values are retained unchanged.
+
+The attributes store no input Shape, rank, or selected-axis extent. Structural validity therefore
+does not prove that the axis exists or that the index is in bounds. Generic `Operation` retains
+the exact kind and attributes but does not enforce this family pairing or one-input context.
+
+`SELECT` differs from conditional `WHERE`, which chooses between branch values position by
+position; individually indexed `UNSTACK`, which identifies one result of a public logical
+multi-result request; and general `SLICE`, which selects half-open intervals without removing an
+axis. It also differs from gather operations whose indices are tensors rather than one intrinsic
+scalar coordinate. Public request syntax, negative request normalization, input validation,
+result Shape/layout construction, provenance, gradients, graph/compiler behavior,
+materialization, backend lowering, and execution remain planned.
 
 ### Window-transform semantic kinds and attributes
 

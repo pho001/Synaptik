@@ -70,16 +70,25 @@ Its completed implementation frontier is:
   — Complete.
 - [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md)
   — Complete.
+- [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) — Complete.
 
 The next planning frontier is:
 
-- 0018 Indexing and scatter operations — Draft without a detailed specification.
+- 0018B Scalar select Tensor expression — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
-0017A–0017N have detailed specifications and are complete. Task 0018 and all later tasks remain
-Draft without detailed specifications.
+0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
+decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
+expressions. Task 0018A is complete; tasks 0018B–0018J and all later tasks remain Draft without
+detailed specifications.
+
+Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
+`SELECT` identity and normalized scalar axis/index attributes. Its independent documentation
+review passed focused 9-test, all 638-model-test/75-suite, model-Javadoc, root-test,
+javap/reflection/import/generated-page, Markdown, exact eight-path, synchronized-status, and
+no-0018B-spec checks. Public Tensor construction and every cross-layer behavior remain deferred.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -312,13 +321,22 @@ authorized Compile API status correction.
 | 65 | [0017L Tensor composition expressions](modules/model/tasks/0017l-tensor-composition-expressions.md) | Complete |
 | 66 | [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md) | Complete |
 | 67 | [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete |
-| 68 | 0018 Indexing and scatter operations | Draft |
-| 69 | 0019 Linear algebra and attention operations | Draft |
-| 70 | 0020 Convolution and pooling operations | Draft |
-| 71 | 0021 Normalization operations | Draft |
-| 72 | 0022 Loss operations | Draft |
-| 73 | 0023 Compiler-generated semantic operations | Draft |
-| 74 | 0024 Model capability parity audit | Draft |
+| 68 | [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) | Complete |
+| 69 | 0018B Scalar select Tensor expression | Draft |
+| 70 | 0018C Axis gather semantics | Draft |
+| 71 | 0018D Axis gather Tensor expressions | Draft |
+| 72 | 0018E Gather-ND semantics | Draft |
+| 73 | 0018F Gather-ND Tensor expression | Draft |
+| 74 | 0018G Axis scatter semantics | Draft |
+| 75 | 0018H Axis scatter Tensor expressions | Draft |
+| 76 | 0018I Scatter-ND semantics | Draft |
+| 77 | 0018J Scatter-ND Tensor expression | Draft |
+| 78 | 0019 Linear algebra and attention operations | Draft |
+| 79 | 0020 Convolution and pooling operations | Draft |
+| 80 | 0021 Normalization operations | Draft |
+| 81 | 0022 Loss operations | Draft |
+| 82 | 0023 Compiler-generated semantic operations | Draft |
+| 83 | 0024 Model capability parity audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -364,7 +382,8 @@ scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are
 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former task 0017 is now
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
-complete. Task 0018 and every later task remain Draft without a detailed specification.
+complete. The former broad task 0018 is decomposed into 0018A–0018J. Task 0018A is complete;
+tasks 0018B–0018J and every later task remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

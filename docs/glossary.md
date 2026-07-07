@@ -136,6 +136,12 @@ one-provenance-per-Tensor model; it is not a graph output slot or producer-group
 composition expressions now provide Shape/type/input validation, immutable result collection
 construction, and exact provenance attachment. Compiler capture or decomposition, producer
 grouping, gradients, materialization, lowering, ONNX mapping, and execution remain planned.
+The `SelectKind` vocabulary is implemented with the sole scalar-index `SELECT` meaning, together
+with `SelectAttrs` carrying one normalized non-negative source axis and one normalized
+non-negative scalar coordinate. Selection fixes that coordinate and removes its axis from the
+conceptual result. The semantic values contain no input Shape, so rank and bounds validation,
+public Tensor construction, result Shape/layout derivation, provenance, gradients, compiler and
+backend behavior, and execution remain planned.
 The `WindowTransformKind` vocabulary is implemented with distinct general-axis `UNFOLD_AXIS` and
 `FOLD_AXIS` meanings plus NCHW `UNFOLD2D` and `FOLD2D` meanings. `UnfoldAxisAttrs` stores one
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
@@ -556,9 +562,11 @@ inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` 
 ordered before/after widths and one raw binary64 constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
 shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
-one individually identified unstack result. `UnfoldAxisAttrs` carries normalized general-axis
-window size and step; `FoldAxisAttrs` carries normalized target axis, explicit restored extent,
-and step. `Window2dAttrs` carries symmetric NCHW kernel/stride/padding/dilation geometry and its
+one individually identified unstack result. `SelectAttrs` holds one normalized source axis and
+one normalized scalar coordinate for axis-removing scalar select. `UnfoldAxisAttrs` carries
+normalized general-axis window size and step; `FoldAxisAttrs` carries normalized target axis,
+explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
+kernel/stride/padding/dilation geometry and its
 rounding flag, while `Fold2dAttrs` carries one exact output Shape plus that shared geometry. Other
 families may define records for another operation-specific value. Implementations use typed
 fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
@@ -846,6 +854,28 @@ Mutable state for one invocation of prepared execution, including input bindings
 ### Shape
 
 An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Scalar select
+
+An implemented backend-independent scalar-index meaning represented by `SelectKind.SELECT` and
+`SelectAttrs(axis, index)`. The normalized zero-based `axis` identifies one existing source axis,
+and the normalized zero-based `index` fixes one coordinate on it. That axis is removed from the
+conceptual result. For source Shape `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual
+result Shape `[2, 4]`.
+
+The attributes reject negative axis and index values, checking the axis first, but store no input
+Shape, rank, or selected-axis extent. They consequently cannot prove that an axis exists or that
+an index is in bounds. Generic `Operation` retains the exact `SELECT` and `SelectAttrs` references
+without enforcing the pairing or one-input context.
+
+Scalar select differs from conditional `WHERE`, which chooses between branch values at
+corresponding positions; individually indexed `UNSTACK`, which identifies one result of a public
+logical multi-result request; and general `SLICE`, which selects half-open intervals without
+removing an axis. Tensor-index gather instead uses one or more tensors to supply indices. Public
+`Tensor.select`, input-aware normalization and validation, result Shape/layout construction,
+provenance, gradients, compiler behavior, materialization, backend lowering, and execution remain
+planned. See [Scalar select semantic kind and
+attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
 ### Slice
 
@@ -1478,8 +1508,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
 
@@ -1500,7 +1530,9 @@ transpose, expand-dimensions, and squeeze Tensor construction is current. Slice 
 normalized parallel attributes plus public general and single-axis slice Tensor construction are
 current. Pad and tile semantics, normalized immutable attributes, and public Tensor construction
 are current. Tensor-composition semantics, normalized axis/index attributes, and public concat,
-stack, and immutable-list unstack Tensor construction are current. Other
+stack, and immutable-list unstack Tensor construction are current. Scalar-select semantics and
+normalized axis/index attributes are current, while public scalar-select Tensor construction is
+planned. Other
 concrete families and their family-specific
 attributes, compiler capture and canonicalization, materialization policy, and execution remain
 planned.

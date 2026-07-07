@@ -104,6 +104,10 @@ io.github.pho001.synaptik.model.operation.normalization
 io.github.pho001.synaptik.model.operation.layout
   Typed backend-independent layout and view operation meanings and immutable parameters.
 
+io.github.pho001.synaptik.model.operation.index
+  Typed backend-independent indexing, gather, and functional-scatter meanings and immutable
+  normalized parameters.
+
 io.github.pho001.synaptik.model.graph
   NodeId, ValueId, graph values/nodes, graph phase, publication binding,
   and immutable compiled graph state.
@@ -184,12 +188,21 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017L | [Tensor composition expressions](tasks/0017l-tensor-composition-expressions.md) | Complete | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
 | 0017M | [Unfold and fold semantics](tasks/0017m-unfold-and-fold-semantics.md) | Complete | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
 | 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
-| 0018 | Indexing and scatter operations | Draft | 0001, 0013 | Represent gather, take, select, and functional scatter capabilities. |
+| 0018A | [Scalar select semantics](tasks/0018a-scalar-select-semantics.md) | Complete | 0002, 0005, 0006 | Define scalar-index axis-selection meaning and immutable normalized axis/index attributes. |
+| 0018B | Scalar select Tensor expression | Draft | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
+| 0018C | Axis gather semantics | Draft | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
+| 0018D | Axis gather Tensor expressions | Draft | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
+| 0018E | Gather-ND semantics | Draft | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
+| 0018F | Gather-ND Tensor expression | Draft | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
+| 0018G | Axis scatter semantics | Draft | 0005, 0006, 0018C | Define functional scatter-add, scatter-axis-add, and scatter-elements meanings and reduction policy. |
+| 0018H | Axis scatter Tensor expressions | Draft | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
+| 0018I | Scatter-ND semantics | Draft | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
+| 0018J | Scatter-ND Tensor expression | Draft | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
 | 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
 | 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
 | 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
 | 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018–0022 | Represent backend-neutral backward/compiler-generated semantics and authorize FOLD_AXIS generation without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J, 0019–0022 | Represent backend-neutral backward/compiler-generated semantics and authorize FOLD_AXIS generation without implementing autograd traversal. |
 | 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected capability baseline, including documented legacy parity and intentional additions. |
 
 ## Milestones
@@ -197,7 +210,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, and 0018–0022
+- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J, and 0019–0022
 - Compiler-generated model semantics and model parity: tasks 0023–0024
 
 ## Current status
@@ -209,8 +222,9 @@ task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B 
 is also complete. The former combined 0017D is split into reshape task 0017D and expand task
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
-Tasks 0017K, 0017L, 0017M, and 0017N are complete. Task 0018 is the next Draft frontier without a
-detailed specification; later tasks remain Draft.
+Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
+focused tasks 0018A–0018J. Task 0018A is complete; task 0018B is the next Draft frontier without a
+detailed specification, and tasks 0018C–0018J and later tasks remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -243,6 +257,18 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Layout geometry distinguishes dense, offset-dense, strided, and broadcast views; planning remains responsible for materialization decisions.
 - Model contracts are organized by `datatype`, `shape`, `layout`, `tensor`, `storage`, `operation`, and `graph` responsibilities; the module root is not a flat type container.
 - Java 26 is the project baseline. Stable Java 26 APIs require no preview opt-in; preview and incubator features remain disabled unless a focused owning-module task explicitly configures and validates them.
+- The broad indexing/scatter frontier is split into select, axis-gather, gather-ND, axis-scatter,
+  and scatter-ND semantic/expression pairs so each task owns one concept and one validation model.
+- Task 0018A completed exactly `SelectKind.SELECT`, normalized non-negative `SelectAttrs(axis,
+  index)`, and focused structural/validation/composition coverage without public Tensor, Shape,
+  layout, provenance, compiler, backend, or execution behavior.
+- Its independent documentation review retained both complete production Javadocs and finalized
+  Tensor API, glossary, task evidence, master plan, and roadmap after focused 9-test, all 638 model
+  tests across 75 suites, model-Javadoc, root-test, javap/reflection/import/generated-page,
+  link/anchor/fence/whitespace, exact eight-path, synchronized-status, and no-0018B-spec checks
+  passed. Compile API, Training API, capabilities, related model contracts,
+  architecture/ADRs/tests, conformance/integration, Java 26 Gradle, dependencies, and other modules
+  remain accurate unchanged because the task adds only model-owned scalar-select semantics.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
 - `HostTensorStorage` is a sealed model boundary with one final identity-based
@@ -910,8 +936,9 @@ Task 0015H completed its public storage-free Tensor expression construction. The
 complete. The former broad task 0017 is decomposed into tasks 0017A–0017N. Task 0017A is complete;
 task 0017B is complete, task 0017C is complete, task 0017D is complete, and task 0017D1 is
 complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 0017I are also
-complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. Task 0018 is the next
-Draft frontier without a detailed specification, and every later operation-family task remains
-Draft.
+complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. The former broad task
+0018 is decomposed into 0018A–0018J. Task 0018A is complete with first-class scalar-select
+semantics and normalized axis/index attributes; task 0018B and every later operation-family task
+remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
