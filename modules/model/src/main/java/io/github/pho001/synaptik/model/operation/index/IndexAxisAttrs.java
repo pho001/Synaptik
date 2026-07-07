@@ -1,0 +1,60 @@
+package io.github.pho001.synaptik.model.operation.index;
+
+import io.github.pho001.synaptik.model.operation.OperationAttrs;
+
+/**
+ * Carries the normalized data-axis position shared by the axis-gather operation family.
+ *
+ * <p>The {@link #axis()} value is already normalized, zero-based, and non-negative. Valid
+ * operations pair this value with {@link AxisGatherKind#GATHER},
+ * {@link AxisGatherKind#GATHER_AXIS}, or {@link AxisGatherKind#TAKE_ALONG_AXIS}. All three use
+ * ordered logical inputs {@code [data, indices]}, but their kind determines the distinct index
+ * alignment and result-shape relationship. Generic operation composition retains the exact kind
+ * and attributes references without enforcing those family pairings.</p>
+ *
+ * <p>This value contains no input rank, data shape, selected-axis extent, indices shape, or result
+ * shape. It therefore cannot prove that the axis exists or validate the family-specific shape
+ * rules. Zero, positive values, and {@link Integer#MAX_VALUE} are structurally valid and retained
+ * unchanged. Task 0018D's later input-aware Tensor-expression contract owns caller-facing
+ * negative-axis normalization, rank and shape checks, index bounds, and the requirement that
+ * index tensors use {@code INT32} or {@code INT64}.</p>
+ *
+ * <p>The immutable record stores only the primitive axis. Record-generated equality and hashing
+ * use that component, and generated text is diagnostic rather than a serialization, request,
+ * parsing, compiler-dispatch, or backend contract. These attributes define no Tensor
+ * construction, descriptor, provenance, storage, materialization, gradient, graph or compiler
+ * behavior, backend support, or execution.</p>
+ *
+ * @param axis the already normalized, zero-based, non-negative data-axis index
+ */
+public record IndexAxisAttrs(int axis) implements OperationAttrs {
+    /**
+     * Creates immutable normalized axis parameters for an axis-gather operation.
+     *
+     * <p>The primitive value is retained unchanged after the non-negative check. Construction does
+     * not normalize a raw caller axis, inspect data or indices, validate rank, shape, data type, or
+     * bounds, or derive a result.</p>
+     *
+     * @param axis the already normalized data-axis index; must be non-negative
+     * @throws IllegalArgumentException if {@code axis} is negative, with message
+     *     {@code axis must be non-negative: <axis>}
+     */
+    public IndexAxisAttrs {
+        if (axis < 0) {
+            throw new IllegalArgumentException("axis must be non-negative: " + axis);
+        }
+    }
+
+    /**
+     * Returns the already normalized, zero-based data-axis index.
+     *
+     * <p>The result is structurally non-negative but has not been validated against a data rank by
+     * this attributes value.</p>
+     *
+     * @return the exact non-negative axis supplied at construction
+     */
+    @Override
+    public int axis() {
+        return axis;
+    }
+}

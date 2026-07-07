@@ -94,6 +94,14 @@ is in bounds. Public `Tensor.select` now owns caller-facing negative normalizati
 validation, result Shape/layout construction, and exact one-input provenance. Gradients, compiler
 capture, materialization, backend lowering, and execution remain planned.
 
+`AxisGatherKind.GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` are current tensor-index semantic
+identities. Each pairs with `IndexAxisAttrs`, which stores one already normalized non-negative
+data-axis position, and each has ordered logical inputs `[data, indices]`. Their index alignment
+and conceptual result Shapes deliberately differ. These semantic values do not inspect either
+input, validate index data type or Shape compatibility, construct a Tensor or provenance, define
+gradients, or execute indexing. Public `gather`, `gatherAxis`/`take`, and `takeAlongAxis` Tensor
+expressions remain planned for task 0018D.
+
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
 identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` now own raw-axis normalization, static Shape and compatibility checks,
@@ -167,6 +175,7 @@ PadKind + PadAttrs                                          = constant-padding m
 TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
 TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
+AxisGatherKind + IndexAxisAttrs                            = three axis tensor-index meanings + normalized data axis
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
@@ -4507,6 +4516,8 @@ composition while the table also lists the current production families:
 | `UnstackOutputAttrs` | The implemented immutable normalized source axis and non-negative logical output coordinate for one unstack result. |
 | `SelectKind` | The implemented production enum whose sole `SELECT` value fixes one scalar coordinate on one source axis and removes that axis. |
 | `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
+| `AxisGatherKind` | The implemented production enum for distinct reduced-shape gather, ONNX-style axis gather, and aligned same-rank take-along-axis meanings. |
+| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by all three axis-gather kinds. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
@@ -5314,6 +5325,74 @@ validation, result Shape and conditional logical-view layout, and exact one-inpu
 described under [scalar select expressions](#scalar-select-expressions). Gradients, graph/compiler
 capture and canonicalization, materialization, backend lowering, and execution remain planned.
 
+### Axis-gather semantic kinds and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.AxisGatherKind` implements
+`OperationKind` with exactly `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS`, in that order. Every
+kind consumes ordered logical inputs `[data, indices]`: `data` supplies the values being indexed,
+and `indices` supplies coordinates along the selected data axis. All three kinds pair with
+`IndexAxisAttrs(axis)`, whose sole `int` component is an already normalized, zero-based,
+non-negative data-axis position.
+
+The kinds are separate because they relate data, indices, and result Shapes differently:
+
+| Kind | Conceptual Shape relationship | Future public name |
+|---|---|---|
+| `GATHER` | The indices Shape equals the data Shape with `axis` removed; the result has that same reduced Shape. | `gather` |
+| `GATHER_AXIS` | The complete indices Shape replaces the selected data axis in the result. | `gatherAxis` and its exact alias `take` |
+| `TAKE_ALONG_AXIS` | Data and indices have the same rank, indices align with data away from `axis`, and the result Shape equals the indices Shape. | `takeAlongAxis` |
+
+The table defines semantic relationships. Neither the enum nor the attributes inspect an input,
+calculate a Shape, or validate that a relationship holds.
+
+#### Three-way Shape example
+
+##### Goal and inputs
+
+Compare the three meanings for conceptual data Shape `[2, 3, 4]` and normalized axis `1`.
+The index Shapes differ because each kind uses them differently:
+
+```java
+IndexAxisAttrs attrs = new IndexAxisAttrs(1);
+Operation gather = new Operation(AxisGatherKind.GATHER, attrs);
+Operation gatherAxis = new Operation(AxisGatherKind.GATHER_AXIS, attrs);
+Operation takeAlongAxis = new Operation(AxisGatherKind.TAKE_ALONG_AXIS, attrs);
+```
+
+- `GATHER` uses indices Shape `[2, 4]`.
+- `GATHER_AXIS` uses indices Shape `[5, 6]`.
+- `TAKE_ALONG_AXIS` uses indices Shape `[2, 7, 4]`.
+
+##### Results and interpretation
+
+- `GATHER` conceptually produces `[2, 4]`: one index corresponds to every coordinate left after
+  removing data axis `1`.
+- `GATHER_AXIS` conceptually produces `[2, 5, 6, 4]`: the complete `[5, 6]` indices Shape replaces
+  the selected extent `3`. The future public `take` method names this same operation; there is no
+  separate `TAKE` semantic kind.
+- `TAKE_ALONG_AXIS` conceptually produces `[2, 7, 4]`: the result has the exact indices Shape,
+  subject to later compatibility checks for the non-selected axes.
+
+Each `Operation` retains the exact shared `attrs` reference. The example proves only semantic
+composition and explains conceptual Shape relationships; it does not construct index tensors,
+result descriptors, provenance, or values.
+
+##### Validation and boundaries
+
+`IndexAxisAttrs` rejects a negative value with
+`IllegalArgumentException("axis must be non-negative: <axis>")`. Zero, positive axes, and
+`Integer.MAX_VALUE` are structurally valid and retained unchanged. The attributes contain no data
+rank, so structural validity does not prove that the axis exists. Generic `Operation` also does
+not enforce these kind/attributes pairings or the ordered two-input context.
+
+Task 0018D will own caller-facing negative-axis normalization, data-rank checks, the exact
+requirement that indices use `INT32` or `INT64`, family-specific Shape compatibility and result
+Shape construction, bounds policy, result metadata, and `[data, indices]` provenance. Axis gather
+is distinct from scalar `SELECT`, which uses one intrinsic scalar coordinate and removes an axis;
+gather-ND, which uses multi-axis index tuples; and functional scatter, which writes or combines
+updates rather than reading indexed data. Gradients, graph/compiler behavior, backend support,
+materialization, and execution remain unimplemented.
+
 ### Window-transform semantic kinds and attributes
 
 The public enum
@@ -5767,8 +5846,8 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, tensor-composition, scalar-select, and window-transform
-  semantics, plus
+  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, and
+  window-transform semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
   `CompileArtifacts`, and the engine `CompiledGraph` facade; and
@@ -5782,8 +5861,8 @@ The following contracts appear in the architecture and planning documents but ar
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
-`UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `WindowTransformKind`, `UnfoldAxisAttrs`,
-`FoldAxisAttrs`,
+`UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
+`WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
@@ -5822,6 +5901,12 @@ static, accepts a non-negative index on a dynamic selected extent with its upper
 removes the selected axis, derives conditional resolved logical-view geometry, and records fresh
 one-input provenance. Value access, a physical alias guarantee, gradients, compiler capture and
 canonicalization, materialization, backend lowering, and execution remain planned.
+Axis-gather semantics and their shared normalized `IndexAxisAttrs` are current. `GATHER`,
+`GATHER_AXIS`, and `TAKE_ALONG_AXIS` preserve distinct ordered `[data, indices]` meanings and
+conceptual Shape relationships; future public `take` is an alias for `GATHER_AXIS`, not another
+kind. Public Tensor construction, `INT32`/`INT64` index validation, input-dependent axis, Shape,
+bounds checks, result metadata, provenance, gradients, compiler behavior, lowering, and execution
+remain planned.
 Window-transform semantic kinds, immutable normalized attributes, and public `unfold`, `foldAxis`,
 `unfold2d`, and `fold2d` expression construction are current. The public methods add raw-axis
 normalization, type and static-Shape compatibility validation, checked Shape calculation,
@@ -5926,6 +6011,9 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
 - `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- `IndexAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and exact
+  message `axis must be non-negative: <axis>`. It retains every non-negative `int`, including
+  `Integer.MAX_VALUE`, without proving that the axis exists for an eventual data input.
 - `CompositionAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and
   exact message `axis must be non-negative: <axis>`. `UnstackOutputAttrs` performs that axis check
   before rejecting a negative output index with exact message

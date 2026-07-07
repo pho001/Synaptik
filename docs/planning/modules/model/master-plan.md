@@ -190,7 +190,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
 | 0018A | [Scalar select semantics](tasks/0018a-scalar-select-semantics.md) | Complete | 0002, 0005, 0006 | Define scalar-index axis-selection meaning and immutable normalized axis/index attributes. |
 | 0018B | [Scalar select Tensor expression](tasks/0018b-scalar-select-tensor-expression.md) | Complete | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
-| 0018C | Axis gather semantics | Draft | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
+| 0018C | [Axis gather semantics](tasks/0018c-axis-gather-semantics.md) | Complete | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
 | 0018D | Axis gather Tensor expressions | Draft | 0001, 0002, 0013, 0018C | Build index-type and Shape-validated public axis-gather expressions. |
 | 0018E | Gather-ND semantics | Draft | 0005, 0006 | Define gather-ND meaning and immutable batch-dimension parameters. |
 | 0018F | Gather-ND Tensor expression | Draft | 0001, 0002, 0013, 0018E | Build public gather-ND construction with index-depth and batch validation. |
@@ -223,8 +223,9 @@ is also complete. The former combined 0017D is split into reshape task 0017D and
 0017D1; the former combined 0017F is split into permutation task 0017F and singleton-rank-edit task
 0017F1. Tasks 0017D, 0017D1, 0017E, 0017F, 0017F1, 0017G, 0017H, 0017I, and 0017J are complete.
 Tasks 0017K, 0017L, 0017M, and 0017N are complete. The former broad task 0018 is decomposed into
-focused tasks 0018A–0018J. Tasks 0018A and 0018B are complete; tasks 0018C–0018J and later tasks
-remain Draft without detailed specifications.
+focused tasks 0018A–0018J. Tasks 0018A, 0018B, and 0018C are complete; task 0018D is the next
+Draft frontier without a detailed specification, and tasks 0018E–0018J and later tasks remain
+Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -262,6 +263,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Scalar select accepts a negative public index only when the selected static extent can normalize
   it locally. A non-negative index on a dynamic selected extent remains representable with
   deferred bounds validation; a negative dynamic index is not locally representable.
+- Axis indexing keeps `GATHER`, ONNX-style `GATHER_AXIS` (also exposed later through `take`), and
+  `TAKE_ALONG_AXIS` distinct because their index alignment and result-Shape rules differ.
 - Task 0018A completed exactly `SelectKind.SELECT`, normalized non-negative `SelectAttrs(axis,
   index)`, and focused structural/validation/composition coverage without public Tensor, Shape,
   layout, provenance, compiler, backend, or execution behavior.
@@ -287,6 +290,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   semantic/foundational/adjacent contracts, architecture/ADRs/tests, conformance/integration,
   Java 26 Gradle configuration, dependencies, and other modules remain accurate unchanged because
   this task adds only model-owned scalar-select expression metadata.
+- Task 0018C completed exactly `AxisGatherKind.GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` plus
+  shared normalized non-negative `IndexAxisAttrs(axis)`. Ordered `[data, indices]` roles, three
+  distinct result-Shape relationships, and future public `take` as an exact `GATHER_AXIS` alias
+  are semantic documentation rather than stored inputs, validation, or result construction.
+- Independent task-0018C documentation review finalized both production Javadocs, Tensor API,
+  glossary, task evidence, master plan, and roadmap after focused 9-test, all 657-model-test/
+  77-suite, model-Javadoc, root-test, javap/reflection/source/import/generated-page,
+  363-link/91-anchor, fence/whitespace/newline, exact eight-path, synchronized-status, and
+  no-0018D-spec checks passed. Compile API, Training API, capabilities, related contracts,
+  architecture/ADRs/tests, conformance/integration, Java 26 Gradle configuration, dependencies,
+  and other modules remain accurate unchanged because the task adds only model-owned semantic
+  vocabulary without Tensor input validation, result metadata, provenance, gradients, compiler,
+  backend, or execution behavior.
 - Typed identifiers live with their domains. The current plan includes `TensorId`, `NodeId`, and `ValueId`; `OperationId` is deferred unless a focused task demonstrates identity distinct from `NodeId`.
 - Host storage contracts precede the public `Tensor`, and `Tensor` reuses `TensorDescriptor` rather than duplicating descriptor validation.
 - `HostTensorStorage` is a sealed model boundary with one final identity-based
@@ -957,7 +973,8 @@ complete. Task 0017E, task 0017F, task 0017F1, task 0017G, task 0017H, and task 
 complete. Tasks 0017J, 0017K, 0017L, 0017M, and 0017N are also complete. The former broad task
 0018 is decomposed into 0018A–0018J. Task 0018A is complete with first-class scalar-select
 semantics and normalized axis/index attributes. Task 0018B is also complete with public scalar-
-select expression construction; tasks 0018C–0018J and every later operation-family task remain
-Draft without detailed specifications.
+select expression construction. Task 0018C is complete with the three exact axis-gather meanings
+and their shared normalized-axis attributes; tasks 0018D–0018J and every later operation-family
+task remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

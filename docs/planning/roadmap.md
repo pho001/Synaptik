@@ -71,18 +71,21 @@ Its completed implementation frontier is:
 - [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md)
   — Complete.
 - [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) — Complete.
+- [0018B Scalar select Tensor expression](modules/model/tasks/0018b-scalar-select-tensor-expression.md)
+  — Complete.
+- [0018C Axis gather semantics](modules/model/tasks/0018c-axis-gather-semantics.md) — Complete.
 
 The next planning frontier is:
 
-- 0018C Axis gather semantics — Draft without a detailed specification.
+- 0018D Axis gather Tensor expressions — Draft without a detailed specification.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A and 0018B are complete. Tasks 0018C–0018J and all later tasks remain
-Draft without detailed specifications.
+expressions. Tasks 0018A, 0018B, and 0018C are complete. Tasks 0018D–0018J and all later tasks
+remain Draft without detailed specifications.
 
 Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
 `SELECT` identity and normalized scalar axis/index attributes. Its independent documentation
@@ -96,6 +99,15 @@ fresh one-input provenance. Its independent documentation review finalized Tenso
 Javadocs, Tensor and Compile API status, glossary terminology, task evidence, model master plan,
 and roadmap. Value selection, physical aliasing, gradients, compiler capture/canonicalization,
 materialization, backend behavior, and execution remain deferred to their owning layers.
+
+Task [0018C](modules/model/tasks/0018c-axis-gather-semantics.md) is complete with exact
+`GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` meanings plus one shared normalized non-negative
+axis attribute. Its independent documentation review finalized both production Javadocs, Tensor
+API, glossary, task evidence, model master plan, and roadmap after focused 9-test, all
+657-model-test/77-suite, model-Javadoc, root-test, bytecode/reflection/import/generated-page,
+Markdown, exact eight-path, synchronized-status, and no-0018D-spec checks passed. Public Tensor
+construction, index-type/Shape/bounds validation, result metadata, provenance, gradients,
+compiler behavior, lowering, and execution remain deferred.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -330,7 +342,7 @@ authorized Compile API status correction.
 | 67 | [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete |
 | 68 | [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) | Complete |
 | 69 | [0018B Scalar select Tensor expression](modules/model/tasks/0018b-scalar-select-tensor-expression.md) | Complete |
-| 70 | 0018C Axis gather semantics | Draft |
+| 70 | [0018C Axis gather semantics](modules/model/tasks/0018c-axis-gather-semantics.md) | Complete |
 | 71 | 0018D Axis gather Tensor expressions | Draft |
 | 72 | 0018E Gather-ND semantics | Draft |
 | 73 | 0018F Gather-ND Tensor expression | Draft |
@@ -390,7 +402,8 @@ scan, and softmax do not share one oversized task. Tasks 0016A through 0016E are
 decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, including 0017D1, are
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
-complete; tasks 0018C–0018J and every later task remain Draft without a detailed specification.
+complete. Task 0018C is also complete; tasks 0018D–0018J and every later task remain Draft without
+a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.
