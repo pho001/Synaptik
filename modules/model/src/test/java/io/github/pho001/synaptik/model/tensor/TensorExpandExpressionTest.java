@@ -369,8 +369,11 @@ class TensorExpandExpressionTest {
         MemorySegment.copy(MemorySegment.ofArray(values), 0, storage.segment(), 8, 12);
         Tensor leaf = tensor(DataType.FLOAT32, shape, Optional.empty(), false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(shape)),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(shape)),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

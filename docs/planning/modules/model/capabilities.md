@@ -39,12 +39,12 @@ resolved before task 0019 expands the inventory.
 
 ### Valid operations and occurrence signatures
 
-`Operation` currently accepts every non-null `OperationKind` and `OperationAttrs` pairing. Arity
-and output count are only prose, so invalid values such as a binary kind with cast attributes are
-ordinary representable state.
+Completed task 0018K now rejects an `OperationKind` paired with the wrong concrete
+`OperationAttrs` class and gives every kind family explicit input/output occurrence cardinality.
+`CompiledNode` validates those local counts after its collection checks.
 
-The selected direction is a small typed operation-signature and construction contract, colocated
-with each kind family. It must:
+The implemented direction is a small typed operation-signature and construction contract,
+colocated with each kind family. It:
 
 - reject a kind paired with the wrong attribute type when `Operation` is constructed;
 - describe fixed or bounded input and output cardinality without a global registry;
@@ -64,9 +64,12 @@ result an independent `UNSTACK` operation with an output index.
 
 True shared producer provenance is required before top-K values/indices, auxiliary normalization
 statistics, graph random operations returning updated random-number-generator (RNG) state, and
-other genuine multi-output compiler operations. The minimum design is one immutable shared
-producer description plus an output position for each Tensor result. It must remain provenance,
-not graph IR, and must not give Tensor a graph-local `NodeId`.
+other genuine multi-output compiler operations. The selected design is one immutable identity-
+bearing producer with an exact operation, ordered input Tensors, and ordered output descriptors.
+Each result Tensor carries the exact producer reference plus its zero-based output position.
+Output count is derived from the descriptor list; the producer never retains output Tensor
+objects. The same representation covers single-output expressions at output position zero. It
+must remain provenance, not graph IR, and must not give Tensor a graph-local `NodeId`.
 
 Unstack does not justify a true multi-output primitive. It will become a public convenience that
 constructs independent scalar `select` expressions. Genuine multi-output operations will use the

@@ -196,7 +196,11 @@ class TensorBooleanReductionTest {
                 DataType.BOOL, values.length, MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.BOOL, shape);
         TensorProvenance provenance = new TensorProvenance(
-                new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE), List.of(leaf));
+                new TensorProducer(
+                        new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(NEXT_INPUT_ID.getAndIncrement()), descriptor, Optional.of("input"),
                 Optional.of(provenance), Optional.of(storage));

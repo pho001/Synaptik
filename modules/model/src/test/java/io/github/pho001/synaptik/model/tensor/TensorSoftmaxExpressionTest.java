@@ -190,7 +190,11 @@ class TensorSoftmaxExpressionTest {
                 DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.FLOAT32, shape, false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(SoftmaxKind.SOFTMAX, new SoftmaxAttrs(0)), List.of(leaf));
+                new TensorProducer(
+                        new Operation(SoftmaxKind.SOFTMAX, new SoftmaxAttrs(0)),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

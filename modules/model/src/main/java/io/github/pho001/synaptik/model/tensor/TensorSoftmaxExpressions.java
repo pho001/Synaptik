@@ -78,13 +78,14 @@ final class TensorSoftmaxExpressions {
     }
 
     /**
-     * Constructs one exact descriptor, operation, provenance value, and derived Tensor identity.
+     * Constructs one exact descriptor and operation, then delegates one derived Tensor identity.
      *
      * <p>The descriptor retains the exact input data type, supplied Shape reference, and unchanged
      * gradient eligibility while leaving layout unresolved. The operation retains the exact kind
-     * and attributes references, provenance retains exact ordered input {@code [input]}, and the
-     * central factory is called exactly once with no label or storage. Construction reads no input
-     * label, provenance, layout geometry, storage, Shape dimensions, element count, or values.</p>
+     * and attributes references, and the central factory receives exact ordered producer input
+     * {@code [input]} exactly once with no label or storage. The factory creates index-zero
+     * provenance. Construction reads no input label, provenance, layout geometry, storage, Shape
+     * dimensions, element count, or values.</p>
      *
      * @param input validated Tensor retained as the exact sole provenance input
      * @param kind exact non-null normalization kind retained by the operation
@@ -103,7 +104,6 @@ final class TensorSoftmaxExpressions {
                 Optional.empty(),
                 input.descriptor().requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

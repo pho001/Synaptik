@@ -18,6 +18,8 @@ compiler work can produce and consume:
 | Current contract | Meaning | Deliberate boundary |
 |---|---|---|
 | `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural occurrence contract, not operand inference or executable support |
+| `TensorProducer` | Identity of one pre-capture expression occurrence with exact operation, ordered input Tensors, and ordered output descriptors | Public-expression origin, not `CompiledNode`, graph membership, or compiler state |
+| `TensorProvenance` | Exact producer plus one zero-based output index, with derived operation, inputs, and descriptor | Indexed result association, not `NodeId`, `ValueId`, or graph output binding |
 | `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
 | `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
@@ -49,7 +51,10 @@ methods, two axis-removing masked aggregate methods, three axis-only `argMax` me
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, four
 tensor-index axis-gather methods, one primitive-array take convenience, and two Gather-ND methods,
 plus four functional axis-scatter methods and three functional Scatter-ND methods, construct
-storage-free expressions with immutable operation-and-input provenance. The
+storage-free expressions with immutable producer-and-output-index provenance. Every current
+single-output expression creates one identity-distinct producer whose ordered descriptor list has
+one entry and whose provenance index is zero. The producer snapshots the exact operation and input
+Tensor references and retains no output Tensor objects. The
 parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
@@ -212,11 +217,12 @@ Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapsh
 inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
 rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
 Instance `Tensor.unstack(int)` requires a static `int`-sized selected extent, removes that axis,
-and returns an immutable ordered List whose fresh results have individually indexed UNSTACK
-provenance over the same input. A zero extent returns no result or ID, and the output indices do
-not establish a shared producer occurrence or graph output-slot contract. This is current model
-expression construction, not compiler capture, decomposition, grouping, backward construction,
-materialization, backend lowering, ONNX mapping, or execution.
+and returns an immutable ordered List whose fresh results have independent one-output producers.
+Each result uses provenance index zero over the same input, while its `UnstackOutputAttrs` stores
+the distinct logical coordinate. A zero extent returns no result or ID, and those semantic
+coordinates do not establish a shared producer occurrence or graph output-slot contract. This is
+current model expression construction, not compiler capture, decomposition, grouping, backward
+construction, materialization, backend lowering, ONNX mapping, or execution.
 `Tensor.unfold`, `Tensor.foldAxis`, `Tensor.unfold2d`, and `Tensor.fold2d` construct current
 storage-free window-transform expressions. They normalize and validate axes against the relevant
 source or target rank, use checked static Shape arithmetic, preserve the input data type and
@@ -226,6 +232,15 @@ compiler capture, canonicalization, gradient generation, lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
+
+A future capture pass can observe that two result Tensors belong to the same expression occurrence
+only when their provenance carries the same exact `TensorProducer` reference with different output
+indices. It can read the producer's exact operation, immutable ordered inputs, immutable ordered
+output descriptors, and signature-validated count. Capture may then assign graph-local `NodeId`
+and `ValueId` values for that compilation. The producer does not prescribe those identities, and
+the same public expression may be captured into separate graphs with different graph-local IDs.
+No current production operation creates shared outputs, and no compiler traversal or graph-node
+creation is implemented yet.
 
 ## Current expression input and planned compiler output
 
@@ -257,8 +272,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
   axis-gather/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
-  grouped
-  producer design,
+  shared-producer traversal and output-slot capture,
   compiler-generated `FOLD_AXIS` construction, deferred
   dynamic reshape count validation, expand compatibility constraints, and dynamic select upper-
   bound validation placement, layout materialization

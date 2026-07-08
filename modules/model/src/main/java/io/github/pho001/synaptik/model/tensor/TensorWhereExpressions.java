@@ -39,10 +39,10 @@ final class TensorWhereExpressions {
      * as right operand; broadcast the two branch shapes exactly once; broadcast the condition
      * shape with that common branch shape exactly once; create one unresolved descriptor from the
      * promoted type, final shape, and branch-only gradient-eligibility OR; create one
-     * {@link Operation} from {@code WHERE} and {@link NoOperationAttrs#INSTANCE}; create one
-     * provenance value with exact ordered inputs {@code [condition, ifTrue, ifFalse]}; and delegate
-     * once to {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)}
-     * with no label.</p>
+     * {@link Operation} from {@code WHERE} and {@link NoOperationAttrs#INSTANCE}; and delegate
+     * exact ordered producer inputs {@code [condition, ifTrue, ifFalse]} once to
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} with no
+     * label. The factory creates the producer and index-zero provenance.</p>
      *
      * <p>Failures before the final factory delegation allocate no Tensor identity. A successful
      * call returns the factory's exact fresh, unlabeled, storage-free result. No supplied Tensor,
@@ -86,8 +86,10 @@ final class TensorWhereExpressions {
                 new TensorDescriptor(dataType, shape, Optional.empty(), requiresGrad);
         Operation operation =
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance =
-                new TensorProvenance(operation, List.of(condition, ifTrue, ifFalse));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor,
+                Optional.empty(),
+                operation,
+                List.of(condition, ifTrue, ifFalse));
     }
 }

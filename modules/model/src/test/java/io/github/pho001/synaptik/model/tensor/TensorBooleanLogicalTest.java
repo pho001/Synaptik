@@ -330,10 +330,11 @@ class TensorBooleanLogicalTest {
                 descriptor, Optional.of("leaf"), Optional.of(leftStorage));
         Tensor right = TensorFactory.create(
                 descriptor, Optional.of("right"), Optional.of(rightStorage));
-        TensorProvenance inputProvenance = new TensorProvenance(
-                new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE), List.of(leaf));
+        Operation inputOperation =
+                new Operation(BooleanLogicalKind.NOT, NoOperationAttrs.INSTANCE);
         Tensor left = TensorFactory.createDerived(
-                descriptor, Optional.of("left"), inputProvenance);
+                descriptor, Optional.of("left"), inputOperation, List.of(leaf));
+        TensorProvenance inputProvenance = left.provenance().orElseThrow();
         left.replaceHostStorage(leftStorage);
 
         Tensor binaryResult = left.logicalAnd(right);

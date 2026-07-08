@@ -171,8 +171,11 @@ class TensorContiguousExpressionTest {
                 MemorySegment.ofArray(values), 0, storage.segment(), 12, 16);
         Tensor leaf = tensor(DataType.FLOAT32, shape, Optional.empty(), false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

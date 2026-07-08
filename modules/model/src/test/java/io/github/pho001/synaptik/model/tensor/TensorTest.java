@@ -602,7 +602,11 @@ class TensorTest {
                 Optional.empty(),
                 Optional.of(inputStorage));
         TensorProvenance provenance = new TensorProvenance(
-                new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of(input));
+                new TensorProducer(
+                        new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE),
+                        List.of(input),
+                        List.of(descriptor)),
+                0);
         Tensor derived = new Tensor(
                 new TensorId(7),
                 descriptor,
@@ -627,6 +631,40 @@ class TensorTest {
                 () -> assertFalse(initialText.contains("provenance")),
                 () -> assertFalse(initialText.contains("operation")),
                 () -> assertFalse(initialText.contains("SAMPLE")));
+    }
+
+    @Test
+    void rejectsStructurallyEqualButNotIdenticalProvenanceDescriptor() {
+        TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+        TensorDescriptor equalDescriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+        Tensor input = new Tensor(
+                new TensorId(6),
+                descriptor,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+        TensorProvenance provenance = new TensorProvenance(
+                new TensorProducer(
+                        new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE),
+                        List.of(input),
+                        List.of(descriptor)),
+                0);
+
+        IllegalArgumentException mismatch = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Tensor(
+                        new TensorId(7),
+                        equalDescriptor,
+                        Optional.empty(),
+                        Optional.of(provenance),
+                        Optional.empty()));
+
+        assertAll(
+                () -> assertEquals(descriptor, equalDescriptor),
+                () -> assertNotSame(descriptor, equalDescriptor),
+                () -> assertEquals(
+                        "descriptor must be the exact provenance output descriptor reference",
+                        mismatch.getMessage()));
     }
 
     @Test

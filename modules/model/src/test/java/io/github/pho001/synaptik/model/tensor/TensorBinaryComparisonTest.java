@@ -299,11 +299,11 @@ class TensorBinaryComparisonTest {
                 leftDescriptor, Optional.of("leaf"), Optional.of(leftStorage));
         Tensor right = TensorFactory.create(
                 rightDescriptor, Optional.of("right"), Optional.of(rightStorage));
-        TensorProvenance inputProvenance = new TensorProvenance(
-                new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),
-                List.of(leaf, right));
+        Operation inputOperation =
+                new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE);
         Tensor left = TensorFactory.createDerived(
-                leftDescriptor, Optional.of("left"), inputProvenance);
+                leftDescriptor, Optional.of("left"), inputOperation, List.of(leaf, right));
+        TensorProvenance inputProvenance = left.provenance().orElseThrow();
         left.replaceHostStorage(leftStorage);
 
         Tensor result = left.greaterOrEqual(right);

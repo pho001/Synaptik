@@ -312,11 +312,11 @@ class TensorScalarElementwiseTest {
                 DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
         Tensor leaf = TensorFactory.create(
                 descriptor, Optional.of("leaf"), Optional.of(storage));
-        TensorProvenance inputProvenance = new TensorProvenance(
-                new Operation(ScalarElementwiseKind.MUL, new ScalarValueAttrs(2.0)),
-                List.of(leaf));
+        Operation inputOperation =
+                new Operation(ScalarElementwiseKind.MUL, new ScalarValueAttrs(2.0));
         Tensor input = TensorFactory.createDerived(
-                descriptor, Optional.of("derived"), inputProvenance);
+                descriptor, Optional.of("derived"), inputOperation, List.of(leaf));
+        TensorProvenance inputProvenance = input.provenance().orElseThrow();
         input.replaceHostStorage(storage);
 
         Tensor result = input.clamp(-1.0, 1.0);

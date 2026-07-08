@@ -242,10 +242,11 @@ final class TensorMaskedReductionExpressions {
      * Constructs the exact masked-reduction descriptor, operation, provenance, and Tensor.
      *
      * <p>Construction creates, in order, one {@link MaskedReductionAttrs}, one unresolved
-     * descriptor retaining input type and gradient eligibility, one Operation retaining the exact
-     * kind and attributes reference, one provenance value retaining exact ordered references
-     * {@code [input, mask]}, and one central factory call with no label. No storage, values, prior
-     * provenance, or graph state are inspected.</p>
+     * descriptor retaining input type and gradient eligibility, and one Operation retaining the
+     * exact kind and attributes reference. It then passes exact ordered producer inputs
+     * {@code [input, mask]} to one central factory call with no label; the factory creates the
+     * producer and index-zero provenance. No storage, values, prior provenance, or graph state are
+     * inspected.</p>
      *
      * @param input validated floating tensor supplying result type and gradient eligibility
      * @param mask validated BOOL tensor retained as provenance input one
@@ -271,7 +272,7 @@ final class TensorMaskedReductionExpressions {
                 Optional.empty(),
                 input.descriptor().requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input, mask));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(input, mask));
     }
 }

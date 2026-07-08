@@ -35,9 +35,9 @@ final class TensorComparisonExpressions {
      * common comparison domain without retaining the promoted type; broadcast the two descriptor
      * shapes exactly once; create one unresolved-layout {@code BOOL} descriptor with false
      * gradient eligibility; create one operation from the exact supplied kind and
-     * {@code NoOperationAttrs.INSTANCE}; create one provenance value with ordered exact inputs
-     * {@code [left, right]}; and delegate once to
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} with no
+     * {@code NoOperationAttrs.INSTANCE}; and delegate ordered exact producer inputs
+     * {@code [left, right]} once to
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} with no
      * label. Failures before the final delegation allocate no Tensor identity. A successful call
      * returns the factory's exact fresh, unlabeled, storage-free result; neither input nor its
      * metadata, gradient eligibility, provenance, or storage is mutated.</p>
@@ -65,7 +65,7 @@ final class TensorComparisonExpressions {
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.BOOL, shape, Optional.empty(), false);
         Operation operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(left, right));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(left, right));
     }
 }

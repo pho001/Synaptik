@@ -455,10 +455,13 @@ class TensorSliceExpressionTest {
         storage.segment().asSlice(8, 72).copyFrom(MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.FLOAT32, shape, Optional.empty(), false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(
-                        SliceKind.SLICE,
-                        new SliceAttrs(List.of(), List.of(), List.of(), List.of())),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(
+                                SliceKind.SLICE,
+                                new SliceAttrs(List.of(), List.of(), List.of(), List.of())),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

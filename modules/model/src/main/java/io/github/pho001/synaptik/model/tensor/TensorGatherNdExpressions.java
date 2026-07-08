@@ -215,7 +215,7 @@ final class TensorGatherNdExpressions {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataDescriptor.dataType(), resultShape, Optional.empty(), dataDescriptor.requiresGrad());
         Operation operation = new Operation(GatherNdKind.GATHER_ND, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(data, indices));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(data, indices));
     }
 }

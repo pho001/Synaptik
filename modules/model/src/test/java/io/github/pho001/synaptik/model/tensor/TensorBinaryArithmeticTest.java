@@ -283,11 +283,11 @@ class TensorBinaryArithmeticTest {
                 descriptor, Optional.of("leaf"), Optional.of(leftStorage));
         Tensor right = TensorFactory.create(
                 descriptor, Optional.of("right"), Optional.of(rightStorage));
-        TensorProvenance inputProvenance = new TensorProvenance(
-                new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
-                List.of(leaf, right));
+        Operation inputOperation =
+                new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
         Tensor left = TensorFactory.createDerived(
-                descriptor, Optional.of("left"), inputProvenance);
+                descriptor, Optional.of("left"), inputOperation, List.of(leaf, right));
+        TensorProvenance inputProvenance = left.provenance().orElseThrow();
         left.replaceHostStorage(leftStorage);
 
         Tensor result = left.div(right);

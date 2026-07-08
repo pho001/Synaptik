@@ -36,10 +36,10 @@ final class TensorCastExpressions {
      * {@code targetDataType}; read the source data type and exact input shape; derive gradient
      * eligibility from the input request and both types' floating categories; create one
      * unresolved result descriptor; create one {@link CastAttrs} value from the exact target;
-     * create one {@link Operation} from {@link CastKind#CAST} and those exact attributes; create
-     * one provenance value with exact ordered input {@code [input]}; and delegate once to
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} with no
-     * label.</p>
+     * create one {@link Operation} from {@link CastKind#CAST} and those exact attributes; and
+     * delegate exact ordered producer input {@code [input]} once to
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} with no
+     * label. The factory creates the producer and index-zero provenance.</p>
      *
      * <p>Failures before the final factory delegation allocate no Tensor identity. A valid call,
      * including a same-type request, returns the factory's exact fresh, unlabeled, storage-free
@@ -69,7 +69,6 @@ final class TensorCastExpressions {
                 new TensorDescriptor(targetDataType, shape, Optional.empty(), requiresGrad);
         CastAttrs attrs = new CastAttrs(targetDataType);
         Operation operation = new Operation(CastKind.CAST, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

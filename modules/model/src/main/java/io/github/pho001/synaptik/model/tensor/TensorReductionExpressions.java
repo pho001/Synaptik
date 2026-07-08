@@ -205,11 +205,11 @@ final class TensorReductionExpressions {
      * Constructs exact descriptor, operation, provenance, and derived Tensor metadata.
      *
      * <p>The method creates, in order, one unresolved descriptor with input type and gradient
-     * eligibility, one Operation retaining the exact kind and attributes reference, one
-     * provenance value retaining exact ordered input {@code [input]}, and one central
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} call with
-     * no label. It performs no additional semantic validation and does not access storage or
-     * values.</p>
+     * eligibility and one Operation retaining the exact kind and attributes reference, then
+     * passes exact ordered producer input {@code [input]} to one central
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} call with
+     * no label. The factory creates the producer and index-zero provenance. This method performs
+     * no additional semantic validation and does not access storage or values.</p>
      *
      * @param input validated eligible tensor retained as the sole provenance input
      * @param kind validated aggregate kind retained exactly in the Operation
@@ -230,7 +230,6 @@ final class TensorReductionExpressions {
                 Optional.empty(),
                 input.descriptor().requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

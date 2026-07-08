@@ -434,7 +434,7 @@ final class TensorWindowExpressions {
     }
 
     /**
-     * Creates one exact unresolved descriptor, provenance value, and fresh derived Tensor.
+     * Creates one exact unresolved descriptor and delegates producer state for a fresh Tensor.
      *
      * @param input non-null exact sole provenance input and descriptor metadata source
      * @param resultShape non-null derived or exact retained result Shape
@@ -449,7 +449,6 @@ final class TensorWindowExpressions {
                 resultShape,
                 Optional.empty(),
                 inputDescriptor.requiresGrad());
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

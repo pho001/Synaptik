@@ -258,10 +258,11 @@ class TensorUnaryElementwiseTest {
                 DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
         Tensor leaf = TensorFactory.create(
                 descriptor, Optional.of("leaf"), Optional.of(storage));
-        TensorProvenance inputProvenance = new TensorProvenance(
-                new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE), List.of(leaf));
+        Operation inputOperation =
+                new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE);
         Tensor input = TensorFactory.createDerived(
-                descriptor, Optional.of("derived"), inputProvenance);
+                descriptor, Optional.of("derived"), inputOperation, List.of(leaf));
+        TensorProvenance inputProvenance = input.provenance().orElseThrow();
         input.replaceHostStorage(storage);
 
         Tensor result = input.sqrt();

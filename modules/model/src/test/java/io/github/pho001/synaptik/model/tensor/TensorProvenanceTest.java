@@ -15,7 +15,6 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -33,12 +32,12 @@ class TensorProvenanceTest {
                 () -> assertTrue(Modifier.isPublic(TensorProvenance.class.getModifiers())),
                 () -> assertTrue(TensorProvenance.class.isRecord()),
                 () -> assertEquals(2, components.length),
-                () -> assertEquals("operation", components[0].getName()),
-                () -> assertEquals(Operation.class, components[0].getType()),
-                () -> assertEquals("inputs", components[1].getName()),
-                () -> assertEquals(List.class, components[1].getType()),
+                () -> assertEquals("producer", components[0].getName()),
+                () -> assertEquals(TensorProducer.class, components[0].getType()),
+                () -> assertEquals("outputIndex", components[1].getName()),
+                () -> assertEquals(int.class, components[1].getType()),
                 () -> assertEquals(
-                        List.of("operation", "inputs"),
+                        List.of("producer", "outputIndex"),
                         fields.stream().map(field -> field.getName()).toList()),
                 () -> assertTrue(fields.stream().allMatch(field ->
                         Modifier.isPrivate(field.getModifiers())
@@ -46,115 +45,81 @@ class TensorProvenanceTest {
     }
 
     @Test
-    void validatesReferencesAndElementsInExactOrder() {
-        Operation operation = operation();
-        Tensor input = tensor(1);
+    void validatesProducerAndEveryOutputIndexBound() {
+        TensorProducer producer = producer();
 
-        NullPointerException nullOperation = assertThrows(
-                NullPointerException.class, () -> new TensorProvenance(null, null));
-        NullPointerException nullInputs = assertThrows(
-                NullPointerException.class, () -> new TensorProvenance(operation, null));
-        NullPointerException firstNull = assertThrows(
-                NullPointerException.class,
-                () -> new TensorProvenance(operation, Arrays.asList(input, null, null)));
+        NullPointerException nullProducer = assertThrows(
+                NullPointerException.class, () -> new TensorProvenance(null, 0));
+        IllegalArgumentException negative = assertThrows(
+                IllegalArgumentException.class, () -> new TensorProvenance(producer, -1));
+        IllegalArgumentException tooLarge = assertThrows(
+                IllegalArgumentException.class, () -> new TensorProvenance(producer, 2));
 
         assertAll(
-                () -> assertEquals("operation", nullOperation.getMessage()),
-                () -> assertEquals("inputs", nullInputs.getMessage()),
-                () -> assertEquals("inputs[1]", firstNull.getMessage()));
+                () -> assertEquals("producer", nullProducer.getMessage()),
+                () -> assertEquals("outputIndex must be non-negative: -1", negative.getMessage()),
+                () -> assertTrue(tooLarge.getMessage().contains("outputIndex 2")),
+                () -> assertTrue(tooLarge.getMessage().contains("output count 2")));
     }
 
     @Test
-    void snapshotsTheOrderedListAndRetainsExactReferences() {
-        Operation operation = operation();
-        Tensor first = tensor(1);
-        Tensor second = tensor(2);
-        List<Tensor> source = new ArrayList<>(List.of(second, first));
-
-        TensorProvenance provenance = new TensorProvenance(operation, source);
-        source.clear();
+    void derivesExactOperationInputsAndSelectedDescriptor() {
+        TensorProducer producer = producer();
+        TensorProvenance provenance = new TensorProvenance(producer, 1);
 
         assertAll(
-                () -> assertSame(operation, provenance.operation()),
-                () -> assertEquals(2, provenance.inputs().size()),
-                () -> assertSame(second, provenance.inputs().get(0)),
-                () -> assertSame(first, provenance.inputs().get(1)),
-                () -> assertThrows(
-                        UnsupportedOperationException.class,
-                        () -> provenance.inputs().add(first)));
+                () -> assertSame(producer, provenance.producer()),
+                () -> assertEquals(1, provenance.outputIndex()),
+                () -> assertSame(producer.operation(), provenance.operation()),
+                () -> assertSame(producer.inputs(), provenance.inputs()),
+                () -> assertSame(producer.outputDescriptors().get(1), provenance.outputDescriptor()));
     }
 
     @Test
-    void acceptsEmptyAndRepeatedInputsWithoutSemanticValidation() {
-        Operation operation = operation();
-        Tensor input = tensor(1);
-
-        TensorProvenance empty = new TensorProvenance(operation, List.of());
-        TensorProvenance repeated = new TensorProvenance(operation, List.of(input, input));
-
-        assertAll(
-                () -> assertTrue(empty.inputs().isEmpty()),
-                () -> assertEquals(2, repeated.inputs().size()),
-                () -> assertSame(input, repeated.inputs().get(0)),
-                () -> assertSame(input, repeated.inputs().get(1)));
-    }
-
-    @Test
-    void usesRecordValueSemanticsWithoutConflatingTensorIdentifiers() {
-        Operation firstOperation = operation();
-        Operation equalOperation = operation();
-        Tensor firstInput = tensor(7);
-        Tensor equalIdDifferentInput = tensor(7);
-
-        TensorProvenance first = new TensorProvenance(firstOperation, List.of(firstInput));
-        TensorProvenance equal = new TensorProvenance(equalOperation, List.of(firstInput));
-        TensorProvenance differentInput =
-                new TensorProvenance(equalOperation, List.of(equalIdDifferentInput));
+    void recordValueSemanticsUseProducerIdentityAndOutputIndex() {
+        TensorProducer producer = producer();
+        TensorProducer separate = producer();
+        TensorProvenance first = new TensorProvenance(producer, 0);
+        TensorProvenance equal = new TensorProvenance(producer, 0);
+        TensorProvenance otherPosition = new TensorProvenance(producer, 1);
+        TensorProvenance otherOccurrence = new TensorProvenance(separate, 0);
 
         assertAll(
-                () -> assertNotSame(firstOperation, equalOperation),
-                () -> assertEquals(firstOperation, equalOperation),
+                () -> assertNotSame(producer, separate),
                 () -> assertEquals(first, equal),
                 () -> assertEquals(first.hashCode(), equal.hashCode()),
-                () -> assertEquals(firstInput.id(), equalIdDifferentInput.id()),
-                () -> assertNotEquals(firstInput, equalIdDifferentInput),
-                () -> assertNotEquals(first, differentInput));
+                () -> assertNotEquals(first, otherPosition),
+                () -> assertNotEquals(first, otherOccurrence));
     }
 
-    @Test
-    void generatedDiagnosticTextIncludesRecordComponents() {
-        Tensor input = tensor(4);
-
-        String text = new TensorProvenance(operation(), List.of(input, input)).toString();
-
-        assertAll(
-                () -> assertTrue(text.contains("TensorProvenance")),
-                () -> assertTrue(text.contains("operation=")),
-                () -> assertTrue(text.contains("inputs=")),
-                () -> assertTrue(text.contains("SAMPLE")),
-                () -> assertTrue(text.contains("TensorId[value=4]")));
-    }
-
-    private static Operation operation() {
-        return new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE);
+    private static TensorProducer producer() {
+        Operation operation = new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE);
+        Tensor input = tensor(1);
+        return new TensorProducer(
+                operation,
+                List.of(input),
+                List.of(descriptor(), descriptor()));
     }
 
     private static Tensor tensor(long id) {
-        TensorDescriptor descriptor = new TensorDescriptor(
-                DataType.FLOAT32, Shape.scalar(), Optional.empty(), false);
         return new Tensor(
                 new TensorId(id),
-                descriptor,
+                descriptor(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty());
+    }
+
+    private static TensorDescriptor descriptor() {
+        return new TensorDescriptor(
+                DataType.FLOAT32, Shape.scalar(), Optional.empty(), false);
     }
 
     private enum SampleKind implements OperationKind {
         SAMPLE;
 
         private static final List<OperationSignature> SIGNATURES =
-                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 2));
 
         @Override
         public List<OperationSignature> signatures() {

@@ -204,9 +204,9 @@ final class TensorPermutationExpressions {
      * <p>The normalized primitive axes are boxed in exact order into an immutable list. The result
      * descriptor retains input data type and gradient eligibility with the supplied Shape/layout.
      * The operation uses exact {@link AxisTransformKind#PERMUTE} and one
-     * {@link PermutationAttrs}; provenance retains ordered input {@code [input]}. The central
-     * derived factory is called exactly once with no label or storage, producing a fresh identity
-     * even for identity, inverse, repeated, or nested requests.</p>
+     * {@link PermutationAttrs}. The central derived factory is called exactly once with ordered
+     * producer input {@code [input]} and no label or storage, creates index-zero provenance, and
+     * produces a fresh identity even for identity, inverse, repeated, or nested requests.</p>
      *
      * @param input non-null exact sole provenance input; not inspected or mutated
      * @param inputDescriptor non-null descriptor supplying exact data type and gradient eligibility
@@ -235,7 +235,6 @@ final class TensorPermutationExpressions {
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(AxisTransformKind.PERMUTE, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

@@ -346,10 +346,13 @@ class TensorPermutationExpressionTest {
                 java.lang.foreign.MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.FLOAT32, shape, Optional.empty(), false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(
-                        AxisTransformKind.PERMUTE,
-                        new PermutationAttrs(List.of(0, 1))),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(
+                                AxisTransformKind.PERMUTE,
+                                new PermutationAttrs(List.of(0, 1))),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

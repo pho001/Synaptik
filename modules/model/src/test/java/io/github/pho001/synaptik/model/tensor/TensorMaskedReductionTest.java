@@ -307,8 +307,11 @@ class TensorMaskedReductionTest {
                 DataType.BOOL, maskValues.length, MemorySegment.ofArray(maskValues));
         Tensor leaf = tensor(DataType.FLOAT32, shape, false);
         TensorProvenance prior = new TensorProvenance(
-                new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE),
+                        List.of(leaf),
+                        List.of(inputDescriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(NEXT_INPUT_ID.getAndIncrement()),
                 inputDescriptor,

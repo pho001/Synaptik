@@ -23,7 +23,9 @@ random
 and bounded continuous-uniform population for the three floating types, plus bounded integral
 random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
 finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
-kind support now includes the parameterless `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
+That origin model now uses identity-bearing immutable `TensorProducer` occurrences and indexed
+`TensorProvenance` results. Concrete operation kind support now includes the parameterless
+`BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
 construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
 The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fifteen unary
@@ -131,11 +133,12 @@ The `TensorCompositionKind` vocabulary is implemented with distinct ordered `CON
 `STACK`, and individually indexed `UNSTACK` output meanings. `CompositionAxisAttrs` stores one
 normalized non-negative axis shared by concat and stack. `UnstackOutputAttrs` stores a normalized
 source axis plus the logical coordinate identifying one result of a public logical multi-result
-unstack request. The output index distinguishes current result tensors under the current
-one-provenance-per-Tensor model; it is not a graph output slot or producer-group identity. Public
+unstack request. That semantic coordinate distinguishes current result tensors; it is not the
+indexed slot in `TensorProvenance`, a graph output slot, or producer-group identity. Public
 composition expressions now provide Shape/type/input validation, immutable result collection
-construction, and exact provenance attachment. Compiler capture or decomposition, producer
-grouping, gradients, materialization, lowering, ONNX mapping, and execution remain planned.
+construction, and exact provenance attachment. Unstack continues to create independent one-output
+producers. Compiler capture or decomposition, gradients, materialization, lowering, ONNX mapping,
+and execution remain planned.
 The `SelectKind` vocabulary is implemented with the sole scalar-index `SELECT` meaning, together
 with `SelectAttrs` carrying one normalized non-negative source axis and one normalized
 non-negative scalar coordinate. Selection fixes that coordinate and removes its axis from the
@@ -1036,21 +1039,40 @@ Reusable runtime-ready state produced by prepare. It contains or refers to prepa
 
 The backend-independent runtime call boundary implemented by a concrete backend for one prepared region. It contains the implementation choice made during prepare and computes only that region. Runtime invokes it without passing compile-time `Operation` or `CompiledNode` objects or asking it to select another backend.
 
+### Producer / `TensorProducer`
+
+Implemented immutable pre-capture identity for one public Tensor-expression occurrence. A
+`TensorProducer` retains one exact backend-independent [`Operation`](#operation), an immutable
+ordered snapshot of exact input-Tensor references, and an immutable non-empty ordered snapshot of
+exact output [`TensorDescriptor`](#tensor-descriptor) references. Repeated input or descriptor
+references are preserved when the operation signature permits the final counts. Output count is
+derived from the descriptor-list size rather than stored independently.
+
+Separate producers use ordinary object identity even when operation, inputs, and descriptors are
+structurally equal. This is occurrence identity in the public expression model, not an allocated
+producer ID, `NodeId`, `ValueId`, graph membership, graph capture, or a common-subexpression key.
+The producer retains no output Tensor, label, storage, value, gradient, compiler, backend, runtime,
+or execution state. Result references therefore point from Tensor to provenance to producer, with
+no producer/result cycle. See [Expression producers and indexed
+provenance](api/tensor-api.md#expression-producers-and-indexed-provenance).
+
 ### Provenance
 
-Implemented immutable expression-origin metadata carried by an optional `TensorProvenance` value
-on public [`Tensor`](#tensor) state. The record retains one exact backend-independent
-[`Operation`](#operation) reference and an ordered immutable snapshot of exact input-Tensor
-references. Empty inputs represent a valid local zero-input origin, repeated references preserve
-distinct ordered roles, and caller mutation of the source list cannot change the snapshot.
+Implemented immutable association between one public [`Tensor`](#tensor) and one zero-based output
+of one exact [`TensorProducer`](#producer--tensorproducer). The two-component
+`TensorProvenance(producer, outputIndex)` record validates the index against the producer's output
+count and derives its exact operation, immutable ordered inputs, and selected exact descriptor
+from that producer. Single-output expressions use output index zero. A derived Tensor must retain
+the exact descriptor object selected by provenance; structural descriptor equality is
+insufficient.
 
-Provenance is not intermediate representation (IR), producer-occurrence identity, graph
-membership, graph capture, or executable behavior. It contains no graph-local `NodeId` or
-`ValueId`, does not validate operation arity, descriptors, cycles, or graph structure, and does not
-change when Tensor host storage is replaced, cleared, or becomes dead. Record equality compares
-the operation value and ordered input objects using ordinary equality; it does not perform
-common-subexpression elimination. A later compiler owns traversal and conversion into immutable
-graph records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
+Record equality and hashing combine ordinary producer identity with the output index. Two
+positions of one producer differ, and the same index on separately invoked structurally equal
+producers also differs. Provenance is not intermediate representation (IR), graph membership,
+graph capture, or executable behavior. It contains no graph-local `NodeId` or `ValueId`, does not
+validate cycles or graph structure, and does not change when Tensor host storage is replaced,
+cleared, or becomes dead. A later compiler owns traversal and conversion into immutable graph
+records. See [Public Tensor state](api/tensor-api.md#public-tensor-state).
 
 The implemented binary Tensor methods create provenance whose operation uses the exact matching
 `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, and whose two input positions preserve the
@@ -1087,9 +1109,10 @@ storage, materialization, or execution.
 Static `Tensor.concat` and `Tensor.stack` retain immutable ordered snapshots of their exact input
 Tensor references in provenance with matching `TensorCompositionKind` and normalized
 `CompositionAxisAttrs`. Each `Tensor.unstack` output instead carries its own UNSTACK operation,
-`UnstackOutputAttrs` with increasing output index, and exactly the source Tensor as input. Those
-individual origins distinguish outputs without establishing one shared producer occurrence,
-grouped result identity, or graph output slot.
+`UnstackOutputAttrs` with an increasing semantic coordinate, and exactly the source Tensor as
+input. Each is an independent one-output producer with provenance index zero. Those individual
+origins distinguish outputs without establishing one shared producer occurrence, grouped result
+identity, or graph output slot.
 
 ### Publication binding
 
@@ -1268,9 +1291,9 @@ order is semantic, but these attributes contain no input list or count.
 UNSTACK describes one result obtained by fixing a normalized source axis at the logical coordinate
 in `UnstackOutputAttrs(axis, outputIndex)` and removing that axis. For conceptual input Shape
 `[2, 3, 4]`, source axis `1` has output indices `0`, `1`, and `2`; each identifies one conceptual
-result Shape `[2, 4]`. The index distinguishes the current result tensors because each current
-public Tensor can carry only one independent provenance value. It is not a graph output slot,
-`ValueId`, `NodeId`, producer-group identity, output count, storage offset, or runtime memory slot.
+result Shape `[2, 4]`. This attribute index is the source coordinate, not the zero-based producer
+slot in `TensorProvenance`. It is not a graph output slot, `ValueId`, `NodeId`, producer-group
+identity, output count, storage offset, or runtime memory slot.
 
 Both attributes records accept every non-negative `int`, including `Integer.MAX_VALUE`, because
 they contain no rank or selected-axis extent. The implemented public expression boundary owns
@@ -1280,6 +1303,7 @@ and provenance attachment. CONCAT accepts only an all-static checked extent sum 
 extent with static-zero companions; STACK inserts a static input-count Dimension; UNSTACK
 requires a static count no larger than `Integer.MAX_VALUE` and returns an empty immutable List
 without consuming IDs when that count is zero. Each UNSTACK result remains independently indexed
+by its attributes and receives an independent one-output producer with provenance index zero,
 without grouping into one `CompiledNode`. Compiler capture or decomposition, gradients,
 materialization, lowering, ONNX mapping, and execution remain planned. See [Tensor composition
 expressions](api/tensor-api.md#tensor-composition-expressions) and [Tensor composition semantic
@@ -1297,7 +1321,9 @@ changing the exact reference. Read-only storage is accepted; later caller-contro
 remains observable; and the tensor retains the wrapper reference without allocating backing
 memory itself, copying or accessing contents, owning a closeable resource, or closing storage.
 Provenance remains the same exact value across every storage transition and is accessed without
-synchronization because it is final.
+synchronization because it is final. When present, its selected output descriptor must be the
+same exact reference as the Tensor descriptor; an equal but separately constructed descriptor is
+rejected.
 
 Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
 the supported public construction boundary. The object uses ordinary identity equality and
@@ -1418,7 +1444,8 @@ dynamic axis extent, and preserves rank. STACK requires identical Shapes and ins
 input-count Dimension. Both propagate gradient eligibility by input OR. Instance `Tensor.unstack`
 removes one static `int`-sized axis and returns an immutable ordered List of individually indexed
 outputs. All created composition results are fresh, unresolved, unlabeled, and storage-free;
-unstack does not claim shared producer grouping, and its zero-count result creates no Tensor or ID.
+each unstack output has an independent one-output producer and provenance index zero, so unstack
+does not claim shared producer grouping; its zero-count result creates no Tensor or ID.
 A `Tensor` is not an
 intermediate-representation node or [graph value](#graph-value). See [Public Tensor
 state](api/tensor-api.md#public-tensor-state).
@@ -1467,10 +1494,12 @@ values, with only `fullBFloat16` converting, and fill one exact source before on
 typed one on the main diagonal and typed zero elsewhere; `eye` delegates unchanged to that
 canonical method. Separate calls create fresh metadata, storage, Tensor identity, and backing
 arrays. Every public factory path creates a
-provenance-free leaf. One package-private derived-construction seam attaches an already-created
-provenance value through the existing ID allocator without storage, graph capture, traversal,
-inference, or semantic validation. The factory retains no tensor, graph, runtime, backend,
-registry, or service state.
+provenance-free leaf. Package-private derived-construction seams create one validated producer and
+attach index-zero provenance to one result or indexed provenance to an immutable ordered result
+list through the existing ID allocator. Producer validation precedes allocation; a multi-output ID
+exhaustion can consume earlier IDs but returns no partial list. These seams add no storage, graph
+capture, traversal, family-specific inference, or execution. The factory retains no tensor, graph,
+runtime, backend, registry, or service state.
 
 The factory's two eager range overloads map `int` bounds and step to `INT32`, and `long` bounds and
 step to `INT64`. Each result is non-empty, rank one, non-differentiable, inclusive at the start,

@@ -17,8 +17,8 @@ import java.util.Optional;
  * <p>This package-private boundary owns the common deterministic construction order for all seven
  * parameterless binary arithmetic kinds. It validates operand and kind presence, promotes only
  * floating data types, derives only locally provable right-aligned broadcast shape, records an
- * unresolved result layout and gradient-eligibility OR, and then creates exact ordered provenance
- * before delegating once to the central Tensor factory. It does not inspect or mutate storage,
+ * unresolved result layout and gradient-eligibility OR, and delegates exact ordered producer
+ * inputs once to the central Tensor factory. It does not inspect or mutate storage,
  * execute arithmetic, canonicalize expressions, insert casts, create gradient rules, or capture a
  * graph.</p>
  */
@@ -34,9 +34,9 @@ final class TensorBinaryExpressions {
      * {@code right}, and {@code kind}; promote the two descriptor data types; broadcast the two
      * descriptor shapes; create one unresolved-layout descriptor with input gradient eligibility
      * combined by logical OR; create one operation from the exact supplied kind and
-     * {@code NoOperationAttrs.INSTANCE}; create one provenance value with ordered exact inputs
-     * {@code [left, right]}; and delegate once to
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} with no
+     * {@code NoOperationAttrs.INSTANCE}; and delegate ordered exact producer inputs
+     * {@code [left, right]} once to
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} with no
      * label. Failures before the final delegation allocate no Tensor identity. A successful call
      * returns the factory's exact fresh, unlabeled, storage-free result; neither input nor its
      * metadata or storage is mutated.</p>
@@ -68,7 +68,7 @@ final class TensorBinaryExpressions {
                 Optional.empty(),
                 left.descriptor().requiresGrad() || right.descriptor().requiresGrad());
         Operation operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(left, right));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(left, right));
     }
 }

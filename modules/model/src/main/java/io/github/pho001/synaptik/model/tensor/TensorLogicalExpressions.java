@@ -125,7 +125,7 @@ final class TensorLogicalExpressions {
      * descriptor from the exact supplied shape with false gradient eligibility; create one
      * {@link Operation} from the exact kind and {@link NoOperationAttrs#INSTANCE}; create one
      * {@link TensorProvenance} that snapshots the supplied ordered inputs; and delegate exactly
-     * once to {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)}
+     * once to {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)}
      * with no label. The derived-construction seam attaches no storage. This method performs no
      * duplicate arity, data-type, or shape validation.</p>
      *
@@ -148,7 +148,6 @@ final class TensorLogicalExpressions {
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.BOOL, shape, Optional.empty(), false);
         Operation operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance = new TensorProvenance(operation, inputs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, inputs);
     }
 }

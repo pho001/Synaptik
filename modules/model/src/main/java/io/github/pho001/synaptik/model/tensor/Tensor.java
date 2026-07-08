@@ -55,8 +55,11 @@ import java.util.Optional;
  * tensor objects equal.</p>
  *
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
- * clearing, or later storage death. It is not graph-local node or value identity and does not
- * make a tensor an intermediate-representation node. Binary arithmetic, binary comparison,
+ * clearing, or later storage death. A present provenance identifies one zero-based output of one
+ * exact {@link TensorProducer}; this tensor retains the exact descriptor reference from that
+ * producer output position. The producer is pre-capture occurrence identity, not graph-local node
+ * or value identity, and does not make a tensor an intermediate-representation node. Binary
+ * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
  * elementwise expression methods create fresh storage-free tensors whose immutable provenance
@@ -163,11 +166,12 @@ public final class Tensor {
      *
      * <p>Validation proceeds in parameter order: {@code id}, {@code descriptor}, {@code label},
      * {@code provenance}, and {@code hostStorage} optionals must be non-null; a present label is
-     * stripped and must remain non-blank; then present storage is checked for matching data type,
-     * sufficient capacity when layout geometry is resolved, and point-in-time liveness. A static
-     * or dynamic unresolved layout performs no capacity check because this class does not invent
-     * row-major geometry. Resolved capacity uses the complete referenced element span, including
-     * offset and striding; scalar span is one and zero-sized span is zero.</p>
+     * stripped and must remain non-blank; a present provenance must select this exact descriptor
+     * reference; then present storage is checked for matching data type, sufficient capacity when
+     * layout geometry is resolved, and point-in-time liveness. A static or dynamic unresolved
+     * layout performs no capacity check because this class does not invent row-major geometry.
+     * Resolved capacity uses the complete referenced element span, including offset and striding;
+     * scalar span is one and zero-sized span is zero.</p>
      *
      * <p>The exact immutable identifier and descriptor references are retained. Label uses
      * optional value semantics and is stored normalized. Provenance also uses optional value
@@ -182,17 +186,20 @@ public final class Tensor {
      * @param label non-null optional diagnostic label; present text is stripped and must contain a
      *     non-whitespace character, while empty represents absence
      * @param provenance non-null value-based optional expression origin to retain; a present
-     *     result contains the exact immutable provenance reference and remains independent of
-     *     storage mutation
+     *     result contains the exact immutable provenance reference, must select the exact supplied
+     *     descriptor reference, and remains independent of storage mutation
      * @param hostStorage non-null optional borrowed host storage to retain exactly when present;
      *     read-only storage is accepted
      * @throws NullPointerException if {@code id}, {@code descriptor}, {@code label},
      *     {@code provenance}, or {@code hostStorage} is {@code null}, with the corresponding
      *     parameter name as the message
      * @throws IllegalArgumentException if a present label is blank, with message
-     *     {@code label must not be blank}; if storage data type differs from the descriptor, with
-     *     message {@code hostStorage data type must match descriptor data type:
-     *     expected=<expected>, actual=<actual>}; or if resolved layout span exceeds storage
+     *     {@code label must not be blank}; if a present provenance selects a descriptor reference
+     *     other than {@code descriptor}, with message
+     *     {@code descriptor must be the exact provenance output descriptor reference}; if storage
+     *     data type differs from the descriptor, with message
+     *     {@code hostStorage data type must match descriptor data type: expected=<expected>,
+     *     actual=<actual>}; or if resolved layout span exceeds storage
      *     capacity, with message {@code hostStorage element capacity is smaller than resolved
      *     layout span: required=<required>, actual=<actual>}
      * @throws IllegalStateException if present storage is not alive at the attachment check, with
@@ -210,6 +217,12 @@ public final class Tensor {
         this.provenance = Objects.requireNonNull(provenance, "provenance");
         Objects.requireNonNull(hostStorage, "hostStorage");
         this.label = normalizeLabel(label);
+
+        if (provenance.isPresent()
+                && provenance.orElseThrow().outputDescriptor() != descriptor) {
+            throw new IllegalArgumentException(
+                    "descriptor must be the exact provenance output descriptor reference");
+        }
 
         if (hostStorage.isPresent()) {
             HostTensorStorage suppliedStorage = hostStorage.orElseThrow();

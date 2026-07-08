@@ -63,7 +63,7 @@ io.github.pho001.synaptik.model.layout
 
 io.github.pho001.synaptik.model.tensor
   Public Tensor state, TensorId, TensorDescriptor, TensorFactory, eager initialization helpers,
-  and provenance.
+  immutable expression-producer identity, and indexed provenance.
 
 io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
@@ -203,7 +203,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018I | [Scatter-ND semantics](tasks/0018i-scatter-nd-semantics.md) | Complete | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
 | 0018J | [Scatter-ND Tensor expression](tasks/0018j-scatter-nd-tensor-expression.md) | Complete | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
 | 0018K | [Operation signature and construction hardening](tasks/0018k-operation-signature-and-construction-hardening.md) | Complete | 0005, 0006, 0008 | Prevent invalid kind/attribute pairings and define compact fixed/bounded/variadic input and output cardinality without a registry. |
-| 0018L | Shared multi-output Tensor provenance | Draft | 0008, 0009, 0013, 0018K | Represent one immutable shared producer and indexed Tensor results without turning Tensor into IR. |
+| 0018L | [Shared multi-output Tensor provenance](tasks/0018l-shared-multi-output-tensor-provenance.md) | Complete | 0007–0009, 0011–0013, 0018K | Represent one immutable shared producer with ordered inputs/output descriptors and indexed Tensor results without turning Tensor into IR. |
 | 0018M | Symbolic extent expressions | Draft | 0002, 0017C–0017N | Represent checked addition, constant multiplication, floor/ceiling division, and constrained unknown extents needed by dynamic shape transforms. |
 | 0018N | Typed scalar value contract | Draft | 0001, 0014E, 0017I | Preserve exact scalar values for the six current data types and make scalar and padding attributes data-type-safe. |
 | 0018O | Indexing taxonomy and unstack normalization | Draft | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
@@ -261,8 +261,9 @@ Task 0018I is complete with functional tuple-index semantics and immutable batch
 shared-reduction attributes. Task 0018J is complete with public metadata-only Scatter-ND
 expression construction. The capability-reset audit then replaced legacy parity as the selection
 rule and inserted tasks 0018K–0018V before linear algebra. Task 0018K is complete with exact
-family-owned signatures and local occurrence-cardinality validation. Task 0018L is the next
-frontier and remains Draft without a detailed specification; later tasks also remain Draft.
+family-owned signatures and local occurrence-cardinality validation. Task 0018L is complete with
+unified producer/output-index provenance. Task 0018M is the next Draft frontier without a detailed
+specification; later tasks also remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -281,8 +282,6 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 ## Open questions
 
-- The exact shared-producer provenance value remains local to task 0018L; it must not assign
-  graph-local identity to Tensor.
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable
   focused task.
 
@@ -306,6 +305,16 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   multi-output Tensor provenance remain outside this task.
 - Genuine multi-output operations require shared producer provenance. Unstack is instead repeated
   scalar select and does not retain a distinct UNSTACK semantic primitive.
+- Shared provenance uses one identity-bearing `TensorProducer` with exact operation, ordered input
+  Tensors, and ordered output descriptors. Each result records that exact producer and its output
+  index. Output count is derived from descriptors, no producer retains output Tensor objects, and
+  single-output expressions use the same model at index zero.
+- Task 0018L completed that contract and atomically migrated every current expression helper.
+  Independent documentation review finalized affected Javadocs, Tensor API, Compile API,
+  glossary, task evidence, master plan, and roadmap after the final 749-test/87-suite model run,
+  model Javadoc, compiled example, Markdown, scope, status, and whitespace checks passed. Current
+  unstack remains independent one-output producers; no production multi-output operation or
+  compiler capture was added.
 - Dynamic convolution and pooling require symbolic extent expressions for addition, constant
   multiplication, and floor/ceiling division before those families become Ready.
 - Semantic scalar attributes become data-type-safe. Raw binary64 attributes are not sufficient for
@@ -1134,8 +1143,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Task 0018L is the next frontier and remains Draft without a detailed specification. Other
-operation-family rows are not
+Task 0018L is complete. Task 0018M is the next Draft frontier and has no detailed specification.
+Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1191,7 +1200,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Task 0018K is complete; 0018L is the next Draft
-frontier without a detailed specification, and every later operation-family task remains Draft.
+0018K–0018V as the new foundation frontier. Tasks 0018K and 0018L are complete; 0018M is the next
+Draft frontier without a detailed specification, and every later task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

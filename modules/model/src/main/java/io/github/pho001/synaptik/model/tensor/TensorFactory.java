@@ -3,11 +3,14 @@ package io.github.pho001.synaptik.model.tensor;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutKind;
+import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,9 +55,10 @@ import java.util.random.RandomGenerator;
  * values, accept boxed or generic nested values, provide typed
  * tensor access, expose caller-supplied provenance, allocate native or backend memory, or provide
  * compiler, runtime, or backend behavior. Every public creation and population method produces a
- * provenance-free leaf. One package-private derived-construction seam attaches an already-created
- * provenance value for future same-package expression helpers, while performing no graph capture,
- * traversal, inference, or semantic validation. Deterministic population additionally supports non-empty INT32
+ * provenance-free leaf. Package-private derived-construction seams create one validated
+ * {@link TensorProducer} and attach indexed provenance to either one labeled-or-unlabeled result
+ * or an immutable ordered list of unlabeled results. They perform no graph capture, traversal,
+ * inference, or evaluation. Deterministic population additionally supports non-empty INT32
  * and INT64 ranges plus strict or cyclic prefixes of the six exact primitive carriers. Those
  * methods synthesize only canonical dense leaf descriptors, copy their complete logical result,
  * and reuse flat import for final allocation, normalization, and identity assignment. Normal and
@@ -165,38 +169,99 @@ public final class TensorFactory {
     /**
      * Creates a storage-free derived tensor with immutable expression-origin metadata.
      *
-     * <p>Factory arguments are null-checked in declaration order before allocating exactly one
-     * identifier. The allocated ID is consumed if the package-private Tensor constructor later
-     * rejects a blank label, and identifier exhaustion is reported before Tensor construction
-     * without rollback. The returned tensor retains the exact descriptor and provenance
-     * references, has no host storage, and delegates label normalization to Tensor.</p>
+     * <p>Factory arguments are null-checked in declaration order before a producer or identifier
+     * is created. One producer snapshots the ordered input references and the exact descriptor as
+     * its sole output, then validates the resulting counts through the selected operation
+     * signature. Producer validation failures consume no identifier. The result uses producer
+     * output index zero and retains that same descriptor reference.</p>
      *
-     * <p>This package-private seam does not inspect the provenance's operation or inputs and
-     * performs no graph capture or traversal, operation arity or semantic validation, descriptor
-     * inference, gradient inference, storage allocation, or eager evaluation.</p>
+     * <p>After producer validation, exactly one identifier is allocated. A blank label rejected by
+     * the package-private Tensor constructor consumes that identifier; exhaustion reports before
+     * Tensor construction and is not rolled back. The fresh result has no host storage. This seam
+     * performs no family-specific operand validation, descriptor inference, graph capture or
+     * traversal, gradient inference, storage allocation, or eager evaluation.</p>
      *
      * @param descriptor non-null completed immutable descriptor to retain by exact reference
      * @param label non-null value-based optional diagnostic label; Tensor normalizes and validates
      *     present text after identifier allocation
-     * @param provenance non-null immutable expression origin to retain by exact reference
-     * @return a non-null fresh derived tensor with one factory-assigned ID, exact provenance, and
-     *     no host storage
-     * @throws NullPointerException if {@code descriptor}, {@code label}, or {@code provenance} is
-     *     null, checked in that order with the parameter name as the message; no ID is consumed
-     * @throws IllegalArgumentException if Tensor rejects a present blank label after allocation;
-     *     the allocated ID is consumed
+     * @param operation exact non-null immutable operation reference retained by the new producer
+     * @param inputs non-null ordered input tensor references snapshotted by the new producer;
+     *     elements must be non-null, while repeated positions are retained when the operation
+     *     signature permits them
+     * @return a non-null fresh derived tensor with one factory-assigned ID, producer output index
+     *     zero, the exact descriptor, and no host storage
+     * @throws NullPointerException if {@code descriptor}, {@code label}, {@code operation}, or
+     *     {@code inputs} is null, checked in that order, or if an input element is null; these
+     *     failures consume no ID
+     * @throws IllegalArgumentException if the operation signature rejects the supplied input count
+     *     or the single output count before allocation, or if Tensor rejects a present blank label
+     *     after allocation; only the latter failure consumes an ID
      * @throws IllegalStateException if tensor identifier space is exhausted before construction,
      *     with message {@code tensor identifier space exhausted}
      */
     static Tensor createDerived(
             TensorDescriptor descriptor,
             Optional<String> label,
-            TensorProvenance provenance) {
+            Operation operation,
+            List<Tensor> inputs) {
         Objects.requireNonNull(descriptor, "descriptor");
         Objects.requireNonNull(label, "label");
-        Objects.requireNonNull(provenance, "provenance");
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        TensorProducer producer = new TensorProducer(operation, inputs, List.of(descriptor));
         return new Tensor(
-                nextTensorId(), descriptor, label, Optional.of(provenance), Optional.empty());
+                nextTensorId(),
+                descriptor,
+                label,
+                Optional.of(new TensorProvenance(producer, 0)),
+                Optional.empty());
+    }
+
+    /**
+     * Creates every storage-free, unlabeled output tensor of one validated producer occurrence.
+     *
+     * <p>All argument containers and producer-owned elements are validated before identifier
+     * allocation. Exactly one producer snapshots the ordered inputs and output descriptors,
+     * validates their counts, and is then shared by every returned tensor. Each tensor retains the
+     * exact descriptor reference from its zero-based producer position, receives an independent
+     * ID, and has no label or host storage. The returned list is an immutable ordered snapshot.</p>
+     *
+     * <p>If identifier exhaustion occurs after earlier output IDs were allocated, those IDs remain
+     * consumed and no partial result list is returned. The producer retains descriptors, not the
+     * result tensors, so this construction creates no producer/result/provenance cycle.</p>
+     *
+     * @param operation exact non-null operation reference retained by the producer
+     * @param inputs non-null ordered input tensor references snapshotted by the producer
+     * @param outputDescriptors non-null, non-empty ordered output descriptors snapshotted by the
+     *     producer
+     * @return an immutable ordered list of fresh output tensors that share the exact producer
+     * @throws NullPointerException if {@code operation}, {@code inputs}, or
+     *     {@code outputDescriptors} is null, checked in that order, or if an input or output
+     *     descriptor element is null; these failures consume no ID
+     * @throws IllegalArgumentException if output descriptors are empty or occurrence counts are
+     *     rejected by the operation signature; these failures consume no ID
+     * @throws IllegalStateException if tensor identifier space is exhausted; IDs allocated for
+     *     earlier positions remain consumed, and no partial list is returned
+     */
+    static List<Tensor> createDerivedOutputs(
+            Operation operation,
+            List<Tensor> inputs,
+            List<TensorDescriptor> outputDescriptors) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(outputDescriptors, "outputDescriptors");
+        TensorProducer producer = new TensorProducer(operation, inputs, outputDescriptors);
+        List<Tensor> outputs = new ArrayList<>(producer.outputCount());
+        for (int outputIndex = 0; outputIndex < producer.outputCount(); outputIndex++) {
+            TensorDescriptor descriptor = producer.outputDescriptors().get(outputIndex);
+            outputs.add(new Tensor(
+                    nextTensorId(),
+                    descriptor,
+                    Optional.empty(),
+                    Optional.of(new TensorProvenance(producer, outputIndex)),
+                    Optional.empty()));
+        }
+        return List.copyOf(outputs);
     }
 
     /**

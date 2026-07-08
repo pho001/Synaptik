@@ -84,14 +84,14 @@ final class TensorCumulativeSumExpressions {
     }
 
     /**
-     * Constructs one exact descriptor, operation, provenance value, and derived Tensor identity.
+     * Constructs one exact descriptor and operation, then delegates one derived Tensor identity.
      *
      * <p>Construction creates an unresolved-layout descriptor from the exact input data type,
      * supplied exact Shape, and unchanged gradient eligibility. It then creates one
-     * {@link CumulativeSumKind#CUM_SUM} operation retaining {@code attrs}, one provenance value
-     * retaining exact ordered input {@code [input]}, and delegates exactly once to the central
-     * derived factory with no label. It reads no label, existing provenance, layout, storage,
-     * shape dimensions, element count, or values.</p>
+     * {@link CumulativeSumKind#CUM_SUM} operation retaining {@code attrs} and delegates exact
+     * ordered producer input {@code [input]} once to the central derived factory with no label.
+     * The factory creates index-zero provenance. This method reads no label, existing provenance,
+     * layout, storage, shape dimensions, element count, or values.</p>
      *
      * @param input validated Tensor retained as the exact sole provenance input
      * @param shape exact non-null immutable input Shape retained by the result descriptor
@@ -108,7 +108,6 @@ final class TensorCumulativeSumExpressions {
                 Optional.empty(),
                 input.descriptor().requiresGrad());
         Operation operation = new Operation(CumulativeSumKind.CUM_SUM, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

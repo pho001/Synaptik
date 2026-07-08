@@ -264,7 +264,13 @@ class TensorFactoryTest {
                 int.class,
                 MemorySegment.class);
         Method createDerived = TensorFactory.class.getDeclaredMethod(
-                "createDerived", TensorDescriptor.class, Optional.class, TensorProvenance.class);
+                "createDerived",
+                TensorDescriptor.class,
+                Optional.class,
+                Operation.class,
+                List.class);
+        Method createDerivedOutputs = TensorFactory.class.getDeclaredMethod(
+                "createDerivedOutputs", Operation.class, List.class, List.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
         assertEquals(
                 Set.of(
@@ -318,6 +324,7 @@ class TensorFactoryTest {
                         eye,
                         importFlat,
                         createDerived,
+                        createDerivedOutputs,
                         allocator),
                 Set.of(TensorFactory.class.getDeclaredMethods()));
         assertAll(
@@ -377,6 +384,7 @@ class TensorFactoryTest {
                         .allMatch(method -> method.getReturnType() == Tensor.class)),
                 () -> assertEquals(Tensor.class, importFlat.getReturnType()),
                 () -> assertEquals(Tensor.class, createDerived.getReturnType()),
+                () -> assertEquals(List.class, createDerivedOutputs.getReturnType()),
                 () -> assertEquals(TensorId.class, allocator.getReturnType()),
                 () -> assertTrue(Modifier.isPublic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(complete.getModifiers())),
@@ -436,6 +444,9 @@ class TensorFactoryTest {
                 () -> assertFalse(Modifier.isPublic(createDerived.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(createDerived.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(createDerived.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(createDerivedOutputs.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(createDerivedOutputs.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(createDerivedOutputs.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(complete.getModifiers())),
@@ -493,6 +504,7 @@ class TensorFactoryTest {
                         .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(createDerived.getModifiers())),
+                () -> assertTrue(Modifier.isStatic(createDerivedOutputs.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocator.getModifiers())));
     }
 
@@ -557,41 +569,131 @@ class TensorFactoryTest {
         long before = next.get();
         TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
         Tensor input = TensorFactory.create(descriptor);
-        TensorProvenance provenance = new TensorProvenance(
-                new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of(input));
+        Operation operation = new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE);
+        List<Tensor> inputs = List.of(input);
         long afterInput = next.get();
 
         NullPointerException nullDescriptor = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.createDerived(null, null, null));
+                () -> TensorFactory.createDerived(null, null, null, null));
         NullPointerException nullLabel = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.createDerived(descriptor, null, null));
-        NullPointerException nullProvenance = assertThrows(
+                () -> TensorFactory.createDerived(descriptor, null, null, null));
+        NullPointerException nullOperation = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.createDerived(descriptor, Optional.empty(), null));
+                () -> TensorFactory.createDerived(descriptor, Optional.empty(), null, null));
+        NullPointerException nullInputs = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerived(descriptor, Optional.empty(), operation, null));
+        IllegalArgumentException wrongInputs = assertThrows(
+                IllegalArgumentException.class,
+                () -> TensorFactory.createDerived(
+                        descriptor, Optional.empty(), operation, List.of()));
         assertEquals(afterInput, next.get());
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
                 () -> TensorFactory.createDerived(
-                        descriptor, Optional.of(" \t\n "), provenance));
+                        descriptor, Optional.of(" \t\n "), operation, inputs));
         assertEquals(afterInput + 1, next.get());
 
         Tensor derived = TensorFactory.createDerived(
-                descriptor, Optional.of("  result  "), provenance);
+                descriptor, Optional.of("  result  "), operation, inputs);
+        TensorProvenance provenance = derived.provenance().orElseThrow();
 
         assertAll(
                 () -> assertEquals(before, input.id().value()),
                 () -> assertEquals("descriptor", nullDescriptor.getMessage()),
                 () -> assertEquals("label", nullLabel.getMessage()),
-                () -> assertEquals("provenance", nullProvenance.getMessage()),
+                () -> assertEquals("operation", nullOperation.getMessage()),
+                () -> assertEquals("inputs", nullInputs.getMessage()),
+                () -> assertTrue(wrongInputs.getMessage().contains("input count 0")),
                 () -> assertEquals("label must not be blank", blank.getMessage()),
                 () -> assertEquals(afterInput + 1, derived.id().value()),
                 () -> assertSame(descriptor, derived.descriptor()),
                 () -> assertEquals(Optional.of("result"), derived.label()),
                 () -> assertSame(provenance, derived.provenance().orElseThrow()),
+                () -> assertSame(operation, provenance.operation()),
+                () -> assertSame(input, provenance.inputs().getFirst()),
+                () -> assertEquals(1, provenance.producer().outputCount()),
+                () -> assertEquals(0, provenance.outputIndex()),
+                () -> assertSame(descriptor, provenance.outputDescriptor()),
                 () -> assertTrue(derived.hostStorage().isEmpty()));
+    }
+
+    @Test
+    void createsImmutableOrderedOutputsWithOneExactSharedProducer()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        TensorDescriptor firstDescriptor = unresolved(DataType.FLOAT32, Shape.of(2));
+        TensorDescriptor secondDescriptor = unresolved(DataType.INT64, Shape.of(2));
+        Tensor input = TensorFactory.create(firstDescriptor);
+        Operation operation = new Operation(MultiKind.MULTI, NoOperationAttrs.INSTANCE);
+        long beforeOutputs = next.get();
+
+        List<Tensor> outputs = TensorFactory.createDerivedOutputs(
+                operation,
+                List.of(input),
+                List.of(firstDescriptor, secondDescriptor));
+        Tensor first = outputs.get(0);
+        Tensor second = outputs.get(1);
+        TensorProvenance firstProvenance = first.provenance().orElseThrow();
+        TensorProvenance secondProvenance = second.provenance().orElseThrow();
+
+        assertAll(
+                () -> assertEquals(2, outputs.size()),
+                () -> assertThrows(UnsupportedOperationException.class, outputs::clear),
+                () -> assertNotSame(first, second),
+                () -> assertEquals(beforeOutputs, first.id().value()),
+                () -> assertEquals(beforeOutputs + 1, second.id().value()),
+                () -> assertSame(firstDescriptor, first.descriptor()),
+                () -> assertSame(secondDescriptor, second.descriptor()),
+                () -> assertTrue(first.label().isEmpty()),
+                () -> assertTrue(second.label().isEmpty()),
+                () -> assertTrue(first.hostStorage().isEmpty()),
+                () -> assertTrue(second.hostStorage().isEmpty()),
+                () -> assertSame(firstProvenance.producer(), secondProvenance.producer()),
+                () -> assertSame(operation, firstProvenance.operation()),
+                () -> assertSame(input, firstProvenance.inputs().getFirst()),
+                () -> assertEquals(0, firstProvenance.outputIndex()),
+                () -> assertEquals(1, secondProvenance.outputIndex()),
+                () -> assertSame(firstDescriptor, firstProvenance.outputDescriptor()),
+                () -> assertSame(secondDescriptor, secondProvenance.outputDescriptor()));
+    }
+
+    @Test
+    void multiOutputPrevalidationFailuresConsumeNoIdentifiers()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+        Tensor input = TensorFactory.create(descriptor);
+        Operation operation = new Operation(MultiKind.MULTI, NoOperationAttrs.INSTANCE);
+        long before = next.get();
+
+        NullPointerException nullOperation = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerivedOutputs(null, null, null));
+        NullPointerException nullInputs = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerivedOutputs(operation, null, null));
+        NullPointerException nullOutputs = assertThrows(
+                NullPointerException.class,
+                () -> TensorFactory.createDerivedOutputs(operation, List.of(input), null));
+        IllegalArgumentException empty = assertThrows(
+                IllegalArgumentException.class,
+                () -> TensorFactory.createDerivedOutputs(operation, List.of(input), List.of()));
+        IllegalArgumentException wrongCount = assertThrows(
+                IllegalArgumentException.class,
+                () -> TensorFactory.createDerivedOutputs(
+                        operation, List.of(input), List.of(descriptor)));
+
+        assertAll(
+                () -> assertEquals("operation", nullOperation.getMessage()),
+                () -> assertEquals("inputs", nullInputs.getMessage()),
+                () -> assertEquals("outputDescriptors", nullOutputs.getMessage()),
+                () -> assertEquals("outputDescriptors must not be empty", empty.getMessage()),
+                () -> assertTrue(wrongCount.getMessage().contains("output count 1")),
+                () -> assertEquals(before, next.get()));
     }
 
     @Test
@@ -721,6 +823,42 @@ class TensorFactoryTest {
     }
 
     @Test
+    void multiOutputExhaustionConsumesAllocatedIdsAndReturnsNoPartialList()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        AtomicBoolean maximumClaimed = maximumTensorIdClaimedState();
+        long originalNext = next.get();
+        boolean originalMaximumClaimed = maximumClaimed.get();
+        try {
+            next.set(Long.MAX_VALUE);
+            maximumClaimed.set(false);
+            TensorDescriptor descriptor = unresolved(DataType.FLOAT32, Shape.scalar());
+            Tensor input = new Tensor(
+                    new TensorId(0),
+                    descriptor,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty());
+            Operation operation = new Operation(MultiKind.MULTI, NoOperationAttrs.INSTANCE);
+
+            IllegalStateException exhausted = assertThrows(
+                    IllegalStateException.class,
+                    () -> TensorFactory.createDerivedOutputs(
+                            operation,
+                            List.of(input),
+                            List.of(descriptor, descriptor)));
+
+            assertAll(
+                    () -> assertEquals("tensor identifier space exhausted", exhausted.getMessage()),
+                    () -> assertEquals(Long.MAX_VALUE, next.get()),
+                    () -> assertTrue(maximumClaimed.get()));
+        } finally {
+            next.set(originalNext);
+            maximumClaimed.set(originalMaximumClaimed);
+        }
+    }
+
+    @Test
     void finalCandidateIsClaimedOnceAndExhaustionIsPermanent() throws Exception {
         AtomicLong next = nextTensorIdState();
         AtomicBoolean maximumClaimed = maximumTensorIdClaimedState();
@@ -771,12 +909,17 @@ class TensorFactoryTest {
                 assertEquals("tensor identifier space exhausted", exhausted.getMessage());
             }
 
-            TensorProvenance provenance = new TensorProvenance(
-                    new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE), List.of());
+            Operation operation = new Operation(SampleKind.SAMPLE, NoOperationAttrs.INSTANCE);
+            Tensor input = new Tensor(
+                    new TensorId(0),
+                    descriptor,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty());
             IllegalStateException derivedExhausted = assertThrows(
                     IllegalStateException.class,
                     () -> TensorFactory.createDerived(
-                            descriptor, Optional.of("derived"), provenance));
+                            descriptor, Optional.of("derived"), operation, List.of(input)));
 
             NullPointerException nullWins = assertThrows(
                     NullPointerException.class,
@@ -838,6 +981,18 @@ class TensorFactoryTest {
 
         private static final List<OperationSignature> SIGNATURES =
                 List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
+    }
+
+    private enum MultiKind implements OperationKind {
+        MULTI;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 2));
 
         @Override
         public List<OperationSignature> signatures() {

@@ -14,8 +14,8 @@ import java.util.Optional;
  * <p>This package-private boundary owns the common deterministic construction order for all
  * fifteen parameterless unary elementwise kinds. It validates input and kind presence, accepts
  * only a floating input data type, retains the exact data type and shape, records unresolved
- * result layout and unchanged gradient eligibility, and creates exact one-input provenance before
- * delegating once to the central Tensor factory. It does not inspect values or storage, evaluate
+ * result layout and unchanged gradient eligibility, and delegates the exact sole producer input
+ * once to the central Tensor factory. It does not inspect values or storage, evaluate
  * mathematics, validate numerical domains, canonicalize expressions, insert casts, create
  * gradient rules, or capture a graph.</p>
  */
@@ -31,9 +31,8 @@ final class TensorUnaryExpressions {
      * {@code kind}; read and validate the input descriptor's floating data type; create one
      * unresolved-layout descriptor with the exact input data type, shape reference, and gradient
      * eligibility; create one operation from the exact supplied kind and
-     * {@code NoOperationAttrs.INSTANCE}; create one provenance value with the exact input; and
-     * delegate once to
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} with no
+     * {@code NoOperationAttrs.INSTANCE}; and delegate the exact sole producer input once to
+     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} with no
      * label. Failures before the final delegation allocate no Tensor identity. A successful call
      * returns the factory's exact fresh, unlabeled, storage-free result; the input and all of its
      * metadata and storage remain unchanged.</p>
@@ -64,7 +63,6 @@ final class TensorUnaryExpressions {
                 Optional.empty(),
                 input.descriptor().requiresGrad());
         Operation operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

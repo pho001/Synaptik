@@ -182,7 +182,11 @@ class TensorArgMaxExpressionTest {
         ArgMaxAttrs originalAttrs =
                 new ArgMaxAttrs(1, false, ArgMaxTiePolicy.FIRST_INDEX);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(AggregateReductionKind.ARG_MAX, originalAttrs), List.of(leaf));
+                new TensorProducer(
+                        new Operation(AggregateReductionKind.ARG_MAX, originalAttrs),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()), descriptor, Optional.of("input"),
                 Optional.of(originalProvenance), Optional.of(storage));

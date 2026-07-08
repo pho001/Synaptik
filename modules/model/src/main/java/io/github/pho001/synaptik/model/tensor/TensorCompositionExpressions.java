@@ -347,7 +347,7 @@ final class TensorCompositionExpressions {
     }
 
     /**
-     * Creates one unresolved descriptor, exact provenance value, and fresh Tensor.
+     * Creates one unresolved descriptor and delegates exact producer state for one fresh Tensor.
      *
      * @param dataType non-null exact result element type
      * @param resultShape non-null exact locally derived result Shape
@@ -365,7 +365,6 @@ final class TensorCompositionExpressions {
             List<Tensor> inputs) {
         TensorDescriptor descriptor =
                 new TensorDescriptor(dataType, resultShape, Optional.empty(), requiresGrad);
-        TensorProvenance provenance = new TensorProvenance(operation, inputs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, inputs);
     }
 }

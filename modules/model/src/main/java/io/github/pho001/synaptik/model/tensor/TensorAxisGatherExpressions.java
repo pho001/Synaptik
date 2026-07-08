@@ -268,7 +268,7 @@ final class TensorAxisGatherExpressions {
                 Optional.empty(),
                 dataDescriptor.requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(data, indices));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(data, indices));
     }
 }

@@ -219,7 +219,6 @@ final class TensorExpandExpressions {
                 inputDescriptor.requiresGrad());
         TargetShapeAttrs attrs = new TargetShapeAttrs(targetShape);
         Operation operation = new Operation(ShapeTransformKind.EXPAND, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

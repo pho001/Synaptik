@@ -184,9 +184,10 @@ final class TensorSelectExpressions {
      *
      * <p>The descriptor retains the exact input data type and gradient eligibility with the
      * derived Shape and resolved-or-unresolved layout. The operation retains the exact normalized
-     * attributes, provenance is ordered {@code [input]}, and the single derived-factory call uses
-     * no label or storage. Repeated, nested, and same-coordinate requests remain separate fresh
-     * expressions rather than being folded or canonicalized.</p>
+     * attributes, and the single derived-factory call receives ordered producer input
+     * {@code [input]} with no label or storage and creates index-zero provenance. Repeated, nested,
+     * and same-coordinate requests remain separate fresh expressions rather than being folded or
+     * canonicalized.</p>
      *
      * @param input non-null exact sole provenance input
      * @param inputDescriptor non-null exact descriptor supplying type and gradient eligibility
@@ -210,7 +211,6 @@ final class TensorSelectExpressions {
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(SelectKind.SELECT, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

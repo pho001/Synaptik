@@ -5,57 +5,53 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable expression-origin metadata for one public tensor.
+ * Immutable association between one public tensor and one indexed producer output.
  *
- * <p>Provenance retains the exact backend-independent operation reference and an immutable,
- * ordered snapshot of the exact input-tensor references. Empty inputs are valid for zero-input
- * semantic origins, repeated tensor references preserve distinct ordered roles, and later
- * mutation of the caller's list cannot change this value.</p>
+ * <p>Provenance retains one exact {@link TensorProducer} reference and a zero-based output index.
+ * The operation, ordered immutable inputs, and exact selected output descriptor are derived from
+ * that producer. Single-output expressions use output index zero.</p>
  *
- * <p>This record is not graph membership, producer-occurrence identity, an intermediate-
- * representation node, or executable behavior. It does not validate operation arity, descriptor
- * compatibility, cycles, or graph-wide structure. Record equality and hashing compare the
- * operation value and ordered tensor references using their ordinary equality; because
- * {@link Tensor} uses object identity, equal tensor identifiers do not make different input
- * objects equal. Generated text is diagnostic only and is not serialization or graph identity.</p>
+ * <p>This record is not graph membership, an intermediate-representation node, or executable
+ * behavior. Record equality and hashing compare the producer through its ordinary object identity
+ * and the output index. Thus two positions of one producer differ, and structurally equal but
+ * separately invoked producers remain distinct.</p>
  *
- * @param operation the exact non-null immutable semantic operation reference to retain
- * @param inputs the non-null ordered input list to snapshot; elements must be non-null, while an
- *     empty list and repeated tensor references are permitted
+ * @param producer the exact non-null immutable expression producer reference to retain
+ * @param outputIndex the zero-based producer output position
  */
-public record TensorProvenance(Operation operation, List<Tensor> inputs) {
+public record TensorProvenance(TensorProducer producer, int outputIndex) {
     /**
      * Creates immutable expression-origin metadata.
      *
-     * <p>Validation checks {@code operation}, then {@code inputs}, then input elements in ascending
-     * index order. Only after every element is validated is the list snapshotted with
-     * {@link List#copyOf(java.util.Collection)}. The exact operation and tensor-element references
-     * are retained without traversal, inference, semantic validation, or graph capture.</p>
+     * <p>Validation checks the producer reference, then the lower and upper output-index bounds.
+     * The exact producer reference is retained without traversal, inference, or graph capture.</p>
      *
-     * @param operation the exact non-null immutable semantic operation reference to retain
-     * @param inputs the non-null ordered input list to snapshot; empty and repeated inputs are
-     *     valid, and no list-container identity is retained
-     * @throws NullPointerException if {@code operation} is null, with message {@code operation};
-     *     if {@code inputs} is null, with message {@code inputs}; or if an element is null, with
-     *     its zero-based indexed message such as {@code inputs[2]}
+     * @param producer the exact non-null immutable expression producer reference to retain
+     * @param outputIndex the zero-based producer output position
+     * @throws NullPointerException if {@code producer} is null, with message {@code producer}
+     * @throws IllegalArgumentException if {@code outputIndex} is negative or is not less than the
+     *     producer's output count
      */
     public TensorProvenance {
-        Objects.requireNonNull(operation, "operation");
-        Objects.requireNonNull(inputs, "inputs");
-        for (int index = 0; index < inputs.size(); index++) {
-            Objects.requireNonNull(inputs.get(index), "inputs[" + index + "]");
+        Objects.requireNonNull(producer, "producer");
+        if (outputIndex < 0) {
+            throw new IllegalArgumentException(
+                    "outputIndex must be non-negative: " + outputIndex);
         }
-        inputs = List.copyOf(inputs);
+        if (outputIndex >= producer.outputCount()) {
+            throw new IllegalArgumentException(
+                    "outputIndex " + outputIndex
+                            + " is outside available output count " + producer.outputCount());
+        }
     }
 
     /**
      * Returns the semantic operation that produced the tensor carrying this provenance.
      *
-     * @return the exact non-null immutable operation reference supplied at construction
+     * @return the exact non-null immutable operation reference retained by {@link #producer()}
      */
-    @Override
     public Operation operation() {
-        return operation;
+        return producer.operation();
     }
 
     /**
@@ -65,10 +61,20 @@ public record TensorProvenance(Operation operation, List<Tensor> inputs) {
      * and contains the exact identity-bearing tensor references supplied at construction. Its
      * container identity is not part of the contract.</p>
      *
-     * @return the non-null immutable ordered snapshot of exact input-tensor references
+     * @return the non-null immutable ordered snapshot of exact input-tensor references retained by
+     *     {@link #producer()}
      */
-    @Override
     public List<Tensor> inputs() {
-        return inputs;
+        return producer.inputs();
+    }
+
+    /**
+     * Returns the descriptor selected by this provenance position.
+     *
+     * @return the exact non-null descriptor reference at {@link #outputIndex()} in the producer's
+     *     immutable ordered descriptor snapshot
+     */
+    public TensorDescriptor outputDescriptor() {
+        return producer.outputDescriptors().get(outputIndex);
     }
 }

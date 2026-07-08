@@ -29,8 +29,8 @@ final class TensorContiguousExpressions {
      * <p>The input is null-checked before metadata access. Its descriptor and exact Shape are read,
      * then the Shape is tested once for complete static resolution. A static Shape produces one
      * new {@link LayoutDescriptor#contiguous(Shape)} value; a dynamic Shape produces unresolved
-     * layout. One result descriptor, exact parameterless operation, one-input provenance value,
-     * and factory-derived Tensor are then constructed in that order.</p>
+     * layout. One result descriptor and exact parameterless operation are then passed with the
+     * sole producer input to one factory call, which creates provenance and the derived Tensor.</p>
      *
      * <p>The returned Tensor retains the exact input Shape, DataType, and gradient-eligibility
      * value, has no label or storage, and records exact {@link ContiguousKind#CONTIGUOUS} and
@@ -61,7 +61,6 @@ final class TensorContiguousExpressions {
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

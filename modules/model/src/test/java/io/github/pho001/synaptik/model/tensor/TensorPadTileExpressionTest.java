@@ -426,8 +426,11 @@ class TensorPadTileExpressionTest {
         storage.segment().asSlice(8, 16).copyFrom(MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.FLOAT32, shape, Optional.empty(), false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(TileKind.TILE, new TileAttrs(List.of(1L, 1L))),
-                List.of(leaf));
+                new TensorProducer(
+                        new Operation(TileKind.TILE, new TileAttrs(List.of(1L, 1L))),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

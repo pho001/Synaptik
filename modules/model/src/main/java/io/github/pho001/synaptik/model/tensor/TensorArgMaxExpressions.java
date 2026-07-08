@@ -125,9 +125,10 @@ final class TensorArgMaxExpressions {
      *
      * <p>The method creates, in order, one unresolved non-differentiable INT64 descriptor, one
      * {@link AggregateReductionKind#ARG_MAX} Operation retaining the exact attributes reference,
-     * one provenance value retaining exact ordered input {@code [input]}, and one
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, TensorProvenance)} call with
-     * no label. It performs no further validation and accesses no values or storage.</p>
+     * and one {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)}
+     * call with ordered producer input {@code [input]} and no label. The factory creates the
+     * producer and index-zero provenance. This method performs no further validation and accesses
+     * no values or storage.</p>
      *
      * @param input validated tensor retained as the exact sole provenance input
      * @param shape non-null canonical or locally derived result shape
@@ -141,7 +142,6 @@ final class TensorArgMaxExpressions {
         TensorDescriptor descriptor =
                 new TensorDescriptor(DataType.INT64, shape, Optional.empty(), false);
         Operation operation = new Operation(AggregateReductionKind.ARG_MAX, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

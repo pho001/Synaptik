@@ -190,7 +190,11 @@ class TensorCumulativeSumExpressionTest {
         Tensor leaf = tensor(DataType.FLOAT32, shape, false);
         CumulativeSumAttrs originalAttrs = new CumulativeSumAttrs(0, true, false);
         TensorProvenance originalProvenance = new TensorProvenance(
-                new Operation(CumulativeSumKind.CUM_SUM, originalAttrs), List.of(leaf));
+                new TensorProducer(
+                        new Operation(CumulativeSumKind.CUM_SUM, originalAttrs),
+                        List.of(leaf),
+                        List.of(descriptor)),
+                0);
         Tensor input = new Tensor(
                 new TensorId(IDS.getAndIncrement()),
                 descriptor,

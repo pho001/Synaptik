@@ -313,7 +313,6 @@ final class TensorRankEditingExpressions {
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        TensorProvenance provenance = new TensorProvenance(operation, List.of(input));
-        return TensorFactory.createDerived(descriptor, Optional.empty(), provenance);
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
     }
 }

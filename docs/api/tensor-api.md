@@ -96,11 +96,12 @@ backend behavior, ONNX mapping, or execution.
 `CompositionAxisAttrs` stores one normalized non-negative axis shared by concat and stack, while
 the kind distinguishes an existing concat axis from a newly inserted stack result-axis position.
 `UnstackOutputAttrs` stores a normalized source axis plus the logical coordinate identifying one
-individual result of a public logical multi-result unstack request. The output index keeps those
-result tensors semantically distinct under the current one-provenance-per-Tensor model; it
-is not a graph output slot or producer-group identity. Public composition methods, input and
+individual result of a public logical multi-result unstack request. That semantic coordinate keeps
+the result tensors distinct; it is not the indexed slot in `TensorProvenance`, a graph output slot,
+or producer-group identity. Public composition methods, input and
 result validation, Shape derivation, immutable result collection construction, and provenance
-attachment are current. Compiler capture or decomposition, producer grouping, gradients,
+attachment are current. Unstack still creates one independent single-output producer per result;
+compiler capture or decomposition, gradients,
 materialization, and execution remain planned.
 
 `SelectKind.SELECT` is a current scalar-index semantic identity. It pairs with
@@ -171,8 +172,9 @@ expressions, and provide one bounded host-allocation path without executing a te
 ```text
 DataType + Shape + optional LayoutDescriptor + requiresGrad = TensorDescriptor
 DataType + physical capacity + exact MemorySegment           = MemorySegmentStorage
-TensorId + TensorDescriptor + label + optional provenance + optional host storage = Tensor
-Operation + ordered input Tensor references                  = TensorProvenance
+Operation + ordered inputs + ordered output descriptors      = TensorProducer
+TensorProducer + zero-based output index                     = TensorProvenance
+TensorId + exact output descriptor + label + optional provenance + optional host storage = Tensor
 TensorFactory + completed descriptor + optional metadata     = public Tensor construction
 TensorFactory + resolved descriptor                          = exact-span heap storage + Tensor
 TensorFactory + dense descriptor + matching flat array       = copied populated heap Tensor
@@ -667,6 +669,102 @@ class is mutable API state, not an intermediate-representation node. It has five
 | `label()` | Returns an immutable optional diagnostic value; present text is stripped and must remain non-blank. |
 | `provenance()` | Returns immutable optional expression-origin metadata; a present value is the exact retained `TensorProvenance`. |
 | `hostStorage()` | Returns a synchronized snapshot of the optional borrowed `HostTensorStorage` association. |
+
+### Expression producers and indexed provenance
+
+A derived Tensor is one indexed result of one `TensorProducer`. The producer is immutable
+pre-capture expression-occurrence identity: it retains one exact `Operation`, an immutable ordered
+snapshot of exact input Tensor references, and an immutable ordered snapshot of exact output
+descriptor references. The selected operation signature validates those final input and output
+counts. Separate producer objects remain separate occurrences even when all three parts are
+structurally equal.
+
+`TensorProvenance(producer, outputIndex)` associates one result Tensor with a zero-based producer
+position. Its `operation()`, `inputs()`, and `outputDescriptor()` methods derive their exact
+references from the producer. A derived Tensor must retain the same descriptor object as its
+selected producer position; a merely equal descriptor object is rejected. Single-output
+expressions use a one-descriptor producer and index zero.
+
+The producer stores descriptors, not output Tensor objects. References therefore point only from
+result Tensor to provenance to producer, so the model creates no producer/result cycle. Producer
+identity is not a `NodeId`, `ValueId`, graph membership, compiler-capture result, runtime state, or
+execution promise. The producer constructor and multi-output construction seam are package-private;
+the public API currently exposes only the producers created by existing Tensor expressions.
+
+#### Single-output example
+
+##### Goal and inputs
+
+Observe the producer and provenance of one current unary expression. The input is a storage-backed
+`FLOAT32` Tensor with Shape `[2]`; the result is metadata for negation, not evaluated values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProducer;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class SingleOutputProducerExample {
+    public static void main(String[] args) {
+        Tensor input = TensorFactory.zeros(
+                Shape.of(2), DataType.FLOAT32, Optional.empty(), true);
+        Tensor result = input.neg();
+
+        TensorProvenance origin = result.provenance().orElseThrow();
+        TensorProducer producer = origin.producer();
+
+        System.out.println(producer.outputCount());
+        System.out.println(origin.outputIndex());
+        System.out.println(producer.inputs().getFirst() == input);
+        System.out.println(origin.outputDescriptor() == result.descriptor());
+        System.out.println(producer.operation() == origin.operation());
+    }
+}
+```
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+1
+0
+true
+true
+true
+```
+
+The result has one producer output at index zero, retains the exact input reference, and shares
+the exact descriptor and operation references exposed through provenance. It does not prove that
+negation ran, that a graph was captured, or that a gradient rule exists.
+
+##### Useful variation
+
+Calling `input.neg()` twice creates two structurally equivalent but identity-distinct producers.
+The model does not intern them or perform common-subexpression elimination.
+
+#### Conceptual two-output example
+
+This is a conceptual model illustration, not a callable public multi-output API or an implemented
+operation:
+
+```text
+producer P
+  operation:          hypothetical two-output operation
+  inputs:             [input]
+  outputDescriptors: [primaryDescriptor, auxiliaryDescriptor]
+
+primaryResult.provenance   = (P, 0)
+auxiliaryResult.provenance = (P, 1)
+```
+
+Both results share the exact producer reference, while each retains the exact descriptor from its
+own ordered position. `P` retains neither result Tensor. This illustrates what the model can
+represent; no production multi-output operation, public sibling-result lookup, compiler capture,
+or graph-node creation is implemented by this contract.
 
 Construction remains package-private so `Tensor` keeps one validation path. Code outside
 `model.tensor` creates tensors through the public static `TensorFactory`: `create(descriptor)`
@@ -4864,12 +4962,13 @@ other exact Dimension reference, and returns one output per source coordinate in
 Every output retains the input data type and gradient-eligibility value, shares the same immutable
 result Shape, and is fresh, unlabeled, storage-free, and layout-unresolved.
 
-The returned List is immutable. Each element has its own UNSTACK provenance with
-`UnstackOutputAttrs(normalizedAxis, outputIndex)` and exactly `[input]`. These independent output
-indices distinguish logical results; they do not claim a shared producer occurrence, graph output
-slot, or grouped `CompiledNode`. A zero selected extent returns the empty immutable List without
-creating an Operation or consuming a Tensor ID. If factory ID exhaustion occurs partway through a
-non-empty request, earlier IDs remain consumed but no partial List is returned.
+The returned List is immutable. Each element has its own one-output producer and index-zero
+provenance with `UnstackOutputAttrs(normalizedAxis, logicalCoordinate)` and exactly `[input]`.
+These independent semantic coordinates distinguish logical results; they do not claim a shared
+producer occurrence, graph output slot, or grouped `CompiledNode`. A zero selected extent returns
+the empty immutable List without creating an Operation or consuming a Tensor ID. If factory ID
+exhaustion occurs partway through a non-empty request, earlier IDs remain consumed but no partial
+List is returned.
 
 #### Complete tensor-composition expression example
 
@@ -4931,8 +5030,9 @@ public final class TensorCompositionExpressionExample {
 - `Tensor.stack(0, first, first)` preserves the repeated input in both semantic roles and inserts
   the input count at result axis zero, producing Shape `[2, 2, 1]`.
 - `concatenated.unstack(1)` removes the static extent-three axis and returns three immutable-list
-  entries of Shape `[2]`. The first entry has output index zero and records only `concatenated` as
-  its exact input.
+  entries of Shape `[2]`. The first entry's UNSTACK attributes contain logical coordinate zero;
+  its independent one-output producer also uses provenance index zero and records only
+  `concatenated` as its exact input.
 
 ##### Result and interpretation
 
@@ -4956,7 +5056,7 @@ true
 The output demonstrates axis normalization, checked Shape derivation, ordered and repeated input
 roles, eligibility OR, immutable individually indexed unstack semantics, and deliberately
 unresolved storage-free results. It does not demonstrate concatenated or selected element values,
-gradient rules, shared producer grouping, graph capture or decomposition, materialization,
+gradient rules, graph capture or decomposition, materialization,
 backend lowering, ONNX mapping, or execution.
 
 ##### Failures and useful variations
@@ -6020,13 +6120,12 @@ Each operation describes one conceptual output Shape `[2, 4]`: fixing a coordina
 removes that axis while retaining axes `0` and `2`. The three operations are unequal because their
 `outputIndex` values differ.
 
-The index is necessary because each current public Tensor can carry only one independent
-`TensorProvenance` value. The implemented multi-result unstack request therefore gives every
-result distinguishable UNSTACK semantics without changing provenance. `outputIndex` is the fixed
-logical coordinate on the removed source axis; it is not a graph output slot, `ValueId`, `NodeId`,
-producer-group identity, output count, storage offset, or runtime memory slot. Task 0017K neither
-groups these operations into one `CompiledNode` nor forbids a separately designed grouped compiler
-representation later.
+The attribute's `outputIndex` is the fixed logical coordinate on the removed source axis. The
+implemented multi-result unstack request gives every result a distinct UNSTACK operation and an
+independent one-output `TensorProducer`; each result's `TensorProvenance.outputIndex()` is therefore
+zero. The attribute coordinate is not a graph output slot, `ValueId`, `NodeId`, producer-group
+identity, output count, storage offset, or runtime memory slot. Task 0017K neither groups these
+operations into one `CompiledNode` nor forbids later compiler decomposition.
 
 ##### Validation and boundaries
 
@@ -6044,7 +6143,7 @@ no Tensor, input list, Shape, descriptor, layout, provenance, graph grouping, gr
 or ONNX behavior, or execution state. Public concat, stack, and unstack now supply the local input,
 axis, Shape, type, eligibility, output-count, result collection, descriptor, and provenance work
 described under [tensor composition expressions](#tensor-composition-expressions). Graph capture
-or decomposition, gradients, producer grouping, materialization, lowering, ONNX mapping, and
+or decomposition, gradients, materialization, lowering, ONNX mapping, and
 execution remain planned.
 
 ### Scalar select semantic kind and attributes
@@ -6870,7 +6969,9 @@ The following contracts appear in the architecture and planning documents but ar
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
-`PublicationBinding` are current Java API contracts. Binary arithmetic, binary comparison,
+`PublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API contracts.
+The producer/provenance pair can represent shared multi-output occurrences, although no current
+production operation or public result API creates one. Binary arithmetic, binary comparison,
 boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
@@ -6898,7 +6999,8 @@ Tensor-composition semantic kinds, normalized attributes, and public concat, sta
 multi-result unstack expression construction are current. Input snapshotting, normalized axes,
 exact type/Shape validation, locally representable result Shapes, unresolved descriptors,
 eligibility propagation, immutable result lists, and individually indexed provenance are model
-behavior. Any grouped producer representation, compiler capture or decomposition, gradients,
+behavior. The general producer/output-index representation is current, while unstack deliberately
+uses independent one-output producers. Compiler capture or decomposition, gradients,
 materialization, lowering, ONNX mapping, and execution remain planned.
 Scalar-select semantics and public `Tensor.select` expression construction are current. The public
 method normalizes a raw axis, normalizes and bounds-checks an index when the selected extent is
@@ -7064,8 +7166,8 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   before rejecting a negative output index with exact message
   `outputIndex must be non-negative: <outputIndex>`. Both records retain every non-negative
   `int`, including `Integer.MAX_VALUE`, without proving rank or output-count bounds. The output
-  index identifies one logical coordinate/result under the current one-provenance-per-Tensor
-  model; it is not a graph output slot or producer-group identity.
+  index identifies one logical coordinate/result in independent UNSTACK semantics; it is not the
+  `TensorProvenance` producer slot, a graph output slot, or producer-group identity.
 - `PadAttrs` null-checks `before` and `after` in component order, rejects unequal sizes, then
   validates paired entries in ascending index order: before null, after null, before negative,
   after negative. Only complete valid input is snapshotted in component order. Empty lists,
@@ -7134,16 +7236,24 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   checked arithmetic overflow.
 - `Tensor` retains exact stable ID and descriptor references, a normalized label, and immutable
   optional provenance, and uses object identity for equality and hashing. A present provenance
-  retains the exact `TensorProvenance` reference for the tensor's lifetime without synchronization.
+  retains the exact `TensorProvenance` reference for the tensor's lifetime without synchronization
+  and must select that same exact descriptor reference from its producer position; structural
+  descriptor equality alone is insufficient.
   It borrows optional host storage, validates data type, resolved referenced span, and
   attachment-time liveness in that order, and changes only the storage reference through
   synchronized snapshot, replacement, and clearing methods. Failed replacement preserves the
   previous reference, later storage death remains observable, and neither transition changes
   provenance or metadata-only diagnostics.
-- `TensorProvenance` rejects a null operation, input list, or indexed input element; snapshots the
-  input list with `List.copyOf`; preserves order, empty inputs, repeated references, and exact
-  Tensor identities; and retains the exact Operation reference. Its record value methods do not
-  establish producer-occurrence identity, graph membership, or semantic compatibility.
+- `TensorProducer` rejects null components and indexed elements, empty output descriptors, and
+  input/output counts outside the selected operation signature. It snapshots ordered inputs and
+  output descriptors with exact element references, derives output count from the descriptor
+  list, retains no output Tensor, and uses ordinary object identity rather than structural
+  equality or an allocated producer ID.
+- `TensorProvenance` rejects a null producer and every output index outside
+  `[0, producer.outputCount())`. It retains the exact producer and index, then derives the exact
+  operation, immutable ordered inputs, and selected descriptor. Record equality uses producer
+  identity and the index; neither producer nor provenance establishes graph membership or
+  executable support.
 - Static `Tensor.concat` and `Tensor.stack` reject a null input array, empty input sequence, or the
   first null copied element before descriptor inspection. Axis validation precedes encounter-order
   type/Shape checks. Both preserve ordered exact inputs, require exact data types, OR gradient
@@ -7154,9 +7264,10 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
 - `Tensor.unstack` normalizes one existing axis, rejects a dynamic selected extent or a static
   extent above `Integer.MAX_VALUE`, removes that axis, and returns one fresh unresolved unlabeled
   storage-free result per coordinate in an immutable ordered List. Each output preserves the input
-  type and eligibility and has its own indexed UNSTACK provenance over `[input]`; no producer
-  grouping is implied. A zero extent consumes no ID. Mid-request ID exhaustion may consume earlier
-  IDs but returns no partial List.
+  type and eligibility and has its own UNSTACK operation and independent one-output producer over
+  `[input]`; the semantic coordinate lives in `UnstackOutputAttrs`, while provenance uses producer
+  index zero. A zero extent consumes no ID. Mid-request ID exhaustion may consume earlier IDs but
+  returns no partial List.
 - `Tensor.add`, `sub`, `mul`, `div`, `min`, `max`, and tensor-valued `pow` require a non-null right
   operand, promote only floating data types, and require locally provable right-aligned
   broadcasting. Each successful call returns a fresh unlabeled storage-free Tensor with unresolved
