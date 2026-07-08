@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -40,48 +41,8 @@ class CastSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = CastKind.class.getDeclaredConstructors();
-        var fields = CastKind.class.getDeclaredFields();
-        var methods = CastKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.elementwise.cast",
-                        CastKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(CastKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(CastKind.class.getModifiers())),
-                () -> assertTrue(CastKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(CastKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(CastSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, CastKind.class.getDeclaredClasses().length),
-                () -> assertSame(CastKind.class, CastKind.CAST.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(CastKind.class);
     }
 
     @Test
@@ -179,6 +140,14 @@ class CastSemanticsTest {
     }
 
     private enum OtherKind implements OperationKind {
-        CAST
+        CAST;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(CastAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

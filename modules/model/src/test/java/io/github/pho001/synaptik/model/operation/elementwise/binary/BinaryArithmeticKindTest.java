@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -55,23 +56,8 @@ class BinaryArithmeticKindTest {
 
     @Test
     void declaresNoProjectStateBehaviorOrNestedTypes() {
-        var instanceFields =
-                Arrays.stream(BinaryArithmeticKind.class.getDeclaredFields())
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .toList();
-        var instanceMethods =
-                Arrays.stream(BinaryArithmeticKind.class.getDeclaredMethods())
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .toList();
-
-        assertAll(
-                () -> assertTrue(Modifier.isPublic(BinaryArithmeticKind.class.getModifiers())),
-                () -> assertTrue(BinaryArithmeticKind.class.isEnum()),
-                () -> assertTrue(instanceFields.isEmpty()),
-                () -> assertTrue(instanceMethods.isEmpty()),
-                () -> assertEquals(0, BinaryArithmeticKind.class.getDeclaredClasses().length),
-                () -> assertTrue(Arrays.stream(BinaryArithmeticKind.values())
-                        .allMatch(value -> value.getClass() == BinaryArithmeticKind.class)));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(BinaryArithmeticKind.class);
     }
 
     @Test
@@ -99,6 +85,14 @@ class BinaryArithmeticKindTest {
     }
 
     private enum OtherKind implements OperationKind {
-        ADD
+        ADD;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

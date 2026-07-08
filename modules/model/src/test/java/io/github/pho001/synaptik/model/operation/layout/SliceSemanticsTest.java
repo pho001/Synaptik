@@ -36,48 +36,8 @@ class SliceSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = SliceKind.class.getDeclaredConstructors();
-        var fields = SliceKind.class.getDeclaredFields();
-        var methods = SliceKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.layout",
-                        SliceKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(SliceKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(SliceKind.class.getModifiers())),
-                () -> assertTrue(SliceKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(SliceKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.layout.SliceKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.layout.SliceKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(SliceSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, SliceKind.class.getDeclaredClasses().length),
-                () -> assertSame(SliceKind.class, SliceKind.SLICE.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(SliceKind.class);
     }
 
     @Test

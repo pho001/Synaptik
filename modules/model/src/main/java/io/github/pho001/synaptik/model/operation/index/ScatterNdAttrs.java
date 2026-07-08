@@ -43,9 +43,9 @@ import java.util.Objects;
  * stored here.</p>
  *
  * <p>The exact semantic composition is an {@code Operation} whose kind is
- * {@link ScatterNdKind#SCATTER_ND} and whose attributes are this value. Generic operation
- * composition retains both values but does not enforce that pairing or the ordered three-input
- * context. The immutable record retains both components unchanged. Record-generated equality and
+ * {@link ScatterNdKind#SCATTER_ND} and whose attributes are this value. The kind's family-owned
+ * signature enforces that exact pairing and declares the ordered three-input, one-output
+ * occurrence. The immutable record retains both components unchanged. Record-generated equality and
  * hashing use both components, and generated text is diagnostic rather than a serialization,
  * parsing, compiler-dispatch, backend, or execution contract.</p>
  *

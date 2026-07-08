@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent meanings for materializing and accumulating sliding windows.
@@ -27,8 +29,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *
  * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
  * with {@link FoldAxisAttrs}, UNFOLD2D with {@link Window2dAttrs}, and FOLD2D with
- * {@link Fold2dAttrs}. The generic {@code Operation} contract remains open and does not enforce
- * these pairings. This enum performs no Tensor construction, Shape calculation, sampling,
+ * {@link Fold2dAttrs}. Family-owned signatures enforce each exact pairing and declare one input
+ * and one output. This enum performs no Tensor construction, Shape calculation, sampling,
  * accumulation, layout or storage selection, gradient construction, graph/compiler work,
  * lowering, backend dispatch, or execution.</p>
  */
@@ -56,5 +58,29 @@ public enum WindowTransformKind implements OperationKind {
      * Accumulates canonical rank-three columns into the explicit rank-four NCHW result described
      * by {@link Fold2dAttrs}, summing rather than averaging overlapping contributions.
      */
-    FOLD2D
+    FOLD2D;
+
+    private static final List<OperationSignature> UNFOLD_AXIS_SIGNATURES =
+            List.of(OperationSignature.fixed(UnfoldAxisAttrs.class, 1, 1));
+    private static final List<OperationSignature> FOLD_AXIS_SIGNATURES =
+            List.of(OperationSignature.fixed(FoldAxisAttrs.class, 1, 1));
+    private static final List<OperationSignature> UNFOLD_2D_SIGNATURES =
+            List.of(OperationSignature.fixed(Window2dAttrs.class, 1, 1));
+    private static final List<OperationSignature> FOLD_2D_SIGNATURES =
+            List.of(OperationSignature.fixed(Fold2dAttrs.class, 1, 1));
+
+    /**
+     * Returns the exact one-input, one-output attributes variant accepted by this window kind.
+     *
+     * @return the stable immutable signature list selected by this kind
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return switch (this) {
+            case UNFOLD_AXIS -> UNFOLD_AXIS_SIGNATURES;
+            case FOLD_AXIS -> FOLD_AXIS_SIGNATURES;
+            case UNFOLD2D -> UNFOLD_2D_SIGNATURES;
+            case FOLD2D -> FOLD_2D_SIGNATURES;
+        };
+    }
 }

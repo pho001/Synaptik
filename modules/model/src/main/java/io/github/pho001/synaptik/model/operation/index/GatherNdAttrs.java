@@ -27,8 +27,8 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * {@link Integer#MAX_VALUE} are structurally valid here because no input ranks are present.</p>
  *
  * <p>The exact semantic composition is an {@code Operation} whose kind is
- * {@link GatherNdKind#GATHER_ND} and whose attributes are this value. Generic operation
- * composition retains both values but does not enforce their compatibility. The immutable record
+ * {@link GatherNdKind#GATHER_ND} and whose attributes are this value. The kind's family-owned
+ * signature enforces that exact pairing and declares two inputs and one output. The immutable record
  * retains its primitive component unchanged. Record-generated equality and hashing use that
  * component, and generated text is diagnostic rather than a serialization, request, parsing,
  * compiler-dispatch, or backend contract. The public zero-batch convenience uses

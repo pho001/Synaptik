@@ -2,361 +2,278 @@
 
 ## Purpose and authority
 
-This document records the capability baseline that the new Synaptik model must be able to represent. It is an implementation-planning document, not an architecture contract.
+This document selects the backend-independent tensor capabilities that Synaptik intends to expose
+or represent. It is a planning baseline, not a complete tensor-library reference and not an
+architecture contract.
 
-The authoritative contract is [`ARCHITECTURE.md`](../../../../ARCHITECTURE.md). The model boundaries are explained in [Module Boundaries](../../../architecture/module-boundaries.md). If this baseline conflicts with either, implementation must stop and the architecture conflict must be resolved first.
+[`ARCHITECTURE.md`](../../../../ARCHITECTURE.md) is authoritative. In particular, model owns
+tensor and operation semantics, compiler owns gradient rules and backward-graph construction, and
+backend prepare owns lowering, specialization, fusion, and kernel choice. If this plan conflicts
+with that contract, implementation must stop rather than reinterpret the contract here.
 
-The legacy implementation on the read-only `legacy/pre-rewrite` branch is evidence for observable capabilities. It is not a source design. New APIs, types, validation, and tests must be written from scratch under the `io.github.pho001.synaptik.*` namespace.
+The read-only `legacy/pre-rewrite` branch remains evidence for useful behavior and compatibility
+tests. It is not the selection rule for the new API. The baseline is now chosen by semantic
+coherence, usefulness for inference and training, interoperability, and the ability to specify the
+behavior independently of a backend.
 
-## Capability-parity policy
+## Capability selection model
 
-The selected baseline is all public tensor operation capabilities present in the legacy project. Parity means preserving the useful mathematical operation, accepted options, shape behavior, data type behavior, and failure conditions after those contracts are specified and tested for the new design.
+Every candidate belongs to one of five planning classes:
 
-Explicit user-approved additions may extend that minimum baseline. Uniform floating, bounded
-integral, and Bernoulli factory initialization are such additive capabilities; they do not imply
-that the legacy implementation already provided them or that corresponding graph operations exist.
-
-Parity does not require:
-
-- copying legacy classes, package names, or implementation structure;
-- preserving accidental bugs or architecture violations;
-- keeping every legacy overload when one coherent new API covers the same capability;
-- representing every public convenience method as a distinct operation kind; or
-- implementing compiler, autograd, runtime, or backend behavior inside `modules/model`.
-
-When legacy behavior is ambiguous or inconsistent, the applicable task must record a local decision and add tests. It must not silently turn that decision into an architecture rule.
-
-## Meaning of support
-
-Support has multiple layers. A capability is not end-to-end complete merely because its operation kind exists in `modules/model`.
-
-| Layer | Required responsibility |
+| Class | Meaning |
 |---|---|
-| Model | Represent the operation and immutable attributes without backend knowledge. |
-| Public tensor API | Build the expression and validate arguments that can be checked locally. |
-| Compiler | Capture the expression, perform graph-wide inference and validation, and create backward operations when required. |
-| Planning | Select backend ownership from declarative capabilities; never select a kernel. |
-| Backend prepare | Lower an owned region and select a concrete implementation route. |
-| Runtime | Execute the already-prepared schedule without rediscovering or falling back to another backend. |
-| Tests | Verify semantic behavior and applicable backend conformance. |
-
-The model milestone is complete when the model and public-API portions are represented and tested. Full project parity additionally requires compiler, CPU reference backend, planning, prepare, runtime, and integration work in their own plans.
-
-## DataType baseline
-
-The initial data type set is:
-
-| DataType | Category | Host representation baseline | Notes |
-|---|---|---|---|
-| `FLOAT64` | Floating | `double` / `double[]` | IEEE-754 binary64. |
-| `FLOAT32` | Floating | `float` / `float[]` | IEEE-754 binary32 and the default floating data type. |
-| `BFLOAT16` | Floating | bfloat16 bits in `short` / `short[]` | Conversion behavior must be specified by task 0001. |
-| `INT32` | Integral | `int` / `int[]` | Includes index-tensor use. |
-| `INT64` | Integral | `long` / `long[]` | Includes ONNX-compatible index values. |
-| `BOOL` | Boolean | normalized `byte` / `byte[]` for host interchange | Logical values are restricted to false/true semantics. |
-
-The data type model must expose category and element-width metadata. Only floating data types are differentiable. Initial floating promotion follows:
-
-```text
-BFLOAT16 < FLOAT32 < FLOAT64
-```
-
-No implicit promotion between floating, integral, and boolean categories is assumed. Cast is an explicit operation. `FLOAT16` is not part of the legacy-parity baseline and requires a future planned capability decision.
-
-## Shape and dimension baseline
-
-The model must be able to describe:
-
-- tensor rank, dimensions, and checked element count;
-- static dimensions represented by non-negative `long` sizes;
-- explicit symbolic dynamic dimensions represented without negative numeric sentinels;
-- rank-0 scalar shapes with element count one;
-- zero-sized dimensions and empty tensors;
-- normalized positive and negative axes;
-- right-aligned NumPy-style broadcasting;
-- broadcast dimensions represented through effective zero strides where applicable;
-- reduction shapes with and without retained dimensions;
-- reshape with one inferred `-1` dimension at the public API boundary;
-- overflow-safe element-count and stride calculations; and
-- operation-specific output-shape metadata without backend information.
-
-The legacy implementation represented scalar results as shape `[1]`, rejected zero-sized dimensions, and limited element count to `Integer.MAX_VALUE`. The new model deliberately uses rank zero for scalars, permits zero-sized dimensions, and keeps model dimensions independent of Java array-size limits. Storage implementations may impose narrower validated limits later.
-
-## Layout baseline
-
-`LayoutDescriptor` must describe logical layout independently of physical device storage. Required capabilities are:
-
-- resolved numeric layouts for fully static shapes;
-- contiguous row-major and contiguous-with-offset layout kinds;
-- general strided and zero-stride broadcast layout kinds;
-- explicit non-negative `long` element strides;
-- non-negative storage offset and checked referenced element span;
-- explicit storage-alias/view metadata independent of layout kind;
-- permuted views;
-- sliced views;
-- expanded/broadcast views;
-- reshape and contiguity metadata;
-- layout-preserving aliases; and
-- sufficient immutable facts for planning to derive logical materialization requirements.
-
-Numeric layout descriptors are not created for dynamic shapes until their required dimensions are resolved by later compiler/runtime contracts. Layout metadata must not contain device addresses, runtime residency, backend storage handles, kernel routes, prepared-execution state, or materialization policy.
-
-## Identifier baseline
-
-The model uses distinct immutable identifier types for distinct semantic domains:
-
-- `TensorId` identifies public tensor state and belongs to `model.tensor`;
-- `NodeId` identifies a node occurrence within an owning graph and belongs to `model.graph`; and
-- `ValueId` identifies an input, intermediate, or output value within an owning graph and belongs to `model.graph`.
-
-Identifiers use validated non-negative `long` values. They are identity values only: allocation, uniqueness, graph construction, tensor lifecycle, persistence, and serialization belong to later focused tasks. Graph-local numeric values may be reused by different graph containers and must be interpreted in their owning graph context. Negative sentinels and implicit conversion between identifier types are not supported.
-
-`OperationId` is not part of the current baseline. `NodeId` identifies the occurrence of operation semantics in a graph; a separate operation identity requires a future demonstrated use case rather than a speculative contract. Trace identifiers remain local to `modules/trace` and do not reuse model identifier types.
-
-## Host storage baseline
-
-The model owns host-visible tensor storage only. The baseline includes:
-
-- `HostTensorStorage` as the model-level abstraction;
-- array-backed host storage for all six initial data types;
-- `MemorySegmentStorage` for host memory represented by a JDK memory segment;
-- element count and data type consistency;
-- typed bulk import and export;
-- mutation/version tracking needed by public mutable tensor state;
-- explicit ownership and lifetime contracts for host memory; and
-- multiple tensor views sharing the same host storage through layout metadata.
-
-The exact class count and whether storage implementations are public are local API-design decisions for task 0010. Capability parity does not require direct exposure of mutable backing arrays.
-
-The project uses Java 26, where `MemorySegment` is a stable API. Task 0010 may therefore implement `MemorySegmentStorage` without enabling preview features. The task must still define ownership, lifetime, mutability, alignment, and bounds behavior explicitly; the stable API does not decide those model contracts.
-
-The following are explicitly outside `modules/model`:
-
-- Metal buffers;
-- CUDA allocations;
-- backend-native workspaces;
-- runtime residency records;
-- physical device buffer slots; and
-- legacy allocation handles coupled to runtime execution resources.
-
-## Public Tensor baseline
-
-`Tensor` remains public mutable API state and must not become an IR node. Its selected model-level capabilities are:
-
-- data type, shape, layout, label, and typed identifier metadata;
-- host storage access and replacement under explicit validation rules;
-- `requiresGrad`, gradient publication state, and trainable-parameter metadata where required by the architecture;
-- publication intent that can later be converted into immutable `PublicationBinding` data;
-- typed scalar and element access;
-- typed array copy/export;
-- layout and contiguity inspection;
-- expression-building methods backed by minimal provenance; and
-- factory integration.
-
-Compilation, preparation, execution, topological graph traversal, backend selection, device synchronization, and runtime residency do not belong to `Tensor` in the new model. Lifecycle convenience APIs belong to the engine facade.
-
-## Tensor factory baseline
-
-The factory capability set includes:
-
-- scalar tensors;
-- zeros and ones;
-- zeros-like and ones-like;
-- fully static tensors filled with an explicit typed scalar value through canonical `full`;
-- dense rectangular identity matrices through canonical `identityMatrix`, with `eye` as its exact convenience alias;
-- floating tensors from normal and continuous uniform distributions;
-- integral random tensors from bounded half-open ranges;
-- boolean tensors from a Bernoulli distribution with explicit probability;
-- integer ranges with a non-zero step;
-- tensors from flat typed arrays;
-- tensors from supported nested Java arrays;
-- strict-prefix and cyclic-prefix filling for fixture/data preparation parity;
-- explicit data type, shape, label, and gradient metadata where applicable; and
-- validation that logical element count matches supplied data.
-
-Random-source configuration and reproducibility policy must remain explicit without introducing
-live services into `modules/model`. Distribution-specific bounds, probability, output-type, source
-advancement, and narrowing behavior are defined by focused factory tasks.
-
-## Operation foundation baseline
-
-Operation semantics use two open typed contracts under `model.operation`:
-
-- `OperationKind` identifies backend-independent semantic kinds through immutable typed values with stable diagnostic names; and
-- `OperationAttrs` marks immutable typed semantic-attribute values.
-
-`NoOperationAttrs.INSTANCE` is the canonical attribute value for a kind with no parameters. Attributes are never represented primarily as `Map<String, ?>`, and absence is not represented by `null`. Concrete kinds and attribute records are introduced progressively by the applicable operation-family task rather than through a speculative monolithic enum.
-
-The model foundation does not expose computational cost, fusion eligibility, kernel routes, backend support, device facts, materialization decisions, or runtime behavior. `FUSED` is backend-prepare output rather than a semantic kind, and `UNKNOWN` is not a supported operation. `Operation` itself is a separate ordered task built on this foundation.
-
-## Public operation baseline
-
-The following sections inventory public mathematical capabilities. They do not prescribe one Java class per item or a one-to-one mapping between API methods and operation kinds.
-
-### Elementwise arithmetic and unary operations
-
-- binary `add`, `sub`, `mul`, `div`, `min`, `max`, and tensor `pow` with broadcasting;
-- unary `abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, and `sign`;
-- activations `relu`, `sigmoid`, and `tanh`;
-- approximation variants `fastExp` and `fastTanh`;
-- scalar multiplication and scalar power; and
-- `clamp`, `clampMin`, and `clampMax`.
-
-### Comparison, logical, selection, and cast operations
-
-- comparisons `greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`, and `notEqualTo`;
-- boolean `logicalAnd`, `logicalOr`, and `logicalNot`;
-- broadcast-aware `where`; and
-- explicit data type `cast`.
-
-Comparison and logical results use `BOOL`. Logical inputs must follow the new data type contract rather than relying on numeric truthiness unless a focused task explicitly decides otherwise.
-
-### Layout and view operations
-
-- `contiguous`;
-- `reshape`;
-- `expand`;
-- `permute` and two-axis `transpose` convenience;
-- `expandDims` and `squeeze`;
-- general `slice` and single-axis slice convenience;
-- constant `pad`;
-- `tile`;
-- `concat`, `stack`, and `unstack`;
-- single-axis `unfold` and overlap-accumulating `foldAxis`;
-- `unfold2d`; and
-- `fold2d`.
-
-The two-dimensional unfold/fold window contract includes kernel, stride, symmetric padding, dilation, and `ceilMode` options.
-
-`foldAxis` is an intentional capability addition beyond the legacy public surface. It restores an
-explicit target extent by scatter-adding the final window dimension along one target axis. The
-same first-class semantic operation supports both a public Tensor expression and later
-compiler-generated use as the adjoint of single-axis `unfold`. Its planned public form is
-`foldAxis(int axis, long outputSize, long step)`; window size comes from the input's final
-dimension.
-
-The model expresses alias and view semantics. Backend-neutral planning derives logical materialization requirements from those semantics, and prepare/runtime/backend layers realize the required storage and copies.
-
-### Indexing and scatter operations
-
-- scalar-index `select`;
-- `gather`;
-- `gatherAxis` / `take`;
-- `gatherNd` with `batchDims`;
-- `takeAlongAxis`;
-- functional `scatterAdd`;
-- `scatterAxisAdd`;
-- `scatterElements`; and
-- `scatterNd` with `batchDims`.
-
-Scatter reductions include `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. Index tensors must use an integral data type (`INT32` or `INT64`); inconsistent legacy acceptance of other data types is not a compatibility requirement.
-
-### Reduction and scan operations
-
-- `sum`, including full reduction, axis reduction, retained dimensions, and masked forms;
-- `mean`, including full reduction, axis reduction, retained dimensions, and masked forms;
-- `prod`, including full reduction, axis reduction, and retained dimensions;
-- reduction `min` and `max`, including full and retained-dimension forms;
-- `argMax` with `FIRST_INDEX` and `LAST_INDEX` tie policies;
-- `cumSum` with `exclusive` and `reverse` options;
-- `softmax` and `logSoftmax`; and
-- boolean `all` and `any`, including full and retained-dimension forms.
-
-### Linear algebra and attention operations
-
-- vector, matrix, and batched `matmul` under a documented shape contract;
-- `linear` with optional bias; and
-- scaled dot-product attention with optional mask, causal mode, and optional scale.
-
-### Convolution and pooling operations
-
-- NCHW `conv2d` with optional bias;
-- convolution stride, padding, dilation, and groups;
-- `maxPool2d`;
-- `avgPool2d`; and
-- pooling kernel, stride, symmetric padding, `ceilMode`, and `countIncludePad` options.
-
-### Normalization operations
-
-- batch normalization with statistics computed from the input;
-- batch normalization with supplied mean and variance;
-- layer normalization over trailing dimensions; and
-- RMS normalization.
-
-A public normalization capability may be expressed as a composition of semantic primitives. Capability parity does not require a distinct primitive operation kind when composition preserves the specified semantics and compiler visibility.
-
-### Loss operations
-
-- dense-target negative log-likelihood loss;
-- dense-target cross-entropy loss;
-- optional masks for applicable dense losses;
-- index-target negative log-likelihood loss;
-- index-target cross-entropy loss;
-- `ignoreIndex`;
-- optional class weights; and
-- reductions `NONE`, `SUM`, and `MEAN`.
+| Required baseline | Needed before Synaptik can provide a useful minimal inference or training model. |
+| Important next | Valuable soon after the required baseline, but not a prerequisite for the first useful system. |
+| Convenience | Public spelling composed from selected semantics; it does not require a distinct operation kind. |
+| Compiler-only | Backend-independent semantics that compiler transformations may emit but public Tensor does not expose. |
+| Deferred or rejected | Excluded until a concrete use case and a precise semantic contract justify it. |
+
+An operation kind in model is not end-to-end support. Public expression construction, compiler
+capture and validation, backend-neutral ownership planning, backend preparation, runtime
+execution, and conformance tests remain separate completion layers.
+
+## Foundation hardening before new operation families
+
+The existing model can express many legacy operations, but four representation limits must be
+resolved before task 0019 expands the inventory.
+
+### Valid operations and occurrence signatures
+
+`Operation` currently accepts every non-null `OperationKind` and `OperationAttrs` pairing. Arity
+and output count are only prose, so invalid values such as a binary kind with cast attributes are
+ordinary representable state.
+
+The selected direction is a small typed operation-signature and construction contract, colocated
+with each kind family. It must:
+
+- reject a kind paired with the wrong attribute type when `Operation` is constructed;
+- describe fixed or bounded input and output cardinality without a global registry;
+- let occurrence-aware validation check arity where ordered inputs and outputs are available;
+- support variadic operations such as concat and genuine multi-output operations; and
+- avoid backend, lowering, gradient, or execution metadata.
+
+This is not permission for a service locator, reflective registry, monolithic operation enum, or
+schema framework. Family-specific validation remains close to the family; compiler retains
+graph-wide and operand-dependent validation.
+
+### Multi-output provenance
+
+`CompiledNode` already permits multiple outputs, but public Tensor provenance cannot say that two
+result tensors came from the same producer. Current unstack works around that by making every
+result an independent `UNSTACK` operation with an output index.
+
+True shared producer provenance is required before top-K values/indices, auxiliary normalization
+statistics, graph random operations returning updated random-number-generator (RNG) state, and
+other genuine multi-output compiler operations. The minimum design is one immutable shared
+producer description plus an output position for each Tensor result. It must remain provenance,
+not graph IR, and must not give Tensor a graph-local `NodeId`.
+
+Unstack does not justify a true multi-output primitive. It will become a public convenience that
+constructs independent scalar `select` expressions. Genuine multi-output operations will use the
+shared producer contract.
+
+### Dynamic shape expressions
+
+`DynamicDimension` currently represents only an exact named extent. It cannot represent
+`N + constant`, `N * constant`, `ceilDiv(N, stride)`, or the sum of two dynamic concat extents.
+Consequently, padding and tiling preserve a dynamic dimension only for identity requests, concat
+has a narrow zero-extent exception, and convolution or pooling cannot describe ordinary dynamic
+spatial results.
+
+Before convolution and pooling, model needs a deliberately small non-negative symbolic extent
+expression capable of:
+
+- a symbol or static constant;
+- checked addition, including sums of different symbols;
+- multiplication by a non-negative constant;
+- floor or ceiling division by a positive constant; and
+- a generated unknown extent with explicit constraints when an exact supported expression is not
+  available.
+
+Canonicalization and local impossibility checks belong with the shape value model. Solving
+graph-wide equalities and binding runtime sizes remain compiler and later lifecycle concerns.
+Deferred compiler inference alone is insufficient because public expression results still require
+honest Shape metadata.
+
+### Typed scalar values
+
+Binary64 `double` attributes cannot exactly represent every `INT64` value and do not state whether
+a FLOAT32 or BFLOAT16 constant was rounded before becoming semantic state. The same problem makes
+the current `double` padding constant unsafe for BOOL and integral tensors.
+
+The selected direction is one small immutable typed scalar value contract for the current six
+data types. It must preserve exact FLOAT64 and FLOAT32 bits, BFLOAT16 bits, signed INT32 and INT64
+values, and canonical BOOL. Scalar operation and padding attributes retain this value, and their
+public boundaries require an exact type match or an explicit conversion. The contract should be
+extensible to FLOAT16 when that type is deliberately added, without speculating about every future
+numeric category.
+
+## Existing capability decisions
+
+The following decisions supersede legacy parity as the default outcome. They describe future
+cleanup; current Java APIs remain implemented until focused tasks change them.
+
+| Existing capability | Decision |
+|---|---|
+| `fastExp` and `fastTanh` public kinds | Remove from the intended baseline. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
+| Masked sum/mean heuristic axis mapping | Remove. Mask alignment must use ordinary explicit broadcasting; callers reshape or expand the mask when necessary. A masked-reduction convenience may compose `where` and ordinary reductions after all-false mean semantics are decided. |
+| `inv` | Rename the public and semantic operation to `reciprocal` before API stabilization. |
+| `foldAxis` public method | Keep the overlap-add meaning only as a compiler-generated adjoint of `unfold` unless an independent public use case appears. `fold2d` remains a selected public window reconstruction operation. |
+| `fromStrictFlatPrefix` and `fromCyclicFlatPrefix` | Move out of core `TensorFactory` to test/data-fixture utilities. They are population conveniences, not foundational tensor construction. |
+| Primitive-array `take` | Do not stabilize it. Canonical indexing accepts an index Tensor; any later primitive convenience must validate the axis before allocating its eager index Tensor. |
+| Positive-step-only slicing | Redesign before API stabilization. General slice semantics must cover negative steps; `flip` is a convenience. A negative-step result may remain layout-unresolved rather than inventing unsupported negative-stride geometry. |
+| Large `Tensor` and `TensorFactory` surfaces | Keep Tensor as the public identity/fluent entry point, but continue to isolate implementation by cohesive helpers. Restrict TensorFactory to construction/import/constants; random initialization and test-data population receive focused public or utility owners. Class size alone does not justify a new facade. |
+
+## Indexing taxonomy
+
+Synaptik will use three canonical semantic primitives:
+
+- `GATHER`: replace one data axis with the complete indices Shape;
+- `GATHER_ELEMENTS`: use same-rank, non-axis-aligned indices and return the indices Shape; and
+- `GATHER_ND`: use final-dimension coordinate tuples with an explicit batch-dimension count.
+
+This follows ONNX’s distinctions among [Gather](https://onnx.ai/onnx/operators/onnx__Gather.html),
+[GatherElements](https://onnx.ai/onnx/operators/onnx__GatherElements.html), and
+[GatherND](https://onnx.ai/onnx/operators/onnx__GatherND.html). The current Synaptik
+`GATHER_AXIS` is the first of these and must be renamed to `GATHER`. Current
+`TAKE_ALONG_AXIS` is `GATHER_ELEMENTS`; `takeAlongAxis` may remain a public convenience spelling.
+
+The current reduced-rank `gather` is equivalent to inserting a singleton axis into its indices,
+using gather-elements, and removing that axis. It is a convenience, not a semantic primitive, and
+should be renamed only if a concrete public use case retains it.
+
+The name `take(axis, indices)` is not retained. [NumPy `take`](https://numpy.org/doc/stable/reference/generated/numpy.take.html)
+and [JAX `take`](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.take.html) use one indices
+Shape for every slice and can flatten when no axis is supplied, while
+[PyTorch `Tensor.take`](https://docs.pytorch.org/docs/2.12/generated/torch.Tensor.take.html) is
+flattened.
+[NumPy `take_along_axis`](https://numpy.org/doc/stable/reference/generated/numpy.take_along_axis.html),
+[JAX `take_along_axis`](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.take_along_axis.html),
+and [PyTorch `gather`](https://docs.pytorch.org/docs/2.12/generated/torch.gather.html) describe the
+aligned-indices family. Synaptik should not assign `take` a fourth meaning.
+
+The matching public scatter primitives are `SCATTER_ELEMENTS` and `SCATTER_ND`, with explicit
+reduction semantics. Current reduced-rank `SCATTER_ADD` and rank-changing `SCATTER_AXIS_ADD` are
+gather adjoints/compositions and become compiler-only. A public `scatterAdd` convenience, if
+retained, means scatter-elements with addition. ONNX
+[ScatterElements](https://onnx.ai/onnx/operators/onnx__ScatterElements.html) and
+[ScatterND](https://onnx.ai/onnx/operators/onnx__ScatterND.html) provide the interoperability
+vocabulary.
+
+`select` remains the primitive for one scalar coordinate, `slice` remains the primitive for
+strided ranges, and unstack becomes repeated select convenience.
+
+## Prioritized selected baseline
+
+### Required before a useful minimal inference and training system
+
+Foundation hardening above precedes these operations.
+
+- exact scalar add, subtract, multiply, divide, minimum, and maximum;
+- `reciprocal`, `rsqrt`, `log1p`, `expm1`, and diagnostic `isFinite`, `isNaN`, and `isInf`;
+- signed integral add, subtract, multiply, minimum, maximum, comparisons, and reductions where an
+  accumulation and overflow policy has been selected;
+- `argMin` matching the explicit tie-policy structure of `argMax`;
+- reductions over an ordered set of distinct axes;
+- `logSumExp`, variance, standard deviation, and L1/L2 norm semantics with explicit axes,
+  retained-dimension, correction, and accumulation-type policies;
+- vector, matrix, and batched `matmul`;
+- a public `linear` convenience over matmul plus optional bias;
+- GELU and SiLU/Swish conveniences over selected primitives;
+- layer normalization and RMS normalization with explicit epsilon and normalized axes;
+- dense and index-target losses needed for classification, with explicit reduction and ignore
+  policies;
+- scaled dot-product attention as a backend-independent high-level semantic operation with mask,
+  causal, and scale contracts; and
+- explicit graph RNG state plus dropout as a state-consuming, state-producing operation with no
+  hidden process-global generator.
+
+`square`, scalar arithmetic overloads, `linear`, GELU, SiLU, embedding, one-hot, flatten,
+swap-axes, split, and chunk are conveniences unless a focused task demonstrates a semantic reason
+for a distinct kind. Layer/RMS normalization and scaled dot-product attention remain named
+high-level semantics because their numerical and masking contracts must survive compiler
+inspection even when a compiler can decompose them.
+
+### Important shortly afterward
+
+- `cumProd` after its zero, overflow, and gradient policies are specified;
+- sort, argsort, and true multi-output top-K with axis, order, stability, tie, and NaN policies;
+- flip and diagonal conveniences;
+- embedding and one-hot conveniences;
+- convolution and max/average pooling after symbolic extent expressions are complete;
+- batch normalization, including explicit training/inference statistics and auxiliary outputs;
+- graph random sampling operations using the explicit RNG-state contract; and
+- FLOAT16 before accelerator mixed-precision inference or training is claimed.
+
+### Explicitly deferred
+
+- advanced linear algebra such as decompositions, eigenvalue operations, determinants, inverses,
+  and general equation notation until a concrete workload selects a coherent subset;
+- remainder and floor division until negative-operand, zero-divisor, and overflow semantics are
+  selected;
+- quantized, sparse, complex, unsigned, and distributed tensors;
+- strings and arbitrary user-defined data types; and
+- backend-specific or fused operation variants in model.
+
+Quantized and sparse support may later become important project areas, but neither should distort
+the dense baseline before a concrete import or execution requirement exists.
+
+## Data type baseline
+
+The current selected types remain FLOAT64, FLOAT32, BFLOAT16, INT32, INT64, and BOOL. FLOAT16 is
+an important planned addition for accelerator mixed precision, but it is not required to begin
+linear algebra and must not be implied by the current `short` BFLOAT16 carrier. Only floating
+types are differentiable.
+
+The initial arithmetic expansion is deliberately limited to signed INT32/INT64 operations with a
+clear use in shape, index, or model computation. BOOL remains logical rather than numeric.
+Additional integer widths and unsigned types remain deferred.
+
+## Numerical policy gates
+
+Every operation task must settle the applicable rows before becoming Ready. These are semantic
+policies, not backend algorithm designs.
+
+| Area | Required decisions |
+|---|---|
+| Floating extrema and comparisons | NaN propagation/order, signed-zero choice, infinity behavior, and equal-value ties. |
+| Reductions and matmul | Accumulation data type, output data type, reassociation allowance, empty-domain result, and deterministic guarantees. |
+| Integral arithmetic | Overflow behavior, division rounding, division by zero, and the `MIN_VALUE / -1` case where applicable. |
+| Arg-reductions, sort, and top-K | First/last or stable tie policy, NaN placement, signed-zero ordering, empty axes, and index data type. |
+| Scatter | Out-of-bounds and negative indices, duplicate-target behavior for every reduction, base-value participation, and determinism. |
+| Gather and slice | Out-of-bounds and negative indices, negative-step normalization, empty extents, and deferred validation for dynamic axes. |
+| Variance and standard deviation | Population/sample correction, invalid divisor, accumulation type, complex exclusion, and negative round-off handling. |
+| Norms and normalization | Epsilon placement/type, zero norm, infinity, NaN, accumulation type, and empty normalized regions. |
+| Transcendentals and activations | Domain, overflow/underflow, special values, accuracy contract, and discontinuity/subgradient convention. |
+| Attention and losses | Mask meaning, all-masked rows, label bounds, ignored targets, reduction denominator, stability, and deterministic expectations. |
+| RNG and dropout | State format, state advancement, reproducibility boundary, probability endpoints, output scaling, and multi-output contract. |
+
+Model records the selected meaning. Compiler owns differentiability rules and backward graph
+construction; backends may use different algorithms only when they satisfy that meaning.
 
 ## Compiler-generated semantic operations
 
-The immutable model must be able to represent backend-independent operations emitted by compiler transformations and autograd expansion. The legacy capability evidence includes:
+The model may contain backend-independent kinds needed only after compiler transformations. They
+are not automatically public Tensor methods. The selected compiler-only set includes:
 
-- binary min/max gradients;
-- reduction min/max gradients;
-- softmax and log-softmax gradients;
-- index-target cross-entropy gradient;
-- gather, gather-axis, gather-ND, and take-along-axis gradients;
-- slice backward;
-- scaled dot-product attention backward; and
-- attention-weight calculation used by backward expansion.
+- specialized gather/scatter adjoints when a composition would lose required semantics;
+- `FOLD_AXIS` as the adjoint of single-axis unfold;
+- slice and window backward operations;
+- reduction-extrema, softmax, log-softmax, attention, normalization, and loss adjoints when a
+  focused compiler task demonstrates that primitive composition is insufficient; and
+- saved-statistic or auxiliary-output operations backed by the shared multi-output contract.
 
-The operation descriptors and immutable attributes may live in `modules/model`. Gradient rules, backward graph construction, and decisions about when to emit them belong to `modules/compiler`.
+Gradient formulas and the choice to emit any of these belong to compiler. `FUSED` is never a
+model semantic operation; fusion belongs to backend prepare.
 
-Constant-scalar and semantic no-op descriptors may also be represented when compiler graph construction requires them. `FUSED` is not a model-level mathematical capability: concrete fusion and fused executable representation belong to backend prepare. `UNKNOWN` is a diagnostic or invalid sentinel, not a supported operation.
+## Validation policy
 
-## Backend capability behavior
+Each future family task must record selected inputs and outputs, Shape and data-type rules,
+attribute pairing, public-versus-convenience status, numerical policy decisions, invalid-input
+behavior, and cross-layer follow-up. Model completion means representation and public expression
+construction only. Numeric completion requires later compiler, backend-conformance, runtime, and
+integration evidence.
 
-No operation descriptor may expose `supportedBackends()` or reference a concrete backend. Backend capability providers separately declare which combinations of operation, data type, shape, and layout they can prepare.
-
-An unsupported accelerator operation is handled before runtime execution:
-
-```text
-capability analysis
-  -> planning assigns backend ownership
-  -> prepare lowers each owned partition
-  -> runtime executes the prepared schedule
-```
-
-CPU ownership may provide the reference path for a region that an accelerator cannot support. This is a compile/prepare-time ownership decision, not a dynamic runtime fallback.
-
-## Compatibility evidence and validation
-
-Each operation-family task must inspect relevant legacy public APIs and tests before its new contract becomes `Ready`. Validation should record:
-
-- selected public capability and options;
-- input data type and shape constraints;
-- output data type and shape semantics;
-- broadcasting, axis, and reduction behavior;
-- differentiability expectation;
-- invalid-input behavior;
-- model-level unit tests; and
-- required compiler, backend-conformance, or integration follow-up.
-
-The final model parity audit verifies representation and public expression construction only. End-to-end numeric parity is completed later by the owning compiler and backend tasks.
-
-## Deferred capabilities
-
-The following are not part of the initial legacy-parity baseline unless added through planning:
-
-- additional data types such as `FLOAT16`, unsigned integers, or complex numbers;
-- sparse, quantized, string, or distributed tensor storage;
-- runtime device tensors in `modules/model`;
-- backend-specific operation variants; and
-- optimizer algorithms, which belong to `extensions/training`.
-
-## Open design questions
-
-- Which operation families use dedicated immutable attribute records versus a shared typed attribute vocabulary?
-- Which public Tensor overloads are retained, consolidated, or replaced while preserving capability parity?
-- What ownership modes does `MemorySegmentStorage` support for externally supplied host memory?
-
-These questions are resolved by the applicable ordered task and recorded as local decisions. They do not block documenting the capability baseline.
+Legacy tests may be adapted only after the intended behavior has been independently selected.
+Tests that preserve a rejected legacy quirk are evidence for the cleanup task, not acceptance
+criteria for the new baseline.

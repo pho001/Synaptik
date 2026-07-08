@@ -1,21 +1,24 @@
 package io.github.pho001.synaptik.model.operation.elementwise.unary;
 
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent parameterless unary elementwise semantics.
  *
  * <p>Each kind describes the mathematical or activation meaning applied independently to one
- * logical input. One-input arity is family context rather than stored metadata: the kind does not
- * retain input provenance, identify a graph occurrence, infer a result, execute mathematics,
+ * logical input. The shared signature declares one input and one output; the kind does not retain
+ * input provenance, identify a graph occurrence, infer a result, execute mathematics,
  * define gradients, or report backend support. Those responsibilities belong to the public
  * expression, compiler, autograd, execution, and backend layers that consume this vocabulary.</p>
  *
  * <p>All kinds in this family have no intrinsic parameters. An {@link
  * io.github.pho001.synaptik.model.operation.Operation Operation} therefore represents one of them
  * with {@link io.github.pho001.synaptik.model.operation.NoOperationAttrs#INSTANCE
- * NoOperationAttrs.INSTANCE}. The enum stores no input count, result facts, numerical policy, or
- * approximation implementation as attributes or metadata.</p>
+ * NoOperationAttrs.INSTANCE}. The enum stores no result facts, numerical policy, or approximation
+ * implementation in its structural signature.</p>
  *
  * <p>{@link #FAST_EXP} and {@link #FAST_TANH} are explicit approximate semantic requests distinct
  * from {@link #EXP} and {@link #TANH}; later numerical and backend contracts define their accuracy
@@ -160,5 +163,18 @@ public enum UnaryElementwiseKind implements OperationKind {
      * behavior, differentiation, execution, and backend availability belong to later owning
      * contracts.</p>
      */
-    FAST_TANH
+    FAST_TANH;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+    /**
+     * Returns the parameterless one-input, one-output structural variant shared by this family.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

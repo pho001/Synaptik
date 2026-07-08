@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.normalization;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent softmax normalization semantics.
@@ -11,9 +13,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * {@link SoftmaxAttrs}; this enum stores no input, axis, shape, result, or graph-occurrence state.</p>
  *
  * <p>The valid family compositions pair either {@link #SOFTMAX} or {@link #LOG_SOFTMAX} with
- * {@link SoftmaxAttrs}. The generic
- * {@link io.github.pho001.synaptik.model.operation.Operation Operation} descriptor checks only
- * that its kind and attributes are non-null and does not enforce either family-specific pairing.</p>
+ * {@link SoftmaxAttrs}. Their shared family-owned signature enforces that exact pairing and
+ * declares one input and one output.</p>
  *
  * <p>These kinds define ideal mathematical meaning only. They do not define eligible data types,
  * result descriptors or provenance, a finite-precision algorithm, numerical edge-case policy,
@@ -50,5 +51,18 @@ public enum SoftmaxKind implements OperationKind {
      * result construction, stable finite-precision evaluation, gradients, compiler decomposition,
      * execution, and backend support belong to later owning contracts.</p>
      */
-    LOG_SOFTMAX
+    LOG_SOFTMAX;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(SoftmaxAttrs.class, 1, 1));
+
+    /**
+     * Returns the shared one-input, one-output softmax-attributes signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

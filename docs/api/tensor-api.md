@@ -5233,7 +5233,8 @@ composition while the table also lists the current production families:
 | `OperationKind` | An implemented open interface that identifies which backend-independent computation an operation describes. |
 | `OperationAttrs` | An implemented marker interface for the immutable, typed semantic parameters of that computation. |
 | `NoOperationAttrs.INSTANCE` | The implemented canonical attribute value for a kind that has no semantic parameters. |
-| `Operation` | An implemented immutable descriptor that stores one kind and one `OperationAttrs` value. |
+| `OperationSignature` | An implemented immutable structural contract that pairs one exact attributes class with inclusive input/output-count bounds. |
+| `Operation` | An implemented immutable descriptor that stores one kind and one compatible `OperationAttrs` value. |
 | `BinaryArithmeticKind` | The implemented production enum for seven parameterless tensor-to-tensor arithmetic meanings. |
 | `BinaryComparisonKind` | The implemented production enum for six parameterless ordered tensor-to-tensor comparison meanings. |
 | `BooleanLogicalKind` | The implemented production enum for parameterless elementwise boolean conjunction, disjunction, and negation meanings. |
@@ -5276,9 +5277,26 @@ composition while the table also lists the current production families:
 | `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
 | `ClampRangeAttrs` | The implemented immutable value for exact ordered inclusive clamp bounds. |
 
-`OperationKind` declares only `name()`. The result must be a stable, non-null, non-blank diagnostic name, but it is not a serialization token or a global lookup key. Enum-based kind families are the expected common implementation because an enum already supplies a stable `name()`, equality, and hashing. Two enum values from different kind families remain different typed values even if both names contain the same text.
+`OperationKind` declares `name()` and `signatures()`. The name is stable diagnostic text, not a
+serialization token or global lookup key. Each concrete family owns a stable immutable non-empty
+list of signatures, so adding a family does not require a central registry or a root switch over
+all kinds. `signatureFor(attrs)` matches the exact runtime attributes class and rejects missing,
+duplicate, null, or incompatible declarations. Two values from different kind families remain
+different typed values even if both names contain the same text.
 
-`OperationAttrs` deliberately declares no methods. A family-specific implementation defines its own typed fields and must be immutable, defensively isolate mutable constructor inputs, and provide structural equality and hashing. `NoOperationAttrs.INSTANCE` makes the absence of parameters an explicit non-null value rather than `null` or an empty map. These are implementation contracts, not runtime validators: the interfaces themselves cannot prevent a custom implementation from returning an invalid name or retaining mutable state.
+An `OperationSignature` describes one structurally valid occurrence variant. Its inclusive
+minimum and maximum input/output counts describe logical positions, not Tensor rank or element
+count. Equal minimum and maximum values form a **fixed** cardinality. Different finite bounds form
+a **bounded** cardinality. `Integer.MAX_VALUE` is the inclusive upper bound used for an
+effectively **variadic** input list. Signatures deliberately do not validate operand data types,
+Shapes, layouts, numerical policy, backend support, or executability.
+
+`OperationAttrs` deliberately declares no methods. A family-specific implementation defines its
+own typed fields and must be immutable, defensively isolate mutable constructor inputs, and provide
+structural equality and hashing. `NoOperationAttrs.INSTANCE` makes the absence of parameters an
+explicit non-null value rather than `null` or an empty map. The marker cannot enforce immutability,
+but `Operation` now validates that the exact concrete attributes class is explicitly accepted by
+the selected kind before retaining both references.
 
 ### Binary arithmetic semantic kinds
 
@@ -5345,8 +5363,9 @@ Operation comparison = new Operation(
 
 The resulting operation retains the exact `GREATER_THAN` kind and canonical no-attributes value.
 It describes ordered comparison meaning only; it stores no operands or broadcast plan and is not
-a Tensor result, provenance value, graph occurrence, or executable operation. The generic
-`Operation` descriptor does not enforce the documented parameterless pairing.
+a Tensor result, provenance value, graph occurrence, or executable operation. Construction
+enforces the exact `NoOperationAttrs` pairing; the family signature declares two inputs and one
+output.
 
 The current public comparison methods separately own floating-pair validation, right-aligned local
 broadcasting, fixed `BOOL` result derivation with false `requiresGrad`, and ordered provenance
@@ -5376,10 +5395,10 @@ Operation conjunction = new Operation(
         NoOperationAttrs.INSTANCE);
 ```
 
-The resulting operation retains the exact `AND` kind and canonical no-attributes value. The
-generic `Operation` descriptor does not validate that `AND` and `OR` have two logical inputs or
-that `NOT` has one; these roles are family context rather than stored arity metadata. The enum
-stores no input references and creates no Tensor, provenance, or result descriptor.
+The resulting operation retains the exact `AND` kind and canonical no-attributes value. Family
+signatures declare two inputs for `AND` and `OR`, one input for `NOT`, and one output for each.
+`CompiledNode` validates those local occurrence counts. The enum stores no input references and
+creates no Tensor, provenance, or result descriptor.
 
 This vocabulary defines conjunction, disjunction, and negation truth meaning only. The current
 `Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods separately own exact BOOL eligibility,
@@ -5407,10 +5426,9 @@ Operation selection = new Operation(
         NoOperationAttrs.INSTANCE);
 ```
 
-The resulting operation retains the exact `WHERE` kind and canonical no-attributes value. The
-three logical roles are ternary family context rather than stored arity metadata: the enum stores
-no inputs, and generic `Operation` validates neither the input count nor family-specific
-kind-to-attributes compatibility.
+The resulting operation retains the exact `WHERE` kind and canonical no-attributes value. Its
+family signature declares three ordered inputs and one output and enforces the exact attributes
+pairing. The enum itself stores no input objects.
 
 This semantic identity describes elementwise conditional choice, not scalar-index `select`,
 gather, take, or scatter. The later indexing family owns those distinct capabilities. The enum
@@ -5443,13 +5461,12 @@ Operation cast = new Operation(
         new CastAttrs(DataType.FLOAT64));
 ```
 
-The resulting descriptor retains the exact kind and attributes values. Generic `Operation`
-checks only that both components are non-null; it does not enforce the documented
-`CAST`/`CastAttrs` pairing. A null target fails during `CastAttrs` construction with
+The resulting descriptor retains the exact kind and attributes values. `Operation` construction
+enforces the exact `CAST`/`CastAttrs` pairing, and the signature declares one input and one output.
+A null target fails during `CastAttrs` construction with
 `NullPointerException` and message `targetDataType`.
 
-One logical input and elementwise conversion are family context rather than stored arity or input
-state. The current `Tensor.cast(DataType)` method separately owns source-descriptor inspection,
+The current `Tensor.cast(DataType)` method separately owns source-descriptor inspection,
 exact shape retention, unresolved result layout, floating-only gradient eligibility, fresh
 same-type identity, and one-input provenance. Neither the semantic pair nor expression
 construction defines numerical conversion rules, gradient rules, compiler capture, execution, or
@@ -5516,8 +5533,9 @@ Operation argMax = new Operation(
 `ArgMaxAttrs` rejects a negative axis before checking the tie policy and rejects a null policy
 with `NullPointerException("tiePolicy")`. Both attribute records use generated record value
 semantics, while their text remains diagnostic rather than serialization or dispatch syntax.
-Generic `Operation` still checks only that kind and attributes are non-null; it does not enforce
-these documented family pairings.
+Family-owned signatures enforce these exact attribute variants. Ordinary forms declare one input;
+masked SUM and MEAN declare the ordered two-input occurrence `[input, mask]`; every variant has one
+output.
 
 A masked sum or mean pairs its existing kind with
 `MaskedReductionAttrs(axis, maskInputAxes)`. The axis is already normalized, non-negative, and
@@ -5538,8 +5556,8 @@ The public provenance order is `[input, mask]`. False mask positions exclude the
 values. When no values are selected, a masked sum produces zero. A masked mean divides by the true
 selected-count for each output and produces zero when that count is zero. These are semantic
 requirements for later execution; constructing `MaskedReductionAttrs` does not inspect a mask,
-count values, divide, derive an output descriptor, or execute computation. Generic `Operation`
-does not enforce that only `SUM` and `MEAN` use this attributes type.
+count values, divide, derive an output descriptor, or execute computation. The signature matrix
+accepts `MaskedReductionAttrs` only for `SUM` and `MEAN`.
 
 The public Tensor surface now covers every current aggregate semantic kind. `Tensor.sum`, `mean`,
 `prod`, reduction `min`, and reduction `max` provide floating full and single-axis expression
@@ -5569,9 +5587,9 @@ Operation cumulativeSum = new Operation(CumulativeSumKind.CUM_SUM, attrs);
 ```
 
 The result is an immutable semantic descriptor for an exclusive forward cumulative sum on
-normalized axis zero. Generic `Operation` retains the exact kind and attributes references, but
-does not enforce their family pairing, input count, axis bounds for a particular shape, or result
-facts. `CumulativeSumAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, and
+normalized axis zero. Its signature enforces the exact attributes class and declares one input and
+one output, but it does not validate axis bounds for a particular shape or result facts.
+`CumulativeSumAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, and
 rejects a negative axis with `IllegalArgumentException` and message
 `axis must be non-negative: <axis>`. The current Shape-aware `Tensor.cumSum` methods normalize and
 validate a caller-facing axis before constructing these attributes.
@@ -5635,8 +5653,9 @@ These values explain ideal mathematics, not a finite-precision evaluation algori
 `SoftmaxAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, because it stores
 no Shape and cannot prove that an axis exists for an eventual input. A negative axis fails with
 `IllegalArgumentException` and exact message `axis must be non-negative: <axis>`. Generic
-`Operation` retains either kind and the exact attributes reference but does not enforce family
-compatibility, one-input arity, rank bounds, or result facts.
+`Operation` retains either kind and the exact attributes reference; their shared signature
+enforces the attributes class and one-input, one-output cardinality, but not rank bounds or result
+facts.
 
 The semantic values themselves store no Tensor, Shape, data-type rule, result descriptor,
 provenance, numerical policy, gradient, compiler decomposition, storage, backend support, or
@@ -5661,9 +5680,8 @@ Operation contiguous = new Operation(
         NoOperationAttrs.INSTANCE);
 ```
 
-The resulting `Operation` retains the exact kind and canonical no-attributes singleton. Generic
-composition checks only that both references are non-null; it does not enforce this family pairing
-or validate one-input arity.
+The resulting `Operation` retains the exact kind and canonical no-attributes singleton. Its
+signature enforces that pairing and declares one input and one output.
 
 `ContiguousKind.CONTIGUOUS` is a computation request.
 `LayoutKind.DENSE_CONTIGUOUS` instead classifies resolved strides and zero offset for a static
@@ -5699,8 +5717,8 @@ Operation reshape = new Operation(ShapeTransformKind.RESHAPE, attrs);
 Operation expand = new Operation(ShapeTransformKind.EXPAND, attrs);
 ```
 
-Both operations retain the exact `attrs` reference. Generic `Operation` checks only that its two
-components are non-null; it does not enforce these family pairings or one-input context.
+Both operations retain the exact `attrs` reference. Their shared family signature enforces
+`TargetShapeAttrs` and declares one input and one output.
 `TargetShapeAttrs` rejects a null target with `NullPointerException("targetShape")`, retains every
 non-null immutable `Shape` reference unchanged, and accepts scalar, zero-extent, fully static,
 mixed static/dynamic, and fully dynamic Shapes without inspecting an input.
@@ -5779,8 +5797,8 @@ boundary owns raw negative-axis normalization and those input-dependent checks.
 
 A parameterless rank-two `transpose()` method is now implemented as a convenience over
 `PERMUTE + PermutationAttrs(List.of(1, 0))`; `TRANSPOSE` is not a fourth semantic kind. Generic
-`Operation` retains the supplied kind and attributes but does not enforce the documented family
-pairings. Public `Tensor.permute` and `transpose` now construct result descriptors, logical view
+`Operation` retains the supplied kind and attributes, while family signatures enforce the exact
+permutation-versus-axis attributes variants. Public `Tensor.permute` and `transpose` now construct result descriptors, logical view
 layout when input geometry is resolved, and exact one-input provenance. Public `expandDims` and
 `squeeze` now construct the corresponding rank-edited result descriptors, conditional logical
 view layouts, and exact one-input provenance. Gradients, compiler behavior, materialization,
@@ -5947,8 +5965,8 @@ with `NullPointerException("repeats[i]")`; a zero or negative entry fails with
 `IllegalArgumentException("repeats[i] must be positive: value")`. Only then does construction take
 its single immutable snapshot. Result-Shape multiplication and overflow checks are deferred.
 
-Generic `Operation` retains each exact kind and attributes reference but does not enforce these
-family pairings. Neither family defines public Tensor request syntax, result inference, layout or
+Family signatures enforce `PAD` with `PadAttrs` and `TILE` with `TileAttrs`, each with one input
+and one output. Neither family defines public Tensor request syntax, result inference, layout or
 storage behavior, materialization, provenance, gradients, compiler or planning behavior, backend
 or ONNX behavior, or execution.
 
@@ -6020,9 +6038,9 @@ zero, positive values, and `Integer.MAX_VALUE` unchanged. They have no rank or a
 so structural acceptance does not prove that an axis exists or an unstack output index is in
 range.
 
-Generic `Operation` retains the exact kind and attributes references but does not enforce the
-documented family pairings. These semantic values store no Tensor, input list, input or output
-count, Shape, descriptor, layout, provenance, graph grouping, gradient, compiler policy, backend
+Family signatures enforce the documented pairings. CONCAT and STACK accept one or more inputs;
+UNSTACK accepts exactly one; all current variants produce one output. These semantic values store
+no Tensor, input list, Shape, descriptor, layout, provenance, graph grouping, gradient, compiler policy, backend
 or ONNX behavior, or execution state. Public concat, stack, and unstack now supply the local input,
 axis, Shape, type, eligibility, output-count, result collection, descriptor, and provenance work
 described under [tensor composition expressions](#tensor-composition-expressions). Graph capture
@@ -6066,8 +6084,8 @@ rejects a negative index with
 and `Long.MAX_VALUE` are structurally valid, and both primitive values are retained unchanged.
 
 The attributes store no input Shape, rank, or selected-axis extent. Structural validity therefore
-does not prove that the axis exists or that the index is in bounds. Generic `Operation` retains
-the exact kind and attributes but does not enforce this family pairing or one-input context.
+does not prove that the axis exists or that the index is in bounds. The family signature enforces
+`SELECT` with `SelectAttrs` and declares one input and one output.
 
 `SELECT` differs from conditional `WHERE`, which chooses between branch values position by
 position; individually indexed `UNSTACK`, which identifies one result of a public logical
@@ -6135,8 +6153,8 @@ result descriptors, provenance, or values.
 `IndexAxisAttrs` rejects a negative value with
 `IllegalArgumentException("axis must be non-negative: <axis>")`. Zero, positive axes, and
 `Integer.MAX_VALUE` are structurally valid and retained unchanged. The attributes contain no data
-rank, so structural validity does not prove that the axis exists. Generic `Operation` also does
-not enforce these kind/attributes pairings or the ordered two-input context.
+rank, so structural validity does not prove that the axis exists. The shared family signature
+enforces `IndexAxisAttrs` and declares two inputs and one output.
 
 The current public methods own caller-facing negative-axis normalization, data-rank checks, the
 exact requirement that indices use `INT32` or `INT64`, family-specific Shape compatibility and
@@ -6199,8 +6217,8 @@ The `Operation` in the code example retains exactly `GatherNdKind.GATHER_ND` and
 positive values, and `Integer.MAX_VALUE` are structurally valid and retained unchanged. The value
 contains no input ranks or Shapes, so it cannot prove that `B` fits the inputs, that leading batch
 Dimensions match, that the final indices Dimension supplies a valid tuple depth, or that an index
-data type is permitted. Generic `Operation` also does not enforce the kind/attributes pairing or
-ordered two-input context.
+data type is permitted. The family signature enforces `GatherNdAttrs` and declares two inputs and
+one output.
 
 Tuple depth remains the final indices Dimension instead of an attribute because it varies with
 each operation occurrence. The current public Tensor boundary validates data and indices ranks,
@@ -6279,8 +6297,9 @@ Operation scatterElements = new Operation(
 
 Both attribute types require an already normalized non-negative axis but contain no rank, so they
 cannot prove that the axis exists. `ScatterElementsAttrs` validates the axis before requiring a
-non-null reduction; `null` never means `NONE`. Generic `Operation` retains each exact kind and
-attributes reference without enforcing the documented pairing or three-input context.
+non-null reduction; `null` never means `NONE`. Family signatures enforce `IndexAxisAttrs` for the
+fixed-add kinds and `ScatterElementsAttrs` for SCATTER_ELEMENTS, each with three inputs and one
+output.
 
 The current public axis-scatter expressions own caller-axis normalization plus index-type,
 data/update-type, reduction-eligibility, rank, Shape, descriptor, and provenance validation.
@@ -6339,8 +6358,8 @@ ScatterNdAttrs attrs = new ScatterNdAttrs(1, ScatterReduction.ADD);
 Operation scatterNd = new Operation(ScatterNdKind.SCATTER_ND, attrs);
 ```
 
-The `Operation` retains the exact kind and attributes references but does not enforce their
-pairing or three-input context. `ScatterNdAttrs` rejects a negative batch count before checking
+The `Operation` retains the exact kind and attributes references. Its signature enforces
+`ScatterNdAttrs` and declares three inputs and one output. `ScatterNdAttrs` rejects a negative batch count before checking
 the reduction, and `null` never means `NONE`. Zero, positive values, and `Integer.MAX_VALUE` are
 structurally valid batch counts because the attributes contain no input ranks.
 
@@ -6492,8 +6511,8 @@ category, including scalar, non-rank-four, zero-extent, and dynamic Shapes, beca
 columns to compare. Current public `fold2d` construction establishes the rank-four NCHW/static
 compatibility boundary before constructing a fold expression.
 
-Generic `Operation` retains each exact kind and attributes reference but does not enforce the four
-documented pairings. The semantic values themselves define no Tensor construction,
+Family signatures enforce all four exact attributes pairings and declare one input and one output.
+The semantic values themselves define no Tensor construction,
 result-data-type rules, resolved layout, storage, provenance, gradients, graph/compiler behavior,
 planning, prepare, runtime, backend or ONNX behavior, materialization, or execution. The current
 public Tensor methods add only the local descriptor and provenance behavior documented below.
@@ -6522,8 +6541,8 @@ The public enum
 | `FAST_EXP` | Explicitly approximate natural exponential request. |
 | `FAST_TANH` | Explicitly approximate hyperbolic tangent request. |
 
-All fifteen kinds have one logical input and no intrinsic parameters. One-input arity is family
-context rather than stored enum metadata, and the canonical operation composition remains
+All fifteen kinds have one logical input and no intrinsic parameters. Their shared signature
+declares exact `NoOperationAttrs`, one input, and one output; canonical composition remains
 explicit:
 
 ```java
@@ -6554,10 +6573,9 @@ The public enum
 | `CLAMP_MIN` | Input value constrained to be no lower than a scalar minimum. | `ScalarValueAttrs` |
 | `CLAMP_MAX` | Input value constrained to be no greater than a scalar maximum. | `ScalarValueAttrs` |
 
-The scalar parameter or bounds are operation attributes, not additional Tensor inputs. The
-generic `Operation` descriptor accepts any non-null kind and attributes value, so it does not
-enforce this table. A consumer that understands the scalar family must enforce the pairing when
-that layer needs compatibility validation.
+The scalar parameter or bounds are operation attributes, not additional Tensor inputs. The family
+signatures enforce the table: `CLAMP` accepts exactly `ClampRangeAttrs`, while the other four kinds
+accept exactly `ScalarValueAttrs`; every variant declares one input and one output.
 
 `ScalarValueAttrs` accepts every Java `double` and retains its exact binary64 value without
 validation, conversion, normalization, or defaulting. `ClampRangeAttrs` retains both bounds
@@ -6584,7 +6602,7 @@ and negative zero are unequal components. All NaN components compare equal even 
 retain different raw NaN payload bits. Exact retention can be observed with
 `Double.doubleToRawLongBits`; record equality does not imply raw-bit equality.
 
-One-input arity is family context rather than enum metadata. The kinds and attributes alone do not
+The kinds and attributes alone do not
 infer result descriptors, define scalar conversion, establish numerical or special-value execution
 behavior, create provenance, define gradients, report backend support, select kernels, or execute
 computation. Their enum names and generated record text are diagnostics, not serialization or
@@ -6597,7 +6615,15 @@ The following types are examples local to a test or explanation. They are not pr
 
 ```java
 private enum SampleKind implements OperationKind {
-    SAMPLE
+    SAMPLE;
+
+    private static final List<OperationSignature> SIGNATURES = List.of(
+            OperationSignature.fixed(SampleAttrs.class, 1, 1));
+
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }
 
 private record SampleAttrs(int axis, boolean keepDimensions)
@@ -6611,14 +6637,18 @@ Operation equalOperation = new Operation(
         SampleKind.SAMPLE, new SampleAttrs(2, true));
 ```
 
-The `SampleKind` declaration shows how an enum inherits `Enum.name()` and therefore returns the stable diagnostic text `"SAMPLE"`. The `SampleAttrs` record shows the intended structural value style: the two fields are typed semantic parameters, and two records with the same `axis` and `keepDimensions` values compare equal. Assigning `NoOperationAttrs.INSTANCE` shows the single canonical value used when a kind has no parameters.
+The `SampleKind` declaration shows how an enum inherits `Enum.name()` and owns one stable immutable
+signature list. That signature accepts exactly `SampleAttrs`, one input, and one output. The
+`SampleAttrs` record shows the intended structural value style: two records with the same `axis`
+and `keepDimensions` values compare equal. `NoOperationAttrs.INSTANCE` remains the canonical value
+for a kind whose signature explicitly accepts no parameters; it is not accepted by this sample
+kind.
 
 `new Operation(kind, attrs)` stores those exact non-null objects without copying or normalization. The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their hash codes are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
 
-The example demonstrates the implemented descriptor's construction, ownership, and record value
-semantics for an attributes-bearing test value. It does not establish that `SampleAttrs` is
-compatible with `SampleKind`: the generic descriptor checks only that neither component is null.
-It also does not create a graph node, infer a result shape or data type, report backend support,
+The example demonstrates the implemented descriptor's construction, ownership, exact attributes
+compatibility, and record value semantics for an attributes-bearing test value. It does not create
+a graph node, infer a result shape or data type, report backend support,
 select a kernel, or execute computation. Production `BinaryArithmeticKind`,
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, and `UnaryElementwiseKind`
 provide parameterless families, and
@@ -6653,7 +6683,10 @@ but it stores no producer, consumer, node, value, or phase index.
 `CompiledNode` copies its input and output lists with `List.copyOf`, preserving encounter order and
 preventing later caller mutation from changing the node. Input positions may be empty or repeat a
 value ID. Output positions must contain at least one value and must be unique within that one node.
-The lists have value semantics: callers rely on their contents and order, not container identity.
+After those structural checks, the node validates both final list sizes against the operation's
+selected signature. Empty inputs or multiple outputs therefore remain available to a kind that
+declares them, while a unary signature rejects two inputs. The lists have value semantics: callers
+rely on their contents and order, not container identity.
 
 The records use generated structural equality and hashing. For `CompiledNode`, list order and
 repeated input positions are part of equality. Generated text is useful for diagnostics but is not
@@ -6693,6 +6726,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
@@ -6702,7 +6736,15 @@ import java.util.Optional;
 
 public final class GraphElementExample {
     private enum SampleKind implements OperationKind {
-        IDENTITY
+        IDENTITY;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(
+                OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 
     public static void main(String[] args) {
@@ -6766,7 +6808,7 @@ TensorId[value=9]
 
 The result shows the operation kind, validated graph boundaries, compile-time node phase, and
 public tensor identity selected by the standalone binding. Construction proves structural graph
-closure. It does not validate operation arity or descriptor compatibility, prove that the binding
+closure and local operation occurrence cardinality. It does not validate descriptor compatibility, prove that the binding
 belongs to this graph, create a compiler-owned `PublicationPlan` or `CompileArtifacts`, choose
 storage or a backend, prepare execution, or run the operation.
 
@@ -6787,8 +6829,8 @@ storage or a backend, prepare execution, or run the operation.
 
 `GraphValue` and `CompiledNode` validation is deliberately local. `CompiledGraphModel` adds
 graph-wide existence, ID uniqueness, producer, boundary, topology, and phase-coverage validation.
-Operation arity, result count, descriptor agreement, compiler transformations, and execution
-remain outside the model container.
+The selected operation signature validates local input and output counts; descriptor agreement,
+compiler transformations, and execution remain outside the model container.
 
 ## Planned contracts
 
@@ -7003,8 +7045,12 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   window arithmetic. Every window-transform result preserves type and eligibility, leaves layout
   unresolved, records exact `[input]` provenance, and remains fresh, unlabeled, and storage-free.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
-- Operation-kind implementations must return a non-null, non-blank name, and operation-attribute implementations must preserve immutable value semantics; the marker interfaces do not enforce those obligations at runtime.
-- `Operation` rejects a null kind or attributes value, retains both valid references unchanged, and does not validate family compatibility.
+- Operation-kind implementations must return a non-null, non-blank name and a stable immutable
+  non-empty signature list. Operation-attribute implementations must preserve immutable value
+  semantics; the marker interface cannot enforce immutability at runtime.
+- `Operation` rejects a null kind or attributes value and any incompatible exact attributes class,
+  retains valid references unchanged, and exposes the selected family-owned signature without
+  storing it as another record component.
 - `IndexAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and exact
   message `axis must be non-negative: <axis>`. It retains every non-negative `int`, including
   `Integer.MAX_VALUE`, without proving that the axis exists for an eventual data input.
@@ -7249,8 +7295,9 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   inexact segment byte size, and an initially dead scope in that order. It borrows the exact segment
   and owns no allocation or lifetime.
 - `GraphValue` rejects null identity or descriptor components and stores no producer relationship.
-- `CompiledNode` snapshots ordered lists, accepts empty or repeated inputs, and requires non-empty
-  within-node-unique outputs. It does not perform graph-wide or operation-family validation.
+- `CompiledNode` snapshots ordered lists, permits repeated inputs, requires non-empty
+  within-node-unique outputs, and validates final input/output counts against the selected operation
+  signature. It does not perform graph-wide or operand-aware descriptor validation.
 - `CompiledGraphModel` snapshots all collections and validates graph-wide structural closure,
   topological order, declared boundaries, producer rules, and exact node-phase coverage. It
   accepts zero-input nodes, repeated node inputs, unused inputs, and zero-node pass-through graphs.

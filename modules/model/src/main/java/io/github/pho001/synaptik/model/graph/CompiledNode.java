@@ -19,8 +19,9 @@ import java.util.Objects;
  * {@link List#copyOf(java.util.Collection)}. Empty inputs and repeated input IDs are valid because
  * a semantic source may have no inputs and separate positions may read the same value. Outputs are
  * non-empty and unique within this node. The record does not validate graph-wide value existence,
- * ID uniqueness across nodes, producers, topology, descriptors, operation arity, result count, or
- * kind-to-attributes compatibility.</p>
+ * ID uniqueness across nodes, producers, topology, or descriptors. The supplied operation already
+ * owns kind-to-attributes validation, and this occurrence validates its final input and output
+ * counts against the derived operation signature.</p>
  *
  * <p>Record-generated equality and hashing use all four components, including list order and
  * repeated input positions. The generated {@link #toString()} exposes diagnostic component values
@@ -54,7 +55,8 @@ public record CompiledNode(
      * <p>Validation is local to this record. In particular, an input may also be an output, IDs
      * need not be resolvable without an owning graph, and another separately constructed node may
      * claim the same output. The owning {@link CompiledGraphModel} validates graph-wide structure,
-     * while planned operation-family contracts own compatibility.</p>
+     * while the operation signature owns only local kind/attributes and occurrence-count
+     * compatibility.</p>
      *
      * @param id non-null graph-local node identity to retain exactly
      * @param operation non-null immutable operation semantics to retain exactly
@@ -73,6 +75,8 @@ public record CompiledNode(
      * @throws IllegalArgumentException if a later output repeats an earlier output ID; the message
      *     is {@code outputs[index] duplicates ValueId[value=n]} with the later zero-based encounter
      *     index and the duplicate ID's diagnostic value
+     * @throws IllegalArgumentException if the final input or output count is outside the supplied
+     *     operation's accepted signature range
      */
     public CompiledNode {
         Objects.requireNonNull(id, "id");
@@ -97,6 +101,8 @@ public record CompiledNode(
             }
         }
         outputs = List.copyOf(outputs);
+
+        operation.signature().validateOccurrence(inputs.size(), outputs.size());
     }
 
     /**

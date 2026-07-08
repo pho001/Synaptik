@@ -1,12 +1,15 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent, parameterless request for contiguous result geometry.
  *
- * <p>This vocabulary describes one logical input and does not store or validate arity. Its sole
- * kind composes explicitly with the generic operation descriptor and canonical no-attributes
+ * <p>This vocabulary describes one logical input and one logical output. Its sole kind composes
+ * explicitly with the generic operation descriptor and canonical no-attributes
  * value:</p>
  *
  * <pre>{@code
@@ -15,9 +18,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *         NoOperationAttrs.INSTANCE);
  * }</pre>
  *
- * <p>The generic {@code Operation} contract checks only that its kind and attributes are non-null;
- * it does not validate this family-specific pairing. This enum stores no input, result descriptor,
- * layout state, materialization state, or other operation metadata.</p>
+ * <p>The family-owned signature enforces this exact pairing and occurrence cardinality. This enum
+ * stores no input, result descriptor, layout state, materialization state, or executable
+ * metadata.</p>
  *
  * <p>A contiguous request is computation semantics, whereas
  * {@code io.github.pho001.synaptik.model.layout.LayoutKind.DENSE_CONTIGUOUS} classifies already
@@ -37,8 +40,21 @@ public enum ContiguousKind implements OperationKind {
      *
      * <p>The request preserves the one input's logical values, Shape, DataType, and row-major
      * element order. It describes the desired logical geometry without constructing a layout
-     * descriptor, inspecting input geometry, enforcing one-input arity, or deciding whether the
+     * descriptor, inspecting input geometry, or deciding whether the
      * eventual result aliases existing storage or requires a copy.</p>
      */
-    CONTIGUOUS
+    CONTIGUOUS;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+    /**
+     * Returns the parameterless one-input, one-output contiguous-request signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

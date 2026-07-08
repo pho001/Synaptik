@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -54,53 +55,8 @@ class ShapeTransformSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = ShapeTransformKind.class.getDeclaredConstructors();
-        var fields = ShapeTransformKind.class.getDeclaredFields();
-        var methods = ShapeTransformKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.layout",
-                        ShapeTransformKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(ShapeTransformKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(ShapeTransformKind.class.getModifiers())),
-                () -> assertTrue(ShapeTransformKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(ShapeTransformKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(ShapeTransformSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, ShapeTransformKind.class.getDeclaredClasses().length),
-                () -> assertSame(
-                        ShapeTransformKind.class,
-                        ShapeTransformKind.RESHAPE.getClass()),
-                () -> assertSame(
-                        ShapeTransformKind.class,
-                        ShapeTransformKind.EXPAND.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(ShapeTransformKind.class);
     }
 
     @Test
@@ -245,6 +201,14 @@ class ShapeTransformSemanticsTest {
     }
 
     private enum OtherKind implements OperationKind {
-        RESHAPE
+        RESHAPE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(TargetShapeAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

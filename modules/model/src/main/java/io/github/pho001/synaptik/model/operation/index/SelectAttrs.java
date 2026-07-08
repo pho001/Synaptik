@@ -19,11 +19,11 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * valid here.</p>
  *
  * <p>The exact semantic composition is an {@code Operation} whose kind is
- * {@link SelectKind#SELECT} and whose attributes are this value. Generic operation composition
- * retains both values but does not enforce their compatibility. The immutable record retains the
- * two primitive components unchanged. Record-generated equality and hashing use both components,
- * and generated text is diagnostic rather than a serialization, request-syntax, compiler,
- * dispatch, or backend contract.</p>
+ * {@link SelectKind#SELECT} and whose attributes are this value. The kind's family-owned
+ * signature enforces that exact pairing and declares one input and one output. The immutable
+ * record retains the two primitive components unchanged. Record-generated equality and hashing
+ * use both components, and generated text is diagnostic rather than a serialization,
+ * request-syntax, compiler, dispatch, or backend contract.</p>
  *
  * <p>These attributes define no Tensor construction, result descriptor, layout or view geometry,
  * provenance, storage, materialization, value access, gradient, graph or compiler behavior,

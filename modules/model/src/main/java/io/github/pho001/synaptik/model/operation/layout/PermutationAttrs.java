@@ -19,7 +19,7 @@ import java.util.Objects;
  * and is not serialization, parser input, public request syntax, or backend dispatch.</p>
  *
  * <p>This value pairs with {@link AxisTransformKind#PERMUTE}. It validates completeness against
- * its own list size but does not know or validate an eventual input rank. A future rank-two
+ * its own list size but does not know or validate an eventual input rank. The current rank-two
  * {@code transpose()} convenience uses {@code [1, 0]}. The attributes contain no Tensor, Shape,
  * layout, storage-view, provenance, gradient, compiler, backend, or execution behavior.</p>
  *

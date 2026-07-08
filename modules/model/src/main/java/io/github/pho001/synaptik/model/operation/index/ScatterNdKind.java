@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.index;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent meaning of functionally scattering updates through tuples
@@ -65,5 +67,18 @@ public enum ScatterNdKind implements OperationKind {
      * {@link ScatterNdAttrs}. This constant stores no operands or occurrence-specific Shape facts
      * and performs no input validation, duplicate detection, mutation, reduction, or execution.</p>
      */
-    SCATTER_ND
+    SCATTER_ND;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(ScatterNdAttrs.class, 3, 1));
+
+    /**
+     * Returns the tuple-index three-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

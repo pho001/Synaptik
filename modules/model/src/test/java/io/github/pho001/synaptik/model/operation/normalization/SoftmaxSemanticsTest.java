@@ -47,49 +47,8 @@ class SoftmaxSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = SoftmaxKind.class.getDeclaredConstructors();
-        var fields = SoftmaxKind.class.getDeclaredFields();
-        var methods = SoftmaxKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.normalization",
-                        SoftmaxKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(SoftmaxKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(SoftmaxKind.class.getModifiers())),
-                () -> assertTrue(SoftmaxKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(SoftmaxKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(SoftmaxSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, SoftmaxKind.class.getDeclaredClasses().length),
-                () -> assertSame(SoftmaxKind.class, SoftmaxKind.SOFTMAX.getClass()),
-                () -> assertSame(SoftmaxKind.class, SoftmaxKind.LOG_SOFTMAX.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(SoftmaxKind.class);
     }
 
     @Test

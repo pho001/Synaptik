@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -51,49 +52,8 @@ class BooleanLogicalKindTest {
 
     @Test
     void exposesOnlyTheExactEnumShapeWithoutArityState() {
-        var constructors = BooleanLogicalKind.class.getDeclaredConstructors();
-        var fields = BooleanLogicalKind.class.getDeclaredFields();
-        var methods = BooleanLogicalKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.elementwise.logical",
-                        BooleanLogicalKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(BooleanLogicalKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(BooleanLogicalKind.class.getModifiers())),
-                () -> assertTrue(BooleanLogicalKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(BooleanLogicalKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(BooleanLogicalKindTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, BooleanLogicalKind.class.getDeclaredClasses().length),
-                () -> assertTrue(Arrays.stream(BooleanLogicalKind.values())
-                        .allMatch(value -> value.getClass() == BooleanLogicalKind.class)));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(BooleanLogicalKind.class);
     }
 
     @Test
@@ -132,6 +92,14 @@ class BooleanLogicalKindTest {
     }
 
     private enum OtherKind implements OperationKind {
-        AND
+        AND;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

@@ -34,48 +34,8 @@ class GatherNdSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = GatherNdKind.class.getDeclaredConstructors();
-        var fields = GatherNdKind.class.getDeclaredFields();
-        var methods = GatherNdKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.index",
-                        GatherNdKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(GatherNdKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(GatherNdKind.class.getModifiers())),
-                () -> assertTrue(GatherNdKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(GatherNdKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.index.GatherNdKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.index.GatherNdKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(GatherNdSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, GatherNdKind.class.getDeclaredClasses().length),
-                () -> assertSame(GatherNdKind.class, GatherNdKind.GATHER_ND.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(GatherNdKind.class);
     }
 
     @Test

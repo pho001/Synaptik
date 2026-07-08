@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent meaning of one-input constant padding.
@@ -18,7 +20,7 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * {@code [-1, 10, 20, -1, -1]}. This example states logical meaning only; this type does not
  * construct a Tensor or calculate values.</p>
  *
- * <p>The generic {@code Operation} descriptor does not enforce the family-specific pairing.
+ * <p>The family-owned signature enforces the exact pairing and declares one input and one output.
  * This enum defines no input-rank validation, result Shape or DataType, layout, storage,
  * materialization, provenance, gradient, compiler, backend, ONNX, or execution behavior. Its
  * inherited enum name is diagnostic text rather than a serialization or dispatch identifier.</p>
@@ -31,5 +33,18 @@ public enum PadKind implements OperationKind {
      * <p>The kind describes semantic intent only. It does not interpret the constant for an input
      * DataType, derive output extents, allocate storage, or execute padding.</p>
      */
-    PAD
+    PAD;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(PadAttrs.class, 1, 1));
+
+    /**
+     * Returns the constant-padding one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

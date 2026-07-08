@@ -2,7 +2,8 @@
 
 ## Goal
 
-Define Synaptik's backend-independent tensor semantics, immutable graph model, public tensor state, and host storage contracts.
+Define an intentionally selected backend-independent tensor API, immutable graph model, public
+tensor state, and host storage contracts suitable for useful inference and training.
 
 ## Architecture references
 
@@ -18,7 +19,8 @@ Define Synaptik's backend-independent tensor semantics, immutable graph model, p
 - backend-independent operations and immutable attributes
 - tensor descriptors, immutable graph values and nodes, and compiled graph state
 - public `Tensor`, host storage abstractions, factories, and minimal provenance
-- model-level representation and public expression construction for the selected legacy capability baseline
+- model-level representation and public expression construction for the selected capability
+  baseline, using legacy behavior as evidence rather than design authority
 
 ## Out of scope
 
@@ -54,7 +56,7 @@ io.github.pho001.synaptik.model.datatype
   Data type metadata, promotion, and host-independent bit conversion.
 
 io.github.pho001.synaptik.model.shape
-  Dimensions, immutable shapes, axes, and local broadcasting.
+  Static and symbolic extent expressions, immutable shapes, axes, and local broadcasting.
 
 io.github.pho001.synaptik.model.layout
   Resolved logical layout geometry and layout classification.
@@ -67,7 +69,8 @@ io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
 
 io.github.pho001.synaptik.model.operation
-  Backend-independent operation semantics and immutable attributes.
+  Backend-independent operation semantics, compact signatures, typed scalar values, and immutable
+  attributes.
 
 io.github.pho001.synaptik.model.operation.elementwise.binary
   Typed parameterless semantic kinds for tensor-to-tensor elementwise arithmetic.
@@ -199,20 +202,45 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018H | [Axis scatter Tensor expressions](tasks/0018h-axis-scatter-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0018G | Build public Shape/type-validated functional axis-scatter expressions. |
 | 0018I | [Scatter-ND semantics](tasks/0018i-scatter-nd-semantics.md) | Complete | 0005, 0006, 0018E | Define functional scatter-ND meaning, reduction policy, and batch-dimension parameters. |
 | 0018J | [Scatter-ND Tensor expression](tasks/0018j-scatter-nd-tensor-expression.md) | Complete | 0001, 0002, 0013, 0018I | Build public Shape/type-validated functional scatter-ND construction. |
-| 0019 | Linear algebra and attention operations | Draft | 0013 | Represent matmul, linear, and scaled dot-product attention capabilities. |
-| 0020 | Convolution and pooling operations | Draft | 0013 | Represent NCHW convolution and two-dimensional pooling capabilities. |
-| 0021 | Normalization operations | Draft | 0013 | Represent batch, layer, and RMS normalization capabilities. |
-| 0022 | Loss operations | Draft | 0013 | Represent dense/index NLL and cross-entropy variants and reductions. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J including 0018D1, 0019–0022 | Represent backend-neutral backward/compiler-generated semantics and authorize FOLD_AXIS generation without implementing autograd traversal. |
-| 0024 | Model capability parity audit | Draft | 0001–0023 | Verify model representation and public expression construction against the selected capability baseline, including documented legacy parity and intentional additions. |
+| 0018K | [Operation signature and construction hardening](tasks/0018k-operation-signature-and-construction-hardening.md) | Complete | 0005, 0006, 0008 | Prevent invalid kind/attribute pairings and define compact fixed/bounded/variadic input and output cardinality without a registry. |
+| 0018L | Shared multi-output Tensor provenance | Draft | 0008, 0009, 0013, 0018K | Represent one immutable shared producer and indexed Tensor results without turning Tensor into IR. |
+| 0018M | Symbolic extent expressions | Draft | 0002, 0017C–0017N | Represent checked addition, constant multiplication, floor/ceiling division, and constrained unknown extents needed by dynamic shape transforms. |
+| 0018N | Typed scalar value contract | Draft | 0001, 0014E, 0017I | Preserve exact scalar values for the six current data types and make scalar and padding attributes data-type-safe. |
+| 0018O | Indexing taxonomy and unstack normalization | Draft | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
+| 0018P | Elementwise semantic cleanup | Draft | 0014C–0014F, 0018K, 0018N | Rename `inv` to reciprocal, remove public fast approximation kinds, and define the retained scalar/unary vocabulary. |
+| 0018Q | Masked reduction redesign | Draft | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Replace heuristic mask-axis mapping with explicit broadcasting/composition and decide the all-false mean contract. |
+| 0018R | Slice and window public-contract cleanup | Draft | 0017G–0017N, 0018M | Add negative-step slice semantics, make flip a convenience, and demote `FOLD_AXIS` to compiler-generated use. |
+| 0018S | Tensor factory surface cleanup | Draft | 0012–0012I, 0013A | Keep core construction/import/constants in TensorFactory and move prefix population to test/data utilities. |
+| 0018T | Core scalar and unary numeric gaps | Draft | 0018K, 0018N, 0018P | Add exact scalar add/sub/div/min/max and selected reciprocal, rsqrt, log1p, expm1, and floating diagnostic semantics. |
+| 0018U | Integral arithmetic and comparison domains | Draft | 0014A–0015B, 0016A–0016E, 0018K, 0018T | Add the selected signed-integral arithmetic, comparisons, arg-min, and reduction domains with explicit overflow and accumulation policy. |
+| 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T–0018U | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
+| 0019 | Linear algebra and attention operations | Draft | 0018K, 0018M–0018N, 0018T | Represent matmul, linear convenience, and scaled dot-product attention after the ordered reset. |
+| 0019A | Modern activation and embedding conveniences | Draft | 0015F, 0018O, 0018P, 0018T | Add GELU, SiLU/Swish, embedding, and one-hot public compositions without unnecessary primitive kinds. |
+| 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
+| 0019C | Sorting and top-K operations | Draft | 0018K–0018L, 0018U | Represent sort, argsort, and genuine multi-output top-K with explicit ordering, tie, NaN, and stability policies. |
+| 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
+| 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
+| 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019C including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and FOLD_AXIS, without implementing autograd traversal. |
+| 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
 
 - Value foundations and package organization: tasks 0001–0004, including 0003A–0003C
 - Operation and immutable graph model: tasks 0005–0009
 - Public tensor and host storage: tasks 0010–0013 and factory follow-ups 0012A–0012I and 0013A
-- Public operation capability families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including 0016F1, 0017A–0017N including 0017D1 and 0017F1, 0018A–0018J including 0018D1, and 0019–0022
-- Compiler-generated model semantics and model parity: tasks 0023–0024
+- Initial public operation families: tasks 0014A–0014F, 0015A–0015H, 0016A–0016J including
+  0016F1, 0017A–0017N including 0017D1 and 0017F1, and 0018A–0018J including 0018D1
+- Capability reset and foundation hardening: tasks 0018K–0018V
+  - foundation-contract checkpoint after 0018N;
+  - public-surface cleanup checkpoint after 0018S; and
+  - completed capability-reset checkpoint after 0018V.
+- Selected modern operation families: tasks 0019–0022, including 0019A–0019C
+- Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
+
+Each listed checkpoint runs the full repository test suite, affected architecture tests, final
+Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
+Individual single-module tasks use the task-level validation defined in the planning guide.
 
 ## Current status
 
@@ -231,7 +259,10 @@ three axis-scatter meanings, reusable reduction vocabulary, and explicit scatter
 attributes. Task 0018H is complete with public metadata-only axis-scatter expression construction.
 Task 0018I is complete with functional tuple-index semantics and immutable batch-count plus
 shared-reduction attributes. Task 0018J is complete with public metadata-only Scatter-ND
-expression construction; later tasks remain Draft without detailed specifications.
+expression construction. The capability-reset audit then replaced legacy parity as the selection
+rule and inserted tasks 0018K–0018V before linear algebra. Task 0018K is complete with exact
+family-owned signatures and local occurrence-cardinality validation. Task 0018L is the next
+frontier and remains Draft without a detailed specification; later tasks also remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -250,12 +281,46 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 ## Open questions
 
-- Exact public overloads and operation-attribute record boundaries remain local to the applicable operation-family tasks.
+- The exact shared-producer provenance value remains local to task 0018L; it must not assign
+  graph-local identity to Tensor.
+- Exact public overloads and operation-attribute record boundaries remain local to the applicable
+  focused task.
 
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- The selected capability baseline is defined by semantic coherence and a useful
+  inference/training target, not by blanket legacy parity.
+- The current unconstrained `Operation(kind, attrs)` pairing is not an acceptable stable contract.
+  Task 0018K adds compact family-owned signature validation, including occurrence cardinality,
+  without a global registry.
+- Task 0018K uses one exact-attribute-class `OperationSignature` value with inclusive input and
+  output bounds. Each kind family owns a stable non-empty variant list; `Operation` resolves its
+  pair immediately and `CompiledNode` validates only local occurrence counts.
+- Task 0018K completed that contract across every current production family. Its independent
+  documentation review finalized affected Javadocs, Tensor API, Compile API, glossary, task
+  evidence, master plan, and roadmap after the final 743-test/86-suite model run, model Javadoc,
+  413-link/110-anchor Markdown, fence/final-newline, scope, and whitespace checks passed.
+  Operand-aware and graph-wide validation, compiler/backend/runtime behavior, and shared
+  multi-output Tensor provenance remain outside this task.
+- Genuine multi-output operations require shared producer provenance. Unstack is instead repeated
+  scalar select and does not retain a distinct UNSTACK semantic primitive.
+- Dynamic convolution and pooling require symbolic extent expressions for addition, constant
+  multiplication, and floor/ceiling division before those families become Ready.
+- Semantic scalar attributes become data-type-safe. Raw binary64 attributes are not sufficient for
+  exact INT64, BOOL, FLOAT32, or BFLOAT16 constants.
+- Public indexing primitives normalize to GATHER, GATHER_ELEMENTS, GATHER_ND, SCATTER_ELEMENTS,
+  SCATTER_ND, SELECT, and SLICE. Axis-taking `take`, reduced-rank gather/scatter adjoints, and
+  independently produced UNSTACK outputs do not remain baseline primitives.
+- `fastExp` and `fastTanh` leave the public semantic baseline; approximation route selection
+  belongs to backend prepare unless a future operation specifies portable accuracy.
+- Heuristic masked-reduction axis mapping leaves the baseline. Masked convenience uses explicit
+  broadcasting/composition after all-false mean behavior is selected.
+- Public `inv` becomes `reciprocal`; public `foldAxis` becomes compiler-only FOLD_AXIS; strict and
+  cyclic prefix population moves to test/data utilities.
+- FLOAT16 is important before accelerator mixed-precision support is claimed, but it is not a
+  prerequisite for the linear-algebra model task.
 - The initial data type baseline is `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`.
 - Static dimensions use non-negative `long` sizes; dynamic dimensions use explicit canonical symbols rather than negative sentinels.
 - Scalar shape is rank zero, and zero-sized static dimensions are supported.
@@ -269,9 +334,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Scalar select accepts a negative public index only when the selected static extent can normalize
   it locally. A non-negative index on a dynamic selected extent remains representable with
   deferred bounds validation; a negative dynamic index is not locally representable.
-- Axis indexing keeps `GATHER`, ONNX-style `GATHER_AXIS` (also exposed through tensor-index
-  `take`), and
-  `TAKE_ALONG_AXIS` distinct because their index alignment and result-Shape rules differ.
+- Completed tasks 0018C–0018D originally kept `GATHER`, `GATHER_AXIS`, and
+  `TAKE_ALONG_AXIS` distinct. The capability reset supersedes that provisional naming while
+  preserving the completed implementation history: task 0018O will normalize the primitives to
+  GATHER, GATHER_ELEMENTS, and GATHER_ND and remove axis `take` from the intended stable API.
 - Tensor-index gather expression construction remains separate from primitive-array `take`
   convenience: task 0018D validates and composes existing index Tensors, while task 0018D1 owns
   copied eager INT32 index-Tensor creation and delegation.
@@ -436,8 +502,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   allocation, close behavior, typed access, alignment, byte order, tensor geometry, or runtime
   residency policy.
 - Operation-family table order coordinates delivery; dependencies record only real contract prerequisites rather than the preceding row.
-- All selected legacy public operation capabilities must be representable without backend knowledge.
-- Model capability parity and end-to-end executable parity are tracked separately.
+- Every intentionally selected public or compiler-only operation must remain representable without
+  backend knowledge. Legacy-only capabilities may instead be redesigned, demoted, or excluded.
+- Model capability selection and end-to-end executable completion are tracked separately.
 - Fusion is not a model-level mathematical operation capability.
 - The compiled graph container stores ordered values, topological nodes, explicit input/output
   boundaries, and an exact node-to-forward/backward-phase mapping. It stores no derived indexes.
@@ -1050,6 +1117,11 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Enabling preview or incubator features globally instead of containing them in the module that requires them.
 - Treating the operation inventory as permission to move graph inference, autograd rules, fallback, or execution into model.
 - Reproducing accidental legacy behavior instead of specifying and testing the intended contract.
+- Growing a registry or abstraction hierarchy while fixing kind/attribute and cardinality
+  validation instead of keeping the contract small and family-owned.
+- Treating shared public provenance as graph IR or giving Tensor graph-local producer identity.
+- Adding convolution, pooling, top-K, or graph randomness before symbolic extents and multi-output
+  provenance can represent their results honestly.
 - Letting a global identity counter wrap, collide under concurrency, or become a runtime service
   registry rather than remaining hidden model-only allocation state.
 - Treating completed JVM heap allocation as import/population or native/runtime allocation parity
@@ -1057,7 +1129,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 ## Notes
 
-Execute tasks in table order, including package migrations 0003A through 0003C before task 0004. The operation-family rows are task groups, not permission for oversized implementations; replace the current frontier row with smaller sequential task rows before implementation when its detailed scope would exceed the limits in [the planning guide](../../planning-guide.md).
+Execute tasks in table order, including package migrations 0003A through 0003C before task 0004.
+Completed task
+[0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
+documented atomic-migration exception to the usual file-count guardrail because partial signature
+enforcement would either break valid current families or retain a permissive unsafe fallback.
+Task 0018L is the next frontier and remains Draft without a detailed specification. Other
+operation-family rows are not
+permission for oversized implementations; apply the normal limits in the
+[planning guide](../../planning-guide.md).
+
+The 0019A–0019C suffixes are sequential rows inserted after established task 0019 while preserving
+the existing 0020–0024 identifiers. They are independent follow-ups, not hidden subtasks of 0019;
+their `Depends on` entries list only technical prerequisites, while table order still places them
+after linear algebra.
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
@@ -1105,7 +1190,8 @@ is complete with `GATHER_ND` and normalized batch-dimension attributes. Task 001
 public Gather-ND expression construction. Task 0018G is complete with functional axis-scatter
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
-complete with public functional Scatter-ND expression construction, and every later
-operation-family task remains Draft without a detailed specification.
+complete with public functional Scatter-ND expression construction. The capability reset inserted
+0018K–0018V as the new foundation frontier. Task 0018K is complete; 0018L is the next Draft
+frontier without a detailed specification, and every later operation-family task remains Draft.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

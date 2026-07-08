@@ -38,48 +38,8 @@ class SelectSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = SelectKind.class.getDeclaredConstructors();
-        var fields = SelectKind.class.getDeclaredFields();
-        var methods = SelectKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.index",
-                        SelectKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(SelectKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(SelectKind.class.getModifiers())),
-                () -> assertTrue(SelectKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(SelectKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.index.SelectKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.index.SelectKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(SelectSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, SelectKind.class.getDeclaredClasses().length),
-                () -> assertSame(SelectKind.class, SelectKind.SELECT.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(SelectKind.class);
     }
 
     @Test

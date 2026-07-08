@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.index;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies three backend-independent meanings for functionally scattering tensor updates along
@@ -41,8 +43,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * ranks, shapes, data types, index values, bounds, or duplicate targets, and does not construct or
  * execute a result. {@code SCATTER_ADD} and {@code SCATTER_AXIS_ADD} pair with
  * {@link IndexAxisAttrs}; their addition is intrinsic to their kinds. {@code SCATTER_ELEMENTS}
- * pairs with {@link ScatterElementsAttrs}, which carries its selected reduction. Generic operation
- * composition does not enforce these pairings or the ordered three-input context.</p>
+ * pairs with {@link ScatterElementsAttrs}, which carries its selected reduction. Family-owned
+ * signatures enforce those exact pairings and declare the ordered three-input, one-output
+ * occurrence.</p>
  *
  * <p>Axis scatter differs from {@link AxisGatherKind axis gather} and
  * {@link GatherNdKind#GATHER_ND Gather-ND}, which read selected data; scatter-ND, which uses
@@ -79,5 +82,21 @@ public enum AxisScatterKind implements OperationKind {
      * equal shapes, match data away from the selected axis, and reduce into the exact data shape.
      * {@link ScatterElementsAttrs} supplies the selected reduction.</p>
      */
-    SCATTER_ELEMENTS
+    SCATTER_ELEMENTS;
+
+    private static final List<OperationSignature> FIXED_ADD_SIGNATURES =
+            List.of(OperationSignature.fixed(IndexAxisAttrs.class, 3, 1));
+    private static final List<OperationSignature> ELEMENTS_SIGNATURES =
+            List.of(OperationSignature.fixed(ScatterElementsAttrs.class, 3, 1));
+
+    /**
+     * Returns the exact three-input, one-output attributes variant accepted by this scatter kind.
+     *
+     * @return the stable scatter-elements signature for {@link #SCATTER_ELEMENTS}, otherwise the
+     *     stable shared-axis signature
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return this == SCATTER_ELEMENTS ? ELEMENTS_SIGNATURES : FIXED_ADD_SIGNATURES;
+    }
 }

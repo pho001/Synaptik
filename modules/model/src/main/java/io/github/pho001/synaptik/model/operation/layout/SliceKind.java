@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent, one-input meaning of a positive-step logical slice.
@@ -15,10 +17,10 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * <p>For entry {@code i}, the same-rank result selects input coordinates beginning at
  * {@code starts[i]}, advancing by {@code steps[i]}, and remaining below {@code ends[i]} along
  * normalized input axis {@code axes[i]}. Axes without an entry retain their full logical
- * coordinate range. The generic {@code Operation} descriptor accepts any non-null kind and
- * attributes value, so it does not enforce this family-specific pairing or one-input context.</p>
+ * coordinate range. The family-owned signature enforces this exact attributes pairing and
+ * declares one input and one output.</p>
  *
- * <p>A future single-axis convenience uses this same kind with one attributes entry whose step is
+ * <p>The current single-axis convenience uses this same kind with one attributes entry whose step is
  * one; it is not another semantic kind. This enum calculates no Shape, creates no layout or view,
  * and defines no Tensor construction, storage, materialization, gradient, compiler, backend,
  * ONNX, or execution behavior. Its inherited enum name is diagnostic text rather than a
@@ -32,5 +34,18 @@ public enum SliceKind implements OperationKind {
      * <p>The kind describes logical meaning only. It does not normalize raw coordinates, inspect
      * input rank or dimensions, derive a result Shape, or decide layout and materialization.</p>
      */
-    SLICE
+    SLICE;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(SliceAttrs.class, 1, 1));
+
+    /**
+     * Returns the slice-attributes one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

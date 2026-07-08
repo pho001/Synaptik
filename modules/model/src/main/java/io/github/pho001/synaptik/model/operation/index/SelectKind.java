@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.index;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent meaning of selecting one scalar coordinate on one tensor
@@ -9,8 +11,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * <p>{@link #SELECT} fixes one coordinate on an existing source axis and removes that axis from
  * the logical result. For a conceptual source shape {@code [2, 3, 4]}, selecting normalized axis
  * {@code 1} at normalized index {@code 2} therefore has conceptual result shape {@code [2, 4]}.
- * The kind pairs explicitly with {@link SelectAttrs}; the generic operation descriptor does not
- * enforce that family-specific pairing, one-input context, rank, bounds, or result shape.</p>
+ * The kind pairs explicitly with {@link SelectAttrs}; its family-owned signature enforces that
+ * exact pairing and declares one input and one output. It does not validate rank, bounds, or
+ * result shape.</p>
  *
  * <p>Scalar selection is distinct from elementwise conditional {@code WHERE}, which chooses
  * between branch values at corresponding positions; individually indexed {@code UNSTACK}, which
@@ -31,5 +34,18 @@ public enum SelectKind implements OperationKind {
      * <p>The kind does not normalize caller input, inspect an input rank or axis extent, validate
      * bounds, construct a result shape or layout, select values, or execute work.</p>
      */
-    SELECT
+    SELECT;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(SelectAttrs.class, 1, 1));
+
+    /**
+     * Returns the scalar-index one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

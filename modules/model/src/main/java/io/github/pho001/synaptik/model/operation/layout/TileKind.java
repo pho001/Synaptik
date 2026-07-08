@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent meaning of complete-pattern per-axis tiling.
@@ -19,7 +21,7 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * [3, 4, 3, 4, 3, 4]]}. This is complete-pattern tiling, not repetition of each scalar into a
  * consecutive run. The example states semantic meaning only and does not claim value execution.</p>
  *
- * <p>The generic {@code Operation} descriptor does not enforce the family-specific pairing.
+ * <p>The family-owned signature enforces the exact pairing and declares one input and one output.
  * This enum defines no input-rank validation, result Shape or DataType, layout, storage,
  * materialization, provenance, gradient, compiler, backend, ONNX, or execution behavior. Its
  * inherited enum name is diagnostic text rather than a serialization or dispatch identifier.</p>
@@ -31,5 +33,18 @@ public enum TileKind implements OperationKind {
      * <p>The kind describes logical meaning only. It does not multiply result extents, allocate
      * storage, repeat scalar values independently, or execute tiling.</p>
      */
-    TILE
+    TILE;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(TileAttrs.class, 1, 1));
+
+    /**
+     * Returns the tiling one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -46,49 +47,8 @@ class WhereSelectionKindTest {
 
     @Test
     void exposesOnlyTheExactEnumShapeWithoutArityState() {
-        var constructors = WhereSelectionKind.class.getDeclaredConstructors();
-        var fields = WhereSelectionKind.class.getDeclaredFields();
-        var methods = WhereSelectionKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.elementwise.selection",
-                        WhereSelectionKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(WhereSelectionKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(WhereSelectionKind.class.getModifiers())),
-                () -> assertTrue(WhereSelectionKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(WhereSelectionKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(WhereSelectionKindTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, WhereSelectionKind.class.getDeclaredClasses().length),
-                () -> assertTrue(Arrays.stream(WhereSelectionKind.values())
-                        .allMatch(value -> value.getClass() == WhereSelectionKind.class)));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(WhereSelectionKind.class);
     }
 
     @Test
@@ -126,6 +86,14 @@ class WhereSelectionKindTest {
     }
 
     private enum OtherKind implements OperationKind {
-        WHERE
+        WHERE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 3, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

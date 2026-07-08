@@ -12,6 +12,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -150,6 +151,14 @@ class TensorProvenanceTest {
     }
 
     private enum SampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

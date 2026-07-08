@@ -54,49 +54,8 @@ class WindowTransformSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = WindowTransformKind.class.getDeclaredConstructors();
-        var fields = WindowTransformKind.class.getDeclaredFields();
-        var methods = WindowTransformKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.layout",
-                        WindowTransformKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(WindowTransformKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(WindowTransformKind.class.getModifiers())),
-                () -> assertTrue(WindowTransformKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(WindowTransformKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.layout.WindowTransformKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.layout.WindowTransformKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(WindowTransformSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, WindowTransformKind.class.getDeclaredClasses().length),
-                () -> Arrays.stream(WindowTransformKind.values())
-                        .forEach(kind -> assertSame(WindowTransformKind.class, kind.getClass())));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(WindowTransformKind.class);
     }
 
     @Test

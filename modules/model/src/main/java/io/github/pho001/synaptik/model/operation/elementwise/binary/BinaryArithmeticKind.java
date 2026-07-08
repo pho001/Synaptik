@@ -1,6 +1,9 @@
 package io.github.pho001.synaptik.model.operation.elementwise.binary;
 
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent tensor-to-tensor elementwise binary arithmetic semantics.
@@ -85,5 +88,18 @@ public enum BinaryArithmeticKind implements OperationKind {
      * result data type, numeric edge behavior, differentiation, execution, and backend availability
      * are defined by later owning contracts.</p>
      */
-    POW
+    POW;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+    /**
+     * Returns the parameterless two-input, one-output structural variant shared by this family.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

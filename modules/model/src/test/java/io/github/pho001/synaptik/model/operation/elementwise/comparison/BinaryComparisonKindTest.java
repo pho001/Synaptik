@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -67,49 +68,8 @@ class BinaryComparisonKindTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = BinaryComparisonKind.class.getDeclaredConstructors();
-        var fields = BinaryComparisonKind.class.getDeclaredFields();
-        var methods = BinaryComparisonKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.elementwise.comparison",
-                        BinaryComparisonKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(BinaryComparisonKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(BinaryComparisonKind.class.getModifiers())),
-                () -> assertTrue(BinaryComparisonKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(BinaryComparisonKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(BinaryComparisonKindTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, BinaryComparisonKind.class.getDeclaredClasses().length),
-                () -> assertTrue(Arrays.stream(BinaryComparisonKind.values())
-                        .allMatch(value -> value.getClass() == BinaryComparisonKind.class)));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(BinaryComparisonKind.class);
     }
 
     @Test
@@ -148,6 +108,14 @@ class BinaryComparisonKindTest {
     }
 
     private enum OtherKind implements OperationKind {
-        EQUAL
+        EQUAL;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

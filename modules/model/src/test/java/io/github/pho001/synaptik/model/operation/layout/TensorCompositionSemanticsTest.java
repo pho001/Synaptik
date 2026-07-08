@@ -52,53 +52,8 @@ class TensorCompositionSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = TensorCompositionKind.class.getDeclaredConstructors();
-        var fields = TensorCompositionKind.class.getDeclaredFields();
-        var methods = TensorCompositionKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.layout",
-                        TensorCompositionKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(TensorCompositionKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(TensorCompositionKind.class.getModifiers())),
-                () -> assertTrue(TensorCompositionKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(TensorCompositionKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(TensorCompositionSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, TensorCompositionKind.class.getDeclaredClasses().length),
-                () -> assertSame(
-                        TensorCompositionKind.class, TensorCompositionKind.CONCAT.getClass()),
-                () -> assertSame(
-                        TensorCompositionKind.class, TensorCompositionKind.STACK.getClass()),
-                () -> assertSame(
-                        TensorCompositionKind.class, TensorCompositionKind.UNSTACK.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(TensorCompositionKind.class);
     }
 
     @Test

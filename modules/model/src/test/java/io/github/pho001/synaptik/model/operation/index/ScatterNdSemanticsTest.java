@@ -34,48 +34,8 @@ class ScatterNdSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = ScatterNdKind.class.getDeclaredConstructors();
-        var fields = ScatterNdKind.class.getDeclaredFields();
-        var methods = ScatterNdKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.index",
-                        ScatterNdKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(ScatterNdKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(ScatterNdKind.class.getModifiers())),
-                () -> assertTrue(ScatterNdKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(ScatterNdKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.index.ScatterNdKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.index.ScatterNdKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(ScatterNdSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, ScatterNdKind.class.getDeclaredClasses().length),
-                () -> assertSame(ScatterNdKind.class, ScatterNdKind.SCATTER_ND.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(ScatterNdKind.class);
     }
 
     @Test

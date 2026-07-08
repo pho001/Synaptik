@@ -34,7 +34,7 @@ API reference pages should connect related types into a usable mental model rath
 
 ## Validation
 
-- Generate Javadoc for every affected module.
+- Generate Javadoc for every affected module after final Javadoc edits. Reuse recorded module-test evidence unless executable Java behavior changed afterward.
 - Compare contract claims with signatures, implementation, and focused tests.
 - Check that each parameter, non-`void` return, and expected failure is documented.
 - Verify links and rendered code blocks.

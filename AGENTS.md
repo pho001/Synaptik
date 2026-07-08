@@ -23,7 +23,7 @@ Do not perform coding or documentation implementation work directly in the main 
 
 The main agent context is for planning, architecture discussion, task decomposition, review, and coordination.
 
-Each concrete coding, refactoring, testing, or documentation task must be executed in a separate agentic task/thread with a clean context.
+Each concrete coding, refactoring, testing, or substantive documentation task must be executed in a separate agentic task/thread with a clean context.
 
 The separate task/thread must receive only the relevant instructions, files, constraints, and acceptance criteria needed for that task.
 
@@ -93,7 +93,7 @@ When an architectural decision changes, update all relevant files in the same ch
 
 ## Documentation discipline
 
-Substantive documentation creation or revision must be performed and finalized in a separate documentation-focused agent or thread with clean context, distinct from the implementation context. This is context isolation, not a separate branch, commit, or overall change: all required documentation must land in the same overall change before completion. An implementation agent may draft Javadoc while coding, but the documentation-focused agent must independently review and finalize affected Javadoc, explanatory documentation, and glossary impact before the task is marked `Complete`. Follow `docs/developer-guide/documentation-rules.md` for the detailed workflow.
+Substantive documentation creation or revision must be performed and finalized in a separate documentation-focused agent or thread with clean context, distinct from the implementation context. This is context isolation, not a separate branch, commit, or overall change: all required documentation must land in the same overall change before completion. An implementation agent may draft Javadoc while coding, but the documentation-focused agent must independently review and finalize affected Javadoc, explanatory documentation, and glossary impact before the task is marked `Complete`. The documentation pass is targeted: it reads the directly relevant contracts and profiles and does not repeat successful Java test suites unless it changes executable Java behavior or the task identifies a concrete reason. Follow `docs/developer-guide/documentation-rules.md` for the detailed workflow.
 
 Before writing documentation, identify its document type and apply the matching profile under `docs/developer-guide/documentation/` together with the general style. Explain terms at first use, update the glossary when terminology changes, and include examples appropriate to that document type.
 
@@ -127,7 +127,7 @@ Implementation plans and task specifications live under `docs/planning/`. Before
 
 Planning documents are not authoritative architecture contracts. If a planning document conflicts with `ARCHITECTURE.md`, the architecture contract wins and implementation must stop until the conflict is resolved.
 
-Represent non-trivial implementation work as a small task specification under the relevant `tasks/` directory. Task specifications must follow the planning guide and define the goal, scope, exclusions, architecture constraints, affected files, acceptance criteria, validation, dependencies, follow-up tasks, implementation prompt, and completion summary.
+Represent non-trivial implementation work as a cohesive task specification under the relevant `tasks/` directory. A task should normally deliver one complete capability inside one module rather than split its semantic type, public facade, tests, and documentation into separate mechanical tasks. Task specifications must follow the planning guide and define the goal, scope, exclusions, architecture constraints, affected files, acceptance criteria, validation, dependencies, follow-up tasks, implementation prompt, and completion summary.
 
 Execute tasks in the order listed by the relevant master plan. Create a detailed task specification for the next unfinished task only. Parallel or out-of-order execution is an explicit exception that must be justified and recorded in the master plan.
 
@@ -136,6 +136,8 @@ Execute tasks in the order listed by the relevant master plan. Create a detailed
 The `legacy/pre-rewrite` branch is a read-only reference for capabilities, observable behavior, tests, and historical context. Implement the new architecture from scratch. Do not copy or import legacy source files, internal package structure, dependency direction, runtime coupling, or implementation shortcuts into the new project. Reproduce only explicitly selected capabilities, expressed through new designs that comply with `ARCHITECTURE.md` and verified by new or adapted tests.
 
 ## Testing expectations
+
+Use the validation tiers defined in `docs/planning/planning-guide.md`. A normal task validates the affected module and its documentation once. Run repository-wide validation at a recorded capability checkpoint, in CI, or when a change affects dependencies, architecture boundaries, shared build configuration, or multiple modules. Do not repeat a successful validation command in a second agent merely to reproduce the same evidence.
 
 When changing module boundaries or dependencies, add or update architecture tests under:
 

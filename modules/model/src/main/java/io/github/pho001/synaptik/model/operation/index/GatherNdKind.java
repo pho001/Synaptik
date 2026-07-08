@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.index;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the backend-independent meaning of indexing tensor data with tuples of coordinates.
@@ -48,5 +50,18 @@ public enum GatherNdKind implements OperationKind {
      * operation kind. This constant does not validate inputs, calculate a result Shape, inspect
      * index values, or execute work.</p>
      */
-    GATHER_ND
+    GATHER_ND;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(GatherNdAttrs.class, 2, 1));
+
+    /**
+     * Returns the tuple-index two-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

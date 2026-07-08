@@ -16,14 +16,14 @@ Master plans must keep ownership, package direction, ordered tasks, dependencies
 - package and type placement;
 - expected affected files and maximum scope;
 - falsifiable acceptance criteria;
-- exact validation commands and manual checks;
+- exact validation commands at the appropriate task, capability-checkpoint, or repository tier;
 - dependencies and follow-up work;
 - architecture impact;
 - a self-contained implementation prompt;
 - local decisions, known limitations, evidence, implementation notes, and completion summary; and
 - the separate documentation-agent pass when code or behavior changes.
 
-Use concrete names, paths, commands, and outcomes. A `Ready` task must be executable by a clean-context agent without relying on remembered conversation.
+Use concrete names, paths, commands, and outcomes. A `Ready` task must be executable by a clean-context agent without relying on remembered conversation. Keep its implementation prompt concise and put detailed execution rules in the task specification once.
 
 ## Avoid
 
@@ -32,6 +32,9 @@ Use concrete names, paths, commands, and outcomes. A `Ready` task must be execut
 - unverifiable acceptance language such as “works well”;
 - hidden scope in implementation notes;
 - placeholder sections in a `Ready` task;
+- repeated full-repository suites for a small single-module change without a recorded risk;
+- duplicate Java-test execution by implementation and documentation agents without executable changes;
+- manual reflection, bytecode, or import checks that should be stable automated tests;
 - out-of-order work without recorded justification; and
 - marking work complete without evidence and synchronized status.
 
@@ -41,7 +44,7 @@ Use concrete names, paths, commands, and outcomes. A `Ready` task must be execut
 - Confirm every architecture constraint traces to the contract rather than the plan itself.
 - Check package impact, file limits, dependencies, commands, and status synchronization.
 - Verify that acceptance criteria can be observed or tested.
-- Confirm validation evidence records commands, results, manual checks, documentation review, and limitations.
+- Confirm validation evidence records commands, results, justified manual checks, reused evidence, documentation review, checkpoint deferrals, and limitations.
 
 ## Task-specification template
 

@@ -18,10 +18,11 @@ import java.util.Objects;
  * any inference and normalization before these attributes are constructed.</p>
  *
  * <p>Valid operations explicitly pair this value with either
- * {@link ShapeTransformKind#RESHAPE} or {@link ShapeTransformKind#EXPAND}. The generic operation
- * descriptor does not validate those pairings. Record-generated equality and hashing use
- * structural Shape equality; generated text is diagnostic only and is not public request syntax,
- * serialization, parser input, backend dispatch, or a layout plan.</p>
+ * {@link ShapeTransformKind#RESHAPE} or {@link ShapeTransformKind#EXPAND}. Their shared
+ * family-owned signature enforces those exact pairings and declares one input and one output.
+ * Record-generated equality and hashing use structural Shape equality; generated text is
+ * diagnostic only and is not public request syntax, serialization, parser input, backend
+ * dispatch, or a layout plan.</p>
  *
  * @param targetShape the non-null normalized semantic result Shape; every valid Shape category is
  *     accepted and the exact immutable reference is retained

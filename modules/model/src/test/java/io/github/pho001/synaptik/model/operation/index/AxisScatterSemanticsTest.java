@@ -52,7 +52,8 @@ class AxisScatterSemanticsTest {
 
     @Test
     void exposesOnlyTheExactAxisScatterEnumShape() {
-        assertExactEnumShape(AxisScatterKind.class, OperationKind.class);
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(AxisScatterKind.class);
 
         assertAll(
                 () -> assertSame(

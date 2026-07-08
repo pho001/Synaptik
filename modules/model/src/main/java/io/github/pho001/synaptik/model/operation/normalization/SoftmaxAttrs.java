@@ -25,8 +25,8 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * <p>The immutable record stores only the axis. Record-generated equality and hashing use that
  * component, and generated text is diagnostic only rather than a serialization, parser,
  * operation-dispatch, or backend contract. Valid operations explicitly pair this value with
- * either {@link SoftmaxKind#SOFTMAX} or {@link SoftmaxKind#LOG_SOFTMAX}; the generic operation
- * descriptor does not enforce those pairings. Data-type eligibility, descriptor and provenance
+ * either {@link SoftmaxKind#SOFTMAX} or {@link SoftmaxKind#LOG_SOFTMAX}; their family-owned
+ * signatures enforce those pairings. Data-type eligibility, descriptor and provenance
  * construction, numerical policy, gradients, compiler behavior, storage, backend support, and
  * execution are deliberately deferred.</p>
  *

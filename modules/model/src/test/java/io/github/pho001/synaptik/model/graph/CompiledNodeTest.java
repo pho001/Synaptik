@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -267,6 +269,49 @@ class CompiledNodeTest {
                 () -> assertTrue(text.contains("ValueId[value=4]")));
     }
 
+    @Test
+    void validatesInputAndOutputCountsAgainstTheOperationSignature() {
+        Operation binary = new Operation(CardinalityKind.BINARY, NoOperationAttrs.INSTANCE);
+        Operation source = new Operation(CardinalityKind.SOURCE, NoOperationAttrs.INSTANCE);
+        Operation multiOutput =
+                new Operation(CardinalityKind.MULTI_OUTPUT, NoOperationAttrs.INSTANCE);
+
+        CompiledNode validBinary = new CompiledNode(
+                new NodeId(30),
+                binary,
+                List.of(new ValueId(1), new ValueId(2)),
+                List.of(new ValueId(3)));
+        CompiledNode validSource = new CompiledNode(
+                new NodeId(31), source, List.of(), List.of(new ValueId(4)));
+        CompiledNode validMultiOutput = new CompiledNode(
+                new NodeId(32),
+                multiOutput,
+                List.of(new ValueId(4)),
+                List.of(new ValueId(5), new ValueId(6)));
+
+        IllegalArgumentException inputFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> new CompiledNode(
+                        new NodeId(33),
+                        binary,
+                        List.of(new ValueId(1)),
+                        List.of(new ValueId(2))));
+        IllegalArgumentException outputFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> new CompiledNode(
+                        new NodeId(34),
+                        binary,
+                        List.of(new ValueId(1), new ValueId(2)),
+                        List.of(new ValueId(3), new ValueId(4))));
+
+        assertAll(
+                () -> assertEquals(2, validBinary.inputs().size()),
+                () -> assertTrue(validSource.inputs().isEmpty()),
+                () -> assertEquals(2, validMultiOutput.outputs().size()),
+                () -> assertTrue(inputFailure.getMessage().contains("input count")),
+                () -> assertTrue(outputFailure.getMessage().contains("output count")));
+    }
+
     private static Operation operation(OperationKind kind, int arityHint) {
         return new Operation(kind, new SampleAttrs(arityHint));
     }
@@ -274,11 +319,49 @@ class CompiledNodeTest {
     private enum SampleKind implements OperationKind {
         SOURCE,
         SAMPLE,
-        OTHER
+        OTHER;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(new OperationSignature(
+                SampleAttrs.class, 0, Integer.MAX_VALUE, 1, Integer.MAX_VALUE));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 
     private enum OtherSampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(new OperationSignature(
+                SampleAttrs.class, 0, Integer.MAX_VALUE, 1, Integer.MAX_VALUE));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
+    }
+
+    private enum CardinalityKind implements OperationKind {
+        BINARY,
+        SOURCE,
+        MULTI_OUTPUT;
+
+        private static final List<OperationSignature> BINARY_SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+        private static final List<OperationSignature> SOURCE_SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 0, 1));
+        private static final List<OperationSignature> MULTI_OUTPUT_SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 2));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return switch (this) {
+                case BINARY -> BINARY_SIGNATURES;
+                case SOURCE -> SOURCE_SIGNATURES;
+                case MULTI_OUTPUT -> MULTI_OUTPUT_SIGNATURES;
+            };
+        }
     }
 
     private record SampleAttrs(int arityHint) implements OperationAttrs {}

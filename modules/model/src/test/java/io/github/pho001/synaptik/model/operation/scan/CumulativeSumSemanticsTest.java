@@ -41,48 +41,8 @@ class CumulativeSumSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = CumulativeSumKind.class.getDeclaredConstructors();
-        var fields = CumulativeSumKind.class.getDeclaredFields();
-        var methods = CumulativeSumKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.scan",
-                        CumulativeSumKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(CumulativeSumKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(CumulativeSumKind.class.getModifiers())),
-                () -> assertTrue(CumulativeSumKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(CumulativeSumKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(CumulativeSumSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, CumulativeSumKind.class.getDeclaredClasses().length),
-                () -> assertSame(CumulativeSumKind.class, CumulativeSumKind.CUM_SUM.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(CumulativeSumKind.class);
     }
 
     @Test

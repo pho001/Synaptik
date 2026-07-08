@@ -44,45 +44,8 @@ class ScalarElementwiseSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = ScalarElementwiseKind.class.getDeclaredConstructors();
-        var instanceFields =
-                Arrays.stream(ScalarElementwiseKind.class.getDeclaredFields())
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .toList();
-        var instanceMethods =
-                Arrays.stream(ScalarElementwiseKind.class.getDeclaredMethods())
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .toList();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.elementwise.scalar",
-                        ScalarElementwiseKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(ScalarElementwiseKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(ScalarElementwiseKind.class.getModifiers())),
-                () -> assertTrue(ScalarElementwiseKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(ScalarElementwiseKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(instanceFields.isEmpty()),
-                () -> assertTrue(instanceMethods.isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;"),
-                        Arrays.stream(ScalarElementwiseKind.class.getDeclaredMethods())
-                                .filter(method -> !method.isSynthetic())
-                                .map(ScalarElementwiseSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertEquals(0, ScalarElementwiseKind.class.getDeclaredClasses().length),
-                () -> assertTrue(Arrays.stream(ScalarElementwiseKind.values())
-                        .allMatch(value -> value.getClass() == ScalarElementwiseKind.class)));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(ScalarElementwiseKind.class);
     }
 
     @Test
@@ -118,13 +81,17 @@ class ScalarElementwiseSemanticsTest {
                         BinaryArithmeticKind.POW.name(), ScalarElementwiseKind.POW.name()),
                 () -> assertNotEquals(BinaryArithmeticKind.MUL, ScalarElementwiseKind.MUL),
                 () -> assertNotEquals(BinaryArithmeticKind.POW, ScalarElementwiseKind.POW),
-                () -> assertNotEquals(
-                        new Operation(
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
                                 BinaryArithmeticKind.MUL,
-                                new ScalarValueAttrs(2.0)),
+                                new ScalarValueAttrs(2.0))),
+                () -> assertEquals(
+                        ScalarElementwiseKind.MUL,
                         new Operation(
-                                ScalarElementwiseKind.MUL,
-                                new ScalarValueAttrs(2.0))));
+                                        ScalarElementwiseKind.MUL,
+                                        new ScalarValueAttrs(2.0))
+                                .kind()));
     }
 
     @Test

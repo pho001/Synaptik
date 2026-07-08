@@ -11,11 +11,14 @@ prepared executables.
 
 ## Current model contracts
 
-The `io.github.pho001.synaptik.model.graph` package now provides compiler-neutral data that later
+The `io.github.pho001.synaptik.model.operation` and
+`io.github.pho001.synaptik.model.graph` packages now provide compiler-neutral data that later
 compiler work can produce and consume:
 
 | Current contract | Meaning | Deliberate boundary |
 |---|---|---|
+| `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural occurrence contract, not operand inference or executable support |
+| `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
 | `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
 | `PublicationBinding` | Standalone `TensorId`-to-`ValueId` association | Not an owning publication plan and not a `CompiledGraphModel` component |
@@ -25,6 +28,13 @@ phase map, requires resolvable references and topological node order, enforces p
 coverage rules, and stores no derived indexes. This validation does not capture an expression,
 infer descriptors, transform a graph, perform autograd, plan backend ownership, or make the model
 executable.
+
+Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
+derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
+rules and then checks that the final ordered input and output counts lie within that signature's
+inclusive bounds. This catches a unary operation connected to two inputs, for example, without
+claiming that operand Shapes or data types are compatible. Zero-input, bounded, variadic-input,
+and multi-output occurrences remain representable when their kind explicitly declares them.
 
 A `PublicationBinding` carries only two identities. A later compiler-owned `PublicationPlan` will
 group bindings with their owning compilation context and publication policy. The binding itself

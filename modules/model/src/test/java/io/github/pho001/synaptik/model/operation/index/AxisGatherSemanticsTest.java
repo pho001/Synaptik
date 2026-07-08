@@ -50,51 +50,8 @@ class AxisGatherSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShape() {
-        var constructors = AxisGatherKind.class.getDeclaredConstructors();
-        var fields = AxisGatherKind.class.getDeclaredFields();
-        var methods = AxisGatherKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.index",
-                        AxisGatherKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(AxisGatherKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(AxisGatherKind.class.getModifiers())),
-                () -> assertTrue(AxisGatherKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(AxisGatherKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.index.AxisGatherKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.index.AxisGatherKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(AxisGatherSemanticsTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, AxisGatherKind.class.getDeclaredClasses().length),
-                () -> assertSame(AxisGatherKind.class, AxisGatherKind.GATHER.getClass()),
-                () -> assertSame(AxisGatherKind.class, AxisGatherKind.GATHER_AXIS.getClass()),
-                () -> assertSame(
-                        AxisGatherKind.class, AxisGatherKind.TAKE_ALONG_AXIS.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(AxisGatherKind.class);
     }
 
     @Test

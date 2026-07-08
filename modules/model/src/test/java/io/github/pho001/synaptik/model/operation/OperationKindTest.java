@@ -6,21 +6,27 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class OperationKindTest {
     @Test
-    void exposesOnlyTheSemanticNameContract() {
-        var methods = OperationKind.class.getDeclaredMethods();
+    void exposesNameAndFamilyOwnedSignatureContracts() {
+        var publicMethods = Arrays.stream(OperationKind.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .map(method -> method.getName() + ":" + method.getReturnType().getSimpleName())
+                .sorted()
+                .toList();
 
         assertAll(
                 () -> assertTrue(OperationKind.class.isInterface()),
-                () -> assertEquals(1, methods.length),
-                () -> assertEquals("name", methods[0].getName()),
-                () -> assertEquals(String.class, methods[0].getReturnType()),
-                () -> assertEquals(0, methods[0].getParameterCount()),
-                () -> assertTrue(Modifier.isPublic(methods[0].getModifiers())),
-                () -> assertTrue(Modifier.isAbstract(methods[0].getModifiers())));
+                () -> assertEquals(
+                        List.of(
+                                "name:String",
+                                "signatureFor:OperationSignature",
+                                "signatures:List"),
+                        publicMethods));
     }
 
     @Test
@@ -45,10 +51,26 @@ class OperationKindTest {
     }
 
     private enum SampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 
     private enum OtherSampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

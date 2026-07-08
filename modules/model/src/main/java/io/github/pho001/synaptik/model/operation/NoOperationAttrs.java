@@ -5,7 +5,10 @@ package io.github.pho001.synaptik.model.operation;
  *
  * <p>This enum is an immutable canonical singleton. Operations without parameters use
  * {@link #INSTANCE} instead of {@code null}, an empty map, or a newly allocated placeholder. Enum
- * identity therefore also supplies stable equality, hashing, and diagnostic text.</p>
+ * identity therefore also supplies stable equality, hashing, and diagnostic text. A
+ * parameterless kind explicitly names this exact class in its family-owned
+ * {@link OperationSignature}; the value is not a permissive fallback for a kind that expects
+ * typed parameters.</p>
  *
  * <p>The value carries no operation-family, backend, planning, execution, storage, or runtime
  * metadata.</p>

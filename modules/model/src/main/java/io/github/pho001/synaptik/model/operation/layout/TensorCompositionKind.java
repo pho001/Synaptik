@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent meanings for joining tensors or selecting one unstack output.
@@ -21,9 +23,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * grouping identity.</p>
  *
  * <p>STACK remains a first-class semantic kind even though a compiler may later choose an
- * expand-dimensions-plus-concat decomposition. The generic {@code Operation} descriptor accepts
- * any non-null kind and attributes value and therefore does not enforce these family pairings,
- * input count, rank, or result count.</p>
+ * expand-dimensions-plus-concat decomposition. Family-owned signatures enforce the exact
+ * attributes pairings and declare variadic non-empty input for CONCAT and STACK and one input for
+ * UNSTACK. They do not validate rank or result-shape compatibility.</p>
  *
  * <p>This enum stores no Tensor, input list, Shape, descriptor, layout, provenance, graph state,
  * grouping identity, gradient, compiler policy, backend or ONNX behavior, or execution state.
@@ -57,5 +59,22 @@ public enum TensorCompositionKind implements OperationKind {
      * defining producer grouping or graph output-slot state. The kind performs no bound check,
      * result construction, grouping, graph capture, or execution.</p>
      */
-    UNSTACK
+    UNSTACK;
+
+    private static final List<OperationSignature> VARIADIC_SIGNATURES = List.of(
+            OperationSignature.inputRange(
+                    CompositionAxisAttrs.class, 1, Integer.MAX_VALUE, 1));
+    private static final List<OperationSignature> UNSTACK_SIGNATURES =
+            List.of(OperationSignature.fixed(UnstackOutputAttrs.class, 1, 1));
+
+    /**
+     * Returns the variadic composition or independently indexed unstack-output signature.
+     *
+     * @return the stable unstack signature for {@link #UNSTACK}, otherwise the stable non-empty
+     *     variadic-input signature
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return this == UNSTACK ? UNSTACK_SIGNATURES : VARIADIC_SIGNATURES;
+    }
 }

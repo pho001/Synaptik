@@ -9,7 +9,7 @@ Some entries describe contracts planned by the architecture but not yet implemen
 The currently implemented terms are the model foundations: data type, dimension, shape,
 broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
-the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
+`OperationSignature`, the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
 `HostTensorStorage` and `MemorySegmentStorage`, plus public `Tensor` state and the descriptor-based
 `TensorFactory` construction boundary with JVM-scoped factory-assigned identity and exact-span
@@ -277,9 +277,9 @@ The three meanings are deliberately distinct:
   `[2, 7, 4]` mean result `[2, 7, 4]`, subject to public non-axis compatibility checks.
 
 `IndexAxisAttrs` rejects negative axes but contains no data rank, selected extent, input, or Shape.
-It cannot prove that the axis exists or validate any of the three Shape relationships. Generic
-`Operation` retains an exact kind and attributes pair but does not enforce the pairing or ordered
-two-input context. The current public input-aware boundary normalizes a raw data axis, requires
+It cannot prove that the axis exists or validate any of the three Shape relationships. The shared
+operation signature enforces `IndexAxisAttrs` and declares two inputs and one output. The current
+public input-aware boundary normalizes a raw data axis, requires
 indices to use `INT32` or `INT64`, derives or validates the family-specific Shape, preserves data
 type and gradient eligibility with unresolved result layout, and records exact `[data, indices]`
 provenance. It never reads index values and therefore performs no index-value bounds check. Axis
@@ -370,8 +370,8 @@ scalar Shape `[]` because neither formula term contributes a Dimension.
 
 `GatherNdAttrs` rejects a negative batch count but stores no input rank, Shape, tuple depth, or
 index type. Tuple depth is not an attribute because it belongs to the final indices Dimension of
-each operation occurrence. Generic `Operation` retains the exact kind and attributes but does not
-enforce their pairing or ordered inputs. The current zero-batch `Tensor.gatherNd(indices)`
+each operation occurrence. The family signature enforces `GatherNdAttrs` and declares the ordered
+two-input, one-output occurrence. The current zero-batch `Tensor.gatherNd(indices)`
 convenience uses `new GatherNdAttrs(0)`, not another kind or default value.
 
 The current public Tensor boundary accepts only `INT32` or `INT64` indices, requires both ranks to
@@ -512,8 +512,8 @@ or mutable run state.
 The implemented parameterless `ContiguousKind.CONTIGUOUS` operation meaning. It describes one
 logical input and requests logically equivalent canonical dense row-major result geometry with
 logical storage offset zero. Logical values, Shape, DataType, and row-major element order are
-preserved. The kind composes with `Operation` and `NoOperationAttrs.INSTANCE`, but the generic
-descriptor does not validate its one-input family context.
+preserved. The kind composes with `Operation` and `NoOperationAttrs.INSTANCE`; its signature
+enforces that pairing and declares one input and one output.
 
 A contiguous request is not the implemented `LayoutKind.DENSE_CONTIGUOUS` classification: the
 request states desired computation semantics, while the layout kind classifies already-resolved
@@ -717,8 +717,8 @@ public boundary interprets it according to the operation kind: current `expandDi
 insertion position normalized against rank plus one, while current `squeeze` uses an input removal
 position normalized against the existing Shape and validates the selected static singleton.
 `SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
-or rank, so it cannot prove that an axis exists for a future input. Raw negative slice axes are
-planned public request syntax that must be normalized before constructing these attributes.
+or rank, so it cannot prove that an axis exists for a future input. The current public slice
+boundary normalizes caller-facing negative axes before constructing these attributes.
 `CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
 axis, with the paired kind supplying the interpretation. `UnstackOutputAttrs` stores a normalized
 source axis plus one non-negative logical coordinate on that axis. Neither value contains rank or
@@ -740,10 +740,11 @@ graph-local [`NodeId`](#nodeid), one [`Operation`](#operation), and ordered immu
 output `ValueId` snapshots. Empty and repeated inputs are valid; outputs must be non-empty and
 unique within that node. Reusing the same operation kind in two places creates two node
 occurrences. A node is not the operation semantics alone and is not the data flowing between
-computations; that data is represented by [graph values](#graph-value). The record validates only
-its local list invariants. The owning implemented `CompiledGraphModel` validates referenced-value
-existence, producer uniqueness, topology, and graph boundaries, while planned operation-family
-contracts own arity and descriptor compatibility. A compiled node is compile-time model state and
+computations; that data is represented by [graph values](#graph-value). The record validates its
+local list invariants and checks final input/output counts against the selected
+[`OperationSignature`](#operation-signature). The owning implemented `CompiledGraphModel` validates
+referenced-value existence, producer uniqueness, topology, and graph boundaries, while
+operand-aware descriptor compatibility remains separate. A compiled node is compile-time model state and
 must not enter runtime hot paths. See [Graph values and compiled
 nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 
@@ -753,7 +754,16 @@ A validated non-negative identifier for a node occurrence within one owning grap
 
 ### Operation
 
-The implemented immutable value that keeps two parts of a computation description together: an [`OperationKind`](#operationkind), which says which computation is meant, and [`OperationAttrs`](#operationattrs), which carries its typed parameters. Both parts must be non-null and are retained unchanged. Record equality and hashing use both parts, while its text form is for diagnostics rather than serialization. The descriptor does not verify that a particular attributes type is compatible with a kind; future operation-family contracts own that validation. It also does not report backend support, perform compiler work, choose a kernel, execute computation, own runtime state, or identify a particular occurrence in a graph; an implemented [`CompiledNode`](#node) represents that occurrence.
+The implemented immutable value that keeps two parts of a computation description together: an
+[`OperationKind`](#operationkind), which says which computation is meant, and
+[`OperationAttrs`](#operationattrs), which carries its typed parameters. Both parts must be
+non-null and are retained unchanged. Construction resolves the kind's family-owned
+[`OperationSignature`](#operation-signature) and rejects an attributes value whose exact concrete
+class is not accepted. The signature is derived, not stored as a third record component. Record
+equality and hashing therefore still use only kind and attributes, while text is diagnostic rather
+than serialization. An operation does not report backend support, perform compiler work, choose a
+kernel, execute computation, own runtime state, or identify a graph occurrence; an implemented
+[`CompiledNode`](#node) represents that occurrence.
 
 ### `OperationAttrs`
 
@@ -796,7 +806,28 @@ identifies the role of a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
-The implemented open typed discriminator that supplies the “which computation” part of an [`Operation`](#operation). Its only method, `name()`, provides a stable, non-null, non-blank diagnostic name. Equality belongs to the typed kind value, so equal name text from unrelated kind types does not create implicit equivalence or a global string registry. An operation kind does not describe attributes, backend support, cost, fusion, storage, execution behavior, or a kernel route.
+The implemented open typed discriminator that supplies the “which computation” part of an
+[`Operation`](#operation). `name()` provides stable diagnostic text. `signatures()` returns the
+family-owned immutable structural variants, and `signatureFor(attrs)` resolves one by exact
+attributes runtime class. Equality belongs to the typed kind value, so equal name text from
+unrelated kind types does not create equivalence or a global string registry. A kind signature
+describes attributes and occurrence counts, not backend support, cost, fusion, storage, execution
+behavior, or a kernel route.
+
+### Operation signature
+
+The implemented immutable `OperationSignature` record describes one accepted structural variant
+of an operation kind. It stores the exact concrete `OperationAttrs` class and inclusive minimum
+and maximum logical input and output counts. These counts are **occurrence cardinality**: the
+number of ordered values consumed or produced by one node, not Tensor rank, Shape, or element
+count.
+
+A **fixed** cardinality has equal minimum and maximum values, such as exactly two inputs. A
+**bounded** cardinality allows a finite inclusive range. A **variadic** input accepts a variable
+count; the current representation uses `Integer.MAX_VALUE` as the real inclusive upper bound of a
+Java list size, not as a sentinel. Signatures match attributes by exact class, fail closed for
+missing or malformed family declarations, and contain no operand inference, graph-wide rule,
+backend capability, or executable behavior.
 
 The first production family is `BinaryArithmeticKind`, an enum containing exactly `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`. These values identify ordered tensor-to-tensor elementwise
@@ -810,8 +841,8 @@ rather than serialization or dispatch keys.
 The second production family is `UnaryElementwiseKind`, an enum containing exactly `ABS`, `NEG`,
 `INV`, `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`,
 `FAST_EXP`, and `FAST_TANH`. These values identify one-input elementwise mathematical or activation
-meanings and compose with `NoOperationAttrs.INSTANCE`. One-input arity is family context rather
-than stored metadata. `FAST_EXP` and `FAST_TANH` are distinct approximate requests, not aliases or
+meanings and compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares one input
+and one output. `FAST_EXP` and `FAST_TANH` are distinct approximate requests, not aliases or
 backend flags; the enum defines no algorithm, accuracy, descriptor inference, provenance,
 gradient, execution, or backend support. The implemented public unary Tensor methods consume these
 values while separately owning local expression construction.
@@ -820,7 +851,7 @@ The third production family is `ScalarElementwiseKind`, an enum containing exact
 `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`. These values identify parameterized one-input elementwise
 meanings. `MUL`, `POW`, `CLAMP_MIN`, and `CLAMP_MAX` pair with `ScalarValueAttrs`; `CLAMP` pairs
 with `ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
-the generic `Operation` descriptor does not enforce family compatibility. The attributes retain
+family signatures enforce each exact attributes class and one-input, one-output cardinality. The attributes retain
 exact Java `double` values. Clamp-range construction rejects only a primitive
 `minValue > maxValue` comparison, so equal bounds, both signed-zero orderings, ordered infinities,
 and NaN endpoints are valid. The enum and attributes perform no Tensor expression construction,
@@ -843,8 +874,8 @@ a different typed value.
 The fifth production family is `BooleanLogicalKind`, an enum containing exactly `AND`, `OR`, and
 `NOT`. These values identify parameterless elementwise boolean conjunction, disjunction, and
 negation and compose with `NoOperationAttrs.INSTANCE`. `AND` and `OR` have two logical input roles;
-`NOT` has one. Those roles are family context rather than stored or generically validated arity
-metadata. The enum itself defines no BOOL descriptor eligibility, binary broadcasting, unary shape
+`NOT` has one. Family signatures declare those exact input counts and one output. The enum itself
+defines no BOOL descriptor eligibility, binary broadcasting, unary shape
 preservation, provenance, storage representation, numeric truthiness, gradient, execution, or
 backend support. The implemented public logical Tensor methods separately own exact BOOL input
 validation, binary broadcast or unary shape rules, fixed BOOL results, and provenance. Its
@@ -854,9 +885,9 @@ kind from another family remains a different typed value.
 The sixth production family is `WhereSelectionKind`, an enum containing exactly `WHERE`. This
 parameterless value identifies elementwise conditional choice with three ordered logical roles:
 condition, true branch, and false branch. A true condition chooses the corresponding true-branch
-value; otherwise it chooses the false-branch value. The roles are ternary family context rather
-than stored or generically validated arity metadata, and the kind composes with
+value; otherwise it chooses the false-branch value. The kind composes with
 `NoOperationAttrs.INSTANCE`. It is distinct from scalar-index `select`, gather, take, and scatter.
+Its signature declares the three ordered inputs and one output.
 The enum itself defines no Tensor construction, condition or branch eligibility, promotion,
 three-way broadcasting, result descriptor, provenance, evaluation order, gradient, compiler,
 ONNX, execution, or backend-support behavior. Static `Tensor.where` separately owns local
@@ -868,7 +899,7 @@ The seventh production family is `CastKind`, an enum containing exactly `CAST`. 
 identifies parameterized elementwise conversion of one logical input and pairs with `CastAttrs`,
 whose sole component is the exact non-null target `DataType`. Every current data type is a valid
 target. The source type remains a fact of the later input descriptor rather than duplicated
-attribute state, and generic `Operation` does not enforce the family pairing. The kind and
+attribute state. The family signature enforces `CastAttrs` and declares one input and one output. The kind and
 attributes alone define no source compatibility, same-type handling, result descriptor, numerical
 conversion rules, gradients, provenance, compiler capture, execution, or backend support. The
 implemented public `Tensor.cast` method separately owns fresh expression construction, exact shape
@@ -879,8 +910,8 @@ The eighth production family is `AggregateReductionKind`, an enum containing exa
 `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, `ANY`, and `ARG_MAX`. The first seven ordinary kinds pair
 with `NoOperationAttrs.INSTANCE` for a full reduction over every input axis or with
 `AxisReductionAttrs` for one already normalized axis. `ARG_MAX` pairs with `ArgMaxAttrs`, which
-adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Generic `Operation` does not enforce
-these family pairings. Masked axis-removing `SUM` and `MEAN` pair with
+adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Family signatures enforce these exact
+variants and distinguish one-input ordinary forms from two-input masked forms. Masked axis-removing `SUM` and `MEAN` pair with
 `MaskedReductionAttrs`, whose strictly increasing list aligns mask dimensions to input axes and
 whose semantic contract fixes false-value exclusion and zero output when the selected count is
 zero. The family stores no Tensor input, result descriptor, negative all-axis
@@ -898,8 +929,8 @@ The ninth production family is `CumulativeSumKind`, an enum containing exactly `
 identifies one-input cumulative addition along the already normalized axis in
 `CumulativeSumAttrs`. The attributes also select inclusive or exclusive output and forward or
 reverse traversal. The family preserves logical positions; reverse traversal does not reverse
-output order, and exclusive traversal emits additive zero at its first visited position. Generic
-`Operation` does not enforce the kind/attributes pairing. The kind and attributes contain no
+output order, and exclusive traversal emits additive zero at its first visited position. Its
+signature enforces `CumulativeSumAttrs` and declares one input and one output. The kind and attributes contain no
 Tensor, Shape, result descriptor, provenance, data-type policy, gradient rule, algorithm,
 executable behavior, or backend support. Public `Tensor.cumSum` separately owns numeric
 validation, Shape-aware axis normalization, descriptor construction, fresh identity, and
@@ -912,7 +943,7 @@ along that axis. `SOFTMAX` identifies positive normalized probabilities whose id
 one; `LOG_SOFTMAX` identifies their natural logarithms, so exponentiating each ideal log-softmax
 value recovers the corresponding softmax probability. The family preserves logical positions and
 is distinct from both axis-contracting aggregate reduction and ordered-prefix scan semantics.
-Generic `Operation` does not enforce either pairing. The kind and attributes store no Tensor,
+The shared signature enforces `SoftmaxAttrs` and declares one input and one output. The kind and attributes store no Tensor,
 Shape, data-type policy, result descriptor, provenance, numerical algorithm, gradient, compiler
 decomposition, storage, executable behavior, or backend support. Public `Tensor.softmax` and
 `Tensor.logSoftmax` separately own floating validation, Shape-aware axis normalization, exact
@@ -1095,8 +1126,8 @@ result Shape `[2, 4]`.
 
 The attributes reject negative axis and index values, checking the axis first, but store no input
 Shape, rank, or selected-axis extent. They consequently cannot prove that an axis exists or that
-an index is in bounds. Generic `Operation` retains the exact `SELECT` and `SelectAttrs` references
-without enforcing the pairing or one-input context.
+an index is in bounds. The family signature enforces `SELECT` with `SelectAttrs` and declares one
+input and one output.
 
 Public `Tensor.select(axis, index)` supplies that input-aware expression boundary. It normalizes a
 positive or negative axis against input rank. A static selected extent normalizes one negative
@@ -1644,7 +1675,7 @@ A tensor or layout interpretation that aliases storage also used by another logi
 An implemented backend-independent sliding-window meaning represented by
 `WindowTransformKind`. The exact kind/attributes pairings are `UNFOLD_AXIS` with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D`
-with `Fold2dAttrs`. Generic `Operation` retains these values but does not enforce the pairings.
+with `Fold2dAttrs`. Family signatures enforce all four pairings and declare one input and one output.
 
 General-axis unfold materializes windows along one normalized source axis without padding,
 dilation, or image assumptions. For static selected extent `D`, positive window `size`, and
@@ -1755,10 +1786,12 @@ without storing derived indexes.
 | `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, indexed-unstack-output, scalar-select, shared gather/fixed-add-scatter axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
-| `Operation` | Immutable pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor |
+| `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
+| `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
 
 A kind distinguishes computations, while attributes carry parameters within a computation family.
-`Operation` stores both as one value but does not validate family compatibility. None of these
+`Operation` stores both as one value and validates exact family compatibility through the derived
+signature. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
 unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.

@@ -10,6 +10,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.lang.reflect.Modifier;
@@ -581,6 +582,14 @@ class CompiledGraphModelTest {
     }
 
     private enum SampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(new OperationSignature(
+                NoOperationAttrs.class, 0, Integer.MAX_VALUE, 1, Integer.MAX_VALUE));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

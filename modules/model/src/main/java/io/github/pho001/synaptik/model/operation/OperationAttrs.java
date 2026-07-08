@@ -8,6 +8,11 @@ package io.github.pho001.synaptik.model.operation;
  * defensively isolate any mutable constructor input so their observable state cannot change after
  * construction. Immutable records and enums are the intended implementation forms.</p>
  *
+ * <p>Each {@link OperationKind} declares the exact concrete attributes classes that it accepts
+ * through family-owned {@link OperationSignature} values. Construction therefore rejects an
+ * attributes implementation that was not explicitly selected for that kind; implementing this
+ * marker alone does not make a value compatible with every operation.</p>
+ *
  * <p>Attribute values contain semantic parameters only. They must not retain mutable tensors,
  * live services, backend or device handles, compiler or runtime state, storage, execution routes,
  * or other mutable infrastructure. This marker deliberately declares no common fields or methods;

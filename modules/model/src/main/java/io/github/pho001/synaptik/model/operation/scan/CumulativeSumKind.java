@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.scan;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent cumulative-sum scan semantics.
@@ -10,10 +12,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * inclusion mode, and traversal direction are carried by {@link CumulativeSumAttrs}; this enum
  * stores none of those parameters, input state, result state, or graph-occurrence identity.</p>
  *
- * <p>The valid family composition pairs {@link #CUM_SUM} with {@link CumulativeSumAttrs}. The
- * generic {@link io.github.pho001.synaptik.model.operation.Operation Operation} descriptor checks
- * only that its kind and attributes are non-null and does not enforce this family-specific
- * pairing.</p>
+ * <p>The valid family composition pairs {@link #CUM_SUM} with {@link CumulativeSumAttrs}. Its
+ * family-owned signature enforces that exact pairing and declares one input and one output.</p>
  *
  * <p>This vocabulary describes requested mathematics only. It does not define eligible data
  * types, result descriptors, accumulation precision, numerical edge cases, gradients, value
@@ -36,5 +36,18 @@ public enum CumulativeSumKind implements OperationKind {
      * <p>Input eligibility, shape and result construction, numerical policy, gradients, execution,
      * and backend support belong to later owning contracts.</p>
      */
-    CUM_SUM
+    CUM_SUM;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(CumulativeSumAttrs.class, 1, 1));
+
+    /**
+     * Returns the cumulative-sum one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

@@ -1,6 +1,9 @@
 package io.github.pho001.synaptik.model.operation.elementwise.comparison;
 
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent, parameterless, ordered binary comparison semantics.
@@ -14,8 +17,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * <p>All kinds in this family have no intrinsic parameters. An {@link
  * io.github.pho001.synaptik.model.operation.Operation Operation} therefore represents one of them
  * explicitly with {@link io.github.pho001.synaptik.model.operation.NoOperationAttrs#INSTANCE
- * NoOperationAttrs.INSTANCE}. The generic operation descriptor validates component presence but
- * does not enforce family-specific kind-to-attributes compatibility.</p>
+ * NoOperationAttrs.INSTANCE}. Operation construction enforces that exact pairing, and the shared
+ * signature declares two inputs and one output.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
  * operation family remains a different semantic value. The inherited {@link #name()} and
@@ -77,5 +80,18 @@ public enum BinaryComparisonKind implements OperationKind {
      * NaN and signed-zero behavior, differentiation, execution, and backend availability belong
      * to later owning contracts.</p>
      */
-    NOT_EQUAL
+    NOT_EQUAL;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+    /**
+     * Returns the parameterless two-input, one-output structural variant shared by this family.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

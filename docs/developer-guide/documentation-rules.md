@@ -22,6 +22,8 @@ If a document genuinely serves two purposes, choose one primary profile and appl
 
 Substantive documentation work and every code or behavior change require a documentation-focused pass in a clean agent or thread context, distinct from the implementation context. Separate context provides an independent review perspective; it does not mean a separate branch, commit, pull request, or future task. Required documentation must land in the same overall change before the task is complete.
 
+The pass must be targeted to the actual diff. Read the authoritative contract, selected documentation profiles, affected source and tests, and directly affected documentation. Do not require unrelated architecture pages, API guides, historical tasks, or modules merely to enlarge the checklist. Add broader reading only when the change can affect those contracts.
+
 An implementation agent may draft Javadoc or explanatory text while coding. The documentation-focused agent must inspect the final diff and tests, then independently finalize affected Javadoc, explanatory documentation, examples, links, and glossary impact.
 
 The handoff to that agent must include:
@@ -42,6 +44,8 @@ The documentation-focused agent must:
 5. validate links, anchors, examples, terminology, and formatting; and
 6. record files reviewed, changes made, commands and results, limitations, and unresolved issues.
 
+The implementation pass owns executable tests and hands their exact evidence to the documentation-focused agent. The documentation pass must not rerun a successful Java test suite unless it changes executable Java behavior after that run, the original evidence is missing or stale, or the task identifies a concrete cross-check risk. Javadoc-only edits do not require Java tests, but final Javadoc generation must occur after those edits.
+
 The task remains incomplete until this pass and its evidence are present in the same overall change.
 
 ## Validation and evidence
@@ -51,7 +55,7 @@ Use the validation section in the selected profile. At minimum:
 - check local Markdown links and anchors;
 - verify terminology against the [glossary](../glossary.md);
 - verify examples against current behavior or label conceptual examples clearly;
-- generate Javadoc for affected Java modules when Java APIs changed;
+- generate Javadoc for affected Java modules after final Javadoc edits when Java APIs changed;
 - run `git diff --check` and check new files for trailing whitespace; and
 - review the final diff for accidental authority changes, duplicated rules, and unrelated edits.
 

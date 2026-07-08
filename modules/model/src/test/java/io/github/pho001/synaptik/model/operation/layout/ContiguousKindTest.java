@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -48,50 +49,8 @@ class ContiguousKindTest {
 
     @Test
     void exposesOnlyTheExactParameterlessEnumShape() {
-        var constructors = ContiguousKind.class.getDeclaredConstructors();
-        var fields = ContiguousKind.class.getDeclaredFields();
-        var methods = ContiguousKind.class.getDeclaredMethods();
-
-        assertAll(
-                () -> assertEquals(
-                        "io.github.pho001.synaptik.model.operation.layout",
-                        ContiguousKind.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(ContiguousKind.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(ContiguousKind.class.getModifiers())),
-                () -> assertTrue(ContiguousKind.class.isEnum()),
-                () -> assertEquals(
-                        List.of(OperationKind.class),
-                        Arrays.asList(ContiguousKind.class.getInterfaces())),
-                () -> assertEquals(1, constructors.length),
-                () -> assertEquals(
-                        List.of(String.class, int.class),
-                        Arrays.asList(constructors[0].getParameterTypes())),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !field.isEnumConstant())
-                        .allMatch(field -> field.isSynthetic()
-                                && Modifier.isStatic(field.getModifiers()))),
-                () -> assertTrue(Arrays.stream(fields)
-                        .filter(field -> !Modifier.isStatic(field.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(
-                        List.of(
-                                "valueOf(java.lang.String):io.github.pho001.synaptik.model.operation.layout.ContiguousKind",
-                                "values():[Lio.github.pho001.synaptik.model.operation.layout.ContiguousKind;"),
-                        Arrays.stream(methods)
-                                .filter(method -> !method.isSynthetic())
-                                .map(ContiguousKindTest::methodSignature)
-                                .sorted()
-                                .toList()),
-                () -> assertTrue(Arrays.stream(methods)
-                        .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                        .findAny()
-                        .isEmpty()),
-                () -> assertEquals(0, ContiguousKind.class.getDeclaredClasses().length),
-                () -> assertSame(
-                        ContiguousKind.class,
-                        ContiguousKind.CONTIGUOUS.getClass()));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(ContiguousKind.class);
     }
 
     @Test
@@ -129,6 +88,14 @@ class ContiguousKindTest {
     }
 
     private enum OtherKind implements OperationKind {
-        CONTIGUOUS
+        CONTIGUOUS;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

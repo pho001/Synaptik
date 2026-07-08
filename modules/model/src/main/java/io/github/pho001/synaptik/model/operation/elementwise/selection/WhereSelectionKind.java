@@ -1,21 +1,24 @@
 package io.github.pho001.synaptik.model.operation.elementwise.selection;
 
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent, parameterless elementwise conditional-selection semantics.
  *
  * <p>{@link #WHERE} describes three ordered logical input roles: condition, true branch, and
- * false branch. These roles are ternary family context rather than stored arity metadata. The
- * kind stores no inputs, validates no input count, identifies no graph occurrence, and creates no
- * Tensor provenance or result descriptor. Conditional branch selection is distinct from
+ * false branch. The family-owned signature declares three inputs and one output. The kind stores
+ * no inputs, identifies no graph occurrence, and creates no Tensor provenance or result
+ * descriptor. Conditional branch selection is distinct from
  * scalar-index {@code select} and other indexing operations.</p>
  *
  * <p>This family has no intrinsic parameters. An {@link
  * io.github.pho001.synaptik.model.operation.Operation Operation} therefore represents its kind
  * explicitly with {@link io.github.pho001.synaptik.model.operation.NoOperationAttrs#INSTANCE
- * NoOperationAttrs.INSTANCE}. The generic operation descriptor validates component presence but
- * does not enforce family-specific arity or kind-to-attributes compatibility.</p>
+ * NoOperationAttrs.INSTANCE}. Operation construction enforces this exact attributes pairing, and
+ * a compiled-node occurrence enforces the signature's input and output counts.</p>
  *
  * <p>This vocabulary defines conditional choice meaning only. It does not define condition or
  * branch descriptor eligibility, branch promotion, three-way broadcasting, a result descriptor,
@@ -31,12 +34,25 @@ public enum WhereSelectionKind implements OperationKind {
      *
      * <p>The exact ordered logical roles are condition, true branch, and false branch. A true
      * condition selects the corresponding true-branch value; otherwise the corresponding
-     * false-branch value is selected. Three-input context is documented rather than stored or
-     * validated as arity metadata.</p>
+     * false-branch value is selected. Its signature declares the three ordered input positions
+     * and one output position.</p>
      *
      * <p>This kind does not prescribe eager or lazy branch evaluation. Condition and branch
      * eligibility, promotion, broadcasting, result descriptor construction, gradients,
      * execution, ONNX mapping, and backend availability belong to later owning contracts.</p>
      */
-    WHERE
+    WHERE;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(NoOperationAttrs.class, 3, 1));
+
+    /**
+     * Returns the parameterless three-input, one-output conditional-selection signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

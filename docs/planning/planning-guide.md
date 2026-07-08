@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide defines how Synaptik coordinates non-trivial implementation work through module master plans and small executable task specifications. The planning system keeps scope, dependencies, validation, decisions, and handoff evidence visible across isolated agentic implementation sessions.
+This guide defines how Synaptik coordinates non-trivial implementation work through module master plans and cohesive executable task specifications. The planning system keeps scope, dependencies, validation, decisions, and handoff evidence visible across isolated agentic implementation sessions without making repeated process work the primary cost of a change.
 
 ## Authority
 
@@ -69,15 +69,43 @@ The global [implementation roadmap](roadmap.md) applies the same rule to project
 
 A task should usually:
 
-- cover one concept;
+- deliver one cohesive capability or one independently reviewable foundation contract;
 - touch one module;
-- affect approximately 3–8 source files;
+- affect approximately 3–12 source and test files;
 - have explicit acceptance criteria and validation commands; and
 - fit in one isolated agentic implementation session.
 
-Avoid tasks named `implement module X`. Prefer focused names such as `implement data type model`, `implement shape model`, or `define typed trace envelope`.
+Prefer a complete vertical model capability when its semantic contracts, public facade, package-private construction helper, tests, Javadoc, and explanatory API documentation form one coherent decision. Do not split those artifacts into consecutive tasks merely because they are separate files. Split semantic definition from public API only when the semantic contract is an independently uncertain decision, is reused by multiple later capabilities, or can be validated meaningfully on its own.
 
-If a task needs more than 10–15 files, split it unless a documented technical reason makes an atomic larger change safer. Split work that combines API design with runtime behavior. If a task crosses architecture boundaries, split it along those boundaries or stop and request clarification.
+Avoid tasks named `implement module X`. Prefer focused names such as `implement data type model`, `implement shape model`, `define typed trace envelope`, or `implement binary comparison expressions`.
+
+If a task needs more than 12–18 files, split it unless a documented technical reason makes an atomic larger change safer. File count is a guardrail, not a reason to separate tightly coupled pieces of one capability. Split work that combines model API design with compiler, runtime, preparation, or backend behavior. If a task crosses architecture boundaries, split it along those boundaries or stop and request clarification.
+
+## Validation tiers
+
+Validation effort must be proportional to the scope and risk of the change. Do not run the same successful suite again in another agent unless executable code changed after the recorded run or a concrete failure risk justifies repetition.
+
+### Task validation
+
+Every implementation task runs focused tests while developing and records one final test run for each affected module after executable code stabilizes. For a task limited to `modules/model`, the normal final Java validation is:
+
+```bash
+./gradlew :modules:model:test
+```
+
+The documentation-focused pass runs final Javadoc generation after it has finalized Javadoc and runs the applicable documentation checks. `git diff --check` must pass on the final combined change. The coordinator may reuse this evidence and normally needs only to inspect the final diff and status.
+
+Reflection, `javap`, bytecode inspection, import scans, and manual API-shape checks belong in a task only when they address a concrete risk that ordinary compilation and tests do not cover. A recurring invariant must be moved into an automated test or reusable test assertion instead of repeated manually in every task.
+
+### Capability checkpoint
+
+A capability checkpoint closes a coherent family of tasks or a foundation-hardening sequence. The relevant master plan must identify the checkpoint. At that point run repository-wide tests, affected architecture tests, final documentation checks, and any cross-module validation that was intentionally deferred from individual tasks.
+
+Use a checkpoint before moving to a new operation family or architecture layer, after a sequence that changes a shared foundational contract, and before a release or merge when CI is not the final gate.
+
+### Repository and CI validation
+
+Run the full repository suite for changes to module dependencies, architecture boundaries, shared Gradle configuration, multiple modules, or another repository-wide contract. CI remains the final independent repository-wide validation gate. A small single-module task does not run the full repository suite merely to duplicate coverage already supplied by its module tests and the next checkpoint.
 
 ## Status values
 
@@ -90,7 +118,7 @@ If a task needs more than 10–15 files, split it unless a documented technical 
 - **Superseded** — another linked plan or task replaces this document.
 - **Cancelled** — the work will not proceed; the reason is recorded.
 
-Only mark a task `Complete` when its implementation, tests, documentation, validation evidence, and completion summary are all complete. When code or behavior changes, a documentation-focused agent or thread with clean context, separate from the implementation context, must independently review and finalize the affected explanatory documentation, Javadoc, and glossary impact. The separate context works on the same overall branch and change; it does not defer documentation to a later commit or task.
+Only mark a task `Complete` when its implementation, tests, documentation, validation evidence, and completion summary are all complete. When code or behavior changes, a documentation-focused agent or thread with clean context, separate from the implementation context, must independently review and finalize the affected explanatory documentation, Javadoc, and glossary impact. The separate context works on the same overall branch and change; it does not defer documentation to a later commit or task. It reuses successful implementation-test evidence and does not rerun Java tests unless it changes executable Java behavior or records a concrete reason.
 
 ## Master plan format
 
@@ -200,6 +228,15 @@ Run:
 ./gradlew <module-path>:test
 ```
 
+Documentation pass:
+
+```bash
+./gradlew <module-path>:javadoc
+git diff --check
+```
+
+Repository-wide validation: deferred to <named capability checkpoint or CI>, unless this task changes a repository-wide contract.
+
 ## Dependencies
 
 - ...
@@ -230,7 +267,7 @@ Read:
 Implement this task exactly as specified.
 Do not implement out-of-scope items.
 
-After code implementation and validation, hand the resulting diff to a separate documentation-focused agent or thread with clean context. That pass must follow docs/developer-guide/documentation-rules.md and finalize affected documentation, Javadoc, glossary impact, and documentation validation in the same overall change.
+After code implementation and module validation, hand the resulting diff and recorded test evidence to a separate documentation-focused agent or thread with clean context. That targeted pass must follow docs/developer-guide/documentation-rules.md and finalize affected documentation, Javadoc, glossary impact, and documentation validation in the same overall change. It must not repeat successful Java tests unless it changes executable behavior or records a concrete reason.
 
 At the end, update this task file with implementation notes, validation evidence including the documentation-agent pass, completion summary, and final status. Do not mark the task Complete before that pass finishes.
 ```
@@ -260,7 +297,9 @@ Empty until implemented.
 
 Every implementation prompt must create a separate agentic task or thread with a clean context. It must identify the exact task file and require the agent to read `AGENTS.md`, `ARCHITECTURE.md`, this guide, and the task specification.
 
-The prompt must repeat critical scope limits and required validation. It must not rely on remembered conversation context. It must require a second, documentation-focused agent or thread with clean context after implementation whenever code or behavior changes. That pass reviews the resulting diff and independently finalizes affected explanatory documentation, Javadoc, glossary impact, and documentation validation. Both contexts work in the same overall branch and change, and the task remains incomplete until the documentation pass and its evidence are present.
+Keep the implementation prompt short. The task specification is the single detailed execution contract, so the prompt should not reproduce its complete scope, exclusions, validation matrix, or file list. It must state only the task file, required authoritative reading, the instruction to implement exactly that specification, the stop condition for architecture or scope conflicts, the targeted documentation handoff, and whether commit or push is allowed. It must not rely on remembered conversation context.
+
+The prompt must require a second, documentation-focused agent or thread with clean context after implementation whenever code or behavior changes. That pass reviews the resulting diff and independently finalizes affected explanatory documentation, Javadoc, glossary impact, and documentation validation. Both contexts work in the same overall branch and change, and the task remains incomplete until the documentation pass and its evidence are present. The documentation agent receives the existing module-test evidence and does not reproduce it unless executable code changes after that evidence or a concrete risk requires a rerun.
 
 The documentation-agent handoff must identify the task specification, affected APIs or behavior, implementation diff, architecture constraints, expected documentation, and validation to perform. See the [documentation rules](../developer-guide/documentation-rules.md) for the complete handoff and review workflow.
 
@@ -307,6 +346,8 @@ Evidence must record:
 - documentation validation commands and link checks, including their results; and
 - confirmation that created and moved types match the package map and task-level type placement.
 
+Evidence may reference a successful command recorded by the implementation pass instead of rerunning it in the documentation or coordination pass. Identify which context ran the command and confirm whether executable code changed afterward. Do not claim independent execution when evidence was reused.
+
 Claims such as `tests pass` without commands and results are insufficient. Keep evidence concise; do not paste entire build logs when a result summary identifies the outcome.
 
 ## Follow-up tasks
@@ -343,7 +384,7 @@ Create a new task when work:
 - depends on an unresolved decision; or
 - can be completed and reviewed independently.
 
-Keep a change in the current task only when it is necessary for its acceptance criteria and remains inside its documented scope.
+Keep a change in the current task when it is necessary to deliver one cohesive capability and remains inside its module, package plan, architecture constraints, and documented scope. Separate files or the presence of both a semantic contract and its public model facade are not by themselves reasons to split a task.
 
 ## When to update architecture docs
 

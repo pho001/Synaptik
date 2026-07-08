@@ -41,8 +41,10 @@ class PadTileSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShapes() {
-        assertEnumShape(PadKind.class, PadKind.PAD);
-        assertEnumShape(TileKind.class, TileKind.TILE);
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(PadKind.class);
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(TileKind.class);
     }
 
     @Test

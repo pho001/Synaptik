@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.model.operation.reduction;
 
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent aggregate-reduction semantics.
@@ -13,8 +15,8 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * Masked, axis-removing {@link #SUM} and {@link #MEAN} forms pair with
  * {@link MaskedReductionAttrs}; their later ordered provenance is {@code [input, mask]}.
  * {@link #ARG_MAX} pairs only with {@link ArgMaxAttrs} because choosing among equal maxima is part
- * of that operation's semantics. The generic operation descriptor does not enforce these typed
- * family pairings.</p>
+ * of that operation's semantics. Family-owned signatures enforce these exact pairings and declare
+ * one input for ordinary forms or two ordered inputs for masked forms.</p>
  *
  * <p>Each constant identifies requested mathematics only. A kind stores no axis, input, output
  * descriptor, graph occurrence, numerical or empty-domain policy, gradient rule, executable
@@ -99,5 +101,30 @@ public enum AggregateReductionKind implements OperationKind {
      * has no full-reduction form in this contract. Input eligibility, index result type, comparison
      * and NaN policy, gradients, execution, and backend support are deliberately deferred.</p>
      */
-    ARG_MAX
+    ARG_MAX;
+
+    private static final List<OperationSignature> SUM_MEAN_SIGNATURES = List.of(
+            OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+            OperationSignature.fixed(AxisReductionAttrs.class, 1, 1),
+            OperationSignature.fixed(MaskedReductionAttrs.class, 2, 1));
+    private static final List<OperationSignature> ORDINARY_SIGNATURES = List.of(
+            OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+            OperationSignature.fixed(AxisReductionAttrs.class, 1, 1));
+    private static final List<OperationSignature> ARG_MAX_SIGNATURES =
+            List.of(OperationSignature.fixed(ArgMaxAttrs.class, 1, 1));
+
+    /**
+     * Returns the exact structural variants accepted by this aggregate reduction kind.
+     *
+     * @return the stable masked-capable variants for {@link #SUM} and {@link #MEAN}, the stable
+     *     arg-max variant for {@link #ARG_MAX}, or the stable ordinary full/axis variants
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return switch (this) {
+            case SUM, MEAN -> SUM_MEAN_SIGNATURES;
+            case ARG_MAX -> ARG_MAX_SIGNATURES;
+            case PROD, MIN, MAX, ALL, ANY -> ORDINARY_SIGNATURES;
+        };
+    }
 }

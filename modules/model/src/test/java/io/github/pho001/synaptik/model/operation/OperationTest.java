@@ -111,13 +111,83 @@ class OperationTest {
                 () -> assertTrue(text.contains("keepDimensions=true")));
     }
 
+    @Test
+    void resolvesStableSignatureAndRejectsAnIncompatibleAttributesClass() {
+        Operation operation =
+                new Operation(SampleKind.SAMPLE, new SampleAttrs(2, true));
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> new Operation(OtherSampleKind.SAMPLE, new SampleAttrs(2, true)));
+
+        assertAll(
+                () -> assertSame(operation.signature(), operation.signature()),
+                () -> assertSame(SampleAttrs.class, operation.signature().attributesType()),
+                () -> assertTrue(failure.getMessage().contains("OtherSampleKind.SAMPLE")),
+                () -> assertTrue(failure.getMessage().contains(SampleAttrs.class.getName())),
+                () -> assertTrue(
+                        failure.getMessage().contains(NoOperationAttrs.class.getName())));
+    }
+
+    @Test
+    void failsClosedForMissingOrDuplicateKindSignatures() {
+        assertAll(
+                () -> assertThrows(
+                        IllegalStateException.class,
+                        () -> new Operation(EmptyKind.EMPTY, NoOperationAttrs.INSTANCE)),
+                () -> assertThrows(
+                        IllegalStateException.class,
+                        () -> new Operation(DuplicateKind.DUPLICATE, NoOperationAttrs.INSTANCE)));
+    }
+
     private enum SampleKind implements OperationKind {
         SAMPLE,
-        OTHER
+        OTHER;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(
+                OperationSignature.fixed(SampleAttrs.class, 1, 1),
+                OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 
     private enum OtherSampleKind implements OperationKind {
-        SAMPLE
+        SAMPLE;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
+    }
+
+    private enum EmptyKind implements OperationKind {
+        EMPTY;
+
+        private static final List<OperationSignature> SIGNATURES = List.of();
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
+    }
+
+    private enum DuplicateKind implements OperationKind {
+        DUPLICATE;
+
+        private static final List<OperationSignature> SIGNATURES = List.of(
+                OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+                OperationSignature.fixed(NoOperationAttrs.class, 2, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 
     private record SampleAttrs(int axis, boolean keepDimensions) implements OperationAttrs {}

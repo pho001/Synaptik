@@ -88,17 +88,38 @@ Its completed implementation frontier is:
 - [0018J Scatter-ND Tensor expression](modules/model/tasks/0018j-scatter-nd-tensor-expression.md)
   — Complete.
 
+The latest completed implementation frontier is:
+
+- [0018K Operation signature and construction hardening](modules/model/tasks/0018k-operation-signature-and-construction-hardening.md)
+  — Complete.
+
 The next planning frontier is:
 
-- 0019 Linear algebra and attention operations — Draft without a detailed specification.
+- 0018L Shared multi-output Tensor provenance — Draft without a detailed specification.
+
+The capability-reset audit found that operation validity, shared multi-output provenance,
+symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
+be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Task 0018K has
+the only detailed reset-task specification and is complete; task 0018L and later rows remain
+Draft.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J are complete; all later tasks remain Draft without detailed
-specifications.
+expressions. Tasks 0018A through 0018J are complete. Task 0018K is also complete; tasks 0018L and
+later remain Draft without detailed specifications.
+
+Task [0018K](modules/model/tasks/0018k-operation-signature-and-construction-hardening.md) is
+complete with exact family-owned attribute variants and inclusive local input/output occurrence
+cardinality. `Operation` now rejects incompatible kind/attributes pairs and derives its signature;
+`CompiledNode` validates final local counts after its existing list checks. Independent
+documentation review finalized affected Javadocs, Tensor API, Compile API, glossary, task
+evidence, model master plan, and roadmap after the final 743-test/86-suite model run, model
+Javadoc, 413-link/110-anchor Markdown, fence/final-newline, scope, and whitespace checks passed.
+Operand-aware and graph-wide validation, compiler/backend/runtime behavior, and shared
+multi-output Tensor provenance remain deferred to their owning work.
 
 Task [0018A](modules/model/tasks/0018a-scalar-select-semantics.md) is complete with the exact
 `SELECT` identity and normalized scalar axis/index attributes. Its independent documentation
@@ -207,6 +228,14 @@ Java 26 example, 442-link/134-anchor Markdown, fence/whitespace/newline, exact t
 semantic-bytecode-equivalence, and no-task-0019-spec checks passed. Index/update values, bounds,
 duplicates, writes/reductions, gradients, compiler behavior, lowering, backend behavior, and
 execution remain separately owned.
+
+The post-0018 capability-reset audit found no architecture conflict, but it rejected blanket
+legacy parity as the next-step rule. It initially inserted Draft tasks 0018K–0018V for operation
+validity,
+multi-output provenance, symbolic extents, typed scalars, public-taxonomy cleanup, and missing core
+numeric/reduction semantics. Linear algebra moves behind those dependencies. Completed task
+history remains unchanged; the cleanup rows explicitly own any future replacement of provisional
+APIs implemented by completed tasks.
 
 Task [0014B Binary arithmetic Tensor expressions](modules/model/tasks/0014b-binary-arithmetic-tensor-expressions.md)
 is complete. Its explicitly authorized tenth path corrected the Compile API status without adding
@@ -450,12 +479,27 @@ authorized Compile API status correction.
 | 76 | [0018H Axis scatter Tensor expressions](modules/model/tasks/0018h-axis-scatter-tensor-expressions.md) | Complete |
 | 77 | [0018I Scatter-ND semantics](modules/model/tasks/0018i-scatter-nd-semantics.md) | Complete |
 | 78 | [0018J Scatter-ND Tensor expression](modules/model/tasks/0018j-scatter-nd-tensor-expression.md) | Complete |
-| 79 | 0019 Linear algebra and attention operations | Draft |
-| 80 | 0020 Convolution and pooling operations | Draft |
-| 81 | 0021 Normalization operations | Draft |
-| 82 | 0022 Loss operations | Draft |
-| 83 | 0023 Compiler-generated semantic operations | Draft |
-| 84 | 0024 Model capability parity audit | Draft |
+| 79 | [0018K Operation signature and construction hardening](modules/model/tasks/0018k-operation-signature-and-construction-hardening.md) | Complete |
+| 80 | 0018L Shared multi-output Tensor provenance | Draft |
+| 81 | 0018M Symbolic extent expressions | Draft |
+| 82 | 0018N Typed scalar value contract | Draft |
+| 83 | 0018O Indexing taxonomy and unstack normalization | Draft |
+| 84 | 0018P Elementwise semantic cleanup | Draft |
+| 85 | 0018Q Masked reduction redesign | Draft |
+| 86 | 0018R Slice and window public-contract cleanup | Draft |
+| 87 | 0018S Tensor factory surface cleanup | Draft |
+| 88 | 0018T Core scalar and unary numeric gaps | Draft |
+| 89 | 0018U Integral arithmetic and comparison domains | Draft |
+| 90 | 0018V Multi-axis and statistical reductions | Draft |
+| 91 | 0019 Linear algebra and attention operations | Draft |
+| 92 | 0019A Modern activation and embedding conveniences | Draft |
+| 93 | 0019B Explicit graph RNG and dropout | Draft |
+| 94 | 0019C Sorting and top-K operations | Draft |
+| 95 | 0020 Convolution and pooling operations | Draft |
+| 96 | 0021 Normalization operations | Draft |
+| 97 | 0022 Loss operations | Draft |
+| 98 | 0023 Compiler-generated semantic operations | Draft |
+| 99 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -503,8 +547,9 @@ decomposed into 0017A–0017N plus 0017D1 and 0017F1; 0017A through 0017F, inclu
 complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N are also
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
-also complete. Tasks 0018I and 0018J are complete. Every later task remains Draft without a
-detailed specification.
+also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
+before 0019. Task 0018K is complete; 0018L is the next Draft frontier without a detailed
+specification, and every later task remains Draft.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

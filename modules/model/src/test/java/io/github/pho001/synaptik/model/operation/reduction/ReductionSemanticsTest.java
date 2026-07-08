@@ -13,6 +13,7 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -75,7 +76,8 @@ class ReductionSemanticsTest {
 
     @Test
     void exposesOnlyTheExactEnumShapes() {
-        assertEnumShape(AggregateReductionKind.class, List.of(OperationKind.class));
+        io.github.pho001.synaptik.model.operation.OperationSignatureTest
+                .assertSignatureEnumShape(AggregateReductionKind.class);
         assertEnumShape(ArgMaxTiePolicy.class, List.of());
     }
 
@@ -326,6 +328,14 @@ class ReductionSemanticsTest {
     }
 
     private enum OtherKind implements OperationKind {
-        MIN
+        MIN;
+
+        private static final List<OperationSignature> SIGNATURES =
+                List.of(OperationSignature.fixed(AxisReductionAttrs.class, 1, 1));
+
+        @Override
+        public List<OperationSignature> signatures() {
+            return SIGNATURES;
+        }
     }
 }

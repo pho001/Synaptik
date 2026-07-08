@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.index;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies the three backend-independent meanings for indexing tensor data along one axis with
@@ -26,8 +28,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  *       result shape is {@code [2, 7, 4]}, subject to public non-axis compatibility checks.</li>
  * </ul>
  *
- * <p>All three kinds pair explicitly with {@link IndexAxisAttrs}; the generic operation
- * descriptor does not enforce those pairings or the ordered two-input context. Axis gather is
+ * <p>All three kinds pair explicitly with {@link IndexAxisAttrs}; their family-owned signatures
+ * enforce that exact pairing and declare the ordered two-input, one-output occurrence. Axis
+ * gather is
  * distinct from scalar {@link SelectKind#SELECT}, whose coordinate is an intrinsic scalar and
  * removes an axis, and from gather-ND, which uses multi-axis index tuples. It is also distinct
  * from functional scatter, which writes or combines updates rather than reading indexed data.</p>
@@ -71,5 +74,18 @@ public enum AxisGatherKind implements OperationKind {
      * to public non-axis compatibility checks. This kind performs neither those checks nor value
      * selection.</p>
      */
-    TAKE_ALONG_AXIS
+    TAKE_ALONG_AXIS;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(IndexAxisAttrs.class, 2, 1));
+
+    /**
+     * Returns the shared two-input, one-output axis-indexing signature.
+     *
+     * @return the stable immutable singleton signature list accepting {@link IndexAxisAttrs}
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }

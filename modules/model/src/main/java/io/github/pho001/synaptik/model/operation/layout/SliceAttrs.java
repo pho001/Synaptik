@@ -29,7 +29,7 @@ import java.util.Objects;
  * constrains no axes. Starts may equal or exceed their paired ends because this record does not
  * calculate an extent.</p>
  *
- * <p>A future single-axis convenience is represented by one entry with step one, for example
+ * <p>The current single-axis convenience is represented by one entry with step one, for example
  * {@code new SliceAttrs(List.of(fromInclusive), List.of(toExclusive),
  * List.of(normalizedAxis), List.of(1L))}; it does not require another kind. Generated text is
  * diagnostic only, not request syntax, serialization, compiler canonical form, ONNX mapping, or

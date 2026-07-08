@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.model.operation.layout;
 
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.OperationSignature;
+import java.util.List;
 
 /**
  * Identifies backend-independent, one-input transformations whose intrinsic parameter is an
@@ -13,9 +15,9 @@ import io.github.pho001.synaptik.model.operation.OperationKind;
  * Operation expand = new Operation(ShapeTransformKind.EXPAND, attrs);
  * }</pre>
  *
- * <p>The generic {@code Operation} descriptor checks only that its kind and attributes are
- * non-null; it does not enforce these family-specific pairings. One-input arity and target-shape
- * compatibility are likewise family context rather than enum metadata. This enum stores no
+ * <p>Family-owned signatures enforce these exact pairings and declare one input and one output.
+ * Target-shape compatibility remains input-aware validation outside the signature. This enum
+ * stores no
  * input, target shape, result descriptor, layout, materialization requirement, or graph-occurrence
  * state.</p>
  *
@@ -44,5 +46,18 @@ public enum ShapeTransformKind implements OperationKind {
      * stores input dimensions nor validates broadcasting. It also does not choose zero-stride
      * geometry, aliasing or materialization, define gradients, or execute the transformation.</p>
      */
-    EXPAND
+    EXPAND;
+
+    private static final List<OperationSignature> SIGNATURES =
+            List.of(OperationSignature.fixed(TargetShapeAttrs.class, 1, 1));
+
+    /**
+     * Returns the shared target-shape one-input, one-output structural signature.
+     *
+     * @return the stable immutable singleton signature list
+     */
+    @Override
+    public List<OperationSignature> signatures() {
+        return SIGNATURES;
+    }
 }
