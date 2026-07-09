@@ -13,7 +13,8 @@ import java.util.List;
  * {@link #ALL}, and {@link #ANY} pair with {@link NoOperationAttrs#INSTANCE}. Their single-axis
  * forms pair with {@link AxisReductionAttrs}, whose axis is already normalized and non-negative.
  * Masked, axis-removing {@link #SUM} and {@link #MEAN} forms pair with
- * {@link MaskedReductionAttrs}; their later ordered provenance is {@code [input, mask]}.
+ * {@link MaskedReductionAttrs}; their ordered provenance is {@code [input, mask]}, and the mask
+ * must use ordinary right-aligned broadcasting to produce exactly the input Shape.
  * {@link #ARG_MAX} pairs only with {@link ArgMaxAttrs} because choosing among equal maxima is part
  * of that operation's semantics. Family-owned signatures enforce these exact pairings and declare
  * one input for ordinary forms or two ordered inputs for masked forms.</p>
@@ -30,8 +31,10 @@ public enum AggregateReductionKind implements OperationKind {
      *
      * <p>The full form pairs with {@link NoOperationAttrs#INSTANCE}; a single-axis form pairs with
      * {@link AxisReductionAttrs}. A masked axis-removing form pairs with
-     * {@link MaskedReductionAttrs}: false mask positions exclude their aligned input values, and
-     * selecting no values produces zero. Mask-shape resolution, input and output types,
+     * {@link MaskedReductionAttrs}: false broadcast mask positions exclude their input values
+     * before aggregation, including NaN and infinity, and selecting no values produces floating
+     * zero. Callers express non-right-aligned intent through visible Shape transformations. Input
+     * and output types,
      * accumulation order and precision, gradients, execution, and backend support are deliberately
      * deferred.</p>
      */
@@ -42,10 +45,12 @@ public enum AggregateReductionKind implements OperationKind {
      *
      * <p>The full form pairs with {@link NoOperationAttrs#INSTANCE}; a single-axis form pairs with
      * {@link AxisReductionAttrs}. A masked axis-removing form pairs with
-     * {@link MaskedReductionAttrs}: false mask positions are excluded, the denominator is the
-     * selected true-count for each output, and a zero selected-count produces zero. Mask-shape
-     * resolution, input and output types, accumulation policy, gradients, execution, and backend
-     * support are deliberately deferred.</p>
+     * {@link MaskedReductionAttrs}: false broadcast mask positions are excluded before
+     * aggregation, including positions whose input is NaN or infinity; the denominator is the
+     * selected true-count for each output, and a zero selected-count produces NaN in the result
+     * floating type. Callers express non-right-aligned intent through visible Shape
+     * transformations. NaN payload, input and output validation, accumulation policy, gradients,
+     * execution, and backend support are deliberately deferred.</p>
      */
     MEAN,
 

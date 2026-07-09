@@ -80,8 +80,10 @@ import java.util.Optional;
  * they preserve the exact input type and gradient eligibility without aggregating values. Boolean
  * aggregate methods require exact BOOL input and construct non-differentiable BOOL results with
  * the same full- or single-axis shape rules, without inspecting truth values or defining
- * empty-domain identities. Masked sum and mean accept an ordered BOOL mask alignment, remove one
- * axis, and record exact {@code [input, mask]} provenance without inspecting values. Arg-max
+ * empty-domain identities. Masked sum and mean require a BOOL mask whose ordinary right-aligned
+ * broadcast is exactly the input Shape, remove one axis, and record exact {@code [input, mask]}
+ * provenance without inspecting values. False positions exclude even NaN and infinity before
+ * aggregation; an empty selected set means zero for sum and NaN for mean. Arg-max
  * accepts one axis of a floating or integral input, uses an explicit first- or last-index tie
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
  * defining empty-axis behavior. Axis gather methods consume ordered {@code [data, indices]}
@@ -1268,19 +1270,20 @@ public final class Tensor {
      * Builds a masked sum expression over one axis and removes that axis.
      *
      * <p>This tensor must be floating and {@code mask} must have exact {@link DataType#BOOL} type.
-     * Mask dimensions align in order to distinct increasing input axes. Equal dimensions are
-     * compatible, while a static mask singleton may align to any input dimension; omitted input
-     * axes broadcast implicitly. A mapping covering the normalized reduction axis is preferred,
-     * followed by minimum positional displacement and lexicographic axis order. For example, a
-     * mask {@code [batch, time]} maps to axes {@code [0, 1]} of input
-     * {@code [batch, time, features]} when reducing axis one: mask axis zero is {@code batch},
-     * mask axis one is {@code time}, and input axis two ({@code features}) is broadcast.</p>
+     * Ordinary right-aligned broadcasting of the mask Shape must produce exactly this tensor's Shape. A
+     * compatible broadcast that would add a leading axis or enlarge this input is rejected. If a
+     * mask shaped {@code [batch, time]} is intended for the first two axes of input
+     * {@code [batch, time, features]}, the caller makes that intent visible first with
+     * {@code mask.expandDims(2)}, producing {@code [batch, time, 1]}; this method never guesses
+     * alignment or inserts a hidden Shape transformation.</p>
      *
      * <p>The normalized axis is removed, with every unaffected Dimension reference retained. The
      * fresh result preserves this tensor's exact data type and gradient eligibility, leaves layout
      * unresolved, has no label or host storage, and records {@link AggregateReductionKind#SUM},
-     * masked attributes, and exact ordered provenance {@code [this, mask]}. A false aligned mask
-     * position excludes its input value, and selecting no values means zero.</p>
+     * masked attributes, and exact ordered provenance {@code [this, mask]}. A false broadcast mask
+     * position excludes its input before aggregation, including NaN and infinity, and a slice
+     * selecting no values produces floating zero. Static zero-sized reduction axes have the same
+     * empty result; runtime zero-sized or all-false dynamic slices follow this semantic contract.</p>
      *
      * <p>This method does not mutate either tensor, inspect values or storage, materialize a mask,
      * sum values, create a gradient rule, capture a graph, or execute work. Preserved gradient
@@ -1288,17 +1291,17 @@ public final class Tensor {
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
-     * @param mask non-null BOOL tensor whose dimensions must admit an ordered alignment to this
-     *     tensor; ownership remains with the caller and the exact reference is retained only in
-     *     immutable provenance
+     * @param mask non-null BOOL tensor whose Shape must use ordinary right-aligned broadcasting to
+     *     produce exactly this tensor's Shape; ownership remains with the caller and the exact
+     *     reference is retained only in immutable provenance
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
      *     floating data type and gradient eligibility, unresolved layout, and exact two-input
      *     provenance
      * @throws NullPointerException if {@code mask} is null, with message {@code mask}; no Tensor
      *     identity is consumed
      * @throws IllegalArgumentException if this tensor is not floating, the mask is not BOOL, the
-     *     mask rank exceeds the input rank, or no locally provable ordered alignment exists; these
-     *     failures consume no Tensor identity
+     *     Shapes contain an incompatible aligned pair, or their broadcast does not equal this
+     *     tensor's Shape; these failures consume no Tensor identity
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input; type checks precede axis validation
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1394,19 +1397,21 @@ public final class Tensor {
      * Builds a masked arithmetic-mean expression over one axis and removes that axis.
      *
      * <p>This tensor must be floating and {@code mask} must have exact {@link DataType#BOOL} type.
-     * Each mask dimension maps in order to a distinct increasing input axis when it equals that
-     * input dimension or is a static singleton. Omitted axes broadcast implicitly. Resolution
-     * prefers a mapping containing the normalized reduction axis, then minimum positional
-     * displacement, then lexicographic axis order. For input
-     * {@code [batch, time, features]} reduced on axis one, mask {@code [batch, time]} maps to input
-     * axes {@code [0, 1]}; its axes represent {@code batch} and {@code time}, while input axis two
-     * ({@code features}) is the implicit broadcast axis.</p>
+     * Ordinary right-aligned broadcasting of the mask Shape must produce exactly this tensor's Shape. A
+     * compatible broadcast that would add a leading axis or enlarge this input is rejected. For
+     * input {@code [batch, time, features]} reduced on axis one, a mask
+     * {@code [batch, time]} does not implicitly address the first two axes: the caller first uses
+     * {@code mask.expandDims(2)} to produce {@code [batch, time, 1]}. The transformed Tensor is
+     * then the exact second producer input.</p>
      *
      * <p>The result removes the normalized axis and retains every unaffected Dimension reference.
      * It is a fresh, unlabeled, storage-free tensor with this input's exact data type and gradient
      * eligibility, unresolved layout, {@link AggregateReductionKind#MEAN}, masked attributes, and
      * ordered provenance {@code [this, mask]}. False positions are excluded; each output divides
-     * by its selected true-count, and a zero selected-count means zero.</p>
+     * by its selected true-count. A zero selected-count produces NaN in the existing floating
+     * result type, without a promised payload or bit pattern. Static zero-sized reduction axes
+     * and runtime zero-sized or all-false dynamic slices follow the same NaN contract. False mask
+     * positions exclude even NaN and infinity before aggregation.</p>
      *
      * <p>No values, counts, or storage are read, and neither input is mutated. This method does not
      * materialize alignment, divide values, define a gradient rule, capture a graph, or provide
@@ -1414,17 +1419,17 @@ public final class Tensor {
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
-     * @param mask non-null BOOL tensor whose dimensions must admit an ordered alignment to this
-     *     tensor; ownership remains with the caller and the exact reference is retained only in
-     *     immutable provenance
+     * @param mask non-null BOOL tensor whose Shape must use ordinary right-aligned broadcasting to
+     *     produce exactly this tensor's Shape; ownership remains with the caller and the exact
+     *     reference is retained only in immutable provenance
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
      *     floating data type and gradient eligibility, unresolved layout, and exact two-input
      *     provenance
      * @throws NullPointerException if {@code mask} is null, with message {@code mask}; no Tensor
      *     identity is consumed
      * @throws IllegalArgumentException if this tensor is not floating, the mask is not BOOL, the
-     *     mask rank exceeds the input rank, or no locally provable ordered alignment exists; these
-     *     failures consume no Tensor identity
+     *     Shapes contain an incompatible aligned pair, or their broadcast does not equal this
+     *     tensor's Shape; these failures consume no Tensor identity
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input; type checks precede axis validation
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable

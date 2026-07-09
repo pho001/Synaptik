@@ -108,8 +108,16 @@ Task 0018P completed one atomic migration to the exact thirteen-kind unary vocab
 aliases. It preserves typed scalar semantics and leaves missing scalar operations plus `rsqrt`,
 `log1p`, `expm1`, and diagnostics to Draft task 0018T.
 
-Task 0018Q is the next Draft frontier. It and every later task remain without a detailed
-specification.
+Task [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) is complete. Task 0018R and
+every later task remain Draft without a detailed specification.
+
+Task 0018Q removed heuristic mask-axis placement, retained first-class two-input masked SUM/MEAN,
+and requires ordinary right-aligned broadcasting to produce exactly the input Shape. Callers make
+other axis intent visible with Shape/rank edits. The implementation context passed the exact
+focused command and all 720 model tests across 88 suites; independent documentation review
+completed the four Javadocs, Tensor/Compile APIs, glossary and planning synchronization, runnable
+explicit-alignment example, generated-Javadoc, Markdown, official-link, exact-scope, status,
+terminology, and whitespace validation.
 
 Task 0018O finalized canonical Gather, Gather Elements, Scatter Elements, and repeated-SELECT
 unstack without compatibility aliases or first-class unstack/fixed-add kinds. Its implementation
@@ -120,15 +128,14 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018P are complete. Task 0018Q and later rows remain Draft without detailed
-specifications.
+through 0018Q are complete. Task 0018R and later rows remain Draft without detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J and tasks 0018K through 0018P are complete. Task 0018Q is
+expressions. Tasks 0018A through 0018J and tasks 0018K through 0018Q are complete. Task 0018R is
 the next Draft frontier without a detailed specification; later tasks remain Draft.
 
 Task [0018M](modules/model/tasks/0018m-symbolic-extent-expressions.md) is complete with canonical
@@ -545,7 +552,7 @@ authorized Compile API status correction.
 | 83 | [0018N Typed scalar value contract](modules/model/tasks/0018n-typed-scalar-value-contract.md) | Complete |
 | 84 | [0018O Indexing taxonomy and unstack normalization](modules/model/tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete |
 | 85 | [0018P Elementwise semantic cleanup](modules/model/tasks/0018p-elementwise-semantic-cleanup.md) | Complete |
-| 86 | 0018Q Masked reduction redesign | Draft |
+| 86 | [0018Q Masked reduction redesign](modules/model/tasks/0018q-masked-reduction-redesign.md) | Complete |
 | 87 | 0018R Slice and window public-contract cleanup | Draft |
 | 88 | 0018S Tensor factory surface cleanup | Draft |
 | 89 | 0018T Core scalar and unary numeric gaps | Draft |
@@ -608,7 +615,7 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018P are complete; 0018Q is the next Draft frontier without a
+before 0019. Tasks 0018K through 0018Q are complete; 0018R is the next Draft frontier without a
 detailed specification, while every later task remains Draft without one.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding

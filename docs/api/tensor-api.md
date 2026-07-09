@@ -217,7 +217,7 @@ BooleanLogicalKind                                            = three parameterl
 WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
 AggregateReductionKind + reduction attributes                = full/axis aggregate semantics + arg-max tie policy
-SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordered mask-axis mapping
+SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordinary broadcast mask
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
@@ -296,15 +296,15 @@ boolean all and any reductions, and index-producing arg-max. `AxisReductionAttrs
 already normalized non-negative axis plus a retained-dimension choice for ordinary single-axis
 forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negative axis sentinel
 means "all axes." `ArgMaxAttrs` carries the normalized axis, retained-dimension choice, and an
-explicit `ArgMaxTiePolicy`. `MaskedReductionAttrs` carries a normalized reduction axis plus an
-immutable ordered mapping from mask dimensions to input axes for masked, axis-removing `SUM` and
-`MEAN`. These reduction semantics are implemented, and public Tensor reduction
+explicit `ArgMaxTiePolicy`. `MaskedReductionAttrs` carries only the normalized reduction axis for
+masked, axis-removing `SUM` and `MEAN`. These reduction semantics are implemented, and public Tensor reduction
 methods currently cover `sum`, `mean`, `prod`, reduction `min`, reduction `max`, boolean `all`,
 boolean `any`, and numeric `argMax`. Ordinary full forms produce a canonical rank-zero scalar;
 all axis forms normalize the caller axis, then remove it or retain it with extent one. `argMax`
 has no full form, accepts floating and integral inputs, and produces fixed INT64 results.
-Masked `sum(axis, mask)` and `mean(axis, mask)` resolve their ordered Shape mapping locally,
-remove the selected axis, and record exact `[input, mask]` provenance.
+Masked `sum(axis, mask)` and `mean(axis, mask)` require ordinary right-aligned broadcasting to
+produce exactly the input Shape, remove the selected axis, and record exact `[input, mask]`
+provenance.
 Numerical or truth evaluation, ordinary empty-domain behavior, gradients, and execution also
 remain planned.
 `CumulativeSumKind.CUM_SUM` and `CumulativeSumAttrs` provide the distinct shape-preserving scan
@@ -2991,36 +2991,40 @@ an exact BOOL mask:
 | `sum(axis, mask)` | `AggregateReductionKind.SUM` | Removed |
 | `mean(axis, mask)` | `AggregateReductionKind.MEAN` | Removed |
 
-Mask alignment is an ordered injection rather than ordinary right-aligned broadcasting. Each mask
-dimension maps to one distinct, increasing input-axis position. Equal immutable dimensions are
-compatible, and a static mask singleton may align to any input dimension; input axes omitted by
-the mapping broadcast implicitly. Among valid mappings, construction first prefers one containing
-the normalized reduction axis, then the smallest total positional displacement, then the
-lexicographically smallest input-axis list. A scalar mask therefore maps to the empty list.
+The mask uses the same ordinary right-aligned broadcasting rule as other model expressions, but
+the relationship is directional: `broadcast(inputShape, maskShape)` must equal `inputShape`.
+The mask may use trailing dimensions and singleton expansion, but it may not add a leading axis
+or enlarge an input singleton. A scalar mask broadcasts to the complete input. Equal symbolic or
+expression dimensions are accepted when the existing local Shape rule can prove equality.
 
-For input `[batch, time, features]`, mask `[batch, time]`, and reduction axis `1`, the selected
-mapping is `[0, 1]`: mask axis `0` maps to input axis `0` (`batch`), mask axis `1` maps to input
-axis `1` (`time`), and omitted input axis `2` (`features`) is an implicit broadcast dimension. The
-result removes `time` and has shape `[batch, features]`.
+Right alignment does not infer semantic axis intent. For input `[batch, time, features]`, a mask
+shaped `[batch, time]` generally compares `time` with `features` and is rejected. A caller that
+means the first two axes inserts a trailing singleton explicitly, producing
+`[batch, time, 1]`. That rank-edit expression remains visible as the exact mask producer consumed
+by the reduction.
 
 Every valid call returns a fresh Tensor with the input's exact floating data type and gradient
 eligibility, unresolved layout, no label, and no host storage. Its operation carries
-`MaskedReductionAttrs(normalizedAxis, mapping)`, and provenance retains exact ordered references
-`[input, mask]`. The mask's gradient eligibility does not affect the result.
+`MaskedReductionAttrs(normalizedAxis)`, and provenance retains exact ordered references
+`[input, alignedMask]`. The mask's gradient eligibility does not affect the result.
 
 The semantic meaning excludes false mask positions. Masked sum produces zero when no value is
-selected. Masked mean divides each output by its selected true-count and also produces zero when
-that count is zero. Expression construction records those rules but does not align storage,
-materialize a mask, inspect values, count positions, aggregate, divide, create a gradient rule,
-capture a graph, or execute work.
+selected. Masked mean divides each output by its selected true-count and produces NaN when that
+count is zero; no NaN payload or bit pattern is promised. False positions exclude their input
+before aggregation, including NaN and infinity. A static zero-sized reduction axis therefore
+produces zero for every masked-sum slice and NaN for every masked-mean slice. A runtime zero-sized
+or all-false dynamic slice follows the same semantic rule. Expression construction records these
+rules but does not align storage, materialize a mask, inspect values, count positions, aggregate,
+divide, create a gradient rule, capture a graph, or execute work.
 
 #### Complete masked-reduction example
 
 ##### Goal and inputs
 
 Build masked sum and mean metadata for a storage-free `FLOAT32` input shaped
-`[batch, time, 4]` and a BOOL mask shaped `[batch, time]`. The example observes mapping, result
-shape, and provenance; it does not calculate aggregate values.
+`[batch, time, 4]` and a BOOL mask initially shaped `[batch, time]`. The example makes the mask's
+intended axes explicit with `expandDims(2)`, then observes both producer boundaries and the
+masked-reduction result metadata. It does not calculate aggregate values.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -3048,18 +3052,21 @@ public final class MaskedReductionExpressionExample {
                 Optional.empty(),
                 false));
 
-        Tensor sum = input.sum(1, mask);
-        Tensor mean = input.mean(-2, mask);
+        Tensor alignedMask = mask.expandDims(2);
+        Tensor sum = input.sum(1, alignedMask);
+        Tensor mean = input.mean(-2, alignedMask);
         MaskedReductionAttrs attrs =
                 (MaskedReductionAttrs) sum.provenance().orElseThrow().operation().attrs();
 
+        System.out.println("alignedMaskShape=" + alignedMask.descriptor().shape());
         System.out.println("sumShape=" + sum.descriptor().shape());
         System.out.println("meanShape=" + mean.descriptor().shape());
         System.out.println("axis=" + attrs.axis());
-        System.out.println("mapping=" + attrs.maskInputAxes());
+        System.out.println("rankEditInput="
+                + (alignedMask.provenance().orElseThrow().inputs().get(0) == mask));
         System.out.println("orderedInputs="
                 + (sum.provenance().orElseThrow().inputs().get(0) == input
-                && sum.provenance().orElseThrow().inputs().get(1) == mask));
+                && sum.provenance().orElseThrow().inputs().get(1) == alignedMask));
         System.out.println("metadata="
                 + (sum.descriptor().dataType() == DataType.FLOAT32
                 && sum.descriptor().requiresGrad()
@@ -3072,40 +3079,47 @@ public final class MaskedReductionExpressionExample {
 
 ##### Meaningful lines and intermediate results
 
+- `expandDims(2)` inserts a trailing singleton, changing the mask Shape from `[batch, time]` to
+  `[batch, time, 1]`. The new Tensor records the original mask as its rank-edit producer input.
+- Ordinary right alignment now compares `batch` with `batch`, `time` with `time`, and singleton
+  `1` with feature extent `4`, so the mask broadcasts exactly to the input Shape.
 - Both `1` and `-2` normalize to input axis `1`, the `time` axis.
-- The equal `batch` and `time` dimensions map to input axes `[0, 1]`. Input axis `2`, extent
-  `4`, is omitted and broadcasts implicitly.
 - Removing input axis `1` produces `[batch, 4]`. The exact `batch` dimension object is retained.
-- Provenance stores the input first and mask second. Only the input supplies result type and
-  gradient eligibility.
+- The masked operation's provenance stores the input first and the exact `alignedMask` Tensor
+  second. Only the input supplies result type and gradient eligibility.
 
 ##### Result and interpretation
 
 The program prints:
 
 ```text
+alignedMaskShape=Shape[batch, time, 1]
 sumShape=Shape[batch, 4]
 meanShape=Shape[batch, 4]
 axis=1
-mapping=[0, 1]
+rankEditInput=true
 orderedInputs=true
 metadata=true
 ```
 
-The output proves local axis normalization, deterministic ordered mapping, axis removal, result
-metadata, and provenance order. It does not prove mask materialization, selected values, a sum or
-mean result, gradient support, compiler capture, backend support, or execution.
+The output proves the caller-visible rank edit, ordinary broadcast-compatible Shape, local axis
+normalization, axis removal, result metadata, and the two producer boundaries. It does not prove
+mask materialization, selected values, a sum or mean result, gradient support, compiler capture,
+backend support, or execution.
 
 ##### Failures and useful variations
 
 - A null mask fails with `NullPointerException`. Integral or BOOL input and every non-BOOL mask
   fail with `IllegalArgumentException`; type checks occur before axis validation.
 - An invalid axis fails with `IndexOutOfBoundsException`, including every axis for a scalar input.
-  Axis validation occurs before mask-rank and alignment validation.
-- Mask rank greater than input rank, or dimensions without a locally provable ordered mapping,
-  fail with `IllegalArgumentException`. No cast, symbolic constraint, or reshape is inserted.
-- Scalar masks, equal-rank masks, zero extents, equal dynamic symbols, and mask-side singleton
-  dimensions are supported structurally. Repeated valid calls remain fresh expressions.
+  Axis validation occurs before mask broadcasting.
+- Incompatible aligned dimensions fail with `IllegalArgumentException`. A compatible broadcast
+  that would enlarge the input or add a leading result axis also fails. No cast, symbolic
+  constraint, reshape, or rank edit is inserted.
+- Scalar masks, equal-rank masks, lower-rank trailing masks, zero extents, equal dynamic symbols,
+  exact equal expressions, reused unknown dimensions, and mask-side singleton dimensions are
+  supported structurally. Distinct unknown dimensions remain locally unprovable. Repeated valid
+  calls remain fresh expressions.
 
 ### Boolean aggregate expressions
 
@@ -5232,7 +5246,7 @@ composition while the table also lists the current production families:
 | `AxisReductionAttrs` | The implemented immutable normalized-axis and retained-dimension value for ordinary single-axis reductions. |
 | `ArgMaxAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value for arg-max. |
 | `ArgMaxTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal maxima. |
-| `MaskedReductionAttrs` | The implemented immutable normalized reduction axis and ordered mask-dimension-to-input-axis mapping for masked, axis-removing sum and mean semantics. |
+| `MaskedReductionAttrs` | The implemented immutable normalized reduction axis for first-class, two-input masked sum and mean semantics. |
 | `CumulativeSumKind` | The implemented production enum whose sole `CUM_SUM` value identifies cumulative addition along one axis. |
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
@@ -5523,24 +5537,17 @@ Family-owned signatures enforce these exact attribute variants. Ordinary forms d
 masked SUM and MEAN declare the ordered two-input occurrence `[input, mask]`; every variant has one
 output.
 
-A masked sum or mean pairs its existing kind with
-`MaskedReductionAttrs(axis, maskInputAxes)`. The axis is already normalized, non-negative, and
-removed from the eventual result. Element `maskInputAxes[i]` gives the input axis aligned with
-mask dimension `i`. For example, mapping `[0, 1]` aligns a mask shaped like `[batch, time]` with
-the first two axes of input `[batch, time, features]`; the omitted features axis is an implicit
-broadcast dimension. Mapping `[0, 2]` instead aligns the same two mask dimensions with the first
-and third input axes. An empty mapping represents a scalar mask.
-
-The mapping must contain non-null, non-negative, strictly increasing input-axis positions. This
-preserves mask-dimension order, prevents duplicate target axes, and permits an immutable snapshot
-without storing Shapes or an expanded mask. `Integer.MAX_VALUE` is structurally valid because the
-attribute cannot know the eventual input rank. Public `Tensor.sum(axis, mask)` and
-`Tensor.mean(axis, mask)` separately resolve and validate input-axis bounds and dimension
-compatibility before constructing the attributes.
+A masked sum or mean pairs its existing kind with `MaskedReductionAttrs(axis)`. The axis is
+already normalized, non-negative, and removed from the eventual result. The attributes store no
+mask, Shape, mapping, or broadcast plan. `Integer.MAX_VALUE` remains structurally valid because
+the attribute cannot know the eventual input rank. Public `Tensor.sum(axis, mask)` and
+`Tensor.mean(axis, mask)` separately normalize the axis and require one ordinary right-aligned
+broadcast whose result equals the input Shape before constructing the attributes.
 
 The public provenance order is `[input, mask]`. False mask positions exclude their aligned input
-values. When no values are selected, a masked sum produces zero. A masked mean divides by the true
-selected-count for each output and produces zero when that count is zero. These are semantic
+values, including NaN and infinity. When no values are selected, a masked sum produces zero. A
+masked mean divides by the true selected-count for each output and produces NaN when that count is
+zero, without promising a NaN payload or bit pattern. These are semantic
 requirements for later execution; constructing `MaskedReductionAttrs` does not inspect a mask,
 count values, divide, derive an output descriptor, or execute computation. The signature matrix
 accepts `MaskedReductionAttrs` only for `SUM` and `MEAN`.
@@ -6905,17 +6912,16 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   described above. `argMax` additionally accepts only floating or integral input, requires an
   explicit policy at its helper boundary, and fixes the result to non-differentiable INT64 without
   defining comparison or empty-axis behavior.
-- `MaskedReductionAttrs` rejects a negative normalized reduction axis before inspecting its
-  mapping. It then rejects a null mapping, a null or negative mapped axis in index order, and a
-  repeated or descending position before copying the validated list. The stored mapping is an
-  immutable snapshot; empty and `Integer.MAX_VALUE` positions are structurally valid. The value
-  records masked SUM/MEAN semantics only and performs no Shape resolution, Tensor construction,
+- `MaskedReductionAttrs` rejects a negative normalized reduction axis with
+  `IllegalArgumentException` and exact message `axis must be non-negative: <axis>`. It retains
+  every non-negative axis without storing a Shape, mask, mapping, or broadcast plan. The value
+  records masked SUM/MEAN semantics only and performs no Shape validation, Tensor construction,
   provenance construction, value selection, counting, or execution. Public masked `sum` and
-  `mean` separately require floating input and an exact BOOL mask, normalize one axis, resolve a
-  locally provable ordered mapping, remove the axis, and construct exact `[input, mask]`
-  provenance. Null, type, axis, rank, and alignment failures occur before result identity
-  allocation. Construction performs no storage alignment, numerical work, gradient rule,
-  compiler behavior, backend behavior, or execution.
+  `mean` separately require floating input and an exact BOOL mask, normalize one axis, require an
+  ordinary right-aligned broadcast whose result equals the input Shape, remove the axis, and
+  construct exact `[input, mask]` provenance. Null, type, axis, and broadcast failures occur
+  before result identity allocation. Construction performs no storage alignment, numerical work,
+  gradient rule, compiler behavior, backend behavior, or execution.
 - `CumulativeSumAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the
   exact message `axis must be non-negative: <axis>`. It retains every non-negative axis and both
   mode flags unchanged. The value itself neither validates an input rank nor constructs or

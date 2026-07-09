@@ -209,7 +209,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018N | [Typed scalar value contract](tasks/0018n-typed-scalar-value-contract.md) | Complete | 0001, 0014E, 0014F, 0017I, 0017J, 0018K | Preserve exact scalar values for the six current data types and atomically make scalar, clamp, padding attributes, and public expression boundaries data-type-safe. |
 | 0018O | [Indexing taxonomy and unstack normalization](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | [Elementwise semantic cleanup](tasks/0018p-elementwise-semantic-cleanup.md) | Complete | 0014C–0014F, 0018K, 0018N | Atomically rename `INV`/`inv` to `RECIPROCAL`/`reciprocal`, remove both fast variants without aliases, and preserve the typed scalar family unchanged. |
-| 0018Q | Masked reduction redesign | Draft | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Replace heuristic mask-axis mapping with explicit broadcasting/composition and decide the all-false mean contract. |
+| 0018Q | [Masked reduction redesign](tasks/0018q-masked-reduction-redesign.md) | Complete | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Remove heuristic mapping, require explicit right-aligned broadcast-to-input masks, retain minimal first-class two-input SUM/MEAN, and define all-false mean as NaN. |
 | 0018R | Slice and window public-contract cleanup | Draft | 0017G–0017N, 0018M | Add negative-step slice semantics, make flip a convenience, and demote `FOLD_AXIS` to compiler-generated use. |
 | 0018S | Tensor factory surface cleanup | Draft | 0012–0012I, 0013A | Keep core construction/import/constants in TensorFactory and move prefix population to test/data utilities. |
 | 0018T | Core scalar and unary numeric gaps | Draft | 0018K, 0018N, 0018P | Add exact scalar add/sub/div/min/max and selected reciprocal, rsqrt, log1p, expm1, and floating diagnostic semantics. |
@@ -268,8 +268,9 @@ values and conservative Shape integration. Task 0018M1 is complete with canonica
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
-final thirteen-kind unary vocabulary. Task 0018Q is the next Draft frontier without a detailed
-specification; later tasks also remain Draft without detailed specifications.
+final thirteen-kind unary vocabulary. Task 0018Q is complete. Task 0018R is the next Draft
+frontier without a detailed specification; later tasks also remain Draft without detailed
+specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -388,8 +389,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   APIs, glossary, capability baseline, task evidence, master plan, and roadmap after model
   Javadoc, the runnable reciprocal example, generated-page and removed-vocabulary checks,
   Markdown structure, exact thirteen-path scope, synchronized status, and whitespace validation.
-- Heuristic masked-reduction axis mapping leaves the baseline. Masked convenience uses explicit
-  broadcasting/composition after all-false mean behavior is selected.
+- Completed task 0018Q removes heuristic masked-reduction axis mapping and simplifies
+  `MaskedReductionAttrs` to one normalized axis. Ordinary right-aligned broadcasting of masks
+  must produce exactly the input Shape, so callers make other axis intent visible with reshape or
+  expansion. The two public overloads remain first-class two-input SUM/MEAN occurrences rather
+  than misleading primitive compositions; all-false sum is zero and all-false mean is NaN.
+- Its implementation context passed the exact focused contract command and all 720 model tests
+  across 88 suites. Independent documentation review finalized the four affected Javadocs,
+  Tensor and Compile APIs, glossary, capability baseline, task evidence, master plan, and roadmap
+  after model Javadoc, the explicit-alignment Java 26 example, generated-page, Markdown,
+  official-URL, exact thirteen-path, synchronized-status, terminology, and whitespace checks
+  passed.
 - Public `inv` becomes `reciprocal`; public `foldAxis` becomes compiler-only FOLD_AXIS; strict and
   cyclic prefix population moves to test/data utilities.
 - FLOAT16 is important before accelerator mixed-precision support is claimed, but it is not a
@@ -1207,8 +1217,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, and 0018P are complete. Task 0018Q is the next Draft
-frontier without a detailed specification. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, and 0018Q are complete. Task 0018R is the next
+Draft frontier without a detailed specification. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1264,7 +1274,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018P are complete; 0018Q is the
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018Q are complete; 0018R is the
 next Draft frontier without a detailed specification, and every later task remains Draft without
 one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each

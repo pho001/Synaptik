@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -42,9 +43,7 @@ class TensorMaskedReductionTest {
         Class<?> helper = TensorMaskedReductionExpressions.class;
         int modifiers = helper.getModifiers();
         var constructors = helper.getDeclaredConstructors();
-        List<Method> methods = Arrays.stream(helper.getDeclaredMethods())
-                .filter(method -> !method.isSynthetic())
-                .toList();
+        List<Method> methods = Arrays.asList(helper.getDeclaredMethods());
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(modifiers)),
@@ -57,7 +56,8 @@ class TensorMaskedReductionTest {
                 () -> assertEquals(1, constructors.length),
                 () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(0, constructors[0].getParameterCount()),
-                () -> assertEquals(5, methods.size()));
+                () -> assertEquals(3, methods.size()),
+                () -> assertTrue(methods.stream().noneMatch(Method::isSynthetic)));
 
         assertHelperMethod(
                 "apply",
@@ -67,19 +67,6 @@ class TensorMaskedReductionTest {
                 Tensor.class,
                 AggregateReductionKind.class,
                 int.class);
-        assertHelperMethod(
-                "resolveMapping",
-                true,
-                List.class,
-                Shape.class,
-                Shape.class,
-                int.class);
-        assertHelperMethod(
-                "compatible",
-                true,
-                boolean.class,
-                Dimension.class,
-                Dimension.class);
         assertHelperMethod("reduceShape", true, Shape.class, Shape.class, int.class);
         assertHelperMethod(
                 "create",
@@ -89,7 +76,6 @@ class TensorMaskedReductionTest {
                 Tensor.class,
                 AggregateReductionKind.class,
                 int.class,
-                List.class,
                 Shape.class);
 
         for (String methodName : List.of("sum", "mean")) {
@@ -107,25 +93,26 @@ class TensorMaskedReductionTest {
     }
 
     @Test
-    void delegatesPublicMethodsToExactKindsAndOrderedInputs() {
+    void delegatesToExactKindsWithOneProducerAndOrderedInputs() {
         Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
-        Tensor mask = tensor(DataType.BOOL, Shape.of(2, 3), false);
+        Tensor mask = tensor(DataType.BOOL, Shape.of(3, 1), false);
 
         Tensor sum = input.sum(1, mask);
         Tensor mean = input.mean(-2, mask);
 
-        assertExpression(
-                sum,
-                input,
-                mask,
-                AggregateReductionKind.SUM,
-                new MaskedReductionAttrs(1, List.of(0, 1)));
-        assertExpression(
-                mean,
-                input,
-                mask,
-                AggregateReductionKind.MEAN,
-                new MaskedReductionAttrs(1, List.of(0, 1)));
+        assertExpression(sum, input, mask, AggregateReductionKind.SUM, 1);
+        assertExpression(mean, input, mask, AggregateReductionKind.MEAN, 1);
+        for (Tensor result : List.of(sum, mean)) {
+            TensorProvenance provenance = result.provenance().orElseThrow();
+            assertAll(
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertEquals(1, provenance.producer().outputDescriptors().size()),
+                    () -> assertSame(result.descriptor(), provenance.outputDescriptor()),
+                    () -> assertSame(
+                            result.descriptor(),
+                            provenance.producer().outputDescriptors().getFirst()));
+        }
     }
 
     @Test
@@ -165,141 +152,172 @@ class TensorMaskedReductionTest {
     }
 
     @Test
-    void resolvesScalarContiguousRightAndNoncontiguousMappings() {
+    void acceptsOrdinaryRightAlignedBroadcastMatrix() {
         Dimension batch = new DynamicDimension("batch");
         Dimension time = new DynamicDimension("time");
         Dimension features = new StaticDimension(4);
-        Tensor input = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(batch, time, features),
-                false);
+        Shape inputShape = Shape.ofDimensions(batch, time, features);
+        Tensor input = tensor(DataType.FLOAT32, inputShape, false);
 
-        assertMapping(input.sum(1, tensor(DataType.BOOL, Shape.scalar(), false)), List.of());
-        assertMapping(
-                input.sum(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(batch, time), false)),
-                List.of(0, 1));
-        assertMapping(
-                input.mean(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(time, features), false)),
-                List.of(1, 2));
-        assertMapping(
-                input.sum(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(batch, features), false)),
-                List.of(0, 2));
+        for (Shape maskShape : List.of(
+                Shape.scalar(),
+                inputShape,
+                Shape.ofDimensions(features),
+                Shape.ofDimensions(time, new StaticDimension(1)),
+                Shape.ofDimensions(batch, time, new StaticDimension(1)))) {
+            Tensor result = input.sum(1, tensor(DataType.BOOL, maskShape, false));
+            assertEquals(new MaskedReductionAttrs(1),
+                    result.provenance().orElseThrow().operation().attrs());
+        }
+
+        Tensor zeroInput = tensor(DataType.FLOAT32, Shape.of(2, 0, 4), false);
+        assertEquals(
+                Shape.of(2, 4),
+                zeroInput.mean(1, tensor(DataType.BOOL, Shape.of(0, 1), false))
+                        .descriptor().shape());
+
+        Dimension expression = DimensionExpressions.addConstant(
+                new DynamicDimension("N"), 2);
+        Tensor expressionInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(expression, features), false);
+        Shape equalExpressionMask = Shape.ofDimensions(
+                DimensionExpressions.add(
+                        new StaticDimension(2), new DynamicDimension("N")),
+                new StaticDimension(1));
+        assertEquals(
+                Shape.ofDimensions(features),
+                expressionInput.sum(
+                                0, tensor(DataType.BOOL, equalExpressionMask, false))
+                        .descriptor().shape());
+
+        Dimension unknown = DimensionExpressions.unknown(0, Optional.empty());
+        Tensor unknownInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(unknown, features), false);
+        assertEquals(
+                Shape.ofDimensions(features),
+                unknownInput.mean(
+                                0,
+                                tensor(
+                                        DataType.BOOL,
+                                        Shape.ofDimensions(unknown, new StaticDimension(1)),
+                                        false))
+                        .descriptor().shape());
     }
 
     @Test
-    void prefersAxisCoverageThenDisplacementAndDeterministicAxisOrder() {
-        Dimension repeated = new DynamicDimension("N");
-        Tensor repeatedInput = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(repeated, repeated, repeated, repeated),
-                false);
+    void rejectsNonRightAlignedAndInputEnlargingMasks() {
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
+        Tensor nonRightAligned = tensor(DataType.BOOL, Shape.of(2, 3), false);
+        IllegalArgumentException incompatible = assertThrows(
+                IllegalArgumentException.class, () -> input.sum(1, nonRightAligned));
+        assertEquals(
+                "Cannot broadcast dimensions StaticDimension[size=3]"
+                        + " and StaticDimension[size=2] at result axis 1 for"
+                        + " Shape[2, 3, 4] and Shape[2, 3]",
+                incompatible.getMessage());
 
-        assertMapping(
-                repeatedInput.sum(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(repeated), false)),
-                List.of(1));
-        assertMapping(
-                repeatedInput.sum(2, tensor(
-                        DataType.BOOL, Shape.ofDimensions(repeated, repeated), false)),
-                List.of(0, 2));
+        Tensor singletonInput = tensor(DataType.FLOAT32, Shape.of(1, 3, 4), false);
+        Tensor enlarging = tensor(DataType.BOOL, Shape.of(2, 3, 4), false);
+        IllegalArgumentException enlarged = assertThrows(
+                IllegalArgumentException.class, () -> singletonInput.mean(1, enlarging));
+        assertEquals(
+                "mask shape Shape[2, 3, 4] must broadcast exactly to input shape"
+                        + " Shape[1, 3, 4], but produced Shape[2, 3, 4]",
+                enlarged.getMessage());
 
-        Tensor noCoverage = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
-        assertMapping(
-                noCoverage.mean(1, tensor(DataType.BOOL, Shape.of(2), false)),
-                List.of(0));
-
-        Tensor singletonMask = tensor(DataType.BOOL, Shape.of(1, 1), false);
-        assertMapping(noCoverage.sum(1, singletonMask), List.of(0, 1));
-        assertMapping(noCoverage.sum(1, singletonMask), List.of(0, 1));
+        Tensor extraLeading = tensor(DataType.BOOL, Shape.of(1, 2, 3, 4), false);
+        IllegalArgumentException leading = assertThrows(
+                IllegalArgumentException.class, () -> input.sum(1, extraLeading));
+        assertEquals(
+                "mask shape Shape[1, 2, 3, 4] must broadcast exactly to input shape"
+                        + " Shape[2, 3, 4], but produced Shape[1, 2, 3, 4]",
+                leading.getMessage());
     }
 
     @Test
-    void handlesZeroExtentsAndOnlyLocallyProvableDynamicRelationships() {
-        Dimension batch = new DynamicDimension("batch");
-        Dimension zero = new StaticDimension(0);
-        Dimension width = new DynamicDimension("width");
+    void rejectsUnprovableDynamicRelationshipsWithoutConsumingIdentity()
+            throws ReflectiveOperationException {
+        Dimension nPlusOne = DimensionExpressions.addConstant(new DynamicDimension("N"), 1);
         Tensor input = tensor(
                 DataType.FLOAT32,
-                Shape.ofDimensions(batch, zero, width),
+                Shape.ofDimensions(new DynamicDimension("batch"), nPlusOne),
                 false);
-
-        assertMapping(
-                input.sum(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(zero), false)),
-                List.of(1));
-        assertMapping(
-                input.mean(1, tensor(
-                        DataType.BOOL, Shape.ofDimensions(new StaticDimension(1)), false)),
-                List.of(1));
-        assertMapping(
-                input.sum(0, tensor(
-                        DataType.BOOL,
-                        Shape.ofDimensions(new DynamicDimension("batch")),
-                        false)),
-                List.of(0));
-
-        Tensor differentDynamic = tensor(
-                DataType.BOOL,
+        List<Shape> invalidMasks = List.of(
+                Shape.of(3),
                 Shape.ofDimensions(new DynamicDimension("other")),
+                Shape.ofDimensions(
+                        DimensionExpressions.addConstant(new DynamicDimension("N"), 2)),
+                Shape.ofDimensions(DimensionExpressions.unknown(0, Optional.empty())));
+        AtomicLong nextId = nextTensorIdState();
+        long before = nextId.get();
+
+        for (Shape maskShape : invalidMasks) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> input.sum(0, tensor(DataType.BOOL, maskShape, false)));
+        }
+
+        Dimension firstUnknown = DimensionExpressions.unknown(0, Optional.empty());
+        Tensor unknownInput = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(firstUnknown), false);
+        Tensor distinctUnknownMask = tensor(
+                DataType.BOOL,
+                Shape.ofDimensions(DimensionExpressions.unknown(0, Optional.empty())),
                 false);
-        IllegalArgumentException dynamicFailure = assertThrows(
-                IllegalArgumentException.class, () -> input.sum(0, differentDynamic));
-        Tensor staticNonSingleton = tensor(DataType.BOOL, Shape.of(3), false);
-        IllegalArgumentException staticFailure = assertThrows(
-                IllegalArgumentException.class, () -> input.sum(0, staticNonSingleton));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> unknownInput.mean(0, distinctUnknownMask));
+
+        assertEquals(before, nextId.get());
+    }
+
+    @Test
+    void explicitRankEditingMakesAlignmentVisibleInProvenance() {
+        Dimension batch = new DynamicDimension("batch");
+        Dimension time = new DynamicDimension("time");
+        Tensor input = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(batch, time, new StaticDimension(4)),
+                true);
+        Tensor originalMask = tensor(
+                DataType.BOOL, Shape.ofDimensions(batch, time), false);
+
+        assertThrows(IllegalArgumentException.class, () -> input.mean(1, originalMask));
+
+        Tensor alignedMask = originalMask.expandDims(2);
+        Tensor result = input.mean(1, alignedMask);
+        TensorProvenance resultProvenance = result.provenance().orElseThrow();
 
         assertAll(
                 () -> assertEquals(
-                        "mask shape Shape[other] cannot be aligned to input shape"
-                                + " Shape[batch, 0, width] for reduction axis 0",
-                        dynamicFailure.getMessage()),
+                        Shape.ofDimensions(batch, time, new StaticDimension(1)),
+                        alignedMask.descriptor().shape()),
+                () -> assertTrue(alignedMask.provenance().isPresent()),
+                () -> assertSame(input, resultProvenance.inputs().get(0)),
+                () -> assertSame(alignedMask, resultProvenance.inputs().get(1)),
+                () -> assertNotSame(originalMask, resultProvenance.inputs().get(1)),
                 () -> assertEquals(
-                        "mask shape Shape[3] cannot be aligned to input shape"
-                                + " Shape[batch, 0, width] for reduction axis 0",
-                        staticFailure.getMessage()));
+                        new MaskedReductionAttrs(1),
+                        resultProvenance.operation().attrs()));
     }
 
     @Test
-    void removesAxisAndPreservesUnaffectedDimensionReferences() {
+    void removesAxisPreservesReferencesAndLeavesInputsUnchanged() {
         Dimension batch = new DynamicDimension("batch");
         Dimension rows = new StaticDimension(3);
         Dimension columns = new DynamicDimension("columns");
-        Tensor input = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(batch, rows, columns),
-                true);
-        Tensor mask = tensor(DataType.BOOL, Shape.ofDimensions(rows), false);
-
-        Tensor result = input.mean(-2, mask);
-        List<Dimension> resultDimensions = result.descriptor().shape().dimensions();
-        Tensor rankOne = tensor(DataType.FLOAT32, Shape.ofDimensions(columns), false);
-        Tensor scalarResult = rankOne.sum(
-                0, tensor(DataType.BOOL, Shape.scalar(), false));
-
-        assertAll(
-                () -> assertEquals(2, resultDimensions.size()),
-                () -> assertSame(batch, resultDimensions.get(0)),
-                () -> assertSame(columns, resultDimensions.get(1)),
-                () -> assertSame(Shape.scalar(), scalarResult.descriptor().shape()));
-    }
-
-    @Test
-    void everyResultIsFreshNestableAndLeavesInputsUnchanged() {
-        float[] inputValues = {1.0f, 2.0f, 3.0f, 4.0f};
-        byte[] maskValues = {1, 0, 1, 0};
-        Shape shape = Shape.of(2, 2);
+        Shape shape = Shape.ofDimensions(batch, rows, columns);
+        float[] inputValues = new float[12];
+        byte[] maskValues = {1, 0, 1};
         TensorDescriptor inputDescriptor = new TensorDescriptor(
                 DataType.FLOAT32,
                 shape,
-                Optional.of(LayoutDescriptor.contiguous(shape)),
+                Optional.empty(),
                 true);
         TensorDescriptor maskDescriptor = new TensorDescriptor(
                 DataType.BOOL,
-                shape,
-                Optional.of(LayoutDescriptor.contiguous(shape)),
+                Shape.of(3, 1),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(3, 1))),
                 false);
         HostTensorStorage inputStorage = new MemorySegmentStorage(
                 DataType.FLOAT32, inputValues.length, MemorySegment.ofArray(inputValues));
@@ -327,24 +345,27 @@ class TensorMaskedReductionTest {
 
         Tensor first = input.sum(1, mask);
         Tensor second = input.sum(1, mask);
-        Tensor nested = first.mean(
+        List<Dimension> resultDimensions = first.descriptor().shape().dimensions();
+        Tensor rankOne = tensor(DataType.FLOAT32, Shape.ofDimensions(columns), false);
+        Tensor scalarResult = rankOne.sum(
                 0, tensor(DataType.BOOL, Shape.scalar(), false));
 
         assertAll(
                 () -> assertNotSame(first, second),
                 () -> assertNotEquals(first.id(), second.id()),
-                () -> assertNotSame(first, nested),
-                () -> assertSame(first, nested.provenance().orElseThrow().inputs().getFirst()),
+                () -> assertEquals(2, resultDimensions.size()),
+                () -> assertSame(batch, resultDimensions.get(0)),
+                () -> assertSame(columns, resultDimensions.get(1)),
+                () -> assertSame(Shape.scalar(), scalarResult.descriptor().shape()),
                 () -> assertSame(inputDescriptor, input.descriptor()),
                 () -> assertSame(maskDescriptor, mask.descriptor()),
                 () -> assertEquals(Optional.of("input"), input.label()),
                 () -> assertEquals(Optional.of("mask"), mask.label()),
                 () -> assertSame(prior, input.provenance().orElseThrow()),
-                () -> assertTrue(mask.provenance().isEmpty()),
                 () -> assertSame(inputStorage, input.hostStorage().orElseThrow()),
                 () -> assertSame(maskStorage, mask.hostStorage().orElseThrow()),
-                () -> assertArrayEquals(new float[] {1.0f, 2.0f, 3.0f, 4.0f}, inputValues),
-                () -> assertArrayEquals(new byte[] {1, 0, 1, 0}, maskValues),
+                () -> assertArrayEquals(new float[12], inputValues),
+                () -> assertArrayEquals(new byte[] {1, 0, 1}, maskValues),
                 () -> assertTrue(first.label().isEmpty()),
                 () -> assertTrue(first.hostStorage().isEmpty()),
                 () -> assertTrue(first.descriptor().layout().isEmpty()));
@@ -352,9 +373,12 @@ class TensorMaskedReductionTest {
 
     @Test
     void validatesInExactOrderAndConsumesNoIdentity() throws ReflectiveOperationException {
-        AtomicLong nextId = nextTensorIdState();
         Tensor floating = tensor(DataType.FLOAT32, Shape.of(2), false);
         Tensor bool = tensor(DataType.BOOL, Shape.of(2), false);
+        Tensor integral = tensor(DataType.INT32, Shape.of(2), false);
+        Tensor wrongMask = tensor(DataType.FLOAT32, Shape.of(2), false);
+        Tensor incompatible = tensor(DataType.BOOL, Shape.of(3), false);
+        AtomicLong nextId = nextTensorIdState();
         long before = nextId.get();
 
         NullPointerException nullInput = assertThrows(
@@ -370,21 +394,18 @@ class TensorMaskedReductionTest {
                 IllegalArgumentException.class,
                 () -> TensorMaskedReductionExpressions.apply(
                         floating, bool, AggregateReductionKind.ARG_MAX, 8));
-        Tensor integral = tensor(DataType.INT32, Shape.of(2), false);
-        Tensor wrongMask = tensor(DataType.FLOAT32, Shape.of(2), false);
         IllegalArgumentException invalidInput = assertThrows(
                 IllegalArgumentException.class,
                 () -> integral.sum(8, wrongMask));
         IllegalArgumentException invalidMask = assertThrows(
                 IllegalArgumentException.class,
                 () -> floating.sum(8, wrongMask));
-        Tensor rankTwoMask = tensor(DataType.BOOL, Shape.of(1, 1), false);
         IndexOutOfBoundsException invalidAxis = assertThrows(
                 IndexOutOfBoundsException.class,
-                () -> floating.sum(1, rankTwoMask));
-        IllegalArgumentException invalidRank = assertThrows(
+                () -> floating.sum(1, incompatible));
+        IllegalArgumentException invalidBroadcast = assertThrows(
                 IllegalArgumentException.class,
-                () -> floating.sum(0, rankTwoMask));
+                () -> floating.sum(0, incompatible));
 
         assertAll(
                 () -> assertEquals("input", nullInput.getMessage()),
@@ -399,20 +420,21 @@ class TensorMaskedReductionTest {
                 () -> assertEquals(
                         "mask must have BOOL data type, but was FLOAT32",
                         invalidMask.getMessage()),
+                () -> assertEquals("Axis 1 is outside shape rank 1", invalidAxis.getMessage()),
                 () -> assertEquals(
-                        "Axis 1 is outside shape rank 1", invalidAxis.getMessage()),
-                () -> assertEquals(
-                        "mask rank must not exceed input rank: mask=2, input=1",
-                        invalidRank.getMessage()),
+                        "Cannot broadcast dimensions StaticDimension[size=2]"
+                                + " and StaticDimension[size=3] at result axis 0 for"
+                                + " Shape[2] and Shape[3]",
+                        invalidBroadcast.getMessage()),
                 () -> assertEquals(before, nextId.get()));
     }
 
     @Test
-    void reportsScalarAxisFailureBeforeRankOrAlignment() throws ReflectiveOperationException {
+    void reportsScalarAxisFailureBeforeBroadcast() throws ReflectiveOperationException {
+        Tensor scalar = tensor(DataType.FLOAT32, Shape.scalar(), false);
+        Tensor mask = tensor(DataType.BOOL, Shape.of(2), false);
         AtomicLong nextId = nextTensorIdState();
         long before = nextId.get();
-        Tensor scalar = tensor(DataType.FLOAT32, Shape.scalar(), false);
-        Tensor mask = tensor(DataType.BOOL, Shape.of(1), false);
 
         IndexOutOfBoundsException failure = assertThrows(
                 IndexOutOfBoundsException.class, () -> scalar.mean(0, mask));
@@ -474,20 +496,16 @@ class TensorMaskedReductionTest {
             Tensor input,
             Tensor mask,
             AggregateReductionKind kind,
-            MaskedReductionAttrs expectedAttrs) {
+            int expectedAxis) {
         TensorProvenance provenance = result.provenance().orElseThrow();
         assertAll(
                 () -> assertSame(kind, provenance.operation().kind()),
-                () -> assertEquals(expectedAttrs, provenance.operation().attrs()),
+                () -> assertEquals(
+                        new MaskedReductionAttrs(expectedAxis),
+                        provenance.operation().attrs()),
                 () -> assertEquals(2, provenance.inputs().size()),
                 () -> assertSame(input, provenance.inputs().get(0)),
                 () -> assertSame(mask, provenance.inputs().get(1)));
-    }
-
-    private static void assertMapping(Tensor result, List<Integer> expectedMapping) {
-        Object attrs = result.provenance().orElseThrow().operation().attrs();
-        assertTrue(attrs instanceof MaskedReductionAttrs);
-        assertEquals(expectedMapping, ((MaskedReductionAttrs) attrs).maskInputAxes());
     }
 
     private static Tensor tensor(DataType dataType, Shape shape, boolean requiresGrad) {

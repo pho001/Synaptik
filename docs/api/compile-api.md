@@ -87,11 +87,14 @@ unresolved, and record one-input provenance without aggregating or comparing val
 empty-domain, NaN, signed-zero, extrema-tie gradient, numerical, or executable behavior. Aggregate
 `MIN`/`MAX` remain typed separately from the equally named two-input binary elementwise kinds.
 The masked `Tensor.sum(axis, mask)` and `Tensor.mean(axis, mask)` forms require floating input and
-an exact BOOL mask. They resolve an ordered injection from mask dimensions to input axes using
-equal dimensions or mask-side singleton expansion, prefer mappings that include the reduction
-axis, remove that axis from the result, and record `MaskedReductionAttrs` with ordered
-`[input, mask]` provenance. Construction does not align storage, inspect values, select elements,
-count true positions, compute a result, define gradients, or execute work.
+an exact BOOL mask. They require ordinary right-aligned broadcasting of the mask to produce
+exactly the input Shape; callers make other axis intent visible with an explicit reshape,
+dimension insertion, or expansion. Each form removes the normalized axis and records one
+first-class two-input `SUM` or `MEAN` occurrence with `MaskedReductionAttrs(axis)` and ordered
+`[input, mask]` provenance. False positions exclude their inputs, including NaN and infinity;
+an all-false sum is zero and an all-false mean is NaN without a payload guarantee. Construction
+does not align storage, inspect values, select elements, count true positions, compute a result,
+capture or decompose the occurrence, define gradients, lower it, or execute work.
 `Tensor.all` and `Tensor.any` require exact BOOL input and construct full, axis-removing, or retained-axis
 expressions with exact BOOL result type, false gradient eligibility, unresolved layout, and
 one-input provenance. Aggregate `ALL`/`ANY` remain typed separately from elementwise `AND`/`OR`.
