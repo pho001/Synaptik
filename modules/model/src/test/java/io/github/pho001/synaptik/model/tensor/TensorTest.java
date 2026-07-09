@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
@@ -82,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(111, declaredPublicMethods.size());
+        assertEquals(117, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -502,14 +503,33 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
 
+        for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
+            var method = Tensor.class.getDeclaredMethod(methodName, ScalarValue.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(List.of(ScalarValue.class),
+                            Arrays.asList(method.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
         var clamp = Tensor.class.getDeclaredMethod("clamp", double.class, double.class);
+        var typedClamp = Tensor.class.getDeclaredMethod(
+                "clamp", ScalarValue.class, ScalarValue.class);
         assertAll(
                 () -> assertEquals(Tensor.class, clamp.getReturnType()),
                 () -> assertEquals(List.of(double.class, double.class),
                         Arrays.asList(clamp.getParameterTypes())),
                 () -> assertTrue(Modifier.isPublic(clamp.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(clamp.getModifiers())),
-                () -> assertFalse(Modifier.isSynchronized(clamp.getModifiers())));
+                () -> assertFalse(Modifier.isSynchronized(clamp.getModifiers())),
+                () -> assertEquals(Tensor.class, typedClamp.getReturnType()),
+                () -> assertEquals(List.of(ScalarValue.class, ScalarValue.class),
+                        Arrays.asList(typedClamp.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(typedClamp.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(typedClamp.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(typedClamp.getModifiers())));
 
         for (String methodName : List.of(
                 "abs", "neg", "inv", "log", "exp", "erf", "sqrt", "floor", "ceil", "sign",

@@ -53,7 +53,7 @@ The module root `io.github.pho001.synaptik.model` is a namespace boundary, not t
 
 ```text
 io.github.pho001.synaptik.model.datatype
-  Data type metadata, promotion, and host-independent bit conversion.
+  Data type metadata, promotion, host-independent bit conversion, and exact typed scalar values.
 
 io.github.pho001.synaptik.model.shape
   Static and symbolic extent expressions, immutable shapes, axes, and local broadcasting.
@@ -69,8 +69,8 @@ io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
 
 io.github.pho001.synaptik.model.operation
-  Backend-independent operation semantics, compact signatures, typed scalar values, and immutable
-  attributes.
+  Backend-independent operation semantics, compact signatures, and immutable attributes that may
+  consume foundational typed scalar values.
 
 io.github.pho001.synaptik.model.operation.elementwise.binary
   Typed parameterless semantic kinds for tensor-to-tensor elementwise arithmetic.
@@ -206,7 +206,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018L | [Shared multi-output Tensor provenance](tasks/0018l-shared-multi-output-tensor-provenance.md) | Complete | 0007–0009, 0011–0013, 0018K | Represent one immutable shared producer with ordered inputs/output descriptors and indexed Tensor results without turning Tensor into IR. |
 | 0018M | [Symbolic extent expressions](tasks/0018m-symbolic-extent-expressions.md) | Complete | 0002, 0017C–0017N | Represent canonical checked linear combinations, signed constant offsets, floor/ceiling division, and constrained unknown extents without runtime binding. |
 | 0018M1 | [Dynamic extent adoption in pad, tile, and concat](tasks/0018m1-dynamic-extent-adoption.md) | Complete | 0017J, 0017L, 0018M | Replace conservative identity-only dynamic results with exact model-owned extent expressions in three bounded Tensor shape transformations. |
-| 0018N | Typed scalar value contract | Draft | 0001, 0014E, 0017I | Preserve exact scalar values for the six current data types and make scalar and padding attributes data-type-safe. |
+| 0018N | [Typed scalar value contract](tasks/0018n-typed-scalar-value-contract.md) | Complete | 0001, 0014E, 0014F, 0017I, 0017J, 0018K | Preserve exact scalar values for the six current data types and atomically make scalar, clamp, padding attributes, and public expression boundaries data-type-safe. |
 | 0018O | Indexing taxonomy and unstack normalization | Draft | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | Elementwise semantic cleanup | Draft | 0014C–0014F, 0018K, 0018N | Rename `inv` to reciprocal, remove public fast approximation kinds, and define the retained scalar/unary vocabulary. |
 | 0018Q | Masked reduction redesign | Draft | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Replace heuristic mask-axis mapping with explicit broadcasting/composition and decide the all-false mean contract. |
@@ -265,8 +265,10 @@ rule and inserted tasks 0018K–0018V before linear algebra. Task 0018K is compl
 family-owned signatures and local occurrence-cardinality validation. Task 0018L is complete with
 unified producer/output-index provenance. Task 0018M is complete with canonical symbolic extent
 values and conservative Shape integration. Task 0018M1 is complete with canonical symbolic
-padding, tiling, and concat Shape derivation. Task 0018N is the next Draft frontier without a
-detailed specification; later tasks also remain Draft without detailed specifications.
+padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
+representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is the next
+Draft frontier without a detailed specification; later tasks also remain Draft without detailed
+specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -346,6 +348,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   model-owned result-Shape formulas and their documentation.
 - Semantic scalar attributes become data-type-safe. Raw binary64 attributes are not sufficient for
   exact INT64, BOOL, FLOAT32, or BFLOAT16 constants.
+- Task 0018N uses one final `model.datatype.ScalarValue` backed by exact `DataType` plus primitive
+  bits. It preserves FLOAT64/FLOAT32 signed zero and NaN payloads, raw BFLOAT16 patterns, signed
+  INT32/INT64 including values above `2^53`, and canonical BOOL without boxing, a subtype
+  hierarchy, registry, service, or general conversion API.
+- Task 0018N atomically migrates `ScalarValueAttrs`, `ClampRangeAttrs`, and `PadAttrs`, adds exact
+  typed Tensor overloads, and retains existing double overloads only as exact-FLOAT64
+  conveniences. Receiver-aware Tensor helpers own exact parameter/input DataType matching;
+  operation signatures keep their attribute-class and occurrence-cardinality role.
+- Existing primitive TensorFactory scalar/full APIs and explicit `BFloat16Bits` conversion remain
+  unchanged in 0018N. Task 0018S may later decide whether typed factory overloads belong in the
+  cleaned public construction surface.
+- Task 0018N completed with 57 focused tests and the final 770-test model suite passing in the
+  implementation context. Independent documentation review finalized the seven affected
+  Javadocs, Tensor and Compile API references, glossary, capability baseline, task evidence, and
+  synchronized planning status without changing executable Java after that model run.
 - Public indexing primitives normalize to GATHER, GATHER_ELEMENTS, GATHER_ND, SCATTER_ELEMENTS,
   SCATTER_ND, SELECT, and SLICE. Axis-taking `take`, reduced-rank gather/scatter adjoints, and
   independently produced UNSTACK outputs do not remain baseline primitives.
@@ -1172,8 +1189,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, and 0018M1 are complete. Task 0018N is the next Draft frontier without a
-detailed specification. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, and 0018N are complete. Task 0018O is the next Draft frontier without
+a detailed specification. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1229,8 +1246,8 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018M1 are complete; 0018N is the
-next Draft frontier without a detailed specification, and every later task also remains Draft
-without one.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018N are complete; 0018O is the
+next Draft frontier without a detailed specification, and every later task remains Draft without
+one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

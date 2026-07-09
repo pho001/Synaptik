@@ -63,7 +63,13 @@ Arithmetic, unary, scalar, and conditional-selection results remain floating;
 comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
-binary64 operation attributes rather than Tensor inputs. `Tensor.where` requires an exact BOOL
+typed `ScalarValue` operation attributes rather than Tensor inputs. Public scalar/clamp expression
+construction requires their data type to equal the floating receiver type; constant padding uses
+the same equality rule for all six current data types. An `OperationSignature` still validates
+only the exact attribute class and occurrence cardinality because an `Operation` has no operand
+descriptor. Future compiler graph validation must repeat exact scalar/input data-type equality for
+captured or otherwise constructed occurrences; this requirement does not claim that such compiler
+validation is implemented today. `Tensor.where` requires an exact BOOL
 condition, promotes two floating branches, composes branch-first and condition-second local
 broadcasts, propagates gradient eligibility from the branches only, and records exact ordered
 condition/true-branch/false-branch provenance. It constructs no selected values or gradient rule.

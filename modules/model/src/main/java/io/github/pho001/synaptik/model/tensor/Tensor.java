@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -103,8 +104,8 @@ import java.util.Optional;
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
  * Scalar and unary methods accept one floating input and retain its exact data type, shape
- * reference, and gradient eligibility. Scalar methods retain their exact binary64 parameters in
- * typed attributes.
+ * reference, and gradient eligibility. Scalar methods retain exact matching typed values in
+ * attributes; their {@code double} conveniences mean exact FLOAT64.
  * Every expression result has a fresh factory identity and no label or storage. Most expression
  * results leave layout unresolved; a contiguous request instead publishes newly resolved
  * canonical dense row-major geometry for a fully static Shape and remains unresolved for a
@@ -713,8 +714,8 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that multiplies this tensor by {@code scalar}.
      *
-     * <p>This tensor must have a floating data type. The supplied binary64 value is retained
-     * exactly in {@code ScalarValueAttrs}, without conversion to the input type or normalization.
+     * <p>This tensor must have exact FLOAT64 data type because this convenience adapts
+     * {@code scalar} to {@link ScalarValue#float64(double)} without inference or conversion.
      * The fresh result retains the exact input data type and shape reference, has unresolved
      * layout and unchanged gradient eligibility, no label or storage, and one-input provenance
      * containing {@link ScalarElementwiseKind#MUL}. Multiplication, special-value behavior,
@@ -723,18 +724,39 @@ public final class Tensor {
      * @param scalar binary64 multiplier retained with its exact primitive bits, including signed
      *     zero, infinity, and NaN payload bits
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalArgumentException if this tensor's data type is not FLOAT64
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor mul(double scalar) {
+        return mul(ScalarValue.float64(scalar));
+    }
+
+    /**
+     * Builds scalar multiplication with an exact value matching this floating tensor's data type.
+     *
+     * <p>The non-null value is retained by exact reference in {@code ScalarValueAttrs}. FLOAT64,
+     * FLOAT32, and BFLOAT16 receivers require the corresponding exact value type. The fresh
+     * result preserves Shape, data type, and gradient eligibility, leaves layout unresolved, has
+     * no label or storage, and records one-input {@link ScalarElementwiseKind#MUL} provenance.
+     * Construction performs no scalar conversion, value inspection, numerical evaluation,
+     * gradient definition, graph capture, or execution.</p>
+     *
+     * @param scalar non-null exact typed multiplier; its data type must match this tensor
+     * @return a non-null fresh storage-free expression preserving this tensor's metadata
+     * @throws NullPointerException if {@code scalar} is null, with message {@code scalar}
+     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
+     *     not equal its data type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor mul(ScalarValue scalar) {
         return TensorScalarExpressions.applyScalar(this, ScalarElementwiseKind.MUL, scalar);
     }
 
     /**
      * Builds an elementwise expression that raises this tensor to {@code exponent}.
      *
-     * <p>This tensor must have a floating data type. The supplied binary64 exponent is retained
-     * exactly in {@code ScalarValueAttrs}, without conversion or numerical-domain validation. The
+     * <p>This tensor must have exact FLOAT64 data type because this convenience adapts the
+     * exponent to {@link ScalarValue#float64(double)} without inference or conversion. The
      * fresh result retains the exact input data type and shape reference, has unresolved layout
      * and unchanged gradient eligibility, no label or storage, and one-input provenance containing
      * {@link ScalarElementwiseKind#POW}. Power evaluation, special-value policy, algebraic
@@ -743,10 +765,29 @@ public final class Tensor {
      * @param exponent binary64 exponent retained with its exact primitive bits, including signed
      *     zero, infinity, and NaN payload bits
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalArgumentException if this tensor's data type is not FLOAT64
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor pow(double exponent) {
+        return pow(ScalarValue.float64(exponent));
+    }
+
+    /**
+     * Builds scalar exponentiation with an exact value matching this floating tensor's data type.
+     *
+     * <p>The value is retained by exact reference in {@code ScalarValueAttrs}; no conversion or
+     * numerical-domain validation occurs. The fresh result preserves Shape, data type, and
+     * gradient eligibility, leaves layout unresolved, and records exact one-input
+     * {@link ScalarElementwiseKind#POW} provenance without evaluating a power.</p>
+     *
+     * @param exponent non-null exact typed exponent; its data type must match this tensor
+     * @return a non-null fresh storage-free expression preserving this tensor's metadata
+     * @throws NullPointerException if {@code exponent} is null, with message {@code exponent}
+     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
+     *     not equal its data type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor pow(ScalarValue exponent) {
         return TensorScalarExpressions.applyScalar(this, ScalarElementwiseKind.POW, exponent);
     }
 
@@ -754,10 +795,10 @@ public final class Tensor {
      * Builds one first-class elementwise expression that clamps this tensor to the inclusive range
      * {@code [minValue, maxValue]}.
      *
-     * <p>This tensor must have a floating data type, which is validated before range ordering.
-     * The exact binary64 bounds are retained in one {@code ClampRangeAttrs}; equal bounds, signed
-     * zeros, infinities, and NaNs are representable, while only primitive
-     * {@code minValue > maxValue} is rejected. The fresh result retains the exact input data type
+     * <p>This tensor must have exact FLOAT64 data type because this convenience adapts both bounds
+     * through {@link ScalarValue#float64(double)}. Equal bounds, signed zeros, infinities, and
+     * NaNs are representable, while a strict primitive {@code minValue > maxValue} is rejected.
+     * The fresh result retains the exact input data type
      * and shape reference, has unresolved layout and unchanged gradient eligibility, no label or
      * storage, and one-input provenance containing a single {@link ScalarElementwiseKind#CLAMP}
      * operation. Scalar conversion, numerical edge behavior, range simplification or expansion,
@@ -766,19 +807,42 @@ public final class Tensor {
      * @param minValue inclusive binary64 lower bound retained with its exact primitive bits
      * @param maxValue inclusive binary64 upper bound retained with its exact primitive bits
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating, or if
+     * @throws IllegalArgumentException if this tensor's data type is not FLOAT64, or if
      *     {@code minValue > maxValue}
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor clamp(double minValue, double maxValue) {
+        return clamp(ScalarValue.float64(minValue), ScalarValue.float64(maxValue));
+    }
+
+    /**
+     * Builds an inclusive clamp with exact bounds matching this floating tensor's data type.
+     *
+     * <p>Validation requires non-null bounds, a floating receiver, identical numeric bound types,
+     * a non-inverted represented range, and exact bound/receiver data-type equality. The bound
+     * references are retained in one {@code ClampRangeAttrs}. The fresh result preserves Shape,
+     * data type, and gradient eligibility and records one first-class CLAMP operation; it does not
+     * convert values, define numerical edge behavior, gradients, or execution.</p>
+     *
+     * @param minValue non-null exact typed inclusive lower bound
+     * @param maxValue non-null exact typed inclusive upper bound of the same type
+     * @return a non-null fresh storage-free expression preserving this tensor's metadata
+     * @throws NullPointerException if a bound is null, checked in parameter order with its name
+     *     as the message
+     * @throws IllegalArgumentException if this tensor is not floating, the bounds have different
+     *     types or BOOL type, the range is inverted, or the common bound type does not match this
+     *     tensor's data type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor clamp(ScalarValue minValue, ScalarValue maxValue) {
         return TensorScalarExpressions.applyClamp(this, minValue, maxValue);
     }
 
     /**
      * Builds an elementwise expression that applies the inclusive lower bound {@code minValue}.
      *
-     * <p>This tensor must have a floating data type. The exact binary64 bound is retained in
-     * {@code ScalarValueAttrs}. The fresh result retains the exact input data type and shape
+     * <p>This tensor must have exact FLOAT64 data type because this convenience adapts the bound
+     * through {@link ScalarValue#float64(double)}. The fresh result retains the exact input data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and one-input provenance containing {@link ScalarElementwiseKind#CLAMP_MIN}. Parameter
      * conversion, special-value behavior, canonicalization, gradients, and execution are
@@ -786,10 +850,28 @@ public final class Tensor {
      *
      * @param minValue inclusive binary64 lower bound retained with its exact primitive bits
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalArgumentException if this tensor's data type is not FLOAT64
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor clampMin(double minValue) {
+        return clampMin(ScalarValue.float64(minValue));
+    }
+
+    /**
+     * Builds an inclusive lower clamp with an exact value matching this floating tensor's type.
+     *
+     * <p>The value is retained by exact reference in {@code ScalarValueAttrs}. The result is a
+     * fresh unresolved-layout one-input expression preserving Shape, type, and gradient
+     * eligibility; no conversion, value evaluation, gradient rule, or execution is added.</p>
+     *
+     * @param minValue non-null exact typed inclusive lower bound
+     * @return a non-null fresh storage-free expression preserving this tensor's metadata
+     * @throws NullPointerException if {@code minValue} is null, with message {@code minValue}
+     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
+     *     not equal its data type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor clampMin(ScalarValue minValue) {
         return TensorScalarExpressions.applyScalar(
                 this, ScalarElementwiseKind.CLAMP_MIN, minValue);
     }
@@ -797,8 +879,8 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that applies the inclusive upper bound {@code maxValue}.
      *
-     * <p>This tensor must have a floating data type. The exact binary64 bound is retained in
-     * {@code ScalarValueAttrs}. The fresh result retains the exact input data type and shape
+     * <p>This tensor must have exact FLOAT64 data type because this convenience adapts the bound
+     * through {@link ScalarValue#float64(double)}. The fresh result retains the exact input data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
      * and one-input provenance containing {@link ScalarElementwiseKind#CLAMP_MAX}. Parameter
      * conversion, special-value behavior, canonicalization, gradients, and execution are
@@ -806,10 +888,28 @@ public final class Tensor {
      *
      * @param maxValue inclusive binary64 upper bound retained with its exact primitive bits
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
+     * @throws IllegalArgumentException if this tensor's data type is not FLOAT64
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor clampMax(double maxValue) {
+        return clampMax(ScalarValue.float64(maxValue));
+    }
+
+    /**
+     * Builds an inclusive upper clamp with an exact value matching this floating tensor's type.
+     *
+     * <p>The value is retained by exact reference in {@code ScalarValueAttrs}. The result is a
+     * fresh unresolved-layout one-input expression preserving Shape, type, and gradient
+     * eligibility; no conversion, value evaluation, gradient rule, or execution is added.</p>
+     *
+     * @param maxValue non-null exact typed inclusive upper bound
+     * @return a non-null fresh storage-free expression preserving this tensor's metadata
+     * @throws NullPointerException if {@code maxValue} is null, with message {@code maxValue}
+     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
+     *     not equal its data type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor clampMax(ScalarValue maxValue) {
         return TensorScalarExpressions.applyScalar(
                 this, ScalarElementwiseKind.CLAMP_MAX, maxValue);
     }
@@ -2968,10 +3068,10 @@ public final class Tensor {
      * after width {@code 3} becomes {@code N + 5}. Zero widths preserve the exact input Dimension
      * reference.</p>
      *
-     * <p>Every current DataType is accepted. The result preserves the exact input data type and
-     * gradient-eligibility value. {@code constantValue} is retained unchanged as a raw
-     * {@code double}, including signed zero, NaN, and infinity; this model method neither converts
-     * it to the result data type nor validates a future backend representation.</p>
+     * <p>This convenience requires an exact FLOAT64 receiver because it adapts
+     * {@code constantValue} through {@link ScalarValue#float64(double)}. The result preserves the
+     * input data type and gradient-eligibility value. The constant's exact binary64 bits are
+     * retained without conversion or backend interpretation.</p>
      *
      * <p>The fresh result always has unresolved layout, including a zero-width identity request,
      * because constant padding is an output-materialization operation rather than input view
@@ -2992,14 +3092,39 @@ public final class Tensor {
      *     provenance
      * @throws NullPointerException if {@code before} or {@code after} is null, with that parameter
      *     name as the message
-     * @throws IllegalArgumentException if either array length differs from input rank or a width
-     *     is negative
+     * @throws IllegalArgumentException if this tensor is not FLOAT64, either array length differs
+     *     from input rank, or a width is negative
      * @throws ArithmeticException if checked static result-extent or symbolic-offset addition
      *     overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local
      *     immutable metadata has been constructed
      */
     public Tensor pad(long[] before, long[] after, double constantValue) {
+        return pad(before, after, ScalarValue.float64(constantValue));
+    }
+
+    /**
+     * Creates constant padding with an exact value matching this tensor's data type.
+     *
+     * <p>All six current data types are accepted when the non-null value type exactly equals this
+     * tensor's type. Width validation precedes this equality check, which precedes checked Shape
+     * arithmetic. The constant reference is retained in immutable {@code PadAttrs}; no scalar
+     * conversion, value materialization, gradient rule, compiler behavior, or execution occurs.
+     * The fresh result preserves type and gradient eligibility, derives the same-rank Shape, and
+     * leaves layout unresolved even for identity widths.</p>
+     *
+     * @param before non-null caller-owned before widths, one non-negative value per axis
+     * @param after non-null caller-owned after widths, one non-negative value per axis
+     * @param constantValue non-null exact typed padding value matching this tensor
+     * @return a non-null fresh storage-free PAD expression with checked same-rank Shape
+     * @throws NullPointerException if {@code before}, {@code after}, or {@code constantValue} is
+     *     null, checked in parameter order with its name as the message
+     * @throws IllegalArgumentException if widths are invalid or the value type does not match this
+     *     tensor's data type
+     * @throws ArithmeticException if checked result-extent arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor pad(long[] before, long[] after, ScalarValue constantValue) {
         return TensorPadTileExpressions.pad(this, before, after, constantValue);
     }
 

@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import java.lang.reflect.Modifier;
@@ -62,19 +63,19 @@ class PadTileSemanticsTest {
                         List.of("before", "after", "constantValue"),
                         Arrays.stream(padComponents).map(component -> component.getName()).toList()),
                 () -> assertEquals(
-                        List.of(List.class, List.class, double.class),
+                        List.of(List.class, List.class, ScalarValue.class),
                         Arrays.stream(padComponents).map(component -> component.getType()).toList()),
                 () -> assertEquals(
                         List.of(
                                 "java.util.List<java.lang.Long>",
                                 "java.util.List<java.lang.Long>",
-                                "double"),
+                                "io.github.pho001.synaptik.model.datatype.ScalarValue"),
                         Arrays.stream(padComponents)
                                 .map(component -> component.getGenericType().getTypeName())
                                 .toList()),
                 () -> assertEquals(1, padConstructors.length),
                 () -> assertEquals(
-                        List.of(List.class, List.class, double.class),
+                        List.of(List.class, List.class, ScalarValue.class),
                         Arrays.asList(padConstructors[0].getParameterTypes())),
                 () -> assertTrue(Modifier.isPublic(padConstructors[0].getModifiers())),
                 () -> assertEquals(
@@ -88,7 +89,7 @@ class PadTileSemanticsTest {
                         List.of(
                                 "after():java.util.List",
                                 "before():java.util.List",
-                                "constantValue():double",
+                                "constantValue():io.github.pho001.synaptik.model.datatype.ScalarValue",
                                 "equals(java.lang.Object):boolean",
                                 "hashCode():int",
                                 "toString():java.lang.String"),
@@ -132,12 +133,12 @@ class PadTileSemanticsTest {
 
     @Test
     void acceptsScalarIdentityOrdinaryExamplesAndExtremeWidths() {
-        PadAttrs scalarPad = new PadAttrs(List.of(), List.of(), -0.0d);
+        PadAttrs scalarPad = new PadAttrs(List.of(), List.of(), v(-0.0d));
         TileAttrs scalarTile = new TileAttrs(List.of());
-        PadAttrs pad = new PadAttrs(List.of(1L), List.of(2L), -1.0d);
+        PadAttrs pad = new PadAttrs(List.of(1L), List.of(2L), v(-1.0d));
         TileAttrs tile = new TileAttrs(List.of(2L, 3L));
         PadAttrs extremePad =
-                new PadAttrs(List.of(Long.MAX_VALUE), List.of(Long.MAX_VALUE), 1.0d);
+                new PadAttrs(List.of(Long.MAX_VALUE), List.of(Long.MAX_VALUE), v(1.0d));
         TileAttrs extremeTile = new TileAttrs(List.of(Long.MAX_VALUE));
 
         assertAll(
@@ -145,11 +146,11 @@ class PadTileSemanticsTest {
                 () -> assertEquals(List.of(), scalarPad.after()),
                 () -> assertEquals(
                         Double.doubleToRawLongBits(-0.0d),
-                        Double.doubleToRawLongBits(scalarPad.constantValue())),
+                        Double.doubleToRawLongBits(scalarPad.constantValue().float64Value())),
                 () -> assertEquals(List.of(), scalarTile.repeats()),
                 () -> assertEquals(List.of(1L), pad.before()),
                 () -> assertEquals(List.of(2L), pad.after()),
-                () -> assertEquals(-1.0d, pad.constantValue()),
+                () -> assertEquals(v(-1.0d), pad.constantValue()),
                 () -> assertEquals(List.of(2L, 3L), tile.repeats()),
                 () -> assertEquals(List.of(Long.MAX_VALUE), extremePad.before()),
                 () -> assertEquals(List.of(Long.MAX_VALUE), extremePad.after()),
@@ -161,7 +162,8 @@ class PadTileSemanticsTest {
         ArrayList<Long> callerBefore = new ArrayList<>(List.of(1L, 0L));
         ArrayList<Long> callerAfter = new ArrayList<>(List.of(2L, 3L));
         ArrayList<Long> callerRepeats = new ArrayList<>(List.of(2L, 3L));
-        PadAttrs pad = new PadAttrs(callerBefore, callerAfter, 4.5d);
+        ScalarValue constant = v(4.5d);
+        PadAttrs pad = new PadAttrs(callerBefore, callerAfter, constant);
         TileAttrs tile = new TileAttrs(callerRepeats);
 
         callerBefore.set(0, 7L);
@@ -175,6 +177,7 @@ class PadTileSemanticsTest {
                 () -> assertEquals(List.of(1L, 0L), pad.before()),
                 () -> assertEquals(List.of(2L, 3L), pad.after()),
                 () -> assertEquals(List.of(2L, 3L), tile.repeats()),
+                () -> assertSame(constant, pad.constantValue()),
                 () -> assertNotSame(callerBefore, pad.before()),
                 () -> assertNotSame(callerAfter, pad.after()),
                 () -> assertNotSame(callerRepeats, tile.repeats()),
@@ -200,27 +203,28 @@ class PadTileSemanticsTest {
 
         for (long bits : rawBits) {
             double supplied = Double.longBitsToDouble(bits);
-            PadAttrs attrs = new PadAttrs(List.of(), List.of(), supplied);
+            PadAttrs attrs = new PadAttrs(List.of(), List.of(), ScalarValue.float64(supplied));
 
-            assertEquals(bits, Double.doubleToRawLongBits(attrs.constantValue()));
+            assertEquals(bits, Double.doubleToRawLongBits(attrs.constantValue().float64Value()));
         }
     }
 
     @Test
     void rejectsPadNullContainersAndMismatchedSizesWithExactPrecedence() {
-        assertNullFailure(() -> new PadAttrs(null, null, 0.0d), "before");
-        assertNullFailure(() -> new PadAttrs(List.of(), null, 0.0d), "after");
+        assertNullFailure(() -> new PadAttrs(null, null, null), "before");
+        assertNullFailure(() -> new PadAttrs(List.of(), null, null), "after");
+        assertNullFailure(() -> new PadAttrs(List.of(), List.of(0L), null), "constantValue");
 
         assertAll(
                 () -> assertIllegalFailure(
-                        () -> new PadAttrs(List.of(), List.of(0L), 0.0d),
+                        () -> new PadAttrs(List.of(), List.of(0L), v(0.0d)),
                         "before and after must have matching sizes"),
                 () -> assertIllegalFailure(
-                        () -> new PadAttrs(List.of(0L), List.of(), 0.0d),
+                        () -> new PadAttrs(List.of(0L), List.of(), v(0.0d)),
                         "before and after must have matching sizes"),
                 () -> assertIllegalFailure(
                         () -> new PadAttrs(
-                                Arrays.asList((Long) null), List.of(), Double.NaN),
+                                Arrays.asList((Long) null), List.of(), v(Double.NaN)),
                         "before and after must have matching sizes"));
     }
 
@@ -228,27 +232,27 @@ class PadTileSemanticsTest {
     void rejectsPadElementsInExactIndexAndValidationOrder() {
         assertNullFailure(
                 () -> new PadAttrs(
-                        Arrays.asList((Long) null), Arrays.asList((Long) null), 0.0d),
+                        Arrays.asList((Long) null), Arrays.asList((Long) null), v(0.0d)),
                 "before[0]");
         assertNullFailure(
-                () -> new PadAttrs(List.of(-1L), Arrays.asList((Long) null), 0.0d),
+                () -> new PadAttrs(List.of(-1L), Arrays.asList((Long) null), v(0.0d)),
                 "after[0]");
         assertIllegalFailure(
-                () -> new PadAttrs(List.of(-1L), List.of(-2L), 0.0d),
+                () -> new PadAttrs(List.of(-1L), List.of(-2L), v(0.0d)),
                 "before[0] must be non-negative: -1");
         assertIllegalFailure(
-                () -> new PadAttrs(List.of(0L), List.of(-2L), 0.0d),
+                () -> new PadAttrs(List.of(0L), List.of(-2L), v(0.0d)),
                 "after[0] must be non-negative: -2");
         assertIllegalFailure(
                 () -> new PadAttrs(
-                        List.of(-1L, 0L), Arrays.asList(0L, null), 0.0d),
+                        List.of(-1L, 0L), Arrays.asList(0L, null), v(0.0d)),
                 "before[0] must be non-negative: -1");
         assertNullFailure(
                 () -> new PadAttrs(
-                        Arrays.asList(0L, null), Arrays.asList(0L, null), 0.0d),
+                        Arrays.asList(0L, null), Arrays.asList(0L, null), v(0.0d)),
                 "before[1]");
         assertNullFailure(
-                () -> new PadAttrs(List.of(0L, 0L), Arrays.asList(0L, null), 0.0d),
+                () -> new PadAttrs(List.of(0L, 0L), Arrays.asList(0L, null), v(0.0d)),
                 "after[1]");
     }
 
@@ -268,9 +272,9 @@ class PadTileSemanticsTest {
 
     @Test
     void usesOrderedRecordValueSemanticsAndDiagnosticText() {
-        PadAttrs pad = new PadAttrs(List.of(1L, 0L), List.of(2L, 3L), -1.0d);
-        PadAttrs equalPad = new PadAttrs(List.of(1L, 0L), List.of(2L, 3L), -1.0d);
-        PadAttrs reorderedPad = new PadAttrs(List.of(0L, 1L), List.of(3L, 2L), -1.0d);
+        PadAttrs pad = new PadAttrs(List.of(1L, 0L), List.of(2L, 3L), v(-1.0d));
+        PadAttrs equalPad = new PadAttrs(List.of(1L, 0L), List.of(2L, 3L), v(-1.0d));
+        PadAttrs reorderedPad = new PadAttrs(List.of(0L, 1L), List.of(3L, 2L), v(-1.0d));
         TileAttrs tile = new TileAttrs(List.of(2L, 3L));
         TileAttrs equalTile = new TileAttrs(List.of(2L, 3L));
         TileAttrs reorderedTile = new TileAttrs(List.of(3L, 2L));
@@ -280,10 +284,12 @@ class PadTileSemanticsTest {
                 () -> assertEquals(pad.hashCode(), equalPad.hashCode()),
                 () -> assertNotEquals(pad, reorderedPad),
                 () -> assertNotEquals(
-                        new PadAttrs(List.of(), List.of(), 0.0d),
-                        new PadAttrs(List.of(), List.of(), -0.0d)),
+                        new PadAttrs(List.of(), List.of(), v(0.0d)),
+                        new PadAttrs(List.of(), List.of(), v(-0.0d))),
                 () -> assertEquals(
-                        "PadAttrs[before=[1, 0], after=[2, 3], constantValue=-1.0]",
+                        "PadAttrs[before=[1, 0], after=[2, 3], "
+                                + "constantValue=ScalarValue[dataType=FLOAT64, "
+                                + "bits=0xBFF0000000000000]]",
                         pad.toString()),
                 () -> assertEquals(tile, equalTile),
                 () -> assertEquals(tile.hashCode(), equalTile.hashCode()),
@@ -293,7 +299,7 @@ class PadTileSemanticsTest {
 
     @Test
     void composesOnlyTheDocumentedTypedPairsAndRetainsReferences() {
-        PadAttrs padAttrs = new PadAttrs(List.of(1L), List.of(2L), -1.0d);
+        PadAttrs padAttrs = new PadAttrs(List.of(1L), List.of(2L), v(-1.0d));
         TileAttrs tileAttrs = new TileAttrs(List.of(2L, 3L));
         Operation padded = new Operation(PadKind.PAD, padAttrs);
         Operation tiled = new Operation(TileKind.TILE, tileAttrs);
@@ -319,7 +325,7 @@ class PadTileSemanticsTest {
                         List.of(
                                 "java.util.List<java.lang.Long>",
                                 "java.util.List<java.lang.Long>",
-                                "double"),
+                                "io.github.pho001.synaptik.model.datatype.ScalarValue"),
                         padComponentTypes),
                 () -> assertEquals(
                         List.of("java.util.List<java.lang.Long>"), tileComponentTypes),
@@ -432,5 +438,9 @@ class PadTileSemanticsTest {
                 || name.contains("backend")
                 || name.contains("onnx")
                 || name.contains("training");
+    }
+
+    private static ScalarValue v(double value) {
+        return ScalarValue.float64(value);
     }
 }

@@ -45,7 +45,8 @@ The three `scatterNd` overloads construct functional tuple-index scatter express
 replacement or an explicit reduction and with zero or an explicit shared-batch count. They apply
 the Gather-ND result-Shape formula to `updates`, preserve exact data metadata in a fresh unresolved
 result, and never inspect values or mutate an input.
-`pad(long[], long[], double)` adds constant-filled positions around every axis, and
+`pad(long[], long[], ScalarValue)` adds exactly typed constant-filled positions around every axis;
+its retained `double` overload is an exact-FLOAT64 convenience. `tile(long...)`
 `tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
 same-shaped inputs, and instance `unstack` returns an immutable ordered list of individually
@@ -84,8 +85,8 @@ one-input provenance. Gradients, compiler behavior, materialization, backend low
 mapping, and execution remain planned in their owning layers.
 
 `PadKind.PAD` with `PadAttrs` and `TileKind.TILE` with `TileAttrs` are current semantic contracts.
-Padding attributes store immutable ordered before/after widths plus one uninterpreted binary64
-constant. Tiling attributes store immutable positive complete-pattern repeat counts. Empty lists
+Padding attributes store immutable ordered before/after widths plus one exact typed scalar value.
+Tiling attributes store immutable positive complete-pattern repeat counts. Empty lists
 describe rank-zero scalar identity parameters. Public `Tensor.pad` and `Tensor.tile` now own exact
 rank validation, checked result-Shape derivation, unresolved result layout, exact metadata
 retention, and fresh one-input provenance. The semantic values themselves still do not construct
@@ -193,7 +194,7 @@ left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcas
 BOOL Tensor + NOT                                               = fresh shape-preserving BOOL expression Tensor
 BOOL condition + true/false floating branches                  = fresh broadcast selection Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
-input Tensor + scalar kind + exact double attributes           = fresh descriptor + provenance Tensor
+input Tensor + scalar kind + matching ScalarValue attributes  = fresh descriptor + provenance Tensor
 input Tensor + target DataType                                 = fresh explicit cast Tensor
 floating Tensor + numeric aggregate kind + full/axis attributes = fresh reduced-shape Tensor
 BOOL Tensor + ALL/ANY + full/axis attributes                    = fresh reduced-shape BOOL Tensor
@@ -237,7 +238,7 @@ ContiguousKind                                               = parameterless can
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
 SliceKind + SliceAttrs                                      = positive-step parallel half-open slice semantics
-PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/raw constant
+PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/typed constant
 TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
 TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
@@ -368,8 +369,8 @@ records normalized attributes plus one-input provenance. `Tensor.sliceAxis` dele
 step-one entry through the same path. Neither form reads values, attaches storage, defines
 gradients, captures a graph, or executes work.
 `PadKind.PAD` pairs with `PadAttrs`, whose immutable ordered `before` and `after` lists carry one
-non-negative width per normalized axis position and whose `constantValue` retains every supplied
-Java `double` unchanged. `TileKind.TILE` pairs with `TileAttrs`, whose immutable ordered list
+non-negative width per normalized axis position and whose `constantValue` retains one exact typed
+scalar value. `TileKind.TILE` pairs with `TileAttrs`, whose immutable ordered list
 carries one positive complete-pattern repeat count per normalized axis position. Both attributes
 accept empty scalar-identity lists and `Long.MAX_VALUE` structurally. They contain no input Tensor
 or Shape, so rank matching, checked result-Shape arithmetic, padding-constant conversion, result
@@ -379,7 +380,7 @@ ONNX mapping, and execution remain outside these semantic values. Public `Tensor
 described under [pad and tile expressions](#pad-and-tile-expressions).
 `UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
 and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
-one-input meanings, with exact Java `double` parameters carried by `ScalarValueAttrs` or
+one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
 `ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
@@ -387,9 +388,10 @@ and `notEqualTo` methods use the comparison kinds to construct storage-free `BOO
 from ordered floating inputs. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`,
 `floor`, `ceil`, `sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary
 kinds to create storage-free expressions from one floating input. The public scalar overloads
-`Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
-`clampMax(double)` use the scalar kinds and typed attributes to create one-input storage-free
-expressions while retaining every caller-supplied binary64 parameter bit. The public
+`Tensor.mul(ScalarValue)`, `pow(ScalarValue)`, `clamp(ScalarValue, ScalarValue)`,
+`clampMin(ScalarValue)`, and `clampMax(ScalarValue)` use the scalar kinds and typed attributes to
+create one-input storage-free expressions with exact receiver/value type matching. Their retained
+`double` overloads are exact-FLOAT64 adapters. The public
 `Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods use the logical kinds to construct
 storage-free `BOOL` expressions from exact `BOOL` inputs. AND and OR derive a right-aligned
 broadcast shape and preserve receiver/argument order; NOT retains the exact input `Shape`
@@ -485,6 +487,44 @@ The first input has 16 logical bits and the second has 64, so the widest precisi
 `BFloat16Bits` converts scalar values between Java `float` and raw BFLOAT16 bits held in a `short`. Conversion to BFLOAT16 uses round-to-nearest with ties to even, preserves signed zero and infinities, and canonicalizes NaN to `0x7FC0`.
 
 The utility describes the value format only. It does not allocate storage, expose device formats, or report backend capabilities.
+
+### Exact typed scalar values
+
+`ScalarValue` is an immutable operation parameter consisting of one exact `DataType` and that
+type's primitive bits. It is not a scalar Tensor: a rank-zero Tensor has a descriptor, identity,
+and potentially storage, while `ScalarValue` owns none of those. It is also not a conversion
+request or executable constant.
+
+Named factories make the representation explicit:
+
+```java
+ScalarValue floatValue = ScalarValue.float32(0.5f);
+ScalarValue rawBfloatNaN = ScalarValue.bfloat16Bits((short) 0x7FC1);
+ScalarValue largeInteger = ScalarValue.int64(9_007_199_254_740_993L);
+ScalarValue falseValue = ScalarValue.bool(false);
+```
+
+`float64` and `float32` retain raw IEEE-754 bits, including the sign of zero and distinct NaN
+payloads. `bfloat16Bits` retains every supplied 16-bit pattern without canonicalizing NaN;
+`bfloat16(float)` is the separately named binary32-to-BFLOAT16 conversion and uses
+`BFloat16Bits.fromFloat`. `int32` and `int64` retain exact two's-complement values, so the INT64
+example remains exact even though it is above `2^53`. `bool` stores only canonical false or true.
+Equality and hashing use the data type and exact bits.
+
+Each inspector is strict. For example, calling `float32Value()` on an INT64 value throws
+`IllegalStateException` rather than narrowing or interpreting the bits. There is no general
+conversion method. Scalar/clamp Tensor expressions require a matching floating value, while
+constant padding accepts all six types when the value exactly matches the receiver:
+
+```java
+Tensor scaled = float32Input.mul(ScalarValue.float32(0.5f));
+Tensor padded = boolInput.pad(before, after, ScalarValue.bool(false));
+```
+
+The existing primitive `TensorFactory.scalar`, `scalarBFloat16`, `full`, and `fullBFloat16`
+methods are unchanged. They still create eager scalar or dense Tensor storage through their
+existing exact primitive signatures; this API does not add a `ScalarValue` factory overload or
+materialize a `ScalarValue` as a Tensor.
 
 ## Shapes and dimensions
 
@@ -2661,21 +2701,22 @@ execution.
 
 ### Scalar arithmetic and clamp expressions
 
-The five current scalar methods create parameterized one-input semantics without converting a
-parameter to the input type or calculating element values:
+The five current scalar operations have exact `ScalarValue` overloads and retained `double`
+conveniences:
 
-| Method | Elementwise meaning | Operation attributes |
-|---|---|---|
-| `mul(double)` | Multiply the input by the scalar. | `ScalarValueAttrs` |
-| `pow(double)` | Raise the input to the scalar exponent. | `ScalarValueAttrs` |
-| `clamp(double, double)` | Constrain the input to inclusive lower and upper bounds. | `ClampRangeAttrs` |
-| `clampMin(double)` | Apply an inclusive scalar lower bound. | `ScalarValueAttrs` |
-| `clampMax(double)` | Apply an inclusive scalar upper bound. | `ScalarValueAttrs` |
+| Typed method | FLOAT64 convenience | Elementwise meaning | Attributes |
+|---|---|---|---|
+| `mul(ScalarValue)` | `mul(double)` | Multiply by the scalar. | `ScalarValueAttrs` |
+| `pow(ScalarValue)` | `pow(double)` | Raise the input to the scalar exponent. | `ScalarValueAttrs` |
+| `clamp(ScalarValue, ScalarValue)` | `clamp(double, double)` | Constrain to inclusive bounds. | `ClampRangeAttrs` |
+| `clampMin(ScalarValue)` | `clampMin(double)` | Apply an inclusive lower bound. | `ScalarValueAttrs` |
+| `clampMax(ScalarValue)` | `clampMax(double)` | Apply an inclusive upper bound. | `ScalarValueAttrs` |
 
-Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
-data type and immutable `Shape` reference, preserves `requiresGrad`, and leaves layout unresolved.
-The scalar or bounds remain Java `double` values in the operation attributes with their exact
-binary64 bits, independent of input type. There is no implicit `BFLOAT16` or `FLOAT32` conversion.
+Each operation accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`, and every typed value must have
+the receiver's exact data type. The `double` methods construct exact FLOAT64 values; they do not
+infer or narrow to another receiver type. Thus `float32Input.mul(0.5d)` fails, while
+`float32Input.mul(ScalarValue.float32(0.5f))` is valid. The result retains the exact input data
+type and immutable `Shape` reference, preserves `requiresGrad`, and leaves layout unresolved.
 
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains the exact matching `ScalarElementwiseKind`, typed attributes, and exactly
@@ -2683,22 +2724,25 @@ the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` o
 expanded into `CLAMP_MIN` followed by `CLAMP_MAX`. Repeated, nested, identity-like, and
 special-value calls are not interned, folded, or simplified at this boundary.
 
-For `clamp`, floating-input eligibility is checked before range ordering. `ClampRangeAttrs` then
-rejects only primitive `minValue > maxValue`; equal bounds, either ordering of signed zeros,
-ordered infinities, and a NaN endpoint are representable. Numerical special-value behavior,
-scalar conversion for execution, optimization, gradients, graph capture, and backend execution
-remain later responsibilities.
+For `clamp`, null checks and floating-input eligibility precede bound construction. The bounds
+must share one non-BOOL type, and `ClampRangeAttrs` compares the exact represented primitive type.
+It rejects only a strict inversion; equal bounds, either ordering of signed zeros, ordered
+infinities, and a floating NaN endpoint remain representable. The common bound type must then
+equal the receiver type. Numerical special-value behavior, optimization, gradients, graph
+capture, and backend execution remain later responsibilities.
 
 #### Complete scalar-expression example
 
 ##### Goal and inputs
 
 Build a scalar multiplication followed by one range-clamp expression from a storage-free
-`FLOAT32` tensor of shape `[2, 3]`. The example uses negative zero to demonstrate exact binary64
-attribute retention and observes expression metadata rather than numerical values.
+`FLOAT32` tensor of shape `[2, 3]`. The example uses negative zero and a raw NaN payload to
+demonstrate exact binary32 retention and observes expression metadata rather than numerical
+values.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -2714,8 +2758,11 @@ public final class ScalarExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
-        Tensor scaled = input.mul(-0.0);
-        Tensor result = scaled.clamp(-0.0, 1.0);
+        ScalarValue negativeZero = ScalarValue.float32(-0.0f);
+        ScalarValue payloadNaN = ScalarValue.float32(
+                Float.intBitsToFloat(0x7FC0_0042));
+        Tensor scaled = input.mul(negativeZero);
+        Tensor result = scaled.clamp(negativeZero, payloadNaN);
         TensorProvenance scaledFrom = scaled.provenance().orElseThrow();
         TensorProvenance clampedFrom = result.provenance().orElseThrow();
         ScalarValueAttrs multiplier =
@@ -2731,12 +2778,15 @@ public final class ScalarExpressionExample {
         System.out.println("storageFree=" + result.hostStorage().isEmpty());
         System.out.println("multiplierKind=" + scaledFrom.operation().kind());
         System.out.println("multiplierBits="
-                + Long.toHexString(Double.doubleToRawLongBits(multiplier.value())));
+                + Integer.toHexString(
+                        Float.floatToRawIntBits(multiplier.value().float32Value())));
         System.out.println("clampKind=" + clampedFrom.operation().kind());
         System.out.println("minBits="
-                + Long.toHexString(Double.doubleToRawLongBits(range.minValue())));
+                + Integer.toHexString(
+                        Float.floatToRawIntBits(range.minValue().float32Value())));
         System.out.println("maxBits="
-                + Long.toHexString(Double.doubleToRawLongBits(range.maxValue())));
+                + Integer.toHexString(
+                        Float.floatToRawIntBits(range.maxValue().float32Value())));
         System.out.println("exactInput=" + (clampedFrom.inputs().getFirst() == scaled));
         System.out.println("oneClampInput=" + (clampedFrom.inputs().size() == 1));
         System.out.println("fresh=" + (result != scaled && scaled != input));
@@ -2746,9 +2796,10 @@ public final class ScalarExpressionExample {
 
 ##### Meaningful lines and intermediate results
 
-- `input.mul(-0.0)` records scalar `MUL` and retains the negative-zero bit pattern in one
-  `ScalarValueAttrs`; it does not convert the multiplier to `FLOAT32`.
-- `scaled.clamp(-0.0, 1.0)` records exactly one `CLAMP` with one `ClampRangeAttrs`. Its sole input
+- `input.mul(negativeZero)` records scalar `MUL` and retains the exact `ScalarValue` reference and
+  binary32 negative-zero pattern in one `ScalarValueAttrs`.
+- `scaled.clamp(negativeZero, payloadNaN)` records exactly one `CLAMP` with both exact typed values
+  in one `ClampRangeAttrs`. Its sole input
   is the exact `scaled` object, so the chain preserves immediate expression provenance.
 - Both calls preserve `FLOAT32`, the exact `shape` reference, and true gradient eligibility while
   creating fresh unresolved, unlabeled, storage-free results.
@@ -2765,10 +2816,10 @@ requiresGrad=true
 unlabeled=true
 storageFree=true
 multiplierKind=MUL
-multiplierBits=8000000000000000
+multiplierBits=80000000
 clampKind=CLAMP
-minBits=8000000000000000
-maxBits=3ff0000000000000
+minBits=80000000
+maxBits=7fc00042
 exactInput=true
 oneClampInput=true
 fresh=true
@@ -2783,11 +2834,14 @@ execution.
 
 - Calling any scalar method on an `INT32`, `INT64`, or `BOOL` tensor fails with
   `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
-- `clamp(2.0, 1.0)` fails with `IllegalArgumentException` and message
+- `clamp(ScalarValue.float32(2.0f), ScalarValue.float32(1.0f))` fails with
+  `IllegalArgumentException` and message
   `minValue must be less than or equal to maxValue`. On a non-floating input, the data-type failure
   occurs before that range failure.
 - Signed zeros, infinities, and NaN payload bits remain unchanged in attributes. A NaN clamp
   endpoint is accepted because primitive `>` is false when either operand is NaN.
+- A `double` convenience used on FLOAT32 or BFLOAT16 fails exact data-type matching; callers must
+  construct the matching typed value explicitly.
 - Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. Repeated calls and values
   such as multiplier `1.0` still create fresh expressions without canonicalization.
 
@@ -4891,8 +4945,8 @@ select a backend, or execute work.
 
 ### Pad and tile expressions
 
-`Tensor.pad(long[] before, long[] after, double constantValue)` constructs a fresh constant-pad
-expression. The two arrays must contain exactly one non-negative width per input axis. Construction
+`Tensor.pad(long[] before, long[] after, ScalarValue constantValue)` constructs a fresh constant-
+pad expression. The two arrays must contain exactly one non-negative width per input axis. Construction
 checks both references and ranks, clones both arrays, and then validates and derives metadata from
 the private copies; it never retains or mutates caller-owned arrays. At axis `i`, a static input
 extent produces this checked result extent:
@@ -4906,9 +4960,11 @@ For example, Shape `[2, 3]`, before widths `[1, 0]`, and after widths `[2, 4]` p
 uses the same canonical symbolic arithmetic. Zero widths preserve the exact input Dimension
 reference, while non-zero widths are retained as an exact formula.
 
-The supplied padding value is retained as the exact raw Java `double`, including signed zero,
-NaN, and infinity. Construction accepts every current `DataType`; it does not convert the value to
-that type or decide whether a future backend can represent it.
+The supplied padding value must exactly match the input data type and is retained by exact
+reference without conversion. All six current data types are accepted, including exact INT64
+values above `2^53`, raw BFLOAT16 patterns, and canonical BOOL. The retained `double` overload
+constructs an exact FLOAT64 value, so it succeeds only for a FLOAT64 receiver. Neither overload
+decides whether a future backend can represent or execute the request.
 
 `Tensor.tile(long... repeats)` constructs a fresh complete-pattern tiling expression. Its array
 must contain exactly one strictly positive repeat count per input axis, is cloned before element
@@ -4957,6 +5013,7 @@ attributes, operation identity, and deliberately unresolved storage-free results
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
@@ -4978,7 +5035,7 @@ public final class PadTileExpressionExample {
         long[] before = {1, 0};
         long[] after = {2, 4};
         long[] repeats = {2, 4};
-        Tensor padded = input.pad(before, after, -1.0);
+        Tensor padded = input.pad(before, after, ScalarValue.float32(-1.0f));
         Tensor tiled = input.tile(repeats);
         before[0] = 99;
         repeats[0] = 99;
@@ -5012,6 +5069,7 @@ public final class PadTileExpressionExample {
   `[4, 12]`.
 - Mutating the input arrays after construction cannot change the normalized attributes, which
   remain `[1, 0]`, `[2, 4]`, and `[2, 4]`.
+- The padding constant is an exact FLOAT32 `ScalarValue`, retained without a binary64 intermediate.
 - Both expressions retain `FLOAT32` and true gradient eligibility, record their distinct semantic
   kinds, and preserve the exact input Tensor in one-input provenance.
 - The resolved input geometry does not propagate. Both fresh results remain unresolved and have
@@ -5025,7 +5083,7 @@ The program prints:
 Shape[5, 7]
 [1, 0]
 [2, 4]
--1.0
+ScalarValue[dataType=FLOAT32, bits=0xBF800000]
 Shape[4, 12]
 [2, 4]
 PAD
@@ -5042,8 +5100,9 @@ materialization, compiler canonicalization, backend or ONNX lowering, or executi
 
 ##### Failures and useful variations
 
-- A null array fails with `NullPointerException` naming that parameter. A length different from
-  input rank, a negative padding width, or a non-positive repeat fails with
+- A null array or typed padding value fails with `NullPointerException` naming that parameter. A
+  length different from input rank, a negative padding width, a mismatched constant type, or a
+  non-positive repeat fails with
   `IllegalArgumentException` before result identity allocation.
 - Static extent, symbolic coefficient, or symbolic offset overflow propagates as
   `ArithmeticException` before result identity allocation. The attributes themselves can
@@ -5051,6 +5110,8 @@ materialization, compiler canonicalization, backend or ONNX lowering, or executi
   geometry is enforced.
 - Zero-width padding and repeat-one tiling still produce distinct explicit expression identities
   with unresolved layouts. Scalar calls use empty arrays and are valid.
+- `boolInput.pad(before, after, ScalarValue.bool(false))` is valid. Passing a FLOAT64 value to that
+  receiver fails rather than applying truthiness conversion.
 - Identifier exhaustion can occur only at final derived Tensor construction, after all local
   immutable metadata has been prepared.
 
@@ -5500,7 +5561,7 @@ composition while the table also lists the current production families:
 | `SliceKind` | The implemented production enum whose sole `SLICE` value identifies positive-step parallel half-open logical selection. |
 | `SliceAttrs` | The implemented immutable normalized inclusive starts, exclusive ends, distinct axes, and positive steps for a slice. |
 | `PadKind` | The implemented production enum whose sole `PAD` value identifies constant padding around every input axis. |
-| `PadAttrs` | The implemented immutable ordered before/after widths and uninterpreted binary64 padding constant. |
+| `PadAttrs` | The implemented immutable ordered before/after widths and exact typed padding constant. |
 | `TileKind` | The implemented production enum whose sole `TILE` value identifies complete-pattern per-axis tiling. |
 | `TileAttrs` | The implemented immutable ordered positive complete-pattern repeat counts. |
 | `TensorCompositionKind` | The implemented production enum for ordered `CONCAT`, inserted-axis `STACK`, and individually indexed `UNSTACK` output meanings. |
@@ -5515,8 +5576,8 @@ composition while the table also lists the current production families:
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
-| `ScalarValueAttrs` | The implemented immutable value for one exact Java `double` scalar parameter. |
-| `ClampRangeAttrs` | The implemented immutable value for exact ordered inclusive clamp bounds. |
+| `ScalarValueAttrs` | The implemented immutable holder for one exact typed scalar parameter. |
+| `ClampRangeAttrs` | The implemented immutable value for exact same-type numeric inclusive clamp bounds. |
 
 `OperationKind` declares `name()` and `signatures()`. The name is stable diagnostic text, not a
 serialization token or global lookup key. Each concrete family owns a stable immutable non-empty
@@ -6817,11 +6878,12 @@ The scalar parameter or bounds are operation attributes, not additional Tensor i
 signatures enforce the table: `CLAMP` accepts exactly `ClampRangeAttrs`, while the other four kinds
 accept exactly `ScalarValueAttrs`; every variant declares one input and one output.
 
-`ScalarValueAttrs` accepts every Java `double` and retains its exact binary64 value without
-validation, conversion, normalization, or defaulting. `ClampRangeAttrs` retains both bounds
-unchanged and rejects only `minValue > maxValue` under the primitive Java comparison. Therefore it
-accepts equal bounds, either ordering of signed zeros, ordered infinities, and any range containing
-a NaN endpoint. An inverted range fails with `IllegalArgumentException` and the message
+`ScalarValueAttrs` retains one non-null `ScalarValue` by exact reference without conversion,
+normalization, or input compatibility checks. `ClampRangeAttrs` requires two non-null values with
+the same non-BOOL data type and compares that represented primitive type without a binary64
+intermediate. It accepts equal bounds, either ordering of signed zeros, ordered infinities, and
+any floating range containing a NaN endpoint. An inverted range fails with
+`IllegalArgumentException` and the message
 `minValue must be less than or equal to maxValue`.
 
 The following example creates semantic descriptors directly; it does not call the matching public
@@ -6830,17 +6892,17 @@ Tensor expression methods or execute an operation:
 ```java
 Operation scaled = new Operation(
         ScalarElementwiseKind.MUL,
-        new ScalarValueAttrs(-0.0));
+        new ScalarValueAttrs(ScalarValue.float32(-0.0f)));
 
 Operation clipped = new Operation(
         ScalarElementwiseKind.CLAMP,
-        new ClampRangeAttrs(0.0, 1.0));
+        new ClampRangeAttrs(ScalarValue.float32(0.0f), ScalarValue.float32(1.0f)));
 ```
 
-Both attribute records use standard generated record equality for `double` components. Positive
-and negative zero are unequal components. All NaN components compare equal even when the accessors
-retain different raw NaN payload bits. Exact retention can be observed with
-`Double.doubleToRawLongBits`; record equality does not imply raw-bit equality.
+Both attribute records compose `ScalarValue` equality, which includes the exact data type and raw
+bits. Positive and negative floating zero are unequal, and distinct NaN payloads remain unequal.
+An `Operation` has no operand descriptor, so direct construction does not prove that these FLOAT32
+attributes will eventually be attached to a FLOAT32 input.
 
 The kinds and attributes alone do not
 infer result descriptors, define scalar conversion, establish numerical or special-value execution
@@ -7452,13 +7514,14 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   follows local descriptor and provenance construction. The methods do not inspect mathematical
   domains, simplify chains, define strict or fast numerical accuracy, capture graphs, or provide
   gradient or backend behavior.
-- `Tensor.mul(double)`, `pow(double)`, `clamp(double, double)`, `clampMin(double)`, and
-  `clampMax(double)` accept only floating receiver data types, retain exact caller binary64
-  attributes, and preserve the input type, shape reference, and gradient eligibility. Each
+- The `ScalarValue` overloads of `Tensor.mul`, `pow`, `clamp`, `clampMin`, and `clampMax` accept
+  only floating receivers and require exact receiver/value data-type equality. Their `double`
+  overloads adapt only to exact FLOAT64. All forms preserve the input type, shape reference, and
+  gradient eligibility. Each
   successful call returns a fresh unlabeled storage-free Tensor with unresolved layout and exact
   matching one-input provenance. `clamp` validates the input type before rejecting only a strictly
-  inverted range and remains one `CLAMP` operation. Type and range failures precede ID allocation;
-  the methods do not convert parameters, simplify expressions, define numerical behavior, capture
+  inverted represented range and remains one `CLAMP` operation. Type and range failures precede
+  ID allocation; the methods do not convert parameters, simplify expressions, define numerical behavior, capture
   graphs, or provide gradient or backend behavior.
 - `TensorFactory` rejects null argument containers before ID allocation, delegates label and
   storage semantics to `Tensor` after allocation, and assigns IDs unique among its allocations in

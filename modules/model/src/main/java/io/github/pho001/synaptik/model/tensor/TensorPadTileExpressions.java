@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
@@ -26,8 +27,8 @@ import java.util.Optional;
  * <p>Every result preserves the input DataType and gradient-eligibility value but deliberately
  * leaves layout unresolved. Padding introduces new positions and tiling repeats positions, so
  * neither result is described as an input view, even for an identity request. Construction
- * records exact one-input provenance without inspecting values or storage, converting padding
- * constants, defining gradients, binding or evaluating symbolic extents, capturing a graph,
+ * records exact one-input provenance without inspecting values or storage, converting typed
+ * padding constants, defining gradients, binding or evaluating symbolic extents, capturing a graph,
  * selecting materialization, lowering to a backend, mapping ONNX, or executing work.</p>
  */
 final class TensorPadTileExpressions {
@@ -38,28 +39,31 @@ final class TensorPadTileExpressions {
     /**
      * Validates one complete constant-padding request and creates a fresh PAD expression.
      *
-     * <p>References are null-checked in order, then each array length is compared with the exact
-     * input rank. The arrays are cloned in parameter order before boxing, and {@link PadAttrs}
-     * owns width validation and immutable snapshots. The raw constant is retained unchanged for
-     * every input data type. All failures before final factory delegation consume no Tensor
-     * identity.</p>
+     * <p>References are null-checked in parameter order, then each array length is compared with
+     * the exact input rank. The arrays are cloned in parameter order before boxing, and
+     * {@link PadAttrs} owns width validation and immutable snapshots. Exact constant/input data-
+     * type equality is checked after width validation and before Shape arithmetic. All failures
+     * before final factory delegation consume no Tensor identity.</p>
      *
      * @param input non-null Tensor retained as the exact sole provenance input
      * @param before non-null caller-owned before widths, exactly one per input axis
      * @param after non-null caller-owned after widths, exactly one per input axis
-     * @param constantValue exact raw binary64 padding constant retained without interpretation
+     * @param constantValue non-null exact typed padding constant; its data type must equal the
+     *     input data type and it is retained by exact reference
      * @return a non-null fresh unlabeled, storage-free PAD expression with unresolved layout
-     * @throws NullPointerException if {@code input}, {@code before}, or {@code after} is null,
-     *     with that parameter name as the message
+     * @throws NullPointerException if {@code input}, {@code before}, {@code after}, or
+     *     {@code constantValue} is null, checked in that order with the parameter name as the
+     *     message
      * @throws IllegalArgumentException if an array length differs from input rank or a width is
-     *     negative
+     *     negative, or the constant and input data types differ
      * @throws ArithmeticException if checked static extent or symbolic-offset addition overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
-    static Tensor pad(Tensor input, long[] before, long[] after, double constantValue) {
+    static Tensor pad(Tensor input, long[] before, long[] after, ScalarValue constantValue) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(before, "before");
         Objects.requireNonNull(after, "after");
+        Objects.requireNonNull(constantValue, "constantValue");
         TensorDescriptor inputDescriptor = input.descriptor();
         Shape inputShape = inputDescriptor.shape();
         int rank = inputShape.rank();
@@ -77,6 +81,11 @@ final class TensorPadTileExpressions {
                 Arrays.stream(privateBefore).boxed().toList(),
                 Arrays.stream(privateAfter).boxed().toList(),
                 constantValue);
+        if (constantValue.dataType() != inputDescriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "padding constant data type " + constantValue.dataType()
+                            + " must match input data type " + inputDescriptor.dataType());
+        }
         Shape resultShape = paddedShape(inputShape, attrs);
         Operation operation = new Operation(PadKind.PAD, attrs);
         return create(input, inputDescriptor, resultShape, operation);

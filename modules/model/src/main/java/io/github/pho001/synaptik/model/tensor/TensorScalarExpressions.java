@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
@@ -15,8 +16,8 @@ import java.util.Optional;
  * <p>This package-private boundary owns the deterministic construction path for scalar
  * multiplication, scalar exponentiation, and inclusive clamp requests. It accepts only floating
  * inputs, retains the input's exact data type and shape reference, preserves gradient eligibility,
- * and records the supplied binary64 parameters unchanged in typed operation attributes. It does
- * not inspect values or storage, convert parameters to an input format, evaluate mathematics,
+ * and records exact matching typed scalar parameters unchanged in operation attributes. It does
+ * not inspect values or storage, convert parameters, evaluate mathematics,
  * validate numerical domains, canonicalize or decompose expressions, create gradient rules, or
  * capture a graph.</p>
  */
@@ -28,27 +29,29 @@ final class TensorScalarExpressions {
     /**
      * Creates one fresh derived tensor for a one-parameter scalar elementwise request.
      *
-     * <p>Validation occurs in this exact order: null-check {@code input} and {@code kind}, reject
-     * {@link ScalarElementwiseKind#CLAMP} because it requires range attributes, then validate the
-     * input's floating data type. The exact primitive bits are retained in one
+     * <p>Validation occurs in this exact order: null-check {@code input}, {@code kind}, and
+     * {@code value}; reject {@link ScalarElementwiseKind#CLAMP} because it requires range
+     * attributes; validate the input's floating data type; then require exact value/input data-
+     * type equality. The exact supplied reference is retained in one
      * {@link ScalarValueAttrs}, which is paired with the exact supplied kind before common result
      * construction. A failed validation allocates no tensor identity.</p>
      *
      * @param input non-null floating tensor retained by exact reference in result provenance
      * @param kind non-null scalar kind other than {@code CLAMP}, retained in the result operation
-     * @param value binary64 multiplier, exponent, or single clamp bound retained without
-     *     conversion or normalization, including signed zero, infinity, and NaN payload bits
+     * @param value non-null exact multiplier, exponent, or single clamp bound; its data type must
+     *     equal the input data type and it is retained by exact reference
      * @return the non-null exact fresh derived tensor returned by the central factory
-     * @throws NullPointerException if {@code input} or {@code kind} is null, checked in that order
-     *     with the parameter name as the message
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code value} is null,
+     *     checked in that order with the parameter name as the message
      * @throws IllegalArgumentException if {@code kind} is {@code CLAMP}, or if the input data type
-     *     is not floating
+     *     is not floating, or if the scalar and input data types differ
      * @throws IllegalStateException if tensor identifier space is exhausted after local model
      *     values have been constructed
      */
-    static Tensor applyScalar(Tensor input, ScalarElementwiseKind kind, double value) {
+    static Tensor applyScalar(Tensor input, ScalarElementwiseKind kind, ScalarValue value) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(value, "value");
         if (kind == ScalarElementwiseKind.CLAMP) {
             throw new IllegalArgumentException("CLAMP requires ClampRangeAttrs");
         }
@@ -57,6 +60,11 @@ final class TensorScalarExpressions {
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "input must be a floating data type, but was " + dataType);
+        }
+        if (value.dataType() != dataType) {
+            throw new IllegalArgumentException(
+                    "scalar data type " + value.dataType()
+                            + " must match input data type " + dataType);
         }
 
         ScalarValueAttrs attrs = new ScalarValueAttrs(value);
@@ -67,25 +75,28 @@ final class TensorScalarExpressions {
     /**
      * Creates one fresh derived tensor for an inclusive two-bound clamp request.
      *
-     * <p>The input is null-checked before its exact data type is read and validated as floating.
-     * Only then are the supplied bounds retained in one {@link ClampRangeAttrs}; consequently a
-     * non-floating input failure precedes range validation. The attributes constructor rejects
-     * only a strictly inverted primitive range and otherwise preserves both binary64 values,
-     * including equal bounds, signed zeros, infinities, and NaNs. One operation with
+     * <p>The input and bounds are null-checked in parameter order before the input type is
+     * validated as floating. The bounds are then validated and retained in one
+     * {@link ClampRangeAttrs}, so a non-floating input failure precedes range compatibility and
+     * ordering checks. Exact common bound/input type equality is checked next. One operation with
      * {@link ScalarElementwiseKind#CLAMP} is then passed to common result construction.</p>
      *
      * @param input non-null floating tensor retained by exact reference in result provenance
-     * @param minValue inclusive lower bound retained without conversion or normalization
-     * @param maxValue inclusive upper bound retained without conversion or normalization
+     * @param minValue non-null exact inclusive lower bound retained by reference
+     * @param maxValue non-null exact inclusive upper bound of the same type, retained by reference
      * @return the non-null exact fresh derived tensor returned by the central factory
-     * @throws NullPointerException if {@code input} is null, with {@code input} as the message
-     * @throws IllegalArgumentException if the input data type is not floating, or if
-     *     {@code minValue > maxValue}
+     * @throws NullPointerException if {@code input}, {@code minValue}, or {@code maxValue} is
+     *     null, checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the input data type is not floating, the bounds have
+     *     different types or BOOL type, the range is inverted, or the bounds and input types
+     *     differ
      * @throws IllegalStateException if tensor identifier space is exhausted after local model
      *     values have been constructed
      */
-    static Tensor applyClamp(Tensor input, double minValue, double maxValue) {
+    static Tensor applyClamp(Tensor input, ScalarValue minValue, ScalarValue maxValue) {
         Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(minValue, "minValue");
+        Objects.requireNonNull(maxValue, "maxValue");
 
         DataType dataType = input.descriptor().dataType();
         if (!dataType.isFloating()) {
@@ -94,6 +105,11 @@ final class TensorScalarExpressions {
         }
 
         ClampRangeAttrs attrs = new ClampRangeAttrs(minValue, maxValue);
+        if (attrs.minValue().dataType() != dataType) {
+            throw new IllegalArgumentException(
+                    "clamp data type " + attrs.minValue().dataType()
+                            + " must match input data type " + dataType);
+        }
         Operation operation = new Operation(ScalarElementwiseKind.CLAMP, attrs);
         return create(input, dataType, operation);
     }

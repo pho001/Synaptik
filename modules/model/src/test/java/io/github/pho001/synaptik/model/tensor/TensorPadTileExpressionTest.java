@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
@@ -43,13 +44,15 @@ class TensorPadTileExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(90_000);
 
     @Test
-    void exposesExactlyTwoPublicMethodsAndFiveMethodStatelessHelper() throws Exception {
+    void exposesTypedAndDoublePadMethodsAndFiveMethodStatelessHelper() throws Exception {
         Method pad = Tensor.class.getDeclaredMethod(
                 "pad", long[].class, long[].class, double.class);
+        Method typedPad = Tensor.class.getDeclaredMethod(
+                "pad", long[].class, long[].class, ScalarValue.class);
         Method tile = Tensor.class.getDeclaredMethod("tile", long[].class);
         var constructor = TensorPadTileExpressions.class.getDeclaredConstructor();
         Method helperPad = TensorPadTileExpressions.class.getDeclaredMethod(
-                "pad", Tensor.class, long[].class, long[].class, double.class);
+                "pad", Tensor.class, long[].class, long[].class, ScalarValue.class);
         Method helperTile = TensorPadTileExpressions.class.getDeclaredMethod(
                 "tile", Tensor.class, long[].class);
         Method paddedShape = TensorPadTileExpressions.class.getDeclaredMethod(
@@ -72,6 +75,13 @@ class TensorPadTileExpressionTest {
                 () -> assertFalse(Modifier.isStatic(pad.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(pad.getModifiers())),
                 () -> assertFalse(pad.isVarArgs()),
+                () -> assertEquals(Tensor.class, typedPad.getReturnType()),
+                () -> assertEquals(
+                        List.of(long[].class, long[].class, ScalarValue.class),
+                        Arrays.asList(typedPad.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(typedPad.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(typedPad.getModifiers())),
+                () -> assertFalse(typedPad.isVarArgs()),
                 () -> assertEquals(Tensor.class, tile.getReturnType()),
                 () -> assertEquals(List.of(long[].class),
                         Arrays.asList(tile.getParameterTypes())),
@@ -124,7 +134,8 @@ class TensorPadTileExpressionTest {
                                 shape, new long[] {0, 1}, 0, true)))) {
                     Tensor input = tensor(dataType, shape, layout, requiresGrad);
 
-                    Tensor padded = input.pad(new long[] {1, 2}, new long[] {3, 4}, -7.25);
+                    ScalarValue constant = scalar(dataType, -7.25);
+                    Tensor padded = input.pad(new long[] {1, 2}, new long[] {3, 4}, constant);
                     Tensor tiled = input.tile(2, 5);
                     TensorProvenance padProvenance = padded.provenance().orElseThrow();
                     TensorProvenance tileProvenance = tiled.provenance().orElseThrow();
@@ -139,7 +150,7 @@ class TensorPadTileExpressionTest {
                             () -> assertTrue(padded.hostStorage().isEmpty()),
                             () -> assertSame(PadKind.PAD, padProvenance.operation().kind()),
                             () -> assertEquals(
-                                    new PadAttrs(List.of(1L, 2L), List.of(3L, 4L), -7.25),
+                                    new PadAttrs(List.of(1L, 2L), List.of(3L, 4L), constant),
                                     padProvenance.operation().attrs()),
                             () -> assertEquals(List.of(input), padProvenance.inputs()),
                             () -> assertSame(input, padProvenance.inputs().getFirst()),
@@ -161,24 +172,16 @@ class TensorPadTileExpressionTest {
     }
 
     @Test
-    void retainsEveryRawPaddingConstantWithoutConversion() {
-        Tensor input = tensor(DataType.BOOL, Shape.of(1), Optional.empty(), false);
-        double[] values = {
-                0.0,
-                -0.0,
-                1.25,
-                Double.NaN,
-                Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY,
-                Double.longBitsToDouble(0x7ff8_0000_0000_1234L)
-        };
+    void retainsExactTypedPaddingConstantsWithoutConversion() {
+        Tensor input = tensor(DataType.INT64, Shape.of(1), Optional.empty(), false);
+        long[] values = {Long.MIN_VALUE, -1L, 0L, 9_007_199_254_740_993L, Long.MAX_VALUE};
 
-        for (double value : values) {
-            Tensor result = input.pad(new long[] {0}, new long[] {0}, value);
+        for (long value : values) {
+            ScalarValue constant = ScalarValue.int64(value);
+            Tensor result = input.pad(new long[] {0}, new long[] {0}, constant);
             PadAttrs attrs = (PadAttrs) result.provenance().orElseThrow().operation().attrs();
-            assertEquals(
-                    Double.doubleToRawLongBits(value),
-                    Double.doubleToRawLongBits(attrs.constantValue()));
+            assertSame(constant, attrs.constantValue());
+            assertEquals(value, attrs.constantValue().int64Value());
         }
     }
 
@@ -189,7 +192,7 @@ class TensorPadTileExpressionTest {
         long[] after = {3, 4};
         long[] repeats = {5, 6};
 
-        Tensor padded = input.pad(before, after, 9.0);
+        Tensor padded = input.pad(before, after, ScalarValue.float32(9.0f));
         Tensor tiled = input.tile(repeats);
         before[0] = Long.MAX_VALUE;
         after[1] = Long.MAX_VALUE;
@@ -214,25 +217,39 @@ class TensorPadTileExpressionTest {
 
         NullPointerException nullPadInput = assertThrows(
                 NullPointerException.class,
-                () -> TensorPadTileExpressions.pad(null, null, null, 0.0));
+                () -> TensorPadTileExpressions.pad(null, null, null, null));
         NullPointerException nullBefore = assertThrows(
                 NullPointerException.class,
-                () -> TensorPadTileExpressions.pad(rankTwo, null, null, 0.0));
+                () -> TensorPadTileExpressions.pad(rankTwo, null, null, null));
         NullPointerException nullAfter = assertThrows(
                 NullPointerException.class,
-                () -> TensorPadTileExpressions.pad(rankTwo, new long[] {0, 0}, null, 0.0));
+                () -> TensorPadTileExpressions.pad(rankTwo, new long[] {0, 0}, null, null));
+        NullPointerException nullConstant = assertThrows(
+                NullPointerException.class,
+                () -> TensorPadTileExpressions.pad(
+                        rankTwo, new long[] {0, 0}, new long[] {0, 0}, null));
         IllegalArgumentException beforeRank = assertThrows(
                 IllegalArgumentException.class,
-                () -> rankTwo.pad(new long[] {0}, new long[0], 0.0));
+                () -> rankTwo.pad(new long[] {0}, new long[0], ScalarValue.float32(0.0f)));
         IllegalArgumentException afterRank = assertThrows(
                 IllegalArgumentException.class,
-                () -> rankTwo.pad(new long[] {0, 0}, new long[] {0}, 0.0));
+                () -> rankTwo.pad(
+                        new long[] {0, 0}, new long[] {0}, ScalarValue.float32(0.0f)));
         IllegalArgumentException negativeBefore = assertThrows(
                 IllegalArgumentException.class,
-                () -> rankTwo.pad(new long[] {-1, 0}, new long[] {-2, 0}, 0.0));
+                () -> rankTwo.pad(new long[] {-1, 0}, new long[] {-2, 0},
+                        ScalarValue.float32(0.0f)));
         IllegalArgumentException negativeAfter = assertThrows(
                 IllegalArgumentException.class,
-                () -> rankTwo.pad(new long[] {0, 0}, new long[] {-2, 0}, 0.0));
+                () -> rankTwo.pad(new long[] {0, 0}, new long[] {-2, 0},
+                        ScalarValue.float32(0.0f)));
+        IllegalArgumentException typeMismatch = assertThrows(
+                IllegalArgumentException.class,
+                () -> rankTwo.pad(
+                        new long[] {0, 0}, new long[] {0, 0}, ScalarValue.float64(0.0)));
+        IllegalArgumentException doubleMismatch = assertThrows(
+                IllegalArgumentException.class,
+                () -> rankTwo.pad(new long[] {0, 0}, new long[] {0, 0}, 0.0));
         NullPointerException nullTileInput = assertThrows(
                 NullPointerException.class,
                 () -> TensorPadTileExpressions.tile(null, null));
@@ -250,6 +267,7 @@ class TensorPadTileExpressionTest {
                 () -> assertEquals("input", nullPadInput.getMessage()),
                 () -> assertEquals("before", nullBefore.getMessage()),
                 () -> assertEquals("after", nullAfter.getMessage()),
+                () -> assertEquals("constantValue", nullConstant.getMessage()),
                 () -> assertEquals(
                         "padding before length 1 must equal input rank 2",
                         beforeRank.getMessage()),
@@ -260,6 +278,12 @@ class TensorPadTileExpressionTest {
                         "before[0] must be non-negative: -1", negativeBefore.getMessage()),
                 () -> assertEquals(
                         "after[0] must be non-negative: -2", negativeAfter.getMessage()),
+                () -> assertEquals(
+                        "padding constant data type FLOAT64 must match input data type FLOAT32",
+                        typeMismatch.getMessage()),
+                () -> assertEquals(
+                        "padding constant data type FLOAT64 must match input data type FLOAT32",
+                        doubleMismatch.getMessage()),
                 () -> assertEquals("input", nullTileInput.getMessage()),
                 () -> assertEquals("repeats", nullRepeats.getMessage()),
                 () -> assertEquals(
@@ -275,7 +299,8 @@ class TensorPadTileExpressionTest {
     @Test
     void supportsScalarStaticZeroAndCanonicalIdentityReferences() {
         Tensor scalarInput = tensor(DataType.INT64, Shape.scalar(), Optional.empty(), false);
-        Tensor scalarPad = scalarInput.pad(new long[0], new long[0], Double.NaN);
+        Tensor scalarPad = scalarInput.pad(
+                new long[0], new long[0], ScalarValue.int64(Long.MIN_VALUE));
         Tensor scalarTile = scalarInput.tile(new long[0]);
         StaticDimension zero = new StaticDimension(0);
         DynamicDimension batch = new DynamicDimension("batch");
@@ -290,7 +315,7 @@ class TensorPadTileExpressionTest {
         Tensor identityTiled = mixedInput.tile(1, 1, 1);
         Tensor extremePadded = tensor(
                         DataType.BOOL, Shape.of(0), Optional.empty(), false)
-                .pad(new long[] {Long.MAX_VALUE}, new long[] {0}, 0.0);
+                .pad(new long[] {Long.MAX_VALUE}, new long[] {0}, ScalarValue.bool(false));
 
         assertAll(
                 () -> assertSame(Shape.scalar(), scalarPad.descriptor().shape()),
@@ -334,9 +359,11 @@ class TensorPadTileExpressionTest {
                 true);
 
         Tensor padded = input.pad(
-                new long[] {2, 1, 3, 1}, new long[] {3, 4, 0, 2}, 0.0);
+                new long[] {2, 1, 3, 1}, new long[] {3, 4, 0, 2},
+                ScalarValue.float32(0.0f));
         Tensor tiled = input.tile(4, 3, 2, 5);
-        Tensor identityPadded = input.pad(new long[4], new long[4], 0.0);
+        Tensor identityPadded = input.pad(
+                new long[4], new long[4], ScalarValue.float32(0.0f));
         Tensor identityTiled = input.tile(1, 1, 1, 1);
         Shape independentlyPadded = Shape.ofDimensions(
                 DimensionExpressions.addConstant(new DynamicDimension("N"), 5),
@@ -397,15 +424,18 @@ class TensorPadTileExpressionTest {
 
         ArithmeticException firstAdd = assertThrows(
                 ArithmeticException.class,
-                () -> addFirst.pad(new long[] {1}, new long[] {0}, 0.0));
+                () -> addFirst.pad(
+                        new long[] {1}, new long[] {0}, ScalarValue.int64(0L)));
         ArithmeticException secondAdd = assertThrows(
                 ArithmeticException.class,
-                () -> addSecond.pad(new long[] {1}, new long[] {1}, 0.0));
+                () -> addSecond.pad(
+                        new long[] {1}, new long[] {1}, ScalarValue.int64(0L)));
         ArithmeticException product = assertThrows(
                 ArithmeticException.class, () -> multiply.tile(2));
         ArithmeticException offset = assertThrows(
                 ArithmeticException.class,
-                () -> offsetOverflow.pad(new long[] {1}, new long[] {0}, 0.0));
+                () -> offsetOverflow.pad(
+                        new long[] {1}, new long[] {0}, ScalarValue.float32(0.0f)));
         ArithmeticException coefficient = assertThrows(
                 ArithmeticException.class, () -> coefficientOverflow.tile(2));
 
@@ -426,9 +456,12 @@ class TensorPadTileExpressionTest {
                 Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 3))),
                 true);
 
-        Tensor firstPad = input.pad(new long[] {0, 0}, new long[] {0, 0}, 0.0);
-        Tensor secondPad = input.pad(new long[] {0, 0}, new long[] {0, 0}, 0.0);
-        Tensor nestedPad = firstPad.pad(new long[] {0, 0}, new long[] {0, 0}, 0.0);
+        Tensor firstPad = input.pad(
+                new long[] {0, 0}, new long[] {0, 0}, ScalarValue.float32(0.0f));
+        Tensor secondPad = input.pad(
+                new long[] {0, 0}, new long[] {0, 0}, ScalarValue.float32(0.0f));
+        Tensor nestedPad = firstPad.pad(
+                new long[] {0, 0}, new long[] {0, 0}, ScalarValue.float32(0.0f));
         Tensor firstTile = input.tile(1, 1);
         Tensor secondTile = input.tile(1, 1);
         Tensor nestedTile = firstTile.tile(1, 1);
@@ -479,7 +512,8 @@ class TensorPadTileExpressionTest {
                 Optional.of(storage));
         float[] before = storage.segment().asSlice(8, 16).toArray(JAVA_FLOAT);
 
-        Tensor padded = input.pad(new long[] {1, 0}, new long[] {0, 1}, 5.0);
+        Tensor padded = input.pad(
+                new long[] {1, 0}, new long[] {0, 1}, ScalarValue.float32(5.0f));
         Tensor tiled = input.tile(2, 3);
         float[] after = storage.segment().asSlice(8, 16).toArray(JAVA_FLOAT);
         arena.close();
@@ -505,7 +539,7 @@ class TensorPadTileExpressionTest {
         AtomicLong next = nextTensorIdState();
         long beforeId = next.get();
 
-        input.pad(new long[] {1}, new long[] {2}, 3.0);
+        input.pad(new long[] {1}, new long[] {2}, ScalarValue.float32(3.0f));
         assertEquals(beforeId + 1, next.get());
         input.tile(4);
         assertEquals(beforeId + 2, next.get());
@@ -519,7 +553,8 @@ class TensorPadTileExpressionTest {
 
             IllegalStateException padFailure = assertThrows(
                     IllegalStateException.class,
-                    () -> input.pad(new long[] {0}, new long[] {0}, 0.0));
+                    () -> input.pad(
+                            new long[] {0}, new long[] {0}, ScalarValue.float32(0.0f)));
             IllegalStateException tileFailure = assertThrows(
                     IllegalStateException.class, () -> input.tile(1));
 
@@ -538,6 +573,17 @@ class TensorPadTileExpressionTest {
 
     private static List<Boolean> validGradientChoices(DataType dataType) {
         return dataType.isDifferentiable() ? List.of(false, true) : List.of(false);
+    }
+
+    private static ScalarValue scalar(DataType dataType, double value) {
+        return switch (dataType) {
+            case FLOAT64 -> ScalarValue.float64(value);
+            case FLOAT32 -> ScalarValue.float32((float) value);
+            case BFLOAT16 -> ScalarValue.bfloat16((float) value);
+            case INT32 -> ScalarValue.int32((int) value);
+            case INT64 -> ScalarValue.int64((long) value);
+            case BOOL -> ScalarValue.bool(value != 0.0d);
+        };
     }
 
     private static AtomicLong nextTensorIdState() throws Exception {

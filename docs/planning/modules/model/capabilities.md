@@ -110,16 +110,17 @@ because public expression results require honest Shape metadata when they are co
 
 ### Typed scalar values
 
-Binary64 `double` attributes cannot exactly represent every `INT64` value and do not state whether
-a FLOAT32 or BFLOAT16 constant was rounded before becoming semantic state. The same problem makes
-the current `double` padding constant unsafe for BOOL and integral tensors.
+Completed task 0018N replaces ambiguous binary64 scalar-operation and padding attributes with one
+small immutable `ScalarValue` for the current six data types. It preserves exact FLOAT64 and
+FLOAT32 bits, raw BFLOAT16 bits, signed INT32 and INT64 values, and canonical BOOL. Scalar,
+clamp, and padding attributes retain that value, and public Tensor construction requires exact
+receiver/value data-type equality without implicit conversion.
 
-The selected direction is one small immutable typed scalar value contract for the current six
-data types. It must preserve exact FLOAT64 and FLOAT32 bits, BFLOAT16 bits, signed INT32 and INT64
-values, and canonical BOOL. Scalar operation and padding attributes retain this value, and their
-public boundaries require an exact type match or an explicit conversion. The contract should be
-extensible to FLOAT16 when that type is deliberately added, without speculating about every future
-numeric category.
+`ScalarValue` is model semantic state, not a scalar Tensor, storage carrier, conversion request,
+or executable constant. The existing `double` Tensor overloads remain exact-FLOAT64 conveniences,
+and existing primitive TensorFactory scalar/full methods remain unchanged. Future FLOAT16 or
+cross-type conversion requires a separately specified contract rather than a generic payload or
+speculative numeric category.
 
 ## Existing capability decisions
 

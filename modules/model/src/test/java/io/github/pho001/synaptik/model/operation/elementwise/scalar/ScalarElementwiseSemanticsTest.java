@@ -10,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
@@ -54,21 +56,21 @@ class ScalarElementwiseSemanticsTest {
                 () -> assertRecordShape(
                         ScalarValueAttrs.class,
                         List.of("value"),
-                        List.of(double.class),
+                        List.of(ScalarValue.class),
                         List.of(
                                 "equals(java.lang.Object):boolean",
                                 "hashCode():int",
                                 "toString():java.lang.String",
-                                "value():double")),
+                                "value():io.github.pho001.synaptik.model.datatype.ScalarValue")),
                 () -> assertRecordShape(
                         ClampRangeAttrs.class,
                         List.of("minValue", "maxValue"),
-                        List.of(double.class, double.class),
+                        List.of(ScalarValue.class, ScalarValue.class),
                         List.of(
                                 "equals(java.lang.Object):boolean",
                                 "hashCode():int",
-                                "maxValue():double",
-                                "minValue():double",
+                                "maxValue():io.github.pho001.synaptik.model.datatype.ScalarValue",
+                                "minValue():io.github.pho001.synaptik.model.datatype.ScalarValue",
                                 "toString():java.lang.String")));
     }
 
@@ -85,22 +87,22 @@ class ScalarElementwiseSemanticsTest {
                         IllegalArgumentException.class,
                         () -> new Operation(
                                 BinaryArithmeticKind.MUL,
-                                new ScalarValueAttrs(2.0))),
+                                new ScalarValueAttrs(v(2.0)))),
                 () -> assertEquals(
                         ScalarElementwiseKind.MUL,
                         new Operation(
                                         ScalarElementwiseKind.MUL,
-                                        new ScalarValueAttrs(2.0))
+                                        new ScalarValueAttrs(v(2.0)))
                                 .kind()));
     }
 
     @Test
     void composesEveryKindWithItsDocumentedExactAttributesReference() {
-        ScalarValueAttrs multiplier = new ScalarValueAttrs(0.5);
-        ScalarValueAttrs exponent = new ScalarValueAttrs(2.0);
-        ClampRangeAttrs range = new ClampRangeAttrs(-1.0, 1.0);
-        ScalarValueAttrs minimum = new ScalarValueAttrs(-3.0);
-        ScalarValueAttrs maximum = new ScalarValueAttrs(3.0);
+        ScalarValueAttrs multiplier = new ScalarValueAttrs(v(0.5));
+        ScalarValueAttrs exponent = new ScalarValueAttrs(v(2.0));
+        ClampRangeAttrs range = new ClampRangeAttrs(v(-1.0), v(1.0));
+        ScalarValueAttrs minimum = new ScalarValueAttrs(v(-3.0));
+        ScalarValueAttrs maximum = new ScalarValueAttrs(v(3.0));
 
         assertComposition(ScalarElementwiseKind.MUL, multiplier);
         assertComposition(ScalarElementwiseKind.POW, exponent);
@@ -123,9 +125,10 @@ class ScalarElementwiseSemanticsTest {
         };
 
         for (long bits : bitPatterns) {
-            ScalarValueAttrs attrs = new ScalarValueAttrs(Double.longBitsToDouble(bits));
+            ScalarValueAttrs attrs = new ScalarValueAttrs(
+                    ScalarValue.float64(Double.longBitsToDouble(bits)));
 
-            assertEquals(bits, Double.doubleToRawLongBits(attrs.value()));
+            assertEquals(bits, Double.doubleToRawLongBits(attrs.value().float64Value()));
         }
     }
 
@@ -157,7 +160,7 @@ class ScalarElementwiseSemanticsTest {
         for (double[] values : inverted) {
             IllegalArgumentException failure = assertThrows(
                     IllegalArgumentException.class,
-                    () -> new ClampRangeAttrs(values[0], values[1]));
+                    () -> new ClampRangeAttrs(v(values[0]), v(values[1])));
 
             assertEquals(
                     "minValue must be less than or equal to maxValue",
@@ -166,28 +169,73 @@ class ScalarElementwiseSemanticsTest {
     }
 
     @Test
+    void validatesClampTypesNumericDomainAndExactPrimitiveOrdering() {
+        assertNullFailure(() -> new ScalarValueAttrs(null), "value");
+        assertNullFailure(() -> new ClampRangeAttrs(null, null), "minValue");
+        assertNullFailure(() -> new ClampRangeAttrs(v(0.0), null), "maxValue");
+        assertIllegalFailure(
+                () -> new ClampRangeAttrs(ScalarValue.float32(0.0f), v(1.0)),
+                "minValue and maxValue must have the same data type: FLOAT32 != FLOAT64");
+        assertIllegalFailure(
+                () -> new ClampRangeAttrs(ScalarValue.bool(false), ScalarValue.bool(true)),
+                "clamp bounds must be numeric, but were BOOL");
+        assertIllegalFailure(
+                () -> new ClampRangeAttrs(ScalarValue.int64(9_007_199_254_740_993L),
+                        ScalarValue.int64(9_007_199_254_740_992L)),
+                "minValue must be less than or equal to maxValue");
+
+        assertAll(
+                () -> assertSame(DataType.FLOAT32,
+                        new ClampRangeAttrs(
+                                ScalarValue.float32(Float.NaN), ScalarValue.float32(-1.0f))
+                                .minValue().dataType()),
+                () -> assertEquals((short) 0x7FC1,
+                        new ClampRangeAttrs(
+                                ScalarValue.bfloat16Bits((short) 0x7FC1),
+                                ScalarValue.bfloat16Bits((short) 0x3F80))
+                                .minValue().bfloat16Bits()),
+                () -> assertEquals(Integer.MIN_VALUE,
+                        new ClampRangeAttrs(
+                                ScalarValue.int32(Integer.MIN_VALUE), ScalarValue.int32(0))
+                                .minValue().int32Value()),
+                () -> assertEquals(9_007_199_254_740_993L,
+                        new ClampRangeAttrs(
+                                ScalarValue.int64(9_007_199_254_740_993L),
+                                ScalarValue.int64(Long.MAX_VALUE))
+                                .minValue().int64Value()));
+    }
+
+    @Test
     void usesGeneratedRecordEqualityHashingAndDiagnosticText() {
-        ScalarValueAttrs scalar = new ScalarValueAttrs(2.5);
-        ScalarValueAttrs equalScalar = new ScalarValueAttrs(2.5);
-        ScalarValueAttrs differentScalar = new ScalarValueAttrs(-2.5);
-        ClampRangeAttrs range = new ClampRangeAttrs(-1.0, 1.0);
-        ClampRangeAttrs equalRange = new ClampRangeAttrs(-1.0, 1.0);
-        ClampRangeAttrs differentRange = new ClampRangeAttrs(-1.0, 2.0);
+        ScalarValueAttrs scalar = new ScalarValueAttrs(v(2.5));
+        ScalarValueAttrs equalScalar = new ScalarValueAttrs(v(2.5));
+        ScalarValueAttrs differentScalar = new ScalarValueAttrs(v(-2.5));
+        ClampRangeAttrs range = new ClampRangeAttrs(v(-1.0), v(1.0));
+        ClampRangeAttrs equalRange = new ClampRangeAttrs(v(-1.0), v(1.0));
+        ClampRangeAttrs differentRange = new ClampRangeAttrs(v(-1.0), v(2.0));
 
         assertAll(
                 () -> assertEquals(scalar, equalScalar),
                 () -> assertEquals(scalar.hashCode(), equalScalar.hashCode()),
                 () -> assertNotEquals(scalar, differentScalar),
-                () -> assertNotEquals(new ScalarValueAttrs(0.0), new ScalarValueAttrs(-0.0)),
-                () -> assertEquals(
-                        new ScalarValueAttrs(Double.longBitsToDouble(0x7ff8_0000_0000_0001L)),
-                        new ScalarValueAttrs(Double.longBitsToDouble(0x7ff8_0000_0000_0042L))),
+                () -> assertNotEquals(new ScalarValueAttrs(v(0.0)), new ScalarValueAttrs(v(-0.0))),
+                () -> assertNotEquals(
+                        new ScalarValueAttrs(ScalarValue.float64(
+                                Double.longBitsToDouble(0x7ff8_0000_0000_0001L))),
+                        new ScalarValueAttrs(ScalarValue.float64(
+                                Double.longBitsToDouble(0x7ff8_0000_0000_0042L)))),
                 () -> assertEquals(range, equalRange),
                 () -> assertEquals(range.hashCode(), equalRange.hashCode()),
                 () -> assertNotEquals(range, differentRange),
-                () -> assertEquals("ScalarValueAttrs[value=2.5]", scalar.toString()),
                 () -> assertEquals(
-                        "ClampRangeAttrs[minValue=-1.0, maxValue=1.0]", range.toString()));
+                        "ScalarValueAttrs[value=ScalarValue[dataType=FLOAT64, "
+                                + "bits=0x4004000000000000]]",
+                        scalar.toString()),
+                () -> assertEquals(
+                        "ClampRangeAttrs[minValue=ScalarValue[dataType=FLOAT64, "
+                                + "bits=0xBFF0000000000000], maxValue=ScalarValue[dataType=FLOAT64, "
+                                + "bits=0x3FF0000000000000]]",
+                        range.toString()));
     }
 
     private static void assertComposition(ScalarElementwiseKind kind, OperationAttrs attrs) {
@@ -199,15 +247,30 @@ class ScalarElementwiseSemanticsTest {
     }
 
     private static void assertClampBits(double minValue, double maxValue) {
-        ClampRangeAttrs attrs = new ClampRangeAttrs(minValue, maxValue);
+        ClampRangeAttrs attrs = new ClampRangeAttrs(v(minValue), v(maxValue));
 
         assertAll(
                 () -> assertEquals(
                         Double.doubleToRawLongBits(minValue),
-                        Double.doubleToRawLongBits(attrs.minValue())),
+                        Double.doubleToRawLongBits(attrs.minValue().float64Value())),
                 () -> assertEquals(
                         Double.doubleToRawLongBits(maxValue),
-                        Double.doubleToRawLongBits(attrs.maxValue())));
+                        Double.doubleToRawLongBits(attrs.maxValue().float64Value())));
+    }
+
+    private static ScalarValue v(double value) {
+        return ScalarValue.float64(value);
+    }
+
+    private static void assertNullFailure(
+            org.junit.jupiter.api.function.Executable executable, String message) {
+        assertEquals(message, assertThrows(NullPointerException.class, executable).getMessage());
+    }
+
+    private static void assertIllegalFailure(
+            org.junit.jupiter.api.function.Executable executable, String message) {
+        assertEquals(message,
+                assertThrows(IllegalArgumentException.class, executable).getMessage());
     }
 
     private static void assertRecordShape(

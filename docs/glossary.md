@@ -33,9 +33,10 @@ The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fift
 arithmetic, transcendental, activation, and explicit fast-approximation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
 provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
-`MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact-double
-`ScalarValueAttrs` and `ClampRangeAttrs`, plus matching public floating Tensor expression
-construction with exact type/shape retention, exact binary64 attributes, and one-input provenance.
+`MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact typed
+`ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating Tensor
+expression construction with exact receiver/value type equality, exact type/shape retention, and
+one-input provenance.
 The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
 `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
 public floating comparison Tensor expression construction with local broadcasting, fixed
@@ -122,10 +123,11 @@ dimensions, same-rank Shape derivation, conditional resolved view geometry, and 
 provenance. Gradients, compiler capture/canonicalization, materialization, backend behavior, ONNX
 mapping, and execution remain planned in later owning layers.
 The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
-respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one raw
-binary64 constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat counts.
-Empty lists are scalar identity parameters, and structurally valid extreme longs or double values
-are retained without rank, Shape, DataType, layout, or result interpretation. Public
+respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one exact
+typed scalar constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat
+counts. Empty lists are scalar identity parameters, and structurally valid extreme widths and
+typed scalar bits are retained without rank, Shape, input compatibility, layout, or result
+interpretation. Public
 `Tensor.pad` and `Tensor.tile` construction now adds rank validation, checked Shape derivation,
 unresolved result layout, exact one-input provenance, and fresh result identity. Gradients,
 materialization, compiler/backend/ONNX behavior, and execution remain planned for later owning
@@ -576,6 +578,21 @@ values and define no accumulation, gradient, compiler, backend, or execution beh
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
 
+### Typed scalar value / `ScalarValue`
+
+An implemented immutable backend-independent operation parameter containing one exact
+[`DataType`](#data-type--datatype) and that type's primitive bits. FLOAT64 and FLOAT32 retain raw
+signed-zero and NaN payload bits, raw BFLOAT16 retains all 16 supplied bits, signed INT32 and
+INT64 retain exact two's-complement values, and BOOL is canonical false or true. Equality and
+hashing include both type and bits.
+
+A typed scalar value is not a rank-zero [Tensor](#tensor): it has no Shape, identity, layout,
+storage, provenance, or executable state. Its inspectors require the exact stored type and do not
+convert. Scalar/clamp and padding attributes retain these values, while receiver-aware public
+Tensor expression construction enforces exact value/input type equality. Existing primitive
+TensorFactory scalar/full methods remain separate eager Tensor-construction APIs. See [exact typed
+scalar values](api/tensor-api.md#exact-typed-scalar-values).
+
 ### Data-transfer object / DTO
 
 A value whose purpose is to carry structured data across a boundary without owning the behavior that produced it. Synaptik's planned trace module uses typed DTOs so diagnostic consumers receive explicit fields without importing compiler, runtime, or backend business objects.
@@ -788,8 +805,9 @@ kernel, execute computation, own runtime state, or identify a graph occurrence; 
 
 The implemented zero-method marker contract for immutable, typed parameters that refine which
 computation an [`Operation`](#operation) describes. Implemented scalar-family values are
-`ScalarValueAttrs`, which holds one exact Java `double`, and `ClampRangeAttrs`, which holds exact
-ordered inclusive lower and upper bounds. Implemented cast-family `CastAttrs` holds one exact
+`ScalarValueAttrs`, which holds one exact [`ScalarValue`](#typed-scalar-value--scalarvalue), and
+`ClampRangeAttrs`, which holds exact same-type numeric inclusive lower and upper bounds.
+Implemented cast-family `CastAttrs` holds one exact
 non-null target `DataType` without duplicating a source type. Implemented reduction-family
 `AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
 adds an explicit tie policy and `MaskedReductionAttrs` holds one reduction axis plus an immutable
@@ -801,7 +819,7 @@ reshape and expand. Layout-operation `PermutationAttrs` holds one complete norma
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
 inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` holds immutable
-ordered before/after widths and one raw binary64 constant, while `TileAttrs` holds immutable
+ordered before/after widths and one exact typed scalar constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
 shared by concat and stack, while `UnstackOutputAttrs` adds the logical source-axis coordinate for
 one individually identified unstack result. `SelectAttrs` holds one normalized source axis and
@@ -870,10 +888,11 @@ The third production family is `ScalarElementwiseKind`, an enum containing exact
 `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`. These values identify parameterized one-input elementwise
 meanings. `MUL`, `POW`, `CLAMP_MIN`, and `CLAMP_MAX` pair with `ScalarValueAttrs`; `CLAMP` pairs
 with `ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
-family signatures enforce each exact attributes class and one-input, one-output cardinality. The attributes retain
-exact Java `double` values. Clamp-range construction rejects only a primitive
-`minValue > maxValue` comparison, so equal bounds, both signed-zero orderings, ordered infinities,
-and NaN endpoints are valid. The enum and attributes perform no Tensor expression construction,
+family signatures enforce each exact attributes class and one-input, one-output cardinality. The
+attributes retain exact typed scalar values by reference. Clamp-range construction requires the
+same non-BOOL data type and rejects only a strict inversion in that represented primitive type,
+so equal bounds, both signed-zero orderings, ordered infinities, and floating NaN endpoints are
+valid. The enum and attributes perform no Tensor expression construction,
 descriptor inference, numerical execution behavior, gradients, or backend support by themselves.
 The implemented public scalar Tensor methods consume these values while separately owning
 floating validation, descriptor derivation, exact attribute composition, and one-input
@@ -1004,17 +1023,19 @@ input extent. The two equal-size lists are immutable ordered snapshots. Two empt
 rank-zero scalar identity parameters.
 
 For conceptual input `[10, 20]`, before `[1]`, after `[2]`, and constant `-1`, the requested
-logical result is `[-1, 10, 20, -1, -1]`. The raw Java `double` constant is retained unchanged,
-including signed zero, NaN payloads, and infinities. The attributes do not know an input Tensor,
-Shape, or DataType, so they do not match rank, add result extents, check overflow, convert the
-constant, derive layout or provenance, materialize values, define gradients, or execute padding.
+logical result is `[-1, 10, 20, -1, -1]`. The exact typed `ScalarValue` constant is retained by
+reference, including raw floating signed-zero and NaN payload bits or exact integral/BOOL values.
+The attributes do not know an input Tensor or Shape, so they do not match rank, add result extents,
+check overflow, prove constant/input type equality, derive layout or provenance, materialize
+values, define gradients, or execute padding.
 `Long.MAX_VALUE` widths are therefore structurally valid. Public `Tensor.pad` separately requires
 one width per input axis, clones the arrays, and applies canonical checked symbolic addition in
 before-then-after order. Static extents fold to static results, dynamic extents retain exact
 symbolic-extent expressions, and zero widths preserve the exact input Dimension reference. The
 result preserves exact type and gradient eligibility and is a fresh unresolved storage-free
-expression with normalized attributes and provenance `[input]`. It does not bind or evaluate a
-symbolic extent, convert the constant, or materialize values. See [Pad and tile
+expression with normalized attributes and provenance `[input]`. It requires exact constant/input
+type equality but does not bind or evaluate a symbolic extent, convert the constant, or
+materialize values. See [Pad and tile
 expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
 normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
@@ -1411,8 +1432,9 @@ leave layout unresolved, preserve gradient eligibility, and record the matching 
 plus exactly one input reference without domain checks or canonicalization. The current scalar
 `mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
 one-input expressions. They retain the exact type and Shape, preserve gradient eligibility, and
-store exact binary64 attributes without conversion or canonicalization; range clamp remains one
-first-class `CLAMP` operation. Other expression families, gradient rules and objects, trainable
+store exact matching typed scalar attributes without conversion or canonicalization; retained
+`double` overloads mean exact FLOAT64, and range clamp remains one first-class `CLAMP` operation.
+Other expression families, gradient rules and objects, trainable
 role, publication behavior, compiler integration, device buffers, numerical execution, and
 runtime residency remain planned. The current `sum`, `mean`, `prod`, reduction `min`, and
 reduction `max` methods create floating full or single-axis aggregate expressions. Current `all`
