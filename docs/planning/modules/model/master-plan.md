@@ -210,7 +210,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018O | [Indexing taxonomy and unstack normalization](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | [Elementwise semantic cleanup](tasks/0018p-elementwise-semantic-cleanup.md) | Complete | 0014C–0014F, 0018K, 0018N | Atomically rename `INV`/`inv` to `RECIPROCAL`/`reciprocal`, remove both fast variants without aliases, and preserve the typed scalar family unchanged. |
 | 0018Q | [Masked reduction redesign](tasks/0018q-masked-reduction-redesign.md) | Complete | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Remove heuristic mapping, require explicit right-aligned broadcast-to-input masks, retain minimal first-class two-input SUM/MEAN, and define all-false mean as NaN. |
-| 0018R | Slice and window public-contract cleanup | Draft | 0017G–0017N, 0018M | Add negative-step slice semantics, make flip a convenience, and demote `FOLD_AXIS` to compiler-generated use. |
+| 0018R | [Slice and window public-contract cleanup](tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete | 0017G–0017N, 0018K–0018M | Normalize signed non-zero slices as start/length/step sequences, add one-SLICE flip, and remove public foldAxis while retaining compiler-only FOLD_AXIS semantics. |
 | 0018S | Tensor factory surface cleanup | Draft | 0012–0012I, 0013A | Keep core construction/import/constants in TensorFactory and move prefix population to test/data utilities. |
 | 0018T | Core scalar and unary numeric gaps | Draft | 0018K, 0018N, 0018P | Add exact scalar add/sub/div/min/max and selected reciprocal, rsqrt, log1p, expm1, and floating diagnostic semantics. |
 | 0018U | Integral arithmetic and comparison domains | Draft | 0014A–0015B, 0016A–0016E, 0018K, 0018T | Add the selected signed-integral arithmetic, comparisons, arg-min, and reduction domains with explicit overflow and accumulation policy. |
@@ -222,7 +222,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019C including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and FOLD_AXIS, without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019C including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -268,9 +268,8 @@ values and conservative Shape integration. Task 0018M1 is complete with canonica
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
-final thirteen-kind unary vocabulary. Task 0018Q is complete. Task 0018R is the next Draft
-frontier without a detailed specification; later tasks also remain Draft without detailed
-specifications.
+final thirteen-kind unary vocabulary. Tasks 0018Q and 0018R are complete. Task 0018S and every
+later task remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -400,8 +399,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   after model Javadoc, the explicit-alignment Java 26 example, generated-page, Markdown,
   official-URL, exact thirteen-path, synchronized-status, terminology, and whitespace checks
   passed.
-- Public `inv` becomes `reciprocal`; public `foldAxis` becomes compiler-only FOLD_AXIS; strict and
+- Public `inv` becomes `reciprocal`; completed task 0018R removes public `foldAxis` while retaining
+  `FOLD_AXIS` and `FoldAxisAttrs` as compiler-only model semantics for task 0023. It also selects
+  normalized start/length/signed-step slice attributes, one explicit-step `sliceAxis` overload,
+  and `flip(int... axes)` as one `SLICE` occurrence without negative-stride layout. Strict and
   cyclic prefix population moves to test/data utilities.
+- Task 0018R completed that cleanup with normalized finite start/length/signed-step slice
+  sequences, directional raw half-open normalization, positive-step-only resolved logical views,
+  and explicit step-aware single-axis and one-producer flip conveniences. Public `foldAxis` and
+  its helper path are absent; public `unfold`, `unfold2d`, and `fold2d` remain unchanged, while
+  `FOLD_AXIS` and `FoldAxisAttrs` remain compiler-only values for task 0023. The implementation
+  context passed 78 focused tests and all 715 model tests across 88 suites. Independent
+  documentation review finalized seven Javadocs, Tensor/Compile APIs, glossary, capability/task/
+  master/roadmap synchronization, the runnable Java 26 example, generated Javadoc, Markdown,
+  official-link, exact eighteen-path, public-surface, status, terminology, and whitespace checks.
 - FLOAT16 is important before accelerator mixed-precision support is claimed, but it is not a
   prerequisite for the linear-algebra model task.
 - The initial data type baseline is `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, `INT64`, and `BOOL`.
@@ -1217,8 +1228,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, and 0018Q are complete. Task 0018R is the next
-Draft frontier without a detailed specification. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, and 0018R are complete. Task 0018S and
+every later task remain Draft without detailed specifications. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1274,8 +1285,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018Q are complete; 0018R is the
-next Draft frontier without a detailed specification, and every later task remains Draft without
-one.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018R are complete; 0018S and
+every later task remain Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

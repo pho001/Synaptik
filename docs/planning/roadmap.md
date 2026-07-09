@@ -108,8 +108,9 @@ Task 0018P completed one atomic migration to the exact thirteen-kind unary vocab
 aliases. It preserves typed scalar semantics and leaves missing scalar operations plus `rsqrt`,
 `log1p`, `expm1`, and diagnostics to Draft task 0018T.
 
-Task [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) is complete. Task 0018R and
-every later task remain Draft without a detailed specification.
+Tasks [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) and
+[0018R](modules/model/tasks/0018r-slice-and-window-public-contract-cleanup.md) are complete. Task
+0018S and every later task remain Draft without a detailed specification.
 
 Task 0018Q removed heuristic mask-axis placement, retained first-class two-input masked SUM/MEAN,
 and requires ordinary right-aligned broadcasting to produce exactly the input Shape. Callers make
@@ -128,15 +129,33 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018Q are complete. Task 0018R and later rows remain Draft without detailed specifications.
+through 0018R are complete. Task 0018S and later rows remain Draft without detailed
+specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J and tasks 0018K through 0018Q are complete. Task 0018R is
-the next Draft frontier without a detailed specification; later tasks remain Draft.
+expressions. Tasks 0018A through 0018J and tasks 0018K through 0018R are complete. Task 0018S and
+later tasks remain Draft.
+
+Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
+sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
+`flip(int... axes)`, and leaves every negative-step result layout-unresolved under the current
+non-negative-stride descriptor. It removes public `Tensor.foldAxis` without an alias while
+retaining `FOLD_AXIS` and `FoldAxisAttrs` as compiler-only model semantics whose first compiler
+construction remains owned by task 0023. Public `unfold`, `unfold2d`, and `fold2d` remain
+unchanged.
+
+The task-0018R implementation context passed the exact 78-test focused contract command and all
+715 model tests across 88 suites. Independent documentation review finalized all seven affected
+production Javadocs, Tensor and Compile API references, glossary, capability baseline, task,
+master plan, and roadmap. Model Javadoc, the Java 26 slice/flip metadata example, generated pages,
+Markdown links and anchors, the two official URLs, exact eighteen-path scope, public-surface and
+removed-vocabulary checks, synchronized status, fences, newlines, terminology, whitespace, and
+`git diff --check` passed. Public unfold/unfold2d/fold2d behavior, architecture, dependencies,
+build configuration, and every other module remain unchanged.
 
 Task [0018M](modules/model/tasks/0018m-symbolic-extent-expressions.md) is complete with canonical
 checked symbolic extent arithmetic, explicit floor/ceiling division, identity-based bounded
@@ -553,7 +572,7 @@ authorized Compile API status correction.
 | 84 | [0018O Indexing taxonomy and unstack normalization](modules/model/tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete |
 | 85 | [0018P Elementwise semantic cleanup](modules/model/tasks/0018p-elementwise-semantic-cleanup.md) | Complete |
 | 86 | [0018Q Masked reduction redesign](modules/model/tasks/0018q-masked-reduction-redesign.md) | Complete |
-| 87 | 0018R Slice and window public-contract cleanup | Draft |
+| 87 | [0018R Slice and window public-contract cleanup](modules/model/tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete |
 | 88 | 0018S Tensor factory surface cleanup | Draft |
 | 89 | 0018T Core scalar and unary numeric gaps | Draft |
 | 90 | 0018U Integral arithmetic and comparison domains | Draft |
@@ -615,8 +634,8 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018Q are complete; 0018R is the next Draft frontier without a
-detailed specification, while every later task remains Draft without one.
+before 0019. Tasks 0018K through 0018R are complete; 0018S and every later task remain Draft
+without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

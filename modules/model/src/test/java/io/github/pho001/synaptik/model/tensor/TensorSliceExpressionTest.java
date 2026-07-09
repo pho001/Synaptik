@@ -40,23 +40,28 @@ class TensorSliceExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(80_000);
 
     @Test
-    void exposesExactlyTwoPublicMethodsAndEightMethodStatelessHelper() throws Exception {
+    void exposesExactlyFourPublicMethodsAndNineMethodStatelessHelper() throws Exception {
         Method slice = Tensor.class.getDeclaredMethod(
                 "slice", long[].class, long[].class, int[].class, long[].class);
         Method sliceAxis = Tensor.class.getDeclaredMethod(
                 "sliceAxis", int.class, long.class, long.class);
+        Method steppedSliceAxis = Tensor.class.getDeclaredMethod(
+                "sliceAxis", int.class, long.class, long.class, long.class);
+        Method flip = Tensor.class.getDeclaredMethod("flip", int[].class);
         var constructor = TensorSliceExpressions.class.getDeclaredConstructor();
         List<Method> methods = Arrays.asList(TensorSliceExpressions.class.getDeclaredMethods());
         Method apply = TensorSliceExpressions.class.getDeclaredMethod(
                 "apply", Tensor.class, long[].class, long[].class, int[].class, long[].class);
         Method applyAxis = TensorSliceExpressions.class.getDeclaredMethod(
-                "applyAxis", Tensor.class, int.class, long.class, long.class);
+                "applyAxis", Tensor.class, int.class, long.class, long.class, long.class);
+        Method flipHelper = TensorSliceExpressions.class.getDeclaredMethod(
+                "flip", Tensor.class, int[].class);
         Method normalize = TensorSliceExpressions.class.getDeclaredMethod(
                 "normalize", Shape.class, long[].class, long[].class, int[].class, long[].class);
         Method normalizeBound = TensorSliceExpressions.class.getDeclaredMethod(
-                "normalizeBound", long.class, long.class);
-        Method sliceExtent = TensorSliceExpressions.class.getDeclaredMethod(
-                "sliceExtent", long.class, long.class, long.class);
+                "normalizeBound", long.class, long.class, long.class, boolean.class);
+        Method sliceLength = TensorSliceExpressions.class.getDeclaredMethod(
+                "sliceLength", long.class, long.class, long.class);
         Method deriveShape = TensorSliceExpressions.class.getDeclaredMethod(
                 "deriveShape", Shape.class, SliceAttrs.class);
         Method resolve = TensorSliceExpressions.class.getDeclaredMethod(
@@ -81,6 +86,15 @@ class TensorSliceExpressionTest {
                 () -> assertTrue(Modifier.isPublic(sliceAxis.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(sliceAxis.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(sliceAxis.getModifiers())),
+                () -> assertSame(Tensor.class, steppedSliceAxis.getReturnType()),
+                () -> assertEquals(List.of(int.class, long.class, long.class, long.class),
+                        Arrays.asList(steppedSliceAxis.getParameterTypes())),
+                () -> assertFalse(steppedSliceAxis.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(steppedSliceAxis.getModifiers())),
+                () -> assertSame(Tensor.class, flip.getReturnType()),
+                () -> assertEquals(List.of(int[].class), Arrays.asList(flip.getParameterTypes())),
+                () -> assertTrue(flip.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(flip.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(TensorSliceExpressions.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(TensorSliceExpressions.class.getModifiers())),
                 () -> assertEquals(0, TensorSliceExpressions.class.getDeclaredFields().length),
@@ -89,26 +103,27 @@ class TensorSliceExpressionTest {
                         TensorSliceExpressions.class.getDeclaredConstructors().length),
                 () -> assertTrue(Modifier.isPrivate(constructor.getModifiers())),
                 () -> assertEquals(0, constructor.getParameterCount()),
-                () -> assertEquals(8, methods.size()),
+                () -> assertEquals(9, methods.size()),
                 () -> assertEquals(
-                        Set.of("apply", "applyAxis", "normalize", "normalizeBound",
-                                "sliceExtent", "deriveShape", "resolveViewLayout", "create"),
+                        Set.of("apply", "applyAxis", "flip", "normalize", "normalizeBound",
+                                "sliceLength", "deriveShape", "resolveViewLayout", "create"),
                         methods.stream().map(Method::getName).collect(Collectors.toSet())),
-                () -> assertEquals(2, methods.stream()
+                () -> assertEquals(3, methods.stream()
                         .filter(method -> !Modifier.isPrivate(method.getModifiers())).count()),
                 () -> assertTrue(methods.stream().allMatch(
                         method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertSame(Tensor.class, apply.getReturnType()),
                 () -> assertSame(Tensor.class, applyAxis.getReturnType()),
+                () -> assertSame(Tensor.class, flipHelper.getReturnType()),
                 () -> assertSame(SliceAttrs.class, normalize.getReturnType()),
                 () -> assertSame(long.class, normalizeBound.getReturnType()),
-                () -> assertSame(long.class, sliceExtent.getReturnType()),
+                () -> assertSame(long.class, sliceLength.getReturnType()),
                 () -> assertSame(Shape.class, deriveShape.getReturnType()),
                 () -> assertSame(Optional.class, resolve.getReturnType()),
                 () -> assertSame(Tensor.class, create.getReturnType()),
                 () -> assertTrue(Modifier.isPrivate(normalize.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(normalizeBound.getModifiers())),
-                () -> assertTrue(Modifier.isPrivate(sliceExtent.getModifiers())),
+                () -> assertTrue(Modifier.isPrivate(sliceLength.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(deriveShape.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(resolve.getModifiers())),
                 () -> assertTrue(Modifier.isPrivate(create.getModifiers())));
@@ -136,7 +151,7 @@ class TensorSliceExpressionTest {
                         () -> assertTrue(result.descriptor().layout().isEmpty()),
                         () -> assertSame(SliceKind.SLICE, provenance.operation().kind()),
                         () -> assertEquals(List.of(0L, 1L), attrs.starts()),
-                        () -> assertEquals(List.of(3L, 6L), attrs.ends()),
+                        () -> assertEquals(List.of(3L, 3L), attrs.lengths()),
                         () -> assertEquals(List.of(0, 1), attrs.axes()),
                         () -> assertEquals(List.of(1L, 2L), attrs.steps()),
                         () -> assertEquals(List.of(input), provenance.inputs()),
@@ -171,7 +186,7 @@ class TensorSliceExpressionTest {
 
         assertAll(
                 () -> assertEquals(List.of(0L, 4L), attrs.starts()),
-                () -> assertEquals(List.of(3L, 5L), attrs.ends()),
+                () -> assertEquals(List.of(2L, 1L), attrs.lengths()),
                 () -> assertEquals(List.of(1, 2), attrs.axes()),
                 () -> assertEquals(List.of(2L, 1L), attrs.steps()),
                 () -> assertSame(batch, resultShape.dimensions().get(0)),
@@ -179,6 +194,134 @@ class TensorSliceExpressionTest {
                 () -> assertEquals(new StaticDimension(1), resultShape.dimensions().get(2)),
                 () -> assertNotSame(height, resultShape.dimensions().get(1)),
                 () -> assertNotSame(width, resultShape.dimensions().get(2)));
+    }
+
+    @Test
+    void normalizesDirectionalHalfOpenBoundsAndHandlesExtremeSignedSteps() {
+        Shape shape = Shape.of(5, 6);
+        Tensor input = tensor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true);
+
+        Tensor mixed = input.slice(
+                new long[] {1, 4},
+                new long[] {5, -7},
+                new int[] {0, 1},
+                new long[] {2, -1});
+        SliceAttrs mixedAttrs =
+                (SliceAttrs) mixed.provenance().orElseThrow().operation().attrs();
+        Tensor explicitMinusOne = input.sliceAxis(0, 4, -1, -1);
+        SliceAttrs emptyAttrs =
+                (SliceAttrs) explicitMinusOne.provenance().orElseThrow().operation().attrs();
+        Tensor throughZero = input.sliceAxis(0, 4, -6, -1);
+        SliceAttrs reverseAttrs =
+                (SliceAttrs) throughZero.provenance().orElseThrow().operation().attrs();
+        Tensor huge = tensor(
+                        DataType.INT64,
+                        Shape.of(Long.MAX_VALUE),
+                        Optional.empty(),
+                        false)
+                .sliceAxis(0, Long.MAX_VALUE, Long.MIN_VALUE, Long.MIN_VALUE);
+        SliceAttrs hugeAttrs =
+                (SliceAttrs) huge.provenance().orElseThrow().operation().attrs();
+
+        assertAll(
+                () -> assertEquals(List.of(1L, 4L), mixedAttrs.starts()),
+                () -> assertEquals(List.of(2L, 5L), mixedAttrs.lengths()),
+                () -> assertEquals(List.of(0, 1), mixedAttrs.axes()),
+                () -> assertEquals(List.of(2L, -1L), mixedAttrs.steps()),
+                () -> assertEquals(Shape.of(2, 5), mixed.descriptor().shape()),
+                () -> assertTrue(mixed.descriptor().layout().isEmpty()),
+                () -> assertEquals(List.of(0L), emptyAttrs.starts()),
+                () -> assertEquals(List.of(0L), emptyAttrs.lengths()),
+                () -> assertEquals(Shape.of(0, 6), explicitMinusOne.descriptor().shape()),
+                () -> assertEquals(List.of(4L), reverseAttrs.starts()),
+                () -> assertEquals(List.of(5L), reverseAttrs.lengths()),
+                () -> assertEquals(Shape.of(5, 6), throughZero.descriptor().shape()),
+                () -> assertEquals(List.of(Long.MAX_VALUE - 1L), hugeAttrs.starts()),
+                () -> assertEquals(List.of(1L), hugeAttrs.lengths()),
+                () -> assertEquals(List.of(Long.MIN_VALUE), hugeAttrs.steps()),
+                () -> assertEquals(Shape.of(1), huge.descriptor().shape()));
+    }
+
+    @Test
+    void flipBuildsOneOrderedNegativeStepSliceAndSupportsIdentityAndZeroExtent() {
+        StaticDimension empty = new StaticDimension(0);
+        Shape shape = Shape.ofDimensions(
+                new StaticDimension(2), empty, new StaticDimension(4));
+        Tensor input = tensor(
+                DataType.INT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                false);
+        int[] axes = {-1, 1};
+
+        Tensor result = input.flip(axes);
+        axes[0] = 0;
+        TensorProvenance provenance = result.provenance().orElseThrow();
+        SliceAttrs attrs = (SliceAttrs) provenance.operation().attrs();
+        Tensor identity = input.flip();
+        SliceAttrs identityAttrs =
+                (SliceAttrs) identity.provenance().orElseThrow().operation().attrs();
+        Tensor scalar = tensor(DataType.BOOL, Shape.scalar(), Optional.empty(), false).flip();
+
+        assertAll(
+                () -> assertEquals(List.of(3L, 0L), attrs.starts()),
+                () -> assertEquals(List.of(4L, 0L), attrs.lengths()),
+                () -> assertEquals(List.of(2, 1), attrs.axes()),
+                () -> assertEquals(List.of(-1L, -1L), attrs.steps()),
+                () -> assertEquals(shape, result.descriptor().shape()),
+                () -> assertTrue(result.descriptor().layout().isEmpty()),
+                () -> assertSame(SliceKind.SLICE, provenance.operation().kind()),
+                () -> assertEquals(List.of(input), provenance.inputs()),
+                () -> assertEquals(0, provenance.outputIndex()),
+                () -> assertEquals(1, provenance.producer().outputCount()),
+                () -> assertSame(result.descriptor(), provenance.outputDescriptor()),
+                () -> assertEquals(List.of(), identityAttrs.axes()),
+                () -> assertNotSame(input, identity),
+                () -> assertNotSame(
+                        provenance.producer(),
+                        identity.provenance().orElseThrow().producer()),
+                () -> assertSame(Shape.scalar(), scalar.descriptor().shape()));
+    }
+
+    @Test
+    void flipRejectsInvalidDuplicateAndDynamicAxesBeforeIdentityAllocation() throws Exception {
+        DynamicDimension dynamic = new DynamicDimension("items");
+        Tensor input = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(2), dynamic),
+                Optional.empty(),
+                true);
+        AtomicLong next = nextTensorIdState();
+        long before = next.get();
+
+        NullPointerException nullInput = assertThrows(
+                NullPointerException.class, () -> TensorSliceExpressions.flip(null, null));
+        NullPointerException nullAxes = assertThrows(
+                NullPointerException.class, () -> TensorSliceExpressions.flip(input, null));
+        IllegalArgumentException invalid = assertThrows(
+                IllegalArgumentException.class, () -> input.flip(Integer.MIN_VALUE));
+        IllegalArgumentException duplicate = assertThrows(
+                IllegalArgumentException.class, () -> input.flip(0, -2));
+        IllegalArgumentException dynamicSelected = assertThrows(
+                IllegalArgumentException.class, () -> input.flip(1));
+
+        assertAll(
+                () -> assertEquals("input", nullInput.getMessage()),
+                () -> assertEquals("axes", nullAxes.getMessage()),
+                () -> assertEquals(
+                        "flip axis -2147483648 at index 0 is outside rank 2",
+                        invalid.getMessage()),
+                () -> assertEquals(
+                        "flip contains duplicate normalized axis 0 at index 1",
+                        duplicate.getMessage()),
+                () -> assertEquals(
+                        "flip axis 1 at index 0 must have a statically known dimension",
+                        dynamicSelected.getMessage()),
+                () -> assertEquals(before, next.get()));
     }
 
     @Test
@@ -234,10 +377,6 @@ class TensorSliceExpressionTest {
                 IllegalArgumentException.class,
                 () -> input.slice(
                         new long[] {0}, new long[] {1}, new int[] {0}, new long[] {0}));
-        IllegalArgumentException negativeStep = assertThrows(
-                IllegalArgumentException.class,
-                () -> input.slice(
-                        new long[] {0}, new long[] {1}, new int[] {0}, new long[] {-1}));
         IllegalArgumentException dynamicSelected = assertThrows(
                 IllegalArgumentException.class,
                 () -> input.slice(
@@ -263,8 +402,7 @@ class TensorSliceExpressionTest {
                 () -> assertEquals(
                         "slice contains duplicate normalized axis 0 at index 1",
                         duplicate.getMessage()),
-                () -> assertEquals("steps[0] must be positive: 0", zeroStep.getMessage()),
-                () -> assertEquals("steps[0] must be positive: -1", negativeStep.getMessage()),
+                () -> assertEquals("steps[0] must be non-zero: 0", zeroStep.getMessage()),
                 () -> assertEquals(
                         "slice axis 1 at index 0 must have a statically known dimension",
                         dynamicSelected.getMessage()),
@@ -422,7 +560,7 @@ class TensorSliceExpressionTest {
 
         assertAll(
                 () -> assertEquals(List.of(4L), axisAttrs.starts()),
-                () -> assertEquals(List.of(5L), axisAttrs.ends()),
+                () -> assertEquals(List.of(1L), axisAttrs.lengths()),
                 () -> assertEquals(List.of(1), axisAttrs.axes()),
                 () -> assertEquals(List.of(1L), axisAttrs.steps()),
                 () -> assertEquals(Shape.of(3, 1), axis.descriptor().shape()),

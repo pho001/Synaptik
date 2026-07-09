@@ -163,15 +163,18 @@ selected stride removed. This is current model expression construction, not grap
 dynamic singleton constraint solving, inverse-pair canonicalization, physical aliasing,
 materialization, gradient behavior, lowering, or execution.
 `Tensor.slice(long[], long[], int[], long[])` clones four parallel request arrays, normalizes raw
-axes and bounds against selected static dimensions, clamps bounds, derives a same-rank Shape, and
-records normalized positive-step half-open `SliceAttrs`. Empty arrays and zero-extent results are
-valid. Resolved non-empty dense, offset, strided, or broadcast input geometry produces checked
-start-adjusted, step-multiplied logical view geometry; unresolved input and empty results remain
-unresolved. `Tensor.sliceAxis(int, long, long)` delegates the same operation with one step-one
-entry. Both forms preserve exact type and gradient eligibility, record exact one-input provenance,
-and remain fresh, unlabeled, and storage-free. This is current model expression construction, not
-graph capture, slice-chain or identity canonicalization, physical aliasing, gradient-scatter
-construction, materialization, backend/ONNX lowering, or execution.
+axes and bounds against selected static dimensions, clamps bounds by step direction, derives a
+same-rank Shape, and records normalized start/length/axis/signed-step sequences in `SliceAttrs`.
+Empty arrays and zero-extent results are valid. Resolved non-empty all-positive geometry produces
+checked start-adjusted, step-multiplied logical view metadata; unresolved input, empty results, and
+any negative step remain layout-unresolved. `Tensor.sliceAxis(int, long, long)` supplies one
+step-one entry, its four-argument overload supplies an explicit signed step, and `Tensor.flip`
+creates one negative-step SLICE occurrence for explicit axes. Empty flip axes mean identity.
+Every success preserves exact type and gradient eligibility, records one identity-distinct
+producer with exact `[input]`, one output descriptor, and provenance index zero, and remains fresh,
+unlabeled, and storage-free. This is current model expression construction, not graph capture,
+slice-chain or flip canonicalization, physical aliasing or copying, gradient-scatter construction,
+materialization, backend/ONNX lowering, or execution.
 `Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
 selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
 `SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
@@ -231,12 +234,14 @@ over the same input; its `SelectAttrs` stores the coordinate. A zero extent retu
 ID. This is
 current model expression construction, not compiler capture, decomposition, grouping, backward
 construction, materialization, backend lowering, ONNX mapping, or execution.
-`Tensor.unfold`, `Tensor.foldAxis`, `Tensor.unfold2d`, and `Tensor.fold2d` construct current
-storage-free window-transform expressions. They normalize and validate axes against the relevant
-source or target rank, use checked static Shape arithmetic, preserve the input data type and
-gradient-eligibility flag, leave layout unresolved, and record exact one-input provenance. They
-describe materialized windows or overlap-summing scatter-add; they do not read values or provide
-compiler capture, canonicalization, gradient generation, lowering, or execution.
+`Tensor.unfold`, `Tensor.unfold2d`, and `Tensor.fold2d` construct the current public storage-free
+window-transform expressions. Their signatures and behavior are unchanged: they use checked
+static Shape arithmetic, preserve input data type and gradient eligibility, leave layout
+unresolved, and record exact one-input provenance. No public `Tensor.foldAxis` or helper path
+constructs the retained `FOLD_AXIS`/`FoldAxisAttrs` semantic pair. Task 0023 owns its first
+compiler-generated construction and operand compatibility. None of these model contracts reads
+values or provides compiler capture, canonicalization, gradient generation, lowering, or
+execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -267,13 +272,13 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
-  positive-step slice construction, plus conditional-view scalar-select construction and
+  signed-step slice plus one-occurrence flip construction, plus conditional-view scalar-select construction and
   unresolved-layout Gather/Gather Elements construction, plus unresolved-layout Gather-ND,
   functional Scatter Elements, and functional Scatter-ND
   construction, plus
   unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable repeated-SELECT unstack construction,
-  plus general-axis and NCHW unfold/fold window-transform construction,
+  plus public general-axis unfold and NCHW unfold/fold window-transform construction,
   are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax decomposition,

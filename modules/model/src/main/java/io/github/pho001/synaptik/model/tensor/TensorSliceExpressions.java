@@ -13,21 +13,22 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs locally normalized, storage-free positive-step slice expressions for {@link Tensor}.
+ * Constructs locally normalized, storage-free signed-step slice expressions for {@link Tensor}.
  *
  * <p>A request supplies four parallel arrays. At each entry, the raw axis and half-open bounds are
- * normalized against one statically known input dimension, the bounds are clamped into that
- * dimension, and the positive step determines a new static result extent. Unselected dimensions
- * retain their exact immutable references, so rank and any unselected dynamic symbols are
- * preserved. Empty arrays describe an explicit identity slice, while start greater than or equal
- * to end produces a valid zero extent.</p>
+ * normalized against one statically known input dimension, the bounds are clamped for the step's
+ * direction, and checked arithmetic calculates a selected length. Positive steps select while
+ * the coordinate is below the exclusive end; negative steps select while it is above the end.
+ * Unselected dimensions retain their exact immutable references, so rank and any unselected
+ * dynamic symbols are preserved. Empty arrays describe an explicit identity slice.</p>
  *
  * <p>For a non-empty result with resolved input geometry, construction advances the element
  * offset by each normalized start times the original input stride and multiplies selected strides
- * by their steps using checked arithmetic. Every input layout kind is accepted and the result is
- * marked as a logical view. Unresolved input geometry and empty results remain unresolved. This
- * metadata neither attaches storage nor promises physical aliasing, materialization, gradient,
- * compiler, backend, or execution behavior.</p>
+ * by their positive steps using checked arithmetic. Every resolved input layout kind is accepted
+ * and the result is marked as a logical view. Unresolved input geometry, empty results, and every
+ * request containing a negative step remain layout-unresolved because the current descriptor
+ * forbids negative strides. This metadata neither attaches storage nor chooses a reverse copy,
+ * physical alias, materialization, gradient, compiler, backend, or execution behavior.</p>
  */
 final class TensorSliceExpressions {
     /** Prevents instantiation because slice-expression construction owns no state. */
@@ -46,11 +47,11 @@ final class TensorSliceExpressions {
      * @param starts non-null caller-owned inclusive raw starts, paired by entry
      * @param ends non-null caller-owned exclusive raw ends, paired by entry
      * @param axes non-null caller-owned raw positive or negative axes, paired by entry
-     * @param steps non-null caller-owned strictly positive steps, paired by entry
+     * @param steps non-null caller-owned signed non-zero steps, paired by entry
      * @return a non-null fresh unlabeled, storage-free SLICE tensor with normalized attributes
      * @throws NullPointerException if any reference is null, with its parameter name as message
      * @throws IllegalArgumentException if array lengths differ, an axis is invalid or repeated, a
-     *     step is non-positive, or a selected dimension is dynamic
+     *     step is zero, or a selected dimension is dynamic
      * @throws ArithmeticException if checked result element-count, layout-offset, stride,
      *     classification, or span arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
@@ -84,39 +85,109 @@ final class TensorSliceExpressions {
     }
 
     /**
-     * Creates a one-axis, step-one request through the general construction path.
+     * Creates a one-axis signed-step request through the general construction path.
      *
      * <p>No independent normalization or semantic kind exists. The four private one-element
-     * arrays make this exactly one {@link SliceKind#SLICE} entry with step one.</p>
+     * arrays make this exactly one {@link SliceKind#SLICE} occurrence with the supplied step.</p>
      *
      * @param input non-null tensor retained as the exact sole provenance input
      * @param axis raw positive or negative selected input axis
      * @param fromInclusive raw inclusive start normalized and clamped by the general path
      * @param toExclusive raw exclusive end normalized and clamped by the general path
+     * @param step signed non-zero distance between selected coordinates
      * @return a non-null fresh one-axis SLICE expression
      * @throws NullPointerException if {@code input} is null, with message {@code input}
      * @throws IllegalArgumentException if the axis is invalid, selected dimension is dynamic, or
-     *     the delegated general request is otherwise invalid
+     *     {@code step} is zero, or the delegated general request is otherwise invalid
      * @throws ArithmeticException if checked result element-count or layout arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor applyAxis(
-            Tensor input, int axis, long fromInclusive, long toExclusive) {
+            Tensor input, int axis, long fromInclusive, long toExclusive, long step) {
         return apply(
                 input,
                 new long[] {fromInclusive},
                 new long[] {toExclusive},
                 new int[] {axis},
-                new long[] {1L});
+                new long[] {step});
+    }
+
+    /**
+     * Creates one normalized negative-step slice that reverses all requested axes.
+     *
+     * <p>The caller array is cloned once and processed in order. Negative axes add rank once; the
+     * first invalid or repeated normalized axis fails. A selected static extent {@code D > 0}
+     * contributes start {@code D - 1}, length {@code D}, and step {@code -1}; a zero extent uses
+     * canonical start and length zero. Empty axes are an explicit identity flip, including for a
+     * scalar, and still create one fresh {@link SliceKind#SLICE} occurrence.</p>
+     *
+     * @param input non-null tensor retained as the exact sole provenance input; not mutated
+     * @param axes non-null caller-owned positive or negative axes; cloned and never retained
+     * @return a non-null fresh unlabeled, storage-free SLICE tensor; layout is unresolved whenever
+     *     at least one axis is selected
+     * @throws NullPointerException if {@code input} or {@code axes} is null, in that order, with
+     *     the parameter name as message
+     * @throws IllegalArgumentException if an axis is outside rank, repeated after normalization,
+     *     or selects a dynamic dimension
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor flip(Tensor input, int[] axes) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(axes, "axes");
+        int[] privateAxes = axes.clone();
+        TensorDescriptor inputDescriptor = input.descriptor();
+        Shape inputShape = inputDescriptor.shape();
+        int rank = inputShape.rank();
+        boolean[] seenAxes = new boolean[rank];
+        List<Long> starts = new ArrayList<>(privateAxes.length);
+        List<Long> lengths = new ArrayList<>(privateAxes.length);
+        List<Integer> normalizedAxes = new ArrayList<>(privateAxes.length);
+        List<Long> steps = new ArrayList<>(privateAxes.length);
+        for (int index = 0; index < privateAxes.length; index++) {
+            int rawAxis = privateAxes[index];
+            long normalizedAxis = rawAxis;
+            if (normalizedAxis < 0) {
+                normalizedAxis += rank;
+            }
+            if (normalizedAxis < 0 || normalizedAxis >= rank) {
+                throw new IllegalArgumentException(
+                        "flip axis " + rawAxis + " at index " + index
+                                + " is outside rank " + rank);
+            }
+            int axis = (int) normalizedAxis;
+            if (seenAxes[axis]) {
+                throw new IllegalArgumentException(
+                        "flip contains duplicate normalized axis " + axis
+                                + " at index " + index);
+            }
+            seenAxes[axis] = true;
+            Dimension selectedDimension = inputShape.dimensions().get(axis);
+            if (!(selectedDimension instanceof StaticDimension staticDimension)) {
+                throw new IllegalArgumentException(
+                        "flip axis " + axis + " at index " + index
+                                + " must have a statically known dimension");
+            }
+            long dimensionSize = staticDimension.size();
+            starts.add(dimensionSize == 0 ? 0L : Math.subtractExact(dimensionSize, 1L));
+            lengths.add(dimensionSize);
+            normalizedAxes.add(axis);
+            steps.add(-1L);
+        }
+        SliceAttrs attrs = new SliceAttrs(starts, lengths, normalizedAxes, steps);
+        Shape resultShape = deriveShape(inputShape, attrs);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, attrs);
+        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
     }
 
     /**
      * Normalizes axes and bounds and validates one private general request.
      *
      * <p>Entries remain in caller order. A negative axis adds rank once using {@code long}; a
-     * negative bound adds the selected static dimension size once and is then clamped. Duplicate
-     * detection uses normalized axes. Exactly one immutable {@link SliceAttrs} snapshot is created
-     * after all entries pass.</p>
+     * negative bound adds the selected static dimension size once and is then clamped according to
+     * direction and whether it is a start or exclusive end. Duplicate detection uses normalized
+     * axes. A negative-step zero extent bypasses bound arithmetic and emits canonical empty state.
+     * Exactly one immutable {@link SliceAttrs} snapshot is created after all entries pass.</p>
      *
      * @param inputShape non-null exact input Shape used for rank and selected dimensions
      * @param starts non-null private inclusive starts with matching length
@@ -125,14 +196,15 @@ final class TensorSliceExpressions {
      * @param steps non-null private steps with matching length
      * @return non-null normalized immutable attributes in original request order
      * @throws IllegalArgumentException if an axis is outside rank or repeated after normalization,
-     *     a step is non-positive, or a selected dimension is not static
+     *     a step is zero, or a selected dimension is not static
+     * @throws ArithmeticException if checked bound or length arithmetic overflows
      */
     private static SliceAttrs normalize(
             Shape inputShape, long[] starts, long[] ends, int[] axes, long[] steps) {
         int rank = inputShape.rank();
         boolean[] seenAxes = new boolean[rank];
         List<Long> normalizedStarts = new ArrayList<>(starts.length);
-        List<Long> normalizedEnds = new ArrayList<>(ends.length);
+        List<Long> normalizedLengths = new ArrayList<>(ends.length);
         List<Integer> normalizedAxes = new ArrayList<>(axes.length);
         List<Long> normalizedSteps = new ArrayList<>(steps.length);
         for (int index = 0; index < starts.length; index++) {
@@ -155,9 +227,9 @@ final class TensorSliceExpressions {
             seenAxes[axis] = true;
 
             long step = steps[index];
-            if (step <= 0) {
+            if (step == 0) {
                 throw new IllegalArgumentException(
-                        "steps[" + index + "] must be positive: " + step);
+                        "steps[" + index + "] must be non-zero: " + step);
             }
 
             Dimension selectedDimension = inputShape.dimensions().get(axis);
@@ -167,58 +239,94 @@ final class TensorSliceExpressions {
                                 + " must have a statically known dimension");
             }
             long dimensionSize = staticDimension.size();
-            normalizedStarts.add(normalizeBound(starts[index], dimensionSize));
-            normalizedEnds.add(normalizeBound(ends[index], dimensionSize));
+            if (step < 0 && dimensionSize == 0) {
+                normalizedStarts.add(0L);
+                normalizedLengths.add(0L);
+                normalizedAxes.add(axis);
+                normalizedSteps.add(step);
+                continue;
+            }
+            long start = normalizeBound(starts[index], dimensionSize, step, true);
+            long end = normalizeBound(ends[index], dimensionSize, step, false);
+            long length = sliceLength(start, end, step);
+            normalizedStarts.add(length == 0 ? 0L : start);
+            normalizedLengths.add(length);
             normalizedAxes.add(axis);
             normalizedSteps.add(step);
         }
         return new SliceAttrs(
-                normalizedStarts, normalizedEnds, normalizedAxes, normalizedSteps);
+                normalizedStarts, normalizedLengths, normalizedAxes, normalizedSteps);
     }
 
     /**
      * Normalizes one raw bound once against a selected static extent, then clamps it.
      *
      * @param rawBound any signed long request coordinate
-     * @param dimensionSize non-negative selected static dimension extent
-     * @return normalized bound in the inclusive range {@code [0, dimensionSize]}
+     * @param dimensionSize positive selected static dimension extent for negative steps, or any
+     *     non-negative selected static extent for positive steps
+     * @param step signed non-zero coordinate increment selecting the clamp direction
+     * @param startBound true for an inclusive start, false for an exclusive end
+     * @return positive-step bound in {@code [0, dimensionSize]}; negative-step start in
+     *     {@code [0, dimensionSize - 1]}; or negative-step end in
+     *     {@code [-1, dimensionSize - 1]}
+     * @throws ArithmeticException if checked normalization or upper-bound arithmetic overflows
      */
-    private static long normalizeBound(long rawBound, long dimensionSize) {
+    private static long normalizeBound(
+            long rawBound, long dimensionSize, long step, boolean startBound) {
         long normalizedBound = rawBound;
         if (normalizedBound < 0) {
-            normalizedBound += dimensionSize;
+            normalizedBound = Math.addExact(normalizedBound, dimensionSize);
         }
-        if (normalizedBound < 0) {
-            return 0;
+        if (step > 0) {
+            if (normalizedBound < 0) {
+                return 0;
+            }
+            if (normalizedBound > dimensionSize) {
+                return dimensionSize;
+            }
+            return normalizedBound;
         }
-        if (normalizedBound > dimensionSize) {
-            return dimensionSize;
+        long upperBound = Math.subtractExact(dimensionSize, 1L);
+        long lowerBound = startBound ? 0L : -1L;
+        if (normalizedBound < lowerBound) {
+            return lowerBound;
         }
-        return normalizedBound;
+        return Math.min(normalizedBound, upperBound);
     }
 
     /**
-     * Calculates the number of coordinates in one normalized positive-step half-open interval.
+     * Calculates the number of coordinates in one normalized directional half-open request.
      *
      * @param start normalized inclusive start
      * @param end normalized exclusive end
-     * @param step strictly positive coordinate increment
-     * @return zero when {@code start >= end}; otherwise the overflow-safe positive extent
+     * @param step signed non-zero coordinate increment
+     * @return zero when the start is empty in the step's direction; otherwise the checked positive
+     *     selected-coordinate count
+     * @throws ArithmeticException if checked numerator or result arithmetic overflows
      */
-    private static long sliceExtent(long start, long end, long step) {
-        if (start >= end) {
+    private static long sliceLength(long start, long end, long step) {
+        if (step > 0) {
+            if (start >= end) {
+                return 0;
+            }
+            long numerator = Math.subtractExact(
+                    Math.subtractExact(end, 1L), start);
+            return Math.addExact(1L, numerator / step);
+        }
+        if (start <= end) {
             return 0;
         }
-        return 1L + (end - 1L - start) / step;
+        long numerator = Math.subtractExact(
+                Math.subtractExact(start, 1L), end);
+        return Math.subtractExact(1L, numerator / step);
     }
 
     /**
      * Derives a same-rank Shape while preserving exact unselected Dimension references.
      *
      * <p>Each selected axis is replaced by a new static extent. For input Shape {@code [3, 6]},
-     * bounds {@code [0, 1]} to {@code [3, 6]} on axes {@code [0, 1]} with steps {@code [1, 2]}
-     * produce Shape {@code [3, 3]}. Empty attributes preserve all references; a reversed normalized
-     * interval creates extent zero.</p>
+     * starts {@code [0, 4]}, lengths {@code [3, 5]}, axes {@code [0, 1]}, and steps
+     * {@code [1, -1]} produce Shape {@code [3, 5]}. Empty attributes preserve all references.</p>
      *
      * @param inputShape non-null exact input Shape
      * @param attrs non-null normalized slice attributes
@@ -231,24 +339,22 @@ final class TensorSliceExpressions {
         }
         for (int index = 0; index < attrs.axes().size(); index++) {
             int axis = attrs.axes().get(index);
-            long extent = sliceExtent(
-                    attrs.starts().get(index),
-                    attrs.ends().get(index),
-                    attrs.steps().get(index));
-            resultDimensions[axis] = new StaticDimension(extent);
+            resultDimensions[axis] = new StaticDimension(attrs.lengths().get(index));
         }
         return Shape.ofDimensions(resultDimensions);
     }
 
     /**
-     * Derives checked positive-step view geometry for a resolved, non-empty result.
+     * Derives checked positive-step view geometry when the complete result is representable.
      *
      * <p>The input layout optional and strides are each copied once. Every resolved layout kind is
      * accepted. Each selected start advances the exact input offset by start times that axis's
      * original stride, and each result stride is the original stride times the positive step.
      * {@link LayoutDescriptor} reclassifies the geometry and marks it as a view. An unresolved
      * input or a known zero element count yields unresolved result layout because an empty result
-     * references no storage element and needs no arbitrary one-past-end geometry.</p>
+     * references no storage element and needs no arbitrary one-past-end geometry. Any negative
+     * step also yields unresolved layout because {@link LayoutDescriptor} accepts only
+     * non-negative strides; this method does not choose a copy or reverse kernel.</p>
      *
      * @param inputDescriptor non-null exact input descriptor supplying optional geometry
      * @param resultShape non-null derived same-rank result Shape
@@ -265,6 +371,11 @@ final class TensorSliceExpressions {
         }
         if (resultShape.knownElementCount().orElseThrow() == 0L) {
             return Optional.empty();
+        }
+        for (long step : attrs.steps()) {
+            if (step < 0) {
+                return Optional.empty();
+            }
         }
 
         LayoutDescriptor resolvedInputLayout = inputLayout.orElseThrow();

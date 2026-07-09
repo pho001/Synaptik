@@ -2438,37 +2438,51 @@ public final class Tensor {
     }
 
     /**
-     * Creates a fresh general positive-step slice expression from four parallel arrays.
+     * Creates one fresh directional half-open slice expression from four parallel arrays.
      *
-     * <p>At each entry, {@code starts[i]} is an inclusive raw bound, {@code ends[i]} is exclusive,
-     * {@code axes[i]} is a positive or negative input axis, and {@code steps[i]} is strictly
-     * positive. The arrays must have equal lengths and are defensively cloned before inspection.
-     * Empty arrays produce a fresh explicit identity slice. Axes are normalized once and must be
-     * distinct; negative bounds add the selected static dimension size once, then every bound is
-     * clamped into {@code [0, size]}. Selected dynamic dimensions are rejected.</p>
+     * <p>Entry {@code i} supplies inclusive raw start {@code starts[i]}, exclusive raw end
+     * {@code ends[i]}, positive or negative input axis {@code axes[i]}, and signed non-zero step
+     * {@code steps[i]}. A positive step selects while the coordinate is below the end; a negative
+     * step selects while it is above the end. The arrays must have equal lengths and are cloned
+     * before entry inspection. Empty arrays create an explicit identity {@link SliceKind#SLICE}.</p>
      *
-     * <p>The result preserves rank and the exact references of every unaffected Dimension. A
-     * selected axis receives a new static extent equal to its positive-step half-open selection;
-     * start at or beyond end is valid and produces zero. With resolved input geometry and a
-     * non-empty result, the new logical view offset advances by each normalized start times its
-     * original input stride and selected strides are multiplied by their steps using checked
-     * arithmetic. Every resolved input layout kind is accepted. Unresolved input geometry and
-     * empty results stay unresolved, and no physical storage alias is attached or promised.</p>
+     * <p>Axes are normalized once in caller order and must be distinct. Each selected Dimension
+     * must be static. A negative bound adds that extent once, then bounds are clamped by direction:
+     * positive bounds use {@code [0, D]}, while a negative-step start uses {@code [0, D - 1]} and
+     * its exclusive end uses {@code [-1, D - 1]}. Raw {@code -1} means the relative coordinate
+     * {@code D - 1}; it is not the conceptual boundary before coordinate zero. For example, on
+     * extent five, {@code (4, -1, -1)} is empty, whereas {@code (4, -6, -1)} selects coordinates
+     * {@code [4, 3, 2, 1, 0]}.</p>
+     *
+     * <p>Checked arithmetic calculates the exact selected length and stores normalized
+     * start/length/axis/step sequences without an end sentinel. Empty entries use canonical start
+     * and length zero, including a negative-step zero-extent axis. Result rank is unchanged,
+     * selected axes become new static lengths, and every unselected Dimension reference is
+     * preserved exactly. {@link Long#MIN_VALUE} is a valid step when the finite selection is
+     * representable.</p>
+     *
+     * <p>A resolved non-empty all-positive request produces one checked logical view: each start
+     * advances the input offset and each selected original stride is multiplied by its step. An
+     * unresolved input, empty result, or any negative step leaves the complete result layout
+     * unresolved because the current layout contract forbids negative strides. No storage is
+     * attached, and unresolved reverse geometry does not imply a copy or kernel choice.</p>
      *
      * <p>The fresh result retains exact data type and gradient eligibility, has no label or
-     * storage, and records {@link SliceKind#SLICE}, normalized attributes in caller entry order,
-     * and exactly this tensor as its provenance input. Values, gradients, compiler behavior,
+     * storage, and records one identity-distinct producer with {@link SliceKind#SLICE}, normalized
+     * attributes in caller order, exact inputs {@code [this]}, one output descriptor, and
+     * provenance output index zero. Validation and checked arithmetic fail before identifier
+     * allocation; every success consumes one identifier. Values, gradients, compiler behavior,
      * materialization, backend lowering, and execution are deferred.</p>
      *
      * @param starts non-null caller-owned inclusive raw starts; paired by index and never retained
      * @param ends non-null caller-owned exclusive raw ends; paired by index and never retained
      * @param axes non-null caller-owned positive or negative axes; paired by index and never retained
-     * @param steps non-null caller-owned strictly positive steps; paired by index and never retained
+     * @param steps non-null caller-owned signed non-zero steps; paired by index and never retained
      * @return a non-null fresh storage-free SLICE expression with normalized Shape, conditional
      *     resolved view layout, preserved type/eligibility, and exact one-input provenance
      * @throws NullPointerException if any array is null, with its parameter name as the message
      * @throws IllegalArgumentException if lengths differ, an axis is invalid or duplicated after
-     *     normalization, a step is non-positive, or a selected dimension is dynamic
+     *     normalization, a step is zero, or a selected dimension is dynamic
      * @throws ArithmeticException if checked result element-count, layout-offset, stride,
      *     classification, or span arithmetic overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local
@@ -2482,9 +2496,10 @@ public final class Tensor {
      * Creates a fresh single-axis step-one slice expression through the general slice path.
      *
      * <p>This convenience is exactly one {@link SliceKind#SLICE} entry with {@code step = 1}; it
-     * has no separate semantic kind. Axis and half-open bounds use the same one-time negative
-     * normalization, clamping, selected-static-dimension requirement, empty-result policy, Shape
-     * derivation, conditional view geometry, provenance, and identifier behavior as
+     * has no separate semantic kind. Axis and directional half-open bounds use the same one-time
+     * negative normalization, positive-direction clamping, selected-static-dimension requirement,
+     * canonical empty state, Shape derivation, conditional view geometry, producer/provenance,
+     * and identifier behavior as
      * {@link #slice(long[], long[], int[], long[])}.</p>
      *
      * @param axis positive or negative selected input axis
@@ -2498,7 +2513,66 @@ public final class Tensor {
      *     immutable metadata has been constructed
      */
     public Tensor sliceAxis(int axis, long fromInclusive, long toExclusive) {
-        return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive);
+        return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive, 1L);
+    }
+
+    /**
+     * Creates a fresh single-axis slice expression with an explicit signed non-zero step.
+     *
+     * <p>This convenience creates exactly one {@link SliceKind#SLICE} occurrence and applies all
+     * normalization, empty-state, Shape, layout, metadata, producer, provenance, and identifier
+     * rules of {@link #slice(long[], long[], int[], long[])}. It does not invoke another public
+     * Tensor method. A negative step leaves layout unresolved even when the input is resolved.</p>
+     *
+     * @param axis positive or negative selected input axis
+     * @param fromInclusive raw inclusive bound normalized and clamped against the selected extent
+     * @param toExclusive raw directional exclusive bound normalized and clamped against the
+     *     selected extent
+     * @param step signed non-zero distance between selected coordinates
+     * @return a non-null fresh unlabeled, storage-free one-axis SLICE expression with one producer
+     *     and provenance output index zero
+     * @throws IllegalArgumentException if the axis is invalid, its dimension is dynamic, or
+     *     {@code step} is zero; no tensor identity is consumed
+     * @throws ArithmeticException if checked bound, length, result, or positive-step view
+     *     arithmetic overflows; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    public Tensor sliceAxis(
+            int axis, long fromInclusive, long toExclusive, long step) {
+        return TensorSliceExpressions.applyAxis(this, axis, fromInclusive, toExclusive, step);
+    }
+
+    /**
+     * Creates one fresh slice expression that reverses the requested axes in caller order.
+     *
+     * <p>The non-null varargs array is cloned once. Each negative axis adds rank once; the first
+     * invalid raw axis or repeated normalized axis fails. Every selected Dimension must be static.
+     * Extent {@code D > 0} contributes normalized start {@code D - 1}, length {@code D}, and step
+     * {@code -1}; extent zero contributes canonical start and length zero with step {@code -1}.
+     * All entries belong to one {@link SliceKind#SLICE} and one producer—there is no FLIP kind or
+     * per-axis chain.</p>
+     *
+     * <p>An empty axis list means identity, not all axes. It is valid for scalar, static, zero-
+     * extent, and dynamic Shapes because it selects no Dimension, and it still creates a fresh
+     * explicit SLICE occurrence. A non-empty scalar request fails axis validation. Every selected
+     * reversal has unresolved layout under the current non-negative-stride layout contract.</p>
+     *
+     * <p>Every success preserves exact Shape references, data type, and gradient eligibility,
+     * remains unlabeled and storage-free, and records exact inputs {@code [this]}, one output
+     * descriptor, and provenance output index zero. Validation fails before identifier allocation;
+     * every success consumes one identifier.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; cloned and never retained, with
+     *     an empty array meaning identity
+     * @return a non-null fresh storage-free SLICE expression with unresolved layout when any axis
+     *     is selected
+     * @throws NullPointerException if {@code axes} is null, with message {@code axes}
+     * @throws IllegalArgumentException if an axis is invalid, duplicated after normalization, or
+     *     selects a dynamic dimension; no tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    public Tensor flip(int... axes) {
+        return TensorSliceExpressions.flip(this, axes);
     }
 
     /**
@@ -3111,46 +3185,6 @@ public final class Tensor {
      */
     public Tensor unfold(int axis, long size, long step) {
         return TensorWindowExpressions.unfoldAxis(this, axis, size, step);
-    }
-
-    /**
-     * Creates a fresh expression that scatter-adds general-axis windows into a target extent.
-     *
-     * <p>The final input dimension is the positive window size. The remaining dimensions form
-     * the target rank against which {@code axis} is normalized; negative axes therefore never
-     * select the final window dimension. The selected input dimension is the static window count.
-     * It is replaced by {@code outputSize}, and the final window dimension is removed. For
-     * positive output size, the count must equal
-     * {@code floor((outputSize - windowSize) / step) + 1}. Output size zero accepts exactly zero
-     * windows.</p>
-     *
-     * <p>Scatter-add means that window element {@code offset} from window {@code index} targets
-     * {@code index * step + offset}; contributions to the same coordinate are added. Thus windows
-     * {@code [1,2,3]}, {@code [2,3,4]}, and {@code [3,4,5]} with step one produce conceptual
-     * accumulated values {@code [1,4,9,8,5]}. This method records that meaning but performs no
-     * addition. It accepts floating and integral inputs, rejects BOOL, and preserves exact type,
-     * gradient eligibility, and unaffected Dimension references.</p>
-     *
-     * <p>The fresh result is unlabeled, storage-free, and layout-unresolved, with
-     * {@link WindowTransformKind#FOLD_AXIS} and exact one-input provenance. Public fold and later
-     * compiler-generated unfold-adjoint use share this semantic kind; this method adds no gradient
-     * or compiler behavior.</p>
-     *
-     * @param axis raw target axis in {@code [-targetRank, targetRank - 1]}, where target rank is
-     *     one less than input rank
-     * @param outputSize non-negative restored target extent in logical elements
-     * @param step positive distance between consecutive window starts in logical elements
-     * @return a non-null fresh storage-free FOLD_AXIS tensor with the restored Shape, unresolved
-     *     layout, preserved type and gradient eligibility, and exact one-input provenance
-     * @throws IllegalArgumentException if input rank is below two, the input is BOOL, attributes
-     *     are invalid, required dimensions are dynamic, the final dimension is not positive, or
-     *     count, window-size, and target geometry are incompatible
-     * @throws IndexOutOfBoundsException if {@code axis} is outside the target rank
-     * @throws ArithmeticException if checked expected-window arithmetic overflows
-     * @throws IllegalStateException if tensor identifier space is exhausted
-     */
-    public Tensor foldAxis(int axis, long outputSize, long step) {
-        return TensorWindowExpressions.foldAxis(this, axis, outputSize, step);
     }
 
     /**

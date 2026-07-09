@@ -103,10 +103,14 @@ invalid-argument checks belong with the shape value model.
 Completed follow-up [0018M1](tasks/0018m1-dynamic-extent-adoption.md) now adopts that foundation
 in pad, tile, and concat. Padding retains canonical `N + before + after`, tiling retains
 `repeat * N`, and concat retains canonical sums such as `N + M`; neutral operations preserve
-exact Dimension references. Window-specific adoption remains aligned with the later window
-cleanup. Solving graph-wide equalities, binding runtime sizes, and evaluating prepared/run shapes
-remain compiler and later lifecycle concerns. Deferred compiler inference alone is insufficient
-because public expression results require honest Shape metadata when they are constructed.
+exact Dimension references. Completed task
+[0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) keeps slice-selected and
+window-transformed dimensions static because literal bound clamping and current window
+compatibility cannot be proved from an unbound extent; it does not add a second partial dynamic
+contract. Solving graph-wide equalities, binding runtime sizes, and evaluating prepared/run
+shapes remain compiler and later lifecycle concerns. Deferred compiler inference alone is
+insufficient because public expression results require honest Shape metadata when they are
+constructed.
 
 ### Typed scalar values
 
@@ -132,10 +136,10 @@ apply them in task order; completed task 0018O has already finalized indexing.
 | `fastExp` and `fastTanh` public kinds | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) removed both kinds and methods atomically without aliases. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
 | Masked sum/mean heuristic axis mapping | Completed task [0018Q](tasks/0018q-masked-reduction-redesign.md) removed the mapper and simplified masked attributes to one normalized axis. The public overloads remain first-class two-input SUM/MEAN occurrences because current primitives cannot safely compose masked-out NaN/Inf exclusion, dynamic Shapes, selected counts, and gradients without hidden eager constants or undefined behavior. Masks must use ordinary right-aligned broadcasting to produce exactly the input Shape; callers reshape or expand explicitly. All-false sum is zero and all-false mean is NaN. |
 | `inv` | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) atomically renamed the semantic kind and public method to `RECIPROCAL` and `reciprocal`, without a compatibility bridge. |
-| `foldAxis` public method | Keep the overlap-add meaning only as a compiler-generated adjoint of `unfold` unless an independent public use case appears. `fold2d` remains a selected public window reconstruction operation. |
+| `foldAxis` public method | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) removed the public method and helper path without an alias. `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` remain stable compiler-only model semantics; task 0023 owns their first compiler-generated construction. `fold2d` remains public. |
 | `fromStrictFlatPrefix` and `fromCyclicFlatPrefix` | Move out of core `TensorFactory` to test/data-fixture utilities. They are population conveniences, not foundational tensor construction. |
 | Primitive-array `take` | Do not stabilize it. Canonical indexing accepts an index Tensor; any later primitive convenience must validate the axis before allocating its eager index Tensor. |
-| Positive-step-only slicing | Redesign before API stabilization. General slice semantics must cover negative steps; `flip` is a convenience. A negative-step result may remain layout-unresolved rather than inventing unsupported negative-stride geometry. |
+| Positive-step-only slicing | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) selected signed non-zero steps. Normalized `SliceAttrs` stores start plus selected length rather than an exclusive-end sentinel, the general arrays remain the primitive, a step-aware `sliceAxis` overload was added, and `flip(int... axes)` is one `SLICE` convenience. Positive provable views remain resolved; every negative-step result is layout-unresolved under the current non-negative-stride descriptor. |
 | Large `Tensor` and `TensorFactory` surfaces | Keep Tensor as the public identity/fluent entry point, but continue to isolate implementation by cohesive helpers. Restrict TensorFactory to construction/import/constants; random initialization and test-data population receive focused public or utility owners. Class size alone does not justify a new facade. |
 
 Completed task 0018P retains `EXP` and `TANH` as portable mathematical requests without promising an
@@ -218,7 +222,7 @@ inspection even when a compiler can decompose them.
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
 - sort, argsort, and true multi-output top-K with axis, order, stability, tie, and NaN policies;
-- flip and diagonal conveniences;
+- diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding and one-hot conveniences;
 - convolution and max/average pooling after symbolic extent expressions are complete;
 - batch normalization, including explicit training/inference statistics and auxiliary outputs;
@@ -277,7 +281,7 @@ The model may contain backend-independent kinds needed only after compiler trans
 are not automatically public Tensor methods. The selected compiler-only set includes:
 
 - specialized gather/scatter adjoints when a composition would lose required semantics;
-- `FOLD_AXIS` as the adjoint of single-axis unfold;
+- retained compiler-only `FOLD_AXIS` semantics as the adjoint of single-axis unfold;
 - slice and window backward operations;
 - reduction-extrema, softmax, log-softmax, attention, normalization, and loss adjoints when a
   focused compiler task demonstrates that primitive composition is insufficient; and

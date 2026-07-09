@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(110, declaredPublicMethods.size());
+        assertEquals(111, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -94,10 +94,10 @@ class TensorTest {
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
-                        "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "select",
+                        "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "gatherElements", "gatherNd",
                         "scatterElements", "scatterNd", "pad",
-                        "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
+                        "tile", "concat", "stack", "unstack", "unfold",
                         "unfold2d", "fold2d"),
                 publicMethods);
         assertAll(
@@ -308,6 +308,9 @@ class TensorTest {
                 "slice", long[].class, long[].class, int[].class, long[].class);
         var sliceAxis = Tensor.class.getDeclaredMethod(
                 "sliceAxis", int.class, long.class, long.class);
+        var steppedSliceAxis = Tensor.class.getDeclaredMethod(
+                "sliceAxis", int.class, long.class, long.class, long.class);
+        var flip = Tensor.class.getDeclaredMethod("flip", int[].class);
         assertAll(
                 () -> assertEquals(Tensor.class, slice.getReturnType()),
                 () -> assertEquals(
@@ -324,7 +327,19 @@ class TensorTest {
                 () -> assertFalse(sliceAxis.isVarArgs()),
                 () -> assertTrue(Modifier.isPublic(sliceAxis.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(sliceAxis.getModifiers())),
-                () -> assertFalse(Modifier.isSynchronized(sliceAxis.getModifiers())));
+                () -> assertFalse(Modifier.isSynchronized(sliceAxis.getModifiers())),
+                () -> assertEquals(Tensor.class, steppedSliceAxis.getReturnType()),
+                () -> assertEquals(
+                        List.of(int.class, long.class, long.class, long.class),
+                        Arrays.asList(steppedSliceAxis.getParameterTypes())),
+                () -> assertFalse(steppedSliceAxis.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(steppedSliceAxis.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(steppedSliceAxis.getModifiers())),
+                () -> assertEquals(Tensor.class, flip.getReturnType()),
+                () -> assertEquals(List.of(int[].class), Arrays.asList(flip.getParameterTypes())),
+                () -> assertTrue(flip.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(flip.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(flip.getModifiers())));
 
         var select = Tensor.class.getDeclaredMethod("select", int.class, long.class);
         assertAll(
@@ -452,8 +467,6 @@ class TensorTest {
         for (var method : List.of(
                 Tensor.class.getDeclaredMethod(
                         "unfold", int.class, long.class, long.class),
-                Tensor.class.getDeclaredMethod(
-                        "foldAxis", int.class, long.class, long.class),
                 Tensor.class.getDeclaredMethod("unfold2d", Window2dAttrs.class),
                 Tensor.class.getDeclaredMethod(
                         "fold2d", Shape.class, Window2dAttrs.class))) {
@@ -464,6 +477,8 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())),
                     () -> assertFalse(method.isVarArgs()));
         }
+        assertThrows(NoSuchMethodException.class, () -> Tensor.class.getDeclaredMethod(
+                "foldAxis", int.class, long.class, long.class));
 
         for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);

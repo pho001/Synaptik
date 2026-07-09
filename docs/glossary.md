@@ -116,13 +116,14 @@ distinct normalization domains, static singleton proof for removal, conditional 
 geometry, and one-input provenance. Gradients, compiler behavior, materialization, backend
 behavior, and execution remain planned.
 The `SliceKind` vocabulary is implemented with the sole `SLICE` meaning, together with
-`SliceAttrs` carrying immutable parallel lists of normalized inclusive starts, exclusive ends,
-distinct axes, and positive steps. These semantic values describe positive-step half-open logical
-selection without a Tensor or Shape. Public `Tensor.slice` and `Tensor.sliceAxis` expression
-construction now adds raw negative request normalization and clamping against selected static
-dimensions, same-rank Shape derivation, conditional resolved view geometry, and exact one-input
-provenance. Gradients, compiler capture/canonicalization, materialization, backend behavior, ONNX
-mapping, and execution remain planned in later owning layers.
+`SliceAttrs` carrying immutable parallel lists of normalized starts, selected lengths, distinct
+axes, and signed non-zero steps. These semantic values describe exact finite coordinate sequences
+without a Tensor, Shape, raw bound, or end sentinel. Public `Tensor.slice`, both `sliceAxis`
+overloads, and `flip` add directional raw-bound normalization against selected static dimensions,
+same-rank Shape derivation, positive-only resolved view geometry, and exact one-input provenance.
+Every negative-step result remains layout-unresolved. Gradients, compiler
+capture/canonicalization, materialization, backend behavior, ONNX mapping, and execution remain
+planned in later owning layers.
 The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
 respectively. `PadAttrs` stores immutable ordered non-negative before/after widths plus one exact
 typed scalar constant; `TileAttrs` stores immutable ordered positive complete-pattern repeat
@@ -188,9 +189,10 @@ dimension supplies window size. `Window2dAttrs` stores positive kernel, stride, 
 non-negative symmetric padding, and a floor/ceil rounding choice. `Fold2dAttrs` retains one exact
 output Shape and one exact window-geometry reference. These values define materialized windows,
 scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction. Public
-`unfold`, `foldAxis`, `unfold2d`, and `fold2d` expressions now add checked Shape arithmetic,
-unresolved result layout, preserved data type and gradient eligibility, and one-input provenance.
-Task 0023 separately owns compiler-generated `FOLD_AXIS` use for the unfold adjoint. Gradients,
+`unfold`, `unfold2d`, and `fold2d` expressions add checked Shape arithmetic, unresolved result
+layout, preserved data type and gradient eligibility, and one-input provenance. No public
+`foldAxis` construction remains; `FOLD_AXIS` and `FoldAxisAttrs` are compiler-only model semantics,
+and task 0023 owns their first compiler-generated construction. Gradients,
 materialization, compiler capture, lowering, backend/ONNX behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
@@ -693,7 +695,8 @@ insertion position normalized against rank plus one, while current `squeeze` use
 position normalized against the existing Shape and validates the selected static singleton.
 `SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
 or rank, so it cannot prove that an axis exists for a future input. The current public slice
-boundary normalizes caller-facing negative axes before constructing these attributes.
+and flip boundaries normalize caller-facing negative axes before constructing these attributes;
+duplicates fail after normalization in caller order.
 `CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
 axis, with the paired kind supplying the interpretation. It contains no rank context.
 `IndexAxisAttrs` stores the normalized data axis for Gather and Gather Elements.
@@ -703,8 +706,8 @@ tuple depth remains in the final indices Dimension. The current gather and scatt
 boundaries validate their public caller parameters before constructing these attributes.
 `UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
 restored target axis. Neither contains rank context. Current public `unfold` normalizes raw syntax
-against the input rank; `foldAxis` normalizes it against the target rank after removing the final
-window dimension, then both prove bounds before constructing their attributes.
+against the input rank. No public fold-axis boundary exists; task 0023 owns future compiler
+construction of already normalized `FoldAxisAttrs`.
 
 ### Node
 
@@ -756,7 +759,9 @@ layout-operation `TargetShapeAttrs` holds one exact normalized semantic result S
 reshape and expand. Layout-operation `PermutationAttrs` holds one complete normalized
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
-inclusive starts, exclusive ends, distinct axes, and positive steps. `PadAttrs` holds immutable
+inclusive starts, selected lengths, distinct axes, and signed non-zero steps. Each slice entry is
+an exact finite coordinate sequence rather than a stored raw or normalized exclusive end.
+`PadAttrs` holds immutable
 ordered before/after widths and one exact typed scalar constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
 shared by concat and stack. `SelectAttrs` holds one normalized source axis and one normalized
@@ -768,8 +773,8 @@ for `GATHER_ND`; tuple depth remains the final indices Dimension rather than att
 `ScatterReduction` for `SCATTER_ELEMENTS`. `ScatterNdAttrs` holds one normalized non-negative
 shared-batch count plus an explicit non-null `ScatterReduction` for `SCATTER_ND`; tuple depth
 remains the final indices Dimension. `UnfoldAxisAttrs`
-carries normalized general-axis window size and step; `FoldAxisAttrs` carries normalized target axis,
-explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
+carries normalized general-axis window size and step; compiler-only `FoldAxisAttrs` carries a
+normalized target axis, explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
 kernel/stride/padding/dilation geometry and its
 rounding flag, while `Fold2dAttrs` carries one exact output Shape plus that shared geometry. Other
 families may define records for another operation-specific value. Implementations use typed
@@ -787,6 +792,11 @@ attributes runtime class. Equality belongs to the typed kind value, so equal nam
 unrelated kind types does not create equivalence or a global string registry. A kind signature
 describes attributes and occurrence counts, not backend support, cost, fusion, storage, execution
 behavior, or a kernel route.
+
+Public exposure is separate from semantic representability. For example, `SliceKind.SLICE`
+supports public slice and flip expressions, while `WindowTransformKind.FOLD_AXIS` remains a
+compiler-only semantic with no public Tensor constructor; both still provide exact family-owned
+one-input/one-output signatures.
 
 ### Operation signature
 
@@ -1079,10 +1089,12 @@ copied, or materialized.
 respectively, retain one normalized position in `AxisTransformAttrs`, and record exactly the
 receiver as their sole input. Conditional resolved view geometry still does not imply attached or
 aliased storage, a copy-free route, or execution.
-`Tensor.slice` and `Tensor.sliceAxis` use `SliceKind.SLICE`, retain normalized parallel half-open
-bounds, distinct axes, and positive steps in `SliceAttrs`, and record exactly the receiver as their
-sole input. Conditional resolved view geometry does not imply attached or physically aliased
-storage, materialization, or execution.
+`Tensor.slice`, both `Tensor.sliceAxis` overloads, and `Tensor.flip` use `SliceKind.SLICE`, retain
+normalized finite start/length/signed-step sequences on distinct axes in `SliceAttrs`, and record
+exactly the receiver as their sole input. Each success has one identity-distinct producer, one
+output descriptor, and provenance output index zero, including identity and multi-axis flip.
+Conditional resolved positive-step view geometry and unresolved negative-step geometry imply
+neither attached or physically aliased storage, copying, materialization, nor execution.
 Static `Tensor.concat` and `Tensor.stack` retain immutable ordered snapshots of their exact input
 Tensor references in provenance with matching `TensorCompositionKind` and normalized
 `CompositionAxisAttrs`. Each `Tensor.unstack` output instead carries its own `SELECT` operation,
@@ -1171,31 +1183,40 @@ attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
 An implemented backend-independent logical selection represented by `SliceKind.SLICE` and
 `SliceAttrs`. The attributes use four equal-size parallel lists. Entry `i` selects the half-open
-coordinate interval `[starts[i], ends[i])` on normalized input axis `axes[i]`, advancing by the
-strictly positive `steps[i]`. Unlisted axes retain their complete logical coordinate range.
+coordinate sequence on normalized input axis `axes[i]`: coordinate `k` is
+`starts[i] + k * steps[i]` for `0 <= k < lengths[i]`. Steps are signed and non-zero. Unlisted axes
+retain their complete logical coordinate range.
 
-Starts, ends, and steps use `long`, while axes use `int`. The lists are immutable snapshots;
-their values and entry order define record equality. Axes are non-negative and distinct, bounds
-are non-negative, and four empty lists describe a normalized identity slice. The semantic value
-has no input Shape, so it does not check rank or dimension bounds, compare a start with its end,
-calculate extents, or decide empty-result policy. The public Tensor expression boundary owns that
-input-dependent work: it clones four equal-length arrays, normalizes each negative axis or bound
-once, clamps bounds, requires selected dimensions to be static, rejects repeated normalized axes,
-and preserves rank plus exact unselected Dimension references. Negative or reverse steps are not
-represented.
+Starts, lengths, and steps use `long`, while axes use `int`. The lists are immutable snapshots;
+their values and entry order define record equality. Starts, lengths, and axes are non-negative,
+axes are distinct, empty entries use canonical start zero, and a non-empty entry must have a
+representable non-negative final coordinate. Four empty lists describe normalized identity
+semantics. The value stores no input Shape, raw bounds, or direction-dependent exclusive-end
+sentinel, so rank, selected-dimension staticity, and directional normalization belong to the
+public Tensor expression boundary.
 
-For conceptual Shape `[3, 6]`, starts `[0, 1]`, ends `[3, 6]`, axes `[0, 1]`, and steps `[1, 2]`
-select rows `0`, `1`, and `2` and columns `1`, `3`, and `5`, producing Shape `[3, 3]`. A start at
-or beyond its normalized end instead produces a valid zero extent. For resolved non-empty input
-geometry, the public expression derives a checked start-adjusted offset and multiplies the
-original selected strides by their steps in a view-marked descriptor. Unresolved input and empty
-results remain unresolved. This view metadata attaches no storage and promises no physical alias.
+For selected extent `D`, the public request is directional and half-open. A negative raw bound
+adds `D` once. Positive-step bounds clamp to `[0, D]`; a negative-step start clamps to
+`[0, D - 1]` and its end to `[-1, D - 1]`. Raw `-1` therefore means relative coordinate
+`D - 1`, not the boundary before zero. On conceptual values `[0, 1, 2, 3, 4]`,
+`sliceAxis(0, 1, 5, 2)` selects `[1, 3]`, while `sliceAxis(0, 4, -6, -1)` and `flip(0)` both select
+`[4, 3, 2, 1, 0]`. The former entries normalize to starts `[1]`, lengths `[2]`, steps `[2]`; the
+latter normalize to starts `[4]`, lengths `[5]`, steps `[-1]`.
 
-Every public slice result preserves exact data type and gradient eligibility, remains fresh,
-unlabeled, and storage-free, and records normalized `SliceAttrs` plus provenance `[input]`.
-`sliceAxis` is the same `SLICE` meaning with one entry and step one, not a separate kind. Neither
-form reads values, defines gradients, captures or canonicalizes a graph, materializes storage,
-lowers a backend or ONNX operation, or executes selection. See [Slice expressions](api/tensor-api.md#slice-expressions)
+Every selected Dimension must be static; unselected Dimensions retain exact references. Empty
+arrays and empty flip axes are fresh explicit identity occurrences. Zero-length results store
+canonical start zero, including a selected zero-extent axis. Resolved non-empty all-positive
+requests derive checked start-adjusted, step-multiplied logical view geometry. Unresolved input,
+empty results, and every negative-step request remain layout-unresolved because the current
+descriptor forbids negative strides. This boundary promises neither a physical alias nor a copy.
+
+Every public slice or flip result preserves exact data type and gradient eligibility, remains
+fresh, unlabeled, and storage-free, and records one `SliceKind.SLICE` producer with exact input
+`[input]`, one output descriptor, and provenance output index zero. The three-argument
+`sliceAxis` uses step one; the four-argument form uses an explicit signed step; `flip` places all
+requested axes into one operation. There is no `SLICE_AXIS` or `FLIP` kind. These methods do not
+read values, define gradients, capture or canonicalize a graph, materialize storage, lower a
+backend or ONNX operation, or execute selection. See [Slice expressions](api/tensor-api.md#slice-expressions)
 and [Slice semantic kind and normalized
 attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
 
@@ -1700,9 +1721,9 @@ as window size, removes it, restores one normalized target axis to the explicit 
 adds overlapping contributions. Conceptual windows of Shape `[3, 3]` with values
 `[[1, 2, 3], [4, 5, 6], [7, 8, 9]]`, target axis `0`, output size `5`, and step `1` produce Shape
 `[5]` with values `[1, 6, 15, 14, 9]`. Uncovered valid positions remain zero. Output size cannot
-always be inferred because trailing source positions might have appeared in no window. The current
-public `foldAxis` expression and planned compiler-generated unfold adjoint in task 0023 share this
-one semantic identity.
+always be inferred because trailing source positions might have appeared in no window. No public
+Tensor expression constructs `FOLD_AXIS`; task 0023 owns its first compiler-generated
+construction for backward graphs.
 
 The two-dimensional forms use NCHW axis order: batch, channel, height, width. Im2col places
 sampled image windows into canonical rank-three columns; col2im scatters column entries back into
@@ -1726,11 +1747,11 @@ output          = ceil(numerator / stride) + 1        in ceil mode
 
 The immutable attributes validate only intrinsic component signs and nullness. They retain valid
 values and exact immutable Shape/window references without calculating geometry or proving rank,
-axis bounds, fit, column compatibility, or arithmetic representability. Current public Tensor
-expression construction supplies that local validation, checked Shape arithmetic, preserved data
-type and gradient eligibility, unresolved layout, and exact one-input provenance. For fold-axis,
-the target rank is the result rank obtained after removing the input's final window dimension;
-the raw axis is normalized against that rank. Gradient rules, compiler behavior, materialization,
+axis bounds, fit, column compatibility, or arithmetic representability. Current public `unfold`,
+`unfold2d`, and `fold2d` construction supplies its existing local validation, checked Shape
+arithmetic, preserved data type and gradient eligibility, unresolved layout, and exact one-input
+provenance. Compiler-generated fold-axis operand compatibility remains owned by task 0023.
+Gradient rules, compiler behavior, materialization,
 lowering, backend/ONNX behavior, and execution remain planned. See
 [Window-transform semantic kinds and
 attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).

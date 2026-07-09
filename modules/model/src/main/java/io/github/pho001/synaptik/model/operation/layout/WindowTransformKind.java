@@ -17,8 +17,10 @@ import java.util.List;
  * {@code [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}, axis zero, output size five, and step one produce
  * conceptual Shape {@code [5]} with values {@code [1, 6, 15, 14, 9]}; overlapping contributions
  * are summed. The explicit output size is required because window count, window size, and step do
- * not identify trailing uncovered positions. The same semantic identity supports the current
- * public Tensor expression and later compiler-generated autograd use planned by task 0023.</p>
+ * not identify trailing uncovered positions. No public Tensor expression currently constructs
+ * {@code FOLD_AXIS}; task 0023 owns its first compiler-generated construction for backward graphs.
+ * Retaining the kind here keeps that backend-independent semantic representable without adding
+ * compiler behavior to the model.</p>
  *
  * <p>{@link #UNFOLD2D} and {@link #FOLD2D} use NCHW (batch, channel, height, width) image geometry.
  * Two-dimensional unfold is im2col: conceptual Shape {@code [1, 1, 3, 3]} with a 2-by-2 kernel,
@@ -32,7 +34,8 @@ import java.util.List;
  * {@link Fold2dAttrs}. Family-owned signatures enforce each exact pairing and declare one input
  * and one output. This enum performs no Tensor construction, Shape calculation, sampling,
  * accumulation, layout or storage selection, gradient construction, graph/compiler work,
- * lowering, backend dispatch, or execution.</p>
+ * lowering, backend dispatch, or execution. Public Tensor construction currently exists for
+ * {@code UNFOLD_AXIS}, {@code UNFOLD2D}, and {@code FOLD2D} only.</p>
  */
 public enum WindowTransformKind implements OperationKind {
     /**
@@ -45,6 +48,9 @@ public enum WindowTransformKind implements OperationKind {
     /**
      * Scatter-adds the final input window dimension along the normalized target axis in
      * {@link FoldAxisAttrs}, restoring its explicit output extent and summing overlaps.
+     *
+     * <p>This is a compiler-only model semantic. No public Tensor expression constructs it;
+     * task 0023 owns compiler generation.</p>
      */
     FOLD_AXIS,
 

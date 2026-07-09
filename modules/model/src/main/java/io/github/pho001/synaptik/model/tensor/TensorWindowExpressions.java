@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.model.tensor;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
@@ -15,13 +14,14 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs locally validated, storage-free general-axis and NCHW window expressions.
+ * Constructs the locally validated public unfold, unfold2d, and fold2d Tensor expressions.
  *
  * <p>General-axis unfold replaces one static extent with the count of positive-step windows and
- * appends window size. General-axis fold removes that appended final dimension and restores an
- * explicit target extent under scatter-add semantics. Two-dimensional unfold maps rank-four NCHW
- * (batch, channel, height, width) geometry to canonical im2col columns; two-dimensional fold maps
- * compatible columns back through overlap-accumulating col2im.</p>
+ * appends window size. Two-dimensional unfold maps rank-four NCHW (batch, channel, height, width)
+ * geometry to canonical im2col columns; two-dimensional fold maps compatible columns back through
+ * overlap-accumulating col2im. The retained compiler-only
+ * {@link WindowTransformKind#FOLD_AXIS} semantic has no public construction path in this helper;
+ * task 0023 owns its first compiler-generated construction.</p>
  *
  * <p>All Shape arithmetic is local and checked. Floor and ceil window counts use quotient and
  * remainder arithmetic, avoiding {@code numerator + stride - 1}. Results always leave layout
@@ -63,63 +63,6 @@ final class TensorWindowExpressions {
         }
         Shape resultShape = unfoldAxisShape(inputShape, attrs);
         Operation operation = new Operation(WindowTransformKind.UNFOLD_AXIS, attrs);
-        return create(input, resultShape, operation);
-    }
-
-    /**
-     * Validates and creates one general-axis scatter-add fold expression.
-     *
-     * @param input non-null rank-two-or-greater window Tensor; its final dimension is window size
-     * @param axis raw positive or negative target axis, excluding the final input dimension
-     * @param outputSize non-negative restored target extent in logical elements
-     * @param step positive distance between window starts in logical elements
-     * @return a non-null fresh FOLD_AXIS Tensor with checked Shape and unresolved layout
-     * @throws NullPointerException if {@code input} is null, with message {@code input}
-     * @throws IllegalArgumentException if rank, attributes, type, staticity, final-window extent,
-     *     or count geometry is invalid
-     * @throws IndexOutOfBoundsException if {@code axis} is outside target rank
-     * @throws ArithmeticException if checked expected-window arithmetic overflows
-     */
-    static Tensor foldAxis(Tensor input, int axis, long outputSize, long step) {
-        Objects.requireNonNull(input, "input");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() < 2) {
-            throw new IllegalArgumentException("foldAxis requires rank at least 2");
-        }
-        int targetRank = inputShape.rank() - 1;
-        int normalizedAxis = normalizeAxis(axis, targetRank);
-        FoldAxisAttrs attrs = new FoldAxisAttrs(normalizedAxis, outputSize, step);
-        validateNumeric(input.descriptor().dataType(), "foldAxis");
-        long actualWindows = requireStaticSize(
-                inputShape, normalizedAxis, "foldAxis", "window-count");
-        Dimension finalDimension = inputShape.dimensions().get(inputShape.rank() - 1);
-        if (!(finalDimension instanceof StaticDimension staticWindow) || staticWindow.size() <= 0) {
-            throw new IllegalArgumentException(
-                    "foldAxis requires a positive static final window dimension");
-        }
-        long windowSize = staticWindow.size();
-        if (outputSize == 0) {
-            if (actualWindows != 0) {
-                throw new IllegalArgumentException(
-                        "foldAxis window count " + actualWindows
-                                + " does not match output size and window geometry: expected=0");
-            }
-        } else {
-            if (windowSize > outputSize) {
-                throw new IllegalArgumentException(
-                        "foldAxis window size " + windowSize
-                                + " exceeds output size " + outputSize);
-            }
-            long expectedWindows = Math.addExact((outputSize - windowSize) / step, 1L);
-            if (actualWindows != expectedWindows) {
-                throw new IllegalArgumentException(
-                        "foldAxis window count " + actualWindows
-                                + " does not match output size and window geometry: expected="
-                                + expectedWindows);
-            }
-        }
-        Shape resultShape = foldAxisShape(inputShape, attrs);
-        Operation operation = new Operation(WindowTransformKind.FOLD_AXIS, attrs);
         return create(input, resultShape, operation);
     }
 
@@ -180,20 +123,6 @@ final class TensorWindowExpressions {
         Fold2dAttrs attrs = new Fold2dAttrs(outputShape, window);
         Operation operation = new Operation(WindowTransformKind.FOLD2D, attrs);
         return create(input, outputShape, operation);
-    }
-
-    /**
-     * Requires a floating or integral input type for scatter-add folding.
-     *
-     * @param dataType non-null exact input data type
-     * @param operation non-null constant operation name used in failures
-     * @throws IllegalArgumentException if {@code dataType} is BOOL
-     */
-    private static void validateNumeric(DataType dataType, String operation) {
-        if (!dataType.isFloating() && !dataType.isIntegral()) {
-            throw new IllegalArgumentException(
-                    operation + " requires floating or integral input: " + dataType);
-        }
     }
 
     /**
@@ -270,23 +199,6 @@ final class TensorWindowExpressions {
                     : inputShape.dimensions().get(index);
         }
         dimensions[inputShape.rank()] = new StaticDimension(attrs.size());
-        return Shape.ofDimensions(dimensions);
-    }
-
-    /**
-     * Derives axis-fold Shape by removing the final window dimension and restoring target extent.
-     *
-     * @param inputShape non-null validated rank-two-or-greater window Shape
-     * @param attrs non-null normalized fold attributes compatible with the input geometry
-     * @return non-null rank-one-smaller Shape preserving exact unaffected Dimension references
-     */
-    private static Shape foldAxisShape(Shape inputShape, FoldAxisAttrs attrs) {
-        Dimension[] dimensions = new Dimension[inputShape.rank() - 1];
-        for (int index = 0; index < dimensions.length; index++) {
-            dimensions[index] = index == attrs.axis()
-                    ? new StaticDimension(attrs.outputSize())
-                    : inputShape.dimensions().get(index);
-        }
         return Shape.ofDimensions(dimensions);
     }
 

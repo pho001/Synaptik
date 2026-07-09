@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
@@ -33,7 +32,7 @@ class TensorWindowExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(4_000_000);
 
     @Test
-    void helperHasExactlyTheRequiredFieldFreeFourteenMethodShape() {
+    void helperHasExactlyTheRequiredFieldFreeElevenMethodShape() {
         var constructors = TensorWindowExpressions.class.getDeclaredConstructors();
         var methods = Arrays.stream(TensorWindowExpressions.class.getDeclaredMethods())
                 .map(TensorWindowExpressionTest::methodSignature)
@@ -54,8 +53,6 @@ class TensorWindowExpressionTest {
                         List.of(
                                 "create(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.Operation):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "fold2d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
-                                "foldAxis(io.github.pho001.synaptik.model.tensor.Tensor,int,long,long):io.github.pho001.synaptik.model.tensor.Tensor",
-                                "foldAxisShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs):io.github.pho001.synaptik.model.shape.Shape",
                                 "normalizeAxis(int,int):int",
                                 "requireStaticSize(io.github.pho001.synaptik.model.shape.Shape,int,java.lang.String,java.lang.String):long",
                                 "unfold2d(io.github.pho001.synaptik.model.tensor.Tensor,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):io.github.pho001.synaptik.model.tensor.Tensor",
@@ -64,7 +61,6 @@ class TensorWindowExpressionTest {
                                 "unfoldAxisShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs):io.github.pho001.synaptik.model.shape.Shape",
                                 "validateFloating(io.github.pho001.synaptik.model.datatype.DataType,java.lang.String):void",
                                 "validateFold2dShape(io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.shape.Shape,io.github.pho001.synaptik.model.operation.layout.Window2dAttrs):void",
-                                "validateNumeric(io.github.pho001.synaptik.model.datatype.DataType,java.lang.String):void",
                                 "windowOutputSize(long,long,long,long,long,boolean,java.lang.String,java.lang.String):long"),
                         methods),
                 () -> assertTrue(Arrays.stream(
@@ -72,7 +68,13 @@ class TensorWindowExpressionTest {
                         .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Arrays.stream(
                                 TensorWindowExpressions.class.getDeclaredMethods())
-                        .noneMatch(method -> method.isSynthetic() || method.isBridge())));
+                        .noneMatch(method -> method.isSynthetic() || method.isBridge())),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod(
+                                "foldAxis", int.class, long.class, long.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> TensorWindowExpressions.class.getDeclaredMethod(
+                                "foldAxis", Tensor.class, int.class, long.class, long.class)));
     }
 
     @Test
@@ -174,134 +176,6 @@ class TensorWindowExpressionTest {
                         "unfold size 1 exceeds selected dimension 0", zeroFit.getMessage()),
                 () -> assertEquals(
                         "unfold size 3 exceeds selected dimension 2", fit.getMessage()));
-    }
-
-    @Test
-    void foldAxisAcceptsEveryNumericTypeAndPreservesUnaffectedDimensions() {
-        for (DataType dataType : List.of(
-                DataType.FLOAT64,
-                DataType.FLOAT32,
-                DataType.BFLOAT16,
-                DataType.INT32,
-                DataType.INT64)) {
-            DynamicDimension batch = new DynamicDimension("batch-" + dataType);
-            StaticDimension features = new StaticDimension(7);
-            Tensor input = tensor(
-                    dataType,
-                    Shape.ofDimensions(batch, new StaticDimension(3), features,
-                            new StaticDimension(3)),
-                    Optional.empty(),
-                    dataType.isDifferentiable());
-
-            Tensor result = input.foldAxis(-2, 5, 1);
-            TensorProvenance provenance = result.provenance().orElseThrow();
-
-            assertAll(
-                    () -> assertSame(batch, result.descriptor().shape().dimensions().get(0)),
-                    () -> assertEquals(
-                            new StaticDimension(5),
-                            result.descriptor().shape().dimensions().get(1)),
-                    () -> assertSame(features,
-                            result.descriptor().shape().dimensions().get(2)),
-                    () -> assertEquals(dataType, result.descriptor().dataType()),
-                    () -> assertEquals(
-                            dataType.isDifferentiable(), result.descriptor().requiresGrad()),
-                    () -> assertTrue(result.descriptor().layout().isEmpty()),
-                    () -> assertSame(WindowTransformKind.FOLD_AXIS,
-                            provenance.operation().kind()),
-                    () -> assertEquals(
-                            new FoldAxisAttrs(1, 5, 1), provenance.operation().attrs()),
-                    () -> assertEquals(List.of(input), provenance.inputs()));
-        }
-    }
-
-    @Test
-    void foldAxisSupportsZeroOutputExactlyForZeroWindows() {
-        Tensor zeroWindows = tensor(
-                DataType.FLOAT32, Shape.of(2, 0, 3), Optional.empty(), true);
-        Tensor nonZeroWindows = tensor(
-                DataType.FLOAT32, Shape.of(2, 1, 3), Optional.empty(), true);
-
-        Tensor result = zeroWindows.foldAxis(1, 0, 2);
-        IllegalArgumentException mismatch = assertThrows(
-                IllegalArgumentException.class,
-                () -> nonZeroWindows.foldAxis(1, 0, 2));
-
-        assertAll(
-                () -> assertEquals(Shape.of(2, 0), result.descriptor().shape()),
-                () -> assertEquals(
-                        "foldAxis window count 1 does not match output size and window geometry: expected=0",
-                        mismatch.getMessage()));
-    }
-
-    @Test
-    void foldAxisRejectsInvalidRequestsInExactOrderWithExactMessages() {
-        Tensor rankOneBool = tensor(DataType.BOOL, Shape.of(1), Optional.empty(), false);
-        Tensor bool = tensor(DataType.BOOL, Shape.of(3, 3), Optional.empty(), false);
-        Tensor dynamicCount = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(new DynamicDimension("windows"), new StaticDimension(3)),
-                Optional.empty(),
-                true);
-        Tensor dynamicWindow = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(new StaticDimension(3), new DynamicDimension("window")),
-                Optional.empty(),
-                true);
-        Tensor zeroWindow = tensor(DataType.FLOAT32, Shape.of(0, 0), Optional.empty(), true);
-        Tensor tooWide = tensor(DataType.FLOAT32, Shape.of(1, 6), Optional.empty(), true);
-        Tensor wrongCount = tensor(DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), true);
-
-        NullPointerException nullInput = assertThrows(
-                NullPointerException.class,
-                () -> TensorWindowExpressions.foldAxis(null, 0, 1, 1));
-        IllegalArgumentException rank = assertThrows(
-                IllegalArgumentException.class,
-                () -> rankOneBool.foldAxis(Integer.MIN_VALUE, -1, 0));
-        IndexOutOfBoundsException axis = assertThrows(
-                IndexOutOfBoundsException.class,
-                () -> bool.foldAxis(Integer.MIN_VALUE, -1, 0));
-        IllegalArgumentException outputSize = assertThrows(
-                IllegalArgumentException.class, () -> bool.foldAxis(0, -1, 0));
-        IllegalArgumentException step = assertThrows(
-                IllegalArgumentException.class, () -> bool.foldAxis(0, 1, 0));
-        IllegalArgumentException type = assertThrows(
-                IllegalArgumentException.class, () -> bool.foldAxis(0, 1, 1));
-        IllegalArgumentException countStaticity = assertThrows(
-                IllegalArgumentException.class, () -> dynamicCount.foldAxis(0, 5, 1));
-        IllegalArgumentException windowStaticity = assertThrows(
-                IllegalArgumentException.class, () -> dynamicWindow.foldAxis(0, 5, 1));
-        IllegalArgumentException positiveWindow = assertThrows(
-                IllegalArgumentException.class, () -> zeroWindow.foldAxis(0, 0, 1));
-        IllegalArgumentException windowFit = assertThrows(
-                IllegalArgumentException.class, () -> tooWide.foldAxis(0, 5, 1));
-        IllegalArgumentException count = assertThrows(
-                IllegalArgumentException.class, () -> wrongCount.foldAxis(0, 5, 1));
-
-        assertAll(
-                () -> assertEquals("input", nullInput.getMessage()),
-                () -> assertEquals("foldAxis requires rank at least 2", rank.getMessage()),
-                () -> assertEquals(
-                        "Axis -2147483648 is outside shape rank 1", axis.getMessage()),
-                () -> assertEquals(
-                        "outputSize must be non-negative: -1", outputSize.getMessage()),
-                () -> assertEquals("step must be positive: 0", step.getMessage()),
-                () -> assertEquals(
-                        "foldAxis requires floating or integral input: BOOL", type.getMessage()),
-                () -> assertEquals(
-                        "foldAxis requires static window-count dimension at axis 0",
-                        countStaticity.getMessage()),
-                () -> assertEquals(
-                        "foldAxis requires a positive static final window dimension",
-                        windowStaticity.getMessage()),
-                () -> assertEquals(
-                        "foldAxis requires a positive static final window dimension",
-                        positiveWindow.getMessage()),
-                () -> assertEquals(
-                        "foldAxis window size 6 exceeds output size 5", windowFit.getMessage()),
-                () -> assertEquals(
-                        "foldAxis window count 2 does not match output size and window geometry: expected=3",
-                        count.getMessage()));
     }
 
     @Test
@@ -641,7 +515,6 @@ class TensorWindowExpressionTest {
         long before = next.get();
 
         assertThrows(IllegalArgumentException.class, () -> input.unfold(0, 2, 1));
-        assertThrows(IllegalArgumentException.class, () -> input.foldAxis(0, 1, 1));
         assertThrows(IllegalArgumentException.class,
                 () -> input.fold2d(Shape.of(1, 1, 3, 3), window));
         assertEquals(before, next.get());
