@@ -83,13 +83,13 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(112, declaredPublicMethods.size());
+        assertEquals(110, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
-                        "div", "min", "max", "pow", "abs", "neg", "inv", "log", "exp",
+                        "div", "min", "max", "pow", "abs", "neg", "reciprocal", "log", "exp",
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
-                        "fastExp", "fastTanh", "clamp", "clampMin", "clampMax", "greaterThan",
+                        "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
@@ -505,8 +505,8 @@ class TensorTest {
                 () -> assertFalse(Modifier.isSynchronized(typedClamp.getModifiers())));
 
         for (String methodName : List.of(
-                "abs", "neg", "inv", "log", "exp", "erf", "sqrt", "floor", "ceil", "sign",
-                "relu", "sigmoid", "tanh", "fastExp", "fastTanh")) {
+                "abs", "neg", "reciprocal", "log", "exp", "erf", "sqrt", "floor", "ceil",
+                "sign", "relu", "sigmoid", "tanh")) {
             var method = Tensor.class.getDeclaredMethod(methodName);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),

@@ -29,8 +29,8 @@ That origin model now uses identity-bearing immutable `TensorProducer` occurrenc
 `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
 construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
-The parameterless `UnaryElementwiseKind` vocabulary is also implemented for fifteen unary
-arithmetic, transcendental, activation, and explicit fast-approximation meanings, plus matching
+The parameterless `UnaryElementwiseKind` vocabulary is also implemented for thirteen unary
+arithmetic, transcendental, and activation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
 provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
 `MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact typed
@@ -818,13 +818,13 @@ while separately owning local expression construction. The enum's inherited name
 rather than serialization or dispatch keys.
 
 The second production family is `UnaryElementwiseKind`, an enum containing exactly `ABS`, `NEG`,
-`INV`, `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`,
-`FAST_EXP`, and `FAST_TANH`. These values identify one-input elementwise mathematical or activation
-meanings and compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares one input
-and one output. `FAST_EXP` and `FAST_TANH` are distinct approximate requests, not aliases or
-backend flags; the enum defines no algorithm, accuracy, descriptor inference, provenance,
-gradient, execution, or backend support. The implemented public unary Tensor methods consume these
-values while separately owning local expression construction.
+`RECIPROCAL`, `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, and
+`TANH`. These values identify one-input elementwise mathematical or activation meanings and
+compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares one input and one
+output. `EXP` and `TANH` are portable mathematical requests without an algorithm, bitwise-result,
+approximation-bound, or backend-route promise. The enum defines no descriptor inference,
+provenance, gradient, execution, or backend support. The implemented public unary Tensor methods
+consume these values while separately owning local expression construction.
 
 The third production family is `ScalarElementwiseKind`, an enum containing exactly `MUL`, `POW`,
 `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`. These values identify parameterized one-input elementwise
@@ -1345,7 +1345,7 @@ all current source/target pairs and creates a fresh explicit result even for a s
 retains the exact input Shape, leaves layout unresolved, retains gradient eligibility only across
 an already-eligible floating-to-floating cast, and records typed target attributes plus exact
 one-input provenance. It does not inspect or convert values/storage, define numerical or gradient
-rules, canonicalize casts, capture a graph, or execute conversion. The current fifteen
+rules, canonicalize casts, capture a graph, or execute conversion. The current thirteen
 zero-argument unary methods also create fresh floating expression tensors. They retain the exact
 input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind

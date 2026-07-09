@@ -44,7 +44,7 @@ does not retain a public `Tensor`, gradient role, runtime target, storage, backe
 state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
-comparison methods, three boolean logical methods, fifteen unary elementwise methods, and five
+comparison methods, three boolean logical methods, thirteen unary elementwise methods, and five
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
@@ -59,8 +59,10 @@ parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
 right-aligned target-shape expressions.
-Arithmetic, unary, scalar, and conditional-selection results remain floating;
-comparison and logical results are unresolved-layout `BOOL` descriptors with false gradient
+Arithmetic, unary, scalar, and conditional-selection results remain floating. Unary `exp` and
+`tanh` record portable mathematical requests without selecting an algorithm, bitwise result,
+approximation bound, or backend route. Comparison and logical results are unresolved-layout
+`BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
 typed `ScalarValue` operation attributes rather than Tensor inputs. Public scalar/clamp expression

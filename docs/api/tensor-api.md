@@ -9,7 +9,7 @@ primitive-array import, independent dense constants including full-value and rec
 tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
 integral, and Bernoulli random population. The current concrete expression surface contains seven
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
-methods, three BOOL-only logical methods, fifteen floating unary elementwise methods, and five
+methods, three BOOL-only logical methods, thirteen floating unary elementwise methods, and five
 floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
 explicit cast method. Fifteen floating aggregate methods add full, one-axis, and retained-axis
 `sum`, `mean`, `prod`, reduction `min`, and reduction `max` expression construction. Six BOOL
@@ -233,7 +233,7 @@ GatherNdKind + GatherNdAttrs                              = tuple-index meaning 
 AxisScatterKind + ScatterElementsAttrs                    = functional scatter-elements meaning + axis/reduction
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
-UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
+UnaryElementwiseKind                                          = thirteen parameterless unary elementwise semantics
 ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
 ValueId + TensorDescriptor                                    = GraphValue
@@ -364,15 +364,15 @@ descriptors, layout, provenance, gradients, materialization, compiler behavior, 
 ONNX mapping, and execution remain outside these semantic values. Public `Tensor.pad` and
 `Tensor.tile` separately perform the input-dependent model validation and metadata construction
 described under [pad and tile expressions](#pad-and-tile-expressions).
-`UnaryElementwiseKind` names fifteen parameterless unary arithmetic, transcendental, activation,
-and explicit fast-approximation meanings. `ScalarElementwiseKind` names five parameterized
+`UnaryElementwiseKind` names thirteen parameterless unary arithmetic, transcendental, and
+activation meanings. `ScalarElementwiseKind` names five parameterized
 one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
 `ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
 `max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
-from ordered floating inputs. The public `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`,
-`floor`, `ceil`, `sign`, `relu`, `sigmoid`, `tanh`, `fastExp`, and `fastTanh` methods use the unary
+from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `exp`, `erf`, `sqrt`,
+`floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` methods use the unary
 kinds to create storage-free expressions from one floating input. The public scalar overloads
 `Tensor.mul(ScalarValue)`, `pow(ScalarValue)`, `clamp(ScalarValue, ScalarValue)`,
 `clampMin(ScalarValue)`, and `clampMax(ScalarValue)` use the scalar kinds and typed attributes to
@@ -2562,16 +2562,16 @@ execute either request.
 
 ### Unary elementwise expressions
 
-The fifteen current zero-argument methods create one-input elementwise semantics without reading
+The thirteen current zero-argument methods create one-input elementwise semantics without reading
 or calculating element values:
 
 | Method | Elementwise meaning |
 |---|---|
 | `abs` | Absolute magnitude. |
 | `neg` | Additive inverse. |
-| `inv` | Multiplicative reciprocal. |
+| `reciprocal` | Multiplicative reciprocal. |
 | `log` | Natural logarithm. |
-| `exp` | Strict natural exponential request. |
+| `exp` | Portable natural exponential request. |
 | `erf` | Gaussian error function. |
 | `sqrt` | Principal square root. |
 | `floor` | Greatest integer-valued result not greater than the input. |
@@ -2579,9 +2579,7 @@ or calculating element values:
 | `sign` | Numeric negative, zero, or positive classification. |
 | `relu` | Rectified linear unit. |
 | `sigmoid` | Logistic sigmoid. |
-| `tanh` | Strict hyperbolic tangent request. |
-| `fastExp` | Explicit approximate natural exponential request. |
-| `fastTanh` | Explicit approximate hyperbolic tangent request. |
+| `tanh` | Portable hyperbolic tangent request. |
 
 Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
 data type and immutable `Shape` reference; no promotion or shape algebra is needed for one input.
@@ -2594,20 +2592,21 @@ Every valid call returns a fresh Tensor with a new factory identity, no label, a
 Its provenance contains one `Operation` with the exact matching `UnaryElementwiseKind` and
 `NoOperationAttrs.INSTANCE`, followed by exactly the receiver reference. A chain retains its
 immediately preceding result as the next input. Calls are never interned or simplified at this
-boundary, and `log`, `sqrt`, and `inv` do not inspect values to enforce mathematical domains.
+boundary, and `log`, `sqrt`, and `reciprocal` do not inspect values to enforce mathematical
+domains.
 Compiler optimization, autograd, numerical edge behavior, and backend execution remain later
 responsibilities.
 
-`fastExp` and `fastTanh` construct kinds distinct from `exp` and `tanh`. The “fast” names express
-approximation intent only; this API does not choose an algorithm, promise an error bound, or claim
-backend availability.
+`exp` and `tanh` are portable mathematical requests. Neither selects an algorithm nor promises a
+bitwise result, approximation bound, or backend route. Those numerical and implementation choices
+belong to later owning contracts.
 
 #### Complete unary-expression example
 
 ##### Goal and inputs
 
-Build a fast-exponential expression from a storage-free `FLOAT32` tensor of shape `[2, 3]` that
-requests gradient eligibility. The example observes expression metadata, not exponential values.
+Build a reciprocal expression from a storage-free `FLOAT32` tensor of shape `[2, 3]` that requests
+gradient eligibility. The example observes expression metadata, not reciprocal values.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -2625,7 +2624,7 @@ public final class UnaryExpressionExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
-        Tensor result = input.fastExp();
+        Tensor result = input.reciprocal();
         TensorProvenance provenance = result.provenance().orElseThrow();
 
         System.out.println("type=" + result.descriptor().dataType());
@@ -2638,6 +2637,8 @@ public final class UnaryExpressionExample {
         System.out.println("parameterless="
                 + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
         System.out.println("exactInput=" + (provenance.inputs().getFirst() == input));
+        System.out.println("outputIndex=" + provenance.outputIndex());
+        System.out.println("oneOutput=" + (provenance.producer().outputCount() == 1));
         System.out.println("fresh=" + (result != input));
     }
 }
@@ -2647,10 +2648,12 @@ public final class UnaryExpressionExample {
 
 - `TensorFactory.create` makes a provenance-free leaf whose exact immutable shape object is
   `shape` and whose descriptor requests gradients.
-- `input.fastExp()` creates a new semantic expression without reading storage or calculating an
-  exponential. It retains `FLOAT32`, the exact `shape` reference, and the true eligibility flag.
-- The operation kind is `FAST_EXP`, not `EXP`, and its complete parameter value is the canonical
-  no-attributes singleton. Provenance retains `input` as its sole exact input reference.
+- `input.reciprocal()` creates a new semantic expression without reading storage, dividing values,
+  or checking zero. It retains `FLOAT32`, the exact `shape` reference, and the true eligibility
+  flag.
+- The operation kind is `RECIPROCAL`, and its complete parameter value is the canonical
+  no-attributes singleton. Provenance retains `input` as its sole exact input reference and
+  selects output index zero from a one-output producer.
 
 ##### Result and interpretation
 
@@ -2663,16 +2666,18 @@ layoutUnresolved=true
 requiresGrad=true
 unlabeled=true
 storageFree=true
-kind=FAST_EXP
+kind=RECIPROCAL
 parameterless=true
 exactInput=true
+outputIndex=0
+oneOutput=true
 fresh=true
 ```
 
 The output proves exact type and shape retention, unresolved layout, gradient-eligibility
-propagation, fresh identity, and one-input provenance. It does not prove a numerical exponential,
-an approximation algorithm or accuracy bound, a gradient rule, graph capture, backend support, or
-execution.
+propagation, fresh identity, and one-input, output-index-zero provenance. It does not prove
+division, zero or special-value behavior, numerical accuracy, a gradient rule, graph capture,
+backend support, or execution.
 
 ##### Failures and useful variations
 
@@ -2680,8 +2685,9 @@ execution.
   `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
 - Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. A resolved input layout is
   deliberately not copied to the result.
-- Replacing `fastExp()` with `exp()` creates the distinct strict `EXP` semantic request. Chaining
-  another unary call records the first result, not the original leaf, as its exact input.
+- Calling `reciprocal()` on a zero-valued stored tensor still creates metadata because expression
+  construction does not inspect values or define zero handling.
+- Chaining another unary call records the first result, not the original leaf, as its exact input.
 - Exhausting the factory's tensor-ID space fails after the local descriptor, operation, and
   provenance values are built.
 
@@ -5252,7 +5258,7 @@ composition while the table also lists the current production families:
 | `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
-| `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
+| `UnaryElementwiseKind` | The implemented production enum for thirteen parameterless unary elementwise meanings. |
 | `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable holder for one exact typed scalar parameter. |
 | `ClampRangeAttrs` | The implemented immutable value for exact same-type numeric inclusive clamp bounds. |
@@ -6337,7 +6343,7 @@ The public enum
 |---|---|
 | `ABS` | Absolute magnitude of the input value. |
 | `NEG` | Additive inverse of the input value. |
-| `INV` | Multiplicative reciprocal of the input value. |
+| `RECIPROCAL` | Multiplicative reciprocal of the input value. |
 | `LOG` | Natural logarithm of the input value. |
 | `EXP` | Natural exponential of the input value. |
 | `ERF` | Gaussian error function of the input value. |
@@ -6348,10 +6354,8 @@ The public enum
 | `RELU` | Rectified linear unit of the input value. |
 | `SIGMOID` | Logistic sigmoid of the input value. |
 | `TANH` | Hyperbolic tangent of the input value. |
-| `FAST_EXP` | Explicitly approximate natural exponential request. |
-| `FAST_TANH` | Explicitly approximate hyperbolic tangent request. |
 
-All fifteen kinds have one logical input and no intrinsic parameters. Their shared signature
+All thirteen kinds have one logical input and no intrinsic parameters. Their shared signature
 declares exact `NoOperationAttrs`, one input, and one output; canonical composition remains
 explicit:
 
@@ -6362,12 +6366,12 @@ Operation exponential = new Operation(
 ```
 
 The enum does not store the input, infer a result descriptor, or create provenance. The current
-public unary Tensor methods own those expression-construction rules. `FAST_EXP` and
-`FAST_TANH` are distinct approximate semantic requests rather than aliases or backend flags for
-`EXP` and `TANH`; their algorithms, accuracy, special-value behavior, differentiation, execution,
-and backend availability remain undefined here. Inherited enum names are diagnostic text, not
-serialization or dispatch keys, and equally named kinds from another family remain different
-typed values.
+public unary Tensor methods own those expression-construction rules. `EXP` and `TANH` are portable
+mathematical requests; neither selects an algorithm nor promises a bitwise result, approximation
+bound, or backend route. Their accuracy, special-value behavior, differentiation, execution, and
+backend availability remain undefined here. Inherited enum names are diagnostic text, not
+serialization or dispatch keys, and equally named kinds from another family remain different typed
+values.
 
 ### Scalar arithmetic and clamp semantic kinds
 
@@ -7004,14 +7008,15 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   exhaustion follows local descriptor and provenance construction. The method does not inspect
   values, choose or evaluate a branch, define gradient routing, capture a graph, or provide ONNX
   or backend execution.
-- `Tensor.abs`, `neg`, `inv`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
-  `sigmoid`, `tanh`, `fastExp`, and `fastTanh` accept only floating receiver data types and retain
+- `Tensor.abs`, `neg`, `reciprocal`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
+  `sigmoid`, and `tanh` accept only floating receiver data types and retain
   the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns
   a fresh unlabeled storage-free Tensor with unresolved layout and exact matching parameterless
   operation plus one-input provenance. Type failures precede ID allocation; identity exhaustion
   follows local descriptor and provenance construction. The methods do not inspect mathematical
-  domains, simplify chains, define strict or fast numerical accuracy, capture graphs, or provide
-  gradient or backend behavior.
+  domains, simplify chains, define numerical accuracy, capture graphs, or provide gradient or
+  backend behavior. `exp` and `tanh` select no algorithm, bitwise result, approximation bound, or
+  backend route.
 - The `ScalarValue` overloads of `Tensor.mul`, `pow`, `clamp`, `clampMin`, and `clampMax` accept
   only floating receivers and require exact receiver/value data-type equality. Their `double`
   overloads adapt only to exact FLOAT64. All forms preserve the input type, shape reference, and

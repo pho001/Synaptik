@@ -34,7 +34,7 @@ class TensorUnaryElementwiseTest {
     private static final List<UnaryCall> UNARY_CALLS = List.of(
             new UnaryCall("abs", UnaryElementwiseKind.ABS, Tensor::abs),
             new UnaryCall("neg", UnaryElementwiseKind.NEG, Tensor::neg),
-            new UnaryCall("inv", UnaryElementwiseKind.INV, Tensor::inv),
+            new UnaryCall("reciprocal", UnaryElementwiseKind.RECIPROCAL, Tensor::reciprocal),
             new UnaryCall("log", UnaryElementwiseKind.LOG, Tensor::log),
             new UnaryCall("exp", UnaryElementwiseKind.EXP, Tensor::exp),
             new UnaryCall("erf", UnaryElementwiseKind.ERF, Tensor::erf),
@@ -44,9 +44,7 @@ class TensorUnaryElementwiseTest {
             new UnaryCall("sign", UnaryElementwiseKind.SIGN, Tensor::sign),
             new UnaryCall("relu", UnaryElementwiseKind.RELU, Tensor::relu),
             new UnaryCall("sigmoid", UnaryElementwiseKind.SIGMOID, Tensor::sigmoid),
-            new UnaryCall("tanh", UnaryElementwiseKind.TANH, Tensor::tanh),
-            new UnaryCall("fastExp", UnaryElementwiseKind.FAST_EXP, Tensor::fastExp),
-            new UnaryCall("fastTanh", UnaryElementwiseKind.FAST_TANH, Tensor::fastTanh));
+            new UnaryCall("tanh", UnaryElementwiseKind.TANH, Tensor::tanh));
 
     @Test
     void helperAndTensorMethodsHaveExactlyTheRequiredShape() throws ReflectiveOperationException {
@@ -87,6 +85,12 @@ class TensorUnaryElementwiseTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        for (String removed : List.of("inv", "fastExp", "fastTanh")) {
+            assertThrows(
+                    NoSuchMethodException.class,
+                    () -> Tensor.class.getDeclaredMethod(removed));
+        }
     }
 
     @Test
@@ -102,7 +106,12 @@ class TensorUnaryElementwiseTest {
                     () -> assertSame(call.kind(), operation.kind()),
                     () -> assertSame(NoOperationAttrs.INSTANCE, operation.attrs()),
                     () -> assertEquals(1, provenance.inputs().size()),
-                    () -> assertSame(input, provenance.inputs().getFirst()));
+                    () -> assertSame(input, provenance.inputs().getFirst()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertSame(
+                            result.descriptor(),
+                            provenance.producer().outputDescriptors().getFirst()));
         }
     }
 
@@ -165,28 +174,25 @@ class TensorUnaryElementwiseTest {
         Tensor firstNegation = input.neg();
         Tensor secondNegation = input.neg();
         Tensor doubleNegation = firstNegation.neg();
-        Tensor doubleInverse = input.inv().inv();
-        Tensor strictExp = input.exp();
-        Tensor fastExp = input.fastExp();
-        Tensor strictTanh = input.tanh();
-        Tensor fastTanh = input.fastTanh();
+        Tensor doubleReciprocal = input.reciprocal().reciprocal();
+        Tensor exponential = input.exp();
+        Tensor hyperbolicTangent = input.tanh();
 
         assertAll(
                 () -> assertNotSame(input, firstNegation),
                 () -> assertNotSame(firstNegation, secondNegation),
                 () -> assertNotEquals(firstNegation.id(), secondNegation.id()),
+                () -> assertNotSame(
+                        firstNegation.provenance().orElseThrow().producer(),
+                        secondNegation.provenance().orElseThrow().producer()),
                 () -> assertNotSame(input, doubleNegation),
-                () -> assertNotSame(input, doubleInverse),
+                () -> assertNotSame(input, doubleReciprocal),
                 () -> assertSame(firstNegation,
                         doubleNegation.provenance().orElseThrow().inputs().getFirst()),
                 () -> assertSame(UnaryElementwiseKind.EXP,
-                        strictExp.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.FAST_EXP,
-                        fastExp.provenance().orElseThrow().operation().kind()),
+                        exponential.provenance().orElseThrow().operation().kind()),
                 () -> assertSame(UnaryElementwiseKind.TANH,
-                        strictTanh.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.FAST_TANH,
-                        fastTanh.provenance().orElseThrow().operation().kind()),
+                        hyperbolicTangent.provenance().orElseThrow().operation().kind()),
                 () -> assertTrue(firstNegation.label().isEmpty()),
                 () -> assertTrue(firstNegation.hostStorage().isEmpty()),
                 () -> assertTrue(firstNegation.descriptor().layout().isEmpty()));
@@ -231,18 +237,18 @@ class TensorUnaryElementwiseTest {
 
         Tensor logarithm = negative.log();
         Tensor squareRoot = negative.sqrt();
-        Tensor inverse = zero.inv();
+        Tensor reciprocal = zero.reciprocal();
 
         assertAll(
                 () -> assertSame(UnaryElementwiseKind.LOG,
                         logarithm.provenance().orElseThrow().operation().kind()),
                 () -> assertSame(UnaryElementwiseKind.SQRT,
                         squareRoot.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.INV,
-                        inverse.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(UnaryElementwiseKind.RECIPROCAL,
+                        reciprocal.provenance().orElseThrow().operation().kind()),
                 () -> assertTrue(logarithm.hostStorage().isEmpty()),
                 () -> assertTrue(squareRoot.hostStorage().isEmpty()),
-                () -> assertTrue(inverse.hostStorage().isEmpty()));
+                () -> assertTrue(reciprocal.hostStorage().isEmpty()));
     }
 
     @Test

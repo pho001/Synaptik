@@ -12,7 +12,7 @@ import java.util.Optional;
  * Constructs locally validated storage-free unary elementwise tensor expressions.
  *
  * <p>This package-private boundary owns the common deterministic construction order for all
- * fifteen parameterless unary elementwise kinds. It validates input and kind presence, accepts
+ * thirteen parameterless unary elementwise kinds. It validates input and kind presence, accepts
  * only a floating input data type, retains the exact data type and shape, records unresolved
  * result layout and unchanged gradient eligibility, and delegates the exact sole producer input
  * once to the central Tensor factory. It does not inspect values or storage, evaluate

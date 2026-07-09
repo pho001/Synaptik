@@ -129,14 +129,20 @@ apply them in task order; completed task 0018O has already finalized indexing.
 
 | Existing capability | Decision |
 |---|---|
-| `fastExp` and `fastTanh` public kinds | Remove from the intended baseline. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
+| `fastExp` and `fastTanh` public kinds | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) removed both kinds and methods atomically without aliases. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
 | Masked sum/mean heuristic axis mapping | Remove. Mask alignment must use ordinary explicit broadcasting; callers reshape or expand the mask when necessary. A masked-reduction convenience may compose `where` and ordinary reductions after all-false mean semantics are decided. |
-| `inv` | Rename the public and semantic operation to `reciprocal` before API stabilization. |
+| `inv` | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) atomically renamed the semantic kind and public method to `RECIPROCAL` and `reciprocal`, without a compatibility bridge. |
 | `foldAxis` public method | Keep the overlap-add meaning only as a compiler-generated adjoint of `unfold` unless an independent public use case appears. `fold2d` remains a selected public window reconstruction operation. |
 | `fromStrictFlatPrefix` and `fromCyclicFlatPrefix` | Move out of core `TensorFactory` to test/data-fixture utilities. They are population conveniences, not foundational tensor construction. |
 | Primitive-array `take` | Do not stabilize it. Canonical indexing accepts an index Tensor; any later primitive convenience must validate the axis before allocating its eager index Tensor. |
 | Positive-step-only slicing | Redesign before API stabilization. General slice semantics must cover negative steps; `flip` is a convenience. A negative-step result may remain layout-unresolved rather than inventing unsupported negative-stride geometry. |
 | Large `Tensor` and `TensorFactory` surfaces | Keep Tensor as the public identity/fluent entry point, but continue to isolate implementation by cohesive helpers. Restrict TensorFactory to construction/import/constants; random initialization and test-data population receive focused public or utility owners. Class size alone does not justify a new facade. |
+
+Completed task 0018P retains `EXP` and `TANH` as portable mathematical requests without promising an
+algorithm, bitwise result, approximation bound, or backend route. It leaves the exact typed scalar
+vocabulary `MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX` unchanged. Draft task 0018T remains
+the owner of scalar add/subtract/divide/minimum/maximum plus `rsqrt`, `log1p`, `expm1`, and
+floating diagnostics; the cleanup does not add them early.
 
 ## Indexing taxonomy
 

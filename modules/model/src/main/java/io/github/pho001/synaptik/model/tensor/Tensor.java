@@ -103,9 +103,10 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
- * Scalar and unary methods accept one floating input and retain its exact data type, shape
- * reference, and gradient eligibility. Scalar methods retain exact matching typed values in
- * attributes; their {@code double} conveniences mean exact FLOAT64.
+ * Scalar methods and the thirteen parameterless unary methods accept one floating input and
+ * retain its exact data type, shape reference, and gradient eligibility. Scalar methods retain
+ * exact matching typed values in attributes; their {@code double} conveniences mean exact
+ * FLOAT64.
  * Every expression result has a fresh factory identity and no label or storage. Most expression
  * results leave layout unresolved; a contiguous request instead publishes newly resolved
  * canonical dense row-major geometry for a fully static Shape and remains unresolved for a
@@ -953,16 +954,17 @@ public final class Tensor {
      *
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
-     * and provenance containing {@link UnaryElementwiseKind#INV},
+     * and provenance containing {@link UnaryElementwiseKind#RECIPROCAL},
      * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Zero handling, numerical domain,
-     * canonicalization, gradient rules, execution, and backend support are deferred.</p>
+     * special-value policy, canonicalization, gradient rules, execution, and backend support are
+     * deferred.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
-    public Tensor inv() {
-        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.INV);
+    public Tensor reciprocal() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.RECIPROCAL);
     }
 
     /**
@@ -984,13 +986,15 @@ public final class Tensor {
     }
 
     /**
-     * Builds an elementwise strict natural-exponential expression from this tensor.
+     * Builds an elementwise natural-exponential expression from this tensor.
      *
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
-     * and provenance containing the distinct strict request {@link UnaryElementwiseKind#EXP},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Numerical accuracy, overflow,
-     * special values, gradients, execution, and backend support are deferred.</p>
+     * and provenance containing the portable mathematical request {@link
+     * UnaryElementwiseKind#EXP}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
+     * request selects no algorithm and promises no bitwise result, approximation bound, or
+     * backend route. Numerical accuracy, overflow, special values, gradients, execution, and
+     * backend support are deferred.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -1124,13 +1128,15 @@ public final class Tensor {
     }
 
     /**
-     * Builds an elementwise strict hyperbolic-tangent expression from this tensor.
+     * Builds an elementwise hyperbolic-tangent expression from this tensor.
      *
      * <p>The input must be floating. The fresh result retains the exact data type and shape
      * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
-     * and provenance containing the distinct strict request {@link UnaryElementwiseKind#TANH},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Accuracy, special values,
-     * gradient rules, execution, and backend support are deferred.</p>
+     * and provenance containing the portable mathematical request {@link
+     * UnaryElementwiseKind#TANH}, {@code NoOperationAttrs.INSTANCE}, and exactly this input. The
+     * request selects no algorithm and promises no bitwise result, approximation bound, or
+     * backend route. Accuracy, special values, gradient rules, execution, and backend support are
+     * deferred.</p>
      *
      * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
      * @throws IllegalArgumentException if this tensor's data type is not floating
@@ -1138,42 +1144,6 @@ public final class Tensor {
      */
     public Tensor tanh() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.TANH);
-    }
-
-    /**
-     * Builds an explicit fast approximate natural-exponential expression from this tensor.
-     *
-     * <p>The input must be floating. The fresh result retains the exact data type and shape
-     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
-     * and provenance containing {@link UnaryElementwiseKind#FAST_EXP},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. This is distinct from
-     * {@link #exp()}; no approximation algorithm, accuracy bound, special-value behavior,
-     * gradient rule, execution route, or backend availability is promised here.</p>
-     *
-     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
-     * @throws IllegalStateException if tensor identifier space is exhausted
-     */
-    public Tensor fastExp() {
-        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FAST_EXP);
-    }
-
-    /**
-     * Builds an explicit fast approximate hyperbolic-tangent expression from this tensor.
-     *
-     * <p>The input must be floating. The fresh result retains the exact data type and shape
-     * reference, has unresolved layout and unchanged gradient eligibility, no label or storage,
-     * and provenance containing {@link UnaryElementwiseKind#FAST_TANH},
-     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. This is distinct from
-     * {@link #tanh()}; no approximation algorithm, accuracy bound, special-value behavior,
-     * gradient rule, execution route, or backend availability is promised here.</p>
-     *
-     * @return a non-null fresh derived tensor with preserved type, shape, and gradient eligibility
-     * @throws IllegalArgumentException if this tensor's data type is not floating
-     * @throws IllegalStateException if tensor identifier space is exhausted
-     */
-    public Tensor fastTanh() {
-        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.FAST_TANH);
     }
 
     /**

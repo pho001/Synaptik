@@ -6,7 +6,7 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies backend-independent parameterless unary elementwise semantics.
+ * Identifies thirteen backend-independent parameterless unary elementwise semantics.
  *
  * <p>Each kind describes the mathematical or activation meaning applied independently to one
  * logical input. The shared signature declares one input and one output; the kind does not retain
@@ -17,15 +17,13 @@ import java.util.List;
  * <p>All kinds in this family have no intrinsic parameters. An {@link
  * io.github.pho001.synaptik.model.operation.Operation Operation} therefore represents one of them
  * with {@link io.github.pho001.synaptik.model.operation.NoOperationAttrs#INSTANCE
- * NoOperationAttrs.INSTANCE}. The enum stores no result facts, numerical policy, or approximation
- * implementation in its structural signature.</p>
+ * NoOperationAttrs.INSTANCE}. The enum stores no result facts, numerical policy, algorithm, or
+ * backend implementation route in its structural signature.</p>
  *
- * <p>{@link #FAST_EXP} and {@link #FAST_TANH} are explicit approximate semantic requests distinct
- * from {@link #EXP} and {@link #TANH}; later numerical and backend contracts define their accuracy
- * and implementation. Enum identity supplies typed equality and hashing, so an equally named
- * constant in another operation family remains a different semantic value. The inherited {@link
- * #name()} and {@link #toString()} text is stable diagnostic vocabulary only, not a serialization
- * token, registry key, or string-dispatch contract.</p>
+ * <p>Enum identity supplies typed equality and hashing, so an equally named constant in another
+ * operation family remains a different semantic value. The inherited {@link #name()} and {@link
+ * #toString()} text is stable diagnostic vocabulary only, not a serialization token, registry
+ * key, or string-dispatch contract.</p>
  */
 public enum UnaryElementwiseKind implements OperationKind {
     /**
@@ -49,11 +47,11 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Produces the multiplicative reciprocal of each input value.
      *
-     * <p>This kind defines mathematical inversion only. Input and result types, zero and
+     * <p>This kind defines the mathematical reciprocal only. Input and result types, zero and
      * special-value behavior, differentiation, execution, and backend availability belong to
      * later owning contracts.</p>
      */
-    INV,
+    RECIPROCAL,
 
     /**
      * Produces the natural logarithm of each input value.
@@ -67,9 +65,10 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Produces the natural exponential of each input value.
      *
-     * <p>This strict semantic request is distinct from {@link #FAST_EXP}. Result type, overflow,
-     * underflow, special-value behavior, accuracy, differentiation, execution, and backend
-     * availability belong to later owning contracts.</p>
+     * <p>This portable mathematical request does not select an algorithm or promise a bitwise
+     * result, approximation bound, or backend route. Result type, overflow, underflow,
+     * special-value behavior, accuracy, differentiation, execution, and backend availability
+     * belong to later owning contracts.</p>
      */
     EXP,
 
@@ -140,30 +139,12 @@ public enum UnaryElementwiseKind implements OperationKind {
     /**
      * Applies the hyperbolic tangent function to each input value.
      *
-     * <p>This strict semantic request is distinct from {@link #FAST_TANH}. Input and result types,
-     * accuracy, special-value behavior, differentiation, execution, and backend availability
-     * belong to later owning contracts.</p>
+     * <p>This portable mathematical request does not select an algorithm or promise a bitwise
+     * result, approximation bound, or backend route. Input and result types, accuracy,
+     * special-value behavior, differentiation, execution, and backend availability belong to
+     * later owning contracts.</p>
      */
-    TANH,
-
-    /**
-     * Requests an explicitly approximate natural exponential for each input value.
-     *
-     * <p>This kind is a distinct semantic request rather than an alias or backend flag for {@link
-     * #EXP}. Its accepted types, accuracy bounds, approximation algorithm, special-value behavior,
-     * differentiation, execution, and backend availability belong to later owning contracts.</p>
-     */
-    FAST_EXP,
-
-    /**
-     * Requests an explicitly approximate hyperbolic tangent for each input value.
-     *
-     * <p>This kind is a distinct semantic request rather than an alias or backend flag for {@link
-     * #TANH}. Its accepted types, accuracy bounds, approximation algorithm, special-value
-     * behavior, differentiation, execution, and backend availability belong to later owning
-     * contracts.</p>
-     */
-    FAST_TANH;
+    TANH;
 
     private static final List<OperationSignature> SIGNATURES =
             List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -27,7 +28,7 @@ class UnaryElementwiseKindTest {
                         new UnaryElementwiseKind[] {
                             UnaryElementwiseKind.ABS,
                             UnaryElementwiseKind.NEG,
-                            UnaryElementwiseKind.INV,
+                            UnaryElementwiseKind.RECIPROCAL,
                             UnaryElementwiseKind.LOG,
                             UnaryElementwiseKind.EXP,
                             UnaryElementwiseKind.ERF,
@@ -37,16 +38,14 @@ class UnaryElementwiseKindTest {
                             UnaryElementwiseKind.SIGN,
                             UnaryElementwiseKind.RELU,
                             UnaryElementwiseKind.SIGMOID,
-                            UnaryElementwiseKind.TANH,
-                            UnaryElementwiseKind.FAST_EXP,
-                            UnaryElementwiseKind.FAST_TANH
+                            UnaryElementwiseKind.TANH
                         },
                         values),
                 () -> assertEquals(
                         List.of(
                                 "ABS",
                                 "NEG",
-                                "INV",
+                                "RECIPROCAL",
                                 "LOG",
                                 "EXP",
                                 "ERF",
@@ -56,9 +55,7 @@ class UnaryElementwiseKindTest {
                                 "SIGN",
                                 "RELU",
                                 "SIGMOID",
-                                "TANH",
-                                "FAST_EXP",
-                                "FAST_TANH"),
+                                "TANH"),
                         Arrays.stream(values).map(UnaryElementwiseKind::name).toList()));
     }
 
@@ -79,20 +76,20 @@ class UnaryElementwiseKindTest {
     }
 
     @Test
-    void keepsStrictAndFastRequestsDistinct() {
+    void retainsReciprocalIdentityAndRejectsRemovedNames() {
         assertAll(
-                () -> assertNotEquals(UnaryElementwiseKind.EXP, UnaryElementwiseKind.FAST_EXP),
-                () -> assertNotEquals(UnaryElementwiseKind.TANH, UnaryElementwiseKind.FAST_TANH),
-                () -> assertNotEquals(
-                        new Operation(
-                                UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
-                        new Operation(
-                                UnaryElementwiseKind.FAST_EXP, NoOperationAttrs.INSTANCE)),
-                () -> assertNotEquals(
-                        new Operation(
-                                UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE),
-                        new Operation(
-                                UnaryElementwiseKind.FAST_TANH, NoOperationAttrs.INSTANCE)));
+                () -> assertSame(
+                        UnaryElementwiseKind.RECIPROCAL,
+                        UnaryElementwiseKind.valueOf("RECIPROCAL")),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> UnaryElementwiseKind.valueOf("IN" + "V")),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> UnaryElementwiseKind.valueOf("FAST" + "_EXP")),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> UnaryElementwiseKind.valueOf("FAST" + "_TANH")));
     }
 
     @Test

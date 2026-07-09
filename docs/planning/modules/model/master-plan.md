@@ -77,7 +77,7 @@ io.github.pho001.synaptik.model.operation.elementwise.binary
 
 io.github.pho001.synaptik.model.operation.elementwise.unary
   Typed parameterless semantic kinds for unary arithmetic, transcendental functions,
-  activations, and explicit fast approximation requests.
+  and activations.
 
 io.github.pho001.synaptik.model.operation.elementwise.scalar
   Typed parameterized semantic kinds and immutable attributes for scalar arithmetic and clamps.
@@ -208,7 +208,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018M1 | [Dynamic extent adoption in pad, tile, and concat](tasks/0018m1-dynamic-extent-adoption.md) | Complete | 0017J, 0017L, 0018M | Replace conservative identity-only dynamic results with exact model-owned extent expressions in three bounded Tensor shape transformations. |
 | 0018N | [Typed scalar value contract](tasks/0018n-typed-scalar-value-contract.md) | Complete | 0001, 0014E, 0014F, 0017I, 0017J, 0018K | Preserve exact scalar values for the six current data types and atomically make scalar, clamp, padding attributes, and public expression boundaries data-type-safe. |
 | 0018O | [Indexing taxonomy and unstack normalization](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
-| 0018P | Elementwise semantic cleanup | Draft | 0014C–0014F, 0018K, 0018N | Rename `inv` to reciprocal, remove public fast approximation kinds, and define the retained scalar/unary vocabulary. |
+| 0018P | [Elementwise semantic cleanup](tasks/0018p-elementwise-semantic-cleanup.md) | Complete | 0014C–0014F, 0018K, 0018N | Atomically rename `INV`/`inv` to `RECIPROCAL`/`reciprocal`, remove both fast variants without aliases, and preserve the typed scalar family unchanged. |
 | 0018Q | Masked reduction redesign | Draft | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Replace heuristic mask-axis mapping with explicit broadcasting/composition and decide the all-false mean contract. |
 | 0018R | Slice and window public-contract cleanup | Draft | 0017G–0017N, 0018M | Add negative-step slice semantics, make flip a convenience, and demote `FOLD_AXIS` to compiler-generated use. |
 | 0018S | Tensor factory surface cleanup | Draft | 0012–0012I, 0013A | Keep core construction/import/constants in TensorFactory and move prefix population to test/data utilities. |
@@ -267,8 +267,9 @@ unified producer/output-index provenance. Task 0018M is complete with canonical 
 values and conservative Shape integration. Task 0018M1 is complete with canonical symbolic
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
-with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is the next Draft frontier
-without a detailed specification; later tasks also remain Draft.
+with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
+final thirteen-kind unary vocabulary. Task 0018Q is the next Draft frontier without a detailed
+specification; later tasks also remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -376,6 +377,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   `git diff --check` validation passed.
 - `fastExp` and `fastTanh` leave the public semantic baseline; approximation route selection
   belongs to backend prepare unless a future operation specifies portable accuracy.
+- Completed task 0018P owns that atomic cleanup. Its final unary order is `ABS`, `NEG`, `RECIPROCAL`,
+  `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, `TANH`; the matching
+  public methods use the same vocabulary, with no `INV`, fast variant, alias, or deprecated
+  bridge. `EXP` and `TANH` remain portable mathematical requests without an algorithm, bitwise,
+  approximation-bound, or backend-route promise. The typed scalar family remains unchanged, and task
+  0018T later owns missing scalar operations plus `rsqrt`, `log1p`, `expm1`, and diagnostics.
+- Its implementation context passed the focused 50-test contract set and the 725-test/88-suite
+  model suite. Independent documentation review finalized the unary Javadocs, Tensor and Compile
+  APIs, glossary, capability baseline, task evidence, master plan, and roadmap after model
+  Javadoc, the runnable reciprocal example, generated-page and removed-vocabulary checks,
+  Markdown structure, exact thirteen-path scope, synchronized status, and whitespace validation.
 - Heuristic masked-reduction axis mapping leaves the baseline. Masked convenience uses explicit
   broadcasting/composition after all-false mean behavior is selected.
 - Public `inv` becomes `reciprocal`; public `foldAxis` becomes compiler-only FOLD_AXIS; strict and
@@ -1195,8 +1207,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, 0018N, and 0018O are complete. Task 0018P is the next Draft frontier
-without a detailed specification. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, and 0018P are complete. Task 0018Q is the next Draft
+frontier without a detailed specification. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1252,7 +1264,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018O are complete; 0018P is the
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018P are complete; 0018Q is the
 next Draft frontier without a detailed specification, and every later task remains Draft without
 one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
