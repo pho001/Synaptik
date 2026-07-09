@@ -126,15 +126,16 @@ import java.util.Optional;
  * parallel half-open bounds, distinct axes, and positive steps. It preserves rank, normalizes and
  * clamps against selected static dimensions, and derives checked resolved view geometry only for
  * non-empty results with resolved input layout. Empty and unresolved results remain unresolved.
- * Constant padding and per-axis tiling require complete rank-aligned long arrays, derive checked
- * static extents, and preserve dynamic Dimension references only for identity transformations.
- * Both accept every current data type, leave layout unresolved, and retain the raw padding
- * constant or complete-pattern repeat counts without inspecting or materializing values.
+ * Constant padding and per-axis tiling require complete rank-aligned long arrays and derive
+ * canonical checked static or symbolic extents; neutral transformations preserve exact Dimension
+ * references. Both accept every current data type, leave layout unresolved, and retain the raw
+ * padding constant or complete-pattern repeat counts without inspecting or materializing values.
  * Concat joins a non-empty ordered sequence along an existing axis after exact data-type, rank,
- * and non-axis Dimension validation. Stack joins exactly same-shaped inputs along one inserted
- * axis. Unstack removes one statically sized axis and returns an immutable ordered list of
- * independently indexed result tensors. Composition results have unresolved layout, and unstack
- * outputs deliberately carry no shared producer-group identity.
+ * and non-axis Dimension validation, folding its selected extents through canonical checked
+ * symbolic addition. Stack joins exactly same-shaped inputs along one inserted axis. Unstack
+ * removes one statically sized axis and returns an immutable ordered list of independently indexed
+ * result tensors. Composition results have unresolved layout, and unstack outputs deliberately
+ * carry no shared producer-group identity.
  * General-axis unfold replaces one static extent with checked window positions and appends the
  * window size, while fold-axis removes the final window dimension and restores one explicit
  * target extent. Two-dimensional unfold and fold use checked static NCHW window geometry and
@@ -2962,9 +2963,10 @@ public final class Tensor {
      * {@code i}, the result extent is the checked sum
      * {@code inputExtent + before[i] + after[i]}; for example, Shape {@code [2, 3]} with before
      * widths {@code [1, 0]} and after widths {@code [2, 4]} produces Shape {@code [5, 7]}.
-     * Static zero extents and empty arrays for a scalar are valid. A dynamic dimension can be
-     * retained by exact reference only when both corresponding widths are zero, because the
-     * current Shape model cannot represent a symbolic affine sum.</p>
+     * Static zero extents and empty arrays for a scalar are valid. Dynamic extents retain the
+     * canonical symbolic formula; for example, extent {@code N} with before width {@code 2} and
+     * after width {@code 3} becomes {@code N + 5}. Zero widths preserve the exact input Dimension
+     * reference.</p>
      *
      * <p>Every current DataType is accepted. The result preserves the exact input data type and
      * gradient-eligibility value. {@code constantValue} is retained unchanged as a raw
@@ -2976,7 +2978,8 @@ public final class Tensor {
      * geometry. It has no label or storage and records {@link PadKind#PAD}, immutable normalized
      * padding attributes, and exactly this tensor as its sole provenance input. Construction does
      * not inspect or copy values, attach an alias, define a gradient, capture or canonicalize a
-     * graph, select a backend, map ONNX, materialize storage, or execute padding.</p>
+     * graph, bind or evaluate symbolic extents, select a backend, map ONNX, materialize storage,
+     * or execute padding.</p>
      *
      * @param before non-null caller-owned before widths, exactly one per input axis; every width
      *     must be non-negative, and an empty array is valid for a scalar
@@ -2989,10 +2992,10 @@ public final class Tensor {
      *     provenance
      * @throws NullPointerException if {@code before} or {@code after} is null, with that parameter
      *     name as the message
-     * @throws IllegalArgumentException if either array length differs from input rank, a width is
-     *     negative, or non-zero padding is requested for a dynamic dimension
-     * @throws ArithmeticException if checked static result-extent addition overflows; no tensor
-     *     identity is consumed
+     * @throws IllegalArgumentException if either array length differs from input rank or a width
+     *     is negative
+     * @throws ArithmeticException if checked static result-extent or symbolic-offset addition
+     *     overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local
      *     immutable metadata has been constructed
      */
@@ -3009,8 +3012,9 @@ public final class Tensor {
      * {@code inputExtent * repeats[i]}; for example, Shape {@code [2, 3]} with repeats
      * {@code [2, 4]} produces Shape {@code [4, 12]}. This is complete-pattern tiling rather than
      * repetition of each scalar into a consecutive run. Static zero extents and empty repeats for
-     * a scalar are valid. A dynamic dimension can be retained by exact reference only when its
-     * repeat is one, because the current Shape model cannot represent symbolic multiplication.</p>
+     * a scalar are valid. Dynamic extents retain the canonical symbolic product; for example,
+     * extent {@code N} repeated four times becomes {@code 4 * N}. Repeat one preserves the exact
+     * input Dimension reference.</p>
      *
      * <p>Every current DataType is accepted, and the result preserves the exact input data type
      * and gradient-eligibility value. The fresh result always has unresolved layout, including a
@@ -3020,8 +3024,8 @@ public final class Tensor {
      * provenance input.</p>
      *
      * <p>Construction does not inspect or repeat values, attach an alias, define a gradient,
-     * capture or canonicalize a graph, select a backend, map ONNX, materialize storage, or execute
-     * tiling.</p>
+     * capture or canonicalize a graph, bind or evaluate symbolic extents, select a backend, map
+     * ONNX, materialize storage, or execute tiling.</p>
      *
      * @param repeats non-null caller-owned complete-pattern repeat counts, exactly one positive
      *     value per input axis; an empty array is valid for a scalar
@@ -3029,10 +3033,10 @@ public final class Tensor {
      *     preserved data type and gradient eligibility, unresolved layout, and one-input
      *     provenance
      * @throws NullPointerException if {@code repeats} is null, with message {@code repeats}
-     * @throws IllegalArgumentException if the array length differs from input rank, a repeat is
-     *     non-positive, or a repeat other than one is requested for a dynamic dimension
-     * @throws ArithmeticException if checked static result-extent multiplication overflows; no
-     *     tensor identity is consumed
+     * @throws IllegalArgumentException if the array length differs from input rank or a repeat is
+     *     non-positive
+     * @throws ArithmeticException if checked static result-extent, symbolic coefficient, or
+     *     symbolic offset multiplication overflows; no tensor identity is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after all local
      *     immutable metadata has been constructed
      */
@@ -3050,12 +3054,14 @@ public final class Tensor {
      * null copied element before reading any descriptor. It then normalizes the axis, followed by
      * encounter-order data-type, rank, non-axis Dimension, and selected-extent validation.</p>
      *
-     * <p>Static selected extents are added with checked {@code long} arithmetic. A dynamic extent
-     * is representable only when exactly one input supplies it and every other selected extent is
-     * static zero; the exact dynamic Dimension is then retained. The fresh result has unresolved
-     * layout, gradient eligibility equal to the logical OR of all input requests, no label or
-     * storage, and exact {@link TensorCompositionKind#CONCAT} provenance. This method neither
-     * reads values nor materializes, executes, groups, or defines gradients for the result.</p>
+     * <p>Selected extents are encounter-order folded through canonical checked symbolic addition.
+     * Thus extents {@code N} and {@code M} become {@code N + M}, repeated terms combine, existing
+     * linear expressions flatten, and static-zero companions preserve the opposing exact
+     * Dimension reference. The formula is retained without binding or evaluation. The fresh
+     * result has unresolved layout, gradient eligibility equal to the logical OR of all input
+     * requests, no label or storage, and exact {@link TensorCompositionKind#CONCAT} provenance.
+     * This method neither reads values nor materializes, executes, groups, or defines gradients
+     * for the result.</p>
      *
      * @param axis existing input axis along which ordered extents are joined; for rank {@code r},
      *     the accepted raw range is {@code [-r, r - 1]} and a negative value is normalized once
@@ -3064,10 +3070,11 @@ public final class Tensor {
      * @return a non-null fresh storage-free CONCAT tensor with checked same-rank Shape,
      *     unresolved layout, propagated gradient eligibility, and ordered provenance
      * @throws NullPointerException if {@code inputs} or an indexed element is null
-     * @throws IllegalArgumentException if no inputs are supplied, data types or ranks differ,
-     *     non-concat dimensions differ, or selected dynamic extents cannot be represented locally
+     * @throws IllegalArgumentException if no inputs are supplied, data types or ranks differ, or
+     *     non-concat dimensions differ
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank
-     * @throws ArithmeticException if checked static extent addition overflows
+     * @throws ArithmeticException if a checked static selected extent, symbolic coefficient, or
+     *     symbolic offset overflows
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public static Tensor concat(int axis, Tensor... inputs) {

@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import java.util.ArrayList;
@@ -19,13 +20,16 @@ import java.util.Optional;
  *
  * <p>Concat and stack defensively snapshot an ordered non-empty varargs input sequence, require
  * exact data types, validate their operation-specific Shape relationships, and combine gradient
- * eligibility by logical OR. Unstack creates an immutable ordered result list only when the
- * selected source extent has a statically known {@code int}-sized count. Every created Tensor is
- * fresh, unlabeled, storage-free, and layout-unresolved.</p>
+ * eligibility by logical OR. Concat folds selected extents through canonical symbolic addition;
+ * static values, symbolic coefficients, and symbolic offsets use checked {@code long} arithmetic.
+ * Unstack creates an immutable ordered result list only when the selected source extent has a
+ * statically known {@code int}-sized count. Every created Tensor is fresh, unlabeled,
+ * storage-free, and layout-unresolved.</p>
  *
  * <p>This field-free helper derives immutable model metadata only. It does not promote or
- * broadcast inputs, inspect values or storage, group unstack outputs, create graph state, define
- * gradients, choose materialization or lowering, map ONNX, or execute work.</p>
+ * broadcast inputs, inspect values or storage, bind or evaluate symbolic extents, group unstack
+ * outputs, create graph state, define gradients, choose materialization or lowering, map ONNX, or
+ * execute work.</p>
  */
 final class TensorCompositionExpressions {
     /** Prevents instantiation because composition expression construction owns no state. */
@@ -37,18 +41,19 @@ final class TensorCompositionExpressions {
      *
      * <p>The input container, non-empty requirement, and copied elements are validated in that
      * order before descriptors are inspected. Axis normalization then precedes encounter-order
-     * validation of exact data type, rank, and every non-concat dimension. Static selected extents
-     * use checked addition; one dynamic selected extent is retained only when every companion
-     * extent is static zero.</p>
+     * validation of exact data type, rank, and every non-concat dimension. Selected extents are
+     * then folded in input order from static zero through canonical symbolic addition. Static-zero
+     * companions and a one-input concat preserve the opposing selected Dimension reference when
+     * the canonical addition rule permits it.</p>
      *
      * @param axis positive or negative existing axis
      * @param inputs non-null caller-owned non-empty array with no null elements
      * @return a non-null fresh unlabeled and storage-free CONCAT tensor with unresolved layout
      * @throws NullPointerException if {@code inputs} or an indexed element is null
-     * @throws IllegalArgumentException if input count, type, rank, non-axis Shape, or dynamic-axis
-     *     rules fail
+     * @throws IllegalArgumentException if input count, type, rank, or non-axis Shape rules fail
      * @throws IndexOutOfBoundsException if {@code axis} is outside the first input's rank
-     * @throws ArithmeticException if static selected extents overflow {@code long}
+     * @throws ArithmeticException if a static selected extent, symbolic coefficient, or symbolic
+     *     offset overflows {@code long}
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor concat(int axis, Tensor[] inputs) {
@@ -254,19 +259,23 @@ final class TensorCompositionExpressions {
     }
 
     /**
-     * Derives one locally representable same-rank CONCAT result Shape.
+     * Derives one canonical same-rank CONCAT result Shape.
      *
-     * <p>Non-selected axes preserve exact first-input Dimension references. All-static selected
-     * extents are checked-added from zero into one new StaticDimension. Exactly one dynamic
-     * selected Dimension is retained by exact reference only when all other selected extents are
-     * static zero.</p>
+     * <p>Non-selected axes preserve exact first-input Dimension references. The selected axis
+     * starts at static zero and encounter-order folds every input extent through
+     * {@link DimensionExpressions#add(Dimension, Dimension)}. Static inputs stay static, named
+     * extents {@code N} and {@code M} become canonical {@code N + M}, repeated terms combine, and
+     * existing linear expressions flatten. Division and constrained-unknown dimensions remain
+     * atomic terms. Static-zero companions and a one-input concat preserve the opposing exact
+     * reference when canonical addition permits it. Construction retains the formula without
+     * binding or evaluating a concrete size.</p>
      *
      * @param inputs non-null immutable ordered validated inputs
      * @param firstShape non-null exact first-input Shape
      * @param normalizedAxis existing selected axis
      * @return a non-null same-rank immutable result Shape
-     * @throws IllegalArgumentException if selected dynamic extents are not locally representable
-     * @throws ArithmeticException if all-static selected extent addition overflows
+     * @throws ArithmeticException if a static selected extent, symbolic coefficient, or symbolic
+     *     offset overflows {@code long}
      */
     private static Shape concatShape(
             List<Tensor> inputs, Shape firstShape, int normalizedAxis) {
@@ -274,36 +283,12 @@ final class TensorCompositionExpressions {
         for (int axis = 0; axis < firstShape.rank(); axis++) {
             resultDimensions[axis] = firstShape.dimensions().get(axis);
         }
-        Dimension dynamicExtent = null;
-        boolean hasNonZeroStaticExtent = false;
+        Dimension selectedExtent = new StaticDimension(0);
         for (Tensor input : inputs) {
             Dimension selected = input.descriptor().shape().dimensions().get(normalizedAxis);
-            if (selected instanceof StaticDimension staticDimension) {
-                hasNonZeroStaticExtent |= staticDimension.size() != 0;
-            } else if (dynamicExtent == null) {
-                dynamicExtent = selected;
-            } else {
-                throw new IllegalArgumentException(
-                        "cannot represent concat axis " + normalizedAxis + " with dynamic extents");
-            }
+            selectedExtent = DimensionExpressions.add(selectedExtent, selected);
         }
-        if (dynamicExtent != null) {
-            if (hasNonZeroStaticExtent) {
-                throw new IllegalArgumentException(
-                        "cannot represent concat axis " + normalizedAxis + " with dynamic extents");
-            }
-            resultDimensions[normalizedAxis] = dynamicExtent;
-        } else {
-            long staticExtent = 0;
-            for (Tensor input : inputs) {
-                StaticDimension selected = (StaticDimension) input.descriptor()
-                        .shape()
-                        .dimensions()
-                        .get(normalizedAxis);
-                staticExtent = Math.addExact(staticExtent, selected.size());
-            }
-            resultDimensions[normalizedAxis] = new StaticDimension(staticExtent);
-        }
+        resultDimensions[normalizedAxis] = selectedExtent;
         return Shape.ofDimensions(resultDimensions);
     }
 

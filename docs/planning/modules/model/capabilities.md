@@ -77,11 +77,10 @@ shared producer contract.
 
 ### Dynamic shape expressions
 
-`DynamicDimension` currently represents only an exact named extent. It cannot represent
-`N + constant`, `N * constant`, `ceilDiv(N, stride)`, or the sum of two dynamic concat extents.
-Consequently, padding and tiling preserve a dynamic dimension only for identity requests, concat
-has a narrow zero-extent exception, and convolution or pooling cannot describe ordinary dynamic
-spatial results.
+`DynamicDimension` represents one exact named extent. Before the symbolic foundation and its
+first adoption task, padding and tiling preserved such a dimension only for identity requests,
+concat had a narrow zero-extent exception, and convolution or pooling could not describe ordinary
+dynamic spatial results.
 
 Completed task 0018M adds a deliberately small non-negative symbolic extent expression capable
 of:
@@ -101,11 +100,13 @@ identity-based unknown with a non-negative minimum plus optional inclusive dimen
 Static folding, neutral identities, repeated-term combination, commutative sum equality, and local
 invalid-argument checks belong with the shape value model.
 
-Task 0018M deliberately does not migrate existing Tensor expressions. Draft follow-up 0018M1
-adopts the foundation in pad, tile, and concat; window-specific adoption remains aligned with the
-later window cleanup. Solving graph-wide equalities, binding runtime sizes, and evaluating
-prepared/run shapes remain compiler and later lifecycle concerns. Deferred compiler inference
-alone is insufficient because public expression results still require honest Shape metadata.
+Completed follow-up [0018M1](tasks/0018m1-dynamic-extent-adoption.md) now adopts that foundation
+in pad, tile, and concat. Padding retains canonical `N + before + after`, tiling retains
+`repeat * N`, and concat retains canonical sums such as `N + M`; neutral operations preserve
+exact Dimension references. Window-specific adoption remains aligned with the later window
+cleanup. Solving graph-wide equalities, binding runtime sizes, and evaluating prepared/run shapes
+remain compiler and later lifecycle concerns. Deferred compiler inference alone is insufficient
+because public expression results require honest Shape metadata when they are constructed.
 
 ### Typed scalar values
 

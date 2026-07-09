@@ -4902,9 +4902,9 @@ inputExtent + before[i] + after[i]
 ```
 
 For example, Shape `[2, 3]`, before widths `[1, 0]`, and after widths `[2, 4]` produce Shape
-`[5, 7]`. Static zero extents and empty arrays for a scalar are valid. A dynamic dimension is
-retained by exact reference only when both corresponding widths are zero. Non-zero padding of a
-dynamic extent is rejected because the current Shape model has no symbolic affine-sum dimension.
+`[5, 7]`. Static zero extents and empty arrays for a scalar are valid. Every Dimension category
+uses the same canonical symbolic arithmetic. Zero widths preserve the exact input Dimension
+reference, while non-zero widths are retained as an exact formula.
 
 The supplied padding value is retained as the exact raw Java `double`, including signed zero,
 NaN, and infinity. Construction accepts every current `DataType`; it does not convert the value to
@@ -4916,8 +4916,29 @@ inspection, and is neither retained nor mutated. At axis `i`, a static input ext
 checked product `inputExtent * repeats[i]`. Shape `[2, 3]` with repeats `[2, 4]` therefore produces
 Shape `[4, 12]`. Tiling repeats the complete logical pattern, not each scalar into one consecutive
 run. A static zero extent and an empty scalar request are valid. A dynamic dimension is retained
-by exact reference only when its repeat is one; any other repeat would require symbolic
-multiplication that the current Shape model cannot represent.
+by exact reference when its repeat is one; any other positive repeat is retained as an exact
+canonical symbolic product.
+
+#### Symbolic Shape examples
+
+##### Goal and inputs
+
+Show how pad and tile preserve exact Shape relationships before a concrete value for named extent
+`N` is known. The input Shape is `[N]`.
+
+```text
+pad before [2], after [3]:  N -> N + 5
+tile repeats [4]:           N -> 4 * N
+```
+
+##### Result and interpretation
+
+Padding applies the before width and then the after width through checked symbolic addition;
+tiling applies the positive repeat through checked symbolic multiplication. The resulting Shapes
+retain `[N + 5]` and `[4 * N]`. These formulas describe logical extents only: construction does
+not bind `N`, calculate a concrete element count, derive physical layout, materialize values, or
+execute either operation. Checked static values, symbolic coefficients, and symbolic offsets fail
+with `ArithmeticException` before result identity allocation if they overflow `long`.
 
 Both methods preserve the input's exact data type and gradient-eligibility value. Every successful
 call returns a distinct unlabeled, storage-free Tensor with unresolved layout, even for an
@@ -5024,11 +5045,10 @@ materialization, compiler canonicalization, backend or ONNX lowering, or executi
 - A null array fails with `NullPointerException` naming that parameter. A length different from
   input rank, a negative padding width, or a non-positive repeat fails with
   `IllegalArgumentException` before result identity allocation.
-- Non-zero padding or a repeat other than one on a dynamic dimension fails locally because the
-  requested result extent is not representable by the current Shape model.
-- Static extent addition or multiplication overflow propagates as `ArithmeticException` before
-  result identity allocation. The attributes themselves can represent `Long.MAX_VALUE`; the
-  input-dependent Tensor expression is where checked result geometry is enforced.
+- Static extent, symbolic coefficient, or symbolic offset overflow propagates as
+  `ArithmeticException` before result identity allocation. The attributes themselves can
+  represent `Long.MAX_VALUE`; the input-dependent Tensor expression is where checked result
+  geometry is enforced.
 - Zero-width padding and repeat-one tiling still produce distinct explicit expression identities
   with unresolved layouts. Scalar calls use empty arrays and are valid.
 - Identifier exhaustion can occur only at final derived Tensor construction, after all local
@@ -5052,11 +5072,16 @@ copied element fails before any descriptor is read or Tensor identity is allocat
 
 `concat` normalizes an existing axis in `[-rank, rank - 1]`, requires exact matching data types and
 ranks, and requires every non-concat Dimension to be structurally equal to the corresponding first
-input Dimension. All-static selected extents are added with checked `long` arithmetic. The only
-accepted dynamic case contains exactly one dynamic selected extent and static-zero selected
-extents on every other input; the result then retains that exact dynamic Dimension reference.
-Other dynamic sums are not representable by the current Shape model and fail locally. The result
-preserves all first-input non-axis Dimension references.
+input Dimension. Selected extents are encounter-order folded from static zero through
+`DimensionExpressions.add`. Named extents `N` and `M` therefore become canonical `N + M`;
+repeated terms combine, existing linear expressions flatten, and division or constrained-unknown
+dimensions remain atomic terms. Static-zero companions and a one-input concat preserve the
+opposing exact Dimension reference. The result preserves all first-input non-axis Dimension
+references.
+
+For example, concatenating Shapes `[N, 8]` and `[M, 8]` on axis zero produces Shape
+`[N + M, 8]`. This exact formula does not bind either symbol, infer equality beyond the existing
+structural non-axis checks, derive physical layout, or calculate concatenated values.
 
 `stack` normalizes an insertion position in `[-(rank + 1), rank]`, requires exact matching data
 types and structurally identical Shapes, and inserts one new static Dimension equal to the number
@@ -5179,9 +5204,9 @@ backend lowering, ONNX mapping, or execution.
 
 - CONCAT or STACK rejects null/empty input containers and indexed null elements before descriptor
   inspection. Axis validation then precedes encounter-order type and Shape validation.
-- CONCAT rejects mixed types, ranks, or non-axis dimensions, an unrepresentable dynamic sum, and
-  checked static-extent overflow. STACK rejects mixed types or any Shape difference; neither
-  method promotes or broadcasts.
+- CONCAT rejects mixed types, ranks, or non-axis dimensions. Checked static extent, symbolic
+  coefficient, or symbolic offset overflow fails before result identity allocation. STACK rejects
+  mixed types or any Shape difference; neither method promotes or broadcasts.
 - UNSTACK rejects a dynamic selected extent or one greater than `Integer.MAX_VALUE`. A zero extent
   instead returns an empty immutable List without consuming an ID.
 - Exhausting the factory's Tensor-ID space fails only during final result construction. CONCAT and
@@ -7239,16 +7264,17 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   `SelectAttrs` and `[input]` provenance, and remains fresh, unlabeled, and storage-free without a
   physical alias, gradient, compiler, materialization, backend, or execution guarantee.
 - `Tensor.pad(long[], long[], double)` requires two non-null rank-sized arrays, clones them before
-  element inspection, rejects negative widths, and performs checked static-extent addition.
-  Static zero extents and empty scalar arrays are valid; a dynamic Dimension is retained by exact
-  reference only for zero widths. The raw `double` constant is retained without conversion.
+  element inspection, rejects negative widths, and performs canonical checked static or symbolic
+  addition in before-then-after order. Static zero extents and empty scalar arrays are valid; zero
+  widths preserve the exact input Dimension reference. The raw `double` constant is retained
+  without conversion.
 - `Tensor.tile(long...)` requires one non-null rank-sized array, clones it before element
-  inspection, rejects non-positive repeats, and performs checked static-extent multiplication.
-  Static zero extents and empty scalar arrays are valid; a dynamic Dimension is retained by exact
-  reference only for repeat one. Both operations accept every data type, preserve exact type and
+  inspection, rejects non-positive repeats, and performs canonical checked static or symbolic
+  multiplication. Static zero extents and empty scalar arrays are valid; repeat one preserves the
+  exact input Dimension reference. Both operations accept every data type, preserve exact type and
   gradient eligibility, always leave result layout unresolved, record normalized attributes and
-  `[input]` provenance, and remain fresh, unlabeled, and storage-free without performing
-  materialization or execution.
+  `[input]` provenance, and remain fresh, unlabeled, and storage-free without binding or
+  evaluating formulas, performing materialization, or executing work.
 - `Tensor.unfold` requires rank at least one, a static selected extent, positive size and step,
   and a fitting window. It normalizes the raw source axis against input rank, derives a checked
   window count, appends size as the final dimension, and accepts every current data type.
@@ -7374,9 +7400,10 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   first null copied element before descriptor inspection. Axis validation precedes encounter-order
   type/Shape checks. Both preserve ordered exact inputs, require exact data types, OR gradient
   eligibility, and return fresh unresolved unlabeled storage-free results. CONCAT additionally
-  requires equal rank and non-axis Dimensions, checked-adds static extents, and accepts one dynamic
-  extent only with static-zero companions. STACK requires identical Shapes and inserts a static
-  input-count Dimension. Neither promotes, broadcasts, reads values/storage, or materializes.
+  requires equal rank and non-axis Dimensions and encounter-order folds every selected extent
+  through canonical checked symbolic addition. STACK requires identical Shapes and inserts a
+  static input-count Dimension. Neither binds or evaluates symbolic formulas, promotes,
+  broadcasts, reads values/storage, or materializes.
 - `Tensor.unstack` normalizes one existing axis, rejects a dynamic selected extent or a static
   extent above `Integer.MAX_VALUE`, removes that axis, and returns one fresh unresolved unlabeled
   storage-free result per coordinate in an immutable ordered List. Each output preserves the input

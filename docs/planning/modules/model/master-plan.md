@@ -205,7 +205,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018K | [Operation signature and construction hardening](tasks/0018k-operation-signature-and-construction-hardening.md) | Complete | 0005, 0006, 0008 | Prevent invalid kind/attribute pairings and define compact fixed/bounded/variadic input and output cardinality without a registry. |
 | 0018L | [Shared multi-output Tensor provenance](tasks/0018l-shared-multi-output-tensor-provenance.md) | Complete | 0007–0009, 0011–0013, 0018K | Represent one immutable shared producer with ordered inputs/output descriptors and indexed Tensor results without turning Tensor into IR. |
 | 0018M | [Symbolic extent expressions](tasks/0018m-symbolic-extent-expressions.md) | Complete | 0002, 0017C–0017N | Represent canonical checked linear combinations, signed constant offsets, floor/ceiling division, and constrained unknown extents without runtime binding. |
-| 0018M1 | Dynamic extent adoption in pad, tile, and concat | Draft | 0017J, 0017L, 0018M | Replace conservative identity-only dynamic results with exact model-owned extent expressions in three bounded Tensor shape transformations. |
+| 0018M1 | [Dynamic extent adoption in pad, tile, and concat](tasks/0018m1-dynamic-extent-adoption.md) | Complete | 0017J, 0017L, 0018M | Replace conservative identity-only dynamic results with exact model-owned extent expressions in three bounded Tensor shape transformations. |
 | 0018N | Typed scalar value contract | Draft | 0001, 0014E, 0017I | Preserve exact scalar values for the six current data types and make scalar and padding attributes data-type-safe. |
 | 0018O | Indexing taxonomy and unstack normalization | Draft | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | Elementwise semantic cleanup | Draft | 0014C–0014F, 0018K, 0018N | Rename `inv` to reciprocal, remove public fast approximation kinds, and define the retained scalar/unary vocabulary. |
@@ -264,8 +264,9 @@ expression construction. The capability-reset audit then replaced legacy parity 
 rule and inserted tasks 0018K–0018V before linear algebra. Task 0018K is complete with exact
 family-owned signatures and local occurrence-cardinality validation. Task 0018L is complete with
 unified producer/output-index provenance. Task 0018M is complete with canonical symbolic extent
-values and conservative Shape integration. Task 0018M1 is the next Draft frontier without a
-detailed specification; later tasks also remain Draft.
+values and conservative Shape integration. Task 0018M1 is complete with canonical symbolic
+padding, tiling, and concat Shape derivation. Task 0018N is the next Draft frontier without a
+detailed specification; later tasks also remain Draft without detailed specifications.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -322,8 +323,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Task 0018M completed canonical positive-coefficient linear combinations with signed constant
   offsets, explicit floor/ceiling division, identity-based bounded unknowns, non-static Shape
   inspection, readable diagnostics, and structurally conservative broadcasting. It owns only the
-  shape value foundation; Draft task 0018M1 adopts that foundation in pad, tile, and concat so the
-  foundational implementation remains within the normal task-size guardrail.
+  shape value foundation; completed task 0018M1 adopts that foundation in pad, tile, and concat
+  while keeping the foundational implementation within the normal task-size guardrail.
 - The independent task-0018M documentation review finalized the affected shape Javadocs, Tensor
   API, glossary, task evidence, capability baseline, master plan, and roadmap after the reused
   765-test model result, model Javadoc, runnable symbolic-extent example, public-surface, Markdown,
@@ -332,6 +333,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   configuration, dependencies, and other modules remain accurate unchanged because the task adds
   only model-owned shape values without Tensor-operation adoption, binding/evaluation, gradients,
   compiler/prepare/runtime/backend behavior, or execution.
+- Task 0018M1 completed canonical before-then-after padding addition, one-step tiling
+  multiplication, and encounter-order concat addition through `DimensionExpressions`. Its
+  independent documentation review finalized helper and public Tensor Javadocs, Tensor API,
+  glossary, task evidence, capability baseline, master plan, and roadmap after the reused
+  766-test/88-suite model result, model Javadoc, Markdown, eleven-path, status, and whitespace
+  checks passed. Explicit authorization expanded the original ten-path cap solely to correct
+  public `Tensor` Javadocs that still stated the removed dynamic rejection rules; declarations and
+  executable behavior remained unchanged. Compile API, Training API, shape foundations, semantic
+  attributes, architecture/ADRs/tests, conformance/integration, Java 26 Gradle configuration,
+  dependencies, and other modules remain accurate unchanged because this task changes only
+  model-owned result-Shape formulas and their documentation.
 - Semantic scalar attributes become data-type-safe. Raw binary64 attributes are not sufficient for
   exact INT64, BOOL, FLOAT32, or BFLOAT16 constants.
 - Public indexing primitives normalize to GATHER, GATHER_ELEMENTS, GATHER_ND, SCATTER_ELEMENTS,
@@ -849,10 +861,12 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   identity parameters, extreme longs and every double are retained structurally, and rank, Shape
   arithmetic, constant conversion, Tensor construction, provenance, gradients, and execution are
   separated into task 0017J or later owners.
-- Task 0017J is complete with exact long-array pad and varargs tile Tensor methods. It derives checked
-  static Shapes, preserves only identity-transformed dynamic dimensions, keeps every result layout
-  unresolved, accepts all current DataTypes and raw double constants, and records fresh typed
-  provenance without values, storage, gradients, compiler behavior, or execution.
+- Task 0017J is complete with exact long-array pad and varargs tile Tensor methods. Its initial
+  implementation derived checked static Shapes and preserved only identity-transformed dynamic
+  dimensions; completed task 0018M1 later replaced those conservative derivation rules with
+  canonical symbolic formulas. Result layouts remain unresolved, every current DataType and raw
+  double constant remains accepted, and fresh typed provenance records no values, storage,
+  gradients, compiler behavior, or execution.
 - The independent task-0017J documentation review finalized Tensor/helper Javadocs, Tensor API,
   Compile API, glossary, task evidence, master plan, and roadmap. Focused/model/root tests, generated
   Javadoc, bytecode/reflection/import/source checks, the executable documentation example,
@@ -1158,8 +1172,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L and 0018M are complete. Task 0018M1 is the next Draft frontier without a detailed
-specification. Other operation-family rows are not
+Tasks 0018L, 0018M, and 0018M1 are complete. Task 0018N is the next Draft frontier without a
+detailed specification. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1215,7 +1229,8 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018M are complete; 0018M1 is the
-next Draft frontier, and it plus every later task remain without detailed specifications.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018M1 are complete; 0018N is the
+next Draft frontier without a detailed specification, and every later task also remains Draft
+without one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

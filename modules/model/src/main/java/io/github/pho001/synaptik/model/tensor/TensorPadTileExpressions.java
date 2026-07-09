@@ -6,8 +6,8 @@ import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.shape.StaticDimension;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -17,17 +17,18 @@ import java.util.Optional;
  * Constructs locally validated, storage-free constant-padding and per-axis tiling expressions.
  *
  * <p>Both operations require one width or repeat value per input axis and snapshot caller arrays
- * before constructing immutable semantic attributes. Static result extents use checked
- * {@code long} arithmetic. A dynamic Dimension is retained by exact reference only for an
- * identity transformation: zero padding on both sides or a repeat count of one. Scalar empty
- * requests and static zero extents are valid.</p>
+ * before constructing immutable semantic attributes. Each padded extent is the canonical
+ * symbolic formula {@code (input + before) + after}, and each tiled extent is
+ * {@code input * repeat}. Static values are folded, while zero/zero padding and repeat one retain
+ * the exact input Dimension reference. Static values, symbolic coefficients, and symbolic offsets
+ * use checked {@code long} arithmetic. Scalar empty requests and static zero extents are valid.</p>
  *
  * <p>Every result preserves the input DataType and gradient-eligibility value but deliberately
  * leaves layout unresolved. Padding introduces new positions and tiling repeats positions, so
  * neither result is described as an input view, even for an identity request. Construction
  * records exact one-input provenance without inspecting values or storage, converting padding
- * constants, defining gradients, capturing a graph, selecting materialization, lowering to a
- * backend, mapping ONNX, or executing work.</p>
+ * constants, defining gradients, binding or evaluating symbolic extents, capturing a graph,
+ * selecting materialization, lowering to a backend, mapping ONNX, or executing work.</p>
  */
 final class TensorPadTileExpressions {
     /** Prevents instantiation because pad/tile expression construction owns no state. */
@@ -50,9 +51,9 @@ final class TensorPadTileExpressions {
      * @return a non-null fresh unlabeled, storage-free PAD expression with unresolved layout
      * @throws NullPointerException if {@code input}, {@code before}, or {@code after} is null,
      *     with that parameter name as the message
-     * @throws IllegalArgumentException if an array length differs from input rank, a width is
-     *     negative, or non-zero padding is requested for a dynamic dimension
-     * @throws ArithmeticException if checked static extent addition overflows
+     * @throws IllegalArgumentException if an array length differs from input rank or a width is
+     *     negative
+     * @throws ArithmeticException if checked static extent or symbolic-offset addition overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor pad(Tensor input, long[] before, long[] after, double constantValue) {
@@ -94,9 +95,10 @@ final class TensorPadTileExpressions {
      * @return a non-null fresh unlabeled, storage-free TILE expression with unresolved layout
      * @throws NullPointerException if {@code input} or {@code repeats} is null, with that parameter
      *     name as the message
-     * @throws IllegalArgumentException if the array length differs from input rank, a repeat is
-     *     non-positive, or a repeat other than one is requested for a dynamic dimension
-     * @throws ArithmeticException if checked static extent multiplication overflows
+     * @throws IllegalArgumentException if the array length differs from input rank or a repeat is
+     *     non-positive
+     * @throws ArithmeticException if checked static extent, symbolic coefficient, or symbolic
+     *     offset multiplication overflows
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor tile(Tensor input, long[] repeats) {
@@ -119,16 +121,18 @@ final class TensorPadTileExpressions {
     /**
      * Derives one checked same-rank padding Shape.
      *
-     * <p>A static extent {@code s} becomes a new static Dimension with exact value
-     * {@code (s + before) + after}; Shape {@code [2]} with widths {@code [1]} and {@code [3]}
-     * therefore becomes Shape {@code [6]}. A dynamic Dimension is retained by exact reference
-     * only for zero widths on both sides. Empty attributes return the canonical scalar Shape.</p>
+     * <p>Each result extent is constructed as
+     * {@code addConstant(addConstant(input, before), after)}. Static extent {@code 2} with widths
+     * {@code 1} and {@code 3} therefore becomes static {@code 6}, while named extent {@code N}
+     * becomes the canonical formula {@code N + 4}. Widths are applied in before-then-after order
+     * for deterministic checked failure timing. Zero widths preserve the exact input Dimension
+     * reference, and empty attributes return the canonical scalar Shape. The formula is retained
+     * without binding or evaluating a concrete size.</p>
      *
      * @param inputShape non-null exact input Shape
      * @param attrs non-null validated rank-aligned padding attributes
      * @return a non-null checked same-rank Shape
-     * @throws IllegalArgumentException if any dynamic axis has non-zero padding
-     * @throws ArithmeticException if checked static extent addition overflows
+     * @throws ArithmeticException if checked static extent or symbolic-offset addition overflows
      */
     private static Shape paddedShape(Shape inputShape, PadAttrs attrs) {
         Dimension[] resultDimensions = new Dimension[inputShape.rank()];
@@ -136,16 +140,8 @@ final class TensorPadTileExpressions {
             Dimension dimension = inputShape.dimensions().get(axis);
             long before = attrs.before().get(axis);
             long after = attrs.after().get(axis);
-            if (dimension instanceof StaticDimension staticDimension) {
-                resultDimensions[axis] = new StaticDimension(Math.addExact(
-                        Math.addExact(staticDimension.size(), before), after));
-            } else if (before == 0 && after == 0) {
-                resultDimensions[axis] = dimension;
-            } else {
-                throw new IllegalArgumentException(
-                        "cannot pad dynamic axis " + axis
-                                + " with before=" + before + " and after=" + after);
-            }
+            resultDimensions[axis] = DimensionExpressions.addConstant(
+                    DimensionExpressions.addConstant(dimension, before), after);
         }
         return Shape.ofDimensions(resultDimensions);
     }
@@ -153,31 +149,25 @@ final class TensorPadTileExpressions {
     /**
      * Derives one checked same-rank tiling Shape.
      *
-     * <p>A static extent {@code s} becomes a new static Dimension with exact value
-     * {@code s * repeat}; Shape {@code [2, 3]} with repeats {@code [2, 4]} therefore becomes
-     * Shape {@code [4, 12]}. A dynamic Dimension is retained by exact reference only for repeat
-     * one. Empty attributes return the canonical scalar Shape.</p>
+     * <p>Each result extent is constructed as {@code multiply(input, repeat)}. Shape
+     * {@code [2, 3]} with repeats {@code [2, 4]} therefore becomes Shape {@code [4, 12]}, while
+     * named extent {@code N} repeated four times becomes the canonical formula {@code 4 * N}.
+     * Repeat one preserves the exact input Dimension reference, and empty attributes return the
+     * canonical scalar Shape. The formula is retained without binding or evaluating a concrete
+     * size.</p>
      *
      * @param inputShape non-null exact input Shape
      * @param attrs non-null validated rank-aligned tiling attributes
      * @return a non-null checked same-rank Shape
-     * @throws IllegalArgumentException if any dynamic axis has a repeat other than one
-     * @throws ArithmeticException if checked static extent multiplication overflows
+     * @throws ArithmeticException if checked static extent, symbolic coefficient, or symbolic
+     *     offset multiplication overflows
      */
     private static Shape tiledShape(Shape inputShape, TileAttrs attrs) {
         Dimension[] resultDimensions = new Dimension[inputShape.rank()];
         for (int axis = 0; axis < resultDimensions.length; axis++) {
             Dimension dimension = inputShape.dimensions().get(axis);
             long repeat = attrs.repeats().get(axis);
-            if (dimension instanceof StaticDimension staticDimension) {
-                resultDimensions[axis] =
-                        new StaticDimension(Math.multiplyExact(staticDimension.size(), repeat));
-            } else if (repeat == 1) {
-                resultDimensions[axis] = dimension;
-            } else {
-                throw new IllegalArgumentException(
-                        "cannot tile dynamic axis " + axis + " with repeat=" + repeat);
-            }
+            resultDimensions[axis] = DimensionExpressions.multiply(dimension, repeat);
         }
         return Shape.ofDimensions(resultDimensions);
     }

@@ -90,18 +90,17 @@ Its completed implementation frontier is:
 
 The latest completed implementation frontier is:
 
-- [0018M Symbolic extent expressions](modules/model/tasks/0018m-symbolic-extent-expressions.md)
+- [0018M1 Dynamic extent adoption in pad, tile, and concat](modules/model/tasks/0018m1-dynamic-extent-adoption.md)
   — Complete.
 
 The next planning frontier is:
 
-- 0018M1 Dynamic extent adoption in pad, tile, and concat — Draft without a detailed
-  specification.
+- 0018N Typed scalar value contract — Draft without a detailed specification.
 
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018M are complete. Task 0018M1 and later rows remain Draft without detailed
+through 0018M1 are complete. Task 0018N and later rows remain Draft without detailed
 specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
@@ -109,7 +108,7 @@ meaning, public expression construction, shape/view transformations, slicing, pa
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J and tasks 0018K through 0018M are complete. Task 0018M1 is
+expressions. Tasks 0018A through 0018J and tasks 0018K through 0018M1 are complete. Task 0018N is
 the next Draft frontier without a detailed specification; later tasks also remain Draft.
 
 Task [0018M](modules/model/tasks/0018m-symbolic-extent-expressions.md) is complete with canonical
@@ -120,6 +119,17 @@ glossary, capability baseline, task evidence, model master plan, and roadmap aft
 765-test model result, model Javadoc, runnable example, public-surface, Markdown, exact 17-path,
 status, and whitespace checks passed. No Tensor operation adoption, binding/evaluation,
 compiler/prepare/runtime/backend behavior, dependency, build, or architecture change was added.
+
+Task [0018M1](modules/model/tasks/0018m1-dynamic-extent-adoption.md) is complete. Pad now applies
+canonical before-then-after symbolic addition, tile applies one canonical multiplication per
+axis, and concat encounter-order folds every selected extent through symbolic addition. Neutral
+operations preserve exact Dimension references, checked static/coefficient/offset overflow still
+precedes Tensor allocation, and layouts remain unresolved. Independent documentation review
+finalized helper and public Tensor Javadocs, Tensor API, glossary, capability baseline, task
+evidence, model master plan, and roadmap after the reused 766-test/88-suite model result, model
+Javadoc, Markdown, exact eleven-path, status, and whitespace checks passed. The original ten-path
+cap was explicitly expanded only to correct stale public Tensor dynamic-rejection Javadocs;
+signatures and executable behavior did not change.
 
 Task [0018K](modules/model/tasks/0018k-operation-signature-and-construction-hardening.md) is
 complete with exact family-owned attribute variants and inclusive local input/output occurrence
@@ -360,8 +370,9 @@ Shape/view geometry, and fresh provenance. Task
 constant-padding and positive complete-pattern per-axis tiling semantics, immutable ordered
 attributes, scalar identity parameters, and uninterpreted raw padding constants. Task
 [0017J](modules/model/tasks/0017j-pad-and-tile-tensor-expressions.md) is complete with public Tensor
-construction, checked Shape arithmetic, identity-only dynamic preservation, unresolved result
-layout, and fresh provenance. Task
+construction, its original checked static and identity-only dynamic Shape arithmetic, unresolved
+result layout, and fresh provenance. Completed task 0018M1 later replaces only those conservative
+dynamic derivation rules with canonical symbolic formulas. Task
 [0017K](modules/model/tasks/0017k-tensor-composition-semantics.md) is complete with CONCAT, STACK,
 and individually indexed UNSTACK-output semantics without provenance or graph changes. Task
 [0017L](modules/model/tasks/0017l-tensor-composition-expressions.md) is complete with ordered public
@@ -502,7 +513,7 @@ authorized Compile API status correction.
 | 79 | [0018K Operation signature and construction hardening](modules/model/tasks/0018k-operation-signature-and-construction-hardening.md) | Complete |
 | 80 | [0018L Shared multi-output Tensor provenance](modules/model/tasks/0018l-shared-multi-output-tensor-provenance.md) | Complete |
 | 81 | [0018M Symbolic extent expressions](modules/model/tasks/0018m-symbolic-extent-expressions.md) | Complete |
-| 82 | 0018M1 Dynamic extent adoption in pad, tile, and concat | Draft |
+| 82 | [0018M1 Dynamic extent adoption in pad, tile, and concat](modules/model/tasks/0018m1-dynamic-extent-adoption.md) | Complete |
 | 83 | 0018N Typed scalar value contract | Draft |
 | 84 | 0018O Indexing taxonomy and unstack normalization | Draft |
 | 85 | 0018P Elementwise semantic cleanup | Draft |
@@ -569,7 +580,7 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018M are complete; 0018M1 is the next Draft frontier without a
+before 0019. Tasks 0018K through 0018M1 are complete; 0018N is the next Draft frontier without a
 detailed specification, while every later task also remains Draft without one.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding

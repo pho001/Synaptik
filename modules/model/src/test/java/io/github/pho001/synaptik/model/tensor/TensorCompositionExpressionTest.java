@@ -14,6 +14,8 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -110,8 +112,9 @@ class TensorCompositionExpressionTest {
     }
 
     @Test
-    void concatSupportsStaticZeroAndTheOnlyRepresentableDynamicCase() {
+    void concatSupportsCanonicalStaticZeroAndDynamicSums() {
         DynamicDimension batch = new DynamicDimension("batch");
+        DynamicDimension otherBatch = new DynamicDimension("otherBatch");
         StaticDimension columns = new StaticDimension(4);
         Tensor dynamic = tensor(
                 DataType.FLOAT32,
@@ -130,6 +133,15 @@ class TensorCompositionExpressionTest {
                 true);
 
         Tensor result = Tensor.concat(0, firstZero, dynamic, secondZero);
+        Tensor dynamicSum = Tensor.concat(
+                0,
+                dynamic,
+                tensor(
+                        DataType.FLOAT32,
+                        Shape.ofDimensions(otherBatch, columns),
+                        Optional.empty(),
+                        false));
+        Tensor repeated = Tensor.concat(0, dynamic, dynamic);
         Tensor allStaticZero = Tensor.concat(
                 0,
                 tensor(DataType.INT32, Shape.of(0, 3), Optional.empty(), false),
@@ -139,6 +151,12 @@ class TensorCompositionExpressionTest {
                 () -> assertSame(batch, result.descriptor().shape().dimensions().get(0)),
                 () -> assertSame(columns, result.descriptor().shape().dimensions().get(1)),
                 () -> assertTrue(result.descriptor().requiresGrad()),
+                () -> assertEquals(
+                        DimensionExpressions.add(batch, otherBatch),
+                        dynamicSum.descriptor().shape().dimensions().get(0)),
+                () -> assertEquals(
+                        DimensionExpressions.multiply(batch, 2),
+                        repeated.descriptor().shape().dimensions().get(0)),
                 () -> assertEquals(Shape.of(0, 3), allStaticZero.descriptor().shape()),
                 () -> assertNotSame(
                         firstZero.descriptor().shape().dimensions().get(0),
@@ -151,20 +169,6 @@ class TensorCompositionExpressionTest {
         Tensor wrongType = tensor(DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), false);
         Tensor wrongRank = tensor(DataType.FLOAT32, Shape.of(2, 3, 1), Optional.empty(), false);
         Tensor wrongNonAxis = tensor(DataType.FLOAT32, Shape.of(4, 3), Optional.empty(), false);
-        DynamicDimension first = new DynamicDimension("first");
-        DynamicDimension second = new DynamicDimension("second");
-        Tensor dynamicFirst = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(new StaticDimension(2), first),
-                Optional.empty(),
-                false);
-        Tensor dynamicSecond = tensor(
-                DataType.FLOAT32,
-                Shape.ofDimensions(new StaticDimension(2), second),
-                Optional.empty(),
-                false);
-        Tensor nonZero = tensor(DataType.FLOAT32, Shape.of(2, 1), Optional.empty(), false);
-
         NullPointerException nullArray = assertThrows(
                 NullPointerException.class,
                 () -> Tensor.concat(0, (Tensor[]) null));
@@ -180,13 +184,6 @@ class TensorCompositionExpressionTest {
                 IllegalArgumentException.class, () -> Tensor.concat(1, base, wrongRank));
         IllegalArgumentException dimension = assertThrows(
                 IllegalArgumentException.class, () -> Tensor.concat(1, base, wrongNonAxis));
-        IllegalArgumentException multipleDynamic = assertThrows(
-                IllegalArgumentException.class,
-                () -> Tensor.concat(1, dynamicFirst, dynamicSecond));
-        IllegalArgumentException dynamicPlusStatic = assertThrows(
-                IllegalArgumentException.class,
-                () -> Tensor.concat(1, dynamicFirst, nonZero));
-
         assertAll(
                 () -> assertEquals("inputs", nullArray.getMessage()),
                 () -> assertEquals("concat requires at least one input", empty.getMessage()),
@@ -201,13 +198,65 @@ class TensorCompositionExpressionTest {
                         rank.getMessage()),
                 () -> assertEquals(
                         "concat inputs differ at non-concat axis 0: inputs[1]",
-                        dimension.getMessage()),
+                        dimension.getMessage()));
+    }
+
+    @Test
+    void concatFlattensExistingExpressionsAndRetainsAtomicDynamicTerms() {
+        DynamicDimension n = new DynamicDimension("N");
+        DynamicDimension m = new DynamicDimension("M");
+        StaticDimension columns = new StaticDimension(8);
+        Dimension nPlusTwo = DimensionExpressions.addConstant(n, 2);
+        Dimension mPlusThree = DimensionExpressions.addConstant(m, 3);
+        Dimension divided = DimensionExpressions.ceilingDivide(n, 2);
+        Dimension unknown = DimensionExpressions.unknown(1, Optional.of(nPlusTwo));
+        Tensor first = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(nPlusTwo, columns),
+                Optional.empty(),
+                false);
+        Tensor second = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(mPlusThree, new StaticDimension(8)),
+                Optional.empty(),
+                true);
+        Tensor divisionInput = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(divided, columns),
+                Optional.empty(),
+                false);
+        Tensor unknownInput = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(unknown, columns),
+                Optional.empty(),
+                false);
+        StaticDimension zero = new StaticDimension(0);
+        Tensor zeroInput = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(zero, columns),
+                Optional.empty(),
+                false);
+
+        Tensor flattened = Tensor.concat(0, first, second);
+        Tensor atomic = Tensor.concat(0, divisionInput, unknownInput);
+        Tensor neutral = Tensor.concat(0, zeroInput, unknownInput);
+        Tensor single = Tensor.concat(0, first);
+
+        assertAll(
                 () -> assertEquals(
-                        "cannot represent concat axis 1 with dynamic extents",
-                        multipleDynamic.getMessage()),
+                        DimensionExpressions.add(
+                                DimensionExpressions.add(n, m), new StaticDimension(5)),
+                        flattened.descriptor().shape().dimensions().get(0)),
+                () -> assertSame(
+                        columns, flattened.descriptor().shape().dimensions().get(1)),
+                () -> assertTrue(flattened.descriptor().requiresGrad()),
                 () -> assertEquals(
-                        "cannot represent concat axis 1 with dynamic extents",
-                        dynamicPlusStatic.getMessage()));
+                        DimensionExpressions.add(divided, unknown),
+                        atomic.descriptor().shape().dimensions().get(0)),
+                () -> assertSame(
+                        unknown, neutral.descriptor().shape().dimensions().get(0)),
+                () -> assertSame(
+                        nPlusTwo, single.descriptor().shape().dimensions().get(0)));
     }
 
     @Test
@@ -215,10 +264,30 @@ class TensorCompositionExpressionTest {
         Tensor maximum = tensor(
                 DataType.INT64, Shape.of(Long.MAX_VALUE), Optional.empty(), false);
         Tensor one = tensor(DataType.INT64, Shape.of(1), Optional.empty(), false);
+        DynamicDimension n = new DynamicDimension("N");
+        Tensor maximumOffset = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(DimensionExpressions.addConstant(n, Long.MAX_VALUE)),
+                Optional.empty(),
+                false);
+        Tensor maximumCoefficient = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(DimensionExpressions.multiply(n, Long.MAX_VALUE)),
+                Optional.empty(),
+                false);
+        Tensor dynamicOne = tensor(
+                DataType.FLOAT32, Shape.ofDimensions(n), Optional.empty(), false);
+        Tensor staticOne = tensor(DataType.FLOAT32, Shape.of(1), Optional.empty(), false);
         AtomicLong next = nextTensorIdState();
         long before = next.get();
 
         assertThrows(ArithmeticException.class, () -> Tensor.concat(0, maximum, one));
+        assertThrows(
+                ArithmeticException.class,
+                () -> Tensor.concat(0, maximumOffset, staticOne));
+        assertThrows(
+                ArithmeticException.class,
+                () -> Tensor.concat(0, maximumCoefficient, dynamicOne));
 
         assertEquals(before, next.get());
     }

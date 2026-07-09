@@ -1009,10 +1009,12 @@ including signed zero, NaN payloads, and infinities. The attributes do not know 
 Shape, or DataType, so they do not match rank, add result extents, check overflow, convert the
 constant, derive layout or provenance, materialize values, define gradients, or execute padding.
 `Long.MAX_VALUE` widths are therefore structurally valid. Public `Tensor.pad` separately requires
-one width per input axis, clones the arrays, performs checked static-extent addition, retains a
-dynamic Dimension only for zero widths, preserves exact type and gradient eligibility, and creates
-a fresh unresolved storage-free expression with normalized attributes and provenance `[input]`.
-It does not convert the constant or materialize values. See [Pad and tile
+one width per input axis, clones the arrays, and applies canonical checked symbolic addition in
+before-then-after order. Static extents fold to static results, dynamic extents retain exact
+symbolic-extent expressions, and zero widths preserve the exact input Dimension reference. The
+result preserves exact type and gradient eligibility and is a fresh unresolved storage-free
+expression with normalized attributes and provenance `[input]`. It does not bind or evaluate a
+symbolic extent, convert the constant, or materialize values. See [Pad and tile
 expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
 normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
@@ -1334,13 +1336,16 @@ Both attributes records accept every non-negative `int`, including `Integer.MAX_
 they contain no rank or selected-axis extent. The implemented public expression boundary owns
 raw-axis normalization, ordered input snapshotting, output-count validation, exact
 Shape/type/eligibility rules, unresolved descriptor construction, immutable result collection,
-and provenance attachment. CONCAT accepts only an all-static checked extent sum or one dynamic
-extent with static-zero companions; STACK inserts a static input-count Dimension; UNSTACK
-requires a static count no larger than `Integer.MAX_VALUE` and returns an empty immutable List
-without consuming IDs when that count is zero. Each UNSTACK result remains independently indexed
-by its attributes and receives an independent one-output producer with provenance index zero,
-without grouping into one `CompiledNode`. Compiler capture or decomposition, gradients,
-materialization, lowering, ONNX mapping, and execution remain planned. See [Tensor composition
+and provenance attachment. CONCAT encounter-order folds every selected extent through canonical
+checked symbolic addition, so named, static, existing linear-expression, division, and
+constrained-unknown Dimensions remain representable without binding or evaluation. Static-zero
+companions preserve an opposing exact reference when canonical addition permits it. STACK inserts
+a static input-count Dimension; UNSTACK requires a static count no larger than
+`Integer.MAX_VALUE` and returns an empty immutable List without consuming IDs when that count is
+zero. Each UNSTACK result remains independently indexed by its attributes and receives an
+independent one-output producer with provenance index zero, without grouping into one
+`CompiledNode`. Compiler capture or decomposition, gradients, materialization, lowering, ONNX
+mapping, and execution remain planned. See [Tensor composition
 expressions](api/tensor-api.md#tensor-composition-expressions) and [Tensor composition semantic
 kinds and attributes](api/tensor-api.md#tensor-composition-semantic-kinds-and-attributes).
 
@@ -1466,16 +1471,16 @@ is fresh, unlabeled, and storage-free, and records matching one-input axis-trans
 without binding a dynamic symbol, attaching an alias, canonicalizing inverse edits, choosing
 materialization, or executing.
 A `Tensor.pad` request accepts every data type, requires non-negative before/after widths for
-every input axis, and derives static extents with checked addition. A dynamic Dimension is
-retained only for zero widths. The exact raw binary64 constant is stored without conversion.
-A `Tensor.tile` request likewise accepts every data type, requires one positive complete-pattern
-repeat per axis, derives static extents with checked multiplication, and retains a dynamic
-Dimension only for repeat one. Both clone caller arrays, preserve exact gradient eligibility,
-always produce fresh unresolved unlabeled storage-free results, and record their normalized
-attributes plus provenance `[input]` without materializing values or defining execution.
+every input axis, and derives canonical checked static or symbolic extents by applying the before
+and after widths in order. A `Tensor.tile` request likewise accepts every data type, requires one
+positive complete-pattern repeat per axis, and derives a canonical checked static or symbolic
+product. Neutral requests preserve exact Dimension references. Both clone caller arrays, preserve
+exact gradient eligibility, always produce fresh unresolved unlabeled storage-free results, and
+record their normalized attributes plus provenance `[input]` without binding or evaluating
+symbolic extents, materializing values, or defining execution.
 Static `Tensor.concat` and `Tensor.stack` accept ordered non-empty inputs of one exact data type.
-CONCAT validates equal rank and non-axis Dimensions, derives a checked or locally unchanged
-dynamic axis extent, and preserves rank. STACK requires identical Shapes and inserts one
+CONCAT validates equal rank and non-axis Dimensions, derives the selected extent through canonical
+checked symbolic addition, and preserves rank. STACK requires identical Shapes and inserts one
 input-count Dimension. Both propagate gradient eligibility by input OR. Instance `Tensor.unstack`
 removes one static `int`-sized axis and returns an immutable ordered List of individually indexed
 outputs. All created composition results are fresh, unresolved, unlabeled, and storage-free;
@@ -1707,10 +1712,12 @@ the conceptual pattern `[[1, 2, 1, 2, 1, 2], [3, 4, 3, 4, 3, 4], [1, 2, 1, 2, 1,
 [3, 4, 3, 4, 3, 4]]`. The attributes have no input Tensor or Shape, so they do not match rank,
 multiply extents, check overflow, derive layout or provenance, materialize values, define
 gradients, or execute tiling. `Long.MAX_VALUE` is structurally valid. Public `Tensor.tile`
-separately requires one repeat per input axis, clones the array, performs checked static-extent
-multiplication, retains a dynamic Dimension only for repeat one, preserves exact type and gradient
-eligibility, and creates a fresh unresolved storage-free expression with normalized attributes and
-provenance `[input]`. It does not repeat or materialize values. See [Pad and tile
+separately requires one repeat per input axis, clones the array, and performs canonical checked
+static or symbolic multiplication. Repeat one preserves the exact input Dimension reference;
+other positive repeats retain an exact symbolic-extent expression. The result preserves exact
+type and gradient eligibility and is a fresh unresolved storage-free expression with normalized
+attributes and provenance `[input]`. It does not bind or evaluate the formula, repeat values, or
+materialize storage. See [Pad and tile
 expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
 normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 

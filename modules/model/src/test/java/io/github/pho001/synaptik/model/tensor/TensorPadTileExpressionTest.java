@@ -18,6 +18,8 @@ import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -271,7 +273,7 @@ class TensorPadTileExpressionTest {
     }
 
     @Test
-    void supportsScalarStaticZeroAndIdentityDynamicShapes() {
+    void supportsScalarStaticZeroAndCanonicalIdentityReferences() {
         Tensor scalarInput = tensor(DataType.INT64, Shape.scalar(), Optional.empty(), false);
         Tensor scalarPad = scalarInput.pad(new long[0], new long[0], Double.NaN);
         Tensor scalarTile = scalarInput.tile(new long[0]);
@@ -309,46 +311,66 @@ class TensorPadTileExpressionTest {
                 () -> assertTrue(tiled.descriptor().layout().isEmpty()),
                 () -> assertSame(batch,
                         identityPadded.descriptor().shape().dimensions().get(0)),
-                () -> assertEquals(zero,
-                        identityPadded.descriptor().shape().dimensions().get(1)),
-                () -> assertNotSame(zero,
+                () -> assertSame(zero,
                         identityPadded.descriptor().shape().dimensions().get(1)),
                 () -> assertSame(batch,
                         identityTiled.descriptor().shape().dimensions().get(0)),
-                () -> assertEquals(zero,
-                        identityTiled.descriptor().shape().dimensions().get(1)),
-                () -> assertNotSame(zero,
+                () -> assertSame(zero,
                         identityTiled.descriptor().shape().dimensions().get(1)),
                 () -> assertEquals(
                         Shape.of(Long.MAX_VALUE), extremePadded.descriptor().shape()));
     }
 
     @Test
-    void rejectsNonIdentityDynamicTransformsWithExactMessagesAndNoIdentityConsumption()
-            throws Exception {
-        DynamicDimension first = new DynamicDimension("first");
-        DynamicDimension second = new DynamicDimension("second");
+    void derivesCanonicalDynamicAndPreExistingExpressionExtents() {
+        DynamicDimension first = new DynamicDimension("N");
+        Dimension firstPlusFour = DimensionExpressions.addConstant(first, 4);
+        Dimension unknown = DimensionExpressions.unknown(2, Optional.empty());
+        Dimension divided = DimensionExpressions.ceilingDivide(first, 2);
         Tensor input = tensor(
                 DataType.FLOAT32,
-                Shape.ofDimensions(first, second),
+                Shape.ofDimensions(first, firstPlusFour, unknown, divided),
                 Optional.empty(),
                 true);
-        AtomicLong next = nextTensorIdState();
-        long beforeId = next.get();
 
-        IllegalArgumentException pad = assertThrows(
-                IllegalArgumentException.class,
-                () -> input.pad(new long[] {0, 2}, new long[] {0, 3}, 0.0));
-        IllegalArgumentException tile = assertThrows(
-                IllegalArgumentException.class, () -> input.tile(1, 4));
+        Tensor padded = input.pad(
+                new long[] {2, 1, 3, 1}, new long[] {3, 4, 0, 2}, 0.0);
+        Tensor tiled = input.tile(4, 3, 2, 5);
+        Tensor identityPadded = input.pad(new long[4], new long[4], 0.0);
+        Tensor identityTiled = input.tile(1, 1, 1, 1);
+        Shape independentlyPadded = Shape.ofDimensions(
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 5),
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 9),
+                DimensionExpressions.addConstant(unknown, 3),
+                DimensionExpressions.addConstant(divided, 3));
+        Shape independentlyTiled = Shape.ofDimensions(
+                DimensionExpressions.multiply(new DynamicDimension("N"), 4),
+                DimensionExpressions.addConstant(
+                        DimensionExpressions.multiply(new DynamicDimension("N"), 3), 12),
+                DimensionExpressions.multiply(unknown, 2),
+                DimensionExpressions.multiply(divided, 5));
 
         assertAll(
-                () -> assertEquals(
-                        "cannot pad dynamic axis 1 with before=2 and after=3",
-                        pad.getMessage()),
-                () -> assertEquals(
-                        "cannot tile dynamic axis 1 with repeat=4", tile.getMessage()),
-                () -> assertEquals(beforeId, next.get()));
+                () -> assertEquals(independentlyPadded, padded.descriptor().shape()),
+                () -> assertEquals(independentlyTiled, tiled.descriptor().shape()),
+                () -> assertSame(first,
+                        identityPadded.descriptor().shape().dimensions().get(0)),
+                () -> assertSame(firstPlusFour,
+                        identityPadded.descriptor().shape().dimensions().get(1)),
+                () -> assertSame(unknown,
+                        identityPadded.descriptor().shape().dimensions().get(2)),
+                () -> assertSame(divided,
+                        identityPadded.descriptor().shape().dimensions().get(3)),
+                () -> assertSame(first,
+                        identityTiled.descriptor().shape().dimensions().get(0)),
+                () -> assertSame(firstPlusFour,
+                        identityTiled.descriptor().shape().dimensions().get(1)),
+                () -> assertSame(unknown,
+                        identityTiled.descriptor().shape().dimensions().get(2)),
+                () -> assertSame(divided,
+                        identityTiled.descriptor().shape().dimensions().get(3)),
+                () -> assertTrue(padded.descriptor().layout().isEmpty()),
+                () -> assertTrue(tiled.descriptor().layout().isEmpty()));
     }
 
     @Test
@@ -359,6 +381,17 @@ class TensorPadTileExpressionTest {
                 DataType.INT64, Shape.of(Long.MAX_VALUE - 1), Optional.empty(), false);
         Tensor multiply = tensor(
                 DataType.INT64, Shape.of(Long.MAX_VALUE), Optional.empty(), false);
+        DynamicDimension dynamic = new DynamicDimension("N");
+        Tensor offsetOverflow = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(DimensionExpressions.addConstant(dynamic, Long.MAX_VALUE)),
+                Optional.empty(),
+                false);
+        Tensor coefficientOverflow = tensor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(DimensionExpressions.multiply(dynamic, Long.MAX_VALUE)),
+                Optional.empty(),
+                false);
         AtomicLong next = nextTensorIdState();
         long beforeId = next.get();
 
@@ -370,11 +403,18 @@ class TensorPadTileExpressionTest {
                 () -> addSecond.pad(new long[] {1}, new long[] {1}, 0.0));
         ArithmeticException product = assertThrows(
                 ArithmeticException.class, () -> multiply.tile(2));
+        ArithmeticException offset = assertThrows(
+                ArithmeticException.class,
+                () -> offsetOverflow.pad(new long[] {1}, new long[] {0}, 0.0));
+        ArithmeticException coefficient = assertThrows(
+                ArithmeticException.class, () -> coefficientOverflow.tile(2));
 
         assertAll(
                 () -> assertEquals("long overflow", firstAdd.getMessage()),
                 () -> assertEquals("long overflow", secondAdd.getMessage()),
                 () -> assertEquals("long overflow", product.getMessage()),
+                () -> assertEquals("long overflow", offset.getMessage()),
+                () -> assertEquals("long overflow", coefficient.getMessage()),
                 () -> assertEquals(beforeId, next.get()));
     }
 
