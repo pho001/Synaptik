@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(117, declaredPublicMethods.size());
+        assertEquals(112, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -95,8 +95,8 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "select",
-                        "gather", "gatherAxis", "take", "takeAlongAxis", "gatherNd",
-                        "scatterAdd", "scatterAxisAdd", "scatterElements", "scatterNd", "pad",
+                        "gather", "gatherElements", "gatherNd",
+                        "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold", "foldAxis",
                         "unfold2d", "fold2d"),
                 publicMethods);
@@ -337,7 +337,7 @@ class TensorTest {
                 () -> assertFalse(Modifier.isStatic(select.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(select.getModifiers())));
 
-        for (String methodName : List.of("gather", "gatherAxis", "takeAlongAxis")) {
+        for (String methodName : List.of("gather", "gatherElements")) {
             var method = Tensor.class.getDeclaredMethod(
                     methodName, Tensor.class, int.class);
             assertAll(
@@ -384,20 +384,6 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(scatterNd.getModifiers())));
         }
 
-        for (String methodName : List.of("scatterAdd", "scatterAxisAdd")) {
-            var method = Tensor.class.getDeclaredMethod(
-                    methodName, Tensor.class, Tensor.class, int.class);
-            assertAll(
-                    () -> assertEquals(Tensor.class, method.getReturnType()),
-                    () -> assertEquals(
-                            List.of(Tensor.class, Tensor.class, int.class),
-                            Arrays.asList(method.getParameterTypes())),
-                    () -> assertFalse(method.isVarArgs()),
-                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
-                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
-                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
-        }
-
         for (Class<?>[] parameters : List.of(
                 new Class<?>[] {Tensor.class, Tensor.class, int.class},
                 new Class<?>[] {
@@ -413,19 +399,6 @@ class TensorTest {
                     () -> assertTrue(Modifier.isPublic(scatterElements.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(scatterElements.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(scatterElements.getModifiers())));
-        }
-
-        for (Class<?> indexType : List.of(Tensor.class, int[].class)) {
-            var take = Tensor.class.getDeclaredMethod("take", int.class, indexType);
-            assertAll(
-                    () -> assertEquals(Tensor.class, take.getReturnType()),
-                    () -> assertEquals(
-                            List.of(int.class, indexType),
-                            Arrays.asList(take.getParameterTypes())),
-                    () -> assertFalse(take.isVarArgs()),
-                    () -> assertTrue(Modifier.isPublic(take.getModifiers())),
-                    () -> assertFalse(Modifier.isStatic(take.getModifiers())),
-                    () -> assertFalse(Modifier.isSynchronized(take.getModifiers())));
         }
 
         var pad = Tensor.class.getDeclaredMethod(

@@ -15,8 +15,6 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
-import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -150,13 +148,11 @@ class SelectSemanticsTest {
     }
 
     @Test
-    void remainsDistinctFromWhereUnstackAndSliceSemantics() {
+    void remainsDistinctFromWhereAndSliceSemantics() {
         Operation select = new Operation(SelectKind.SELECT, new SelectAttrs(1, 2L));
         Operation where = new Operation(
                 WhereSelectionKind.WHERE,
                 io.github.pho001.synaptik.model.operation.NoOperationAttrs.INSTANCE);
-        Operation unstack = new Operation(
-                TensorCompositionKind.UNSTACK, new UnstackOutputAttrs(1, 2));
         Operation slice = new Operation(
                 SliceKind.SLICE,
                 new io.github.pho001.synaptik.model.operation.layout.SliceAttrs(
@@ -164,10 +160,8 @@ class SelectSemanticsTest {
 
         assertAll(
                 () -> assertNotEquals(select, where),
-                () -> assertNotEquals(select, unstack),
                 () -> assertNotEquals(select, slice),
                 () -> assertNotEquals(SelectKind.SELECT, WhereSelectionKind.WHERE),
-                () -> assertNotEquals(SelectKind.SELECT, TensorCompositionKind.UNSTACK),
                 () -> assertNotEquals(SelectKind.SELECT, SliceKind.SLICE));
     }
 

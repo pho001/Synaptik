@@ -3,17 +3,13 @@ package io.github.pho001.synaptik.model.operation.index;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 
 /**
- * Carries the normalized data-axis position shared by axis-gather and fixed-add axis-scatter
- * operations.
+ * Carries the normalized data-axis position shared by axis-gather operations.
  *
  * <p>The {@link #axis()} value is already normalized, zero-based, and non-negative. Valid
- * axis-gather operations pair this value with {@link AxisGatherKind#GATHER},
- * {@link AxisGatherKind#GATHER_AXIS}, or {@link AxisGatherKind#TAKE_ALONG_AXIS}; fixed-add
- * axis-scatter operations pair it with {@link AxisScatterKind#SCATTER_ADD} or
- * {@link AxisScatterKind#SCATTER_AXIS_ADD}. Gather has ordered logical inputs
- * {@code [data, indices]}, while scatter has {@code [data, indices, updates]}. Each kind determines
- * its own index alignment and result-shape relationship. Addition is intrinsic to the two scatter
- * kinds rather than stored as configurable attribute state. Generic operation composition retains
+ * axis-gather operations pair this value with {@link AxisGatherKind#GATHER}
+ * or {@link AxisGatherKind#GATHER_ELEMENTS}. Gather has ordered logical inputs
+ * {@code [data, indices]}. Each kind determines its own index alignment and result-shape
+ * relationship. Generic operation composition retains
  * the exact kind and attributes references without enforcing those family pairings.</p>
  *
  * <p>This value contains no input rank, data shape, selected-axis extent, indices shape, or result
@@ -21,10 +17,8 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * rules. Zero, positive values, and {@link Integer#MAX_VALUE} are structurally valid and retained
  * unchanged. The current public axis-gather Tensor-expression contract owns caller-facing
  * negative-axis normalization, rank and shape checks, and the requirement that index tensors use
- * {@code INT32} or {@code INT64}. The current public fixed-add axis-scatter expressions own the
- * corresponding caller-axis, index-type, matching floating data/update-type, and shape checks.
- * This attributes value reads no index values and therefore performs no index-value bounds
- * check.</p>
+ * {@code INT32} or {@code INT64}. This attributes value reads no index values and therefore
+ * performs no index-value bounds check.</p>
  *
  * <p>The immutable record stores only the primitive axis. Record-generated equality and hashing
  * use that component, and generated text is diagnostic rather than a serialization, request,
@@ -36,8 +30,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  */
 public record IndexAxisAttrs(int axis) implements OperationAttrs {
     /**
-     * Creates immutable normalized axis parameters for an axis-gather or fixed-add axis-scatter
-     * operation.
+     * Creates immutable normalized axis parameters for an axis-gather operation.
      *
      * <p>The primitive value is retained unchanged after the non-negative check. Construction does
      * not normalize a raw caller axis, inspect data or indices, validate rank, shape, data type, or

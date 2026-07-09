@@ -27,30 +27,26 @@ known singleton axis. `slice(long[], long[], int[], long[])` adds general positi
 selection, and `sliceAxis(int, long, long)` supplies its one-axis step-one convenience.
 `select(int, long)` fixes one scalar coordinate and removes its source axis, with locally derived
 logical view geometry when the input layout is resolved and the result is non-empty.
-`gather(Tensor, int)` removes one data axis and requires one index for every remaining coordinate.
-`gatherAxis(Tensor, int)` replaces one data axis with the complete indices Shape, and
-`take(int, Tensor)` is its exact tensor-index alias. `take(int, int[])` adapts a non-empty copied
-primitive sequence to that same operation through one dense rank-one INT32 index Tensor.
-`takeAlongAxis(Tensor, int)` retains the exact same-rank indices Shape after checking every
-non-selected Dimension.
+`gather(Tensor, int)` replaces one data axis with the complete indices Shape.
+`gatherElements(Tensor, int)` retains the exact same-rank indices Shape after checking every
+non-selected Dimension. These are the complete public axis-index gather spellings.
 `gatherNd(Tensor)` and `gatherNd(Tensor, int)` use coordinate tuples to index several data axes
 after zero or more structurally equal shared batch Dimensions. They require a static positive
 tuple depth, derive the result from the indices prefix plus the untouched data suffix, and never
 inspect index values.
-`scatterAdd`, `scatterAxisAdd`, and the two `scatterElements` overloads construct functional
-axis-scatter expressions from ordered `[data, indices, updates]` inputs. They preserve the exact
-data Shape and type, combine data/update gradient eligibility, and never inspect values or mutate
-the data input.
+The two `scatterElements` overloads construct functional same-rank axis-scatter expressions from
+ordered `[data, indices, updates]` inputs. They preserve the exact data Shape and type, combine
+data/update gradient eligibility, and never inspect values or mutate the data input.
 The three `scatterNd` overloads construct functional tuple-index scatter expressions with
 replacement or an explicit reduction and with zero or an explicit shared-batch count. They apply
 the Gather-ND result-Shape formula to `updates`, preserve exact data metadata in a fresh unresolved
 result, and never inspect values or mutate an input.
 `pad(long[], long[], ScalarValue)` adds exactly typed constant-filled positions around every axis;
-its retained `double` overload is an exact-FLOAT64 convenience. `tile(long...)`
-`tile(long...)` repeats each complete input pattern along every axis. Static `concat` joins an
+its retained `double` overload is an exact-FLOAT64 convenience. `tile(long...)` repeats each
+complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
-same-shaped inputs, and instance `unstack` returns an immutable ordered list of individually
-indexed outputs. `unfold` and `foldAxis` add general-axis window materialization and scatter-add,
+same-shaped inputs, and instance `unstack` returns an immutable ordered list of independent scalar
+select expressions. `unfold` and `foldAxis` add general-axis window materialization and scatter-add,
 while `unfold2d` and `fold2d` add NCHW im2col and overlap-summing col2im Shape construction.
 Typed access, other expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
@@ -93,16 +89,13 @@ retention, and fresh one-input provenance. The semantic values themselves still 
 Tensors or define conversion of a padding constant, gradients, materialization, compiler or
 backend behavior, ONNX mapping, or execution.
 
-`TensorCompositionKind.CONCAT`, `STACK`, and `UNSTACK` are current semantic identities.
+`TensorCompositionKind.CONCAT` and `STACK` are current semantic identities.
 `CompositionAxisAttrs` stores one normalized non-negative axis shared by concat and stack, while
 the kind distinguishes an existing concat axis from a newly inserted stack result-axis position.
-`UnstackOutputAttrs` stores a normalized source axis plus the logical coordinate identifying one
-individual result of a public logical multi-result unstack request. That semantic coordinate keeps
-the result tensors distinct; it is not the indexed slot in `TensorProvenance`, a graph output slot,
-or producer-group identity. Public composition methods, input and
-result validation, Shape derivation, immutable result collection construction, and provenance
-attachment are current. Unstack still creates one independent single-output producer per result;
-compiler capture or decomposition, gradients,
+Public composition methods, input and result validation, Shape derivation, immutable result
+collection construction, and provenance attachment are current. Public unstack is an ordered
+convenience over scalar `SELECT`, so every result has its own independent single-output producer
+and provenance output index zero; compiler capture or decomposition, gradients,
 materialization, and execution remain planned.
 
 `SelectKind.SELECT` is a current scalar-index semantic identity. It pairs with
@@ -114,16 +107,14 @@ is in bounds. Public `Tensor.select` now owns caller-facing negative normalizati
 validation, result Shape/layout construction, and exact one-input provenance. Gradients, compiler
 capture, materialization, backend lowering, and execution remain planned.
 
-`AxisGatherKind.GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS` are current tensor-index semantic
-identities. Each pairs with `IndexAxisAttrs`, which stores one already normalized non-negative
-data-axis position, and each has ordered logical inputs `[data, indices]`. Their index alignment
-and conceptual result Shapes deliberately differ. These semantic values do not inspect either
+`AxisGatherKind.GATHER` and `GATHER_ELEMENTS` are current tensor-index semantic identities. Each
+pairs with `IndexAxisAttrs`, which stores one already normalized non-negative data-axis position,
+and each has ordered logical inputs `[data, indices]`. Their index alignment and conceptual result
+Shapes deliberately differ. These semantic values do not inspect either
 input, validate index data type or Shape compatibility, construct a Tensor or provenance, define
-gradients, or execute indexing. Public `Tensor.gather`, `gatherAxis`, both `take` overloads, and
-`takeAlongAxis` now own raw-axis normalization, exact `INT32`/`INT64` index representation,
-family-specific structural Shape checks and construction, and exact ordered two-input provenance.
-The primitive `take` overload first snapshots a non-empty `int[]` and creates one eager dense
-INT32 index Tensor through `TensorFactory`; the other methods consume an existing index Tensor.
+gradients, or execute indexing. Public `Tensor.gather` and `gatherElements` own raw-axis
+normalization, exact `INT32`/`INT64` index representation, family-specific structural Shape checks
+and construction, and exact ordered two-input provenance. Both consume an existing index Tensor.
 None of the methods interprets index values or checks their bounds.
 
 `GatherNdKind.GATHER_ND` is the current tuple-index semantic identity. It pairs with
@@ -135,15 +126,14 @@ input-rank and batch compatibility, structural batch-prefix equality, static pos
 validation, result Shape construction, and exact ordered provenance. Index-value bounds,
 gradients, compiler behavior, backend behavior, and execution remain planned or separately owned.
 
-`AxisScatterKind.SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` are current functional
-axis-scatter semantic identities. Every kind has ordered logical inputs
-`[data, indices, updates]` and conceptually produces a new result with the exact `data` Shape;
-none mutates `data` in place. The two fixed-add kinds reuse `IndexAxisAttrs`, while
-`SCATTER_ELEMENTS` uses `ScatterElementsAttrs(axis, reduction)` and the reusable
+`AxisScatterKind.SCATTER_ELEMENTS` is the current functional axis-scatter semantic identity. It
+has ordered logical inputs `[data, indices, updates]` and conceptually produces a new result with
+the exact `data` Shape without mutating `data` in place. It uses
+`ScatterElementsAttrs(axis, reduction)` and the reusable
 `ScatterReduction` vocabulary `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. Replacement with `NONE`
 requires unique target coordinates; value-aware duplicate detection is deferred. Public Tensor
-construction now owns caller-axis normalization, exact index and data/update type checks, the
-three family-specific Shape rules, result metadata, and ordered provenance. Index-value bounds,
+construction now owns caller-axis normalization, exact index and data/update type checks, its
+same-rank Shape rule, result metadata, and ordered provenance. Index-value bounds,
 duplicate detection, gradients, compiler behavior, backend behavior, and execution remain planned
 or separately owned.
 
@@ -210,13 +200,9 @@ Tensor + static singleton axis + SQUEEZE           = fresh conditional-view rank
 Tensor + parallel bounds/axes/steps + SLICE        = fresh conditional-view sliced Tensor
 Tensor + one axis and half-open bounds + SLICE     = fresh step-one sliced Tensor
 Tensor + one axis and scalar coordinate + SELECT  = fresh conditional-view rank-reduced Tensor
-Tensor + reduced-Shape indices + GATHER           = fresh reduced-Shape gather Tensor
-Tensor + arbitrary indices + GATHER_AXIS          = fresh inserted-Shape axis-gather Tensor
-Tensor + non-empty copied int[] + GATHER_AXIS     = eager dense index Tensor + fresh axis-gather Tensor
-Tensor + same-rank aligned indices + TAKE_ALONG_AXIS = fresh exact-indices-Shape Tensor
+Tensor + arbitrary indices + GATHER               = fresh inserted-Shape gather Tensor
+Tensor + same-rank aligned indices + GATHER_ELEMENTS = fresh exact-indices-Shape Tensor
 Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-data-suffix Tensor
-Tensor + reduced-Shape indices/updates + SCATTER_ADD = fresh data-Shape fixed-add Tensor
-Tensor + arbitrary indices + gather-axis-shaped updates + SCATTER_AXIS_ADD = fresh data-Shape fixed-add Tensor
 Tensor + same-rank indices/updates + SCATTER_ELEMENTS = fresh data-Shape replacement/reduction Tensor
 Tensor + coordinate-tuple indices/updates + SCATTER_ND = fresh data-Shape replacement/reduction Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
@@ -240,11 +226,11 @@ AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/inse
 SliceKind + SliceAttrs                                      = positive-step parallel half-open slice semantics
 PadKind + PadAttrs                                          = constant-padding meaning + normalized widths/typed constant
 TileKind + TileAttrs                                        = complete-pattern per-axis tiling + positive repeat counts
-TensorCompositionKind + composition attributes              = concat/stack/unstack meaning + normalized axis/output index
+TensorCompositionKind + CompositionAxisAttrs                = concat/stack meaning + normalized axis
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
-AxisGatherKind + IndexAxisAttrs                            = three axis tensor-index meanings + normalized data axis
+AxisGatherKind + IndexAxisAttrs                            = gather/gather-elements meanings + normalized data axis
 GatherNdKind + GatherNdAttrs                              = tuple-index meaning + normalized shared batch count
-AxisScatterKind + IndexAxisAttrs / ScatterElementsAttrs   = functional axis-scatter meaning + axis/reduction
+AxisScatterKind + ScatterElementsAttrs                    = functional scatter-elements meaning + axis/reduction
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = fifteen parameterless unary elementwise semantics
@@ -4145,7 +4131,7 @@ execution.
 
 `Tensor.select(int axis, long index)` fixes one scalar coordinate on an existing source axis and
 removes that axis from a fresh result. The operation is a single-result scalar selection, not
-elementwise conditional `WHERE`, the multi-result `UNSTACK` request, half-open interval `SLICE`,
+elementwise conditional `WHERE`, repeated-select unstack, half-open interval `SLICE`,
 or a gather whose indices come from a Tensor.
 
 The caller may address an input axis from the front with a non-negative value or from the end with
@@ -4262,38 +4248,29 @@ alias, a gradient rule, compiler capture, materialization, backend lowering, or 
 
 ### Axis-gather expressions
 
-The five public axis-gather method signatures produce expressions with ordered logical inputs
+The two public axis-gather methods produce expressions with ordered logical inputs
 `[data, indices]`. `data` is the receiver and supplies the result data type and gradient
-eligibility. The four tensor-index signatures require exact `INT32` or `INT64` indices; no floating
-or BOOL index tensor is accepted or implicitly cast. The primitive `take(int, int[])` signature
-instead requires a non-empty array, copies it, and creates one eager dense INT32 index Tensor
-before using the existing tensor-index take path.
-
-The tensor-index methods normalize one positive or negative axis exactly once against the data
-Shape after their null and index-type checks. Primitive take deliberately creates its index Tensor
-before that same axis validation. This ordering matters for allocation and identifier failures.
+eligibility. Both require exact `INT32` or `INT64` indices; no floating or BOOL index tensor is
+accepted or implicitly cast. They normalize one positive or negative axis exactly once against
+the data Shape after their null and index-type checks.
 
 The methods differ in how they relate the two input Shapes to the result:
 
 | Public method | Semantic kind | Shape rule |
 |---|---|---|
-| `gather(indices, axis)` | `GATHER` | Remove `axis` from the data Shape. The indices Shape must be structurally equal to that reduced Shape, and a newly derived reduced Shape becomes the result. |
-| `gatherAxis(indices, axis)` | `GATHER_AXIS` | Replace the selected data Dimension with every indices Dimension in order. |
-| `take(axis, Tensor indices)` | `GATHER_AXIS` | Delegate exactly to `gatherAxis`; validation, result metadata, provenance, errors, and result-identity effects are identical. |
-| `take(axis, int[] indices)` | `GATHER_AXIS` | Copy a non-empty primitive sequence into one dense rank-one INT32 index Tensor, then delegate once to tensor-index take. |
-| `takeAlongAxis(indices, axis)` | `TAKE_ALONG_AXIS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
+| `gather(indices, axis)` | `GATHER` | Replace the selected data Dimension with every indices Dimension in order. |
+| `gatherElements(indices, axis)` | `GATHER_ELEMENTS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
 
 Structural equality is conservative for dynamic Dimensions. The same dynamic symbol passes where
 equality is required; different symbols fail rather than creating a new symbolic constraint.
-`gatherAxis` needs no compatibility check between the inserted indices Shape and the omitted data
-Dimension. Scalar indices insert no Dimensions. Removing the only data axis for `gather` requires
-scalar indices and produces the canonical scalar Shape.
+`gather` needs no compatibility check between the inserted indices Shape and the omitted data
+Dimension, and scalar indices remove that axis without inserting another. `gatherElements`
+permits the selected indices extent to differ from the data extent.
 
 Every successful request returns a fresh unlabeled, storage-free result Tensor with unresolved
 layout, even when both provenance inputs have resolved geometry. Its provenance contains the exact
 semantic kind, one `IndexAxisAttrs` with the normalized axis, and exact input references in
-`[data, indices]` order. Primitive take's generated provenance input is a separate eager Tensor
-with dense heap storage; the result does not retain the caller array or the helper's snapshot.
+`[data, indices]` order.
 Expression construction never interprets, normalizes, clamps, or bounds-checks index values. It
 defines no gradient or repeated-index rule, compiler capture or canonicalization, materialization,
 backend lowering, or execution behavior.
@@ -4302,7 +4279,7 @@ backend lowering, or execution behavior.
 
 ##### Goal and inputs
 
-Compare all three Shape relationships for `FLOAT32` data with Shape `[2, 3, 4]`. The example uses
+Compare both Shape relationships for `FLOAT32` data with Shape `[2, 3, 4]`. The example uses
 storage-free index tensors because current expression construction needs only their immutable
 descriptors.
 
@@ -4323,25 +4300,21 @@ public final class AxisGatherExpressionExample {
 
     public static void main(String[] args) {
         Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
-        Tensor reducedIndices = tensor(DataType.INT32, Shape.of(2, 4), false);
         Tensor insertedIndices = tensor(DataType.INT64, Shape.of(5, 6), false);
         Tensor alignedIndices = tensor(DataType.INT32, Shape.of(2, 7, 4), false);
 
-        Tensor gathered = data.gather(reducedIndices, -2);
-        Tensor gatheredAxis = data.gatherAxis(insertedIndices, 1);
-        Tensor taken = data.take(1, insertedIndices);
-        Tensor takenAlong = data.takeAlongAxis(alignedIndices, -2);
+        Tensor gathered = data.gather(insertedIndices, -2);
+        Tensor elements = data.gatherElements(alignedIndices, 1);
 
         IndexAxisAttrs attrs = (IndexAxisAttrs) gathered.provenance().orElseThrow()
                 .operation().attrs();
         System.out.println(gathered.descriptor().shape());
-        System.out.println(gatheredAxis.descriptor().shape());
-        System.out.println(taken.descriptor().shape());
-        System.out.println(taken.provenance().orElseThrow().operation().kind());
-        System.out.println(takenAlong.descriptor().shape());
+        System.out.println(gathered.provenance().orElseThrow().operation().kind());
+        System.out.println(elements.descriptor().shape());
+        System.out.println(elements.provenance().orElseThrow().operation().kind());
         System.out.println(attrs);
         System.out.println(gathered.provenance().orElseThrow().inputs().get(0) == data);
-        System.out.println(gathered.provenance().orElseThrow().inputs().get(1) == reducedIndices);
+        System.out.println(gathered.provenance().orElseThrow().inputs().get(1) == insertedIndices);
         System.out.println(gathered.descriptor().requiresGrad());
         System.out.println(gathered.descriptor().layout().isEmpty()
                 && gathered.label().isEmpty()
@@ -4353,10 +4326,8 @@ public final class AxisGatherExpressionExample {
 ##### Meaningful lines and intermediate results
 
 - Raw axis `-2` normalizes once against rank three to axis `1`.
-- `gather` removes extent `3`; the required indices and result Shape are both `[2, 4]`.
-- `gatherAxis` and `take` insert complete Shape `[5, 6]` where extent `3` was, producing
-  `[2, 5, 6, 4]`. Both use `GATHER_AXIS`, but each valid call still creates a fresh Tensor.
-- `takeAlongAxis` verifies the aligned extents `2` and `4`, ignores the selected extents `3` and
+- `gather` inserts complete Shape `[5, 6]` where extent `3` was, producing `[2, 5, 6, 4]`.
+- `gatherElements` verifies the aligned extents `2` and `4`, ignores the selected extents `3` and
   `7`, and retains exact indices Shape `[2, 7, 4]`.
 - All results retain `FLOAT32` and true gradient eligibility from `data`; the index tensors do not
   contribute either fact.
@@ -4366,11 +4337,10 @@ public final class AxisGatherExpressionExample {
 The program prints:
 
 ```text
-Shape[2, 4]
 Shape[2, 5, 6, 4]
-Shape[2, 5, 6, 4]
-GATHER_AXIS
+GATHER
 Shape[2, 7, 4]
+GATHER_ELEMENTS
 IndexAxisAttrs[axis=1]
 true
 true
@@ -4378,8 +4348,8 @@ true
 true
 ```
 
-The output demonstrates axis normalization, all three Shape rules, the exact tensor-index take
-alias, metadata retention, unresolved layout, and ordered provenance. It does not demonstrate
+The output demonstrates axis normalization, both Shape rules, metadata retention, unresolved
+layout, and ordered provenance. It does not demonstrate
 gathered values, valid index-value bounds, gradient behavior, compiler capture, backend lowering,
 or execution.
 
@@ -4387,107 +4357,12 @@ or execution.
 
 - Null data and indices fail in that order. An unsupported indices data type fails before axis
   normalization. An invalid axis then fails through `Shape.normalizeAxis`.
-- `gather` rejects structural inequality with the exact expected reduced Shape and actual indices
-  Shape in its message. Equal dynamic symbols pass; different symbols fail.
-- `takeAlongAxis` checks rank first, then non-axis Dimensions in increasing axis order and reports
+- `gatherElements` checks rank first, then non-axis Dimensions in increasing axis order and reports
   the first mismatch. Its selected-axis extents may differ.
-- Scalar indices passed to `gatherAxis` remove the selected data axis without inserting another
-  one. Rank-one `gather` with scalar indices produces scalar Shape `[]`.
-- For the four tensor-index signatures, local validation completes before result identity
+- Scalar indices passed to `gather` remove the selected data axis without inserting another one.
+  Rank-one `gather` with scalar indices produces scalar Shape `[]`.
+- For both signatures, local validation completes before result identity
   allocation. Identifier exhaustion can occur only during final derived construction.
-
-#### Complete primitive take example
-
-##### Goal and inputs
-
-Show how primitive take snapshots caller-owned indices, creates its internal INT32 index Tensor,
-and produces the same `GATHER_AXIS` result as tensor-index take. The data Tensor has Shape
-`[2, 3, 4]`, the selected axis is `1`, and the requested coordinates are `[2, 0]`.
-
-```java
-import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import java.util.Arrays;
-import java.util.Optional;
-
-public final class PrimitiveTakeExample {
-    public static void main(String[] args) {
-        Tensor data = TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.of(2, 3, 4), Optional.empty(), true));
-        int[] requested = {2, 0};
-
-        Tensor result = data.take(1, requested);
-        Tensor generatedIndices = result.provenance().orElseThrow().inputs().get(1);
-        requested[0] = 17;
-        requested[1] = 19;
-        int[] storedIndices = (int[]) generatedIndices.hostStorage().orElseThrow()
-                .segment().heapBase().orElseThrow();
-
-        System.out.println(generatedIndices.descriptor().dataType());
-        System.out.println(generatedIndices.descriptor().shape());
-        System.out.println(generatedIndices.descriptor().layout().orElseThrow().kind());
-        System.out.println(Arrays.toString(storedIndices));
-        System.out.println(result.descriptor().shape());
-        System.out.println(result.provenance().orElseThrow().operation().kind());
-        System.out.println(result.provenance().orElseThrow().inputs().get(0) == data);
-        System.out.println(result.provenance().orElseThrow().inputs().get(1)
-                == generatedIndices);
-        System.out.println(!generatedIndices.descriptor().requiresGrad()
-                && generatedIndices.label().isEmpty()
-                && generatedIndices.provenance().isEmpty());
-        System.out.println(result.hostStorage().isEmpty());
-    }
-}
-```
-
-##### Meaningful lines and intermediate results
-
-- Primitive take checks that `requested` is non-null and non-empty, clones it once, and passes the
-  private snapshot to `TensorFactory.fromFlatArray`. The factory copies those values into a new
-  rank-one dense-contiguous INT32 Tensor with Shape `[2]`, false gradient eligibility, no label,
-  and no provenance.
-- Tensor-index take replaces data axis `1`, whose extent is `3`, with the complete generated index
-  Shape `[2]`. The result Shape is therefore `[2, 2, 4]`.
-- Mutating the caller array after the call changes it to `[17, 19]`, but the generated Tensor still
-  contains `[2, 0]`. Neither the caller array nor the helper snapshot is retained.
-- Result provenance retains the exact `data` and generated-index Tensor references in that order.
-  The generated Tensor has eager heap storage; the final expression result remains storage-free.
-
-##### Result and interpretation
-
-The program prints:
-
-```text
-INT32
-Shape[2]
-DENSE_CONTIGUOUS
-[2, 0]
-Shape[2, 2, 4]
-GATHER_AXIS
-true
-true
-true
-true
-```
-
-The output demonstrates copied source ownership, the generated descriptor and storage, axis
-replacement, exact semantics, and ordered provenance. It does not show numerical gathering,
-prove that an index value is in bounds, define gradients, capture a graph, choose a backend, or
-execute the expression.
-
-##### Failures and useful variations
-
-- Null and empty primitive arrays fail before snapshot, storage, or identifier allocation. Empty
-  input uses the exact message `take indices must not be empty`.
-- Negative values, `Integer.MIN_VALUE`, and `Integer.MAX_VALUE` are copied unchanged. Expression
-  construction does not inspect whether any coordinate is valid for the selected extent.
-- Index-Tensor creation precedes axis validation. An invalid axis therefore leaves that eager
-  Tensor allocated and its identifier consumed, but consumes no result identifier.
-- If final result-identifier allocation is exhausted, the generated index Tensor and its
-  identifier already exist. The convenience performs no storage or identifier rollback.
 
 ### Gather-ND expressions
 
@@ -4626,161 +4501,60 @@ backend lowering, or execution.
 - Checked result-rank overflow propagates as `ArithmeticException`; identifier exhaustion can
   occur only during final derived Tensor construction.
 
-### Axis-scatter expressions
+### Scatter Elements expressions
 
-The four public axis-scatter methods construct functional expressions from ordered logical inputs
-`[data, indices, updates]`. `data` is the receiver and unchanged base value. `indices` identifies
-a target coordinate along one selected data axis, and `updates` supplies the value associated with
-each index position. A reduction defines how the base and updates for one target are combined. A
-duplicate target occurs when multiple index positions identify that same result coordinate.
+The two public `scatterElements` overloads construct a functional same-rank update from ordered
+logical inputs `[data, indices, updates]`. The receiver is unchanged base `data`; `indices`
+selects one target coordinate along the normalized axis, and `updates` supplies the corresponding
+value. The short overload selects `ScatterReduction.NONE`; the complete overload retains the
+caller's exact non-null reduction.
 
-All paths require exact `INT32` or `INT64` indices and require updates to have the exact data type;
-no input is implicitly cast or promoted. The fixed-add methods accept only `FLOAT64`, `FLOAT32`,
-or `BFLOAT16` data and updates. Scatter-elements with `NONE` accepts all six current data types.
-Its `ADD`, `MUL`, `MAX`, and `MIN` reductions accept floating or integral data and reject `BOOL`.
-The three-argument `scatterElements` method delegates to the explicit overload with
-`ScatterReduction.NONE`.
+Indices must use exact `INT32` or `INT64`, and updates must use the data tensor's exact type.
+Indices and updates must have equal rank and structurally equal Shapes, that rank must equal the
+data rank, and every non-selected indices Dimension must equal the corresponding data Dimension.
+The selected extent may differ. For data Shape `[2, 3, 4]`, axis `1`, and indices/updates Shape
+`[2, 5, 4]`, the result has exact data Shape `[2, 3, 4]`. At update coordinate `[0, 4, 2]`,
+the corresponding index conceptually selects target `[0, index, 2]`.
 
-After null and type validation, each method normalizes the raw positive or negative axis exactly
-once against the data Shape. The normalized non-negative axis is stored in `IndexAxisAttrs` for
-the two fixed-add kinds or in `ScatterElementsAttrs` with the explicit reduction.
+`NONE` permits every current data type and requires unique targets. `ADD`, `MUL`, `MAX`,
+and `MIN` permit floating and integral data and reject `BOOL`. Duplicate detection needs index
+values and remains outside this metadata-only boundary.
 
-The methods apply three distinct Shape rules:
+Every valid call returns a fresh, unlabeled, storage-free Tensor with exact data Shape/type,
+data/update gradient-eligibility OR, unresolved layout, `AxisScatterKind.SCATTER_ELEMENTS`,
+`ScatterElementsAttrs(normalizedAxis, reduction)`, and exact ordered provenance. Construction
+reads no values, checks no index bound or duplicate target, applies no write or reduction, mutates
+no input, and defines no gradient, compiler, materialization, backend, or execution behavior.
 
-| Public method | Semantic kind | Shape rule and example |
-|---|---|---|
-| `scatterAdd(indices, updates, axis)` | `SCATTER_ADD` | Indices and updates must both equal the data Shape with `axis` removed. Data `[2, 3, 4]`, axis `1`, indices `[2, 4]`, and updates `[2, 4]` produce result `[2, 3, 4]`. At reduced coordinate `[0, 2]`, index `1` conceptually targets data coordinate `[0, 1, 2]`. |
-| `scatterAxisAdd(indices, updates, axis)` | `SCATTER_AXIS_ADD` | Updates must have the Shape obtained by replacing the selected data axis with the complete indices Shape. Data `[2, 3, 4]`, axis `1`, indices `[5, 6]`, and updates `[2, 5, 6, 4]` produce result `[2, 3, 4]`. Update coordinate `[0, i, j, 2]` conceptually targets `[0, indices[i, j], 2]`. |
-| `scatterElements(indices, updates, axis[, reduction])` | `SCATTER_ELEMENTS` | Indices and updates must have equal same-rank Shapes and must match data away from `axis`; their selected extent may differ from data. Data `[2, 3, 4]`, axis `1`, and indices/updates `[2, 5, 4]` produce result `[2, 3, 4]`. At update coordinate `[0, 4, 2]`, the corresponding index conceptually selects target `[0, index, 2]`. |
-
-Structural equality governs dynamic Dimensions. Equal symbols pass; different symbols fail rather
-than creating a graph-wide constraint. Rank-one `scatterAdd` requires scalar indices and updates.
-Scalar indices for `scatterAxisAdd` remove the selected axis from the required updates Shape.
-
-Every valid call returns a fresh, unlabeled, storage-free Tensor. The result retains the exact
-data Shape reference and data type, combines data and updates `requiresGrad` eligibility by
-logical OR, and leaves layout unresolved. Indices never contribute type or eligibility. Exact
-provenance contains the selected kind and normalized attributes plus the original Tensor
-references in `[data, indices, updates]` order.
-
-Expression construction reads no data, index, or update values. It does not normalize or
-bounds-check an index value, detect a duplicate target, apply a write or reduction, mutate data,
-define accumulation order or numerical edge behavior, construct a gradient, capture or transform
-a graph, choose materialization or a backend, or execute work. In particular, `NONE` semantically
-requires unique targets, but this metadata-only boundary cannot detect duplicates.
-
-#### Complete axis-scatter expression example
+#### Complete Scatter Elements expression example
 
 ##### Goal and inputs
 
-Construct all three axis-scatter Shape relationships for `FLOAT32` data with Shape `[2, 3, 4]`.
-The tensors are storage-free because expression construction uses only immutable metadata.
+Construct replacement and maximum-reduction expressions for `FLOAT32` data Shape `[2, 3, 4]`
+using aligned indices and updates Shape `[2, 5, 4]`.
 
 ```java
-import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
-import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
-import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
-import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.model.tensor.TensorProvenance;
-import java.util.Optional;
+Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+Tensor indices = tensor(DataType.INT32, Shape.of(2, 5, 4), false);
+Tensor updates = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), false);
 
-public final class AxisScatterExpressionExample {
-    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
-        return TensorFactory.create(
-                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
-    }
-
-    public static void main(String[] args) {
-        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), false);
-        Tensor reducedIndices = tensor(DataType.INT32, Shape.of(2, 4), false);
-        Tensor reducedUpdates = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
-        Tensor axisIndices = tensor(DataType.INT64, Shape.of(5, 6), false);
-        Tensor axisUpdates = tensor(DataType.FLOAT32, Shape.of(2, 5, 6, 4), true);
-        Tensor elementIndices = tensor(DataType.INT32, Shape.of(2, 5, 4), false);
-        Tensor elementUpdates = tensor(DataType.FLOAT32, Shape.of(2, 5, 4), false);
-
-        Tensor reduced = data.scatterAdd(reducedIndices, reducedUpdates, -2);
-        Tensor axisAligned = data.scatterAxisAdd(axisIndices, axisUpdates, 1);
-        Tensor replacement = data.scatterElements(elementIndices, elementUpdates, -2);
-        Tensor maximum = data.scatterElements(
-                elementIndices, elementUpdates, 1, ScatterReduction.MAX);
-
-        TensorProvenance provenance = replacement.provenance().orElseThrow();
-        IndexAxisAttrs reducedAttrs = (IndexAxisAttrs) reduced.provenance().orElseThrow()
-                .operation().attrs();
-        ScatterElementsAttrs replacementAttrs =
-                (ScatterElementsAttrs) provenance.operation().attrs();
-
-        System.out.println(reduced.descriptor().shape());
-        System.out.println(axisAligned.descriptor().shape());
-        System.out.println(replacement.descriptor().shape());
-        System.out.println(maximum.descriptor().shape());
-        System.out.println(reduced.provenance().orElseThrow().operation().kind());
-        System.out.println(reducedAttrs);
-        System.out.println(replacementAttrs);
-        System.out.println(axisAligned.descriptor().requiresGrad());
-        System.out.println(provenance.inputs().get(0) == data
-                && provenance.inputs().get(1) == elementIndices
-                && provenance.inputs().get(2) == elementUpdates);
-        System.out.println(replacement.descriptor().shape() == data.descriptor().shape()
-                && replacement.descriptor().layout().isEmpty()
-                && replacement.label().isEmpty()
-                && replacement.hostStorage().isEmpty());
-    }
-}
+Tensor replacement = data.scatterElements(indices, updates, -2);
+Tensor maximum = data.scatterElements(indices, updates, 1, ScatterReduction.MAX);
 ```
-
-##### Meaningful lines and intermediate results
-
-- Raw axis `-2` normalizes once against rank three to normalized axis `1`.
-- `scatterAdd` removes extent `3` when checking the required `[2, 4]` indices and updates Shapes,
-  but its result retains exact data Shape `[2, 3, 4]`.
-- `scatterAxisAdd` inserts complete indices Shape `[5, 6]` when checking updates Shape
-  `[2, 5, 6, 4]`; the result still retains the data Shape.
-- The short scatter-elements call selects explicit `NONE`. The complete call retains `MAX`.
-  Both accept selected extent `5` even though the corresponding data extent is `3`.
-- Only `axisUpdates` requests gradient eligibility, so its result is eligible through the
-  data/update logical OR. Indices never contribute eligibility.
 
 ##### Result and interpretation
 
-The program prints:
-
-```text
-Shape[2, 3, 4]
-Shape[2, 3, 4]
-Shape[2, 3, 4]
-Shape[2, 3, 4]
-SCATTER_ADD
-IndexAxisAttrs[axis=1]
-ScatterElementsAttrs[axis=1, reduction=NONE]
-true
-true
-true
-```
-
-The output demonstrates raw-axis normalization, all three Shape relationships, explicit default
-reduction, exact data metadata, eligibility OR, unresolved layout, and ordered provenance. It does
-not demonstrate stored values, valid index bounds, duplicate-target detection, writes,
-reductions, gradients, compiler capture, backend lowering, or execution.
+Both results have Shape `[2, 3, 4]`. The negative axis normalizes to `1`; replacement records
+`ScatterElementsAttrs[axis=1, reduction=NONE]`, while maximum records `MAX`. This proves
+structural expression construction and reduction retention, not indexed writes or execution.
 
 ##### Failures and useful variations
 
-- Null data, indices, updates, and explicit reduction fail in that order. Index type then fails
-  before data/update type equality, reduction eligibility, axis normalization, or Shape checks.
-- Fixed-add paths reject non-floating data after exact data/update type equality. Scatter-elements
-  rejects a non-`NONE` BOOL reduction before axis normalization.
-- `scatterAdd` checks the reduced indices Shape before the reduced updates Shape.
-  `scatterAxisAdd` checks its one required updates Shape.
-- Scatter-elements checks indices rank, updates rank, every updates/indices Dimension in increasing
-  axis order, then every non-selected indices/data Dimension in increasing axis order.
-- Local validation failures occur before result identity allocation. Identifier exhaustion may
-  occur only during final derived construction.
-
+Null data, indices, updates, and explicit reduction fail in that order. Index type fails before
+data/update type equality, reduction eligibility, axis normalization, and Shape checks. Shape
+validation checks indices rank, updates rank, every updates/indices Dimension, then every
+non-selected indices/data Dimension, all in increasing-axis order. Local failures occur before
+result identity allocation.
 ### Scatter-ND expressions
 
 The three public Scatter-ND overloads construct functional tuple-index updates from ordered
@@ -5117,163 +4891,68 @@ materialization, compiler canonicalization, backend or ONNX lowering, or executi
 
 ### Tensor composition expressions
 
-Composition combines or separates logical axes without calculating or moving values. The current
-API provides exactly these methods:
+The current API provides static `Tensor.concat(int, Tensor...)`, static
+`Tensor.stack(int, Tensor...)`, and instance `tensor.unstack(int)`. Concat and stack snapshot
+ordered non-empty inputs, validate their existing or insertion axis and operation-specific exact
+type/Shape rules, and return fresh unresolved-layout results with exact ordered provenance.
+
+Unstack is an ordered convenience over scalar selection. It first normalizes an existing axis,
+requires a static selected extent no larger than `Integer.MAX_VALUE`, and validates the complete
+result count before creating any output. It then returns the immutable list equivalent to:
 
 ```java
-Tensor.concat(int axis, Tensor... inputs)
-Tensor.stack(int axis, Tensor... inputs)
-tensor.unstack(int axis)
+List.of(input.select(axis, 0), input.select(axis, 1), /* ... */)
 ```
 
-`concat` and `stack` first validate and clone the caller-owned non-empty varargs array. They retain
-the exact Tensor references, including repeated inputs, in the same semantic order, but never
-retain either the caller's array or its clone. A null array, an empty array, or the first null
-copied element fails before any descriptor is read or Tensor identity is allocated.
+For input Shape `[2, 3, 4]` and axis `1`, the three outputs correspond to `SELECT(1, 0)`,
+`SELECT(1, 1)`, and `SELECT(1, 2)`, each with Shape `[2, 4]`. Each output is a fresh,
+unlabeled, storage-free Tensor with its own one-output `TensorProducer`,
+`TensorProvenance.outputIndex() == 0`, and exact input `[input]`. The outputs do not share a
+producer. Each also uses scalar select's layout rule: resolved non-empty input geometry can produce
+a selected-stride/advanced-offset logical view, while unresolved input geometry or an empty result
+Shape remains unresolved.
 
-`concat` normalizes an existing axis in `[-rank, rank - 1]`, requires exact matching data types and
-ranks, and requires every non-concat Dimension to be structurally equal to the corresponding first
-input Dimension. Selected extents are encounter-order folded from static zero through
-`DimensionExpressions.add`. Named extents `N` and `M` therefore become canonical `N + M`;
-repeated terms combine, existing linear expressions flatten, and division or constrained-unknown
-dimensions remain atomic terms. Static-zero companions and a one-input concat preserve the
-opposing exact Dimension reference. The result preserves all first-input non-axis Dimension
-references.
+A zero selected extent returns the canonical immutable empty list without creating an operation,
+producer, Tensor, or identifier. If identifier exhaustion occurs during a non-empty request,
+earlier identifiers remain consumed, the exception propagates, and no partial list is returned.
 
-For example, concatenating Shapes `[N, 8]` and `[M, 8]` on axis zero produces Shape
-`[N + M, 8]`. This exact formula does not bind either symbol, infer equality beyond the existing
-structural non-axis checks, derive physical layout, or calculate concatenated values.
-
-`stack` normalizes an insertion position in `[-(rank + 1), rank]`, requires exact matching data
-types and structurally identical Shapes, and inserts one new static Dimension equal to the number
-of inputs. Dimensions before and after it retain the exact first-input references. A one-input
-request remains an explicit STACK expression rather than returning the input.
-
-Both methods accept every current data type. Their result requests gradients exactly when at least
-one input does; non-differentiable descriptors cannot request gradients, as usual. Each valid call
-returns a fresh unlabeled, storage-free Tensor with unresolved layout. CONCAT provenance contains
-`TensorCompositionKind.CONCAT`, `CompositionAxisAttrs(normalizedAxis)`, and the exact ordered input
-snapshot. STACK uses the matching kind and the same axis-attributes type. Neither method promotes,
-broadcasts, inserts casts, reads input labels/layout/provenance/values/storage, or performs
-materialization.
-
-`unstack` normalizes an existing axis in `[-rank, rank - 1]`. Its selected extent must be static
-and no larger than `Integer.MAX_VALUE`, because the complete public result count must be known and
-representable by one Java List immediately. The method removes that Dimension, preserves every
-other exact Dimension reference, and returns one output per source coordinate in increasing order.
-Every output retains the input data type and gradient-eligibility value, shares the same immutable
-result Shape, and is fresh, unlabeled, storage-free, and layout-unresolved.
-
-The returned List is immutable. Each element has its own one-output producer and index-zero
-provenance with `UnstackOutputAttrs(normalizedAxis, logicalCoordinate)` and exactly `[input]`.
-These independent semantic coordinates distinguish logical results; they do not claim a shared
-producer occurrence, graph output slot, or grouped `CompiledNode`. A zero selected extent returns
-the empty immutable List without creating an Operation or consuming a Tensor ID. If factory ID
-exhaustion occurs partway through a non-empty request, earlier IDs remain consumed but no partial
-List is returned.
+This provenance shape intentionally differs from a future genuine multi-output operation such as
+top-K. Unstack is N independently reproducible SELECT occurrences, so it has N producers and every
+output index is zero. A future top-K values/indices pair would be one semantically indivisible
+occurrence with one shared producer and distinct output indices. This comparison preserves the
+shared multi-output provenance contract; it does not specify a top-K API.
 
 #### Complete tensor-composition expression example
 
 ##### Goal and inputs
 
-Construct CONCAT and STACK expressions from storage-free `FLOAT32` tensors, then construct the
-individually indexed outputs of unstacking the CONCAT result. The example observes Shape,
-ownership, and provenance metadata; it does not calculate composition values.
+Construct CONCAT and STACK expressions, then unstack a static axis as repeated SELECT.
 
 ```java
-import io.github.pho001.synaptik.model.datatype.DataType;
-import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
-import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
-import io.github.pho001.synaptik.model.tensor.TensorProvenance;
-import java.util.List;
-import java.util.Optional;
+Tensor first = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2, 1), Optional.empty(), false));
+Tensor second = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
 
-public final class TensorCompositionExpressionExample {
-    public static void main(String[] args) {
-        Tensor first = TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.of(2, 1), Optional.empty(), false));
-        Tensor second = TensorFactory.create(new TensorDescriptor(
-                DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
-
-        Tensor concatenated = Tensor.concat(-1, first, second);
-        Tensor stacked = Tensor.stack(0, first, first);
-        List<Tensor> outputs = concatenated.unstack(1);
-
-        TensorProvenance concatOrigin = concatenated.provenance().orElseThrow();
-        TensorProvenance stackOrigin = stacked.provenance().orElseThrow();
-        TensorProvenance firstOutputOrigin = outputs.getFirst().provenance().orElseThrow();
-
-        System.out.println(concatenated.descriptor().shape());
-        System.out.println(stacked.descriptor().shape());
-        System.out.println(outputs.size());
-        System.out.println(outputs.getFirst().descriptor().shape());
-        System.out.println(concatOrigin.operation().kind());
-        System.out.println((CompositionAxisAttrs) concatOrigin.operation().attrs());
-        System.out.println(stackOrigin.operation().kind());
-        System.out.println((UnstackOutputAttrs) firstOutputOrigin.operation().attrs());
-        System.out.println(concatOrigin.inputs().equals(List.of(first, second)));
-        System.out.println(firstOutputOrigin.inputs().getFirst() == concatenated);
-        System.out.println(concatenated.descriptor().requiresGrad());
-        System.out.println(outputs.getFirst().descriptor().layout().isEmpty()
-                && outputs.getFirst().hostStorage().isEmpty());
-    }
-}
+Tensor concatenated = Tensor.concat(-1, first, second);
+Tensor stacked = Tensor.stack(0, first, first);
+List<Tensor> outputs = concatenated.unstack(1);
 ```
-
-##### Meaningful lines and intermediate results
-
-- `Tensor.concat(-1, first, second)` normalizes axis `-1` to existing axis `1`, adds extents one
-  and two, and retains exact ordered provenance `[first, second]`. The true gradient request on
-  `second` makes the CONCAT result eligible.
-- `Tensor.stack(0, first, first)` preserves the repeated input in both semantic roles and inserts
-  the input count at result axis zero, producing Shape `[2, 2, 1]`.
-- `concatenated.unstack(1)` removes the static extent-three axis and returns three immutable-list
-  entries of Shape `[2]`. The first entry's UNSTACK attributes contain logical coordinate zero;
-  its independent one-output producer also uses provenance index zero and records only
-  `concatenated` as its exact input.
 
 ##### Result and interpretation
 
-The program prints:
-
-```text
-Shape[2, 3]
-Shape[2, 2, 1]
-3
-Shape[2]
-CONCAT
-CompositionAxisAttrs[axis=1]
-STACK
-UnstackOutputAttrs[axis=1, outputIndex=0]
-true
-true
-true
-true
-```
-
-The output demonstrates axis normalization, checked Shape derivation, ordered and repeated input
-roles, eligibility OR, immutable individually indexed unstack semantics, and deliberately
-unresolved storage-free results. It does not demonstrate concatenated or selected element values,
-gradient rules, graph capture or decomposition, materialization,
-backend lowering, ONNX mapping, or execution.
+`concatenated` has Shape `[2, 3]`; `stacked` has Shape `[2, 2, 1]`; and `outputs`
+contains three Shape-`[2]` tensors. Output `i` records `SelectKind.SELECT` with
+`SelectAttrs(1, i)`, one independent producer, and provenance output index zero. The result
+demonstrates model metadata construction, not concatenated or selected values, gradients,
+materialization, compiler capture, backend lowering, or execution.
 
 ##### Failures and useful variations
 
-- CONCAT or STACK rejects null/empty input containers and indexed null elements before descriptor
-  inspection. Axis validation then precedes encounter-order type and Shape validation.
-- CONCAT rejects mixed types, ranks, or non-axis dimensions. Checked static extent, symbolic
-  coefficient, or symbolic offset overflow fails before result identity allocation. STACK rejects
-  mixed types or any Shape difference; neither method promotes or broadcasts.
-- UNSTACK rejects a dynamic selected extent or one greater than `Integer.MAX_VALUE`. A zero extent
-  instead returns an empty immutable List without consuming an ID.
-- Exhausting the factory's Tensor-ID space fails only during final result construction. CONCAT and
-  STACK create no result; UNSTACK may have consumed IDs for earlier attempted outputs but returns
-  no partial List.
-
+Concat and stack reject null or empty input containers and indexed null elements before descriptor
+inspection. Unstack rejects an invalid axis, dynamic selected extent, or count above
+`Integer.MAX_VALUE` before output allocation. A zero count returns an immutable empty list
+without consuming an identifier.
 ### Window-transform expressions
 
 The current public API constructs four storage-free sliding-window expressions:
@@ -5564,14 +5243,13 @@ composition while the table also lists the current production families:
 | `PadAttrs` | The implemented immutable ordered before/after widths and exact typed padding constant. |
 | `TileKind` | The implemented production enum whose sole `TILE` value identifies complete-pattern per-axis tiling. |
 | `TileAttrs` | The implemented immutable ordered positive complete-pattern repeat counts. |
-| `TensorCompositionKind` | The implemented production enum for ordered `CONCAT`, inserted-axis `STACK`, and individually indexed `UNSTACK` output meanings. |
+| `TensorCompositionKind` | The implemented production enum for ordered `CONCAT` and inserted-axis `STACK` meanings. |
 | `CompositionAxisAttrs` | The implemented immutable normalized non-negative axis shared by concat and stack. |
-| `UnstackOutputAttrs` | The implemented immutable normalized source axis and non-negative logical output coordinate for one unstack result. |
 | `SelectKind` | The implemented production enum whose sole `SELECT` value fixes one scalar coordinate on one source axis and removes that axis. |
 | `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
-| `AxisGatherKind` | The implemented production enum for distinct reduced-shape gather, ONNX-style axis gather, and aligned same-rank take-along-axis meanings. |
-| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by all three axis-gather kinds and the two fixed-add axis-scatter kinds. |
-| `AxisScatterKind` | The implemented production enum for reduced-rank fixed-add scatter, rank-changing fixed-add axis scatter, and configurable same-rank scatter-elements meanings. |
+| `AxisGatherKind` | The implemented production enum for canonical Gather and aligned same-rank Gather Elements meanings. |
+| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by Gather and Gather Elements. |
+| `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
 | `UnaryElementwiseKind` | The implemented production enum for fifteen parameterless unary elementwise meanings. |
@@ -6274,79 +5952,17 @@ or ONNX behavior, or execution.
 
 ### Tensor composition semantic kinds and attributes
 
-The public enum
-`io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind` implements
-`OperationKind` with exactly `CONCAT`, `STACK`, and `UNSTACK`, in that order. These kinds describe
-how logical tensor axes compose; they do not construct a public Tensor or derive a result Shape.
+`TensorCompositionKind` implements `OperationKind` with exactly `CONCAT` and `STACK`, in
+that order. Both pair with `CompositionAxisAttrs` and accept one or more ordered inputs with
+exactly one output. CONCAT joins along an existing normalized input axis and preserves rank; STACK
+joins same-shaped inputs along a newly inserted normalized result axis and increases rank by one.
+The semantic types do not validate input rank, type, Shape, or result metadata.
 
-| Kind | Semantic meaning | Required attributes |
-|---|---|---|
-| `CONCAT` | Join an ordered, non-empty input sequence along one existing normalized input axis, preserving rank. | `CompositionAxisAttrs` |
-| `STACK` | Join an ordered, non-empty sequence of same-shaped inputs along one newly inserted normalized result axis, increasing rank by one. | `CompositionAxisAttrs` |
-| `UNSTACK` | Represent one result obtained by fixing one normalized source axis at a logical coordinate and removing that axis. | `UnstackOutputAttrs` |
-
-Input order is part of concat and stack meaning. Conceptually, concatenating Shapes `[2, 3]` and
-`[2, 5]` on existing axis `1` places the first input's three positions before the second input's
-five positions and produces Shape `[2, 8]`. Stacking two inputs of Shape `[2, 3]` at insertion
-position `1` instead creates a new result axis and produces conceptual Shape `[2, 2, 3]`.
-`CompositionAxisAttrs(1)` can represent either normalized position because the paired kind supplies
-the existing-axis versus inserted-axis interpretation.
-
-STACK remains a first-class semantic request. A later compiler may choose to decompose it into
-dimension insertion plus concatenation, but that implementation choice does not replace the
-model-level STACK identity.
-
-#### Individually indexed unstack example
-
-##### Goal and inputs
-
-Describe the three individual results of logically unstacking conceptual input Shape `[2, 3, 4]`
-along normalized source axis `1`. That axis has three coordinates, so the output indices are `0`,
-`1`, and `2`.
-
-```java
-Operation first = new Operation(
-        TensorCompositionKind.UNSTACK,
-        new UnstackOutputAttrs(1, 0));
-Operation second = new Operation(
-        TensorCompositionKind.UNSTACK,
-        new UnstackOutputAttrs(1, 1));
-Operation third = new Operation(
-        TensorCompositionKind.UNSTACK,
-        new UnstackOutputAttrs(1, 2));
-```
-
-##### Result and interpretation
-
-Each operation describes one conceptual output Shape `[2, 4]`: fixing a coordinate on axis `1`
-removes that axis while retaining axes `0` and `2`. The three operations are unequal because their
-`outputIndex` values differ.
-
-The attribute's `outputIndex` is the fixed logical coordinate on the removed source axis. The
-implemented multi-result unstack request gives every result a distinct UNSTACK operation and an
-independent one-output `TensorProducer`; each result's `TensorProvenance.outputIndex()` is therefore
-zero. The attribute coordinate is not a graph output slot, `ValueId`, `NodeId`, producer-group
-identity, output count, storage offset, or runtime memory slot. Task 0017K neither groups these
-operations into one `CompiledNode` nor forbids later compiler decomposition.
-
-##### Validation and boundaries
-
-`CompositionAxisAttrs` rejects a negative axis with
-`IllegalArgumentException("axis must be non-negative: <axis>")`.
-`UnstackOutputAttrs` checks its axis first, then rejects a negative output index with
-`IllegalArgumentException("outputIndex must be non-negative: <outputIndex>")`. Both records retain
-zero, positive values, and `Integer.MAX_VALUE` unchanged. They have no rank or axis-extent context,
-so structural acceptance does not prove that an axis exists or an unstack output index is in
-range.
-
-Family signatures enforce the documented pairings. CONCAT and STACK accept one or more inputs;
-UNSTACK accepts exactly one; all current variants produce one output. These semantic values store
-no Tensor, input list, Shape, descriptor, layout, provenance, graph grouping, gradient, compiler policy, backend
-or ONNX behavior, or execution state. Public concat, stack, and unstack now supply the local input,
-axis, Shape, type, eligibility, output-count, result collection, descriptor, and provenance work
-described under [tensor composition expressions](#tensor-composition-expressions). Graph capture
-or decomposition, gradients, materialization, lowering, ONNX mapping, and
-execution remain planned.
+Unstack is not a `TensorCompositionKind` value and has no dedicated attributes. Public
+`Tensor.unstack` is the repeated-SELECT convenience described under
+[tensor composition expressions](#tensor-composition-expressions). This keeps each selection a
+complete independent occurrence and avoids confusing a convenience list with one multi-output
+operation.
 
 ### Scalar select semantic kind and attributes
 
@@ -6389,82 +6005,31 @@ does not prove that the axis exists or that the index is in bounds. The family s
 `SELECT` with `SelectAttrs` and declares one input and one output.
 
 `SELECT` differs from conditional `WHERE`, which chooses between branch values position by
-position; individually indexed `UNSTACK`, which identifies one result of a public logical
-multi-result request; and general `SLICE`, which selects half-open intervals without removing an
-axis. It also differs from gather operations whose indices are tensors rather than one intrinsic
-scalar coordinate. Public `Tensor.select` now supplies input-aware axis/index normalization,
+position, and general `SLICE`, which selects half-open intervals without removing an axis. It also
+differs from gather operations whose indices are tensors rather than one intrinsic scalar
+coordinate. Public `Tensor.select` now supplies input-aware axis/index normalization,
 validation, result Shape and conditional logical-view layout, and exact one-input provenance as
 described under [scalar select expressions](#scalar-select-expressions). Gradients, graph/compiler
 capture and canonicalization, materialization, backend lowering, and execution remain planned.
 
-### Axis-gather semantic kinds and attributes
+### Gather and Gather Elements semantic kinds and attributes
 
-The public enum `io.github.pho001.synaptik.model.operation.index.AxisGatherKind` implements
-`OperationKind` with exactly `GATHER`, `GATHER_AXIS`, and `TAKE_ALONG_AXIS`, in that order. Every
-kind consumes ordered logical inputs `[data, indices]`: `data` supplies the values being indexed,
-and `indices` supplies coordinates along the selected data axis. All three kinds pair with
-`IndexAxisAttrs(axis)`, whose sole `int` component is an already normalized, zero-based,
-non-negative data-axis position.
+`AxisGatherKind` implements `OperationKind` with exactly `GATHER` and `GATHER_ELEMENTS`, in
+that order. Both consume ordered logical inputs `[data, indices]`, pair with
+`IndexAxisAttrs(axis)`, and declare exactly two inputs and one output.
 
-The kinds are separate because they relate data, indices, and result Shapes differently:
+- `GATHER` replaces the selected data axis with the complete indices Shape. Data
+  `[2, 3, 4]`, axis `1`, and indices `[5, 6]` conceptually produce `[2, 5, 6, 4]`;
+  scalar indices produce `[2, 4]`.
+- `GATHER_ELEMENTS` requires same-rank indices aligned with data away from the selected axis and
+  conceptually produces the exact indices Shape. Data `[2, 3, 4]`, axis `1`, and indices
+  `[2, 7, 4]` produce `[2, 7, 4]`.
 
-| Kind | Conceptual Shape relationship | Current public name |
-|---|---|---|
-| `GATHER` | The indices Shape equals the data Shape with `axis` removed; the result has that same reduced Shape. | `gather` |
-| `GATHER_AXIS` | The complete indices Shape replaces the selected data axis in the result. | `gatherAxis` and its exact alias `take` |
-| `TAKE_ALONG_AXIS` | Data and indices have the same rank, indices align with data away from `axis`, and the result Shape equals the indices Shape. | `takeAlongAxis` |
-
-The table defines semantic relationships. Neither the enum nor the attributes inspect an input,
-calculate a Shape, or validate that a relationship holds.
-
-#### Three-way Shape example
-
-##### Goal and inputs
-
-Compare the three meanings for conceptual data Shape `[2, 3, 4]` and normalized axis `1`.
-The index Shapes differ because each kind uses them differently:
-
-```java
-IndexAxisAttrs attrs = new IndexAxisAttrs(1);
-Operation gather = new Operation(AxisGatherKind.GATHER, attrs);
-Operation gatherAxis = new Operation(AxisGatherKind.GATHER_AXIS, attrs);
-Operation takeAlongAxis = new Operation(AxisGatherKind.TAKE_ALONG_AXIS, attrs);
-```
-
-- `GATHER` uses indices Shape `[2, 4]`.
-- `GATHER_AXIS` uses indices Shape `[5, 6]`.
-- `TAKE_ALONG_AXIS` uses indices Shape `[2, 7, 4]`.
-
-##### Results and interpretation
-
-- `GATHER` conceptually produces `[2, 4]`: one index corresponds to every coordinate left after
-  removing data axis `1`.
-- `GATHER_AXIS` conceptually produces `[2, 5, 6, 4]`: the complete `[5, 6]` indices Shape replaces
-  the selected extent `3`. The public `take` method names this same operation; there is no
-  separate `TAKE` semantic kind.
-- `TAKE_ALONG_AXIS` conceptually produces `[2, 7, 4]`: the result has the exact indices Shape,
-  subject to the public compatibility checks for the non-selected axes.
-
-Each `Operation` retains the exact shared `attrs` reference. The example proves only semantic
-composition and explains conceptual Shape relationships; it does not construct index tensors,
-result descriptors, provenance, or values.
-
-##### Validation and boundaries
-
-`IndexAxisAttrs` rejects a negative value with
-`IllegalArgumentException("axis must be non-negative: <axis>")`. Zero, positive axes, and
-`Integer.MAX_VALUE` are structurally valid and retained unchanged. The attributes contain no data
-rank, so structural validity does not prove that the axis exists. The shared family signature
-enforces `IndexAxisAttrs` and declares two inputs and one output.
-
-The current public methods own caller-facing negative-axis normalization, data-rank checks, the
-exact requirement that indices use `INT32` or `INT64`, family-specific Shape compatibility and
-result Shape construction, result metadata, and `[data, indices]` provenance. They inspect no
-index values and therefore perform no index-value bounds check. Axis gather
-is distinct from scalar `SELECT`, which uses one intrinsic scalar coordinate and removes an axis;
-gather-ND, which uses multi-axis index tuples; and functional scatter, which writes or combines
-updates rather than reading indexed data. Gradients, graph/compiler behavior, backend support,
-materialization, and execution remain unimplemented.
+`IndexAxisAttrs` rejects a negative normalized axis but contains no data rank or Shape. Public
+`Tensor.gather` and `gatherElements` own index-type validation, caller-axis normalization,
+Shape checks and derivation, result metadata, and exact `[data, indices]` provenance. Neither
+semantic values nor public expression construction inspect index values or bounds, define
+gradients, provide compiler behavior, choose a backend, or execute work.
 
 ### Gather-ND semantic kind and attributes
 
@@ -6530,85 +6095,29 @@ coordinate; axis gather, which indexes one selected axis; and scatter-ND, which 
 updates. Neither semantic values nor current expression construction define index-value bounds,
 a numerical algorithm, gradients, compiler behavior, backend behavior, or execution.
 
-### Axis-scatter semantic kinds, reduction, and attributes
+### Scatter Elements semantic kind, reduction, and attributes
 
-The public enum `io.github.pho001.synaptik.model.operation.index.AxisScatterKind` implements
-`OperationKind` with exactly `SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS`, in that
-order. A functional scatter starts from base `data`, uses `indices` to select result target
-coordinates, applies `updates` at those targets, and produces a new value with the exact `data`
-Shape. It does not mutate `data` in place. A duplicate target occurs when more than one index entry
-addresses the same result coordinate.
+`AxisScatterKind` implements `OperationKind` with exactly `SCATTER_ELEMENTS`. It consumes
+ordered logical inputs `[data, indices, updates]`, pairs with
+`ScatterElementsAttrs(axis, reduction)`, and declares exactly three inputs and one output.
 
-Every kind has ordered logical inputs `[data, indices, updates]`, but the Shape relationships and
-attribute pairings differ:
+Indices and updates have equal rank and Shape and match data away from the selected axis. The
+functional result has the exact data Shape and does not mutate data. For data `[2, 3, 4]`, axis
+`1`, and indices/updates `[2, 5, 4]`, update coordinate `[0, 4, 2]` uses its index to select
+target `[0, index, 2]`.
 
-| Kind | Conceptual Shape relationship | Attributes and reduction |
-|---|---|---|
-| `SCATTER_ADD` | `indices.shape == updates.shape == remove(data.shape, axis)` | `IndexAxisAttrs`; addition is fixed by the kind |
-| `SCATTER_AXIS_ADD` | `updates.shape` equals the result Shape of `gatherAxis(data, indices, axis)` | `IndexAxisAttrs`; addition is fixed by the kind |
-| `SCATTER_ELEMENTS` | Indices and updates have equal rank and Shape and match data away from `axis` | `ScatterElementsAttrs`; reduction is explicit |
+`ScatterReduction` contains exactly `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`.
+`NONE` means replacement and requires unique targets; the arithmetic values combine the base
+and all updates for a target. The vocabulary does not define traversal order, numerical edge
+behavior, determinism, atomicity, or a backend algorithm.
 
-These rows define semantic relationships; the types do not inspect operands or calculate Shapes.
-The result Shape is the exact data Shape in all three cases.
-
-#### Three-way Shape and coordinate example
-
-For conceptual data Shape `[2, 3, 4]` and normalized axis `1`:
-
-- `SCATTER_ADD` uses indices and updates Shapes `[2, 4]`. At reduced coordinate `[0, 2]`, index
-  `1` adds update `[0, 2]` to target `[0, 1, 2]`; the result Shape is `[2, 3, 4]`.
-- `SCATTER_AXIS_ADD` uses indices Shape `[5, 6]` and updates Shape `[2, 5, 6, 4]`. Update
-  `[0, i, j, 2]` targets `[0, indices[i, j], 2]`; the result Shape is `[2, 3, 4]`.
-- `SCATTER_ELEMENTS` uses equal indices and updates Shapes `[2, 5, 4]`. At update coordinate
-  `[0, 4, 2]`, the corresponding index selects target `[0, index, 2]`; the result Shape is
-  `[2, 3, 4]`.
-
-The examples explain coordinate roles and Shape relationships only. They do not construct a
-Tensor, validate an index value, or calculate a numerical result.
-
-#### Reduction meaning and composition
-
-`ScatterReduction` contains exactly `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`, in that order:
-
-- `NONE` replaces the base value with one update. Target coordinates must be unique; duplicate
-  targets are invalid rather than resolved by first-write, last-write, or another update order.
-- `ADD` combines the base value and every update for one target by addition.
-- `MUL` combines them by multiplication.
-- `MAX` combines them by maximum.
-- `MIN` combines them by minimum.
-
-The vocabulary defines mathematical combination choices, not traversal or accumulation order,
-numeric edge behavior, supported data types, determinism, atomicity, or backend implementation.
-Duplicate detection for `NONE` requires index values and therefore occurs after semantic metadata
-construction.
-
-The fixed-add kinds compose with the existing normalized-axis attributes, while scatter-elements
-stores its caller-selected reduction explicitly:
-
-```java
-IndexAxisAttrs axis = new IndexAxisAttrs(1);
-Operation scatterAdd = new Operation(AxisScatterKind.SCATTER_ADD, axis);
-Operation scatterAxisAdd = new Operation(AxisScatterKind.SCATTER_AXIS_ADD, axis);
-
-ScatterElementsAttrs elementsAttrs =
-        new ScatterElementsAttrs(1, ScatterReduction.ADD);
-Operation scatterElements = new Operation(
-        AxisScatterKind.SCATTER_ELEMENTS, elementsAttrs);
-```
-
-Both attribute types require an already normalized non-negative axis but contain no rank, so they
-cannot prove that the axis exists. `ScatterElementsAttrs` validates the axis before requiring a
-non-null reduction; `null` never means `NONE`. Family signatures enforce `IndexAxisAttrs` for the
-fixed-add kinds and `ScatterElementsAttrs` for SCATTER_ELEMENTS, each with three inputs and one
-output.
-
-The current public axis-scatter expressions own caller-axis normalization plus index-type,
-data/update-type, reduction-eligibility, rank, Shape, descriptor, and provenance validation.
-Index bounds and duplicate targets require values and remain outside model metadata construction.
-Axis scatter is distinct from axis gather and Gather-ND, which read selected data; scatter-ND,
-which uses multi-axis index tuples; fold, which reconstructs overlapping windows; and in-place
-mutation. The semantic values themselves define no Tensor result method, gradient, compiler
-behavior, materialization, lowering, backend behavior, or execution.
+`ScatterElementsAttrs` validates the normalized non-negative axis before requiring a non-null
+reduction. Public `Tensor.scatterElements` owns caller-axis, type, reduction-eligibility, rank,
+Shape, descriptor, and provenance validation. Index bounds and duplicate targets require values
+and remain outside model metadata construction. The semantic values define no gradients,
+compiler-generated adjoints, materialization, lowering, backend behavior, or execution. Fixed-add
+adjoints are not current public operation kinds; task 0023 may later define selected
+compiler-generated semantics without restoring public aliases.
 
 ### Scatter-ND semantic kind and attributes
 
@@ -7144,8 +6653,8 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, scalar elementwise, the current value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
-  stack, unstack, scalar select, axis gather, gather-axis/take, take-along-axis, gather-ND Tensor
-  construction, axis-scatter construction, Scatter-ND construction, unfold, fold-axis,
+  stack, repeated-select unstack, scalar select, Gather, Gather Elements, Gather-ND Tensor
+  construction, Scatter Elements construction, Scatter-ND construction, unfold, fold-axis,
   unfold2d, and fold2d requests; plus gradient
   and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
@@ -7166,7 +6675,7 @@ The following contracts appear in the architecture and planning documents but ar
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
-`UnstackOutputAttrs`, `SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
+`SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
 `GatherNdKind`, `GatherNdAttrs`, `AxisScatterKind`, `ScatterReduction`, `ScatterElementsAttrs`,
 `ScatterNdKind`, `ScatterNdAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
@@ -7198,12 +6707,10 @@ are current, as are public pad/tile Tensor request validation, checked Shape der
 result-layout policy, exact metadata retention, and one-input provenance. Padding-constant
 conversion, gradients, compiler behavior, materialization, backend/ONNX behavior, and execution
 remain planned.
-Tensor-composition semantic kinds, normalized attributes, and public concat, stack, and
-multi-result unstack expression construction are current. Input snapshotting, normalized axes,
-exact type/Shape validation, locally representable result Shapes, unresolved descriptors,
-eligibility propagation, immutable result lists, and individually indexed provenance are model
-behavior. The general producer/output-index representation is current, while unstack deliberately
-uses independent one-output producers. Compiler capture or decomposition, gradients,
+Tensor-composition semantic kinds and public concat/stack construction are current. Public unstack
+is ordered repeated scalar select after upfront count validation. Its immutable result list uses
+independent one-output producers, provenance index zero, and SELECT's conditional layout behavior.
+The general producer/output-index representation remains current. Compiler capture or decomposition, gradients,
 materialization, lowering, ONNX mapping, and execution remain planned.
 Scalar-select semantics and public `Tensor.select` expression construction are current. The public
 method normalizes a raw axis, normalizes and bounds-checks an index when the selected extent is
@@ -7211,13 +6718,11 @@ static, accepts a non-negative index on a dynamic selected extent with its upper
 removes the selected axis, derives conditional resolved logical-view geometry, and records fresh
 one-input provenance. Value access, a physical alias guarantee, gradients, compiler capture and
 canonicalization, materialization, backend lowering, and execution remain planned.
-Axis-gather semantics and their public Tensor construction are current. `GATHER`, `GATHER_AXIS`,
-and `TAKE_ALONG_AXIS` preserve distinct ordered `[data, indices]` meanings and Shape relationships;
-public tensor-index `take` is an exact alias for `GATHER_AXIS`, not another kind. Expression
+Gather and Gather Elements semantics and public Tensor construction are current. `GATHER` and
+`GATHER_ELEMENTS` preserve distinct ordered `[data, indices]` meanings and Shape relationships. Expression
 construction validates `INT32`/`INT64` index type, normalizes the data axis, derives and validates
 family-specific Shapes, preserves data metadata, leaves layout unresolved, and records fresh
-two-input provenance. Primitive-array `take` is also current: it copies one non-empty `int[]` into
-a dense rank-one INT32 leaf Tensor before delegating to the tensor-index path. Index-value access
+two-input provenance. Index-value access
 and bounds checks, gradients, compiler behavior, lowering, and execution remain planned or
 separately owned.
 Gather-ND semantics and public Tensor construction are current. `GATHER_ND` uses ordered
@@ -7227,14 +6732,12 @@ structurally equal batch prefixes, and static positive tuple depth before derivi
 indices-prefix-plus-data-suffix Shape and recording exact provenance. Results retain data type and
 gradient eligibility, leave layout unresolved, and remain unlabeled and storage-free. Index-value
 bounds, gradients, compiler behavior, lowering, and execution remain separately owned.
-Axis-scatter semantics and public Tensor construction are current.
-`SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` use ordered
-`[data, indices, updates]`, preserve the exact data Shape in a new functional result, and remain
-distinct by their reduced-rank, rank-changing, and same-rank update alignment. The two fixed-add
-kinds reuse `IndexAxisAttrs`; scatter-elements uses `ScatterElementsAttrs` with explicit
+Scatter Elements semantics and public Tensor construction are current. `SCATTER_ELEMENTS` uses
+ordered `[data, indices, updates]`, preserves the exact data Shape in a new functional result, and
+uses `ScatterElementsAttrs` with explicit
 `NONE`/`ADD`/`MUL`/`MAX`/`MIN` reduction meaning. Public construction validates exact integral
-index type, matching data/update type, fixed-add floating eligibility, scatter-elements reduction
-eligibility, raw axis, and family-specific Shapes. Results retain exact data Shape/type, combine
+index type, matching data/update type, reduction eligibility, raw axis, and same-rank Shapes.
+Results retain exact data Shape/type, combine
 data/update gradient eligibility, leave layout unresolved, and record exact ordered provenance.
 `NONE` requires unique targets, but duplicate detection, index bounds, value writes/reductions,
 gradient rules, compiler behavior, lowering, and execution remain later responsibilities.
@@ -7366,12 +6869,8 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   rank, Shape, data type, index bound, or duplicate target. `NONE` duplicates remain invalid but
   require later value-aware detection.
 - `CompositionAxisAttrs` rejects a negative normalized axis with `IllegalArgumentException` and
-  exact message `axis must be non-negative: <axis>`. `UnstackOutputAttrs` performs that axis check
-  before rejecting a negative output index with exact message
-  `outputIndex must be non-negative: <outputIndex>`. Both records retain every non-negative
-  `int`, including `Integer.MAX_VALUE`, without proving rank or output-count bounds. The output
-  index identifies one logical coordinate/result in independent UNSTACK semantics; it is not the
-  `TensorProvenance` producer slot, a graph output slot, or producer-group identity.
+  exact message `axis must be non-negative: <axis>`. It retains every non-negative `int`, including
+  `Integer.MAX_VALUE`, without proving an input or insertion bound.
 - `PadAttrs` null-checks `before` and `after` in component order, rejects unequal sizes, then
   validates paired entries in ascending index order: before null, after null, before negative,
   after negative. Only complete valid input is snapshotted in component order. Empty lists,
@@ -7467,12 +6966,11 @@ canonicalization, materialization, lowering, backend/ONNX behavior, and executio
   static input-count Dimension. Neither binds or evaluates symbolic formulas, promotes,
   broadcasts, reads values/storage, or materializes.
 - `Tensor.unstack` normalizes one existing axis, rejects a dynamic selected extent or a static
-  extent above `Integer.MAX_VALUE`, removes that axis, and returns one fresh unresolved unlabeled
-  storage-free result per coordinate in an immutable ordered List. Each output preserves the input
-  type and eligibility and has its own UNSTACK operation and independent one-output producer over
-  `[input]`; the semantic coordinate lives in `UnstackOutputAttrs`, while provenance uses producer
-  index zero. A zero extent consumes no ID. Mid-request ID exhaustion may consume earlier IDs but
-  returns no partial List.
+  extent above `Integer.MAX_VALUE`, then returns one fresh scalar SELECT per coordinate in an
+  immutable ordered List. Each output preserves input metadata, uses SELECT's conditional layout,
+  and has an independent one-output producer over `[input]` with provenance index zero. A zero
+  extent consumes no ID. Mid-request ID exhaustion may consume earlier IDs but returns no partial
+  List.
 - `Tensor.add`, `sub`, `mul`, `div`, `min`, `max`, and tensor-valued `pow` require a non-null right
   operand, promote only floating data types, and require locally provable right-aligned
   broadcasting. Each successful call returns a fresh unlabeled storage-free Tensor with unresolved

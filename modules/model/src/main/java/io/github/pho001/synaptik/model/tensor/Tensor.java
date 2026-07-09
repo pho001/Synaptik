@@ -85,8 +85,8 @@ import java.util.Optional;
  * accepts one axis of a floating or integral input, uses an explicit first- or last-index tie
  * policy, and produces a non-differentiable {@code INT64} result without comparing values or
  * defining empty-axis behavior. Axis gather methods consume ordered {@code [data, indices]}
- * inputs, require exact INT32 or INT64 indices, and apply distinct reduced, inserted, or aligned
- * Shape rules without reading index values or checking their bounds. Gather-ND methods consume
+ * inputs, require exact INT32 or INT64 indices, and apply canonical axis-replacement or same-rank
+ * aligned Shape rules without reading index values or checking their bounds. Gather-ND methods consume
  * the same ordered inputs as coordinate tuples, validate a structurally equal shared batch
  * prefix and statically known positive tuple depth, and derive an indices-prefix-plus-data-suffix
  * Shape without reading index values. Scatter-ND methods consume ordered
@@ -94,9 +94,9 @@ import java.util.Optional;
  * the corresponding Gather-ND result Shape, and retain exact data Shape/type with unresolved
  * layout. Axis scatter methods consume ordered
  * {@code [data, indices, updates]} inputs, require exact INT32 or INT64 indices and matching
- * data/update types, and retain exact data Shape/type with unresolved layout. Fixed-add scatter
- * accepts floating values; configurable scatter-elements permits replacement for every current
- * type and arithmetic reduction for numeric types. Construction reads no index or update values,
+ * data/update types, and retain exact data Shape/type with unresolved layout. Scatter-elements
+ * permits replacement for every current type and arithmetic reduction for numeric types.
+ * Construction reads no index or update values,
  * performs no writes or reductions, and never mutates data. Cumulative sum accepts one axis of a
  * floating or integral input,
  * preserves its shape and type, and records whether the scan is exclusive and/or reverse without
@@ -135,8 +135,8 @@ import java.util.Optional;
  * and non-axis Dimension validation, folding its selected extents through canonical checked
  * symbolic addition. Stack joins exactly same-shaped inputs along one inserted axis. Unstack
  * removes one statically sized axis and returns an immutable ordered list of independently indexed
- * result tensors. Composition results have unresolved layout, and unstack outputs deliberately
- * carry no shared producer-group identity.
+ * result tensors. Concat and stack results have unresolved layout. Unstack results use scalar
+ * select's conditional logical-view layout and deliberately carry no shared producer identity.
  * General-axis unfold replaces one static extent with checked window positions and appends the
  * window size, while fold-axis removes the final window dimension and restores one explicit
  * target extent. Two-dimensional unfold and fold use checked static NCHW window geometry and
@@ -2550,7 +2550,7 @@ public final class Tensor {
      * <p>The fresh result preserves exact data type and gradient eligibility, has no label or
      * storage, and records {@link SelectKind#SELECT} with normalized attributes and exactly this
      * tensor as its provenance input. Scalar select is distinct from conditional {@code WHERE},
-     * multi-result {@code UNSTACK}, half-open {@code SLICE}, and tensor-index gather. This method
+     * repeated unstack selection, half-open {@code SLICE}, and tensor-index gather. This method
      * does not read values, define a gradient rule, capture a graph, choose materialization or a
      * backend, or execute selection.</p>
      *
@@ -2575,39 +2575,7 @@ public final class Tensor {
     }
 
     /**
-     * Creates a fresh expression that gathers one indexed value for every coordinate remaining
-     * after one data axis is removed.
-     *
-     * <p>The ordered logical inputs are {@code [this, indices]}. The {@code indices} tensor must
-     * have exact {@link DataType#INT32} or {@link DataType#INT64} type and a Shape structurally
-     * equal to this tensor's Shape with the normalized {@code axis} removed. For data Shape
-     * {@code [2, 3, 4]}, axis {@code 1}, and indices Shape {@code [2, 4]}, the result Shape is
-     * {@code [2, 4]}. Rank-one data requires scalar indices and produces a scalar. Equal dynamic
-     * Dimensions pass through existing structural equality; different symbols are rejected.</p>
-     *
-     * <p>The fresh result preserves this tensor's exact data type and gradient eligibility, has
-     * unresolved layout, no label or storage, and records {@link AxisGatherKind#GATHER}, the
-     * normalized axis, and ordered exact provenance. No index value or bound is inspected, and no
-     * gradient rule, compiler capture, materialization, backend support, or execution behavior is
-     * defined. This is distinct from scalar {@link #select(int, long)}, gather-ND, and scatter.</p>
-     *
-     * @param indices non-null INT32 or INT64 tensor whose Shape equals the data Shape with the
-     *     selected axis removed; retained by exact reference in provenance and not mutated
-     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @return a non-null fresh storage-free GATHER tensor with reduced Shape, preserved data type
-     *     and gradient eligibility, unresolved layout, and exact provenance
-     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
-     * @throws IllegalArgumentException if index type or reduced Shape compatibility is invalid
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
-     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
-     *     construction
-     */
-    public Tensor gather(Tensor indices, int axis) {
-        return TensorAxisGatherExpressions.gather(this, indices, axis);
-    }
-
-    /**
-     * Creates a fresh ONNX-style axis-gather expression that replaces one data axis with the
+     * Creates a fresh canonical gather expression that replaces one data axis with the
      * complete indices Shape.
      *
      * <p>The ordered logical inputs are {@code [this, indices]}, and indices must be exact INT32
@@ -2615,16 +2583,15 @@ public final class Tensor {
      * produce {@code [2, 5, 6, 4]}. Scalar indices instead produce {@code [2, 4]}. Every
      * unaffected data Dimension and inserted indices Dimension is retained exactly.</p>
      *
-     * <p>The result records {@link AxisGatherKind#GATHER_AXIS}, preserves data type and gradient
-     * eligibility, and has unresolved layout, no label, and no storage. {@link #take(int, Tensor)}
-     * is an exact tensor-index alias, while {@link #take(int, int[])} first creates an independent
-     * dense INT32 index tensor. No index values or bounds are inspected, and no gradient,
+     * <p>The result records {@link AxisGatherKind#GATHER}, preserves data type and gradient
+     * eligibility, and has unresolved layout, no label, and no storage. No index values or bounds
+     * are inspected, and no gradient,
      * compiler, materialization, backend, or execution behavior is defined.</p>
      *
      * @param indices non-null INT32 or INT64 tensor whose complete Shape replaces the selected
      *     data axis; retained by exact reference in provenance and not mutated
      * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @return a non-null fresh storage-free GATHER_AXIS tensor with inserted indices Shape,
+     * @return a non-null fresh storage-free GATHER tensor with inserted indices Shape,
      *     preserved data metadata, unresolved layout, and exact provenance
      * @throws NullPointerException if {@code indices} is null, with message {@code indices}
      * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
@@ -2632,74 +2599,8 @@ public final class Tensor {
      * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
      *     construction
      */
-    public Tensor gatherAxis(Tensor indices, int axis) {
-        return TensorAxisGatherExpressions.gatherAxis(this, indices, axis);
-    }
-
-    /**
-     * Creates the exact tensor-index alias of {@link #gatherAxis(Tensor, int)}.
-     *
-     * <p>This method has the same GATHER_AXIS semantics, Shape insertion, validation, errors,
-     * normalized attributes, ordered {@code [this, indices]} provenance, unresolved layout,
-     * metadata retention, freshness, and result-identifier behavior. The primitive-array
-     * overload creates its own copied INT32 index tensor before invoking this path.</p>
-     *
-     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @param indices non-null INT32 or INT64 tensor passed unchanged to the GATHER_AXIS path
-     * @return a non-null fresh storage-free GATHER_AXIS tensor equivalent to
-     *     {@code gatherAxis(indices, axis)}
-     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
-     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
-     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
-     *     construction
-     */
-    public Tensor take(int axis, Tensor indices) {
-        return TensorAxisGatherExpressions.take(this, axis, indices);
-    }
-
-    /**
-     * Creates a fresh GATHER_AXIS expression from a copied non-empty primitive index sequence.
-     *
-     * <p>The caller-owned array is cloned once before any tensor is created. The snapshot is
-     * imported through {@link TensorFactory#fromFlatArray(TensorDescriptor, Optional, int[])} as
-     * one unlabeled, provenance-free, non-differentiable INT32 tensor with Shape
-     * {@code [indices.length]}, canonical dense-contiguous layout, and independent JVM-managed
-     * heap storage. Factory import copies the snapshot again into that storage, so neither the
-     * caller array nor the helper snapshot is retained. Every signed {@code int}, including
-     * negative and extreme values, is preserved unchanged and is not bounds-checked.</p>
-     *
-     * <p>The generated index tensor is then passed once to the tensor-index
-     * {@link #take(int, Tensor)} path. For data Shape {@code [2, 3, 4]}, axis {@code 1}, and
-     * indices {@code [2, 0]}, the generated index Shape is {@code [2]} and the result Shape is
-     * {@code [2, 2, 4]}. The fresh result has GATHER_AXIS semantics and exact ordered provenance
-     * {@code [this, generatedIndices]}.</p>
-     *
-     * <p>Null and empty requests fail before storage or identifier allocation. Index-tensor
-     * creation precedes axis validation, so an invalid axis leaves that eager tensor allocated
-     * and its identifier consumed, without consuming a result identifier. If identifier space is
-     * exhausted while creating the final result, the generated tensor and its identifier already
-     * exist. No storage or identifier is rolled back. This method defines no gradient, compiler,
-     * materialization, backend, or execution behavior.</p>
-     *
-     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final
-     *     axis and are validated only after the index tensor is created
-     * @param indices non-null, non-empty caller-owned signed coordinates; cloned once, never
-     *     retained or mutated, and copied unchanged without bounds validation
-     * @return a non-null fresh storage-free GATHER_AXIS tensor with exact
-     *     {@code [this, generatedIndices]} provenance
-     * @throws NullPointerException if {@code indices} is null, with message {@code indices},
-     *     before allocation
-     * @throws IllegalArgumentException if {@code indices} is empty, with message
-     *     {@code take indices must not be empty}, before allocation
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank, after the
-     *     generated index tensor and its identifier have been allocated
-     * @throws IllegalStateException if tensor identifier space is exhausted during index-tensor
-     *     creation or final result creation; completed allocation is not rolled back
-     * @throws OutOfMemoryError if snapshot or index-storage allocation fails
-     */
-    public Tensor take(int axis, int[] indices) {
-        return TensorPrimitiveTakeExpressions.take(this, axis, indices);
+    public Tensor gather(Tensor indices, int axis) {
+        return TensorAxisGatherExpressions.gather(this, indices, axis);
     }
 
     /**
@@ -2712,7 +2613,7 @@ public final class Tensor {
      * symbols fail on their first non-axis mismatch.</p>
      *
      * <p>The result preserves exact data type and gradient eligibility, has unresolved layout, no
-     * label or storage, and records {@link AxisGatherKind#TAKE_ALONG_AXIS}, normalized attributes,
+     * label or storage, and records {@link AxisGatherKind#GATHER_ELEMENTS}, normalized attributes,
      * and ordered {@code [this, indices]} provenance. It reads no values, checks no value bounds,
      * and defines no gradient, compiler, materialization, backend, or execution behavior. It is
      * distinct from scalar select, gather-ND, and functional scatter.</p>
@@ -2720,7 +2621,7 @@ public final class Tensor {
      * @param indices non-null same-rank INT32 or INT64 tensor matching data away from the selected
      *     axis; its exact Shape becomes the result Shape and it is not mutated
      * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @return a non-null fresh storage-free TAKE_ALONG_AXIS tensor retaining exact indices Shape,
+     * @return a non-null fresh storage-free GATHER_ELEMENTS tensor retaining exact indices Shape,
      *     data metadata, unresolved layout, and exact provenance
      * @throws NullPointerException if {@code indices} is null, with message {@code indices}
      * @throws IllegalArgumentException if index type, rank, or non-axis alignment is invalid
@@ -2728,8 +2629,8 @@ public final class Tensor {
      * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
      *     construction
      */
-    public Tensor takeAlongAxis(Tensor indices, int axis) {
-        return TensorAxisGatherExpressions.takeAlongAxis(this, indices, axis);
+    public Tensor gatherElements(Tensor indices, int axis) {
+        return TensorAxisGatherExpressions.gatherElements(this, indices, axis);
     }
 
     /**
@@ -2919,74 +2820,6 @@ public final class Tensor {
             int batchDimensions) {
         return TensorScatterNdExpressions.scatterNd(
                 this, indices, updates, reduction, batchDimensions);
-    }
-
-    /**
-     * Creates a fresh functional expression that adds reduced-rank updates along one data axis.
-     *
-     * <p>The ordered logical inputs are {@code [this, indices, updates]}. Indices must be exact
-     * {@link DataType#INT32} or {@link DataType#INT64}. This tensor and updates must use the same
-     * floating data type, and both indices and updates Shapes must equal this tensor's Shape with
-     * the selected axis removed. For data {@code [2, 3, 4]}, axis {@code 1}, and indices/updates
-     * {@code [2, 4]}, the result retains data Shape {@code [2, 3, 4]}. Selecting the only axis of
-     * rank-one data requires scalar indices and updates.</p>
-     *
-     * <p>The fresh result preserves exact data Shape/type, combines data/update gradient
-     * eligibility by logical OR, leaves layout unresolved, and records
-     * {@link AxisScatterKind#SCATTER_ADD}, one normalized axis, and exact ordered provenance. It
-     * has no label or storage. Construction never mutates data, reads index or update values,
-     * checks bounds or duplicate targets, performs addition, defines gradients, captures a graph,
-     * chooses a backend, or executes work.</p>
-     *
-     * @param indices non-null INT32 or INT64 tensor with data Shape minus the selected axis;
-     *     retained by exact reference in provenance and not inspected for values
-     * @param updates non-null matching-floating tensor with data Shape minus the selected axis;
-     *     retained by exact reference in provenance and not mutated or read
-     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @return a non-null fresh storage-free SCATTER_ADD tensor with exact data metadata,
-     *     unresolved layout, and exact three-input provenance
-     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
-     * @throws IllegalArgumentException if index type, update type, floating eligibility, or either
-     *     reduced Shape is invalid
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
-     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
-     *     construction
-     */
-    public Tensor scatterAdd(Tensor indices, Tensor updates, int axis) {
-        return TensorAxisScatterExpressions.scatterAdd(this, indices, updates, axis);
-    }
-
-    /**
-     * Creates a fresh functional fixed-add scatter aligned like inverse axis gather.
-     *
-     * <p>The ordered inputs are {@code [this, indices, updates]}. Indices must be exact INT32 or
-     * INT64, while this tensor and updates must have the same floating type. The updates Shape is
-     * the result Shape of {@link #gatherAxis(Tensor, int)} for the same data, indices, and axis:
-     * data {@code [2, 3, 4]}, axis {@code 1}, and indices {@code [5, 6]} require updates
-     * {@code [2, 5, 6, 4]}. Scalar indices require updates {@code [2, 4]}. The result always
-     * retains exact data Shape {@code [2, 3, 4]}.</p>
-     *
-     * <p>The result is fresh, unlabeled, storage-free, and layout-unresolved. It preserves exact
-     * data type, uses the logical OR of data/update gradient eligibility, and records
-     * {@link AxisScatterKind#SCATTER_AXIS_ADD}, normalized axis attributes, and exact ordered
-     * provenance. No operand value, bound, duplicate target, write, reduction, gradient, compiler,
-     * backend, or execution behavior is inspected or performed.</p>
-     *
-     * @param indices non-null INT32 or INT64 coordinate tensor retained by exact reference
-     * @param updates non-null matching-floating tensor with the gather-axis result Shape; retained
-     *     by exact reference and never read or mutated
-     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
-     * @return a non-null fresh SCATTER_AXIS_ADD tensor with exact data Shape/type, unresolved
-     *     layout, and exact three-input provenance
-     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
-     * @throws IllegalArgumentException if index type, update type, floating eligibility, or updates
-     *     Shape is invalid
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
-     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
-     *     construction
-     */
-    public Tensor scatterAxisAdd(Tensor indices, Tensor updates, int axis) {
-        return TensorAxisScatterExpressions.scatterAxisAdd(this, indices, updates, axis);
     }
 
     /**
@@ -3246,11 +3079,11 @@ public final class Tensor {
      * known extent no larger than {@link Integer#MAX_VALUE}. Each result removes that axis,
      * preserves every other exact Dimension reference, and retains this tensor's exact data type
      * and gradient-eligibility value. Results occur in increasing source-coordinate order in an
-     * immutable list and carry distinct {@link TensorCompositionKind#UNSTACK} attributes with the
-     * normalized axis and their individual output index.</p>
+     * immutable list. Each result is an independent scalar {@link SelectKind#SELECT} occurrence
+     * at its corresponding coordinate.</p>
      *
-     * <p>Every output is fresh, unlabeled, storage-free, and layout-unresolved. The outputs are not
-     * grouped under one public producer identity or graph output-slot contract. A zero extent
+     * <p>Every output is fresh, unlabeled, storage-free, and uses scalar select's conditional view
+     * layout. The outputs are not grouped under one producer identity. A zero extent
      * returns an empty immutable list without consuming a tensor identifier. Identifier
      * exhaustion during a non-empty request may consume identifiers for earlier attempted
      * outputs, but no partial list is returned. This method does not inspect values, materialize,
@@ -3258,7 +3091,7 @@ public final class Tensor {
      *
      * @param axis existing input axis to remove; for rank {@code r}, the accepted raw range is
      *     {@code [-r, r - 1]} and a negative value is normalized once before extent validation
-     * @return a non-null immutable ordered list of fresh UNSTACK outputs; empty exactly when the
+     * @return a non-null immutable ordered list of fresh scalar-select outputs; empty when the
      *     selected static extent is zero
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's rank
      * @throws IllegalArgumentException if the selected dimension is dynamic or its static extent

@@ -13,7 +13,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class TensorCompositionExpressionTest {
     @Test
-    void helperHasExactlyTheRequiredFieldFreeTenMethodShape() {
+    void helperHasExactlyTheRequiredFieldFreeNineMethodShape() {
         var constructors = TensorCompositionExpressions.class.getDeclaredConstructors();
         var methods = Arrays.stream(TensorCompositionExpressions.class.getDeclaredMethods())
                 .map(TensorCompositionExpressionTest::methodSignature)
@@ -56,8 +57,7 @@ class TensorCompositionExpressionTest {
                                 "snapshotInputs(java.lang.String,[Lio.github.pho001.synaptik.model.tensor.Tensor;):java.util.List",
                                 "stack(int,[Lio.github.pho001.synaptik.model.tensor.Tensor;):io.github.pho001.synaptik.model.tensor.Tensor",
                                 "stackShape(io.github.pho001.synaptik.model.shape.Shape,int,int):io.github.pho001.synaptik.model.shape.Shape",
-                                "unstack(io.github.pho001.synaptik.model.tensor.Tensor,int):java.util.List",
-                                "unstackShape(io.github.pho001.synaptik.model.shape.Shape,int):io.github.pho001.synaptik.model.shape.Shape"),
+                                "unstack(io.github.pho001.synaptik.model.tensor.Tensor,int):java.util.List"),
                         methods),
                 () -> assertTrue(Arrays.stream(
                                 TensorCompositionExpressions.class.getDeclaredMethods())
@@ -394,7 +394,7 @@ class TensorCompositionExpressionTest {
     }
 
     @Test
-    void unstackReturnsImmutableOrderedIndividuallyIndexedFreshOutputs() {
+    void unstackReturnsImmutableOrderedIndependentScalarSelectOutputs() {
         StaticDimension rows = new StaticDimension(2);
         StaticDimension selected = new StaticDimension(3);
         DynamicDimension columns = new DynamicDimension("columns");
@@ -418,19 +418,25 @@ class TensorCompositionExpressionTest {
                     () -> assertTrue(output.descriptor().layout().isEmpty()),
                     () -> assertTrue(output.label().isEmpty()),
                     () -> assertTrue(output.hostStorage().isEmpty()),
-                    () -> assertSame(TensorCompositionKind.UNSTACK,
+                    () -> assertSame(SelectKind.SELECT,
                             provenance.operation().kind()),
                     () -> assertEquals(
-                            new UnstackOutputAttrs(1, outputs.indexOf(output)),
+                            new SelectAttrs(1, outputs.indexOf(output)),
                             provenance.operation().attrs()),
                     () -> assertEquals(List.of(input), provenance.inputs()),
                     () -> assertSame(input, provenance.inputs().getFirst()),
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertSame(output.descriptor(), provenance.outputDescriptor()),
                     () -> assertNotSame(input, output));
         }
         assertAll(
                 () -> assertNotSame(outputs.get(0), outputs.get(1)),
+                () -> assertNotSame(
+                        outputs.get(0).provenance().orElseThrow().producer(),
+                        outputs.get(1).provenance().orElseThrow().producer()),
                 () -> assertNotEquals(outputs.get(0).id(), outputs.get(1).id()),
-                () -> assertSame(
+                () -> assertEquals(
                         outputs.get(0).descriptor().shape(),
                         outputs.get(1).descriptor().shape()),
                 () -> assertThrows(
@@ -502,8 +508,9 @@ class TensorCompositionExpressionTest {
                     () -> assertEquals(layout.isPresent(), input.hostStorage().isPresent()),
                     () -> assertTrue(concatenated.descriptor().layout().isEmpty()),
                     () -> assertTrue(stacked.descriptor().layout().isEmpty()),
-                    () -> assertTrue(unstacked.stream()
-                            .allMatch(output -> output.descriptor().layout().isEmpty())),
+                    () -> assertEquals(
+                            input.select(0, 0).descriptor().layout(),
+                            unstacked.getFirst().descriptor().layout()),
                     () -> assertTrue(concatenated.hostStorage().isEmpty()),
                     () -> assertTrue(stacked.hostStorage().isEmpty()),
                     () -> assertTrue(unstacked.stream()

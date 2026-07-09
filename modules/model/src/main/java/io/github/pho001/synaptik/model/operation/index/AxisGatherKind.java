@@ -5,7 +5,7 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies the three backend-independent meanings for indexing tensor data along one axis with
+ * Identifies the backend-independent meanings for indexing tensor data along one axis with
  * a tensor of indices.
  *
  * <p>Every kind has the ordered logical inputs {@code [data, indices]}: {@code data} supplies the
@@ -14,21 +14,16 @@ import java.util.List;
  * this enum nor the attributes inspect inputs, validate shapes, or construct a result.</p>
  *
  * <ul>
- *   <li>{@link #GATHER} requires the indices shape to equal the data shape with the selected axis
- *       removed, and its conceptual result has that same reduced shape. For data shape
- *       {@code [2, 3, 4]}, axis {@code 1}, and indices shape {@code [2, 4]}, the conceptual result
- *       shape is {@code [2, 4]}.</li>
- *   <li>{@link #GATHER_AXIS} replaces the selected data axis with the complete indices shape. For
+ *   <li>{@link #GATHER} replaces the selected data axis with the complete indices shape. For
  *       data shape {@code [2, 3, 4]}, axis {@code 1}, and indices shape {@code [5, 6]}, the
- *       conceptual result shape is {@code [2, 5, 6, 4]}. Public tensor-index {@code take} is an
- *       alias for this exact meaning, not another enum constant.</li>
- *   <li>{@link #TAKE_ALONG_AXIS} aligns same-rank indices with data coordinates away from the
+ *       conceptual result shape is {@code [2, 5, 6, 4]}.</li>
+ *   <li>{@link #GATHER_ELEMENTS} aligns same-rank indices with data coordinates away from the
  *       selected axis and has the exact indices shape as its conceptual result. For data shape
  *       {@code [2, 3, 4]}, axis {@code 1}, and indices shape {@code [2, 7, 4]}, the conceptual
  *       result shape is {@code [2, 7, 4]}, subject to public non-axis compatibility checks.</li>
  * </ul>
  *
- * <p>All three kinds pair explicitly with {@link IndexAxisAttrs}; their family-owned signatures
+ * <p>Both kinds pair explicitly with {@link IndexAxisAttrs}; their family-owned signatures
  * enforce that exact pairing and declare the ordered two-input, one-output occurrence. Axis
  * gather is
  * distinct from scalar {@link SelectKind#SELECT}, whose coordinate is an intrinsic scalar and
@@ -45,25 +40,14 @@ import java.util.List;
  */
 public enum AxisGatherKind implements OperationKind {
     /**
-     * Uses one index for every coordinate of the data shape with the selected axis removed and
-     * produces that same reduced conceptual shape.
-     *
-     * <p>The ordered logical inputs are {@code [data, indices]}. For data {@code [2, 3, 4]}, axis
-     * {@code 1}, and indices {@code [2, 4]}, the conceptual result is {@code [2, 4]}. This kind
-     * does not validate that relationship or read indexed values.</p>
-     */
-    GATHER,
-
-    /**
-     * Replaces the selected data axis with the complete indices shape in ONNX-style axis-gather
+     * Replaces the selected data axis with the complete indices shape in canonical gather
      * semantics.
      *
      * <p>The ordered logical inputs are {@code [data, indices]}. For data {@code [2, 3, 4]}, axis
-     * {@code 1}, and indices {@code [5, 6]}, the conceptual result is {@code [2, 5, 6, 4]}. A
-     * public tensor-index {@code take} names this same operation; there is deliberately no
-     * separate {@code TAKE} kind. This enum performs no shape validation or result construction.</p>
+     * {@code 1}, and indices {@code [5, 6]}, the conceptual result is {@code [2, 5, 6, 4]}.
+     * This enum performs no shape validation or result construction.</p>
      */
-    GATHER_AXIS,
+    GATHER,
 
     /**
      * Reads indices aligned with same-rank data coordinates away from the selected axis and
@@ -74,7 +58,7 @@ public enum AxisGatherKind implements OperationKind {
      * to public non-axis compatibility checks. This kind performs neither those checks nor value
      * selection.</p>
      */
-    TAKE_ALONG_AXIS;
+    GATHER_ELEMENTS;
 
     private static final List<OperationSignature> SIGNATURES =
             List.of(OperationSignature.fixed(IndexAxisAttrs.class, 2, 1));

@@ -207,7 +207,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018M | [Symbolic extent expressions](tasks/0018m-symbolic-extent-expressions.md) | Complete | 0002, 0017C–0017N | Represent canonical checked linear combinations, signed constant offsets, floor/ceiling division, and constrained unknown extents without runtime binding. |
 | 0018M1 | [Dynamic extent adoption in pad, tile, and concat](tasks/0018m1-dynamic-extent-adoption.md) | Complete | 0017J, 0017L, 0018M | Replace conservative identity-only dynamic results with exact model-owned extent expressions in three bounded Tensor shape transformations. |
 | 0018N | [Typed scalar value contract](tasks/0018n-typed-scalar-value-contract.md) | Complete | 0001, 0014E, 0014F, 0017I, 0017J, 0018K | Preserve exact scalar values for the six current data types and atomically make scalar, clamp, padding attributes, and public expression boundaries data-type-safe. |
-| 0018O | Indexing taxonomy and unstack normalization | Draft | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
+| 0018O | [Indexing taxonomy and unstack normalization](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | Elementwise semantic cleanup | Draft | 0014C–0014F, 0018K, 0018N | Rename `inv` to reciprocal, remove public fast approximation kinds, and define the retained scalar/unary vocabulary. |
 | 0018Q | Masked reduction redesign | Draft | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Replace heuristic mask-axis mapping with explicit broadcasting/composition and decide the all-false mean contract. |
 | 0018R | Slice and window public-contract cleanup | Draft | 0017G–0017N, 0018M | Add negative-step slice semantics, make flip a convenience, and demote `FOLD_AXIS` to compiler-generated use. |
@@ -266,9 +266,9 @@ family-owned signatures and local occurrence-cardinality validation. Task 0018L 
 unified producer/output-index provenance. Task 0018M is complete with canonical symbolic extent
 values and conservative Shape integration. Task 0018M1 is complete with canonical symbolic
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
-representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is the next
-Draft frontier without a detailed specification; later tasks also remain Draft without detailed
-specifications.
+representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
+with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is the next Draft frontier
+without a detailed specification; later tasks also remain Draft.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -363,9 +363,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   implementation context. Independent documentation review finalized the seven affected
   Javadocs, Tensor and Compile API references, glossary, capability baseline, task evidence, and
   synchronized planning status without changing executable Java after that model run.
-- Public indexing primitives normalize to GATHER, GATHER_ELEMENTS, GATHER_ND, SCATTER_ELEMENTS,
-  SCATTER_ND, SELECT, and SLICE. Axis-taking `take`, reduced-rank gather/scatter adjoints, and
-  independently produced UNSTACK outputs do not remain baseline primitives.
+- Completed task 0018O normalizes public indexing primitives to GATHER, GATHER_ELEMENTS, GATHER_ND,
+  SCATTER_ELEMENTS, SCATTER_ND, SELECT, and SLICE. It removes every `take` spelling, the current
+  reduced-rank gather, fixed-add public scatter adjoints, and first-class UNSTACK semantics rather
+  than retaining transitional aliases. Public unstack remains an ordered repeated-SELECT
+  convenience whose results have independent one-output producers and provenance output index
+  zero.
+- Its implementation context passed the exact focused command and the 725-test/88-suite model
+  suite. Independent documentation review finalized affected Javadocs, Tensor and Compile APIs,
+  glossary, capability baseline, task evidence, master plan, and roadmap after model Javadoc,
+  exact surface/absence, 469-link/anchor, fence/newline/whitespace, exact 29-path, status, and
+  `git diff --check` validation passed.
 - `fastExp` and `fastTanh` leave the public semantic baseline; approximation route selection
   belongs to backend prepare unless a future operation specifies portable accuracy.
 - Heuristic masked-reduction axis mapping leaves the baseline. Masked convenience uses explicit
@@ -389,31 +397,29 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   deferred bounds validation; a negative dynamic index is not locally representable.
 - Completed tasks 0018C–0018D originally kept `GATHER`, `GATHER_AXIS`, and
   `TAKE_ALONG_AXIS` distinct. The capability reset supersedes that provisional naming while
-  preserving the completed implementation history: task 0018O will normalize the primitives to
-  GATHER, GATHER_ELEMENTS, and GATHER_ND and remove axis `take` from the intended stable API.
-- Tensor-index gather expression construction remains separate from primitive-array `take`
-  convenience: task 0018D validates and composes existing index Tensors, while task 0018D1 owns
-  copied eager INT32 index-Tensor creation and delegation.
-- Primitive-array take preserves the legacy non-empty `int[]` surface, snapshots caller input,
-  creates one dense INT32 leaf Tensor through the existing factory, and then uses the completed
-  tensor-index take path without duplicating gather semantics.
+  preserving the completed implementation history: task 0018O normalized the primitives to
+  GATHER, GATHER_ELEMENTS, and GATHER_ND and removed axis `take` from the stable API.
+- Completed tasks 0018D–0018D1 record how Tensor-index and primitive-array `take` were originally
+  implemented. Completed task 0018O removes both public `take` overloads and the eager primitive-array
+  helper without a compatibility alias; the final indexing surface accepts an index Tensor through
+  `gather`, `gatherElements`, or `gatherNd`.
 - Gather-ND stores only a normalized non-negative batch-dimension count; tuple depth remains the
   final indices Shape dimension and all input-dependent rank/Shape validation belongs to its
   Tensor-expression task.
 - Gather-ND public construction requires INT32/INT64 indices, statically known positive tuple
   depth, structurally equal shared batch Dimensions, and unresolved result layout; index values
   and bounds remain outside model metadata construction.
-- Axis-scatter planning keeps `SCATTER_ADD`, `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` distinct
-  because reduced-rank gather inverse, rank-changing gather-axis inverse, and same-rank indexed
-  updates use different Shape relationships. The two fixed-add kinds reuse `IndexAxisAttrs`;
-  scatter-elements owns explicit normalized-axis plus reduction attributes.
+- Completed tasks 0018G–0018H record the distinct provisional `SCATTER_ADD`,
+  `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` contracts. Completed task 0018O retains only public
+  `SCATTER_ELEMENTS` with explicit reduction attributes; task 0023 may later define selected
+  compiler-generated fixed-add adjoints.
 - Scatter reduction is one reusable typed vocabulary in exact `NONE`, `ADD`, `MUL`, `MAX`, and
   `MIN` order. `NONE` represents unambiguous replacement and rejects duplicate targets in later
   value-aware validation rather than defining traversal-order-dependent overwrite behavior.
-- Axis-scatter public construction uses four methods and one field-free helper. Fixed-add paths
-  require matching floating data/updates; scatter-elements permits `NONE` for every current type
-  and arithmetic reductions for floating/integral types. All paths require INT32/INT64 indices,
-  preserve exact data Shape/type with unresolved layout, and never inspect index values.
+- The final axis-scatter public construction uses two `scatterElements` overloads and one
+  field-free helper. It permits `NONE` for every current type and arithmetic reductions for
+  floating/integral types, requires INT32/INT64 indices, preserves exact data Shape/type with
+  unresolved layout, and never inspects index values.
 - Scatter-ND uses one semantic kind plus immutable normalized batch count and the existing shared
   reduction vocabulary. Tuple depth remains the final indices Dimension; updates use the
   Gather-ND result Shape and the functional result keeps exact data Shape.
@@ -1189,8 +1195,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, and 0018N are complete. Task 0018O is the next Draft frontier without
-a detailed specification. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, 0018N, and 0018O are complete. Task 0018P is the next Draft frontier
+without a detailed specification. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1246,7 +1252,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018N are complete; 0018O is the
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018O are complete; 0018P is the
 next Draft frontier without a detailed specification, and every later task remains Draft without
 one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each

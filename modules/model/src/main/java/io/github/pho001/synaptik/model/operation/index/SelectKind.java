@@ -16,9 +16,8 @@ import java.util.List;
  * result shape.</p>
  *
  * <p>Scalar selection is distinct from elementwise conditional {@code WHERE}, which chooses
- * between branch values at corresponding positions; individually indexed {@code UNSTACK}, which
- * identifies one result of a logical multi-result request; and general {@code SLICE}, which
- * selects half-open coordinate intervals without removing an axis. It is also distinct from
+ * between branch values at corresponding positions; and general {@code SLICE}, which selects
+ * half-open coordinate intervals without removing an axis. It is also distinct from
  * gather operations whose indices are tensors rather than one intrinsic scalar coordinate.</p>
  *
  * <p>This enum stores no input, axis, index, shape, layout, result, provenance, graph state,

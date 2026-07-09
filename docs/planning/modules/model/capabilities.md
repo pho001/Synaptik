@@ -124,8 +124,8 @@ speculative numeric category.
 
 ## Existing capability decisions
 
-The following decisions supersede legacy parity as the default outcome. They describe future
-cleanup; current Java APIs remain implemented until focused tasks change them.
+The following decisions supersede legacy parity as the default outcome. Focused cleanup tasks
+apply them in task order; completed task 0018O has already finalized indexing.
 
 | Existing capability | Decision |
 |---|---|
@@ -148,13 +148,12 @@ Synaptik will use three canonical semantic primitives:
 
 This follows ONNX’s distinctions among [Gather](https://onnx.ai/onnx/operators/onnx__Gather.html),
 [GatherElements](https://onnx.ai/onnx/operators/onnx__GatherElements.html), and
-[GatherND](https://onnx.ai/onnx/operators/onnx__GatherND.html). The current Synaptik
-`GATHER_AXIS` is the first of these and must be renamed to `GATHER`. Current
-`TAKE_ALONG_AXIS` is `GATHER_ELEMENTS`; `takeAlongAxis` may remain a public convenience spelling.
+[GatherND](https://onnx.ai/onnx/operators/onnx__GatherND.html). Completed task
+[0018O](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) finalized this vocabulary and
+the public `gather` and `gatherElements` methods without compatibility aliases.
 
-The current reduced-rank `gather` is equivalent to inserting a singleton axis into its indices,
-using gather-elements, and removing that axis. It is a convenience, not a semantic primitive, and
-should be renamed only if a concrete public use case retains it.
+The removed reduced-rank gather is expressible by inserting a singleton axis into its indices,
+using Gather Elements, and removing that axis. No concrete public use case retained it.
 
 The name `take(axis, indices)` is not retained. [NumPy `take`](https://numpy.org/doc/stable/reference/generated/numpy.take.html)
 and [JAX `take`](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.take.html) use one indices
@@ -167,15 +166,16 @@ and [PyTorch `gather`](https://docs.pytorch.org/docs/2.12/generated/torch.gather
 aligned-indices family. Synaptik should not assign `take` a fourth meaning.
 
 The matching public scatter primitives are `SCATTER_ELEMENTS` and `SCATTER_ND`, with explicit
-reduction semantics. Current reduced-rank `SCATTER_ADD` and rank-changing `SCATTER_AXIS_ADD` are
-gather adjoints/compositions and become compiler-only. A public `scatterAdd` convenience, if
-retained, means scatter-elements with addition. ONNX
+reduction semantics. Specialized fixed-add gather adjoints/compositions are not current public
+model kinds. Task 0023 may later define selected compiler-generated adjoint semantics. ONNX
 [ScatterElements](https://onnx.ai/onnx/operators/onnx__ScatterElements.html) and
 [ScatterND](https://onnx.ai/onnx/operators/onnx__ScatterND.html) provide the interoperability
 vocabulary.
 
 `select` remains the primitive for one scalar coordinate, `slice` remains the primitive for
-strided ranges, and unstack becomes repeated select convenience.
+strided ranges, and unstack becomes an ordered repeated-select convenience. Each non-empty unstack
+result has an independent one-output producer and provenance output index zero; it is not a true
+multi-output operation.
 
 ## Prioritized selected baseline
 

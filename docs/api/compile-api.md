@@ -48,9 +48,9 @@ comparison methods, three boolean logical methods, fifteen unary elementwise met
 scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
 cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
-one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, four
-tensor-index axis-gather methods, one primitive-array take convenience, and two Gather-ND methods,
-plus four functional axis-scatter methods and three functional Scatter-ND methods, construct
+one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
+tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
+methods and three functional Scatter-ND methods, construct
 storage-free expressions with immutable producer-and-output-index provenance. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
 one entry and whose provenance index is zero. The producer snapshots the exact operation and input
@@ -177,15 +177,10 @@ and offset advancement in one new logical view descriptor; unresolved input and 
 unresolved. The fresh result preserves exact type and eligibility and has no label or storage.
 This is current model expression construction, not value selection, physical aliasing, gradient
 construction, graph capture or canonicalization, materialization, backend lowering, or execution.
-`Tensor.gather`, `gatherAxis`, tensor-index `take`, and `takeAlongAxis` consume exact ordered
-`[data, indices]` inputs with `INT32` or `INT64` indices. They normalize one data axis and apply
-their distinct reduced-Shape, inserted-Shape, or same-rank aligned-Shape rules. Primitive
-`take(int, int[])` snapshots one non-empty caller array, creates one independent dense rank-one
-INT32 index Tensor through the current flat-import factory, and then delegates once to the same
-tensor-index take path. Every fresh result retains data type and gradient eligibility, leaves
-layout unresolved, and records exact two-input provenance; both take overloads use the same
-`GATHER_AXIS` semantic identity. Primitive adaptation allocates the generated index Tensor before
-axis validation and performs no rollback after a later failure. Construction interprets no index
+`Tensor.gather` and `gatherElements` consume exact ordered `[data, indices]` inputs with `INT32` or
+`INT64` indices. They normalize one data axis and apply canonical axis-replacement or same-rank
+aligned-Shape rules. Every fresh result retains data type and gradient eligibility, leaves layout
+unresolved, and records exact two-input provenance. Construction interprets no index
 values, checks no index-value bounds, and adds no gradient rule, graph capture, canonicalization,
 materialization, lowering, or execution behavior.
 `Tensor.gatherNd` consumes exact ordered `[data, indices]` inputs with `INT32` or `INT64` indices.
@@ -198,16 +193,18 @@ unlabeled, storage-free, and unresolved-layout, preserves data type and gradient
 records `GATHER_ND` with exact `[data, indices]` provenance. It reads no index value, checks no
 index-value bound, and adds no gradient, graph capture, compiler transformation, materialization,
 lowering, or execution behavior.
-`Tensor.scatterAdd`, `scatterAxisAdd`, and both `scatterElements` overloads consume exact ordered
-`[data, indices, updates]` inputs. They require `INT32` or `INT64` indices and exact matching
-data/update types. The two fixed-add forms require floating values; scatter-elements permits
-`NONE` for every current type and arithmetic reductions for floating or integral values. Each
-method normalizes one raw data axis, validates its reduced-rank, rank-changing, or same-rank Shape
-relationship, and returns a fresh result with the exact data Shape/type, data/update gradient-
+Both `Tensor.scatterElements` overloads consume exact ordered `[data, indices, updates]` inputs.
+They require `INT32` or `INT64` indices and exact matching data/update types. `NONE` is permitted
+for every current type and arithmetic reductions for floating or integral values. Each method
+normalizes one raw data axis, validates the same-rank Shape relationship, and returns a fresh
+result with the exact data Shape/type, data/update gradient-
 eligibility OR, unresolved layout, and exact three-input provenance. Construction reads no values,
 checks no index bound or duplicate target, mutates no input, and performs no write or reduction.
 It adds no gradient rule, graph capture, compiler transformation, materialization, lowering,
 backend behavior, or execution behavior.
+Specialized fixed-add gather adjoints are not current public model kinds or Tensor methods. A
+future compiler task may define selected backend-independent generated semantics when ordinary
+composition is insufficient; this page does not predefine those operations.
 The three `Tensor.scatterNd` overloads consume exact ordered `[data, indices, updates]` inputs with
 `INT32` or `INT64` indices and exact matching data/update types. Their defaults select
 `ScatterReduction.NONE` and zero shared batch Dimensions; complete construction retains the exact
@@ -222,11 +219,11 @@ compiler transformation, materialization, lowering, backend behavior, or executi
 Static `Tensor.concat(int, Tensor...)` and `Tensor.stack(int, Tensor...)` snapshot ordered non-empty
 inputs, normalize an existing or inserted axis, enforce exact type and operation-specific Shape
 rules, and create fresh unresolved-layout results with eligibility OR and exact ordered provenance.
-Instance `Tensor.unstack(int)` requires a static `int`-sized selected extent, removes that axis,
-and returns an immutable ordered List whose fresh results have independent one-output producers.
-Each result uses provenance index zero over the same input, while its `UnstackOutputAttrs` stores
-the distinct logical coordinate. A zero extent returns no result or ID, and those semantic
-coordinates do not establish a shared producer occurrence or graph output-slot contract. This is
+Instance `Tensor.unstack(int)` requires a static `int`-sized selected extent and returns an
+immutable ordered List of scalar `SELECT` expressions after upfront count validation. Each fresh
+result removes that axis, has an independent one-output producer, and uses provenance index zero
+over the same input; its `SelectAttrs` stores the coordinate. A zero extent returns no result or
+ID. This is
 current model expression construction, not compiler capture, decomposition, grouping, backward
 construction, materialization, backend lowering, ONNX mapping, or execution.
 `Tensor.unfold`, `Tensor.foldAxis`, `Tensor.unfold2d`, and `Tensor.fold2d` construct current
@@ -266,11 +263,11 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   positive-step slice construction, plus conditional-view scalar-select construction and
-  unresolved-layout axis-gather construction, including copied primitive take input adaptation,
-  plus unresolved-layout Gather-ND, functional axis-scatter, and functional Scatter-ND
+  unresolved-layout Gather/Gather Elements construction, plus unresolved-layout Gather-ND,
+  functional Scatter Elements, and functional Scatter-ND
   construction, plus
   unresolved constant-pad and complete-pattern tile
-  construction, plus ordered concat/stack and immutable individually indexed unstack construction,
+  construction, plus ordered concat/stack and immutable repeated-SELECT unstack construction,
   plus general-axis and NCHW unfold/fold window-transform construction,
   are implemented;
   the compiler entry point, traversal, capture,

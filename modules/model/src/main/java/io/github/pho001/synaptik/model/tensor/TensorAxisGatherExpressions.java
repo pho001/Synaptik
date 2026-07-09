@@ -14,11 +14,9 @@ import java.util.Optional;
  * Constructs locally validated, storage-free axis-gather expressions for {@link Tensor}.
  *
  * <p>Every operation consumes ordered {@code [data, indices]} inputs and requires exact
- * {@link DataType#INT32} or {@link DataType#INT64} indices. {@link AxisGatherKind#GATHER} removes
- * one data axis and requires indices of that reduced Shape. {@link AxisGatherKind#GATHER_AXIS}
- * replaces one data axis with the complete indices Shape, and tensor-index {@code take} is its
- * exact alias. {@link AxisGatherKind#TAKE_ALONG_AXIS} requires same-rank non-axis alignment and
- * retains the exact indices Shape.</p>
+ * {@link DataType#INT32} or {@link DataType#INT64} indices. {@link AxisGatherKind#GATHER}
+ * replaces one data axis with the complete indices Shape. {@link AxisGatherKind#GATHER_ELEMENTS}
+ * requires same-rank non-axis alignment and retains the exact indices Shape.</p>
  *
  * <p>Every fresh result preserves the data tensor's type and gradient eligibility, leaves layout
  * unresolved, and records exact ordered provenance without a label or storage. This field-free
@@ -31,19 +29,19 @@ final class TensorAxisGatherExpressions {
     }
 
     /**
-     * Validates and creates one shape-reducing GATHER expression.
+     * Validates and creates one canonical GATHER expression.
      *
-     * <p>For data {@code [2, 3, 4]}, axis {@code 1}, and indices {@code [2, 4]}, the result is
-     * {@code [2, 4]}. Removing the only data axis requires scalar indices and produces the
-     * canonical scalar Shape. Existing structural Dimension equality governs dynamic symbols.</p>
+     * <p>The complete indices Shape replaces the selected data Dimension. Thus data
+     * {@code [2, 3, 4]}, axis {@code 1}, and indices {@code [5, 6]} produce
+     * {@code [2, 5, 6, 4]}; scalar indices produce {@code [2, 4]}. Every inserted indices
+     * Dimension and unaffected data Dimension is retained exactly.</p>
      *
      * @param data non-null value tensor retained as provenance input zero and never mutated
-     * @param indices non-null INT32 or INT64 coordinate tensor retained as provenance input one;
-     *     its Shape must equal the data Shape with the selected axis removed
+     * @param indices non-null INT32 or INT64 coordinate tensor retained as provenance input one
      * @param axis raw positive or negative data axis normalized once against the data Shape
-     * @return a non-null fresh GATHER tensor with reduced Shape and unresolved layout
+     * @return a non-null fresh GATHER tensor with inserted indices Shape and unresolved layout
      * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
-     * @throws IllegalArgumentException if index type or reduced Shape compatibility is invalid
+     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
@@ -55,68 +53,15 @@ final class TensorAxisGatherExpressions {
         validateIndexType("gather", indicesDescriptor);
         Shape dataShape = dataDescriptor.shape();
         int normalizedAxis = dataShape.normalizeAxis(axis);
-        Shape resultShape = removeAxis(dataShape, normalizedAxis);
-        Shape indicesShape = indicesDescriptor.shape();
-        if (!indicesShape.equals(resultShape)) {
-            throw new IllegalArgumentException(
-                    "gather indices shape must equal data shape without gathered axis: expected="
-                            + resultShape + ", actual=" + indicesShape);
-        }
+        Shape resultShape = gatherShape(
+                dataShape, indicesDescriptor.shape(), normalizedAxis);
         IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
         return create(
                 data, indices, dataDescriptor, resultShape, AxisGatherKind.GATHER, attrs);
     }
 
     /**
-     * Validates and creates one ONNX-style GATHER_AXIS expression.
-     *
-     * <p>The complete indices Shape replaces the selected data Dimension. Thus data
-     * {@code [2, 3, 4]}, axis {@code 1}, and indices {@code [5, 6]} produce
-     * {@code [2, 5, 6, 4]}; scalar indices produce {@code [2, 4]}. Every inserted indices
-     * Dimension and unaffected data Dimension is retained exactly.</p>
-     *
-     * @param data non-null value tensor retained as provenance input zero and never mutated
-     * @param indices non-null INT32 or INT64 coordinate tensor retained as provenance input one
-     * @param axis raw positive or negative data axis normalized once against the data Shape
-     * @return a non-null fresh GATHER_AXIS tensor with inserted indices Shape and unresolved layout
-     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
-     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
-     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
-     */
-    static Tensor gatherAxis(Tensor data, Tensor indices, int axis) {
-        Objects.requireNonNull(data, "data");
-        Objects.requireNonNull(indices, "indices");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        validateIndexType("gatherAxis", indicesDescriptor);
-        Shape dataShape = dataDescriptor.shape();
-        int normalizedAxis = dataShape.normalizeAxis(axis);
-        Shape resultShape = gatherAxisShape(
-                dataShape, indicesDescriptor.shape(), normalizedAxis);
-        IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
-        return create(
-                data, indices, dataDescriptor, resultShape, AxisGatherKind.GATHER_AXIS, attrs);
-    }
-
-    /**
-     * Delegates tensor-index take exactly to {@link #gatherAxis(Tensor, Tensor, int)}.
-     *
-     * @param data data tensor passed unchanged to the shared GATHER_AXIS path
-     * @param axis raw positive or negative data axis passed unchanged to the shared path
-     * @param indices index tensor passed unchanged to the shared GATHER_AXIS path
-     * @return the non-null fresh GATHER_AXIS tensor created by the shared path
-     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
-     * @throws IllegalArgumentException if the indices data type is not INT32 or INT64
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
-     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
-     */
-    static Tensor take(Tensor data, int axis, Tensor indices) {
-        return gatherAxis(data, indices, axis);
-    }
-
-    /**
-     * Validates and creates one TAKE_ALONG_AXIS expression with aligned non-axis coordinates.
+     * Validates and creates one GATHER_ELEMENTS expression with aligned non-axis coordinates.
      *
      * <p>Data and indices ranks must match, and every non-selected Dimension must be structurally
      * equal. Selected extents may differ. Data {@code [2, 3, 4]}, indices {@code [2, 7, 4]}, and
@@ -126,30 +71,30 @@ final class TensorAxisGatherExpressions {
      * @param indices non-null same-rank INT32 or INT64 tensor retained as provenance input one;
      *     its non-axis Dimensions must equal data and its exact Shape becomes the result
      * @param axis raw positive or negative data axis normalized once against the data Shape
-     * @return a non-null fresh TAKE_ALONG_AXIS tensor retaining exact indices Shape and unresolved
+     * @return a non-null fresh GATHER_ELEMENTS tensor retaining exact indices Shape and unresolved
      *     layout
      * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
      * @throws IllegalArgumentException if index type, rank, or non-axis alignment is invalid
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
-    static Tensor takeAlongAxis(Tensor data, Tensor indices, int axis) {
+    static Tensor gatherElements(Tensor data, Tensor indices, int axis) {
         Objects.requireNonNull(data, "data");
         Objects.requireNonNull(indices, "indices");
         TensorDescriptor dataDescriptor = data.descriptor();
         TensorDescriptor indicesDescriptor = indices.descriptor();
-        validateIndexType("takeAlongAxis", indicesDescriptor);
+        validateIndexType("gatherElements", indicesDescriptor);
         Shape dataShape = dataDescriptor.shape();
         int normalizedAxis = dataShape.normalizeAxis(axis);
         Shape indicesShape = indicesDescriptor.shape();
-        validateTakeAlongAxis(dataShape, indicesShape, normalizedAxis);
+        validateGatherElements(dataShape, indicesShape, normalizedAxis);
         IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
         return create(
                 data,
                 indices,
                 dataDescriptor,
                 indicesShape,
-                AxisGatherKind.TAKE_ALONG_AXIS,
+                AxisGatherKind.GATHER_ELEMENTS,
                 attrs);
     }
 
@@ -170,24 +115,6 @@ final class TensorAxisGatherExpressions {
     }
 
     /**
-     * Removes one data axis while preserving every unaffected exact Dimension reference.
-     *
-     * @param dataShape non-null source Shape of rank at least one
-     * @param normalizedAxis normalized existing data axis to remove
-     * @return a non-null rank-minus-one Shape; rank-one input produces canonical scalar Shape
-     */
-    private static Shape removeAxis(Shape dataShape, int normalizedAxis) {
-        Dimension[] resultDimensions = new Dimension[dataShape.rank() - 1];
-        for (int dataAxis = 0, resultAxis = 0;
-                dataAxis < dataShape.rank(); dataAxis++) {
-            if (dataAxis != normalizedAxis) {
-                resultDimensions[resultAxis++] = dataShape.dimensions().get(dataAxis);
-            }
-        }
-        return Shape.ofDimensions(resultDimensions);
-    }
-
-    /**
      * Replaces one data axis with every indices Dimension in original order.
      *
      * @param dataShape non-null source data Shape of rank at least one
@@ -195,7 +122,7 @@ final class TensorAxisGatherExpressions {
      * @param normalizedAxis normalized existing data axis to replace
      * @return a non-null Shape ordered as data-before, all indices, then data-after
      */
-    private static Shape gatherAxisShape(
+    private static Shape gatherShape(
             Shape dataShape, Shape indicesShape, int normalizedAxis) {
         Dimension[] resultDimensions =
                 new Dimension[dataShape.rank() - 1 + indicesShape.rank()];
@@ -221,11 +148,11 @@ final class TensorAxisGatherExpressions {
      * @throws IllegalArgumentException if ranks differ or the first increasing non-axis Dimension
      *     differs structurally
      */
-    private static void validateTakeAlongAxis(
+    private static void validateGatherElements(
             Shape dataShape, Shape indicesShape, int normalizedAxis) {
         if (indicesShape.rank() != dataShape.rank()) {
             throw new IllegalArgumentException(
-                    "takeAlongAxis indices rank must match data rank: expected="
+                    "gatherElements indices rank must match data rank: expected="
                             + dataShape.rank() + ", actual=" + indicesShape.rank());
         }
         for (int axis = 0; axis < dataShape.rank(); axis++) {
@@ -236,7 +163,7 @@ final class TensorAxisGatherExpressions {
             Dimension actual = indicesShape.dimensions().get(axis);
             if (!actual.equals(expected)) {
                 throw new IllegalArgumentException(
-                        "takeAlongAxis indices dimension at axis " + axis
+                        "gatherElements indices dimension at axis " + axis
                                 + " must match data: expected=" + expected + ", actual=" + actual);
             }
         }

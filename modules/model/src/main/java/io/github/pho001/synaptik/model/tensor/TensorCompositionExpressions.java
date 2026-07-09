@@ -4,7 +4,6 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -22,9 +21,8 @@ import java.util.Optional;
  * exact data types, validate their operation-specific Shape relationships, and combine gradient
  * eligibility by logical OR. Concat folds selected extents through canonical symbolic addition;
  * static values, symbolic coefficients, and symbolic offsets use checked {@code long} arithmetic.
- * Unstack creates an immutable ordered result list only when the selected source extent has a
- * statically known {@code int}-sized count. Every created Tensor is fresh, unlabeled,
- * storage-free, and layout-unresolved.</p>
+ * Unstack creates an immutable ordered list of scalar-select expressions only when the selected
+ * source extent has a statically known {@code int}-sized count.</p>
  *
  * <p>This field-free helper derives immutable model metadata only. It does not promote or
  * broadcast inputs, inspect values or storage, bind or evaluate symbolic extents, group unstack
@@ -138,18 +136,18 @@ final class TensorCompositionExpressions {
     }
 
     /**
-     * Constructs one independently indexed UNSTACK tensor per selected-axis coordinate.
+     * Constructs one independent scalar-select tensor per selected-axis coordinate.
      *
      * <p>After the input null check, the selected existing axis is normalized, then required to be
      * static and no larger than
      * {@link Integer#MAX_VALUE}. Its Dimension is removed once to form the shared immutable result
-     * Shape. Each output receives increasing indexed UNSTACK attributes and one-input provenance;
-     * no shared producer identity is created. A zero extent returns {@link List#of()} before any
-     * operation or Tensor allocation.</p>
+     * Shape. Each output delegates to scalar-select construction and therefore has an independent
+     * one-output producer and provenance output index zero. A zero extent returns {@link List#of()}
+     * before any operation or Tensor allocation.</p>
      *
      * @param input non-null exact sole provenance input for every result
      * @param axis positive or negative existing source axis
-     * @return a non-null immutable ordered list of fresh layout-unresolved UNSTACK tensors
+     * @return a non-null immutable ordered list of fresh scalar-select tensors
      * @throws NullPointerException if {@code input} is null, with message {@code input}
      * @throws IndexOutOfBoundsException if {@code axis} is outside the input rank
      * @throws IllegalArgumentException if the selected extent is dynamic or greater than
@@ -159,8 +157,7 @@ final class TensorCompositionExpressions {
      */
     static List<Tensor> unstack(Tensor input, int axis) {
         Objects.requireNonNull(input, "input");
-        TensorDescriptor descriptor = input.descriptor();
-        Shape inputShape = descriptor.shape();
+        Shape inputShape = input.descriptor().shape();
         int normalizedAxis = normalizeExistingAxis("unstack", axis, inputShape.rank());
         Dimension selectedDimension = inputShape.dimensions().get(normalizedAxis);
         if (!(selectedDimension instanceof StaticDimension staticDimension)) {
@@ -173,22 +170,13 @@ final class TensorCompositionExpressions {
                     "unstack axis " + normalizedAxis + " size " + size
                             + " exceeds maximum result count " + Integer.MAX_VALUE);
         }
-        Shape resultShape = unstackShape(inputShape, normalizedAxis);
         if (size == 0) {
             return List.of();
         }
         int outputCount = (int) size;
         List<Tensor> outputs = new ArrayList<>(outputCount);
         for (int outputIndex = 0; outputIndex < outputCount; outputIndex++) {
-            Operation operation = new Operation(
-                    TensorCompositionKind.UNSTACK,
-                    new UnstackOutputAttrs(normalizedAxis, outputIndex));
-            outputs.add(create(
-                    descriptor.dataType(),
-                    resultShape,
-                    descriptor.requiresGrad(),
-                    operation,
-                    List.of(input)));
+            outputs.add(TensorSelectExpressions.apply(input, normalizedAxis, outputIndex));
         }
         return List.copyOf(outputs);
     }
@@ -309,23 +297,6 @@ final class TensorCompositionExpressions {
                 resultDimensions[resultAxis] = new StaticDimension(inputCount);
             } else {
                 resultDimensions[resultAxis] = inputShape.dimensions().get(resultAxis - 1);
-            }
-        }
-        return Shape.ofDimensions(resultDimensions);
-    }
-
-    /**
-     * Removes one selected Dimension while preserving all remaining exact references.
-     *
-     * @param inputShape non-null exact source Shape
-     * @param normalizedAxis normalized existing axis to remove
-     * @return a non-null rank-minus-one Shape, canonical scalar for a rank-one input
-     */
-    private static Shape unstackShape(Shape inputShape, int normalizedAxis) {
-        Dimension[] resultDimensions = new Dimension[inputShape.rank() - 1];
-        for (int inputAxis = 0, resultAxis = 0; inputAxis < inputShape.rank(); inputAxis++) {
-            if (inputAxis != normalizedAxis) {
-                resultDimensions[resultAxis++] = inputShape.dimensions().get(inputAxis);
             }
         }
         return Shape.ofDimensions(resultDimensions);

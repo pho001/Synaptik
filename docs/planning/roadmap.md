@@ -93,22 +93,31 @@ The latest completed implementation frontier is:
 - [0018N Typed scalar value contract](modules/model/tasks/0018n-typed-scalar-value-contract.md) —
   Complete.
 
-The next planning frontier is:
+The latest completed implementation frontier also includes:
 
-- 0018O Indexing taxonomy and unstack normalization — Draft without a detailed specification.
+- [0018O Indexing taxonomy and unstack normalization](modules/model/tasks/0018o-indexing-taxonomy-and-unstack-normalization.md)
+  — Complete.
+
+The next planning frontier is 0018P Elementwise semantic cleanup — Draft without a detailed
+specification.
+
+Task 0018O finalized canonical Gather, Gather Elements, Scatter Elements, and repeated-SELECT
+unstack without compatibility aliases or first-class unstack/fixed-add kinds. Its implementation
+context passed the exact focused command and the 725-test/88-suite model suite; independent
+documentation review completed Javadocs, APIs, glossary, planning synchronization, and final
+surface, Markdown, exact 29-path, status, and whitespace validation.
 
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018N are complete. Task 0018O and later rows remain Draft without detailed
-specifications.
+through 0018O are complete. Task 0018P and later rows remain Draft without detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J and tasks 0018K through 0018N are complete. Task 0018O is
+expressions. Tasks 0018A through 0018J and tasks 0018K through 0018O are complete. Task 0018P is
 the next Draft frontier without a detailed specification; later tasks remain Draft.
 
 Task [0018M](modules/model/tasks/0018m-symbolic-extent-expressions.md) is complete with canonical
@@ -523,7 +532,7 @@ authorized Compile API status correction.
 | 81 | [0018M Symbolic extent expressions](modules/model/tasks/0018m-symbolic-extent-expressions.md) | Complete |
 | 82 | [0018M1 Dynamic extent adoption in pad, tile, and concat](modules/model/tasks/0018m1-dynamic-extent-adoption.md) | Complete |
 | 83 | [0018N Typed scalar value contract](modules/model/tasks/0018n-typed-scalar-value-contract.md) | Complete |
-| 84 | 0018O Indexing taxonomy and unstack normalization | Draft |
+| 84 | [0018O Indexing taxonomy and unstack normalization](modules/model/tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete |
 | 85 | 0018P Elementwise semantic cleanup | Draft |
 | 86 | 0018Q Masked reduction redesign | Draft |
 | 87 | 0018R Slice and window public-contract cleanup | Draft |
@@ -588,7 +597,7 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018N are complete; 0018O is the next Draft frontier without a
+before 0019. Tasks 0018K through 0018O are complete; 0018P is the next Draft frontier without a
 detailed specification, while every later task remains Draft without one.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding

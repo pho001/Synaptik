@@ -5,7 +5,7 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies three backend-independent meanings for functionally scattering tensor updates along
+ * Identifies the backend-independent meaning for functionally scattering tensor updates along
  * one data axis.
  *
  * <p>A functional scatter has ordered logical inputs {@code [data, indices, updates]}.
@@ -16,21 +16,9 @@ import java.util.List;
  * target occurs when multiple index entries address the same result coordinate. A reduction
  * defines how the base and all updates for one target are combined.</p>
  *
- * <p>The shape relationships distinguish the three meanings:</p>
+ * <p>The shape relationship is:</p>
  *
  * <ul>
- *   <li>{@link #SCATTER_ADD} requires
- *       {@code indices.shape == updates.shape == remove(data.shape, axis)} and uses fixed
- *       addition. For data shape {@code [2, 3, 4]}, axis {@code 1}, and indices and updates shapes
- *       {@code [2, 4]}, the conceptual result shape is {@code [2, 3, 4]}. At reduced coordinate
- *       {@code [0, 2]}, index {@code 1} adds update {@code [0, 2]} to data coordinate
- *       {@code [0, 1, 2]}.</li>
- *   <li>{@link #SCATTER_AXIS_ADD} requires the updates shape to equal the shape produced by
- *       replacing the selected data axis with the complete indices shape, and uses fixed
- *       addition. For data shape {@code [2, 3, 4]}, axis {@code 1}, indices shape {@code [5, 6]},
- *       and updates shape {@code [2, 5, 6, 4]}, the conceptual result shape is
- *       {@code [2, 3, 4]}. Update {@code [0, i, j, 2]} targets data coordinate
- *       {@code [0, indices[i, j], 2]}.</li>
  *   <li>{@link #SCATTER_ELEMENTS} requires indices and updates to have equal rank and shape and to
  *       match data away from the selected axis. It uses a caller-selected
  *       {@link ScatterReduction}. For data shape {@code [2, 3, 4]}, axis {@code 1}, and equal
@@ -41,9 +29,8 @@ import java.util.List;
  *
  * <p>These relationships explain semantics only. This enum does not inspect operands, validate
  * ranks, shapes, data types, index values, bounds, or duplicate targets, and does not construct or
- * execute a result. {@code SCATTER_ADD} and {@code SCATTER_AXIS_ADD} pair with
- * {@link IndexAxisAttrs}; their addition is intrinsic to their kinds. {@code SCATTER_ELEMENTS}
- * pairs with {@link ScatterElementsAttrs}, which carries its selected reduction. Family-owned
+ * execute a result. {@code SCATTER_ELEMENTS} pairs with {@link ScatterElementsAttrs}, which
+ * carries its selected reduction. Family-owned
  * signatures enforce those exact pairings and declare the ordered three-input, one-output
  * occurrence.</p>
  *
@@ -57,25 +44,6 @@ import java.util.List;
  */
 public enum AxisScatterKind implements OperationKind {
     /**
-     * Adds reduced-rank updates to targets selected by one index at each non-axis data coordinate.
-     *
-     * <p>The ordered logical inputs are {@code [data, indices, updates]}; indices and updates have
-     * the data shape with the selected axis removed, and the conceptual result has the exact data
-     * shape. Addition is fixed by this kind and is not configurable attribute state.</p>
-     */
-    SCATTER_ADD,
-
-    /**
-     * Adds rank-changing updates aligned like the inverse of complete-shape axis gather.
-     *
-     * <p>The ordered logical inputs are {@code [data, indices, updates]}; the complete indices
-     * shape replaces the selected data axis in the updates shape, and the conceptual result has
-     * the exact data shape. Addition is fixed by this kind and is not configurable attribute
-     * state.</p>
-     */
-    SCATTER_AXIS_ADD,
-
-    /**
      * Writes or reduces same-rank updates at axis coordinates supplied by matching indices.
      *
      * <p>The ordered logical inputs are {@code [data, indices, updates]}; indices and updates have
@@ -84,19 +52,16 @@ public enum AxisScatterKind implements OperationKind {
      */
     SCATTER_ELEMENTS;
 
-    private static final List<OperationSignature> FIXED_ADD_SIGNATURES =
-            List.of(OperationSignature.fixed(IndexAxisAttrs.class, 3, 1));
     private static final List<OperationSignature> ELEMENTS_SIGNATURES =
             List.of(OperationSignature.fixed(ScatterElementsAttrs.class, 3, 1));
 
     /**
      * Returns the exact three-input, one-output attributes variant accepted by this scatter kind.
      *
-     * @return the stable scatter-elements signature for {@link #SCATTER_ELEMENTS}, otherwise the
-     *     stable shared-axis signature
+     * @return the stable scatter-elements signature
      */
     @Override
     public List<OperationSignature> signatures() {
-        return this == SCATTER_ELEMENTS ? ELEMENTS_SIGNATURES : FIXED_ADD_SIGNATURES;
+        return ELEMENTS_SIGNATURES;
     }
 }

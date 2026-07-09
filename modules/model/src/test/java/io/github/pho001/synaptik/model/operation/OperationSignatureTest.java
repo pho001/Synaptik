@@ -44,7 +44,6 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
-import io.github.pho001.synaptik.model.operation.layout.UnstackOutputAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
@@ -174,13 +173,8 @@ public final class OperationSignatureTest {
         assertFamily(List.of(noAttrsUnary), UnaryElementwiseKind.values());
 
         assertFamily(List.of(fixed(IndexAxisAttrs.class, 2)), AxisGatherKind.values());
-        assertKinds(
-                List.of(fixed(IndexAxisAttrs.class, 3)),
-                AxisScatterKind.SCATTER_ADD,
-                AxisScatterKind.SCATTER_AXIS_ADD);
-        assertKinds(
-                List.of(fixed(ScatterElementsAttrs.class, 3)),
-                AxisScatterKind.SCATTER_ELEMENTS);
+        assertFamily(
+                List.of(fixed(ScatterElementsAttrs.class, 3)), AxisScatterKind.values());
         assertFamily(List.of(fixed(GatherNdAttrs.class, 2)), GatherNdKind.values());
         assertFamily(List.of(fixed(ScatterNdAttrs.class, 3)), ScatterNdKind.values());
         assertFamily(List.of(fixed(SelectAttrs.class, 1)), SelectKind.values());
@@ -200,8 +194,6 @@ public final class OperationSignatureTest {
                         CompositionAxisAttrs.class, 1, Integer.MAX_VALUE, 1)),
                 TensorCompositionKind.CONCAT,
                 TensorCompositionKind.STACK);
-        assertKinds(
-                List.of(fixed(UnstackOutputAttrs.class, 1)), TensorCompositionKind.UNSTACK);
         assertFamily(List.of(fixed(TileAttrs.class, 1)), TileKind.values());
         assertKinds(
                 List.of(fixed(UnfoldAxisAttrs.class, 1)),

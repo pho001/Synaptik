@@ -28,8 +28,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * <p>These attributes define no Tensor construction, result descriptor, layout or view geometry,
  * provenance, storage, materialization, value access, gradient, graph or compiler behavior,
  * backend support, or execution. Scalar selection remains distinct from conditional
- * {@code WHERE}, individually indexed {@code UNSTACK}, general {@code SLICE}, and tensor-index
- * gather.</p>
+ * {@code WHERE}, general {@code SLICE}, and tensor-index gather.</p>
  *
  * @param axis the already normalized, zero-based, non-negative source-axis index
  * @param index the already normalized, zero-based, non-negative scalar coordinate on that axis
