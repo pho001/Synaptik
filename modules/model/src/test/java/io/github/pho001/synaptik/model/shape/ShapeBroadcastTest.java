@@ -64,6 +64,32 @@ class ShapeBroadcastTest {
     }
 
     @Test
+    void broadcastsEqualCanonicalExpressionsAndStaticSingletons() {
+        Dimension firstExpression = DimensionExpressions.addConstant(
+                new DynamicDimension("N"), 2);
+        Dimension equalExpression = DimensionExpressions.add(
+                new StaticDimension(2), new DynamicDimension("N"));
+        Shape first = Shape.ofDimensions(firstExpression);
+        Shape equal = Shape.ofDimensions(equalExpression);
+
+        assertEquals(first, ShapeBroadcast.broadcast(first, equal));
+        assertEquals(first, ShapeBroadcast.broadcast(Shape.of(1), first));
+        assertEquals(first, ShapeBroadcast.broadcast(first, Shape.of(1)));
+    }
+
+    @Test
+    void preservesOnlyTheSameUnknownReference() {
+        Dimension unknown = DimensionExpressions.unknown(0, java.util.Optional.empty());
+        Shape first = Shape.ofDimensions(unknown);
+        Shape same = Shape.ofDimensions(unknown);
+        Shape distinct = Shape.ofDimensions(
+                DimensionExpressions.unknown(0, java.util.Optional.empty()));
+
+        assertEquals(first, ShapeBroadcast.broadcast(first, same));
+        assertThrows(IllegalArgumentException.class, () -> ShapeBroadcast.broadcast(first, distinct));
+    }
+
+    @Test
     void rejectsIncompatibleStaticDimensions() {
         assertThrows(
                 IllegalArgumentException.class,
@@ -87,6 +113,24 @@ class ShapeBroadcastTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> ShapeBroadcast.broadcast(Shape.of(2), batch));
+    }
+
+    @Test
+    void rejectsUnequalExpressionsAndExpressionAgainstNonSingletonStaticSize() {
+        Shape nPlusOne = Shape.ofDimensions(
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 1));
+        Shape nPlusTwo = Shape.ofDimensions(
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 2));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ShapeBroadcast.broadcast(nPlusOne, nPlusTwo));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ShapeBroadcast.broadcast(nPlusOne, Shape.of(2)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ShapeBroadcast.broadcast(Shape.of(2), nPlusOne));
     }
 
     @Test

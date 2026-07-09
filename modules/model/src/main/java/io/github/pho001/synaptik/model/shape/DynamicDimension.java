@@ -3,11 +3,13 @@ package io.github.pho001.synaptik.model.shape;
 import java.util.Objects;
 
 /**
- * A dimension whose numeric size is represented by a stable symbolic name.
+ * A named dynamic dimension whose numeric size is represented by a stable symbolic name.
  *
  * <p>The symbol expresses compile-time identity only. It is not mutable runtime state and does not
- * bind a concrete size. Leading and trailing Unicode whitespace is removed before the value is
- * stored, making equality and hashing use the canonical stripped symbol.</p>
+ * bind a concrete size. Unlike an {@link ExpressionDimension}, this value names one input extent
+ * rather than retaining a derived formula or a constrained unknown. Leading and trailing Unicode
+ * whitespace is removed before the value is stored, making equality and hashing use the canonical
+ * stripped symbol.</p>
  *
  * @param symbol non-null, non-blank symbolic dimension name
  */

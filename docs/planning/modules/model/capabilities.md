@@ -83,20 +83,29 @@ Consequently, padding and tiling preserve a dynamic dimension only for identity 
 has a narrow zero-extent exception, and convolution or pooling cannot describe ordinary dynamic
 spatial results.
 
-Before convolution and pooling, model needs a deliberately small non-negative symbolic extent
-expression capable of:
+Completed task 0018M adds a deliberately small non-negative symbolic extent expression capable
+of:
 
 - a symbol or static constant;
 - checked addition, including sums of different symbols;
+- a checked signed constant offset so window formulas can represent values such as `N - 3` while
+  retaining the requirement that every concrete result be non-negative;
 - multiplication by a non-negative constant;
 - floor or ceiling division by a positive constant; and
 - a generated unknown extent with explicit constraints when an exact supported expression is not
   available.
 
-Canonicalization and local impossibility checks belong with the shape value model. Solving
-graph-wide equalities and binding runtime sizes remain compiler and later lifecycle concerns.
-Deferred compiler inference alone is insufficient because public expression results still require
-honest Shape metadata.
+The implemented compact form is a canonical linear combination with positive dimension
+coefficients and a signed constant offset, explicit floor and ceiling division nodes, and an
+identity-based unknown with a non-negative minimum plus optional inclusive dimension upper bound.
+Static folding, neutral identities, repeated-term combination, commutative sum equality, and local
+invalid-argument checks belong with the shape value model.
+
+Task 0018M deliberately does not migrate existing Tensor expressions. Draft follow-up 0018M1
+adopts the foundation in pad, tile, and concat; window-specific adoption remains aligned with the
+later window cleanup. Solving graph-wide equalities, binding runtime sizes, and evaluating
+prepared/run shapes remain compiler and later lifecycle concerns. Deferred compiler inference
+alone is insufficient because public expression results still require honest Shape metadata.
 
 ### Typed scalar values
 

@@ -488,12 +488,124 @@ The utility describes the value format only. It does not allocate storage, expos
 
 ## Shapes and dimensions
 
-The public shape contracts live in `io.github.pho001.synaptik.model.shape`. `Shape` is an immutable ordered collection of `Dimension` values. A dimension is either:
+The public shape contracts live in `io.github.pho001.synaptik.model.shape`. `Shape` is an immutable ordered collection of `Dimension` values. A dimension is one of:
 
-- `StaticDimension`, with a known non-negative `long` size; or
-- `DynamicDimension`, with a canonical non-blank symbolic name.
+- `StaticDimension`, with a known non-negative `long` size;
+- `DynamicDimension`, with a canonical non-blank symbolic name; or
+- `ExpressionDimension`, with an exact symbolic formula or an identity-based constrained unknown.
 
-Dynamic dimensions are explicit values and never use negative numeric sentinels. Shape values defensively isolate caller-owned arrays and expose immutable dimension lists.
+Every non-static form is dynamic: `isDynamic()` is true, `staticSize()` is empty, and only the
+named `DynamicDimension` has a present `dynamicSymbol()`. Dynamic dimensions are explicit values
+and never use negative numeric sentinels. Shape values defensively isolate caller-owned arrays
+and expose immutable dimension lists.
+
+### Symbolic extent expressions
+
+`DimensionExpressions` is the field-free public construction boundary for derived extents. Its
+six methods create checked addition, signed constant offset, multiplication by a non-negative
+constant, floor or ceiling division by a positive constant, and a distinct constrained unknown:
+
+```java
+add(left, right)
+addConstant(input, offset)
+multiply(input, factor)
+floorDivide(input, divisor)
+ceilingDivide(input, divisor)
+unknown(minimum, maximum)
+```
+
+Construction returns the simplest truthful `Dimension`. Fully static arithmetic returns a
+`StaticDimension`. Adding zero, multiplying by one, or dividing by one returns the exact input
+reference; multiplying by zero returns static zero. Linear sums flatten nested sums, fold static
+terms into a checked signed offset, combine repeated dimensions, and ignore operand order for
+equality. Thus `N + N` equals `2 * N`, and independently constructed `N + M` and `M + N` are
+equal. Floor and ceiling division remain explicit structural nodes and are not reassociated with
+addition or multiplication.
+
+An `ExpressionDimension` exposes its read-only `DimensionExpression`. The four public forms are:
+
+- `LinearCombination`, an immutable non-empty map of dimensions to positive `long`
+  coefficients plus a signed `long` offset;
+- `FloorDivision` and `CeilingDivision`, each with one dividend and a positive constant divisor;
+  and
+- `Unknown`, with an inclusive non-negative minimum and an optional inclusive maximum dimension.
+
+Exact formula forms use structural equality. `Unknown` deliberately uses object identity, so two
+separate calls with equal bounds remain different extents; reusing the same returned dimension
+preserves that unknown's identity. The optional maximum retains the exact supplied dimension
+reference. None of these values binds a symbol, evaluates a concrete size, solves graph-wide
+equalities, or carries compiler, layout, storage, runtime, or backend state.
+
+#### Complete symbolic-extent example
+
+##### Goal and inputs
+
+Represent exact formulas derived from named extents `N` and `M`, inspect one canonical sum, and
+show that a bounded unknown remains distinct. This example constructs model values only.
+
+```java
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpression;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.ExpressionDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import java.util.Optional;
+
+public final class SymbolicExtentExample {
+    public static void main(String[] args) {
+        Dimension n = new DynamicDimension("N");
+        Dimension m = new DynamicDimension("M");
+        Dimension nPlusTwo = DimensionExpressions.addConstant(n, 2);
+        Dimension canonicalSum = DimensionExpressions.add(
+                nPlusTwo, DimensionExpressions.multiply(m, 2));
+        Dimension sameSum = DimensionExpressions.add(
+                DimensionExpressions.multiply(m, 2),
+                DimensionExpressions.add(new DynamicDimension("N"), new StaticDimension(2)));
+        Dimension halfRoundedUp = DimensionExpressions.ceilingDivide(nPlusTwo, 2);
+        Dimension unknown = DimensionExpressions.unknown(1, Optional.of(nPlusTwo));
+
+        DimensionExpression.LinearCombination inspected =
+                (DimensionExpression.LinearCombination)
+                        ((ExpressionDimension) canonicalSum).expression();
+        Shape shape = Shape.ofDimensions(canonicalSum, halfRoundedUp, unknown);
+
+        System.out.println(canonicalSum.equals(sameSum));
+        System.out.println(inspected.offset());
+        System.out.println(shape);
+        System.out.println(unknown.equals(
+                DimensionExpressions.unknown(1, Optional.of(nPlusTwo))));
+    }
+}
+```
+
+##### Result and interpretation
+
+The example prints:
+
+```text
+true
+2
+Shape[2 * M + N + 2, ceilDiv((N + 2), 2), unknown(min=1, max=(N + 2))]
+false
+```
+
+The first result demonstrates operand-order-independent structural equality. The offset is `2`,
+and the shape retains exact formula and bound diagnostics. The final result demonstrates that a
+new unknown-construction call is not equal to the original unknown. The text format is diagnostic,
+not serialization, and the example does not bind `N` or `M`, calculate a concrete element count,
+construct a Tensor expression, or execute anything.
+
+##### Failures and useful variations
+
+- A negative multiplication factor, non-positive divisor, negative unknown minimum, or static
+  maximum below the minimum fails with `IllegalArgumentException`.
+- Checked coefficient, offset, and fully static arithmetic overflow fails with
+  `ArithmeticException`.
+- A signed offset may retain a formula such as `N - 3`, but every eventual concrete binding must
+  still satisfy the non-negative dimension invariant. A fully static negative result is rejected
+  immediately.
 
 ### Scalars and empty tensors
 
@@ -511,7 +623,11 @@ Static size zero is valid. For example, `Shape.of(2, 0, 4)` represents an empty 
 
 `ShapeBroadcast.broadcast(left, right)` applies right-aligned broadcasting. Equal dimensions are preserved and static size `1` expands to the opposing dimension. This includes scalar broadcasting and zero-sized dimensions such as `[0, 3]` with `[1, 3]`.
 
-Equal dynamic symbols are compatible, and a singleton may expand to a dynamic dimension. Different symbols or a dynamic dimension paired with a non-singleton static size are rejected because local model code cannot prove their compatibility. Graph-wide symbolic constraints belong to future compiler shape inference.
+Equal named symbols and structurally equal exact expressions are compatible, and a singleton may
+expand to any dynamic dimension. A constrained unknown is equal only when the exact same unknown
+is reused. Different symbols, unequal expressions, distinct unknowns, or a dynamic dimension
+paired with a non-singleton static size are rejected because local model code cannot prove their
+compatibility. Graph-wide symbolic constraints belong to future compiler shape inference.
 
 Shape broadcasting does not calculate strides, layouts, storage, materialization, or backend execution information.
 

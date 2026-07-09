@@ -9,9 +9,10 @@ import java.util.StringJoiner;
 /**
  * Immutable ordered dimensions describing the logical shape of a tensor value.
  *
- * <p>A shape may combine static and symbolic dynamic dimensions. Rank zero is the canonical scalar
- * shape and has one logical element. Static dimensions may be zero, in which case the fully static
- * shape describes an empty tensor. Shape does not contain strides, storage, or execution state.</p>
+ * <p>A shape may combine static, named dynamic, and expression dimensions. Rank zero is the
+ * canonical scalar shape and has one logical element. Static dimensions may be zero, in which case
+ * the fully static shape describes an empty tensor. Shape does not contain strides, storage, or
+ * execution state.</p>
  */
 public final class Shape {
     private static final Shape SCALAR = new Shape(List.of());
@@ -61,7 +62,7 @@ public final class Shape {
     }
 
     /**
-     * Creates a shape from ordered static or dynamic dimensions.
+     * Creates a shape from ordered static, named dynamic, or expression dimensions.
      *
      * <p>The caller-owned array is defensively copied. An empty array produces the canonical scalar
      * shape.</p>
@@ -219,8 +220,9 @@ public final class Shape {
     /**
      * Returns a concise diagnostic representation of this shape.
      *
-     * @return non-null text such as {@code Shape[]}, {@code Shape[2, 0, 3]}, or
-     *     {@code Shape[N, 4]}; the format is not a serialization contract
+     * @return non-null text such as {@code Shape[]}, {@code Shape[2, 0, 3]},
+     *     {@code Shape[N, 4]}, or {@code Shape[N + 2, unknown(min=1)]}; the format is not a
+     *     serialization contract
      */
     @Override
     public String toString() {
@@ -230,6 +232,8 @@ public final class Shape {
                 joiner.add(Long.toString(staticDimension.size()));
             } else if (dimension instanceof DynamicDimension dynamicDimension) {
                 joiner.add(dynamicDimension.symbol());
+            } else if (dimension instanceof ExpressionDimension expressionDimension) {
+                joiner.add(expressionDimension.expression().toString());
             }
         }
         return joiner.toString();

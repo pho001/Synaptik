@@ -6,8 +6,9 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The currently implemented terms are the model foundations: data type, dimension, shape,
-broadcasting, layout, element stride, referenced element span, view, `TensorDescriptor`, typed
+The currently implemented terms are the model foundations: data type, static, named dynamic, and
+symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
+span, view, `TensorDescriptor`, typed
 `TensorId`, `NodeId`, and `ValueId` values, `OperationKind`, `OperationAttrs`, `NoOperationAttrs`,
 `OperationSignature`, the `Operation` descriptor, the `GraphValue` and `CompiledNode` graph-element records,
 `GraphPhase`, `CompiledGraphModel`, `PublicationBinding`, and the raw host-storage contracts
@@ -481,7 +482,13 @@ The graph of gradient computations derived by autograd from a forward graph. It 
 
 ### Broadcasting
 
-A shape rule that combines compatible inputs by aligning axes from the right and expanding static singleton dimensions as needed. In the implemented local shape model, equal dimensions remain equal, size `1` expands to the opposing dimension, and symbolic compatibility must be provable from equal names or a singleton. Broadcasting describes logical repetition; a resolved layout may represent that repetition with a zero element stride.
+A shape rule that combines compatible inputs by aligning axes from the right and expanding static
+singleton dimensions as needed. In the implemented local shape model, equal dimensions remain
+equal and size `1` expands to the opposing dimension. Named dimensions are equal by canonical
+symbol, exact expression dimensions are equal structurally, and constrained unknowns are equal
+only when the same unknown is reused. Other symbolic pairings remain unprovable locally.
+Broadcasting describes logical repetition; a resolved layout may represent that repetition with
+a zero element stride.
 
 ### Cast expression
 
@@ -575,7 +582,16 @@ A value whose purpose is to carry structured data across a boundary without owni
 
 ### Dimension
 
-The size description for one axis of a [shape](#shape). A static dimension has a known non-negative `long` size; zero is valid and represents an empty extent. A dynamic dimension has a non-blank symbolic name because its numeric size is not yet known. Dynamic dimensions are explicit values, not negative-number sentinels, and two different symbols are not assumed equal. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+The size description for one axis of a [shape](#shape). A `StaticDimension` has a known
+non-negative `long` size; zero is valid and represents an empty extent. A `DynamicDimension`
+names one extent with a canonical non-blank symbol. An `ExpressionDimension` retains either an
+exact [symbolic extent expression](#symbolic-extent-expression) or an identity-based constrained
+unknown.
+
+Every non-static form is dynamic. Only the named form has a `dynamicSymbol()`: an expression or
+unknown has no caller-defined name. Dynamic dimensions are explicit values, not negative-number
+sentinels, and local code does not assume that different names or distinct unknowns are equal. See
+[Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
 
 ### Element stride
 
@@ -1138,6 +1154,25 @@ Mutable state for one invocation of prepared execution, including input bindings
 ### Shape
 
 An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Symbolic extent expression
+
+An implemented immutable model value that retains a small exact formula or a constrained unknown
+for one Shape axis. `DimensionExpressions` is the only public construction boundary. It provides
+checked addition, signed constant offset, multiplication by a non-negative constant, floor or
+ceiling division by a positive constant, and identity-based unknown construction.
+
+Exact formulas use structural equality. Canonical linear combinations have positive dimension
+coefficients and one signed constant offset: nested sums flatten, static terms fold, repeated
+terms combine, and addition order is not semantic. Floor and ceiling division retain explicit
+dividend and divisor nodes. A constrained unknown has an inclusive non-negative minimum and an
+optional inclusive maximum Dimension. It deliberately uses object identity, so only reuse of the
+same unknown proves equality.
+
+Expression construction performs local checked arithmetic and canonicalization only. It does not
+bind named dimensions, evaluate concrete sizes, solve graph-wide constraints, construct Tensor
+operations, or add compiler, prepare, runtime, storage, or backend state. See [Symbolic extent
+expressions](api/tensor-api.md#symbolic-extent-expressions).
 
 ### Scalar select
 

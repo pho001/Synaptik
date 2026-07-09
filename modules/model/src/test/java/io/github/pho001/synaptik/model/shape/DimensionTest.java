@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Test;
 
 class DimensionTest {
     @Test
-    void permitsExactlyStaticAndDynamicVariants() {
+    void permitsExactlyStaticNamedAndExpressionVariants() {
         assertTrue(Dimension.class.isSealed());
         assertEquals(
-                Set.of(StaticDimension.class, DynamicDimension.class),
+                Set.of(StaticDimension.class, DynamicDimension.class, ExpressionDimension.class),
                 Set.of(Dimension.class.getPermittedSubclasses()));
     }
 
@@ -55,6 +55,17 @@ class DimensionTest {
         assertTrue(dimension.isDynamic());
         assertEquals(OptionalLong.empty(), dimension.staticSize());
         assertEquals(Optional.of("sequence"), dimension.dynamicSymbol());
+    }
+
+    @Test
+    void expressionDimensionIsDynamicWithoutANameOrStaticSize() {
+        Dimension dimension = DimensionExpressions.addConstant(new DynamicDimension("N"), 2);
+
+        assertFalse(dimension.isStatic());
+        assertTrue(dimension.isDynamic());
+        assertEquals(OptionalLong.empty(), dimension.staticSize());
+        assertEquals(Optional.empty(), dimension.dynamicSymbol());
+        assertTrue(dimension instanceof ExpressionDimension);
     }
 
     @Test

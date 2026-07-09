@@ -5,9 +5,9 @@ import java.util.Objects;
 /**
  * Computes backend-independent result shapes for right-aligned broadcasting.
  *
- * <p>This utility performs deterministic local shape algebra only. It preserves equal symbolic
- * dimensions and singleton expansion, but it does not create symbolic constraints, calculate
- * strides, or infer shapes across a graph.</p>
+ * <p>This utility performs deterministic local shape algebra only. It preserves equal named or
+ * expression dimensions and singleton expansion, but it does not create symbolic constraints,
+ * calculate strides, or infer shapes across a graph.</p>
  */
 public final class ShapeBroadcast {
     private static final StaticDimension SINGLETON = new StaticDimension(1);
@@ -20,9 +20,10 @@ public final class ShapeBroadcast {
      * Computes the immutable shape produced by right-aligned broadcasting of two input shapes.
      *
      * <p>Equal dimensions remain unchanged and a static singleton expands to the opposing
-     * dimension. Different symbolic dimensions, incompatible static sizes, and symbolic dimensions
-     * paired with non-singleton static sizes are rejected because their compatibility cannot be
-     * proven locally.</p>
+     * dimension. Structurally equal exact expressions are equal dimensions; constrained unknowns
+     * are equal only when the same unknown object is reused. Different symbolic dimensions,
+     * incompatible static sizes, and symbolic dimensions paired with non-singleton static sizes
+     * are rejected because their compatibility cannot be proven locally.</p>
      *
      * @param left non-null left input shape
      * @param right non-null right input shape

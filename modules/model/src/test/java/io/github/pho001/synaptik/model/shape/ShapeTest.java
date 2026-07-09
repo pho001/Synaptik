@@ -62,6 +62,16 @@ class ShapeTest {
     }
 
     @Test
+    void expressionShapeReportsUnknownCountAndRejectsStaticExtraction() {
+        Dimension expression = DimensionExpressions.addConstant(new DynamicDimension("N"), 2);
+        Shape shape = Shape.ofDimensions(expression, new StaticDimension(4));
+
+        assertFalse(shape.isFullyStatic());
+        assertEquals(OptionalLong.empty(), shape.knownElementCount());
+        assertThrows(IllegalStateException.class, shape::toLongArray);
+    }
+
+    @Test
     void normalizesPositiveAndNegativeAxes() {
         Shape shape = Shape.of(2, 3, 4);
 
@@ -123,5 +133,23 @@ class ShapeTest {
         assertFalse(first.equals(reordered));
         assertEquals("Shape[N, 0, 4]", first.toString());
         assertEquals("Shape[]", Shape.scalar().toString());
+    }
+
+    @Test
+    void expressionEqualityAndDiagnosticsRemainStructuralAndReadable() {
+        Shape first = Shape.ofDimensions(
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 2),
+                DimensionExpressions.unknown(1, java.util.Optional.empty()));
+        Shape equalExact = Shape.ofDimensions(
+                DimensionExpressions.add(new StaticDimension(2), new DynamicDimension("N")),
+                first.dimension(1));
+        Shape distinctUnknown = Shape.ofDimensions(
+                DimensionExpressions.addConstant(new DynamicDimension("N"), 2),
+                DimensionExpressions.unknown(1, java.util.Optional.empty()));
+
+        assertEquals(first, equalExact);
+        assertEquals(first.hashCode(), equalExact.hashCode());
+        assertFalse(first.equals(distinctUnknown));
+        assertEquals("Shape[N + 2, unknown(min=1)]", first.toString());
     }
 }
