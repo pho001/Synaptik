@@ -149,8 +149,9 @@ provisional exact typed scalar vocabulary unchanged. Completed task
 `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW` Tensor/binary and Tensor/scalar vocabulary,
 retains `CLAMP` as the only distinct range kind, and removes `CLAMP_MIN`/`CLAMP_MAX` in favor of
 public conveniences over scalar `MAX`/`MIN`. Pairwise public extrema use `minimum`/`maximum` while
-aggregate reductions keep `min`/`max`. Draft task 0018T1 separately owns `rsqrt`, `log1p`,
-`expm1`, and floating diagnostics.
+aggregate reductions keep `min`/`max`. Ready task
+[0018T1](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) separately owns
+floating-preserving `rsqrt`, `log1p`, and `expm1` plus fixed-BOOL floating classifications.
 
 ### Scalar arithmetic normalization
 
@@ -166,6 +167,26 @@ and `maximum(other-or-scalar)` select one value at each output coordinate, where
 select negative zero for minimum and positive zero for maximum. `CLAMP(x, lower, upper)` means one
 first-class semantic request equivalent in value to `minimum(maximum(x, lower), upper)`; one-bound
 clamp methods remain conveniences that create only scalar `MAX` or `MIN` producers.
+
+### Unary numeric completion and floating classification
+
+Task 0018T1 selects `RSQRT`, `LOG1P`, and `EXPM1` as first-class parameterless unary functions
+rather than public compositions. Keeping the original semantic request lets later compiler and
+backend work preserve accuracy near zero for `log1p`/`expm1` and choose an appropriate reciprocal-
+square-root implementation without exposing a backend route in model. These transforms preserve
+the floating input type, Shape, and gradient-eligibility request.
+
+Floating value classification is a separate typed family because `isFinite`, `isNaN`, and
+`isInf` return BOOL with false gradient eligibility. The selected public boundary accepts only
+BFLOAT16, FLOAT32, and FLOAT64; integral inputs would make every answer statically trivial and are
+not included without a concrete use case. Classification distinguishes all finite normal,
+subnormal, and signed-zero values from both infinities and every NaN encoding. The package uses
+“classification” rather than tracing-oriented “diagnostic” ownership.
+
+The numerical function names identify portable mathematical targets and exact special-value
+classes, not a machine instruction, bitwise result, restored fast variant, or fixed model-level
+ULP bound. Backend conformance must establish per-data-type accuracy tolerances before execution
+support is claimed.
 
 ## Indexing taxonomy
 
