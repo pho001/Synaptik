@@ -41,7 +41,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -120,116 +119,6 @@ class TensorFactoryTest {
                 "range", int.class, int.class, int.class, Optional.class);
         Method rangeInt64 = TensorFactory.class.getDeclaredMethod(
                 "range", long.class, long.class, long.class, Optional.class);
-        Method strictFloat64 = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                double[].class);
-        Method strictFloat32 = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                float[].class);
-        Method strictBfloat16 = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                short[].class);
-        Method strictInt32 = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                int[].class);
-        Method strictInt64 = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                long[].class);
-        Method strictBool = TensorFactory.class.getDeclaredMethod(
-                "fromStrictFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                byte[].class);
-        Method cyclicFloat64 = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                double[].class);
-        Method cyclicFloat32 = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                float[].class);
-        Method cyclicBfloat16 = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                short[].class);
-        Method cyclicInt32 = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                int[].class);
-        Method cyclicInt64 = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                long[].class);
-        Method cyclicBool = TensorFactory.class.getDeclaredMethod(
-                "fromCyclicFlatPrefix",
-                Shape.class,
-                Optional.class,
-                boolean.class,
-                byte[].class);
-        Method randomNormal = TensorFactory.class.getDeclaredMethod(
-                "randomNormal",
-                Shape.class,
-                DataType.class,
-                double.class,
-                double.class,
-                RandomGenerator.class,
-                Optional.class,
-                boolean.class);
-        Method randomUniform = TensorFactory.class.getDeclaredMethod(
-                "randomUniform",
-                Shape.class,
-                DataType.class,
-                double.class,
-                double.class,
-                RandomGenerator.class,
-                Optional.class,
-                boolean.class);
-        Method randomInt32 = TensorFactory.class.getDeclaredMethod(
-                "randomInt",
-                Shape.class,
-                int.class,
-                int.class,
-                RandomGenerator.class,
-                Optional.class);
-        Method randomInt64 = TensorFactory.class.getDeclaredMethod(
-                "randomInt",
-                Shape.class,
-                long.class,
-                long.class,
-                RandomGenerator.class,
-                Optional.class);
-        Method randomBernoulli = TensorFactory.class.getDeclaredMethod(
-                "randomBernoulli",
-                Shape.class,
-                double.class,
-                RandomGenerator.class,
-                Optional.class);
         Method fullFloat64 = TensorFactory.class.getDeclaredMethod(
                 "full", Shape.class, double.class, Optional.class, boolean.class);
         Method fullFloat32 = TensorFactory.class.getDeclaredMethod(
@@ -272,6 +161,12 @@ class TensorFactoryTest {
         Method createDerivedOutputs = TensorFactory.class.getDeclaredMethod(
                 "createDerivedOutputs", Operation.class, List.class, List.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
+        assertEquals(35, TensorFactory.class.getDeclaredMethods().length);
+        assertEquals(
+                31,
+                Arrays.stream(TensorFactory.class.getDeclaredMethods())
+                        .filter(method -> Modifier.isPublic(method.getModifiers()))
+                        .count());
         assertEquals(
                 Set.of(
                         convenience,
@@ -297,23 +192,6 @@ class TensorFactoryTest {
                         onesLike,
                         rangeInt32,
                         rangeInt64,
-                        strictFloat64,
-                        strictFloat32,
-                        strictBfloat16,
-                        strictInt32,
-                        strictInt64,
-                        strictBool,
-                        cyclicFloat64,
-                        cyclicFloat32,
-                        cyclicBfloat16,
-                        cyclicInt32,
-                        cyclicInt64,
-                        cyclicBool,
-                        randomNormal,
-                        randomUniform,
-                        randomInt32,
-                        randomInt64,
-                        randomBernoulli,
                         fullFloat64,
                         fullFloat32,
                         fullBfloat16,
@@ -351,11 +229,6 @@ class TensorFactoryTest {
                 () -> assertEquals(Tensor.class, onesLike.getReturnType()),
                 () -> assertEquals(Tensor.class, rangeInt32.getReturnType()),
                 () -> assertEquals(Tensor.class, rangeInt64.getReturnType()),
-                () -> assertEquals(Tensor.class, randomNormal.getReturnType()),
-                () -> assertEquals(Tensor.class, randomUniform.getReturnType()),
-                () -> assertEquals(Tensor.class, randomInt32.getReturnType()),
-                () -> assertEquals(Tensor.class, randomInt64.getReturnType()),
-                () -> assertEquals(Tensor.class, randomBernoulli.getReturnType()),
                 () -> assertTrue(List.of(
                                 fullFloat64,
                                 fullFloat32,
@@ -365,21 +238,6 @@ class TensorFactoryTest {
                                 fullBool,
                                 identityMatrix,
                                 eye)
-                        .stream()
-                        .allMatch(method -> method.getReturnType() == Tensor.class)),
-                () -> assertTrue(List.of(
-                                strictFloat64,
-                                strictFloat32,
-                                strictBfloat16,
-                                strictInt32,
-                                strictInt64,
-                                strictBool,
-                                cyclicFloat64,
-                                cyclicFloat32,
-                                cyclicBfloat16,
-                                cyclicInt32,
-                                cyclicInt64,
-                                cyclicBool)
                         .stream()
                         .allMatch(method -> method.getReturnType() == Tensor.class)),
                 () -> assertEquals(Tensor.class, importFlat.getReturnType()),
@@ -409,11 +267,6 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isPublic(onesLike.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(rangeInt32.getModifiers())),
                 () -> assertTrue(Modifier.isPublic(rangeInt64.getModifiers())),
-                () -> assertTrue(Modifier.isPublic(randomNormal.getModifiers())),
-                () -> assertTrue(Modifier.isPublic(randomUniform.getModifiers())),
-                () -> assertTrue(Modifier.isPublic(randomInt32.getModifiers())),
-                () -> assertTrue(Modifier.isPublic(randomInt64.getModifiers())),
-                () -> assertTrue(Modifier.isPublic(randomBernoulli.getModifiers())),
                 () -> assertTrue(List.of(
                                 fullFloat64,
                                 fullFloat32,
@@ -423,21 +276,6 @@ class TensorFactoryTest {
                                 fullBool,
                                 identityMatrix,
                                 eye)
-                        .stream()
-                        .allMatch(method -> Modifier.isPublic(method.getModifiers()))),
-                () -> assertTrue(List.of(
-                                strictFloat64,
-                                strictFloat32,
-                                strictBfloat16,
-                                strictInt32,
-                                strictInt64,
-                                strictBool,
-                                cyclicFloat64,
-                                cyclicFloat32,
-                                cyclicBfloat16,
-                                cyclicInt32,
-                                cyclicInt64,
-                                cyclicBool)
                         .stream()
                         .allMatch(method -> Modifier.isPublic(method.getModifiers()))),
                 () -> assertTrue(Modifier.isPrivate(importFlat.getModifiers())),
@@ -471,11 +309,6 @@ class TensorFactoryTest {
                 () -> assertTrue(Modifier.isStatic(onesLike.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(rangeInt32.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(rangeInt64.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(randomNormal.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(randomUniform.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(randomInt32.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(randomInt64.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(randomBernoulli.getModifiers())),
                 () -> assertTrue(List.of(
                                 fullFloat64,
                                 fullFloat32,
@@ -485,21 +318,6 @@ class TensorFactoryTest {
                                 fullBool,
                                 identityMatrix,
                                 eye)
-                        .stream()
-                        .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
-                () -> assertTrue(List.of(
-                                strictFloat64,
-                                strictFloat32,
-                                strictBfloat16,
-                                strictInt32,
-                                strictInt64,
-                                strictBool,
-                                cyclicFloat64,
-                                cyclicFloat32,
-                                cyclicBfloat16,
-                                cyclicInt32,
-                                cyclicInt64,
-                                cyclicBool)
                         .stream()
                         .allMatch(method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Modifier.isStatic(importFlat.getModifiers())),

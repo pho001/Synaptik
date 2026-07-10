@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryRandomTest {
     @Test
-    void helperHasExactlyFivePackageEntriesAndNoStateOrPublicSurface()
+    void publicOwnerHasExactlyFiveEntriesAndNoState()
             throws ReflectiveOperationException {
         Method entry = TensorRandoms.class.getDeclaredMethod(
                 "randomNormal",
@@ -75,7 +75,7 @@ class TensorFactoryRandomTest {
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorRandoms.class.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(TensorRandoms.class.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(TensorRandoms.class.getModifiers())),
                 () -> assertEquals(0, TensorRandoms.class.getDeclaredFields().length),
                 () -> assertEquals(1, TensorRandoms.class.getDeclaredConstructors().length),
@@ -83,27 +83,27 @@ class TensorFactoryRandomTest {
                         TensorRandoms.class.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(
                         0, TensorRandoms.class.getDeclaredConstructors()[0].getParameterCount()),
-                () -> assertFalse(Modifier.isPublic(entry.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(entry.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(entry.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(entry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(entry.getModifiers())),
                 () -> assertEquals(Tensor.class, entry.getReturnType()),
-                () -> assertFalse(Modifier.isPublic(uniformEntry.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(uniformEntry.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(uniformEntry.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(uniformEntry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(uniformEntry.getModifiers())),
                 () -> assertEquals(Tensor.class, uniformEntry.getReturnType()),
-                () -> assertFalse(Modifier.isPublic(int32Entry.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(int32Entry.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(int32Entry.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(int32Entry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(int32Entry.getModifiers())),
                 () -> assertEquals(Tensor.class, int32Entry.getReturnType()),
-                () -> assertFalse(Modifier.isPublic(int64Entry.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(int64Entry.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(int64Entry.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(int64Entry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(int64Entry.getModifiers())),
                 () -> assertEquals(Tensor.class, int64Entry.getReturnType()),
-                () -> assertFalse(Modifier.isPublic(bernoulliEntry.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(bernoulliEntry.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(bernoulliEntry.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(bernoulliEntry.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(bernoulliEntry.getModifiers())),
@@ -114,8 +114,9 @@ class TensorFactoryRandomTest {
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),
                 () -> assertTrue(Arrays.stream(TensorRandoms.class.getDeclaredMethods())
-                        .noneMatch(method -> Modifier.isPublic(method.getModifiers())
-                                || Modifier.isProtected(method.getModifiers()))),
+                        .filter(method -> !Modifier.isPrivate(method.getModifiers()))
+                        .allMatch(method -> Modifier.isPublic(method.getModifiers())
+                                && Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Arrays.stream(TensorFactory.class.getDeclaredFields())
                         .noneMatch(field -> RandomGenerator.class.isAssignableFrom(field.getType()))));
     }
@@ -131,7 +132,7 @@ class TensorFactoryRandomTest {
         Shape float64Shape = Shape.of(2, 2);
         Shape vectorShape = Shape.of(4);
 
-        Tensor float64 = TensorFactory.randomNormal(
+        Tensor float64 = TensorRandoms.randomNormal(
                 float64Shape,
                 DataType.FLOAT64,
                 mean,
@@ -139,7 +140,7 @@ class TensorFactoryRandomTest {
                 float64Source,
                 Optional.of("  normal  "),
                 true);
-        Tensor float32 = TensorFactory.randomNormal(
+        Tensor float32 = TensorRandoms.randomNormal(
                 vectorShape,
                 DataType.FLOAT32,
                 mean,
@@ -147,7 +148,7 @@ class TensorFactoryRandomTest {
                 float32Source,
                 Optional.empty(),
                 true);
-        Tensor bfloat16 = TensorFactory.randomNormal(
+        Tensor bfloat16 = TensorRandoms.randomNormal(
                 vectorShape,
                 DataType.BFLOAT16,
                 mean,
@@ -187,7 +188,7 @@ class TensorFactoryRandomTest {
         ScriptedGenerator scalarSource = new ScriptedGenerator(2.5d);
         ScriptedGenerator emptySource = new ScriptedGenerator();
 
-        Tensor scalar = TensorFactory.randomNormal(
+        Tensor scalar = TensorRandoms.randomNormal(
                 Shape.scalar(),
                 DataType.FLOAT64,
                 -1.0d,
@@ -196,7 +197,7 @@ class TensorFactoryRandomTest {
                 Optional.empty(),
                 false);
         Shape emptyShape = Shape.of(2, 0, 3);
-        Tensor empty = TensorFactory.randomNormal(
+        Tensor empty = TensorRandoms.randomNormal(
                 emptyShape,
                 DataType.FLOAT32,
                 1.0d,
@@ -224,19 +225,19 @@ class TensorFactoryRandomTest {
 
         NullPointerException shapeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         null, null, 0.0d, 1.0d, null, null, false));
         NullPointerException typeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         shape, null, 0.0d, 1.0d, null, null, false));
         NullPointerException sourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, null, null, false));
         NullPointerException labelFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, source, null, false));
 
         assertAll(
@@ -328,7 +329,7 @@ class TensorFactoryRandomTest {
         Random firstSource = new Random(0x5eedL);
         Random secondSource = new Random(0x5eedL);
 
-        Tensor first = TensorFactory.randomNormal(
+        Tensor first = TensorRandoms.randomNormal(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -336,7 +337,7 @@ class TensorFactoryRandomTest {
                 firstSource,
                 Optional.empty(),
                 false);
-        Tensor second = TensorFactory.randomNormal(
+        Tensor second = TensorRandoms.randomNormal(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -363,7 +364,7 @@ class TensorFactoryRandomTest {
 
         IllegalStateException failure = assertThrows(
                 IllegalStateException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         Shape.of(4),
                         DataType.FLOAT64,
                         0.0d,
@@ -388,7 +389,7 @@ class TensorFactoryRandomTest {
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.randomNormal(
+                () -> TensorRandoms.randomNormal(
                         Shape.of(3),
                         DataType.FLOAT32,
                         1.0d,
@@ -410,7 +411,7 @@ class TensorFactoryRandomTest {
 
             IllegalStateException exhausted = assertThrows(
                     IllegalStateException.class,
-                    () -> TensorFactory.randomNormal(
+                    () -> TensorRandoms.randomNormal(
                             Shape.of(2),
                             DataType.BFLOAT16,
                             0.0d,
@@ -437,7 +438,7 @@ class TensorFactoryRandomTest {
             double mean,
             double deviation,
             RandomGenerator source) {
-        return TensorFactory.randomNormal(
+        return TensorRandoms.randomNormal(
                 shape, dataType, mean, deviation, source, Optional.empty(), false);
     }
 

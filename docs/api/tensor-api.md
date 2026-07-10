@@ -6,8 +6,9 @@ This reference documents the public model contracts that are implemented today. 
 `Tensor` now connects stable logical metadata to an optional borrowed host-storage association,
 and `TensorFactory` provides the public construction boundary for completed descriptors, copied
 primitive-array import, independent dense constants including full-value and rectangular identity
-tensors, deterministic population, and explicit-source normal, continuous-uniform, bounded
-integral, and Bernoulli random population. The current concrete expression surface contains seven
+tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager normal,
+continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
+source. The current concrete expression surface contains seven
 floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
 methods, three BOOL-only logical methods, thirteen floating unary elementwise methods, and five
 floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
@@ -181,10 +182,9 @@ TensorFactory + scalar/shape/type or Tensor template          = independent dens
 TensorFactory + static shape + exact primitive value          = independent dense full-value Tensor
 TensorFactory + rows + columns + DataType                     = independent dense identity matrix
 TensorFactory + integral bounds/step                          = copied dense INT32 or INT64 range Tensor
-TensorFactory + static shape + typed flat source              = strict/cyclic copied dense prefix Tensor
-TensorFactory + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
-TensorFactory + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
-TensorFactory + static shape + probability + source           = copied dense BOOL random Tensor
+TensorRandoms + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
+TensorRandoms + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
+TensorRandoms + static shape + probability + source           = copied dense BOOL random Tensor
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
 left Tensor + comparison kind + right Tensor                   = fresh BOOL descriptor + provenance Tensor
 left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcast BOOL expression Tensor
@@ -269,17 +269,16 @@ canonical dense descriptors for rank-zero scalars or fully static caller/templat
 reuse default-zero allocation or exact-carrier flat import. Its full-value methods fill one exact
 typed carrier from a primitive scalar, and its identity method creates rank-two rectangular
 matrices with typed one on the main diagonal and typed zero elsewhere.
-Its deterministic population methods also create non-empty exclusive-end `INT32` and `INT64`
-ranges or caller-shaped strict and cyclic prefixes from the same six exact primitive carriers.
-Those methods synthesize only canonical dense descriptors, build one complete temporary carrier,
-and delegate final storage population and identity assignment to flat import.
-Normal, continuous-uniform, bounded integral, and Bernoulli random creation similarly build one
-exact carrier, but consume a transient caller-owned `RandomGenerator` instead of retaining,
-selecting, or seeding a source. Primitive `int` or `long` bounds infer `INT32` or `INT64`,
-respectively; Bernoulli output is always BOOL; and all integral and boolean results disable
-gradients. The methods remain explicit distribution-specific factory operations beside one
-package-private helper because these cohesive sampling paths do not justify a public random
-package, source abstraction, seed API, or distribution enum.
+Its deterministic range methods create non-empty exclusive-end `INT32` and `INT64` tensors,
+synthesize canonical dense descriptors, build one complete temporary carrier, and delegate final
+storage population and identity assignment to flat import. Prefix preparation is test-fixture
+mechanics, not a production TensorFactory capability.
+Public `TensorRandoms` owns normal, continuous-uniform, bounded-integral, and Bernoulli eager leaf
+creation. Each method builds one exact carrier but consumes a transient caller-owned
+`RandomGenerator` instead of retaining, selecting, or seeding a source. Primitive `int` or `long`
+bounds infer `INT32` or `INT64`, respectively; Bernoulli output is always BOOL; and all integral
+and boolean results disable gradients. This stateless namespace is not a random service,
+lifecycle owner, source abstraction, seed API, distribution hierarchy, or graph RNG contract.
 
 The implemented `HostTensorStorage` boundary describes a raw host-memory region. Its one
 implementation, `MemorySegmentStorage`, borrows an exact JDK memory segment and records physical
@@ -1140,8 +1139,8 @@ true
 
 The result demonstrates BFLOAT16 ties-to-even rounding, exact INT32 one population, dense
 like-shaped creation, and independent storage. It does not provide general fill values, numeric
-conversion, random generation, typed access/export, view preservation, or execution; deterministic
-range and prefix creation are separate factory methods described below.
+conversion, random generation, typed access/export, view preservation, or execution; integer
+range creation is a separate factory method described below.
 
 #### Failures and useful variations
 
@@ -1240,76 +1239,39 @@ producing an empty tensor or correcting the step. Exact count arithmetic prevent
 overflow, and the final emitted value may be less than one step from the exclusive bound. Counts
 above `Integer.MAX_VALUE` are rejected before allocation.
 
-Strict and cyclic flat-prefix creation each have six overloads for `double[]`, `float[]`, raw
-BFLOAT16 `short[]`, `int[]`, `long[]`, and BOOL `byte[]`. The carrier-to-data-type mapping is the
-same exact mapping as flat import; no conversion, promotion, or caller-selected data type is
-available. The caller supplies a fully static shape, optional label, and explicit gradient intent.
-The result always has a newly synthesized canonical dense-contiguous descriptor and independent
-heap storage.
+Range label and argument validation precede allocation. A successful call builds one complete
+exact carrier and delegates once to matching flat import. A blank label therefore fails after the
+carrier, destination, and ID have been allocated but before the flat copy; it consumes the ID.
+Identifier exhaustion is also observed after both arrays exist and before copying. Neither failure
+rolls back an identifier.
 
-A strict prefix source must contain at least the shape's logical element count. The factory copies
-exactly that many leading values into a fresh carrier and ignores any tail. A cyclic prefix copies
-`source[i % source.length]` at output position `i`; when the source is longer than the output, this
-is exactly its requested prefix. A non-empty cyclic result requires a non-empty source. Both modes
-accept an empty source for a zero-element result because no value is needed, and neither mode
-retains or mutates the caller's array. Numeric values and raw BFLOAT16 bits remain unchanged. BOOL
-bytes are normalized downstream by flat import, where zero becomes `0` and every non-zero value
-becomes `1`.
+Strict and cyclic prefix preparation is not a production Tensor API. Repository tests may prepare
+such arrays in test source and pass the finished carrier to public flat import, but no public
+factory method or product inventory exposes that fixture convenience.
 
-Prefix null checks run in shape, label, source order. Dynamic shape, checked-count overflow,
-Java-array limit, strict source sufficiency or cyclic source availability, dense descriptor
-construction, and gradient eligibility are validated before the result carrier, destination, or
-ID is allocated. Range label and argument validation likewise precede allocation. Successful
-paths build one complete temporary carrier and delegate once to matching flat import. A blank
-label therefore fails after the carrier, destination, and ID have been allocated but before the
-flat copy; it consumes the ID. Identifier exhaustion is also observed after both arrays exist and
-before copying. Neither failure rolls back an identifier. Concurrent source mutation is outside
-the prefix snapshot contract.
-
-### Complete deterministic-population example
+### Complete integer-range example
 
 #### Goal and inputs
 
-Create the INT32 range `[1, 4, 7]`, copy the first four values of a five-value strict source into
-shape `[2, 2]`, and repeat a two-byte logical cycle across shape `[2, 3]`. The strict tail value
-`99` is deliberately outside the requested result, while cyclic non-zero byte `-3` represents
-logical true.
+Create the INT32 range `[1, 4, 7]` from inclusive start `1`, exclusive end `8`, and step `3`.
 
 ```java
-import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.Arrays;
 import java.util.Optional;
 
-public final class DeterministicPopulationExample {
+public final class IntegerRangeExample {
     public static void main(String[] args) {
         Tensor range = TensorFactory.range(
                 1, 8, 3, Optional.of("indices"));
 
-        int[] strictSource = {10, 20, 30, 40, 99};
-        Tensor strict = TensorFactory.fromStrictFlatPrefix(
-                Shape.of(2, 2), Optional.empty(), false, strictSource);
-
-        byte[] cycle = {0, -3};
-        Tensor cyclic = TensorFactory.fromCyclicFlatPrefix(
-                Shape.of(2, 3), Optional.of("mask"), false, cycle);
-
         int[] rangeData = (int[]) range.hostStorage()
                 .orElseThrow().segment().heapBase().orElseThrow();
-        int[] strictData = (int[]) strict.hostStorage()
-                .orElseThrow().segment().heapBase().orElseThrow();
-        byte[] cyclicData = (byte[]) cyclic.hostStorage()
-                .orElseThrow().segment().heapBase().orElseThrow();
-
-        strictSource[0] = -1;
-        cycle[0] = 1;
 
         System.out.println(range.descriptor().dataType());
+        System.out.println(range.descriptor().shape());
         System.out.println(Arrays.toString(rangeData));
-        System.out.println(strict.descriptor().shape());
-        System.out.println(Arrays.toString(strictData));
-        System.out.println(Arrays.toString(cyclicData));
     }
 }
 ```
@@ -1318,13 +1280,9 @@ public final class DeterministicPopulationExample {
 
 - The `int` range overload fixes the result data type as `INT32`. Ceiling division of the distance
   by step gives three values, and the exclusive bound `8` is not emitted.
-- The strict call obtains four logical positions from shape `[2, 2]`, copies source values
-  `[10, 20, 30, 40]`, and ignores `99`.
-- The cyclic call repeats raw bytes as `[0, -3, 0, -3, 0, -3]`; delegated BOOL import then stores
-  canonical `[0, 1, 0, 1, 0, 1]`.
-- Mutating both sources after construction demonstrates that neither returned tensor retains the
-  caller's array. Heap-base inspection only makes existing raw storage observable; it is not a
-  typed Tensor access or export API.
+- The result shape is rank one with one position for each of those three values. Heap-base
+  inspection only makes existing raw storage observable; it is not a typed Tensor access or
+  export API.
 
 #### Result and interpretation
 
@@ -1332,27 +1290,22 @@ The program prints:
 
 ```text
 INT32
+Shape[3]
 [1, 4, 7]
-Shape[2, 2]
-[10, 20, 30, 40]
-[0, 1, 0, 1, 0, 1]
 ```
 
-The result demonstrates range typing and exclusive-end semantics, strict tail handling, cyclic
-repetition, BOOL normalization, canonical dense shapes, and copied ownership. It does not provide
-an empty or floating range, implicit conversion, general fill/repeat/tile operations, view
-population, typed access/export, provenance, or execution. Normal random creation is the separate
-explicit-source factory method described next.
+The result demonstrates range typing, exclusive-end semantics, canonical dense shape, and copied
+storage. It does not provide an empty or floating range, implicit conversion, a prefix fixture
+API, typed access/export, provenance, or execution. Normal random creation is the separate
+explicit-source `TensorRandoms` method described next.
 
 #### Failures and useful variations
 
 - `range(0, 3, -1, label)` fails because the negative step cannot advance toward the larger end.
-- A strict source with only three values fails for shape `[2, 2]`; a longer source remains valid.
-- An empty cyclic source is valid for shape `[0, 3]` and invalid for every non-empty shape.
-- `requiresGrad` must be false for `INT32`, `INT64`, and `BOOL`; floating prefix carriers may
-  request gradients.
+- Equal start and end values fail because current range construction is deliberately non-empty.
+- Counts above `Integer.MAX_VALUE` fail before carrier, destination, or ID allocation.
 
-Normal random creation has exactly one public method:
+`TensorRandoms` owns exactly one public normal method:
 `randomNormal(shape, dataType, mean, standardDeviation, randomGenerator, label, requiresGrad)`.
 It accepts only fully static Java-array-sized shapes and `FLOAT64`, `FLOAT32`, or `BFLOAT16`.
 Both parameters must be finite, and the standard deviation must be numerically non-negative;
@@ -1368,7 +1321,7 @@ binary32 and then uses `BFloat16Bits.fromFloat`. A scalar consumes one call; an 
 consumes none. Generated non-finite values are stored according to the requested conversion and
 are not rejected after sampling.
 
-The generator is transient caller-owned state. The factory does not select an algorithm or
+The generator is transient caller-owned state. `TensorRandoms` does not select an algorithm or
 default source, store a seed, retain or replace the generator, synchronize access, or reset,
 split, or close it. Equivalent output therefore requires equivalent generator implementation and
 initial state, identical arguments, and no interfering source use. There is no sequence promise
@@ -1387,7 +1340,7 @@ observable without introducing a production seed or generator-selection API.
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorRandoms;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -1410,7 +1363,7 @@ public final class NormalRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
-        Tensor tensor = TensorFactory.randomNormal(
+        Tensor tensor = TensorRandoms.randomNormal(
                 Shape.of(2, 2),
                 DataType.FLOAT32,
                 1.0,
@@ -1432,7 +1385,7 @@ public final class NormalRandomExample {
 #### Meaningful lines
 
 - The source implements only the methods needed by `RandomGenerator` and overrides
-  `nextGaussian()` with four known values. TensorFactory uses that exact object and does not call
+  `nextGaussian()` with four known values. `TensorRandoms` uses that exact object and does not call
   `nextLong()` or select another generator.
 - Each output applies `1 + gaussian × 2` in binary64 before narrowing to the requested FLOAT32
   carrier. The four transformed values are `-1`, `1`, `3`, and `2` in row-major order.
@@ -1464,7 +1417,7 @@ integral, or Bernoulli behavior, typed export, or runtime/backend random executi
 - Two equivalent caller-created generators can produce equivalent tensors when their initial
   states and all method arguments match and neither source has interfering use.
 
-Continuous-uniform random creation also has exactly one public method:
+`TensorRandoms` also owns exactly one public continuous-uniform method:
 `randomUniform(shape, dataType, lowerBoundInclusive, upperBoundExclusive, randomGenerator, label,
 requiresGrad)`. It accepts only fully static Java-array-sized shapes and `FLOAT64`, `FLOAT32`, or
 `BFLOAT16`. Both binary64 bounds must be finite, and the lower bound must be strictly less than the
@@ -1477,13 +1430,13 @@ returns a binary64 value in the half-open interval `[lowerBoundInclusive, upperB
 `FLOAT64` stores that value directly, `FLOAT32` narrows it once to binary32, and `BFLOAT16` first
 narrows to binary32 and then uses `BFloat16Bits.fromFloat`. The half-open promise applies before
 narrowing: a stored FLOAT32 or BFLOAT16 value may equal the corresponding narrowed upper bound or
-may round to a lower representable value. The factory does not clamp, resample, or post-validate a
+may round to a lower representable value. `TensorRandoms` does not clamp, resample, or post-validate a
 custom non-conforming source result. A scalar consumes one bounded call; an empty shape consumes
 none.
 
 The source has the same ownership and reproducibility boundary as normal creation. The caller
 creates, configures, seeds, owns, and advances it, and must provide exclusive or otherwise safe
-access. The factory does not select an algorithm or default source, store a seed, retain or replace
+access. `TensorRandoms` does not select an algorithm or default source, store a seed, retain or replace
 the generator, synchronize access, or reset, split, or close it. Equivalent output requires an
 equivalent generator implementation and initial state, identical arguments, and no interfering
 source use. No sequence is promised across algorithms, providers, Java versions, seed expansion,
@@ -1502,7 +1455,7 @@ narrowing caveat observable without adding a production seed or source-selection
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorRandoms;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -1533,7 +1486,7 @@ public final class UniformRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
-        Tensor tensor = TensorFactory.randomUniform(
+        Tensor tensor = TensorRandoms.randomUniform(
                 Shape.of(2, 2),
                 DataType.FLOAT32,
                 -1.0,
@@ -1554,7 +1507,7 @@ public final class UniformRandomExample {
 
 #### Meaningful lines
 
-- The source overrides only the bounded `nextDouble(origin, bound)` path used by the factory and
+- The source overrides only the bounded `nextDouble(origin, bound)` path used by `TensorRandoms` and
   rejects both `nextLong()` and unbounded `nextDouble()`. It also verifies the unchanged `-1.0`
   and `1.0` arguments on every call.
 - The first three binary64 values remain `-1.0f`, `0.0f`, and `0.5f`. The final conforming value is
@@ -1589,7 +1542,7 @@ runtime/backend random execution.
 - Two equivalent caller-created generators can produce equivalent tensors when their initial
   states and all method arguments match and neither source has interfering use.
 
-Bounded integral random creation has exactly two public overloads named `randomInt`. Primitive
+`TensorRandoms` owns exactly two public bounded-integral overloads named `randomInt`. Primitive
 `int` bounds produce `INT32`, while primitive `long` bounds produce `INT64`. Both take a fully
 static Java-array-sized shape, inclusive origin, exclusive bound, caller-owned `RandomGenerator`,
 and optional label. The origin must be strictly less than the bound, including for an empty
@@ -1598,7 +1551,7 @@ result. The synthesized descriptor is canonical dense-contiguous and always has
 already selects a non-differentiable result type.
 
 Each logical row-major element is the direct result of exactly one matching bounded call:
-`nextInt(origin, bound)` for `INT32` or `nextLong(origin, bound)` for `INT64`. The factory uses no
+`nextInt(origin, bound)` for `INT32` or `nextLong(origin, bound)` for `INT64`. `TensorRandoms` uses no
 unbounded draw, modulo reduction, floating arithmetic, narrowing, widening, or alternate carrier.
 It fills one exact `int[]` or `long[]` and delegates once to matching flat import. A conforming
 source supplies values in the half-open interval `[origin, bound)` without project-owned modulo
@@ -1606,7 +1559,7 @@ bias; custom non-conforming values are copied without post-validation. A scalar 
 bounded call and a valid empty result consumes none.
 
 The source has the same ownership and bounded reproducibility contract as the floating random
-methods. The caller configures, seeds, owns, advances, and provides safe access to it. The factory
+methods. The caller configures, seeds, owns, advances, and provides safe access to it. `TensorRandoms`
 does not substitute, retain, synchronize, reset, split, or close the source. Equivalent output
 requires equivalent generator implementation and initial state, identical arguments, and no
 interfering source use. The one-call guarantee concerns bounded method invocations rather than the
@@ -1628,7 +1581,7 @@ draw nor a production seed/source-selection API is involved.
 ```java
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorRandoms;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -1654,7 +1607,7 @@ public final class IntegralRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
-        Tensor tensor = TensorFactory.randomInt(
+        Tensor tensor = TensorRandoms.randomInt(
                 Shape.of(2, 2), -3, 5, source, Optional.of("indices"));
 
         int[] data = (int[]) tensor.hostStorage()
@@ -1672,7 +1625,7 @@ public final class IntegralRandomExample {
 
 - Primitive `int` bounds select `INT32`; the call has no `DataType` or gradient argument.
 - The source rejects unbounded `nextLong()` and validates `-3` and `5` on every bounded
-  `nextInt(origin, bound)` invocation. The factory stores each returned value directly.
+  `nextInt(origin, bound)` invocation. `TensorRandoms` stores each returned value directly.
 - Heap-base inspection makes the implemented raw storage observable for the example; it is not a
   typed Tensor access or export API.
 
@@ -1703,7 +1656,7 @@ export, a random graph Operation, or runtime/backend generation.
 - A blank label fails after all bounded calls, destination allocation, and ID allocation; the ID
   is consumed and no state is rolled back.
 
-Bernoulli random creation has exactly one public method:
+`TensorRandoms` owns exactly one public Bernoulli method:
 `randomBernoulli(shape, probability, randomGenerator, label)`. It creates a canonical dense BOOL
 tensor with gradients disabled. The shape must be fully static, its checked logical count must fit
 a Java array, and the binary64 probability must be finite and in the closed interval `[0, 1]`.
@@ -1711,7 +1664,7 @@ Positive and negative zero are accepted as zero. No data-type or gradient argume
 because Bernoulli output is logical non-differentiable leaf data; numeric truthiness and output
 conversion are outside this method.
 
-For each logical row-major element, the factory calls the exact supplied source's unbounded
+For each logical row-major element, `TensorRandoms` calls the exact supplied source's unbounded
 `nextDouble()` method once and stores canonical byte `1` exactly when `draw < probability`;
 otherwise it stores byte `0`. The strict comparison means that a draw equal to the probability is
 false. A custom non-conforming draw is compared directly without post-validation. Calls are not
@@ -1720,7 +1673,7 @@ respectively, while source advancement stays independent of endpoint optimizatio
 consumes one call and an empty result consumes none.
 
 The source follows the same caller-ownership and bounded-reproducibility contract as the other
-random methods. The factory does not substitute, retain, seed, synchronize, reset, split, or close
+random methods. `TensorRandoms` does not substitute, retain, seed, synchronize, reset, split, or close
 it. Equivalent output requires equivalent generator implementation and initial state, identical
 arguments, and no interfering use. One complete canonical `byte[]` is sampled before one BOOL
 flat import; there is no partial Tensor, direct storage construction, or direct ID allocation in
@@ -1737,7 +1690,7 @@ the scripted source makes the unbounded call path and exact call count observabl
 ```java
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorRandoms;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
@@ -1760,7 +1713,7 @@ public final class BernoulliRandomExample {
 
     public static void main(String[] args) {
         ScriptedGenerator source = new ScriptedGenerator();
-        Tensor tensor = TensorFactory.randomBernoulli(
+        Tensor tensor = TensorRandoms.randomBernoulli(
                 Shape.of(2, 2), 0.5, source, Optional.of("mask"));
 
         byte[] data = (byte[]) tensor.hostStorage()
@@ -1776,7 +1729,7 @@ public final class BernoulliRandomExample {
 
 #### Meaningful lines
 
-- The source overrides unbounded `nextDouble()` and rejects `nextLong()`. The factory uses the
+- The source overrides unbounded `nextDouble()` and rejects `nextLong()`. `TensorRandoms` uses the
   exact supplied object and makes one unbounded call for each output position.
 - The first two draws are strictly below `0.5` and become canonical true bytes. The equal and
   greater draws become canonical false bytes.
@@ -2015,7 +1968,7 @@ descriptor, cycle, or graph validation. Record equality compares the operation v
 input objects using their ordinary equality; it is not producer-occurrence identity and must not
 be used as automatic common-subexpression elimination.
 
-Every public `TensorFactory` creation and population method returns a provenance-free leaf. The
+Every public `TensorFactory` and `TensorRandoms` creation method returns a provenance-free leaf. The
 package-private derived-construction seam used by the implemented binary arithmetic, comparison,
 boolean logical, conditional-selection, cast, unary, and scalar expression helpers attaches one
 already-validated provenance value, allocates exactly one ID through the existing allocator, and
@@ -7105,14 +7058,10 @@ remain planned.
   advance toward the end. Exact count arithmetic and a no-post-final-addition fill loop preserve
   primitive-boundary behavior, while counts above `Integer.MAX_VALUE` fail before allocation.
   One exact carrier is delegated to flat import and is not retained.
-- Its strict and cyclic prefix overloads infer exact data type from the same six primitive
-  carriers, require a fully static shape, synthesize canonical dense descriptors, and preserve
-  explicit label and gradient intent. Strict mode copies the requested prefix and ignores source
-  tail; cyclic mode repeats by modulo and requires a non-empty source only for non-empty output.
-  Numeric and raw BFLOAT16 values remain unchanged, while BOOL is normalized by flat import. All
-  sources are copied and never retained. Prevalidation consumes no ID; blank-label failure and
-  exhaustion occur after carrier and destination allocation and before the flat copy.
-- Its one normal-random method requires a caller-owned `RandomGenerator`, a fully static
+- Prefix shaping is not a public product capability. Package-private test-source fixtures may
+  prepare strict or cyclic carriers and delegate to public flat import, but production source,
+  generated production Javadoc, and the TensorFactory surface expose no prefix method.
+- `TensorRandoms.randomNormal` requires a caller-owned `RandomGenerator`, a fully static
   Java-array-sized shape, a floating data type, finite mean, and finite numerically non-negative
   standard deviation. It consumes one `nextGaussian()` call per row-major element, transforms in
   binary64 with ordinary multiplication then addition, converts to the exact FLOAT64, FLOAT32, or
@@ -7121,7 +7070,7 @@ remain planned.
   failures consume no calls or ID; a source exception preserves prior source advancement; blank
   label and exhaustion occur after all calls and destination allocation under the delegated
   flat-import side effects.
-- Its one continuous-uniform method requires a caller-owned `RandomGenerator`, a fully static
+- `TensorRandoms.randomUniform` requires a caller-owned `RandomGenerator`, a fully static
   Java-array-sized shape, a floating data type, finite binary64 bounds, and a lower bound strictly
   less than the upper bound. It consumes one bounded `nextDouble(lower, upper)` call per row-major
   element, stores the returned binary64 value directly or narrows it to FLOAT32/BFLOAT16, and
@@ -7131,7 +7080,7 @@ remain planned.
   failures consume no calls or ID; a source exception preserves prior advancement; blank label and
   exhaustion occur after all calls and destination allocation under the delegated flat-import
   side effects.
-- Its two bounded-integral `randomInt` overloads infer `INT32` from primitive `int` bounds and
+- The two `TensorRandoms.randomInt` overloads infer `INT32` from primitive `int` bounds and
   `INT64` from primitive `long` bounds. They require a fully static Java-array-sized shape and a
   strict half-open interval, always disable gradients, and consume one matching bounded
   `nextInt(origin, bound)` or `nextLong(origin, bound)` call per row-major element. Each direct
@@ -7141,7 +7090,7 @@ remain planned.
   and source-carrier allocation failures consume no calls or ID; a source exception preserves
   prior calls; blank-label failure and exhaustion occur after all calls and destination
   allocation without rollback.
-- Its one Bernoulli-random method requires a caller-owned `RandomGenerator`, a fully static
+- `TensorRandoms.randomBernoulli` requires a caller-owned `RandomGenerator`, a fully static
   Java-array-sized shape, and a finite probability in `[0, 1]`. It always creates a BOOL result
   with gradients disabled. Every row-major element consumes one unbounded `nextDouble()` call,
   including at probability zero and one, and stores canonical byte one exactly when the draw is

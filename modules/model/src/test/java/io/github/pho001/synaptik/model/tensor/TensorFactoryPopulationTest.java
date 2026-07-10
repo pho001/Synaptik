@@ -30,23 +30,28 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryPopulationTest {
     @Test
-    void helperHasExactlyTheTypedPackageEntriesAndNoStateOrPublicSurface()
+    void rangeAndTestDataHelpersHaveExactPackageSurfacesAndNoState()
             throws ReflectiveOperationException {
         assertAll(
-                () -> assertTrue(Modifier.isFinal(TensorPopulations.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorPopulations.class.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(TensorPopulations.class.getModifiers())),
-                () -> assertEquals(0, TensorPopulations.class.getDeclaredFields().length),
-                () -> assertEquals(0, TensorPopulations.class.getDeclaredClasses().length),
-                () -> assertEquals(1, TensorPopulations.class.getDeclaredConstructors().length),
+                () -> assertTrue(Modifier.isFinal(TensorRanges.class.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(TensorRanges.class.getModifiers())),
+                () -> assertEquals(0, TensorRanges.class.getDeclaredFields().length),
+                () -> assertEquals(1, TensorRanges.class.getDeclaredConstructors().length),
                 () -> assertTrue(Modifier.isPrivate(
-                        TensorPopulations.class.getDeclaredConstructors()[0].getModifiers())));
+                        TensorRanges.class.getDeclaredConstructors()[0].getModifiers())),
+                () -> assertTrue(Modifier.isFinal(TensorTestData.class.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(TensorTestData.class.getModifiers())),
+                () -> assertEquals(0, TensorTestData.class.getDeclaredFields().length),
+                () -> assertEquals(1, TensorTestData.class.getDeclaredConstructors().length),
+                () -> assertTrue(Modifier.isPrivate(
+                        TensorTestData.class.getDeclaredConstructors()[0].getModifiers())));
 
-        Set<Method> entries = Set.of(
-                TensorPopulations.class.getDeclaredMethod(
+        Set<Method> rangeEntries = Set.of(
+                TensorRanges.class.getDeclaredMethod(
                         "range", int.class, int.class, int.class, Optional.class),
-                TensorPopulations.class.getDeclaredMethod(
-                        "range", long.class, long.class, long.class, Optional.class),
+                TensorRanges.class.getDeclaredMethod(
+                        "range", long.class, long.class, long.class, Optional.class));
+        Set<Method> prefixEntries = Set.of(
                 entry("fromStrictFlatPrefix", double[].class),
                 entry("fromStrictFlatPrefix", float[].class),
                 entry("fromStrictFlatPrefix", short[].class),
@@ -61,18 +66,27 @@ class TensorFactoryPopulationTest {
                 entry("fromCyclicFlatPrefix", byte[].class));
 
         assertAll(
-                () -> assertTrue(entries.stream().allMatch(method ->
+                () -> assertTrue(rangeEntries.stream().allMatch(method ->
+                        !Modifier.isPublic(method.getModifiers())
+                                && Modifier.isStatic(method.getModifiers())
+                                && method.getReturnType() == Tensor.class)),
+                () -> assertEquals(
+                        rangeEntries,
+                        Set.copyOf(Arrays.stream(TensorRanges.class.getDeclaredMethods())
+                                .filter(method -> !Modifier.isPrivate(method.getModifiers()))
+                                .toList())),
+                () -> assertTrue(prefixEntries.stream().allMatch(method ->
                         !Modifier.isPublic(method.getModifiers())
                                 && !Modifier.isProtected(method.getModifiers())
                                 && !Modifier.isPrivate(method.getModifiers())
                                 && Modifier.isStatic(method.getModifiers())
                                 && method.getReturnType() == Tensor.class)),
                 () -> assertEquals(
-                        entries,
-                        Set.copyOf(Arrays.stream(TensorPopulations.class.getDeclaredMethods())
+                        prefixEntries,
+                        Set.copyOf(Arrays.stream(TensorTestData.class.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .toList())),
-                () -> assertTrue(Arrays.stream(TensorPopulations.class.getDeclaredMethods())
+                () -> assertTrue(Arrays.stream(TensorTestData.class.getDeclaredMethods())
                         .noneMatch(method -> Modifier.isPublic(method.getModifiers())
                                 || Modifier.isProtected(method.getModifiers()))));
     }
@@ -176,17 +190,17 @@ class TensorFactoryPopulationTest {
         long[] longs = {Long.MIN_VALUE, 2L, 99L};
         byte[] bools = {0, -4, 3};
 
-        Tensor float64 = TensorFactory.fromStrictFlatPrefix(
+        Tensor float64 = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.empty(), true, doubles);
-        Tensor float32 = TensorFactory.fromStrictFlatPrefix(
+        Tensor float32 = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.empty(), true, floats);
-        Tensor bfloat = TensorFactory.fromStrictFlatPrefix(
+        Tensor bfloat = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.empty(), true, bfloat16);
-        Tensor int32 = TensorFactory.fromStrictFlatPrefix(
+        Tensor int32 = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.empty(), false, ints);
-        Tensor int64 = TensorFactory.fromStrictFlatPrefix(
+        Tensor int64 = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.empty(), false, longs);
-        Tensor bool = TensorFactory.fromStrictFlatPrefix(
+        Tensor bool = TensorTestData.fromStrictFlatPrefix(
                 Shape.of(2), Optional.of(" mask "), false, bools);
 
         assertAll(
@@ -236,17 +250,17 @@ class TensorFactoryPopulationTest {
         long[] longs = {1L, 2L};
         byte[] bools = {0, -3};
 
-        Tensor float64 = TensorFactory.fromCyclicFlatPrefix(
+        Tensor float64 = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(2, 3), Optional.empty(), true, doubles);
-        Tensor float32 = TensorFactory.fromCyclicFlatPrefix(
+        Tensor float32 = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(6), Optional.empty(), true, floats);
-        Tensor bfloat16 = TensorFactory.fromCyclicFlatPrefix(
+        Tensor bfloat16 = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(6), Optional.empty(), true, shorts);
-        Tensor int32 = TensorFactory.fromCyclicFlatPrefix(
+        Tensor int32 = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(6), Optional.empty(), false, ints);
-        Tensor int64 = TensorFactory.fromCyclicFlatPrefix(
+        Tensor int64 = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(6), Optional.empty(), false, longs);
-        Tensor bool = TensorFactory.fromCyclicFlatPrefix(
+        Tensor bool = TensorTestData.fromCyclicFlatPrefix(
                 Shape.of(6), Optional.empty(), false, bools);
 
         assertAll(
@@ -276,18 +290,18 @@ class TensorFactoryPopulationTest {
     void emptyShapesAcceptEmptyStrictAndCyclicSourcesForEveryCarrier() {
         Shape empty = Shape.of(0, 3);
         List<Tensor> tensors = List.of(
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new double[0]),
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new float[1]),
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new short[0]),
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new int[1]),
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new long[0]),
-                TensorFactory.fromStrictFlatPrefix(empty, Optional.empty(), false, new byte[1]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new double[0]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new float[0]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new short[0]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new int[0]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new long[0]),
-                TensorFactory.fromCyclicFlatPrefix(empty, Optional.empty(), false, new byte[0]));
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new double[0]),
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new float[1]),
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new short[0]),
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new int[1]),
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new long[0]),
+                TensorTestData.fromStrictFlatPrefix(empty, Optional.empty(), false, new byte[1]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new double[0]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new float[0]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new short[0]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new int[0]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new long[0]),
+                TensorTestData.fromCyclicFlatPrefix(empty, Optional.empty(), false, new byte[0]));
 
         assertTrue(tensors.stream().allMatch(tensor ->
                 tensor.descriptor().shape().equals(empty)
@@ -304,29 +318,29 @@ class TensorFactoryPopulationTest {
         Shape shape = Shape.scalar();
 
         assertNullOrder(
-                () -> TensorFactory.fromStrictFlatPrefix(null, null, false, (double[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, null, false, (double[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, Optional.empty(), false, (double[]) null));
+                () -> TensorTestData.fromStrictFlatPrefix(null, null, false, (double[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, null, false, (double[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, Optional.empty(), false, (double[]) null));
         assertNullOrder(
-                () -> TensorFactory.fromStrictFlatPrefix(null, null, false, (float[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, null, false, (float[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, Optional.empty(), false, (float[]) null));
+                () -> TensorTestData.fromStrictFlatPrefix(null, null, false, (float[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, null, false, (float[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, Optional.empty(), false, (float[]) null));
         assertNullOrder(
-                () -> TensorFactory.fromStrictFlatPrefix(null, null, false, (short[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, null, false, (short[]) null),
-                () -> TensorFactory.fromStrictFlatPrefix(shape, Optional.empty(), false, (short[]) null));
+                () -> TensorTestData.fromStrictFlatPrefix(null, null, false, (short[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, null, false, (short[]) null),
+                () -> TensorTestData.fromStrictFlatPrefix(shape, Optional.empty(), false, (short[]) null));
         assertNullOrder(
-                () -> TensorFactory.fromCyclicFlatPrefix(null, null, false, (int[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, null, false, (int[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, Optional.empty(), false, (int[]) null));
+                () -> TensorTestData.fromCyclicFlatPrefix(null, null, false, (int[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, null, false, (int[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, Optional.empty(), false, (int[]) null));
         assertNullOrder(
-                () -> TensorFactory.fromCyclicFlatPrefix(null, null, false, (long[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, null, false, (long[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, Optional.empty(), false, (long[]) null));
+                () -> TensorTestData.fromCyclicFlatPrefix(null, null, false, (long[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, null, false, (long[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, Optional.empty(), false, (long[]) null));
         assertNullOrder(
-                () -> TensorFactory.fromCyclicFlatPrefix(null, null, false, (byte[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, null, false, (byte[]) null),
-                () -> TensorFactory.fromCyclicFlatPrefix(shape, Optional.empty(), false, (byte[]) null));
+                () -> TensorTestData.fromCyclicFlatPrefix(null, null, false, (byte[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, null, false, (byte[]) null),
+                () -> TensorTestData.fromCyclicFlatPrefix(shape, Optional.empty(), false, (byte[]) null));
 
         assertEquals(before, next.get());
     }
@@ -343,27 +357,27 @@ class TensorFactoryPopulationTest {
 
         IllegalArgumentException dynamicFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromStrictFlatPrefix(
+                () -> TensorTestData.fromStrictFlatPrefix(
                         dynamic, Optional.empty(), false, new int[0]));
         ArithmeticException overflowFailure = assertThrows(
                 ArithmeticException.class,
-                () -> TensorFactory.fromStrictFlatPrefix(
+                () -> TensorTestData.fromStrictFlatPrefix(
                         overflow, Optional.empty(), false, new int[0]));
         IllegalArgumentException limitFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromStrictFlatPrefix(
+                () -> TensorTestData.fromStrictFlatPrefix(
                         overLimit, Optional.empty(), false, new int[0]));
         IllegalArgumentException shortFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromStrictFlatPrefix(
+                () -> TensorTestData.fromStrictFlatPrefix(
                         Shape.of(4), Optional.empty(), false, new int[3]));
         IllegalArgumentException emptyCyclic = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromCyclicFlatPrefix(
+                () -> TensorTestData.fromCyclicFlatPrefix(
                         Shape.scalar(), Optional.empty(), false, new long[0]));
         IllegalArgumentException gradient = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromStrictFlatPrefix(
+                () -> TensorTestData.fromStrictFlatPrefix(
                         Shape.scalar(), Optional.empty(), true, new byte[] {1}));
 
         assertAll(
@@ -398,7 +412,7 @@ class TensorFactoryPopulationTest {
                 () -> TensorFactory.range(0, 2, 1, Optional.of("  ")));
         IllegalArgumentException prefixBlank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.fromCyclicFlatPrefix(
+                () -> TensorTestData.fromCyclicFlatPrefix(
                         Shape.of(2), Optional.of("\t"), false, new int[] {1}));
         assertAll(
                 () -> assertEquals("label must not be blank", rangeBlank.getMessage()),
@@ -417,7 +431,7 @@ class TensorFactoryPopulationTest {
                     () -> TensorFactory.range(0L, 2L, 1L, Optional.empty()));
             IllegalStateException prefixExhausted = assertThrows(
                     IllegalStateException.class,
-                    () -> TensorFactory.fromStrictFlatPrefix(
+                    () -> TensorTestData.fromStrictFlatPrefix(
                             Shape.of(2), Optional.empty(), false, source));
 
             assertAll(
@@ -435,7 +449,7 @@ class TensorFactoryPopulationTest {
     }
 
     private static Method entry(String name, Class<?> carrier) throws ReflectiveOperationException {
-        return TensorPopulations.class.getDeclaredMethod(
+        return TensorTestData.class.getDeclaredMethod(
                 name, Shape.class, Optional.class, boolean.class, carrier);
     }
 

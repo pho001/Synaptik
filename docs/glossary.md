@@ -18,12 +18,12 @@ JVM-managed heap allocation for resolved layouts, plus copied flat typed import 
 dense-contiguous layouts and copied rectangular nested primitive-array import with exact carrier,
 static-shape, and dense-layout inference, plus exact typed rank-0 scalars and independent dense
 zero, one, zero-like, and one-like constants, plus exact typed full-value tensors and dense
-rectangular identity matrices with `eye` as a pure alias, plus eager typed integer ranges, strict
-or cyclic flat-prefix population for all six exact primitive carriers, and explicit-source normal
-random
-and bounded continuous-uniform population for the three floating types, plus bounded integral
-random population for exact `INT32` and `INT64` output, plus BOOL Bernoulli population from a
-finite scalar probability, plus immutable `TensorProvenance` origin metadata. Concrete operation
+rectangular identity matrices with `eye` as a pure alias, plus eager typed integer ranges.
+Public stateless `TensorRandoms` separately owns explicit-source normal and bounded
+continuous-uniform population for the three floating types, bounded integral population for exact
+`INT32` and `INT64` output, and BOOL Bernoulli population from a finite scalar probability.
+Strict and cyclic prefix preparation is test-fixture mechanics rather than a production Tensor
+capability. Immutable `TensorProvenance` origin metadata is also implemented. Concrete operation
 That origin model now uses identity-bearing immutable `TensorProducer` occurrences and indexed
 `TensorProvenance` results. Concrete operation kind support now includes the parameterless
 `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
@@ -1334,13 +1334,11 @@ a Tensor. Exact typed scalar, zero, one, zero-like, and one-like creation is imp
 dense storage and explicit label and gradient intent. Type-safe full-value creation is implemented
 for every current primitive meaning, and rectangular identity creation is implemented for all six
 data types with typed main-diagonal ones and off-diagonal zeros. Eager non-empty `INT32` and
-`INT64` range creation, strict or cyclic typed flat-prefix creation, and caller-source normal
-random and bounded
-continuous-uniform creation are also implemented as copied canonical dense leaf data.
-Caller-source bounded integral creation is implemented for exact `INT32` and `INT64` output with
-false gradient intent. Caller-source Bernoulli creation is implemented for canonical BOOL output
-with false gradient intent and a finite scalar probability. Random Operations, typed access and
-export, and deterministic native-resource ownership remain planned. The current `add`, `sub`,
+`INT64` range creation is also implemented as copied canonical dense leaf data. Public
+[`TensorRandoms`](#tensor-random-initialization) owns caller-source normal,
+continuous-uniform, bounded-integral, and Bernoulli eager initialization. Strict and cyclic
+prefix preparation exists only in test source and is not a product capability. Random Operations,
+typed access and export, and deterministic native-resource ownership remain planned. The current `add`, `sub`,
 `mul`, `div`, `min`, `max`, and tensor-valued `pow` methods create fresh storage-free binary
 arithmetic expression tensors from floating operands. They promote data type, broadcast shape,
 leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
@@ -1508,21 +1506,26 @@ steps are accepted only when they advance toward the end. Exact overflow-safe si
 count above `Integer.MAX_VALUE` before allocation and does not evaluate an unused addition after
 the final emitted value.
 
-Strict and cyclic flat-prefix creation each have six overloads for `double[]`, `float[]`, raw
-BFLOAT16 `short[]`, `int[]`, `long[]`, and BOOL `byte[]`. They require a fully static caller shape,
-infer the exact data type, and create a new canonical dense descriptor with explicit label and
-gradient intent. Strict mode copies exactly the requested leading values and ignores a tail.
-Cyclic mode repeats `source[i % source.length]`; an empty source is accepted only for an empty
-result. No source is retained or mutated. Numeric and raw BFLOAT16 values remain unchanged, while
-flat import normalizes BOOL zero/non-zero bytes to canonical zero/one storage. Neither mode adds
-shape inference, conversion, view scattering, or a general fill/repeat/tile operation.
+Prefix shaping is not part of the production factory. Package-private test-source fixtures may
+prepare strict or cyclic exact-carrier arrays and delegate them to public flat import, but this
+mechanic is absent from production source, generated production Javadoc, and the public product
+inventory.
+
+### Tensor random initialization
+
+The public final stateless `TensorRandoms` namespace creates eager provenance-free leaf tensors
+from one explicit caller-owned `RandomGenerator`. It retains no source or result and gives the
+source no lifecycle. The caller creates, configures, seeds, owns, advances, and coordinates access
+to the exact generator. Synaptik supplies no default, global, thread-local, engine-owned,
+runtime-owned, or service-located source and does not select, seed, synchronize, reset, split,
+serialize, or close the supplied object.
 
 Normal random creation accepts one transient caller-owned `RandomGenerator`, fully static
 Java-array-sized shape, explicit `FLOAT64`, `FLOAT32`, or `BFLOAT16` output, finite mean, finite
 numerically non-negative standard deviation, label, and gradient intent. It consumes exactly one
 `nextGaussian()` call per logical row-major element, transforms with ordinary binary64
 multiplication then addition, converts to one exact carrier, and delegates once to flat import.
-The factory never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
+`TensorRandoms` never selects, seeds, retains, substitutes, synchronizes, resets, splits, or closes
 the source. Reproducibility is consequently bounded to equivalent generator implementation and
 state, identical arguments, and no interfering use. Random Operations, typed access or export,
 general numeric conversion, native/runtime/backend allocation, and deterministic resource
@@ -1534,9 +1537,9 @@ strictly less than its finite upper bound. Each row-major element consumes exact
 `nextDouble(lower, upper)` call. A conforming source result is in the binary64 half-open interval;
 FLOAT64 stores it directly, FLOAT32 narrows once, and BFLOAT16 narrows to binary32 before
 `BFloat16Bits.fromFloat`. Narrowing may produce a stored value equal to the corresponding narrowed
-upper bound. The factory does not clamp or resample, post-validate custom source results, or retain
-the generator. The same caller ownership, no-synchronization, and bounded reproducibility policy
-applies.
+upper bound. `TensorRandoms` does not clamp or resample, post-validate custom source results, or
+retain the generator. The same caller ownership, no-synchronization, and bounded reproducibility
+policy applies.
 
 Bounded integral random creation has two `randomInt` overloads. Primitive `int` bounds infer
 `INT32`, primitive `long` bounds infer `INT64`, and both results disable gradients. Each row-major
@@ -1555,14 +1558,22 @@ produces canonical BOOL storage, and always disables gradients. Each row-major e
 exactly one unbounded `nextDouble()` call, including when probability is zero or one, and stores
 byte one exactly when the draw is strictly less than the probability. Equal or custom
 non-conforming draws are not post-validated or coerced. Positive and negative zero are both
-accepted as probability zero. The factory builds one complete byte carrier and delegates once to
-BOOL flat import; it exposes no data-type, gradient, numeric-truthiness, default-source, or
+accepted as probability zero. `TensorRandoms` builds one complete byte carrier and delegates once
+to BOOL flat import; it exposes no data-type, gradient, numeric-truthiness, default-source, or
 probability-tensor option. The same caller ownership, no-synchronization, bounded reproducibility,
 and late failure/no-rollback rules apply.
 
-No random package, source service, seed API, or distribution enum is introduced because the
-distribution-specific factory methods share one cohesive package-private helper and add no
-independent public random-domain model.
+Every successful method builds one exact primitive source carrier and delegates once to
+`TensorFactory.fromFlatArray`, which allocates destination storage and the fresh factory ID.
+Pre-sampling validation consumes no source call or ID. A source exception leaves completed calls
+consumed but creates no destination or ID. Blank-label rejection and ID exhaustion happen after
+all calls and destination allocation, without rollback. Reproducible values require an equivalent
+generator implementation and state, identical arguments, and no interfering use; there is no
+cross-algorithm, provider, Java-version, seed-expansion, serialization, concurrent-use, or global
+sequence promise. Eager random initialization is not graph RNG state, a random Operation, or a
+dropout contract.
+
+### Tensor factory allocation and failure effects
 
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
@@ -1597,11 +1608,11 @@ after destination allocation. Every successful constant has a new Tensor, descri
 storage wrapper, backing array, and factory ID; like-shaped results retain no template object or
 template state beyond the immutable shape and data-type values used to build the result.
 
-Range label and argument validation and prefix shape/count/source/gradient validation run before
-result-carrier, destination, or ID allocation. Each successful path builds one complete exact
-carrier and delegates once to flat import. A blank label is rejected after carrier, destination,
-and ID allocation but before copying, and consumes that ID. Exhaustion is observed after both
-arrays exist. These failures do not roll back identifiers.
+Range label and argument validation runs before result-carrier, destination, or ID allocation.
+Each successful path builds one complete exact carrier and delegates once to flat import. A blank
+label is rejected after carrier, destination, and ID allocation but before copying, and consumes
+that ID. Exhaustion is observed after both arrays exist. These failures do not roll back
+identifiers.
 
 Normal-random null, shape, count, type, distribution, layout, and descriptor validation completes
 before source-carrier allocation, sampling, destination allocation, or ID allocation. Source

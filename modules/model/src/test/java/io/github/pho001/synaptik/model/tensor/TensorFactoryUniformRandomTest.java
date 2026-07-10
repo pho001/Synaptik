@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 @Execution(ExecutionMode.SAME_THREAD)
 class TensorFactoryUniformRandomTest {
     @Test
-    void helperAddsExactlyTheUniformPackageEntryWithoutStateOrPublicSurface()
+    void publicOwnerKeepsExactlyTheFiveRandomEntriesWithoutState()
             throws ReflectiveOperationException {
         Method normalEntry = TensorRandoms.class.getDeclaredMethod(
                 "randomNormal",
@@ -75,7 +75,7 @@ class TensorFactoryUniformRandomTest {
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(TensorRandoms.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorRandoms.class.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(TensorRandoms.class.getModifiers())),
                 () -> assertEquals(0, TensorRandoms.class.getDeclaredFields().length),
                 () -> assertEquals(1, TensorRandoms.class.getDeclaredConstructors().length),
                 () -> assertTrue(Modifier.isPrivate(
@@ -96,8 +96,9 @@ class TensorFactoryUniformRandomTest {
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .collect(java.util.stream.Collectors.toSet())),
                 () -> assertTrue(Arrays.stream(TensorRandoms.class.getDeclaredMethods())
-                        .noneMatch(method -> Modifier.isPublic(method.getModifiers())
-                                || Modifier.isProtected(method.getModifiers()))),
+                        .filter(method -> !Modifier.isPrivate(method.getModifiers()))
+                        .allMatch(method -> Modifier.isPublic(method.getModifiers())
+                                && Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(Arrays.stream(TensorFactory.class.getDeclaredFields())
                         .noneMatch(field -> RandomGenerator.class.isAssignableFrom(field.getType()))));
     }
@@ -113,7 +114,7 @@ class TensorFactoryUniformRandomTest {
         Shape matrix = Shape.of(2, 2);
         Shape vector = Shape.of(4);
 
-        Tensor float64 = TensorFactory.randomUniform(
+        Tensor float64 = TensorRandoms.randomUniform(
                 matrix,
                 DataType.FLOAT64,
                 lower,
@@ -121,7 +122,7 @@ class TensorFactoryUniformRandomTest {
                 float64Source,
                 Optional.of("  uniform  "),
                 true);
-        Tensor float32 = TensorFactory.randomUniform(
+        Tensor float32 = TensorRandoms.randomUniform(
                 vector,
                 DataType.FLOAT32,
                 lower,
@@ -129,7 +130,7 @@ class TensorFactoryUniformRandomTest {
                 float32Source,
                 Optional.empty(),
                 true);
-        Tensor bfloat16 = TensorFactory.randomUniform(
+        Tensor bfloat16 = TensorRandoms.randomUniform(
                 vector,
                 DataType.BFLOAT16,
                 lower,
@@ -191,19 +192,19 @@ class TensorFactoryUniformRandomTest {
 
         NullPointerException shapeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomUniform(
+                () -> TensorRandoms.randomUniform(
                         null, null, 0.0d, 1.0d, null, null, false));
         NullPointerException typeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomUniform(
+                () -> TensorRandoms.randomUniform(
                         shape, null, 0.0d, 1.0d, null, null, false));
         NullPointerException sourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomUniform(
+                () -> TensorRandoms.randomUniform(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, null, null, false));
         NullPointerException labelFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomUniform(
+                () -> TensorRandoms.randomUniform(
                         shape, DataType.FLOAT32, 0.0d, 1.0d, source, null, false));
 
         assertAll(
@@ -336,7 +337,7 @@ class TensorFactoryUniformRandomTest {
         Random firstSource = new Random(0x5eedL);
         Random secondSource = new Random(0x5eedL);
 
-        Tensor first = TensorFactory.randomUniform(
+        Tensor first = TensorRandoms.randomUniform(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -344,7 +345,7 @@ class TensorFactoryUniformRandomTest {
                 firstSource,
                 Optional.empty(),
                 false);
-        Tensor second = TensorFactory.randomUniform(
+        Tensor second = TensorRandoms.randomUniform(
                 Shape.of(8),
                 DataType.FLOAT32,
                 -0.5d,
@@ -401,7 +402,7 @@ class TensorFactoryUniformRandomTest {
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.randomUniform(
+                () -> TensorRandoms.randomUniform(
                         Shape.of(3),
                         DataType.FLOAT32,
                         0.0d,
@@ -423,7 +424,7 @@ class TensorFactoryUniformRandomTest {
 
             IllegalStateException exhausted = assertThrows(
                     IllegalStateException.class,
-                    () -> TensorFactory.randomUniform(
+                    () -> TensorRandoms.randomUniform(
                             Shape.of(2),
                             DataType.BFLOAT16,
                             -2.0d,
@@ -450,7 +451,7 @@ class TensorFactoryUniformRandomTest {
             double lower,
             double upper,
             RandomGenerator source) {
-        return TensorFactory.randomUniform(
+        return TensorRandoms.randomUniform(
                 shape, dataType, lower, upper, source, Optional.empty(), false);
     }
 

@@ -4,47 +4,81 @@ import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
 
 /**
- * Implements validated eager normal, bounded continuous uniform, bounded integral, and Bernoulli
- * sampling for {@link TensorFactory} without retaining random source or result state.
+ * Creates eager leaf tensors from an explicit caller-owned random source.
  *
- * <p>The helper accepts only fully static Java-array-sized shapes and the three floating data
- * types for floating distributions, plus exact INT32 and INT64 output selected by primitive
- * integral bounds, plus canonical BOOL output selected by Bernoulli probability. It constructs
- * canonical dense descriptors, samples directly into one matching primitive carrier, and
- * delegates exactly once to flat import. It never creates a Tensor or storage directly, allocates
- * an identifier, looks up or replaces a source, or synchronizes, seeds, resets, splits, or closes
- * the caller-owned generator. The sampling paths remain cohesive
- * package-private factory mechanics rather than a public random package, source abstraction, seed
- * API, or distribution enum: callers already supply the exact generator, and no independent
- * random-domain model type is needed.</p>
+ * <p>This stateless namespace provides normal, bounded continuous-uniform, bounded integral, and
+ * Bernoulli sampling. Every method requires the exact {@link RandomGenerator} to use. The caller
+ * creates, configures, seeds, owns, advances, and coordinates access to that source; this class
+ * never selects, retains, substitutes, synchronizes, resets, splits, serializes, or closes it.
+ * Synaptik therefore owns no default, global, thread-local, engine, runtime, or service-located
+ * random source and gives the generator no lifecycle.</p>
+ *
+ * <p>Each successful call validates a fully static Java-array-sized shape, creates one canonical
+ * dense descriptor, samples into one matching primitive carrier, and delegates exactly once to
+ * {@link TensorFactory#fromFlatArray}. The factory supplies destination storage and the fresh
+ * {@link TensorId}; this class does not construct tensors, storage, provenance, or identifiers
+ * directly. Results are provenance-free eager leaves, not random operations or graph random-number
+ * generator (RNG) state.</p>
+ *
+ * <p>Reproducible values require an equivalent generator implementation and initial state,
+ * identical method arguments, and no interfering use. No cross-algorithm, provider, Java-version,
+ * seed-expansion, serialization, concurrent-use, or global reproducibility guarantee is made.
+ * Validation before carrier allocation consumes no source calls or identifier. If the source
+ * throws, completed calls remain consumed but no destination or identifier is created. Delegated
+ * blank-label rejection and identifier exhaustion occur after sampling and destination allocation;
+ * neither source advancement nor allocation and identifier side effects are rolled back.</p>
  */
-final class TensorRandoms {
+public final class TensorRandoms {
     /** Prevents instantiation because sampling is stateless and scoped to one factory call. */
     private TensorRandoms() {
     }
 
     /**
-     * Validates a requested normal tensor, samples one typed carrier, and imports it once.
+     * Creates an independent dense floating tensor from normally distributed samples.
      *
-     * @param shape non-null shape already checked by the public factory; must be fully static
-     * @param dataType non-null requested type already checked by the public factory
-     * @param mean requested finite binary64 mean
-     * @param standardDeviation requested finite numerically non-negative binary64 deviation
-     * @param randomGenerator exact non-null transient caller-owned source
-     * @param label non-null optional label delegated unchanged to flat import
-     * @param requiresGrad explicit result gradient intent
-     * @return the exact tensor returned by one matching flat-import call; never {@code null}
-     * @throws IllegalArgumentException if shape, count, type, mean, or deviation validation fails,
-     *     or delegated label validation rejects blank text
-     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
-     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * <p>The result type is FLOAT64, FLOAT32, or BFLOAT16. Each row-major element consumes exactly
+     * one {@link RandomGenerator#nextGaussian()} call and evaluates ordinary binary64
+     * {@code mean + gaussian * standardDeviation}, multiplication before addition and without a
+     * fused multiply-add substitution. FLOAT64 stores that value directly, FLOAT32 narrows it once,
+     * and BFLOAT16 narrows once to binary32 before {@link BFloat16Bits#fromFloat(float)} conversion.
+     * Converted overflow, underflow, signed zero, infinity, and NaN are retained. Empty output
+     * consumes no sample; a scalar consumes one.</p>
+     *
+     * <p>The generator is caller-owned and transient as described by this class. All metadata and
+     * distribution validation precedes source-carrier allocation and sampling. A blank label is
+     * validated by {@link Tensor} only after all samples, destination allocation, and one factory
+     * identifier allocation; exhaustion follows sampling and both carrier allocations. These
+     * effects are not rolled back.</p>
+     *
+     * @param shape non-null fully static result shape whose logical count fits a Java array;
+     *     scalar and zero-element shapes are valid
+     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, or BFLOAT16
+     * @param mean finite binary64 mean applied to every sampled Gaussian value
+     * @param standardDeviation finite numerically non-negative binary64 standard deviation;
+     *     either signed zero is accepted and still consumes one sample per element
+     * @param randomGenerator non-null transient caller-owned source; it is never retained or
+     *     managed by Synaptik
+     * @param label non-null optional diagnostic label delegated unchanged to factory import
+     * @param requiresGrad whether model-level gradient eligibility is requested for the result
+     * @return a non-null fresh dense tensor containing independently copied converted samples,
+     *     with new storage and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, {@code randomGenerator}, or
+     *     {@code label} is null, checked in that order before sampling or identifier allocation
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, the type is non-floating, the mean is non-finite, the standard
+     *     deviation is non-finite or negative, gradient eligibility is invalid, or delegated
+     *     Tensor validation rejects a blank label
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after sampling and
+     *     both carrier allocations
      * @throws OutOfMemoryError if source or destination carrier allocation fails
      */
-    static Tensor randomNormal(
+    public static Tensor randomNormal(
             Shape shape,
             DataType dataType,
             double mean,
@@ -52,6 +86,10 @@ final class TensorRandoms {
             RandomGenerator randomGenerator,
             Optional<String> label,
             boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
         TensorDescriptor descriptor = descriptor(
                 shape, dataType, mean, standardDeviation, requiresGrad);
         int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
@@ -67,7 +105,7 @@ final class TensorRandoms {
     }
 
     /**
-     * Validates a requested uniform tensor, samples one typed carrier, and imports it once.
+     * Creates an independent dense floating tensor from bounded continuous-uniform samples.
      *
      * <p>Validation requires a fully static Java-array-sized shape, one of FLOAT64, FLOAT32, or
      * BFLOAT16, finite bounds, and {@code lowerBoundInclusive < upperBoundExclusive}. After
@@ -82,30 +120,35 @@ final class TensorRandoms {
      * narrowed upper bound or a lower-rounded representable value. A non-conforming custom source
      * result is converted without post-validation.</p>
      *
-     * <p>The generator and carrier are transient and never retained. The caller owns generator
-     * configuration, seeding, advancement, and thread-safe access. Equivalent output requires an
-     * equivalent implementation and initial state, identical arguments, and no interfering use;
-     * no cross-algorithm, provider, Java-version, seed-expansion, or concurrent-use promise is
-     * made. Pre-sampling failures consume no source call or identifier. A source exception leaves
-     * preceding calls consumed but creates no destination or identifier. Delegated blank-label
-     * failure and exhaustion occur only after all source calls and destination allocation, with
-     * the flat-import identifier effects documented by {@link TensorFactory#randomUniform}.</p>
+     * <p>The caller-owned source and bounded reproducibility policy follow this class contract.
+     * Metadata and bound failures precede carrier allocation and source calls. A source exception
+     * leaves preceding calls consumed but creates no destination or identifier. Blank-label and
+     * exhaustion failures occur only after all calls and destination allocation, and no source,
+     * allocation, or identifier effect is rolled back.</p>
      *
-     * @param shape non-null shape already checked by the public factory; must be fully static
-     * @param dataType non-null requested type already checked by the public factory
+     * @param shape non-null fully static result shape whose logical count fits a Java array;
+     *     scalar and zero-element shapes are valid
+     * @param dataType non-null exact floating output type, limited to FLOAT64, FLOAT32, or BFLOAT16
      * @param lowerBoundInclusive requested finite inclusive binary64 lower bound
      * @param upperBoundExclusive requested finite exclusive binary64 upper bound
-     * @param randomGenerator exact non-null transient caller-owned source
-     * @param label non-null optional label delegated unchanged to flat import
-     * @param requiresGrad explicit result gradient intent
-     * @return the exact tensor returned by one matching flat-import call; never {@code null}
-     * @throws IllegalArgumentException if shape, count, type, or bound validation fails, or
-     *     delegated label validation rejects blank text
-     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
-     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @param randomGenerator non-null transient caller-owned source; it is never retained or
+     *     managed by Synaptik
+     * @param label non-null optional diagnostic label delegated unchanged to factory import
+     * @param requiresGrad whether model-level gradient eligibility is requested for the result
+     * @return a non-null fresh dense tensor containing independently copied converted samples,
+     *     with new storage and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code dataType}, {@code randomGenerator}, or
+     *     {@code label} is null, checked in that order before sampling or identifier allocation
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, the type is non-floating, either bound is non-finite, the lower
+     *     bound is not less than the upper bound, gradient eligibility is invalid, or delegated
+     *     Tensor validation rejects a blank label
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after sampling and
+     *     both carrier allocations
      * @throws OutOfMemoryError if source or destination carrier allocation fails
      */
-    static Tensor randomUniform(
+    public static Tensor randomUniform(
             Shape shape,
             DataType dataType,
             double lowerBoundInclusive,
@@ -113,6 +156,10 @@ final class TensorRandoms {
             RandomGenerator randomGenerator,
             Optional<String> label,
             boolean requiresGrad) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(dataType, "dataType");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
         TensorDescriptor descriptor = uniformDescriptor(
                 shape,
                 dataType,
@@ -147,7 +194,7 @@ final class TensorRandoms {
     }
 
     /**
-     * Validates a requested INT32 tensor, samples one exact carrier, and imports it once.
+     * Creates an independent dense INT32 tensor from bounded integral samples.
      *
      * <p>Validation requires a fully static Java-array-sized shape and strictly ordered bounds.
      * A canonical dense non-differentiable INT32 descriptor is completed before one {@code int[]}
@@ -156,36 +203,44 @@ final class TensorRandoms {
      * unbounded draw, floating arithmetic, conversion, stream, batching, or post-validation is
      * used. Empty output makes no source call and scalar output makes one.</p>
      *
-     * <p>The source and carrier are transient. Pre-sampling failures consume no source call or
-     * identifier; source exceptions leave earlier calls consumed but create no destination or
-     * identifier. Blank-label and exhaustion effects occur after all calls and are inherited from
-     * the one matching flat import. No state is rolled back.</p>
-     *
      * <p>Primitive bounds select INT32 directly, gradients are disabled, and no data-type,
      * gradient, default-bound, or full-domain option is inferred. Because the exclusive bound has
      * the same carrier as the result, the interval cannot include {@link Integer#MAX_VALUE} as an
      * emitted value. The caller owns source configuration, state, and safe access; reproducibility
      * is limited to equivalent source implementation/state and identical arguments without
-     * interfering use.</p>
+     * interfering use. Metadata and bound failures precede carrier allocation and source calls.
+     * A source exception leaves earlier calls consumed but creates no destination or identifier;
+     * blank-label and exhaustion effects follow all calls and destination allocation. Nothing is
+     * rolled back.</p>
      *
-     * @param shape non-null shape already checked by the public factory; must be fully static
+     * @param shape non-null fully static result shape whose logical count fits a Java array;
+     *     scalar and zero-element shapes are valid
      * @param originInclusive inclusive signed 32-bit lower bound
      * @param boundExclusive exclusive signed 32-bit upper bound, greater than the origin
-     * @param randomGenerator exact non-null transient caller-owned source
-     * @param label non-null optional label delegated unchanged to flat import
-     * @return the exact tensor returned by one INT32 flat-import call; never {@code null}
-     * @throws IllegalArgumentException if shape, count, or bound validation fails, or delegated
-     *     label validation rejects blank text
-     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
-     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @param randomGenerator non-null transient caller-owned source; it is never retained or
+     *     managed by Synaptik
+     * @param label non-null optional diagnostic label delegated unchanged to factory import
+     * @return a non-null fresh dense INT32 tensor containing independently copied direct samples,
+     *     with gradients disabled, new storage, and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order before sampling or identifier allocation
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, the origin is not less than the bound, or delegated Tensor
+     *     validation rejects a blank label
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after sampling and
+     *     both carrier allocations
      * @throws OutOfMemoryError if source or destination carrier allocation fails
      */
-    static Tensor randomInt(
+    public static Tensor randomInt(
             Shape shape,
             int originInclusive,
             int boundExclusive,
             RandomGenerator randomGenerator,
             Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
         TensorDescriptor descriptor = integralDescriptor(shape, originInclusive, boundExclusive);
         int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
         return sampleInt32(
@@ -193,7 +248,7 @@ final class TensorRandoms {
     }
 
     /**
-     * Validates a requested INT64 tensor, samples one exact carrier, and imports it once.
+     * Creates an independent dense INT64 tensor from bounded integral samples.
      *
      * <p>This overload applies the INT32 helper contract to primitive {@code long} bounds. It
      * creates a canonical dense non-differentiable INT64 descriptor, calls
@@ -207,24 +262,39 @@ final class TensorRandoms {
      * be emitted by this bounded API and no full-domain alternative is supplied. Source ownership,
      * safe access, bounded reproducibility, and failure effects match the INT32 entry.</p>
      *
-     * @param shape non-null shape already checked by the public factory; must be fully static
+     * <p>Metadata and bound failures precede carrier allocation and source calls. A source
+     * exception leaves earlier calls consumed but creates no destination or identifier;
+     * blank-label and exhaustion effects follow all calls and destination allocation. No source,
+     * allocation, or identifier state is rolled back.</p>
+     *
+     * @param shape non-null fully static result shape whose logical count fits a Java array;
+     *     scalar and zero-element shapes are valid
      * @param originInclusive inclusive signed 64-bit lower bound
      * @param boundExclusive exclusive signed 64-bit upper bound, greater than the origin
-     * @param randomGenerator exact non-null transient caller-owned source
-     * @param label non-null optional label delegated unchanged to flat import
-     * @return the exact tensor returned by one INT64 flat-import call; never {@code null}
-     * @throws IllegalArgumentException if shape, count, or bound validation fails, or delegated
-     *     label validation rejects blank text
-     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
-     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @param randomGenerator non-null transient caller-owned source; it is never retained or
+     *     managed by Synaptik
+     * @param label non-null optional diagnostic label delegated unchanged to factory import
+     * @return a non-null fresh dense INT64 tensor containing independently copied direct samples,
+     *     with gradients disabled, new storage, and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order before sampling or identifier allocation
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, the origin is not less than the bound, or delegated Tensor
+     *     validation rejects a blank label
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after sampling and
+     *     both carrier allocations
      * @throws OutOfMemoryError if source or destination carrier allocation fails
      */
-    static Tensor randomInt(
+    public static Tensor randomInt(
             Shape shape,
             long originInclusive,
             long boundExclusive,
             RandomGenerator randomGenerator,
             Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
         TensorDescriptor descriptor = integralDescriptor(shape, originInclusive, boundExclusive);
         int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
         return sampleInt64(
@@ -232,8 +302,7 @@ final class TensorRandoms {
     }
 
     /**
-     * Validates a requested Bernoulli tensor, samples one canonical BOOL carrier, and imports it
-     * once.
+     * Creates a fresh dense BOOL tensor from Bernoulli samples.
      *
      * <p>The probability must be finite and in {@code [0.0, 1.0]}. Every row-major element calls
      * {@link RandomGenerator#nextDouble()} exactly once, including at either probability endpoint,
@@ -241,30 +310,38 @@ final class TensorRandoms {
      * when the draw is strictly less than the probability and zero otherwise. The source and
      * carrier remain transient, and the result always has BOOL type with gradients disabled.</p>
      *
-     * <p>The caller owns generator configuration, state, advancement, and safe thread access.
-     * Equivalent output requires an equivalent implementation and initial state, identical
-     * arguments, and no interfering use; no cross-algorithm, provider, Java-version,
-     * seed-expansion, or concurrent-use guarantee is made. Pre-sampling failures consume no call
+     * <p>The caller-owned source and bounded reproducibility policy follow this class contract.
+     * Probability is validated even for empty output. Pre-sampling failures consume no source call
      * or identifier. A source exception preserves earlier calls but creates no destination or
      * identifier. Blank-label and exhaustion effects occur after all calls and destination
      * allocation through the one BOOL flat import, and no state is rolled back.</p>
      *
-     * @param shape non-null shape already checked by the public factory; must be fully static
+     * @param shape non-null fully static result shape whose logical count fits a Java array;
+     *     scalar and zero-element shapes are valid
      * @param probability finite success probability in the closed interval {@code [0.0, 1.0]}
-     * @param randomGenerator exact non-null transient caller-owned source
-     * @param label non-null optional label delegated unchanged to BOOL flat import
-     * @return the exact tensor returned by one BOOL flat-import call; never {@code null}
-     * @throws IllegalArgumentException if shape, count, or probability validation fails, or
-     *     delegated label validation rejects blank text
-     * @throws ArithmeticException if checked logical-count or dense-layout arithmetic overflows
-     * @throws IllegalStateException if identifier space is exhausted after all samples are drawn
+     * @param randomGenerator non-null transient caller-owned source; it is never retained or
+     *     managed by Synaptik
+     * @param label non-null optional diagnostic label delegated unchanged to BOOL factory import
+     * @return a non-null fresh dense BOOL tensor containing copied canonical zero/one bytes in new
+     *     storage, with gradients disabled and factory-assigned identity
+     * @throws NullPointerException if {@code shape}, {@code randomGenerator}, or {@code label} is
+     *     null, checked in that order before sampling or identifier allocation
+     * @throws IllegalArgumentException if the shape is dynamic, its count exceeds
+     *     {@link Integer#MAX_VALUE}, probability is non-finite or outside {@code [0.0, 1.0]}, or
+     *     delegated Tensor validation rejects a blank label
+     * @throws ArithmeticException if checked logical-count, stride, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after sampling and
+     *     both carrier allocations
      * @throws OutOfMemoryError if source or destination carrier allocation fails
      */
-    static Tensor randomBernoulli(
+    public static Tensor randomBernoulli(
             Shape shape,
             double probability,
             RandomGenerator randomGenerator,
             Optional<String> label) {
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(randomGenerator, "randomGenerator");
+        Objects.requireNonNull(label, "label");
         TensorDescriptor descriptor = bernoulliDescriptor(shape, probability);
         int length = Math.toIntExact(shape.knownElementCount().orElseThrow());
         return sampleBernoulli(descriptor, probability, randomGenerator, label, length);

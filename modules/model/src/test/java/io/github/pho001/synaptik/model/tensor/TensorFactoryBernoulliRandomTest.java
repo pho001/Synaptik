@@ -39,7 +39,7 @@ class TensorFactoryBernoulliRandomTest {
                 Double.NaN);
         Shape shape = Shape.of(2, 3);
 
-        Tensor tensor = TensorFactory.randomBernoulli(
+        Tensor tensor = TensorRandoms.randomBernoulli(
                 shape, 0.25d, source, Optional.of("  mask  "));
 
         assertAll(
@@ -93,13 +93,13 @@ class TensorFactoryBernoulliRandomTest {
 
         NullPointerException shapeFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomBernoulli(null, 0.5d, null, null));
+                () -> TensorRandoms.randomBernoulli(null, 0.5d, null, null));
         NullPointerException sourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomBernoulli(shape, 0.5d, null, null));
+                () -> TensorRandoms.randomBernoulli(shape, 0.5d, null, null));
         NullPointerException labelFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomBernoulli(shape, 0.5d, source, null));
+                () -> TensorRandoms.randomBernoulli(shape, 0.5d, source, null));
 
         assertAll(
                 () -> assertEquals("shape", shapeFailure.getMessage()),
@@ -219,7 +219,7 @@ class TensorFactoryBernoulliRandomTest {
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.randomBernoulli(
+                () -> TensorRandoms.randomBernoulli(
                         Shape.of(3), 0.5d, blankSource, Optional.of(" \t\n ")));
         assertAll(
                 () -> assertEquals("label must not be blank", blank.getMessage()),
@@ -251,7 +251,7 @@ class TensorFactoryBernoulliRandomTest {
 
     private static Tensor bernoulli(
             Shape shape, double probability, RandomGenerator randomGenerator) {
-        return TensorFactory.randomBernoulli(
+        return TensorRandoms.randomBernoulli(
                 shape, probability, randomGenerator, Optional.empty());
     }
 

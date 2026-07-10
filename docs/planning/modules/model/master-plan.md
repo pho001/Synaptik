@@ -211,7 +211,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018P | [Elementwise semantic cleanup](tasks/0018p-elementwise-semantic-cleanup.md) | Complete | 0014C–0014F, 0018K, 0018N | Atomically rename `INV`/`inv` to `RECIPROCAL`/`reciprocal`, remove both fast variants without aliases, and preserve the typed scalar family unchanged. |
 | 0018Q | [Masked reduction redesign](tasks/0018q-masked-reduction-redesign.md) | Complete | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Remove heuristic mapping, require explicit right-aligned broadcast-to-input masks, retain minimal first-class two-input SUM/MEAN, and define all-false mean as NaN. |
 | 0018R | [Slice and window public-contract cleanup](tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete | 0017G–0017N, 0018K–0018M | Normalize signed non-zero slices as start/length/step sequences, add one-SLICE flip, and remove public foldAxis while retaining compiler-only FOLD_AXIS semantics. |
-| 0018S | Tensor factory surface cleanup | Draft | 0012–0012I, 0013A | Keep core construction/import/constants in TensorFactory and move prefix population to test/data utilities. |
+| 0018S | [Tensor factory surface cleanup](tasks/0018s-tensor-factory-surface-cleanup.md) | Complete | 0012–0012I, 0013A, 0018N | Keep identity/construction/import/constants/range in TensorFactory, promote TensorRandoms as the focused public random owner, and move prefix population to test-only fixtures. |
 | 0018T | Core scalar and unary numeric gaps | Draft | 0018K, 0018N, 0018P | Add exact scalar add/sub/div/min/max and selected reciprocal, rsqrt, log1p, expm1, and floating diagnostic semantics. |
 | 0018U | Integral arithmetic and comparison domains | Draft | 0014A–0015B, 0016A–0016E, 0018K, 0018T | Add the selected signed-integral arithmetic, comparisons, arg-min, and reduction domains with explicit overflow and accumulation policy. |
 | 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T–0018U | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
@@ -268,8 +268,17 @@ values and conservative Shape integration. Task 0018M1 is complete with canonica
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
-final thirteen-kind unary vocabulary. Tasks 0018Q and 0018R are complete. Task 0018S and every
-later task remain Draft without detailed specifications.
+final thirteen-kind unary vocabulary. Tasks 0018Q, 0018R, and 0018S are complete. Task 0018T and
+every later task remain Draft without detailed specifications.
+
+Task 0018S leaves exactly 31 public TensorFactory construction/import/constant/range methods,
+makes field-free `TensorRandoms` the sole public owner of five explicit caller-source random
+entries, moves range mechanics to package-private `TensorRanges`, and removes prefix preparation
+from production. Package-private test-source `TensorTestData` retains the fixture behavior through
+public flat import. The implementation context passed 58 focused tests and the 715-test root
+checkpoint; independent documentation review finalized Javadocs, Tensor API, glossary, planning
+status, a runnable public example, and the required generated-Javadoc, Markdown, surface, scope,
+status, terminology, and whitespace checks.
 
 The capability baseline is documented and the ordered task queue covers its model-level
 responsibilities. Tasks 0001 through 0007 and package migrations 0003A–0003C are complete. Task
@@ -358,8 +367,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   conveniences. Receiver-aware Tensor helpers own exact parameter/input DataType matching;
   operation signatures keep their attribute-class and occurrence-cardinality role.
 - Existing primitive TensorFactory scalar/full APIs and explicit `BFloat16Bits` conversion remain
-  unchanged in 0018N. Task 0018S may later decide whether typed factory overloads belong in the
-  cleaned public construction surface.
+  unchanged in 0018N. Completed task 0018S keeps those exact primitive eager-storage entries and does
+  not add `ScalarValue` factory overloads because semantic attributes and storage carriers remain
+  distinct responsibilities.
 - Task 0018N completed with 57 focused tests and the final 770-test model suite passing in the
   implementation context. Independent documentation review finalized the seven affected
   Javadocs, Tensor and Compile API references, glossary, capability baseline, task evidence, and
@@ -1228,8 +1238,8 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, and 0018R are complete. Task 0018S and
-every later task remain Draft without detailed specifications. Other operation-family rows are not
+Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, and 0018S are complete. Task 0018T
+and every later task remain Draft without detailed specifications. Other operation-family rows are not
 permission for oversized implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1285,7 +1295,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018R are complete; 0018S and
-every later task remain Draft without a detailed specification.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018S are complete; 0018T and every
+later task remain Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

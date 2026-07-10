@@ -40,9 +40,9 @@ class TensorFactoryIntegralRandomTest {
         Shape matrix = Shape.of(2, 2);
         Shape vector = Shape.of(4);
 
-        Tensor int32 = TensorFactory.randomInt(
+        Tensor int32 = TensorRandoms.randomInt(
                 matrix, intOrigin, intBound, intSource, Optional.of("  indices  "));
-        Tensor int64 = TensorFactory.randomInt(
+        Tensor int64 = TensorRandoms.randomInt(
                 vector, longOrigin, longBound, longSource, Optional.empty());
 
         assertAll(
@@ -130,22 +130,22 @@ class TensorFactoryIntegralRandomTest {
 
         NullPointerException intShape = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(null, 0, 1, null, null));
+                () -> TensorRandoms.randomInt(null, 0, 1, null, null));
         NullPointerException intSourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(shape, 0, 1, null, null));
+                () -> TensorRandoms.randomInt(shape, 0, 1, null, null));
         NullPointerException intLabel = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(shape, 0, 1, intSource, null));
+                () -> TensorRandoms.randomInt(shape, 0, 1, intSource, null));
         NullPointerException longShape = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(null, 0L, 1L, null, null));
+                () -> TensorRandoms.randomInt(null, 0L, 1L, null, null));
         NullPointerException longSourceFailure = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(shape, 0L, 1L, null, null));
+                () -> TensorRandoms.randomInt(shape, 0L, 1L, null, null));
         NullPointerException longLabel = assertThrows(
                 NullPointerException.class,
-                () -> TensorFactory.randomInt(shape, 0L, 1L, longSource, null));
+                () -> TensorRandoms.randomInt(shape, 0L, 1L, longSource, null));
 
         assertAll(
                 () -> assertEquals("shape", intShape.getMessage()),
@@ -304,7 +304,7 @@ class TensorFactoryIntegralRandomTest {
 
         IllegalArgumentException blank = assertThrows(
                 IllegalArgumentException.class,
-                () -> TensorFactory.randomInt(
+                () -> TensorRandoms.randomInt(
                         Shape.of(3), 0, 4, blankSource, Optional.of(" \t\n ")));
         assertAll(
                 () -> assertEquals("label must not be blank", blank.getMessage()),
@@ -321,7 +321,7 @@ class TensorFactoryIntegralRandomTest {
 
             IllegalStateException exhausted = assertThrows(
                     IllegalStateException.class,
-                    () -> TensorFactory.randomInt(
+                    () -> TensorRandoms.randomInt(
                             Shape.of(2), -2L, 2L, exhaustedSource, Optional.empty()));
 
             assertAll(
@@ -338,12 +338,12 @@ class TensorFactoryIntegralRandomTest {
 
     private static Tensor intRandom(
             Shape shape, int origin, int bound, RandomGenerator source) {
-        return TensorFactory.randomInt(shape, origin, bound, source, Optional.empty());
+        return TensorRandoms.randomInt(shape, origin, bound, source, Optional.empty());
     }
 
     private static Tensor longRandom(
             Shape shape, long origin, long bound, RandomGenerator source) {
-        return TensorFactory.randomInt(shape, origin, bound, source, Optional.empty());
+        return TensorRandoms.randomInt(shape, origin, bound, source, Optional.empty());
     }
 
     private static void assertDescriptor(Tensor tensor, Shape shape, DataType dataType) {
