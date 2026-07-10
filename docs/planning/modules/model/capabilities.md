@@ -210,9 +210,18 @@ values, and saturation remain outside the selected task because they require sep
 rounding, exponent, or overflow policy. Existing one-bound clamp conveniences inherit integral
 MAX/MIN behavior without restoring a distinct clamp kind.
 
-Draft follow-up 0018U1 owns selected integral reductions, accumulation and empty-domain policy,
-`argMin`, and coherent arg-extrema tie-policy naming. Keeping those decisions separate prevents
-local elementwise promotion from being coupled to reduction-domain design.
+Completed task [0018U1](tasks/0018u1-integral-reductions-and-arg-min-normalization.md) selects
+exact-type modular INT32/INT64 SUM and PROD, signed MIN and MAX, and bounded-domain empty
+identities: zero for SUM, one for PROD, the type maximum for MIN, and the type minimum for MAX.
+Integral reductions do not widen. The same task adds `ARG_MIN`/`argMin` and atomically replaces
+arg-max-only attributes and tie-policy naming with shared arg-extrema contracts, without aliases.
+Both arg families use fixed INT64 indices and explicit first/last logical-index selection. Their
+floating order selects NaN over non-NaN, orders negative zero below positive zero, and orders
+infinities normally. A statically empty selected axis is rejected; an unbound selected extent is
+accepted structurally but must be positive when later bound. Keeping those decisions separate
+prevents local elementwise promotion from being coupled to reduction-domain design. Model
+construction records these contracts without evaluating values, implementing gradients, or
+claiming compiler, backend, runtime, or execution support.
 
 ## Indexing taxonomy
 

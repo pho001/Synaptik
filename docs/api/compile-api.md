@@ -49,7 +49,7 @@ floating-classification methods, seven exact-typed plus seven exact-FLOAT64 scal
 methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method, fifteen
 full/axis numeric aggregate methods, and six full/axis boolean aggregate
-methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
+methods, two axis-removing masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
 tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
 methods and three functional Scatter-ND methods, construct
@@ -105,13 +105,18 @@ construction neither reads values nor promises correct rounding or a fixed numer
 the exact input Shape, unresolved layout, false gradient eligibility, and one-input parameterless
 provenance. They record graph-visible value classifications; they do not eagerly classify host
 storage or define compiler validation, gradients, lowering, backend support, or execution.
-`Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` accept floating inputs and
-construct full, axis-removing, or retained-axis expressions. Full forms have canonical rank-zero
-shape and use the canonical no-attributes singleton; axis forms normalize the caller axis and
-store `AxisReductionAttrs`. They preserve exact input type and gradient eligibility, leave layout
-unresolved, and record one-input provenance without aggregating or comparing values or defining
-empty-domain, NaN, signed-zero, extrema-tie gradient, numerical, or executable behavior. Aggregate
-`MIN`/`MAX` remain typed separately from the equally named two-input binary elementwise kinds.
+`Tensor.sum`, `prod`, reduction `min`, and reduction `max` accept floating or signed-integral
+inputs; `mean` remains floating-only. They construct full, axis-removing, or retained-axis
+expressions. Full forms have canonical rank-zero Shape and use the canonical no-attributes
+singleton; axis forms normalize the caller axis and store `AxisReductionAttrs`. Every result
+preserves exact input type and gradient eligibility, leaves layout unresolved, and records
+one-input provenance. Integral sum/product use exact-type modular arithmetic modulo `2^32` or
+`2^64` with reassociation permitted; integral min/max use signed order. Their empty identities are
+zero, one, the input type's maximum, and the input type's minimum, respectively, for full domains
+and empty selected-axis slices. Construction records these semantics without aggregating or
+comparing values, implementing a gradient or numerical algorithm, or providing compiler,
+lowering, backend, or executable behavior. Aggregate `MIN`/`MAX` remain typed separately from the
+equally named two-input binary elementwise kinds.
 The masked `Tensor.sum(axis, mask)` and `Tensor.mean(axis, mask)` forms require floating input and
 an exact BOOL mask. They require ordinary right-aligned broadcasting of the mask to produce
 exactly the input Shape; callers make other axis intent visible with an explicit reshape,
@@ -126,12 +131,18 @@ expressions with exact BOOL result type, false gradient eligibility, unresolved 
 one-input provenance. Aggregate `ALL`/`ANY` remain typed separately from elementwise `AND`/`OR`.
 Construction does not inspect truth values or define empty-domain identities, compiler behavior,
 backend support, or execution.
-`Tensor.argMax` accepts floating or integral input and one positive or negative axis. Its
-convenience forms explicitly use `FIRST_INDEX`, while the complete form retains an explicit
-first- or last-index policy. Axis removal or retention follows the same structural Shape rules as
-ordinary reductions, but every result is fixed unresolved-layout INT64 with false gradient
-eligibility and one-input provenance. Construction does not compare values, select an index, or
-define NaN, equality, empty-axis, gradient, compiler, backend, or execution behavior.
+`Tensor.argMin` and `Tensor.argMax` accept floating or integral input and one positive or negative
+axis. Their convenience forms explicitly use `FIRST_INDEX`, while complete forms retain an
+explicit first- or last-index policy in shared `ArgExtremaAttrs`. Axis removal or retention follows
+the ordinary structural Shape rules, but every result is fixed unresolved-layout INT64 with false
+gradient eligibility, one-input provenance, and output index zero. Integral candidates use signed
+order. Floating candidates prefer NaN for both extrema directions, treat multiple NaNs as ties,
+order negative zero below positive zero, and order infinities normally. Construction rejects a
+statically empty selected axis, accepts an unselected zero axis and unbound selected extent, and
+does not compare values, select an index, define gradients, capture or validate a compiled graph,
+lower, report backend support, or execute. A future compiler must prove or validate that a dynamic
+selected extent is positive before index selection, but its callable API and failure type remain
+unspecified.
 `Tensor.cumSum` accepts floating or integral input and one positive or negative axis. Its short
 form explicitly selects inclusive forward traversal; its complete form retains exact exclusive
 and reverse flags. Every result retains the exact input Shape, data type, and gradient eligibility,
@@ -295,7 +306,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   selection, cast, unary numeric, floating-classification, scalar, numeric aggregate expression
   construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
-  construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
+  construction for all and any, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis

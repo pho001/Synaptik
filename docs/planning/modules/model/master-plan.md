@@ -99,7 +99,8 @@ io.github.pho001.synaptik.model.operation.elementwise.cast
   Typed explicit data-type conversion semantics and immutable target-type attributes.
 
 io.github.pho001.synaptik.model.operation.reduction
-  Typed aggregate-reduction meanings, normalized single-axis parameters, and arg-max tie policy.
+  Typed aggregate-reduction meanings, normalized single-axis parameters, and shared arg-extrema
+  tie policy.
 
 io.github.pho001.synaptik.model.operation.scan
   Typed shape-preserving ordered scan meanings and immutable scan parameters.
@@ -218,7 +219,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018T | [Scalar arithmetic family normalization](tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete | 0014A–0014B, 0014E–0014F, 0018K, 0018N, 0018P | Complete parallel seven-operation Tensor/binary and Tensor/scalar arithmetic, distinguish pairwise `minimum`/`maximum` from reductions, and demote one-bound clamp kinds to conveniences. |
 | 0018T1 | [Unary numeric gaps and floating diagnostics](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete | 0014C–0014D, 0018K, 0018P, 0018T | Add floating-preserving `rsqrt`/`log1p`/`expm1` plus separately typed BOOL `isFinite`/`isNaN`/`isInf` classification semantics and public construction. |
 | 0018U | [Integral elementwise arithmetic and comparisons](tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete | 0001, 0014A–0015B, 0018K, 0018N, 0018T–0018T1 | Add same-category promotion, selected modular INT32/INT64 elementwise arithmetic, exact scalar domains, and all six integral comparisons. |
-| 0018U1 | Integral reductions and arg-min normalization | Draft | 0016A–0016E, 0018K, 0018U | Add selected integral SUM/PROD/MIN/MAX domains, `argMin`, and a coherent shared arg-extrema tie-policy contract with explicit accumulation and empty-domain rules. |
+| 0018U1 | [Integral reductions and arg-min normalization](tasks/0018u1-integral-reductions-and-arg-min-normalization.md) | Complete | 0016A–0016E, 0018K, 0018U | Added exact-type modular integral SUM/PROD, signed MIN/MAX with bounded empty identities, and shared `argMin`/`argMax` attributes, ordering, tie, and empty-axis contracts. |
 | 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U1 | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
 | 0019 | Linear algebra and attention operations | Draft | 0018K, 0018M–0018N, 0018T | Represent matmul, linear convenience, and scaled dot-product attention after the ordered reset. |
 | 0019A | Modern activation and embedding conveniences | Draft | 0015F, 0018O, 0018P, 0018T | Add GELU, SiLU/Swish, embedding, and one-hot public compositions without unnecessary primitive kinds. |
@@ -275,8 +276,9 @@ representation, migrated attributes, and receiver-aware Tensor validation. Task 
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
 final thirteen-kind unary vocabulary. Tasks 0018Q, 0018R, 0018S, 0018T, and 0018T1 are complete.
 Task 0018U is complete with same-category numeric promotion, selected signed-integral elementwise
-arithmetic, exact scalar domains, and all six integral comparisons. Task 0018U1 is the next Draft
-frontier, and it and every later task remain without detailed specifications.
+arithmetic, exact scalar domains, and all six integral comparisons. Task 0018U1 is complete with
+exact-type integral reductions and the normalized shared arg-extrema family. Task 0018V is the
+next Draft frontier; it and every later task remain without detailed specifications.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -1174,6 +1176,11 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   configuration, ordinary reductions, and related foundational/reduction contracts remain
   accurate unchanged because this task adds only model-owned index-expression metadata without
   comparison, empty-axis policy, gradients, compiler behavior, dependencies, or execution.
+- Completed task 0018U1 later broadened ordinary SUM/PROD/MIN/MAX to exact signed-integral input,
+  selected their modular/signed/empty-domain semantics, and replaced the historical arg-max-only
+  types/helper with shared arg-extrema contracts. It also fixed floating/integral arg-extrema
+  ordering and static-empty-selected-axis rejection. The 0016A–0016E bullets above remain
+  historical completion records rather than descriptions of the current public API.
 - Task 0016F adds `MaskedReductionAttrs(axis, maskInputAxes)` and documents SUM/MEAN pairing
   without public Tensor construction. The immutable strictly increasing mapping records
   which input axis receives each mask dimension, so masks such as `[batch, time]` for
@@ -1271,8 +1278,9 @@ Completed task
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
-complete. Task 0018U is also complete. Task 0018U1 is the next Draft frontier, and it and every
-later task remain without detailed specifications. Other operation-family rows are not permission for oversized
+complete. Task 0018U and task 0018U1 are also complete. Task 0018V is the next Draft frontier; it
+and every later task remain without detailed specifications.
+Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1329,7 +1337,7 @@ semantic values. Task 0018H is complete with public functional axis-scatter expr
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
-0018U1 is the next Draft frontier, while it and every later task remain without a detailed
-specification.
+0018U1 is complete, while 0018V is the next Draft frontier and every later task remains Draft
+without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

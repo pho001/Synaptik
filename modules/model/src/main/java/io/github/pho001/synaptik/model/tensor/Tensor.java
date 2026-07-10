@@ -31,7 +31,7 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -80,18 +80,26 @@ import java.util.Optional;
  * floating branches, promotes the branch type, composes two pairwise broadcasts, and propagates
  * gradient eligibility from the branches only. Cast accepts every current source and target data
  * type, retains the exact input shape, and preserves a true gradient request only across a
- * floating-to-floating conversion. Numeric aggregate methods accept one floating input and reduce
- * either every axis to a scalar or one normalized axis, optionally retaining it with extent one;
- * they preserve the exact input type and gradient eligibility without aggregating values. Boolean
+ * floating-to-floating conversion. Ordinary SUM, PROD, MIN, and MAX aggregates accept floating or
+ * signed-integral input; MEAN remains floating-only. Every result preserves the exact input type
+ * and gradient eligibility and reduces either every axis to a scalar or one normalized axis,
+ * optionally retaining it with extent one. Integral SUM and PROD mean fixed-width modular
+ * arithmetic with reassociation permitted, while integral MIN and MAX use signed order. Their
+ * empty-domain identities are zero, one, the input type's maximum, and the input type's minimum,
+ * respectively. Construction records those meanings without aggregating values. Boolean
  * aggregate methods require exact BOOL input and construct non-differentiable BOOL results with
  * the same full- or single-axis shape rules, without inspecting truth values or defining
  * empty-domain identities. Masked sum and mean require a BOOL mask whose ordinary right-aligned
  * broadcast is exactly the input Shape, remove one axis, and record exact {@code [input, mask]}
  * provenance without inspecting values. False positions exclude even NaN and infinity before
- * aggregation; an empty selected set means zero for sum and NaN for mean. Arg-max
- * accepts one axis of a floating or integral input, uses an explicit first- or last-index tie
- * policy, and produces a non-differentiable {@code INT64} result without comparing values or
- * defining empty-axis behavior. Axis gather methods consume ordered {@code [data, indices]}
+ * aggregation; an empty selected set means zero for sum and NaN for mean. Arg-min and arg-max
+ * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
+ * last-logical-index tie policy, and produce a non-differentiable {@code INT64} result. Integral
+ * candidates use signed order. Floating candidates prefer NaN, order negative zero below positive
+ * zero, and order infinities normally. A statically empty selected axis is rejected, while an
+ * unselected zero axis or an unbound selected extent is accepted structurally. Construction does
+ * not compare values or select an index. Axis gather methods consume ordered
+ * {@code [data, indices]}
  * inputs, require exact INT32 or INT64 indices, and apply canonical axis-replacement or same-rank
  * aligned Shape rules without reading index values or checking their bounds. Gather-ND methods consume
  * the same ordered inputs as coordinate tuples, validate a structurally equal shared batch
@@ -1507,21 +1515,25 @@ public final class Tensor {
     /**
      * Builds an expression that sums this tensor over every axis.
      *
-     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
-     * scalar shape, retains the exact input data type and gradient-eligibility request, leaves
-     * layout unresolved, and has no label or host storage. Its provenance contains
+     * <p>The input must have a floating or signed-integral data type. The fresh result has the
+     * canonical rank-zero scalar shape, retains the exact input data type and
+     * gradient-eligibility request, leaves layout unresolved, and has no label or host storage.
+     * Integral input is necessarily non-differentiable. Provenance contains
      * {@link AggregateReductionKind#SUM}, {@code NoOperationAttrs.INSTANCE}, and exactly this
-     * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted without inspecting an
-     * element count or defining an empty-domain value.</p>
+     * tensor as the sole ordered producer input at output index zero.</p>
      *
-     * <p>This method records aggregate semantics only. It does not read or sum values, choose
-     * accumulation precision or order, create a gradient rule, capture a graph, or execute work.
-     * Gradient eligibility therefore does not promise that differentiation is available.</p>
+     * <p>For INT32 and INT64 input, addition occurs in the exact result type modulo
+     * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces zero.
+     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating
+     * accumulation and empty-domain behavior remain unchanged. This method records semantics only:
+     * it does not read storage, sum values, implement an algorithm, create a gradient rule,
+     * capture a graph, lower an operation, or execute work.</p>
      *
-     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for SUM, but was BOOL}; no Tensor identity is
+     *     consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
      *     expression metadata has been constructed
      */
@@ -1532,24 +1544,29 @@ public final class Tensor {
     /**
      * Builds an expression that sums this tensor over one axis and removes that axis.
      *
-     * <p>The input must be floating. {@code axis} accepts the Shape contract's positive or
-     * negative indexing and is normalized exactly once against the input rank. The selected
-     * dimension is removed, every unaffected immutable dimension reference is retained in order,
+     * <p>The input must be floating or signed integral. {@code axis} accepts the Shape contract's
+     * positive or negative indexing and is normalized exactly once against the input rank. The
+     * selected dimension is removed, every unaffected immutable dimension reference is retained in order,
      * and reducing a rank-one tensor produces the canonical rank-zero scalar shape. The fresh
      * result preserves the exact input data type and gradient eligibility, leaves layout
      * unresolved, and has no label or storage. Provenance records
      * {@link AggregateReductionKind#SUM} with normalized single-axis attributes and exactly this
      * input.</p>
      *
-     * <p>No values are read or summed, and no empty-domain, accumulation, gradient, compiler, or
-     * execution policy is defined.</p>
+     * <p>For integral input, the exact result type uses modular addition with reassociation
+     * permitted, and every empty selected-axis slice produces zero. Other zero output axes may
+     * make the result itself empty. Dynamic extents are accepted and use the same identity when
+     * later bound to zero. Floating behavior remains unchanged. This method reads no value or
+     * storage and provides no algorithm, gradient rule, compiler lowering, backend, or execution
+     * behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
-     *     floating data type and gradient eligibility and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for SUM, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1563,24 +1580,29 @@ public final class Tensor {
     /**
      * Builds an expression that sums this tensor over one axis and optionally retains it.
      *
-     * <p>The input must be floating. {@code axis} is normalized exactly once using the Shape
-     * contract. When {@code keepDimensions} is false, the selected axis is removed; when true, it
+     * <p>The input must be floating or signed integral. {@code axis} is normalized exactly once
+     * using the Shape contract. When {@code keepDimensions} is false, the selected axis is removed; when true, it
      * is replaced by a new static dimension of extent one. Every unaffected immutable dimension
      * reference is retained in order. The fresh result preserves the exact input data type and
      * gradient eligibility, leaves layout unresolved, has no label or storage, and records
      * {@link AggregateReductionKind#SUM}, normalized axis attributes, and this sole input.</p>
      *
-     * <p>Zero and dynamic extents are accepted structurally. This method does not inspect or sum
-     * values or define empty-domain, accumulation, gradient, compiler, or execution behavior.</p>
+     * <p>For integral input, the exact result type uses modular addition with reassociation
+     * permitted, and every empty selected-axis slice produces zero independent of retention.
+     * Zero and dynamic extents are accepted structurally; a dynamic selected extent later bound
+     * to zero uses the same identity. Floating behavior remains unchanged. This method does not
+     * inspect values or storage, choose an algorithm, define a gradient rule, or provide compiler,
+     * backend, runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
      * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
-     *     floating data type and gradient eligibility, and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for SUM, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1768,20 +1790,24 @@ public final class Tensor {
     /**
      * Builds an expression that multiplies this tensor's values over every axis.
      *
-     * <p>The input must have a floating data type. The fresh result has canonical rank-zero scalar
-     * shape, preserves the exact input data type and gradient-eligibility request, leaves layout
-     * unresolved, and has no label or storage. Its provenance contains
+     * <p>The input must have a floating or signed-integral data type. The fresh result has
+     * canonical rank-zero scalar shape, preserves the exact input data type and
+     * gradient-eligibility request, leaves layout unresolved, and has no label or storage.
+     * Integral input is necessarily non-differentiable. Provenance contains
      * {@link AggregateReductionKind#PROD}, {@code NoOperationAttrs.INSTANCE}, and exactly this
-     * tensor. Preserving eligibility records model intent only; this method creates no product
-     * gradient rule. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
+     * tensor as the sole ordered producer input at output index zero.</p>
      *
-     * <p>No values are multiplied, and multiplication order, overflow, empty-domain identity,
-     * numerical accuracy, gradients, compiler behavior, and execution remain deferred.</p>
+     * <p>For INT32 and INT64 input, multiplication occurs in the exact result type modulo
+     * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces one.
+     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating
+     * behavior remains unchanged. This method reads no value or storage, implements no algorithm,
+     * creates no gradient rule, and provides no compiler, backend, runtime, or execution behavior.</p>
      *
-     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for PROD, but was BOOL}; no Tensor identity
+     *     is consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
      *     expression metadata has been constructed
      */
@@ -1792,22 +1818,27 @@ public final class Tensor {
     /**
      * Builds a product expression over one axis and removes that axis.
      *
-     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * <p>The numeric input's positive or negative {@code axis} is normalized exactly once. The
      * selected dimension is removed, every unaffected dimension reference is retained in order,
      * and rank one reduces to the canonical scalar shape. The fresh result has exact input type
      * and gradient eligibility, unresolved layout, no label or storage, and provenance with
      * {@link AggregateReductionKind#PROD}, normalized axis attributes, and this input. Preserved
      * eligibility does not imply that a product gradient rule exists.</p>
      *
-     * <p>No values are multiplied and no empty-domain, ordering, numerical, gradient, compiler,
-     * or execution policy is defined.</p>
+     * <p>For integral input, the exact result type uses modular multiplication with reassociation
+     * permitted, and every empty selected-axis slice produces one. Other zero output axes may
+     * make the result itself empty. Dynamic extents are accepted and use the same identity when
+     * later bound to zero. Floating behavior remains unchanged. This method reads no value or
+     * storage and provides no algorithm, gradient rule, compiler lowering, backend, or execution
+     * behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
-     *     floating data type and gradient eligibility and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for PROD, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1821,25 +1852,29 @@ public final class Tensor {
     /**
      * Builds a product expression over one axis and optionally retains it.
      *
-     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * <p>The numeric input's {@code axis} is normalized exactly once. A false
      * {@code keepDimensions} removes the selected axis; true replaces it by a new static extent
      * one while preserving all other dimension references. The fresh result retains exact input
      * type and gradient eligibility, has unresolved layout and no label or storage, and records
      * {@link AggregateReductionKind#PROD}, normalized axis attributes, and this sole input.
      * Preserved eligibility is model metadata and does not install a product gradient rule.</p>
      *
-     * <p>Zero and dynamic extents remain structurally valid. No values are multiplied, and
-     * empty-domain, multiplication-order, numerical, gradient, compiler, and execution behavior
-     * remains deferred.</p>
+     * <p>For integral input, the exact result type uses modular multiplication with reassociation
+     * permitted, and every empty selected-axis slice produces one independent of retention. Zero
+     * and dynamic extents remain structurally valid; a dynamic selected extent later bound to
+     * zero uses the same identity. Floating behavior remains unchanged. This method reads no
+     * value or storage and provides no algorithm, gradient rule, compiler lowering, backend,
+     * runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
      * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
-     *     floating data type and gradient eligibility, and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for PROD, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1853,22 +1888,25 @@ public final class Tensor {
     /**
      * Builds an expression that selects the minimum over every input axis.
      *
-     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
-     * scalar shape, preserves the exact input data type and gradient-eligibility request, leaves
-     * layout unresolved, and has no label or host storage. Its provenance contains aggregate
+     * <p>The input must have a floating or signed-integral data type. The fresh result has the
+     * canonical rank-zero scalar shape, preserves the exact input data type and
+     * gradient-eligibility request, leaves layout unresolved, and has no label or host storage.
+     * Integral input is necessarily non-differentiable. Provenance contains aggregate
      * {@link AggregateReductionKind#MIN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
-     * tensor. This aggregate operation is distinct from the two-input elementwise
-     * {@link BinaryArithmeticKind#MIN} operation.</p>
+     * tensor as the sole ordered producer input at output index zero. This aggregate operation is
+     * distinct from the two-input elementwise {@link BinaryArithmeticKind#MIN} operation.</p>
      *
-     * <p>Scalar, static, zero-extent, and dynamic shapes are accepted structurally. This method
-     * does not inspect or compare values, define empty-domain, NaN, signed-zero, or tie behavior,
-     * create an extrema gradient rule, capture a graph, or execute work. Preserving gradient
-     * eligibility therefore does not promise differentiation or a tie-distribution policy.</p>
+     * <p>Integral values use signed order, and an empty INT32 or INT64 domain produces
+     * {@link Integer#MAX_VALUE} or {@link Long#MAX_VALUE}. Scalar, static, zero-extent, and dynamic
+     * Shapes are accepted structurally. Floating behavior remains unchanged. This method does not
+     * inspect or compare values, implement an algorithm, create an extrema gradient rule, capture
+     * a graph, lower an operation, or execute work.</p>
      *
-     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MIN, but was BOOL}; no Tensor identity is
+     *     consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
      *     expression metadata has been constructed
      */
@@ -1879,23 +1917,27 @@ public final class Tensor {
     /**
      * Builds a minimum expression over one axis and removes that axis.
      *
-     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * <p>The numeric input's positive or negative {@code axis} is normalized exactly once. The
      * selected dimension is removed, every unaffected immutable dimension reference is retained
      * in order, and rank one reduces to the canonical rank-zero scalar shape. The fresh result
      * preserves the exact input data type and gradient eligibility, leaves layout unresolved, has
      * no label or storage, and records aggregate {@link AggregateReductionKind#MIN}, normalized
      * single-axis attributes, and exactly this input.</p>
      *
-     * <p>No values are inspected or compared. Empty-domain, NaN, signed-zero, tie, gradient,
-     * compiler, and execution behavior remain deferred. This one-input aggregate expression is
-     * distinct from {@link #minimum(Tensor)}.</p>
+     * <p>Integral values use signed order, and every empty selected-axis slice produces the
+     * input type's maximum value. Other zero output axes may make the result itself empty.
+     * Dynamic selected extents use the same identity when later bound to zero. Floating behavior
+     * remains unchanged. This method reads no value or storage and provides no algorithm,
+     * gradient rule, compiler lowering, backend, or execution behavior. It is distinct from
+     * {@link #minimum(Tensor)}.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
-     *     floating data type and gradient eligibility and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MIN, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1909,25 +1951,28 @@ public final class Tensor {
     /**
      * Builds a minimum expression over one axis and optionally retains it.
      *
-     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * <p>The numeric input's {@code axis} is normalized exactly once. A false
      * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
      * one while preserving every other immutable dimension reference. The fresh result retains
      * the exact input data type and gradient eligibility, has unresolved layout and no label or
      * storage, and records aggregate {@link AggregateReductionKind#MIN}, normalized axis
      * attributes, and this sole input.</p>
      *
-     * <p>Zero and dynamic extents remain structurally valid. No values are inspected, and
-     * empty-domain, NaN, signed-zero, tie, gradient, compiler, and execution behavior remains
-     * deferred. Preserved eligibility does not install an extrema gradient rule.</p>
+     * <p>Integral values use signed order, and every empty selected-axis slice produces the input
+     * type's maximum value independent of retention. Zero and dynamic extents remain structurally
+     * valid; a dynamic selected extent later bound to zero uses the same identity. Floating
+     * behavior remains unchanged. This method reads no value or storage and provides no algorithm,
+     * gradient rule, compiler lowering, backend, runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
      * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
-     *     floating data type and gradient eligibility, and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MIN, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1941,22 +1986,25 @@ public final class Tensor {
     /**
      * Builds an expression that selects the maximum over every input axis.
      *
-     * <p>The input must have a floating data type. The fresh result has the canonical rank-zero
-     * scalar shape, preserves the exact input data type and gradient-eligibility request, leaves
-     * layout unresolved, and has no label or host storage. Its provenance contains aggregate
+     * <p>The input must have a floating or signed-integral data type. The fresh result has the
+     * canonical rank-zero scalar shape, preserves the exact input data type and
+     * gradient-eligibility request, leaves layout unresolved, and has no label or host storage.
+     * Integral input is necessarily non-differentiable. Provenance contains aggregate
      * {@link AggregateReductionKind#MAX}, {@code NoOperationAttrs.INSTANCE}, and exactly this
-     * tensor. This aggregate operation is distinct from the two-input elementwise
-     * {@link BinaryArithmeticKind#MAX} operation.</p>
+     * tensor as the sole ordered producer input at output index zero. This aggregate operation is
+     * distinct from the two-input elementwise {@link BinaryArithmeticKind#MAX} operation.</p>
      *
-     * <p>Scalar, static, zero-extent, and dynamic shapes are accepted structurally. This method
-     * does not inspect or compare values, define empty-domain, NaN, signed-zero, or tie behavior,
-     * create an extrema gradient rule, capture a graph, or execute work. Preserving gradient
-     * eligibility therefore does not promise differentiation or a tie-distribution policy.</p>
+     * <p>Integral values use signed order, and an empty INT32 or INT64 domain produces
+     * {@link Integer#MIN_VALUE} or {@link Long#MIN_VALUE}. Scalar, static, zero-extent, and dynamic
+     * Shapes are accepted structurally. Floating behavior remains unchanged. This method does not
+     * inspect or compare values, implement an algorithm, create an extrema gradient rule, capture
+     * a graph, lower an operation, or execute work.</p>
      *
-     * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
+     * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MAX, but was BOOL}; no Tensor identity is
+     *     consumed
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
      *     expression metadata has been constructed
      */
@@ -1967,23 +2015,27 @@ public final class Tensor {
     /**
      * Builds a maximum expression over one axis and removes that axis.
      *
-     * <p>The floating input's positive or negative {@code axis} is normalized exactly once. The
+     * <p>The numeric input's positive or negative {@code axis} is normalized exactly once. The
      * selected dimension is removed, every unaffected immutable dimension reference is retained
      * in order, and rank one reduces to the canonical rank-zero scalar shape. The fresh result
      * preserves the exact input data type and gradient eligibility, leaves layout unresolved, has
      * no label or storage, and records aggregate {@link AggregateReductionKind#MAX}, normalized
      * single-axis attributes, and exactly this input.</p>
      *
-     * <p>No values are inspected or compared. Empty-domain, NaN, signed-zero, tie, gradient,
-     * compiler, and execution behavior remain deferred. This one-input aggregate expression is
-     * distinct from {@link #maximum(Tensor)}.</p>
+     * <p>Integral values use signed order, and every empty selected-axis slice produces the input
+     * type's minimum value. Other zero output axes may make the result itself empty. Dynamic
+     * selected extents use the same identity when later bound to zero. Floating behavior remains
+     * unchanged. This method reads no value or storage and provides no algorithm, gradient rule,
+     * compiler lowering, backend, or execution behavior. It is distinct from
+     * {@link #maximum(Tensor)}.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @return a non-null fresh storage-free tensor whose selected axis is removed, with unchanged
-     *     floating data type and gradient eligibility and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MAX, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -1997,25 +2049,28 @@ public final class Tensor {
     /**
      * Builds a maximum expression over one axis and optionally retains it.
      *
-     * <p>The floating input's {@code axis} is normalized exactly once. A false
+     * <p>The numeric input's {@code axis} is normalized exactly once. A false
      * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
      * one while preserving every other immutable dimension reference. The fresh result retains
      * the exact input data type and gradient eligibility, has unresolved layout and no label or
      * storage, and records aggregate {@link AggregateReductionKind#MAX}, normalized axis
      * attributes, and this sole input.</p>
      *
-     * <p>Zero and dynamic extents remain structurally valid. No values are inspected, and
-     * empty-domain, NaN, signed-zero, tie, gradient, compiler, and execution behavior remains
-     * deferred. Preserved eligibility does not install an extrema gradient rule.</p>
+     * <p>Integral values use signed order, and every empty selected-axis slice produces the input
+     * type's minimum value independent of retention. Zero and dynamic extents remain structurally
+     * valid; a dynamic selected extent later bound to zero uses the same identity. Floating
+     * behavior remains unchanged. This method reads no value or storage and provides no algorithm,
+     * gradient rule, compiler lowering, backend, runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
      * @return a non-null fresh storage-free tensor with the requested reduction shape, unchanged
-     *     floating data type and gradient eligibility, and unresolved layout
-     * @throws IllegalArgumentException if this tensor's data type is not floating, with a message
-     *     containing the rejected data type; this check precedes axis validation
+     *     numeric data type and gradient eligibility, and unresolved layout
+     * @throws IllegalArgumentException if this tensor's data type is BOOL, with message
+     *     {@code input must have a numeric data type for MAX, but was BOOL}; this check precedes
+     *     axis validation
      * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
      *     every axis for a scalar input
      * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
@@ -2184,115 +2239,228 @@ public final class Tensor {
     }
 
     /**
-     * Builds an arg-max expression that removes one selected axis and requests the first index
-     * when maximum values are equal.
+     * Builds an axis-removing arg-min expression using the first logical index for ties.
      *
-     * <p>This tensor must have a floating or integral data type. The positive or negative
-     * {@code axis} is normalized exactly once, then removed from the result. Removing the sole
-     * axis of a rank-one input produces the canonical scalar shape, and every unaffected static
-     * or dynamic dimension reference is retained. The convenience policy is explicitly
-     * {@link ArgMaxTiePolicy#FIRST_INDEX}; {@code ArgMaxAttrs} itself supplies no default.</p>
+     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 type. The caller axis is
+     * normalized once and removed; rank-one input produces the canonical scalar Shape, and every
+     * unaffected Dimension reference is retained. This convenience delegates directly with
+     * {@link ArgExtremaTiePolicy#FIRST_INDEX}, which requests the smallest logical coordinate
+     * among equal minimum candidates.</p>
      *
-     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
-     * unresolved layout, no label or host storage, and one-input provenance containing
-     * {@link AggregateReductionKind#ARG_MAX} with the normalized axis, false retention flag, and
-     * first-index policy. Static zero extents and dynamic dimensions are accepted structurally.
-     * This method does not compare values, select an index, define NaN, signed-zero, infinity,
-     * equality, or empty-axis behavior, create a gradient rule, capture a graph, report backend
-     * support, or execute work.</p>
+     * <p>The fresh result has fixed INT64 type, false gradient eligibility, unresolved layout, no
+     * label or host storage, and one-input {@link AggregateReductionKind#ARG_MIN} provenance at
+     * output index zero. Integral candidates use signed order. Floating candidates prefer NaN to
+     * non-NaN, treat multiple NaNs as ties, order negative zero below positive zero, and order
+     * infinities normally. Construction records this meaning without reading values, selecting an
+     * index, creating gradient rules, capturing a graph, lowering, or executing work.</p>
      *
-     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
-     *     count from the final axis
-     * @return a non-null fresh storage-free INT64 tensor whose selected axis is removed, with
-     *     false gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
-     *     with a message containing the rejected type; this check precedes axis validation and
-     *     consumes no Tensor identity
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
-     *     every axis for a scalar input; this failure consumes no Tensor identity
-     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
-     *     expression metadata has been constructed
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-min expression whose selected
+     *     axis is removed, with false gradient eligibility, unresolved layout, exact one-input
+     *     provenance, and output index zero
+     * @throws IllegalArgumentException if this tensor is BOOL, with message {@code input must have
+     *     a numeric data type, but was BOOL}, or if the normalized selected extent is statically
+     *     zero, with message {@code arg-extrema reduction axis must be non-empty, but axis
+     *     <normalizedAxis> has static extent 0}; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every axis for a scalar input; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
+     */
+    public Tensor argMin(int axis) {
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MIN, axis, false,
+                ArgExtremaTiePolicy.FIRST_INDEX);
+    }
+
+    /**
+     * Builds an arg-min expression using the first logical index for ties.
+     *
+     * <p>The numeric input axis is normalized once. A false {@code keepDimensions} removes it;
+     * true replaces it with a new static extent one while retaining every unaffected Dimension
+     * reference. This convenience delegates directly with {@link
+     * ArgExtremaTiePolicy#FIRST_INDEX}. The selected static extent must be positive. An unselected
+     * zero extent or dynamic/expression selected extent remains structurally valid.</p>
+     *
+     * <p>The fresh result is unlabeled and storage-free, with fixed INT64 type, false gradient
+     * eligibility, unresolved layout, shared arg-extrema attributes, exact
+     * {@link AggregateReductionKind#ARG_MIN} one-input provenance, and output index zero. Floating
+     * and integral ordering is the same as {@link #argMin(int)}. Construction performs no value
+     * selection, gradient, compiler, backend, runtime, or execution work.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-min expression with the requested
+     *     Shape, false gradient eligibility, unresolved layout, and exact index-zero provenance
+     * @throws IllegalArgumentException if this tensor is BOOL, with message {@code input must have
+     *     a numeric data type, but was BOOL}, or if the normalized selected extent is statically
+     *     zero, with the exact arg-extrema empty-axis message; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every scalar axis; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
+     */
+    public Tensor argMin(int axis, boolean keepDimensions) {
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MIN, axis, keepDimensions,
+                ArgExtremaTiePolicy.FIRST_INDEX);
+    }
+
+    /**
+     * Builds an arg-min expression with an explicit logical-index tie policy.
+     *
+     * <p>The non-null policy is checked before input eligibility and axis validation and retained
+     * by exact enum reference in shared attributes. {@code FIRST_INDEX} requests the smallest
+     * logical coordinate and {@code LAST_INDEX} the largest among equal minimum candidates,
+     * independent of storage offset, stride, layout, or traversal. Integral candidates use signed
+     * order. Floating candidates prefer NaN, treat multiple NaNs as ties, order negative zero
+     * below positive zero, and order infinities normally.</p>
+     *
+     * <p>The axis is normalized once and removed or replaced with a new extent one. A statically
+     * empty selected extent is invalid, while an unselected zero extent or unbound selected extent
+     * is accepted. The fresh result has fixed INT64/false-gradient metadata, unresolved layout,
+     * no label or storage, exact one-input ARG_MIN provenance, and output index zero. Construction
+     * neither compares values nor supplies gradient, compiler, backend, runtime, or execution
+     * behavior.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
+     * @param keepDimensions {@code true} to retain the selected axis with extent one, or
+     *     {@code false} to remove it
+     * @param tiePolicy non-null explicit first- or last-logical-index policy retained by exact
+     *     enum reference
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-min expression with the requested
+     *     Shape, false gradient eligibility, unresolved layout, exact attributes and ordered
+     *     provenance, and output index zero
+     * @throws NullPointerException if {@code tiePolicy} is null, with message {@code tiePolicy};
+     *     no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor is BOOL, with the exact numeric-type
+     *     message, or if the normalized selected extent is statically zero, with the exact
+     *     arg-extrema empty-axis message; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every scalar axis; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
+     */
+    public Tensor argMin(
+            int axis, boolean keepDimensions, ArgExtremaTiePolicy tiePolicy) {
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MIN, axis, keepDimensions, tiePolicy);
+    }
+
+    /**
+     * Builds an axis-removing arg-max expression using the first logical index for ties.
+     *
+     * <p>This tensor must have FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 type. The caller axis is
+     * normalized once and removed; rank-one input produces the canonical scalar Shape, and every
+     * unaffected Dimension reference is retained. This convenience delegates directly with
+     * {@link ArgExtremaTiePolicy#FIRST_INDEX}, which requests the smallest logical coordinate
+     * among equal maximum candidates.</p>
+     *
+     * <p>The fresh result has fixed INT64 type, false gradient eligibility, unresolved layout, no
+     * label or host storage, and one-input {@link AggregateReductionKind#ARG_MAX} provenance at
+     * output index zero. Integral candidates use signed order. Floating candidates prefer NaN to
+     * non-NaN, treat multiple NaNs as ties, order negative zero below positive zero, and order
+     * infinities normally. Construction records this meaning without reading values, selecting an
+     * index, creating gradient rules, capturing a graph, lowering, or executing work.</p>
+     *
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-max expression whose selected
+     *     axis is removed, with false gradient eligibility, unresolved layout, exact one-input
+     *     provenance, and output index zero
+     * @throws IllegalArgumentException if this tensor is BOOL, with message {@code input must have
+     *     a numeric data type, but was BOOL}, or if the normalized selected extent is statically
+     *     zero, with the exact arg-extrema empty-axis message; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every scalar axis; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
      */
     public Tensor argMax(int axis) {
-        return TensorArgMaxExpressions.apply(
-                this, axis, false, ArgMaxTiePolicy.FIRST_INDEX);
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MAX, axis, false,
+                ArgExtremaTiePolicy.FIRST_INDEX);
     }
 
     /**
-     * Builds an arg-max expression with optional selected-axis retention and an explicit
-     * first-index convenience policy.
+     * Builds an arg-max expression using the first logical index for ties.
      *
-     * <p>This tensor must have a floating or integral data type. Its positive or negative
-     * {@code axis} is normalized exactly once. A false {@code keepDimensions} removes that axis;
-     * true replaces it with a new static extent of one while retaining every unaffected static
-     * or dynamic dimension reference. Rank-one removal produces the canonical scalar shape. The
-     * convenience overload supplies {@link ArgMaxTiePolicy#FIRST_INDEX} directly rather than
-     * weakening the explicit-policy requirement of {@code ArgMaxAttrs}.</p>
+     * <p>The numeric input axis is normalized once. A false {@code keepDimensions} removes it;
+     * true replaces it with a new static extent one while retaining every unaffected Dimension
+     * reference. This convenience delegates directly with {@link
+     * ArgExtremaTiePolicy#FIRST_INDEX}. A statically empty selected extent is invalid, while an
+     * unselected zero extent or dynamic/expression selected extent is accepted.</p>
      *
-     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
-     * unresolved layout, no label or host storage, and exact one-input
-     * {@link AggregateReductionKind#ARG_MAX} provenance. Static zero extents and dynamic
-     * dimensions are accepted without defining a maximum index for an empty selected axis. No
-     * value comparison, selected index, NaN, equality, empty-axis, gradient, compiler, backend,
-     * or execution behavior is provided.</p>
+     * <p>The fresh result is unlabeled and storage-free, with fixed INT64 type, false gradient
+     * eligibility, unresolved layout, shared arg-extrema attributes, exact
+     * {@link AggregateReductionKind#ARG_MAX} one-input provenance, and output index zero. Floating
+     * and integral ordering is the same as {@link #argMax(int)}. Construction performs no value
+     * selection, gradient, compiler, backend, runtime, or execution work.</p>
      *
-     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
-     *     count from the final axis
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
-     * @return a non-null fresh storage-free INT64 tensor with the requested result shape, false
-     *     gradient eligibility, unresolved layout, and exact one-input provenance
-     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
-     *     with a message containing the rejected type; this check precedes axis validation and
-     *     consumes no Tensor identity
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
-     *     every axis for a scalar input; this failure consumes no Tensor identity
-     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
-     *     expression metadata has been constructed
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-max expression with the requested
+     *     Shape, false gradient eligibility, unresolved layout, and exact index-zero provenance
+     * @throws IllegalArgumentException if this tensor is BOOL, with the exact numeric-type
+     *     message, or if the normalized selected extent is statically zero, with the exact
+     *     arg-extrema empty-axis message; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every scalar axis; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
      */
     public Tensor argMax(int axis, boolean keepDimensions) {
-        return TensorArgMaxExpressions.apply(
-                this, axis, keepDimensions, ArgMaxTiePolicy.FIRST_INDEX);
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MAX, axis, keepDimensions,
+                ArgExtremaTiePolicy.FIRST_INDEX);
     }
 
     /**
-     * Builds an arg-max expression with explicit selected-axis retention and tie-selection policy.
+     * Builds an arg-max expression with an explicit logical-index tie policy.
      *
-     * <p>The non-null {@code tiePolicy} is validated before input type or axis and retained by
-     * exact enum reference in {@code ArgMaxAttrs}. This tensor must have a floating or integral
-     * data type. Its positive or negative {@code axis} is normalized exactly once. A false
-     * {@code keepDimensions} removes the selected axis; true replaces it with a new static extent
-     * of one while retaining every unaffected static or dynamic dimension reference. Rank-one
-     * removal produces the canonical scalar shape.</p>
+     * <p>The non-null policy is checked before input eligibility and axis validation and retained
+     * by exact enum reference in shared attributes. {@code FIRST_INDEX} requests the smallest
+     * logical coordinate and {@code LAST_INDEX} the largest among equal maximum candidates,
+     * independent of storage offset, stride, layout, or traversal. Integral candidates use signed
+     * order. Floating candidates prefer NaN, treat multiple NaNs as ties, order negative zero
+     * below positive zero, and order infinities normally.</p>
      *
-     * <p>The fresh result has exact {@link DataType#INT64} type, false gradient eligibility,
-     * unresolved layout, no label or host storage, and one-input provenance containing
-     * {@link AggregateReductionKind#ARG_MAX} with the normalized axis, exact retention flag, and
-     * exact policy. Dynamic dimensions and zero extents are accepted structurally without
-     * promising a valid maximum index for an empty selected axis. This method does not compare
-     * values, select an index, define NaN, signed-zero, infinity, equality, or empty-axis behavior,
-     * create a gradient rule, capture a graph, report backend support, or execute work.</p>
+     * <p>The axis is normalized once and removed or replaced with a new extent one. A statically
+     * empty selected extent is invalid, while an unselected zero extent or unbound selected extent
+     * is accepted. The fresh result has fixed INT64/false-gradient metadata, unresolved layout,
+     * no label or storage, exact one-input ARG_MAX provenance, and output index zero. Construction
+     * neither compares values nor supplies gradient, compiler, backend, runtime, or execution
+     * behavior.</p>
      *
-     * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
-     *     count from the final axis
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the final
+     *     axis
      * @param keepDimensions {@code true} to retain the selected axis with extent one, or
      *     {@code false} to remove it
-     * @param tiePolicy non-null explicit first- or last-index tie policy retained by exact enum
-     *     reference in result attributes
-     * @return a non-null fresh storage-free INT64 tensor with the requested result shape, false
-     *     gradient eligibility, unresolved layout, and exact one-input provenance
+     * @param tiePolicy non-null explicit first- or last-logical-index policy retained by exact
+     *     enum reference
+     * @return a non-null fresh, unlabeled, storage-free INT64 arg-max expression with the requested
+     *     Shape, false gradient eligibility, unresolved layout, exact attributes and ordered
+     *     provenance, and output index zero
      * @throws NullPointerException if {@code tiePolicy} is null, with message {@code tiePolicy};
-     *     this check precedes input-type and axis validation and consumes no Tensor identity
-     * @throws IllegalArgumentException if this tensor's data type is not floating or integral,
-     *     with a message containing the rejected type; this check precedes axis validation and
-     *     consumes no Tensor identity
-     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input rank, including
-     *     every axis for a scalar input; this failure consumes no Tensor identity
-     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
-     *     expression metadata has been constructed
+     *     no Tensor identity is consumed
+     * @throws IllegalArgumentException if this tensor is BOOL, with the exact numeric-type
+     *     message, or if the normalized selected extent is statically zero, with the exact
+     *     arg-extrema empty-axis message; no Tensor identity is consumed
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for this tensor's Shape,
+     *     including every scalar axis; no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid local
+     *     metadata and provenance have been constructed
      */
-    public Tensor argMax(int axis, boolean keepDimensions, ArgMaxTiePolicy tiePolicy) {
-        return TensorArgMaxExpressions.apply(this, axis, keepDimensions, tiePolicy);
+    public Tensor argMax(
+            int axis, boolean keepDimensions, ArgExtremaTiePolicy tiePolicy) {
+        return TensorArgExtremaExpressions.apply(
+                this, AggregateReductionKind.ARG_MAX, axis, keepDimensions, tiePolicy);
     }
 
     /**

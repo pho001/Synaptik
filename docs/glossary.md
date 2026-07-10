@@ -71,11 +71,15 @@ typed target attributes plus exact one-input provenance. Numerical conversion be
 rules, compiler capture and canonicalization, and backend execution remain planned or separately
 owned.
 The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
-`ALL`, `ANY`, and `ARG_MAX`, together with normalized single-axis `AxisReductionAttrs`, explicit
-full-form `NoOperationAttrs.INSTANCE`, `ArgMaxAttrs`, `ArgMaxTiePolicy`, and masked SUM/MEAN
+`ALL`, `ANY`, `ARG_MAX`, and `ARG_MIN`, together with normalized single-axis `AxisReductionAttrs`, explicit
+full-form `NoOperationAttrs.INSTANCE`, shared `ArgExtremaAttrs`, `ArgExtremaTiePolicy`, and masked SUM/MEAN
 `MaskedReductionAttrs`. The masked attributes preserve only one normalized axis. Public floating
 `Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` now construct full,
 axis-removing, and retained-axis expressions with locally derived shapes and one-input provenance.
+Except for floating-only mean, the ordinary families also accept exact INT32/INT64. Integral sum
+and product use fixed-width modular meaning with reassociation permitted; integral min/max use
+signed order. Empty identities are zero, one, the bounded type maximum, and the bounded type
+minimum, respectively.
 The masked `sum(axis, mask)` and `mean(axis, mask)` overloads require ordinary right-aligned
 broadcasting to produce exactly the input Shape, remove the selected axis, and record exact
 `[input, mask]` provenance. False mask positions exclude their values, including NaN and infinity;
@@ -83,10 +87,11 @@ all-false sum is zero and all-false mean is NaN without a payload guarantee.
 Aggregate `MIN`/`MAX` remain typed separately from equally named binary elementwise kinds. Boolean
 `Tensor.all` and `Tensor.any` now provide the corresponding exact-BOOL expressions with false
 gradient eligibility and one-input provenance; aggregate `ALL`/`ANY` remain typed separately from
-elementwise `AND`/`OR`. Axis-only `Tensor.argMax` now accepts floating or integral input and
-produces fixed non-differentiable INT64 expressions with explicit first- or last-index policy.
-Numerical or truth evaluation, empty-domain behavior, extrema comparison and tie execution,
-gradients, compiler capture, backend support, and execution remain planned.
+elementwise `AND`/`OR`. Axis-only `Tensor.argMin` and `Tensor.argMax` accept floating or integral
+input and produce fixed non-differentiable INT64 expressions with explicit first- or last-index
+policy. Their shared ordering prefers NaN, orders signed zero and infinities deterministically,
+uses signed integral order, and rejects a statically empty selected axis. Numerical or truth
+evaluation, gradients, compiler capture, lowering, backend support, and execution remain planned.
 The `CumulativeSumKind` vocabulary is implemented with the sole `CUM_SUM` semantic identity,
 together with `CumulativeSumAttrs` carrying one normalized axis and exact exclusive/reverse mode
 flags. Public `Tensor.cumSum` now constructs all four traversal/inclusion modes for floating and
@@ -214,58 +219,52 @@ definition explains intended meaning; it is not by itself evidence that a Java t
 
 ### Aggregate reduction
 
-A computation that combines values from a selected reduction domain into fewer logical positions.
-The implemented `AggregateReductionKind` vocabulary includes numeric `SUM`, `MEAN`, `PROD`,
-`MIN`, and `MAX`, boolean `ALL` and `ANY`, and index-producing `ARG_MAX`. An ordinary full
+A computation that combines values from a selected domain into fewer logical positions. The
+implemented `AggregateReductionKind` vocabulary includes numeric `SUM`, `MEAN`, `PROD`, `MIN`, and
+`MAX`, boolean `ALL` and `ANY`, and index-producing `ARG_MIN` and `ARG_MAX`. An ordinary full
 reduction selects every input axis and uses `NoOperationAttrs.INSTANCE`; an ordinary single-axis
 reduction uses `AxisReductionAttrs`. Representing the full form through parameter absence avoids a
-negative numeric all-axis sentinel.
+negative all-axis sentinel. For a single-axis form, false `keepDimensions` removes the selected
+axis, while true retains it with extent one.
 
-A masked, axis-removing `SUM` or `MEAN` instead uses `MaskedReductionAttrs`, which stores only one
+The public sum, product, minimum, and maximum families accept floating or exact INT32/INT64 input;
+mean remains floating-only. Integral sum and product use fixed-width modular arithmetic in the
+exact result type and permit reassociation. Integral minimum and maximum use signed order. Their
+empty-domain identities are zero, one, the bounded type maximum, and the bounded type minimum,
+respectively, for both full domains and each empty selected-axis slice. Dynamic selected extents
+use the same identities when later bound to zero. Aggregate minimum/maximum use one input and are
+distinct from pairwise `minimum`/`maximum`, which use two ordered inputs and
+`BinaryArithmeticKind`.
+
+A masked, axis-removing `SUM` or `MEAN` instead uses `MaskedReductionAttrs`, which stores one
 normalized axis. Public `sum(axis, mask)` and `mean(axis, mask)` require ordinary right-aligned
-broadcasting of the BOOL mask to produce exactly the input Shape, remove the normalized reduction
-axis, and use exact provenance order `[input, mask]`. A caller uses an explicit reshape,
-dimension insertion, or expansion when right alignment does not express the intended axes. False
-mask positions are excluded before aggregation, including positions whose inputs are NaN or
-infinity. Selecting no values produces zero for masked sum; masked mean divides by the selected
-true-count and produces NaN when that count is zero, without a promised payload or bit pattern.
-Static zero-sized reduction axes and runtime zero-sized or all-false dynamic slices follow those
-same zero/NaN semantics. Expression construction records this meaning but performs no storage
-alignment, value selection, counting, aggregation, division, gradient work, or execution.
+broadcasting of the BOOL mask to produce exactly the input Shape and record provenance order
+`[input, mask]`. False mask positions exclude their inputs, including NaN and infinity. No selected
+values produces zero for masked sum and NaN for masked mean. Masked forms remain floating-only.
 
-For a single-axis form, `keepDimensions == false` requests removal of the selected axis, while
-`true` requests retaining it with extent one. `ARG_MAX` instead uses `ArgMaxAttrs` because its tie
-policy is an intrinsic semantic parameter, and it has no full form in the current contract. These
-semantic types describe requested meaning only. The current public `sum`, `mean`, `prod`,
-reduction `min`, and reduction `max` methods add floating input eligibility, local result-shape
-derivation, exact type and gradient-eligibility retention, and provenance. Aggregate extrema use
-one input and `AggregateReductionKind.MIN` or `AggregateReductionKind.MAX`; binary elementwise
-extrema use two ordered inputs, the public names `minimum`/`maximum`, and the distinct
-`BinaryArithmeticKind` constants. The aggregate
-methods still define no numerical or empty-domain policy, comparison, NaN or signed-zero handling,
-extrema-tie gradient rule, or executable behavior. Public `all` and `any` instead require exact
-BOOL input and produce exact BOOL with false gradient eligibility, using the same shape and
-provenance rules. They do not inspect truth values or define empty-domain identities. Aggregate
-ALL/ANY use one input and `AggregateReductionKind`; elementwise AND/OR use two ordered inputs and
-the distinct `BooleanLogicalKind` constants. Public `argMax` accepts floating or integral input,
-normalizes one axis, and produces exact INT64 with false gradient eligibility. Its convenience
-forms explicitly supply `FIRST_INDEX`; the complete form retains the caller's exact non-null
-policy. It does not compare values, select an index, or define empty-axis behavior. See [Numeric
-aggregate expressions](api/tensor-api.md#numeric-aggregate-expressions) and [Aggregate reduction semantic
-kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes), plus
-[Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions) and [Arg-max
-expressions](api/tensor-api.md#arg-max-expressions). The masked forms are described separately
-under [Masked sum and mean expressions](api/tensor-api.md#masked-sum-and-mean-expressions).
+Public `argMin` and `argMax` accept floating or integral input, normalize one selected axis, and
+produce exact INT64 with false gradient eligibility. They use shared `ArgExtremaAttrs` because the
+explicit first/last tie policy is intrinsic to both semantics; neither has a full form. A
+statically empty selected axis is invalid, while an unselected zero axis and an unbound selected
+extent are structurally accepted. Expression construction records all these meanings but performs
+no value aggregation or selection, gradient work, compiler capture, lowering, or execution. See
+[Numeric aggregate expressions](api/tensor-api.md#numeric-aggregate-expressions), [Aggregate
+reduction semantic kinds and attributes](api/tensor-api.md#aggregate-reduction-semantic-kinds-and-attributes),
+[Boolean aggregate expressions](api/tensor-api.md#boolean-aggregate-expressions), [Arg-extrema
+expressions](api/tensor-api.md#arg-extrema-expressions), and [Masked sum and mean
+expressions](api/tensor-api.md#masked-sum-and-mean-expressions).
 
-### Arg-max tie policy
+### Arg-extrema tie policy
 
-The implemented `ArgMaxTiePolicy` choice for selecting a logical axis index when several values
-share a maximum. `FIRST_INDEX` requests the smallest logical index, and `LAST_INDEX` requests the
-largest. A logical index is a position along the selected axis rather than a physical storage
-offset. `ArgMaxAttrs` requires an explicit non-null policy; the semantic value does not supply a
-default. The public `Tensor.argMax` convenience overloads supply `FIRST_INDEX` explicitly, while
-the complete overload retains an explicit caller policy. Equality, NaN, comparison, and
-empty-axis behavior remain later numerical and execution contracts.
+The implemented `ArgExtremaTiePolicy` choice for selecting a logical axis index when several
+values share a minimum or maximum. `FIRST_INDEX` requests the smallest logical index, and
+`LAST_INDEX` requests the largest. A logical index is a position along the selected axis rather
+than a physical storage offset. `ArgExtremaAttrs` requires an explicit non-null policy; the
+semantic value supplies no default. Public `Tensor.argMin` and `Tensor.argMax` convenience
+overloads supply `FIRST_INDEX` explicitly, while complete overloads retain a caller policy.
+Integral candidates use signed order. Floating candidates prefer NaN to non-NaN, treat multiple
+NaNs as ties, order negative zero below positive zero, and order infinities normally. These
+semantics define the requested index without choosing an algorithm or executing a reduction.
 
 ### Gather
 
@@ -714,8 +713,8 @@ form. Reduction attributes store only an already normalized non-negative `int`; 
 a Shape or prove that the index exists for a particular input. A negative stored axis is invalid,
 and no negative value is reused as an all-axis sentinel. Current `sum`, `mean`, `prod`, reduction
 `min`, reduction `max`, boolean `all`, and boolean `any` axis methods normalize against the input
-Shape before constructing semantic attributes. The current axis-only `argMax` methods use the
-same boundary before constructing `ArgMaxAttrs`.
+Shape before constructing semantic attributes. The current axis-only `argMin` and `argMax`
+methods use the same boundary before constructing `ArgExtremaAttrs`.
 `MaskedReductionAttrs` follows the same normalized-axis boundary, and current public masked
 expression construction normalizes that axis and validates ordinary broadcast compatibility
 before creating the attributes.
@@ -784,7 +783,7 @@ computation an [`Operation`](#operation) describes. Implemented scalar-family va
 `ClampRangeAttrs`, which holds exact same-type numeric inclusive lower and upper bounds.
 Implemented cast-family `CastAttrs` holds one exact
 non-null target `DataType` without duplicating a source type. Implemented reduction-family
-`AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgMaxAttrs`
+`AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgExtremaAttrs`
 adds an explicit tie policy and `MaskedReductionAttrs` holds exactly one normalized reduction
 axis. Its concrete attributes class distinguishes the first-class masked occurrence. Implemented
 scan-family `CumulativeSumAttrs` holds one
@@ -944,21 +943,22 @@ retention, unresolved layout, floating-only eligibility retention, and one-input
 text forms are diagnostic rather than serialization or dispatch contracts.
 
 The eighth production family is `AggregateReductionKind`, an enum containing exactly `SUM`,
-`MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, `ANY`, and `ARG_MAX`. The first seven ordinary kinds pair
+`MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, `ANY`, `ARG_MAX`, and `ARG_MIN`. The first seven ordinary kinds pair
 with `NoOperationAttrs.INSTANCE` for a full reduction over every input axis or with
-`AxisReductionAttrs` for one already normalized axis. `ARG_MAX` pairs with `ArgMaxAttrs`, which
-adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Family signatures enforce these exact
+`AxisReductionAttrs` for one already normalized axis. `ARG_MIN` and `ARG_MAX` pair with shared
+`ArgExtremaAttrs`, which adds an explicit `FIRST_INDEX` or `LAST_INDEX` tie policy. Family signatures enforce these exact
 variants and distinguish one-input ordinary forms from two-input masked forms. Masked
 axis-removing `SUM` and `MEAN` pair with `MaskedReductionAttrs`, whose sole component is the
 normalized reduction axis. Their semantic contract excludes false-position values, including NaN
 and infinity, before aggregation; a zero selected-count produces zero for sum and NaN for mean
 without a payload guarantee. The family stores no Tensor input, result descriptor, negative all-axis
-sentinel, numerical or empty-domain policy, gradient rule, executable behavior, or backend
-support. Public `sum`, `mean`, `prod`, reduction `min`, and reduction `max` separately own
-floating eligibility, while public `all` and `any` own exact BOOL eligibility and fixed false
+sentinel, gradient rule, executable behavior, or backend support. Public `sum`, `prod`, reduction
+`min`, and reduction `max` separately own floating-or-integral eligibility, while `mean` owns
+floating-only eligibility and public `all` and `any` own exact BOOL eligibility and fixed false
 gradient eligibility. All seven ordinary families own axis normalization, result-shape derivation,
-and one-input provenance. Public `argMax` separately owns floating-or-integral eligibility, fixed
-INT64 false-gradient results, explicit tie policy, axis-only shape derivation, and one-input
+and one-input provenance. Public `argMin` and `argMax` separately own floating-or-integral
+eligibility, fixed INT64 false-gradient results, explicit tie policy, axis-only shape derivation,
+static selected-axis non-emptiness, shared candidate ordering, and one-input
 provenance. Public masked `sum` and `mean` separately own floating/BOOL validation, ordinary
 right-aligned broadcast-to-input validation, axis-removing result derivation, exact input type and
 gradient eligibility, and `[input, mask]` provenance.
@@ -1429,16 +1429,22 @@ store exact matching typed scalar attributes without conversion or canonicalizat
 the one-bound conveniences create scalar MAX/MIN producers.
 Other expression families, gradient rules and objects, trainable
 role, publication behavior, compiler integration, device buffers, numerical execution, and
-runtime residency remain planned. The current `sum`, `mean`, `prod`, reduction `min`, and
-reduction `max` methods create floating full or single-axis aggregate expressions. Current `all`
-and `any` create exact-BOOL, non-differentiable forms. Full forms produce canonical rank-zero
-shape; axis forms normalize, then remove or retain the selected axis with extent one. Results
-preserve the family-specific type and eligibility, leave layout unresolved, and record one-input
-provenance without aggregating, comparing, or evaluating values or defining empty-domain,
-tie-gradient, compiler, backend, or executable behavior. Current `argMax` methods accept one axis
-of floating or integral input and create fixed INT64, non-differentiable results. Convenience
-forms request the first equal maximum; the complete form retains an explicit policy. They perform
-no comparison or actual index selection and define no NaN, equality, or empty-axis behavior.
+runtime residency remain planned. The current `sum`, `prod`, reduction `min`, and reduction `max`
+methods create floating or signed-integral full or single-axis aggregate expressions; `mean`
+remains floating-only. Current `all` and `any` create exact-BOOL, non-differentiable forms. Full
+forms produce canonical rank-zero shape; axis forms normalize, then remove or retain the selected
+axis with extent one. Results preserve the family-specific type and eligibility, leave layout
+unresolved, and record one-input provenance without aggregating, comparing, or evaluating values.
+Integral sum/product use exact-width modular arithmetic with reassociation permitted, integral
+min/max use signed order, and their empty identities are zero, one, the bounded type maximum, and
+the bounded type minimum, respectively. Floating ordinary empty-domain behavior, tie-gradient,
+compiler, backend, and executable behavior remain unimplemented or separately owned. Current
+`argMin` and `argMax` methods accept one axis of floating or integral input and create fixed INT64,
+non-differentiable results with shared `ArgExtremaAttrs`. Convenience forms request the first equal
+extremum; complete forms retain an explicit first- or last-index policy. The shared semantic order
+prefers NaN, orders negative zero below positive zero, orders infinities normally, and uses signed
+integral order. Construction rejects a statically empty selected axis but performs no comparison
+or actual index selection.
 A masked `sum(axis, mask)` or `mean(axis, mask)` requires an exact BOOL mask and ordinary
 right-aligned broadcasting that produces exactly the input Shape, removes the selected axis, and
 records exact `[input, mask]` provenance. Callers explicitly reshape or expand masks to express
@@ -1842,11 +1848,12 @@ compiler-owned publication plan will provide owning-graph and publication-policy
 descriptor-based leaf construction, immutable provenance, and floating plus selected signed-
 integral binary arithmetic, comparison, and scalar Tensor expression construction are
 implemented. Unary construction remains floating-only; BOOL-only logical expression construction,
-explicit cast expression construction, floating numeric
-aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
-aggregate expression construction for all and any. Axis-only index-producing construction for
-arg-max, shape-preserving cumulative-sum construction, and shape-preserving softmax/log-softmax
-construction are also implemented. Shape-preserving contiguous request construction is
+explicit cast expression construction, floating numeric aggregate expression construction for
+sum, mean, product, minimum, and maximum, selected signed-integral aggregate construction for sum,
+product, minimum, and maximum, and BOOL aggregate expression construction for all and any.
+Axis-only index-producing construction for arg-min and arg-max, shape-preserving cumulative-sum
+construction, and shape-preserving softmax/log-softmax construction are also implemented.
+Shape-preserving contiguous request construction is
 implemented with static-resolved and dynamic-unresolved result layout rules. Ordered-element-
 preserving reshape construction is implemented with raw inference, exact-Shape retention, and
 conditional contiguous-input/static-target view geometry. Directional right-aligned expand
@@ -1885,7 +1892,7 @@ without storing derived indexes.
 | Concept | Meaning | Current status |
 |---|---|---|
 | `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, shared arg-extrema, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
@@ -1899,9 +1906,10 @@ unary elementwise, floating-classification, scalar elementwise, cast, and aggreg
 kinds are implemented. Arithmetic, unary, floating-classification, scalar, and comparison public
 Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
-sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
-sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also
-implemented. Contiguous-request semantics and public contiguous Tensor construction are also
+sum/mean/product/minimum/maximum/all/any/arg-min/arg-max aggregate Tensor construction, including
+masked sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction
+are also implemented. Contiguous-request semantics and public contiguous Tensor construction are
+also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
 attributes, and single-axis insertion/removal attributes are implemented; public permute and

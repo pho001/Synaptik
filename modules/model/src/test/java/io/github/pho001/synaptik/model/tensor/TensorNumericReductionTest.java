@@ -48,6 +48,9 @@ class TensorNumericReductionTest {
                     "min", AggregateReductionKind.MIN, Tensor::min, Tensor::min, Tensor::min),
             new ReductionFamily(
                     "max", AggregateReductionKind.MAX, Tensor::max, Tensor::max, Tensor::max));
+    private static final List<ReductionFamily> INTEGRAL_FAMILIES = FAMILIES.stream()
+            .filter(family -> family.kind() != AggregateReductionKind.MEAN)
+            .toList();
     private static final AtomicLong NEXT_INPUT_ID = new AtomicLong(80_000);
 
     @Test
@@ -159,6 +162,28 @@ class TensorNumericReductionTest {
                                 () -> assertTrue(result.label().isEmpty()),
                                 () -> assertTrue(result.hostStorage().isEmpty()));
                     }
+                }
+            }
+        }
+    }
+
+    @Test
+    void acceptsExactIntegralTypesForSelectedFamiliesWithoutPromotion() {
+        for (DataType dataType : List.of(DataType.INT32, DataType.INT64)) {
+            Tensor input = tensor(dataType, Shape.of(2, 0, 3), false);
+            for (ReductionFamily family : INTEGRAL_FAMILIES) {
+                for (Tensor result : List.of(
+                        family.applyFull(input),
+                        family.applyAxis(input, 1),
+                        family.applyAxis(input, 1, true))) {
+                    assertAll(
+                            () -> assertSame(dataType, result.descriptor().dataType()),
+                            () -> assertFalse(result.descriptor().requiresGrad()),
+                            () -> assertTrue(result.descriptor().layout().isEmpty()),
+                            () -> assertTrue(result.label().isEmpty()),
+                            () -> assertTrue(result.hostStorage().isEmpty()),
+                            () -> assertSame(input,
+                                    result.provenance().orElseThrow().inputs().getFirst()));
                 }
             }
         }
@@ -309,7 +334,8 @@ class TensorNumericReductionTest {
                 () -> assertEquals("input", nullAxisInput.getMessage()),
                 () -> assertEquals("kind", nullAxisKind.getMessage()));
 
-        for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MAX)) {
+        for (AggregateReductionKind kind : List.of(
+                AggregateReductionKind.ARG_MAX, AggregateReductionKind.ARG_MIN)) {
             IllegalArgumentException fullFailure = assertThrows(
                     IllegalArgumentException.class,
                     () -> TensorReductionExpressions.applyFull(floating, kind));
@@ -324,18 +350,29 @@ class TensorNumericReductionTest {
         }
 
         for (DataType dataType : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
-            Tensor invalid = tensor(dataType, Shape.of(2), false);
-            for (ReductionFamily family : FAMILIES) {
-                IllegalArgumentException fullFailure = assertThrows(
-                        IllegalArgumentException.class, () -> family.applyFull(invalid));
-                IllegalArgumentException axisFailure = assertThrows(
-                        IllegalArgumentException.class, () -> family.applyAxis(invalid, 9));
-                assertAll(
-                        () -> assertEquals(
-                                "input must be a floating data type, but was " + dataType,
-                                fullFailure.getMessage()),
-                        () -> assertEquals(fullFailure.getMessage(), axisFailure.getMessage()));
-            }
+            Tensor invalidMean = tensor(dataType, Shape.of(2), false);
+            IllegalArgumentException fullFailure = assertThrows(
+                    IllegalArgumentException.class, invalidMean::mean);
+            IllegalArgumentException axisFailure = assertThrows(
+                    IllegalArgumentException.class, () -> invalidMean.mean(9));
+            assertAll(
+                    () -> assertEquals(
+                            "input must be a floating data type, but was " + dataType,
+                            fullFailure.getMessage()),
+                    () -> assertEquals(fullFailure.getMessage(), axisFailure.getMessage()));
+        }
+        Tensor bool = tensor(DataType.BOOL, Shape.of(2), false);
+        for (ReductionFamily family : INTEGRAL_FAMILIES) {
+            IllegalArgumentException fullFailure = assertThrows(
+                    IllegalArgumentException.class, () -> family.applyFull(bool));
+            IllegalArgumentException axisFailure = assertThrows(
+                    IllegalArgumentException.class, () -> family.applyAxis(bool, 9));
+            assertAll(
+                    () -> assertEquals(
+                            "input must have a numeric data type for " + family.kind()
+                                    + ", but was BOOL",
+                            fullFailure.getMessage()),
+                    () -> assertEquals(fullFailure.getMessage(), axisFailure.getMessage()));
         }
 
         IndexOutOfBoundsException highAxis = assertThrows(

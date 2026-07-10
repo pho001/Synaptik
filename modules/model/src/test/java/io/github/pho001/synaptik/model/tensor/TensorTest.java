@@ -15,7 +15,7 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
-import io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(127, declaredPublicMethods.size());
+        assertEquals(130, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -93,7 +93,7 @@ class TensorTest {
                         "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any", "argMax", "cumSum", "softmax",
+                        "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax",
                         "logSoftmax", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "gatherElements", "gatherNd",
@@ -205,19 +205,22 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(masked.getModifiers())));
         }
 
-        assertAll(
-                () -> assertEquals(
-                        Tensor.class,
-                        Tensor.class.getDeclaredMethod("argMax", int.class).getReturnType()),
-                () -> assertEquals(
-                        Tensor.class,
-                        Tensor.class.getDeclaredMethod("argMax", int.class, boolean.class)
-                                .getReturnType()),
-                () -> assertEquals(
-                        Tensor.class,
-                        Tensor.class.getDeclaredMethod(
-                                        "argMax", int.class, boolean.class, ArgMaxTiePolicy.class)
-                                .getReturnType()));
+        for (String methodName : List.of("argMin", "argMax")) {
+            assertAll(
+                    () -> assertEquals(
+                            Tensor.class,
+                            Tensor.class.getDeclaredMethod(methodName, int.class).getReturnType()),
+                    () -> assertEquals(
+                            Tensor.class,
+                            Tensor.class.getDeclaredMethod(methodName, int.class, boolean.class)
+                                    .getReturnType()),
+                    () -> assertEquals(
+                            Tensor.class,
+                            Tensor.class.getDeclaredMethod(
+                                            methodName, int.class, boolean.class,
+                                            ArgExtremaTiePolicy.class)
+                                    .getReturnType()));
+        }
 
         for (Class<?>[] parameters : List.of(
                 new Class<?>[] {int.class},

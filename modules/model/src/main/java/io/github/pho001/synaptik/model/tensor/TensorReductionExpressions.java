@@ -24,14 +24,19 @@ import java.util.Optional;
  * {@link Dimension} reference is retained.</p>
  *
  * <p>Construction is eager only for expression metadata. The helper accepts dynamic and zero
- * extents without reading an element count, and it does not inspect values or storage, aggregate
- * data, select accumulation or empty-domain behavior, create gradient rules, capture a graph, or
- * provide compiler, runtime, or backend behavior. Product, minimum, and maximum preserve an
- * existing gradient request as eligibility metadata without claiming that a gradient rule
- * exists. Aggregate minimum and maximum remain distinct from equally named elementwise binary
- * kinds. Boolean all and any require exact BOOL input and remain distinct from elementwise AND
- * and OR. This helper defines no truth evaluation, NaN, signed-zero, tie, or empty-domain
- * policy.</p>
+ * extents without reading an element count. Ordinary INT32 and INT64 sum and product mean
+ * fixed-width modular arithmetic with reassociation permitted; their empty identities are zero
+ * and one. Integral minimum and maximum use signed order and the input type's maximum and minimum
+ * values, respectively, for empty domains. These meanings apply to full domains and independently
+ * to empty selected-axis slices, including dynamic extents later bound to zero. Floating numeric
+ * behavior and BOOL empty identities remain unchanged and are not further selected here.</p>
+ *
+ * <p>The helper does not inspect values or storage, aggregate data, implement an accumulation
+ * algorithm, create gradient rules, capture a graph, or provide compiler, runtime, or backend
+ * behavior. Floating results preserve existing gradient eligibility; integral and BOOL results
+ * are necessarily non-differentiable. Aggregate minimum and maximum remain distinct from equally
+ * named elementwise binary kinds, while boolean all and any remain distinct from elementwise AND
+ * and OR.</p>
  */
 final class TensorReductionExpressions {
     /** Prevents instantiation because aggregate reduction construction is stateless. */
@@ -42,8 +47,9 @@ final class TensorReductionExpressions {
      * Creates one fresh expression that reduces every axis of an eligible tensor.
      *
      * <p>Validation occurs in this exact order: null-check {@code input}, null-check {@code kind},
-     * accept one of the seven supported kinds, then apply kind-specific input validation. Numeric
-     * kinds require floating input; {@code ALL} and {@code ANY} require BOOL. The method then
+     * accept one of the seven supported kinds, then apply kind-specific input validation. Sum,
+     * product, minimum, and maximum accept floating or integral input; mean requires floating
+     * input; {@code ALL} and {@code ANY} require BOOL. The method then
      * delegates to common construction with {@link
      * NoOperationAttrs#INSTANCE} and the canonical scalar shape. Failures before common factory
      * delegation consume no Tensor identity.</p>
@@ -55,7 +61,7 @@ final class TensorReductionExpressions {
      *     AggregateReductionKind#MIN}, {@link AggregateReductionKind#MAX}, {@link
      *     AggregateReductionKind#ALL}, or {@link AggregateReductionKind#ANY}
      * @return the non-null exact fresh scalar Tensor returned by the central factory, with
-     *     unchanged type and gradient eligibility and no label, resolved layout, or storage
+     *     unchanged type and gradient eligibility, unresolved layout, and no label or storage
      * @throws NullPointerException if {@code input} or {@code kind} is null, checked in that order
      *     with the parameter name as the message
      * @throws IllegalArgumentException if {@code kind} is unsupported by this helper or the input
@@ -146,9 +152,11 @@ final class TensorReductionExpressions {
      * @param input non-null Tensor whose descriptor is read only for its immutable data type
      * @param kind validated non-null ordinary aggregate kind
      * @throws IllegalArgumentException if {@code ALL} or {@code ANY} receives a non-BOOL input,
-     *     with message {@code input must have BOOL data type for <kind>, but was <dataType>}; or a
-     *     numeric kind receives a non-floating input, with message
-     *     {@code input must be a floating data type, but was <dataType>}
+     *     with message {@code input must have BOOL data type for <kind>, but was <dataType>}; if
+     *     mean receives a non-floating input, with message {@code input must be a floating data
+     *     type, but was <dataType>}; or if sum, product, minimum, or maximum receives a
+     *     non-numeric input, with message {@code input must have a numeric data type for <kind>,
+     *     but was <dataType>}
      */
     private static void validateInput(Tensor input, AggregateReductionKind kind) {
         DataType dataType = input.descriptor().dataType();
@@ -159,9 +167,16 @@ final class TensorReductionExpressions {
             }
             return;
         }
-        if (!dataType.isFloating()) {
+        if (kind == AggregateReductionKind.MEAN) {
+            if (!dataType.isFloating()) {
+                throw new IllegalArgumentException(
+                        "input must be a floating data type, but was " + dataType);
+            }
+            return;
+        }
+        if (!dataType.isFloating() && !dataType.isIntegral()) {
             throw new IllegalArgumentException(
-                    "input must be a floating data type, but was " + dataType);
+                    "input must have a numeric data type for " + kind + ", but was " + dataType);
         }
     }
 

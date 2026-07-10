@@ -44,11 +44,13 @@ class ReductionSemanticsTest {
                             AggregateReductionKind.MAX,
                             AggregateReductionKind.ALL,
                             AggregateReductionKind.ANY,
-                            AggregateReductionKind.ARG_MAX
+                            AggregateReductionKind.ARG_MAX,
+                            AggregateReductionKind.ARG_MIN
                         },
                         values),
                 () -> assertEquals(
-                        List.of("SUM", "MEAN", "PROD", "MIN", "MAX", "ALL", "ANY", "ARG_MAX"),
+                        List.of("SUM", "MEAN", "PROD", "MIN", "MAX", "ALL", "ANY", "ARG_MAX",
+                                "ARG_MIN"),
                         Arrays.stream(values).map(AggregateReductionKind::name).toList()),
                 () -> assertInstanceOf(OperationKind.class, AggregateReductionKind.SUM),
                 () -> assertSame(
@@ -58,27 +60,27 @@ class ReductionSemanticsTest {
 
     @Test
     void declaresExactlyTheRequiredTiePolicyVocabularyInOrder() {
-        ArgMaxTiePolicy[] values = ArgMaxTiePolicy.values();
+        ArgExtremaTiePolicy[] values = ArgExtremaTiePolicy.values();
 
         assertAll(
                 () -> assertArrayEquals(
-                        new ArgMaxTiePolicy[] {
-                            ArgMaxTiePolicy.FIRST_INDEX, ArgMaxTiePolicy.LAST_INDEX
+                        new ArgExtremaTiePolicy[] {
+                            ArgExtremaTiePolicy.FIRST_INDEX, ArgExtremaTiePolicy.LAST_INDEX
                         },
                         values),
                 () -> assertEquals(
                         List.of("FIRST_INDEX", "LAST_INDEX"),
-                        Arrays.stream(values).map(ArgMaxTiePolicy::name).toList()),
+                        Arrays.stream(values).map(ArgExtremaTiePolicy::name).toList()),
                 () -> assertSame(
-                        ArgMaxTiePolicy.FIRST_INDEX,
-                        ArgMaxTiePolicy.valueOf("FIRST_INDEX")));
+                        ArgExtremaTiePolicy.FIRST_INDEX,
+                        ArgExtremaTiePolicy.valueOf("FIRST_INDEX")));
     }
 
     @Test
     void exposesOnlyTheExactEnumShapes() {
         io.github.pho001.synaptik.model.operation.OperationSignatureTest
                 .assertSignatureEnumShape(AggregateReductionKind.class);
-        assertEnumShape(ArgMaxTiePolicy.class, List.of());
+        assertEnumShape(ArgExtremaTiePolicy.class, List.of());
     }
 
     @Test
@@ -95,16 +97,26 @@ class ReductionSemanticsTest {
                                 "keepDimensions():boolean",
                                 "toString():java.lang.String")),
                 () -> assertRecordShape(
-                        ArgMaxAttrs.class,
+                        ArgExtremaAttrs.class,
                         List.of("axis", "keepDimensions", "tiePolicy"),
-                        List.of(int.class, boolean.class, ArgMaxTiePolicy.class),
+                        List.of(int.class, boolean.class, ArgExtremaTiePolicy.class),
                         List.of(
                                 "axis():int",
                                 "equals(java.lang.Object):boolean",
                                 "hashCode():int",
                                 "keepDimensions():boolean",
-                                "tiePolicy():io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy",
+                                "tiePolicy():io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy",
                                 "toString():java.lang.String")));
+    }
+
+    @Test
+    void removesEveryArgMaxSpecificSemanticTypeWithoutAliases() {
+        for (String oldType : List.of(
+                "io.github.pho001.synaptik.model.operation.reduction.ArgMaxAttrs",
+                "io.github.pho001.synaptik.model.operation.reduction.ArgMaxTiePolicy",
+                "io.github.pho001.synaptik.model.tensor.TensorArgMaxExpressions")) {
+            assertThrows(ClassNotFoundException.class, () -> Class.forName(oldType));
+        }
     }
 
     @Test
@@ -135,8 +147,8 @@ class ReductionSemanticsTest {
     void validatesAndRetainsCompleteArgMaxAttributesInComponentOrder() {
         for (int axis : new int[] {0, 1, 37, Integer.MAX_VALUE}) {
             for (boolean keepDimensions : new boolean[] {false, true}) {
-                for (ArgMaxTiePolicy tiePolicy : ArgMaxTiePolicy.values()) {
-                    ArgMaxAttrs attrs = new ArgMaxAttrs(axis, keepDimensions, tiePolicy);
+                for (ArgExtremaTiePolicy tiePolicy : ArgExtremaTiePolicy.values()) {
+                    ArgExtremaAttrs attrs = new ArgExtremaAttrs(axis, keepDimensions, tiePolicy);
 
                     assertAll(
                             () -> assertEquals(axis, attrs.axis()),
@@ -149,13 +161,13 @@ class ReductionSemanticsTest {
         for (int axis : new int[] {-1, -37, Integer.MIN_VALUE}) {
             IllegalArgumentException failure = assertThrows(
                     IllegalArgumentException.class,
-                    () -> new ArgMaxAttrs(axis, true, null));
+                    () -> new ArgExtremaAttrs(axis, true, null));
             assertEquals("axis must be non-negative: " + axis, failure.getMessage());
         }
 
         NullPointerException nullPolicy = assertThrows(
                 NullPointerException.class,
-                () -> new ArgMaxAttrs(0, false, null));
+                () -> new ArgExtremaAttrs(0, false, null));
         assertEquals("tiePolicy", nullPolicy.getMessage());
     }
 
@@ -164,9 +176,12 @@ class ReductionSemanticsTest {
         AxisReductionAttrs axis = new AxisReductionAttrs(2, true);
         AxisReductionAttrs equalAxis = new AxisReductionAttrs(2, true);
         AxisReductionAttrs differentAxis = new AxisReductionAttrs(2, false);
-        ArgMaxAttrs argMax = new ArgMaxAttrs(1, false, ArgMaxTiePolicy.FIRST_INDEX);
-        ArgMaxAttrs equalArgMax = new ArgMaxAttrs(1, false, ArgMaxTiePolicy.FIRST_INDEX);
-        ArgMaxAttrs differentArgMax = new ArgMaxAttrs(1, false, ArgMaxTiePolicy.LAST_INDEX);
+        ArgExtremaAttrs argMax =
+                new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX);
+        ArgExtremaAttrs equalArgMax =
+                new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.FIRST_INDEX);
+        ArgExtremaAttrs differentArgMax =
+                new ArgExtremaAttrs(1, false, ArgExtremaTiePolicy.LAST_INDEX);
 
         assertAll(
                 () -> assertEquals(axis, equalAxis),
@@ -178,7 +193,7 @@ class ReductionSemanticsTest {
                 () -> assertEquals(argMax.hashCode(), equalArgMax.hashCode()),
                 () -> assertNotEquals(argMax, differentArgMax),
                 () -> assertEquals(
-                        "ArgMaxAttrs[axis=1, keepDimensions=false, tiePolicy=FIRST_INDEX]",
+                        "ArgExtremaAttrs[axis=1, keepDimensions=false, tiePolicy=FIRST_INDEX]",
                         argMax.toString()));
     }
 
@@ -199,14 +214,17 @@ class ReductionSemanticsTest {
 
     @Test
     void composesArgMaxWithEveryExplicitTieAndDimensionChoice() {
-        for (ArgMaxTiePolicy tiePolicy : ArgMaxTiePolicy.values()) {
+        for (ArgExtremaTiePolicy tiePolicy : ArgExtremaTiePolicy.values()) {
             for (boolean keepDimensions : new boolean[] {false, true}) {
-                ArgMaxAttrs attrs = new ArgMaxAttrs(1, keepDimensions, tiePolicy);
-                Operation operation = new Operation(AggregateReductionKind.ARG_MAX, attrs);
+                for (AggregateReductionKind kind : List.of(
+                        AggregateReductionKind.ARG_MIN, AggregateReductionKind.ARG_MAX)) {
+                    ArgExtremaAttrs attrs = new ArgExtremaAttrs(1, keepDimensions, tiePolicy);
+                    Operation operation = new Operation(kind, attrs);
 
-                assertAll(
-                        () -> assertSame(AggregateReductionKind.ARG_MAX, operation.kind()),
-                        () -> assertSame(attrs, operation.attrs()));
+                    assertAll(
+                            () -> assertSame(kind, operation.kind()),
+                            () -> assertSame(attrs, operation.attrs()));
+                }
             }
         }
     }

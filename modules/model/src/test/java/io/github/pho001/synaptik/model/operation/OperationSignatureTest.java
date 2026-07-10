@@ -50,7 +50,7 @@ import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.ArgMaxAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
@@ -226,7 +226,9 @@ public final class OperationSignatureTest {
                 AggregateReductionKind.ALL,
                 AggregateReductionKind.ANY);
         assertKinds(
-                List.of(fixed(ArgMaxAttrs.class, 1)), AggregateReductionKind.ARG_MAX);
+                List.of(fixed(ArgExtremaAttrs.class, 1)),
+                AggregateReductionKind.ARG_MAX,
+                AggregateReductionKind.ARG_MIN);
         assertFamily(
                 List.of(fixed(CumulativeSumAttrs.class, 1)), CumulativeSumKind.values());
     }

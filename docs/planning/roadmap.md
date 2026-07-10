@@ -115,15 +115,17 @@ Tasks [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) and
 [0018T](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) is Complete. Task
 [0018T1](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) is Complete.
 Task [0018U](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) is
-Complete. Task 0018U1 is the next Draft implementation frontier, and it and every later task
+Complete. Task [0018U1](modules/model/tasks/0018u1-integral-reductions-and-arg-min-normalization.md)
+is also Complete. Task 0018V is the next Draft implementation frontier; it and every later task
 remain without a detailed specification.
 
 Task 0018U added same-category numeric promotion, selected modular INT32/INT64 ADD, SUB, MUL, MIN,
 and MAX Tensor and exact-scalar construction, and all six signed-integral comparisons without a
-new public Tensor method or operation kind. Integral DIV, POW, range CLAMP, reductions, and
-arg-min remain deferred. The final model suite passed 734 tests across 90 suites; its separate
-documentation pass finalized Javadocs and the Tensor/Compile API, glossary, capability baseline,
-task, master plan, and roadmap without repeating the successful Java suite.
+new public Tensor method or operation kind. At that historical frontier, integral DIV, POW, range
+CLAMP, reductions, and arg-min remained deferred; task 0018U1 has since completed the selected
+reduction and arg-min work. The final task-0018U model suite passed 734 tests across 90 suites; its
+separate documentation pass finalized Javadocs and the Tensor/Compile API, glossary, capability
+baseline, task, master plan, and roadmap without repeating the successful Java suite.
 
 Task 0018T1 added first-class `rsqrt`, `log1p`, and `expm1` metadata plus separately typed
 `isFinite`, `isNaN`, and `isInf` BOOL classifications. Its implementation context passed the
@@ -167,8 +169,8 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018T1 and task 0018U are complete; task 0018U1 is the next Draft frontier, while it and
-later rows remain without detailed specifications.
+through 0018T1, task 0018U, and task 0018U1 are complete; task 0018V is the next Draft frontier,
+while it and later rows remain without detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -176,7 +178,7 @@ composition, and unfold/fold contracts can be implemented and validated independ
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
-task 0018U is Complete, while task 0018U1 and later tasks remain Draft.
+task 0018U and task 0018U1 are Complete, and task 0018V and later tasks remain Draft.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -407,7 +409,10 @@ generalizes the same six-method helper with kind-aware numeric/BOOL validation a
 one-axis all/any expressions while deferring truth evaluation and empty-domain identity.
 Task [0016E](modules/model/tasks/0016e-arg-max-tensor-expressions.md) is complete. It adds axis-only
 numeric arg-max construction with explicit tie semantics, fixed INT64 results, and a dedicated
-helper while leaving value comparison and execution deferred.
+helper while leaving value comparison and execution deferred at that historical frontier.
+Completed task 0018U1 later replaces the arg-max-only types/helper with shared arg-extrema
+contracts, adds arg-min, fixes ordering and static-empty-selected-axis semantics, and broadens
+ordinary SUM/PROD/MIN/MAX to exact signed-integral input.
 Task [0016F](modules/model/tasks/0016f-masked-reduction-semantics-and-axis-mapping.md) is complete.
 It adds the typed semantic contract and explicit ordered mask-dimension-to-input-axis mapping
 needed to preserve legacy-compatible masks that ordinary right-aligned broadcasting cannot
@@ -615,7 +620,7 @@ authorized Compile API status correction.
 | 89 | [0018T Scalar arithmetic family normalization](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete |
 | 90 | [0018T1 Unary numeric gaps and floating diagnostics](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete |
 | 91 | [0018U Integral elementwise arithmetic and comparisons](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete |
-| 92 | 0018U1 Integral reductions and arg-min normalization | Draft |
+| 92 | [0018U1 Integral reductions and arg-min normalization](modules/model/tasks/0018u1-integral-reductions-and-arg-min-normalization.md) | Complete |
 | 93 | 0018V Multi-axis and statistical reductions | Draft |
 | 94 | 0019 Linear algebra and attention operations | Draft |
 | 95 | 0019A Modern activation and embedding conveniences | Draft |
@@ -674,11 +679,12 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018T1 and task 0018U are complete; 0018U1 is the next Draft
-frontier, while it and every later task remain without a detailed specification.
-Completed task 0016E adds fixed-INT64,
-one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
-value comparison, empty-axis policy, or execution.
+before 0019. Tasks 0018K through 0018T1, task 0018U, and task 0018U1 are complete; 0018V is the
+next Draft frontier, while it and every later task remain Draft without a detailed specification.
+Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
+changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
+execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral
+ordinary reduction baseline without adding execution.
 
 This decision changes implementation order only. It does not change architecture dependencies or
 authorize compiler, planning, runtime, prepare, or backend behavior inside modules/model. A future
