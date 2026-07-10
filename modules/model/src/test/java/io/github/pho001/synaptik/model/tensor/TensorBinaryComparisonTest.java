@@ -135,6 +135,37 @@ class TensorBinaryComparisonTest {
     }
 
     @Test
+    void acceptsEveryIntegralPairForAllSixSignedComparisons() {
+        DataType[] integral = {DataType.INT32, DataType.INT64};
+
+        for (ComparisonCall call : COMPARISON_CALLS) {
+            for (DataType leftType : integral) {
+                for (DataType rightType : integral) {
+                    Tensor left = tensor(leftType, Shape.of(2, 1), false);
+                    Tensor right = tensor(rightType, Shape.of(1, 3), false);
+
+                    Tensor result = call.apply(left, right);
+                    TensorProvenance provenance = result.provenance().orElseThrow();
+
+                    assertAll(
+                            () -> assertSame(DataType.BOOL, result.descriptor().dataType()),
+                            () -> assertEquals(Shape.of(2, 3), result.descriptor().shape()),
+                            () -> assertTrue(result.descriptor().layout().isEmpty()),
+                            () -> assertFalse(result.descriptor().requiresGrad()),
+                            () -> assertSame(call.kind(), provenance.operation().kind()),
+                            () -> assertSame(NoOperationAttrs.INSTANCE, provenance.operation().attrs()),
+                            () -> assertSame(left, provenance.inputs().get(0)),
+                            () -> assertSame(right, provenance.inputs().get(1)),
+                            () -> assertEquals(0, provenance.outputIndex()),
+                            () -> assertEquals(1, provenance.producer().outputCount()),
+                            () -> assertTrue(result.label().isEmpty()),
+                            () -> assertTrue(result.hostStorage().isEmpty()));
+                }
+            }
+        }
+    }
+
+    @Test
     void representsAllRequiredStaticAndDynamicBroadcastShapes() {
         DynamicDimension batch = new DynamicDimension("batch");
         List<BroadcastCase> cases = List.of(
@@ -253,9 +284,13 @@ class TensorBinaryComparisonTest {
         }
 
         IllegalArgumentException invalidLeft = assertThrows(
-                IllegalArgumentException.class, () -> integral.equalTo(bool));
+                IllegalArgumentException.class, () -> bool.equalTo(integral));
         IllegalArgumentException invalidRight = assertThrows(
                 IllegalArgumentException.class, () -> floating.equalTo(bool));
+        IllegalArgumentException mixedLeft = assertThrows(
+                IllegalArgumentException.class, () -> integral.equalTo(floating));
+        IllegalArgumentException mixedRight = assertThrows(
+                IllegalArgumentException.class, () -> floating.equalTo(integral));
         IllegalArgumentException staticShape = assertThrows(
                 IllegalArgumentException.class, () -> floating.notEqualTo(incompatible));
         IllegalArgumentException dynamicShape = assertThrows(
@@ -266,11 +301,17 @@ class TensorBinaryComparisonTest {
                 () -> assertEquals("right", nullRight.getMessage()),
                 () -> assertEquals("kind", nullKind.getMessage()),
                 () -> assertEquals(
-                        "left must be a floating data type, but was INT32",
+                        "left must be a numeric data type, but was BOOL",
                         invalidLeft.getMessage()),
                 () -> assertEquals(
-                        "right must be a floating data type, but was BOOL",
+                        "right must be a numeric data type, but was BOOL",
                         invalidRight.getMessage()),
+                () -> assertEquals(
+                        "numeric data types must share a category, but were INT32 and FLOAT32",
+                        mixedLeft.getMessage()),
+                () -> assertEquals(
+                        "numeric data types must share a category, but were FLOAT32 and INT32",
+                        mixedRight.getMessage()),
                 () -> assertTrue(staticShape.getMessage().contains("at result axis 1")),
                 () -> assertTrue(dynamicShape.getMessage().contains("at result axis 0")),
                 () -> assertEquals(beforeFailures, nextId.get()));

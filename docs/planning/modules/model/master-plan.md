@@ -217,8 +217,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018S | [Tensor factory surface cleanup](tasks/0018s-tensor-factory-surface-cleanup.md) | Complete | 0012–0012I, 0013A, 0018N | Keep identity/construction/import/constants/range in TensorFactory, promote TensorRandoms as the focused public random owner, and move prefix population to test-only fixtures. |
 | 0018T | [Scalar arithmetic family normalization](tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete | 0014A–0014B, 0014E–0014F, 0018K, 0018N, 0018P | Complete parallel seven-operation Tensor/binary and Tensor/scalar arithmetic, distinguish pairwise `minimum`/`maximum` from reductions, and demote one-bound clamp kinds to conveniences. |
 | 0018T1 | [Unary numeric gaps and floating diagnostics](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete | 0014C–0014D, 0018K, 0018P, 0018T | Add floating-preserving `rsqrt`/`log1p`/`expm1` plus separately typed BOOL `isFinite`/`isNaN`/`isInf` classification semantics and public construction. |
-| 0018U | Integral arithmetic and comparison domains | Draft | 0014A–0015B, 0016A–0016E, 0018K, 0018T | Add the selected signed-integral arithmetic, comparisons, arg-min, and reduction domains with explicit overflow and accumulation policy. |
-| 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
+| 0018U | [Integral elementwise arithmetic and comparisons](tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete | 0001, 0014A–0015B, 0018K, 0018N, 0018T–0018T1 | Add same-category promotion, selected modular INT32/INT64 elementwise arithmetic, exact scalar domains, and all six integral comparisons. |
+| 0018U1 | Integral reductions and arg-min normalization | Draft | 0016A–0016E, 0018K, 0018U | Add selected integral SUM/PROD/MIN/MAX domains, `argMin`, and a coherent shared arg-extrema tie-policy contract with explicit accumulation and empty-domain rules. |
+| 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U1 | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
 | 0019 | Linear algebra and attention operations | Draft | 0018K, 0018M–0018N, 0018T | Represent matmul, linear convenience, and scaled dot-product attention after the ordered reset. |
 | 0019A | Modern activation and embedding conveniences | Draft | 0015F, 0018O, 0018P, 0018T | Add GELU, SiLU/Swish, embedding, and one-hot public compositions without unnecessary primitive kinds. |
 | 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
@@ -273,8 +274,15 @@ padding, tiling, and concat Shape derivation. Task 0018N is complete with exact 
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
 final thirteen-kind unary vocabulary. Tasks 0018Q, 0018R, 0018S, 0018T, and 0018T1 are complete.
-Task 0018U is the next Draft frontier, and it and every later task remain without detailed
-specifications.
+Task 0018U is complete with same-category numeric promotion, selected signed-integral elementwise
+arithmetic, exact scalar domains, and all six integral comparisons. Task 0018U1 is the next Draft
+frontier, and it and every later task remain without detailed specifications.
+
+Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
+Tensor pairs promote within their category, exact scalar attributes do not promote, integral
+ADD/SUB/MUL use fixed-width two's-complement modular meaning, and integral extrema/comparisons use
+signed order. Integral DIV, POW, range CLAMP, reductions, and arg-min remain outside the completed
+elementwise baseline.
 
 Task 0018S leaves exactly 31 public TensorFactory construction/import/constant/range methods,
 makes field-free `TensorRandoms` the sole public owner of five explicit caller-source random
@@ -1263,8 +1271,8 @@ Completed task
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
-complete. Task 0018U and every later task remain Draft without detailed specifications. Other
-operation-family rows are not permission for oversized
+complete. Task 0018U is also complete. Task 0018U1 is the next Draft frontier, and it and every
+later task remain without detailed specifications. Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1320,7 +1328,8 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T and task 0018T1 are complete,
-while 0018U and every later task remain Draft without a detailed specification.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
+0018U1 is the next Draft frontier, while it and every later task remain without a detailed
+specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -67,9 +67,13 @@ import java.util.Optional;
  * elementwise expression methods create fresh storage-free tensors whose immutable provenance
  * records the requested semantics and exact inputs; they do not execute mathematics, validate
  * numerical domains, create gradient rules, or capture a graph.
- * Binary arithmetic methods promote floating operands, broadcast shapes, and combine gradient
- * eligibility by logical OR. Binary comparison methods validate the same floating compatibility
- * and broadcasting contracts but produce non-differentiable {@code BOOL} descriptors. Boolean
+ * Binary ADD, SUB, MUL, MIN, and MAX promote same-category floating or signed-integral operands;
+ * integral ADD, SUB, and MUL have fixed-width two's-complement modular meaning, while integral
+ * MIN and MAX use signed order. DIV and POW remain floating-only. All binary arithmetic methods
+ * broadcast shapes and combine gradient eligibility by logical OR; integral descriptors
+ * necessarily remain non-differentiable. Binary comparison methods accept the same-category
+ * floating or integral domains and broadcasting contract but produce non-differentiable
+ * {@code BOOL} descriptors; integral relations use signed order. Boolean
  * logical methods accept only {@code BOOL}: conjunction and disjunction broadcast ordered inputs,
  * while negation retains the exact input shape. Their results are also non-differentiable
  * {@code BOOL} descriptors. Conditional selection accepts one {@code BOOL} condition and two
@@ -106,10 +110,12 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
- * Scalar methods and the sixteen parameterless unary methods accept one floating input and
- * retain its exact data type, shape reference, and gradient eligibility. Scalar methods retain
- * exact matching typed values in attributes; their {@code double} conveniences mean exact
- * FLOAT64. The three floating-classification methods also accept one floating input, but produce
+ * Scalar ADD, SUB, MUL, MIN, and MAX plus the one-bound clamp conveniences accept one floating or
+ * signed-integral input; scalar DIV, POW, and first-class range CLAMP remain floating-only.
+ * Scalar methods retain exact matching typed values in attributes, so they do not promote, and
+ * their {@code double} conveniences mean exact FLOAT64. The sixteen parameterless unary methods
+ * remain floating-only. The three floating-classification methods also accept one floating input,
+ * but produce
  * fixed non-differentiable {@code BOOL} descriptors with the exact input shape and unresolved
  * layout. They record classification semantics without reading or classifying values.
  * Every expression result has a fresh factory identity and no label or storage. Most expression
@@ -287,21 +293,24 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that adds this left operand to {@code right}.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
-     * floating hierarchy, and their shapes must support locally provable right-aligned
-     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * <p>Both operands must belong to the same floating or signed-integral category. Floating
+     * promotion is unchanged; integral promotion uses {@code INT32 < INT64} with signed extension
+     * into an {@code INT64} operation domain. Their shapes must support locally provable
+     * right-aligned broadcasting. The fresh result has unresolved layout, gradient eligibility
+     * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#ADD}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. This method constructs semantics only; numerical execution and
-     * gradient rules are deferred.</p>
+     * {@code [this, right]}. Integral addition is fixed-width two's-complement modular arithmetic
+     * in the promoted type. This method constructs semantics only; it does not evaluate values,
+     * install a gradient rule, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right addend; it is retained by exact reference in result
      *     provenance and is not mutated
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor add(Tensor right) {
@@ -311,21 +320,24 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that subtracts {@code right} from this left operand.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
-     * floating hierarchy, and their shapes must support locally provable right-aligned
-     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * <p>Both operands must belong to the same floating or signed-integral category. Floating
+     * promotion is unchanged; integral promotion uses {@code INT32 < INT64} with signed extension
+     * into an {@code INT64} operation domain. Their shapes must support locally provable
+     * right-aligned broadcasting. The fresh result has unresolved layout, gradient eligibility
+     * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#SUB}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. This method constructs semantics only; numerical execution and
-     * gradient rules are deferred.</p>
+     * {@code [this, right]}. Integral subtraction is fixed-width two's-complement modular
+     * arithmetic in the promoted type. This method constructs semantics only; it does not
+     * evaluate values, install a gradient rule, capture a graph, or execute.</p>
      *
      * @param right non-null ordered subtrahend; it is retained by exact reference in result
      *     provenance and is not mutated
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor sub(Tensor right) {
@@ -335,21 +347,24 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that multiplies this left operand by {@code right}.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
-     * floating hierarchy, and their shapes must support locally provable right-aligned
-     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * <p>Both operands must belong to the same floating or signed-integral category. Floating
+     * promotion is unchanged; integral promotion uses {@code INT32 < INT64} with signed extension
+     * into an {@code INT64} operation domain. Their shapes must support locally provable
+     * right-aligned broadcasting. The fresh result has unresolved layout, gradient eligibility
+     * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#MUL}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. This method constructs semantics only; numerical execution and
-     * gradient rules are deferred.</p>
+     * {@code [this, right]}. Integral multiplication is fixed-width two's-complement modular
+     * arithmetic in the promoted type. This method constructs semantics only; it does not
+     * evaluate values, install a gradient rule, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right factor; it is retained by exact reference in result
      *     provenance and is not mutated
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor mul(Tensor right) {
@@ -359,7 +374,7 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that divides this left operand by {@code right}.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
+     * <p>Both operands must have floating data types, which are promoted through the unchanged
      * floating hierarchy, and their shapes must support locally provable right-aligned
      * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
@@ -372,8 +387,8 @@ public final class Tensor {
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean or integral, the operands cross
+     *     numeric categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor div(Tensor right) {
@@ -384,22 +399,24 @@ public final class Tensor {
      * Builds an elementwise expression that selects the minimum of this left operand and
      * {@code right}.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
-     * floating hierarchy, and their shapes must support locally provable right-aligned
-     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * <p>Both operands must belong to the same floating or signed-integral category. Floating
+     * promotion is unchanged; integral promotion uses {@code INT32 < INT64} with signed extension
+     * into an {@code INT64} operation domain. Their shapes must support locally provable
+     * right-aligned broadcasting. The fresh result has unresolved layout, gradient eligibility
+     * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#MIN}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. The portable request propagates NaN, orders infinities normally, and
-     * selects negative zero from opposite signed zeros, without promising a NaN payload or
-     * bitwise result. This method constructs metadata only; gradients and execution are deferred.</p>
+     * {@code [this, right]}. Floating extrema retain their NaN, infinity, and signed-zero policy;
+     * integral minimum uses ordinary signed order. This method constructs metadata only and does
+     * not compare values, define gradients, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right minimum operand; it is retained by exact reference in
      *     result provenance and is not mutated
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor minimum(Tensor right) {
@@ -410,22 +427,24 @@ public final class Tensor {
      * Builds an elementwise expression that selects the maximum of this left operand and
      * {@code right}.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
-     * floating hierarchy, and their shapes must support locally provable right-aligned
-     * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
+     * <p>Both operands must belong to the same floating or signed-integral category. Floating
+     * promotion is unchanged; integral promotion uses {@code INT32 < INT64} with signed extension
+     * into an {@code INT64} operation domain. Their shapes must support locally provable
+     * right-aligned broadcasting. The fresh result has unresolved layout, gradient eligibility
+     * equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
      * {@link BinaryArithmeticKind#MAX}, {@code NoOperationAttrs.INSTANCE}, and ordered inputs
-     * {@code [this, right]}. The portable request propagates NaN, orders infinities normally, and
-     * selects positive zero from opposite signed zeros, without promising a NaN payload or
-     * bitwise result. This method constructs metadata only; gradients and execution are deferred.</p>
+     * {@code [this, right]}. Floating extrema retain their NaN, infinity, and signed-zero policy;
+     * integral maximum uses ordinary signed order. This method constructs metadata only and does
+     * not compare values, define gradients, capture a graph, or execute.</p>
      *
      * @param right non-null ordered right maximum operand; it is retained by exact reference in
      *     result provenance and is not mutated
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor maximum(Tensor right) {
@@ -435,7 +454,7 @@ public final class Tensor {
     /**
      * Builds an elementwise expression that raises this left base to the {@code right} exponent.
      *
-     * <p>Both operands must have floating data types, which are promoted through the model's
+     * <p>Both operands must have floating data types, which are promoted through the unchanged
      * floating hierarchy, and their shapes must support locally provable right-aligned
      * broadcasting. The fresh result has unresolved layout, gradient eligibility equal to the
      * logical OR of the operand requests, no label or host storage, and provenance containing
@@ -448,8 +467,8 @@ public final class Tensor {
      * @return a non-null fresh derived tensor with promoted type, broadcast shape, unresolved
      *     layout, propagated gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean or integral, the operands cross
+     *     numeric categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor pow(Tensor right) {
@@ -460,22 +479,23 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand is greater than
      * {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_THAN},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only; numerical comparison behavior, including special floating
-     * values, and gradient rules are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion;
+     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor greaterThan(Tensor right) {
@@ -486,22 +506,23 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand is greater than or equal
      * to {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#GREATER_OR_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only; numerical comparison behavior, including special floating
-     * values, and gradient rules are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion;
+     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor greaterOrEqual(Tensor right) {
@@ -513,22 +534,23 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand is less than
      * {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#LESS_THAN},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only; numerical comparison behavior, including special floating
-     * values, and gradient rules are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion;
+     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor lessThan(Tensor right) {
@@ -539,22 +561,23 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand is less than or equal to
      * {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#LESS_OR_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. This method
-     * constructs semantics only; numerical comparison behavior, including special floating
-     * values, and gradient rules are deferred.</p>
+     * constructs semantics only. Integral operands use ordinary signed order after promotion;
+     * floating special-value policy, gradients, graph capture, and execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor lessOrEqual(Tensor right) {
@@ -566,22 +589,24 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand compares equal to
      * {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
-     * retained even though equality is symmetric. This method constructs semantics only; tolerance,
-     * NaN and signed-zero comparison behavior, and gradient rules are deferred.</p>
+     * retained even though equality is symmetric. Integral equality is exact after signed
+     * promotion; floating tolerance and special-value policy, gradients, graph capture, and
+     * execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor equalTo(Tensor right) {
@@ -592,22 +617,24 @@ public final class Tensor {
      * Builds an elementwise expression testing whether this left operand compares unequal to
      * {@code right}.
      *
-     * <p>Both operands must have floating data types compatible through the model promotion
-     * hierarchy, and their shapes must support locally provable right-aligned broadcasting. The
+     * <p>Both operands must belong to the same floating or signed-integral category and promote
+     * within that category; mixed categories require an explicit cast. Their shapes must support
+     * locally provable right-aligned broadcasting. The
      * promoted type validates the comparison domain but is not stored in the result. The fresh
      * result is {@code BOOL}, has unresolved layout and false gradient eligibility, no label or
      * host storage, and provenance containing {@link BinaryComparisonKind#NOT_EQUAL},
      * {@code NoOperationAttrs.INSTANCE}, and ordered inputs {@code [this, right]}. Operand order is
-     * retained even though inequality is symmetric. This method constructs semantics only;
-     * tolerance, NaN and signed-zero comparison behavior, and gradient rules are deferred.</p>
+     * retained even though inequality is symmetric. Integral inequality is exact after signed
+     * promotion; floating tolerance and special-value policy, gradients, graph capture, and
+     * execution are deferred.</p>
      *
      * @param right non-null ordered right comparison operand; it is retained by exact reference
      *     in result provenance and is not mutated
      * @return a non-null fresh derived {@code BOOL} tensor with broadcast shape, unresolved layout,
      *     false gradient eligibility, and no storage
      * @throws NullPointerException if {@code right} is null, with message {@code right}
-     * @throws IllegalArgumentException if either operand is not floating or their shapes cannot
-     *     be broadcast under the local shape contract
+     * @throws IllegalArgumentException if an operand is boolean, the operands cross numeric
+     *     categories, or their shapes cannot be broadcast under the local shape contract
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor notEqualTo(Tensor right) {
@@ -739,17 +766,18 @@ public final class Tensor {
     }
 
     /**
-     * Builds scalar addition with an exact value matching this floating tensor's data type.
+     * Builds scalar addition with an exact value matching this numeric tensor's data type.
      *
      * <p>The result records one {@link ScalarElementwiseKind#ADD} operation with the exact value
      * reference, retains this tensor as its sole provenance input, and has a fresh identity, no
-     * label, and no storage. Construction performs no addition, conversion, simplification,
-     * gradient definition, graph capture, or execution.</p>
+     * label, and no storage. Integral addition has fixed-width two's-complement modular meaning.
+     * Construction performs no addition, conversion, simplification, gradient definition, graph
+     * capture, or execution.</p>
      *
      * @param value non-null exact typed addend; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code value} is null, with message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value type differs
+     * @throws IllegalArgumentException if this tensor is boolean or the value type differs
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor add(ScalarValue value) {
@@ -774,16 +802,17 @@ public final class Tensor {
     }
 
     /**
-     * Builds scalar subtraction with an exact value matching this floating tensor's data type.
+     * Builds scalar subtraction with an exact value matching this numeric tensor's data type.
      *
      * <p>The receiver is the minuend and {@code value} is the subtrahend. The result records one
      * {@link ScalarElementwiseKind#SUB} operation with the exact value reference and this tensor
-     * as its sole input. It does not evaluate, convert, simplify, define gradients, or execute.</p>
+     * as its sole input. Integral subtraction has fixed-width two's-complement modular meaning.
+     * It does not evaluate, convert, simplify, define gradients, capture a graph, or execute.</p>
      *
      * @param value non-null exact typed subtrahend; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code value} is null, with message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value type differs
+     * @throws IllegalArgumentException if this tensor is boolean or the value type differs
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor sub(ScalarValue value) {
@@ -811,20 +840,21 @@ public final class Tensor {
     }
 
     /**
-     * Builds scalar multiplication with an exact value matching this floating tensor's data type.
+     * Builds scalar multiplication with an exact value matching this numeric tensor's data type.
      *
-     * <p>The non-null value is retained by exact reference in {@code ScalarValueAttrs}. FLOAT64,
-     * FLOAT32, and BFLOAT16 receivers require the corresponding exact value type. The fresh
+     * <p>The non-null value is retained by exact reference in {@code ScalarValueAttrs}. Floating,
+     * INT32, and INT64 receivers require the corresponding exact value type. The fresh
      * result preserves Shape, data type, and gradient eligibility, leaves layout unresolved, has
      * no label or storage, and records one-input {@link ScalarElementwiseKind#MUL} provenance.
-     * Construction performs no scalar conversion, value inspection, numerical evaluation,
+     * Integral multiplication has fixed-width two's-complement modular meaning. Construction
+     * performs no scalar conversion, value inspection, numerical evaluation,
      * gradient definition, graph capture, or execution.</p>
      *
      * @param scalar non-null exact typed multiplier; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code scalar} is null, with message {@code scalar}
-     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
-     *     not equal its data type
+     * @throws IllegalArgumentException if this tensor is boolean or the value data type does not
+     *     equal its data type
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor mul(ScalarValue scalar) {
@@ -882,17 +912,17 @@ public final class Tensor {
     }
 
     /**
-     * Builds pairwise scalar minimum with an exact value matching this floating tensor's type.
+     * Builds pairwise scalar minimum with an exact value matching this numeric tensor's type.
      *
      * <p>The result records one {@link ScalarElementwiseKind#MIN} operation with the exact value
-     * reference. The semantic request propagates NaN, orders infinities normally, and selects
-     * negative zero from opposite signed zeros, without promising a NaN payload or bitwise result.
-     * This pairwise method does not reduce an axis, inspect values, define gradients, or execute.</p>
+     * reference. Floating minimum retains its NaN, infinity, and signed-zero policy; integral
+     * minimum uses ordinary signed order. This pairwise method does not reduce an axis, inspect
+     * values, define gradients, capture a graph, or execute.</p>
      *
      * @param value non-null exact typed minimum candidate; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code value} is null, with message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value type differs
+     * @throws IllegalArgumentException if this tensor is boolean or the value type differs
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor minimum(ScalarValue value) {
@@ -917,17 +947,17 @@ public final class Tensor {
     }
 
     /**
-     * Builds pairwise scalar maximum with an exact value matching this floating tensor's type.
+     * Builds pairwise scalar maximum with an exact value matching this numeric tensor's type.
      *
      * <p>The result records one {@link ScalarElementwiseKind#MAX} operation with the exact value
-     * reference. The semantic request propagates NaN, orders infinities normally, and selects
-     * positive zero from opposite signed zeros, without promising a NaN payload or bitwise result.
-     * This pairwise method does not reduce an axis, inspect values, define gradients, or execute.</p>
+     * reference. Floating maximum retains its NaN, infinity, and signed-zero policy; integral
+     * maximum uses ordinary signed order. This pairwise method does not reduce an axis, inspect
+     * values, define gradients, capture a graph, or execute.</p>
      *
      * @param value non-null exact typed maximum candidate; its data type must match this tensor
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code value} is null, with message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value type differs
+     * @throws IllegalArgumentException if this tensor is boolean or the value type differs
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor maximum(ScalarValue value) {
@@ -1042,19 +1072,20 @@ public final class Tensor {
     }
 
     /**
-     * Builds an inclusive lower clamp with an exact value matching this floating tensor's type.
+     * Builds an inclusive lower clamp with an exact value matching this numeric tensor's type.
      *
      * <p>This convenience delegates to {@link #maximum(ScalarValue)} and creates exactly one
      * scalar {@link ScalarElementwiseKind#MAX} producer. The exact bound reference, Shape, type,
-     * and gradient eligibility are retained; layout remains unresolved and no conversion,
+     * and gradient eligibility are retained; integral bounds use signed maximum order. Layout
+     * remains unresolved and no conversion,
      * intermediate expression, value evaluation, gradient rule, or execution is added.</p>
      *
      * @param minValue non-null exact typed inclusive lower bound
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code minValue} is null, with delegated scalar-parameter
      *     message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
-     *     not equal its data type
+     * @throws IllegalArgumentException if this tensor is boolean or the value data type does not
+     *     equal its data type
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor clampMin(ScalarValue minValue) {
@@ -1079,19 +1110,20 @@ public final class Tensor {
     }
 
     /**
-     * Builds an inclusive upper clamp with an exact value matching this floating tensor's type.
+     * Builds an inclusive upper clamp with an exact value matching this numeric tensor's type.
      *
      * <p>This convenience delegates to {@link #minimum(ScalarValue)} and creates exactly one
      * scalar {@link ScalarElementwiseKind#MIN} producer. The exact bound reference, Shape, type,
-     * and gradient eligibility are retained; layout remains unresolved and no conversion,
+     * and gradient eligibility are retained; integral bounds use signed minimum order. Layout
+     * remains unresolved and no conversion,
      * intermediate expression, value evaluation, gradient rule, or execution is added.</p>
      *
      * @param maxValue non-null exact typed inclusive upper bound
      * @return a non-null fresh storage-free expression preserving this tensor's metadata
      * @throws NullPointerException if {@code maxValue} is null, with delegated scalar-parameter
      *     message {@code value}
-     * @throws IllegalArgumentException if this tensor is not floating or the value data type does
-     *     not equal its data type
+     * @throws IllegalArgumentException if this tensor is boolean or the value data type does not
+     *     equal its data type
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor clampMax(ScalarValue maxValue) {

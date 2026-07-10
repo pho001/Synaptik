@@ -114,8 +114,16 @@ Tasks [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) and
 [0018S](modules/model/tasks/0018s-tensor-factory-surface-cleanup.md) is also complete. Task
 [0018T](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) is Complete. Task
 [0018T1](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) is Complete.
-Task 0018U is the next Draft frontier, and it and every later task remain without a detailed
-specification.
+Task [0018U](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) is
+Complete. Task 0018U1 is the next Draft implementation frontier, and it and every later task
+remain without a detailed specification.
+
+Task 0018U added same-category numeric promotion, selected modular INT32/INT64 ADD, SUB, MUL, MIN,
+and MAX Tensor and exact-scalar construction, and all six signed-integral comparisons without a
+new public Tensor method or operation kind. Integral DIV, POW, range CLAMP, reductions, and
+arg-min remain deferred. The final model suite passed 734 tests across 90 suites; its separate
+documentation pass finalized Javadocs and the Tensor/Compile API, glossary, capability baseline,
+task, master plan, and roadmap without repeating the successful Java suite.
 
 Task 0018T1 added first-class `rsqrt`, `log1p`, and `expm1` metadata plus separately typed
 `isFinite`, `isNaN`, and `isInf` BOOL classifications. Its implementation context passed the
@@ -159,8 +167,8 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018T and task 0018T1 are complete; task 0018U and later rows remain Draft without
-detailed specifications.
+through 0018T1 and task 0018U are complete; task 0018U1 is the next Draft frontier, while it and
+later rows remain without detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -168,7 +176,7 @@ composition, and unfold/fold contracts can be implemented and validated independ
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
-task 0018U and later tasks remain Draft.
+task 0018U is Complete, while task 0018U1 and later tasks remain Draft.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -606,17 +614,18 @@ authorized Compile API status correction.
 | 88 | [0018S Tensor factory surface cleanup](modules/model/tasks/0018s-tensor-factory-surface-cleanup.md) | Complete |
 | 89 | [0018T Scalar arithmetic family normalization](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete |
 | 90 | [0018T1 Unary numeric gaps and floating diagnostics](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete |
-| 91 | 0018U Integral arithmetic and comparison domains | Draft |
-| 92 | 0018V Multi-axis and statistical reductions | Draft |
-| 93 | 0019 Linear algebra and attention operations | Draft |
-| 94 | 0019A Modern activation and embedding conveniences | Draft |
-| 95 | 0019B Explicit graph RNG and dropout | Draft |
-| 96 | 0019C Sorting and top-K operations | Draft |
-| 97 | 0020 Convolution and pooling operations | Draft |
-| 98 | 0021 Normalization operations | Draft |
-| 99 | 0022 Loss operations | Draft |
-| 100 | 0023 Compiler-generated semantic operations | Draft |
-| 101 | 0024 Model capability selection audit | Draft |
+| 91 | [0018U Integral elementwise arithmetic and comparisons](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete |
+| 92 | 0018U1 Integral reductions and arg-min normalization | Draft |
+| 93 | 0018V Multi-axis and statistical reductions | Draft |
+| 94 | 0019 Linear algebra and attention operations | Draft |
+| 95 | 0019A Modern activation and embedding conveniences | Draft |
+| 96 | 0019B Explicit graph RNG and dropout | Draft |
+| 97 | 0019C Sorting and top-K operations | Draft |
+| 98 | 0020 Convolution and pooling operations | Draft |
+| 99 | 0021 Normalization operations | Draft |
+| 100 | 0022 Loss operations | Draft |
+| 101 | 0023 Compiler-generated semantic operations | Draft |
+| 102 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -665,8 +674,8 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018T and task 0018T1 are complete, while 0018U and every later
-task remain Draft without a detailed specification.
+before 0019. Tasks 0018K through 0018T1 and task 0018U are complete; 0018U1 is the next Draft
+frontier, while it and every later task remain without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.

@@ -194,6 +194,26 @@ signed zeros to same-signed infinities for `rsqrt`; map positive infinity to pos
 `expm1`; and produce NaN for the documented out-of-domain or NaN cases. This capability records
 those meanings without evaluating them or fixing rounding, payload, algorithm, or tolerance.
 
+### Integral elementwise baseline
+
+Completed task [0018U](tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) selects INT32
+and INT64 ADD, SUB, MUL, MIN, and MAX for both Tensor operands and exact typed scalar attributes.
+All six existing comparisons accept the same integral domain. INT32/INT64 Tensor pairs
+promote to INT64 when either input is INT64; same-width pairs retain their type. Floating promotion
+remains unchanged, while floating/integral pairs and BOOL require explicit different semantics or
+an explicit cast.
+
+Integral ADD, SUB, and MUL use fixed-width two's-complement modular wrap in the promoted result
+type. MIN, MAX, and comparisons use signed order. Scalar values do not promote and must exactly
+match the receiver type. Integral DIV, POW, range CLAMP, remainder, floor division, unsigned
+values, and saturation remain outside the selected task because they require separate zero,
+rounding, exponent, or overflow policy. Existing one-bound clamp conveniences inherit integral
+MAX/MIN behavior without restoring a distinct clamp kind.
+
+Draft follow-up 0018U1 owns selected integral reductions, accumulation and empty-domain policy,
+`argMin`, and coherent arg-extrema tie-policy naming. Keeping those decisions separate prevents
+local elementwise promotion from being coupled to reduction-domain design.
+
 ## Indexing taxonomy
 
 Synaptik will use three canonical semantic primitives:

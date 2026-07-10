@@ -8,8 +8,9 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager normal,
 continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
-source. The current concrete expression surface contains seven floating tensor-to-tensor binary
-arithmetic methods, six floating tensor-to-tensor comparison methods, three BOOL-only logical
+source. The current concrete expression surface contains seven tensor-to-tensor binary arithmetic
+methods, of which ADD, SUB, MUL, MIN, and MAX also accept signed integral operands; six floating
+or signed-integral tensor-to-tensor comparison methods; three BOOL-only logical
 methods, sixteen floating unary elementwise methods, three floating-classification methods, seven
 exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method. Fifteen
@@ -460,18 +461,27 @@ The public data type contracts live in `io.github.pho001.synaptik.model.datatype
 
 `FLOAT32` is the default floating data type. Data type metadata describes logical model semantics and does not claim that a particular backend supports the type or uses the same physical allocation alignment.
 
-### Floating promotion
+### Numeric promotion
 
-Implicit promotion is defined only within the floating category:
+`DataTypePromotion` exposes two related contracts. `promoteFloating(left, right)` retains the
+floating-only hierarchy:
 
 ```text
 BFLOAT16 < FLOAT32 < FLOAT64
 ```
 
-`DataTypePromotion.promoteFloating(left, right)` returns the widest input precision. Integral,
-boolean, null, and cross-category inputs are rejected. The implemented `Tensor.cast` method can
-represent an explicit target data type, but it constructs expression metadata rather than
-converting values; promotion never inserts a cast implicitly.
+`promoteNumeric(left, right)` accepts a pair only when both operands belong to the floating
+category above or both belong to the signed-integral hierarchy:
+
+```text
+INT32 < INT64
+```
+
+For integral pairs, INT64 wins when either operand is INT64; an INT32 operand then participates in
+the signed INT64 domain by conceptual sign extension. Same-width pairs retain their type. BOOL,
+null, and mixed floating/integral pairs are rejected. The implemented `Tensor.cast` method can
+make a category conversion explicit, but it constructs expression metadata rather than converting
+values; promotion itself never inserts a cast or evaluates a value.
 
 For example:
 
@@ -480,7 +490,9 @@ DataType result = DataTypePromotion.promoteFloating(
         DataType.BFLOAT16, DataType.FLOAT64);
 ```
 
-The first input has 16 logical bits and the second has 64, so the widest precision is `FLOAT64`. This result is a model-level type decision; it does not prove that a backend supports the eventual operation.
+The first input has 16 logical bits and the second has 64, so the widest precision is `FLOAT64`.
+Similarly, `promoteNumeric(INT32, INT64)` returns `INT64`. These are model-level type decisions;
+they do not prove evaluated values, compiler behavior, or backend support.
 
 ### BFLOAT16 representation
 
@@ -2006,12 +2018,21 @@ Pairwise `minimum` and `maximum` propagate NaN, order infinities normally, and c
 zero for minimum or positive zero for maximum when comparing opposite signed zeros. They promise
 no NaN payload or bitwise result. The reduction names remain `min` and `max`.
 
-Each method accepts only `BFLOAT16`, `FLOAT32`, and `FLOAT64`. It promotes the two types through
-`BFLOAT16 < FLOAT32 < FLOAT64`, applies the existing right-aligned local broadcast rule, and
-creates a fresh `TensorDescriptor`. The result layout is unresolved even when every shape
+ADD, SUB, MUL, MIN, and MAX accept either two floating operands or two signed-integral operands.
+Floating pairs retain `BFLOAT16 < FLOAT32 < FLOAT64`; integral pairs use `INT32 < INT64`, with an
+INT32 operand conceptually sign-extended into the promoted INT64 domain. DIV and POW remain
+floating-only. BOOL and mixed floating/integral pairs are rejected; callers use an explicit
+`cast` when cross-category conversion is intended. Every accepted method applies the existing
+right-aligned local broadcast rule and creates a fresh `TensorDescriptor`. The result layout is
+unresolved even when every shape
 dimension is static because expression construction has not chosen storage geometry. Result
-`requiresGrad` is the logical OR of the input requests; that flag records gradient eligibility
-only and does not install a gradient rule.
+`requiresGrad` is the logical OR of the input requests; integral descriptors necessarily have it
+false. That flag records gradient eligibility only and does not install a gradient rule.
+
+Integral ADD, SUB, and MUL mean fixed-width two's-complement modular arithmetic in the promoted
+result type: INT32 wraps modulo 2^32 and INT64 wraps modulo 2^64, reinterpreted as signed. Integral
+MIN and MAX use ordinary signed order. Construction records these requests but neither reads
+values nor detects overflow.
 
 The fresh result has a new factory identity, no label, and no host storage. Its provenance stores
 one `Operation` with the matching `BinaryArithmeticKind` and `NoOperationAttrs.INSTANCE`, followed
@@ -2102,8 +2123,9 @@ the current expression-construction API.
 ##### Failures and useful variations
 
 - A null right operand fails with `NullPointerException` and message `right`.
-- An `INT32`, `INT64`, or `BOOL` operand fails through floating promotion; no implicit cast is
-  inserted.
+- Integral ADD, SUB, MUL, MIN, and MAX are valid. Integral DIV or POW fails before broadcasting
+  and result-ID allocation. BOOL and mixed floating/integral pairs fail through numeric promotion;
+  no implicit cast is inserted.
 - Incompatible static dimensions, different dynamic symbols, and a dynamic dimension paired with
   a non-singleton static size fail through local broadcasting. Equal dynamic symbols and singleton
   expansion remain valid.
@@ -2128,18 +2150,22 @@ The receiver remains the ordered left input and the argument remains the ordered
 every method. Equality and inequality retain this order in provenance even though their relation
 is symmetric.
 
-Each method accepts every ordered pair of `BFLOAT16`, `FLOAT32`, and `FLOAT64` inputs. The existing
-floating-promotion hierarchy validates their common comparison domain, but the promoted type is
-not the output type. Right-aligned local broadcasting derives the result shape. The result data
+Each method accepts every same-category ordered pair from the floating or signed-integral types.
+The common comparison domain uses the unchanged floating hierarchy or `INT32 < INT64`; an INT32
+operand is conceptually sign-extended when the integral domain promotes to INT64. BOOL and mixed
+floating/integral pairs are rejected unless the caller first records an explicit cast. The
+promoted type is not the output type. Right-aligned local broadcasting derives the result shape.
+The result data
 type is always `BOOL`, its layout is unresolved, and `requiresGrad` is always false even when one
 or both inputs request gradients.
 
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains one `Operation` with the exact matching `BinaryComparisonKind` and
 `NoOperationAttrs.INSTANCE`, followed by exact ordered input references `[left, right]`. Repeated,
-self, and symmetric calls are not interned, reordered, or canonicalized. Numerical comparison
-policy, compiler capture, training-graph treatment, gradient rules, and backend execution remain
-later responsibilities.
+self, and symmetric calls are not interned, reordered, or canonicalized. Integral extrema and all
+six relations use ordinary signed order; EQUAL and NOT_EQUAL compare exact promoted signed values.
+Floating numerical edge policy, compiler capture, training-graph treatment, gradient rules, and
+backend execution remain later responsibilities.
 
 #### Complete comparison-expression example
 
@@ -2222,8 +2248,8 @@ policy, tolerance behavior, gradient handling by a future compiler, backend supp
 ##### Failures and useful variations
 
 - A null right operand fails with `NullPointerException` and message `right`.
-- An `INT32`, `INT64`, or `BOOL` operand fails through floating validation; no implicit cast is
-  inserted.
+- Every INT32/INT64 ordered pair is valid. BOOL and mixed floating/integral pairs fail numeric
+  validation before broadcasting and result-ID allocation; no implicit cast is inserted.
 - Incompatible static dimensions, different dynamic symbols, and a dynamic dimension paired with
   a non-singleton static size fail through local broadcasting. Equal dynamic symbols and singleton
   expansion remain valid.
@@ -2711,11 +2737,14 @@ The clamp surface retains one first-class range operation and two one-bound conv
 | `clampMin(ScalarValue)` | `clampMin(double)` | Apply an inclusive lower bound through scalar maximum. | `MAX` + `ScalarValueAttrs` |
 | `clampMax(ScalarValue)` | `clampMax(double)` | Apply an inclusive upper bound through scalar minimum. | `MIN` + `ScalarValueAttrs` |
 
-Each operation accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`, and every typed value must have
-the receiver's exact data type. The `double` methods construct exact FLOAT64 values; they do not
+Typed ADD, SUB, MUL, MIN, and MAX plus `clampMin` and `clampMax` accept floating or signed-integral
+receivers. Typed DIV, POW, and first-class two-bound CLAMP remain floating-only. Every typed value
+must have the receiver's exact data type; scalar attributes never promote. The `double` methods
+construct exact FLOAT64 values; they do not
 infer or narrow to another receiver type. Thus `float32Input.mul(0.5d)` fails, while
 `float32Input.mul(ScalarValue.float32(0.5f))` is valid. The result retains the exact input data
 type and immutable `Shape` reference, preserves `requiresGrad`, and leaves layout unresolved.
+Integral results necessarily have false gradient eligibility.
 
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains the exact matching `ScalarElementwiseKind`, typed attributes, and exactly
@@ -2725,10 +2754,13 @@ value meaning `minimum(maximum(input, lower), upper)`, but no stored intermediat
 producer. Repeated, nested, identity-like, and special-value calls are not interned, folded, or
 simplified at this boundary.
 
-Scalar and Tensor-to-Tensor extrema share the same selected semantics: NaN propagates, infinities
+Floating scalar and Tensor-to-Tensor extrema share the same selected semantics: NaN propagates,
+infinities
 use normal numerical order, minimum selects negative zero from opposite signed zeros, and maximum
 selects positive zero. The model promises no NaN payload, gradient convention, algorithm, backend
-route, or execution.
+route, or execution. Integral MIN/MAX use ordinary signed order, and integral scalar ADD/SUB/MUL
+use fixed-width two's-complement modular semantics. Expression construction records but does not
+evaluate those meanings.
 
 For `clamp`, null checks and floating-input eligibility precede bound construction. The bounds
 must share one non-BOOL type, and `ClampRangeAttrs` compares the exact represented primitive type.
@@ -2838,16 +2870,16 @@ execution.
 
 ##### Failures and useful variations
 
-- Calling any scalar method on an `INT32`, `INT64`, or `BOOL` tensor fails with
-  `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
+- Exact typed integral ADD, SUB, MUL, MIN, MAX, `clampMin`, and `clampMax` are valid. Integral DIV,
+  POW, and range CLAMP fail before result identity allocation; BOOL remains invalid.
 - `clamp(ScalarValue.float32(2.0f), ScalarValue.float32(1.0f))` fails with
   `IllegalArgumentException` and message
   `minValue must be less than or equal to maxValue`. On a non-floating input, the data-type failure
   occurs before that range failure.
 - Signed zeros, infinities, and NaN payload bits remain unchanged in attributes. A NaN clamp
   endpoint is accepted because primitive `>` is false when either operand is NaN.
-- A `double` convenience used on FLOAT32 or BFLOAT16 fails exact data-type matching; callers must
-  construct the matching typed value explicitly.
+- A `double` convenience used on FLOAT32, BFLOAT16, INT32, or INT64 fails exact data-type matching;
+  callers must construct the matching typed value explicitly.
 - Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. Repeated calls and values
   such as multiplier `1.0` still create fresh expressions without canonicalization.
 

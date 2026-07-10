@@ -40,6 +40,12 @@ class TensorBinaryArithmeticTest {
             new BinaryCall("minimum", BinaryArithmeticKind.MIN, Tensor::minimum),
             new BinaryCall("maximum", BinaryArithmeticKind.MAX, Tensor::maximum),
             new BinaryCall("pow", BinaryArithmeticKind.POW, Tensor::pow));
+    private static final List<BinaryCall> INTEGRAL_CALLS = List.of(
+            new BinaryCall("add", BinaryArithmeticKind.ADD, Tensor::add),
+            new BinaryCall("sub", BinaryArithmeticKind.SUB, Tensor::sub),
+            new BinaryCall("mul", BinaryArithmeticKind.MUL, Tensor::mul),
+            new BinaryCall("minimum", BinaryArithmeticKind.MIN, Tensor::minimum),
+            new BinaryCall("maximum", BinaryArithmeticKind.MAX, Tensor::maximum));
 
     @Test
     void helperAndTensorMethodsHaveExactlyTheRequiredShape() throws ReflectiveOperationException {
@@ -59,6 +65,11 @@ class TensorBinaryArithmeticTest {
                 () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(0, constructors[0].getParameterCount()),
                 () -> assertEquals(1, methods.length));
+
+        long publicTensorMethodCount = Arrays.stream(Tensor.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .count();
+        assertEquals(127, publicTensorMethodCount);
 
         Method apply = TensorBinaryExpressions.class.getDeclaredMethod(
                 "apply", Tensor.class, Tensor.class, BinaryArithmeticKind.class);
@@ -122,6 +133,86 @@ class TensorBinaryArithmeticTest {
                 }
             }
         }
+    }
+
+    @Test
+    void acceptsSelectedIntegralKindsForEveryOrderedWidthPair() {
+        DataType[] integral = {DataType.INT32, DataType.INT64};
+
+        for (BinaryCall call : INTEGRAL_CALLS) {
+            for (DataType leftType : integral) {
+                for (DataType rightType : integral) {
+                    Tensor left = tensor(leftType, Shape.of(2, 1), false);
+                    Tensor right = tensor(rightType, Shape.of(1, 3), false);
+
+                    Tensor result = call.apply(left, right);
+                    TensorProvenance provenance = result.provenance().orElseThrow();
+
+                    assertAll(
+                            () -> assertSame(
+                                    leftType == DataType.INT64 || rightType == DataType.INT64
+                                            ? DataType.INT64
+                                            : DataType.INT32,
+                                    result.descriptor().dataType()),
+                            () -> assertEquals(Shape.of(2, 3), result.descriptor().shape()),
+                            () -> assertTrue(result.descriptor().layout().isEmpty()),
+                            () -> assertFalse(result.descriptor().requiresGrad()),
+                            () -> assertSame(call.kind(), provenance.operation().kind()),
+                            () -> assertSame(NoOperationAttrs.INSTANCE, provenance.operation().attrs()),
+                            () -> assertSame(left, provenance.inputs().get(0)),
+                            () -> assertSame(right, provenance.inputs().get(1)),
+                            () -> assertEquals(0, provenance.outputIndex()),
+                            () -> assertEquals(1, provenance.producer().outputCount()),
+                            () -> assertTrue(result.label().isEmpty()),
+                            () -> assertTrue(result.hostStorage().isEmpty()));
+                }
+            }
+        }
+    }
+
+    @Test
+    void integralArithmeticRecordsModularKindsWithoutEvaluatingOverflow() {
+        Tensor int32Maximum = tensor(DataType.INT32, Shape.scalar(), false);
+        Tensor int32One = tensor(DataType.INT32, Shape.scalar(), false);
+        Tensor int64Minimum = tensor(DataType.INT64, Shape.scalar(), false);
+
+        List<Tensor> modularRequests = List.of(
+                int32Maximum.add(int32One),
+                int32Maximum.sub(int32One),
+                int64Minimum.mul(int32One));
+
+        assertAll(
+                () -> assertSame(BinaryArithmeticKind.ADD,
+                        modularRequests.get(0).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.SUB,
+                        modularRequests.get(1).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.MUL,
+                        modularRequests.get(2).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(DataType.INT32, modularRequests.get(0).descriptor().dataType()),
+                () -> assertSame(DataType.INT64, modularRequests.get(2).descriptor().dataType()),
+                () -> assertTrue(modularRequests.stream()
+                        .allMatch(result -> result.hostStorage().isEmpty())));
+    }
+
+    @Test
+    void rejectsIntegralDivisionAndPowerBeforeBroadcastAndIdentityAllocation()
+            throws ReflectiveOperationException {
+        AtomicLong nextId = nextTensorIdState();
+        Tensor int32 = tensor(DataType.INT32, Shape.of(2, 3), false);
+        Tensor int64Incompatible = tensor(DataType.INT64, Shape.of(4), false);
+        long beforeFailures = nextId.get();
+
+        IllegalArgumentException division = assertThrows(
+                IllegalArgumentException.class, () -> int32.div(int64Incompatible));
+        IllegalArgumentException power = assertThrows(
+                IllegalArgumentException.class, () -> int32.pow(int64Incompatible));
+
+        assertAll(
+                () -> assertEquals(
+                        "DIV does not support integral data types", division.getMessage()),
+                () -> assertEquals(
+                        "POW does not support integral data types", power.getMessage()),
+                () -> assertEquals(beforeFailures, nextId.get()));
     }
 
     @Test
@@ -245,9 +336,13 @@ class TensorBinaryArithmeticTest {
         }
 
         IllegalArgumentException invalidLeft = assertThrows(
-                IllegalArgumentException.class, () -> integral.add(bool));
+                IllegalArgumentException.class, () -> bool.add(integral));
         IllegalArgumentException invalidRight = assertThrows(
                 IllegalArgumentException.class, () -> floating.add(bool));
+        IllegalArgumentException mixedLeft = assertThrows(
+                IllegalArgumentException.class, () -> integral.add(floating));
+        IllegalArgumentException mixedRight = assertThrows(
+                IllegalArgumentException.class, () -> floating.add(integral));
         IllegalArgumentException staticShape = assertThrows(
                 IllegalArgumentException.class, () -> floating.add(incompatible));
         IllegalArgumentException dynamicShape = assertThrows(
@@ -258,11 +353,17 @@ class TensorBinaryArithmeticTest {
                 () -> assertEquals("right", nullRight.getMessage()),
                 () -> assertEquals("kind", nullKind.getMessage()),
                 () -> assertEquals(
-                        "left must be a floating data type, but was INT32",
+                        "left must be a numeric data type, but was BOOL",
                         invalidLeft.getMessage()),
                 () -> assertEquals(
-                        "right must be a floating data type, but was BOOL",
+                        "right must be a numeric data type, but was BOOL",
                         invalidRight.getMessage()),
+                () -> assertEquals(
+                        "numeric data types must share a category, but were INT32 and FLOAT32",
+                        mixedLeft.getMessage()),
+                () -> assertEquals(
+                        "numeric data types must share a category, but were FLOAT32 and INT32",
+                        mixedRight.getMessage()),
                 () -> assertTrue(staticShape.getMessage().contains("at result axis 1")),
                 () -> assertTrue(dynamicShape.getMessage().contains("at result axis 0")),
                 () -> assertEquals(beforeFailures, nextId.get()));

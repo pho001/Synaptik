@@ -40,6 +40,12 @@ class TensorScalarElementwiseTest {
             new ScalarCall("minimum", ScalarElementwiseKind.MIN, Tensor::minimum),
             new ScalarCall("maximum", ScalarElementwiseKind.MAX, Tensor::maximum),
             new ScalarCall("pow", ScalarElementwiseKind.POW, Tensor::pow));
+    private static final List<ScalarCall> INTEGRAL_CALLS = List.of(
+            new ScalarCall("add", ScalarElementwiseKind.ADD, Tensor::add),
+            new ScalarCall("sub", ScalarElementwiseKind.SUB, Tensor::sub),
+            new ScalarCall("mul", ScalarElementwiseKind.MUL, Tensor::mul),
+            new ScalarCall("minimum", ScalarElementwiseKind.MIN, Tensor::minimum),
+            new ScalarCall("maximum", ScalarElementwiseKind.MAX, Tensor::maximum));
 
     @Test
     void helperAndTensorOverloadsHaveExactlyTheRequiredShape() throws Exception {
@@ -190,6 +196,63 @@ class TensorScalarElementwiseTest {
     }
 
     @Test
+    void acceptsSelectedExactIntegralScalarsAndOneBoundClampConveniences() {
+        Shape shape = Shape.of(2, 0, 3);
+
+        for (DataType dataType : List.of(DataType.INT32, DataType.INT64)) {
+            Tensor input = tensor(dataType, shape, false);
+            ScalarValue value = dataType == DataType.INT32
+                    ? ScalarValue.int32(Integer.MAX_VALUE)
+                    : ScalarValue.int64(Long.MIN_VALUE);
+
+            for (ScalarCall call : INTEGRAL_CALLS) {
+                Tensor result = call.apply(input, value);
+                TensorProvenance provenance = result.provenance().orElseThrow();
+                ScalarValueAttrs attrs = (ScalarValueAttrs) provenance.operation().attrs();
+
+                assertAll(
+                        () -> assertResultMetadata(result, dataType, shape, false),
+                        () -> assertSame(call.kind(), provenance.operation().kind()),
+                        () -> assertSame(value, attrs.value()),
+                        () -> assertEquals(List.of(input), provenance.inputs()),
+                        () -> assertEquals(0, provenance.outputIndex()),
+                        () -> assertEquals(1, provenance.producer().outputCount()));
+            }
+
+            Tensor lowerBound = input.clampMin(value);
+            Tensor upperBound = input.clampMax(value);
+            assertAll(
+                    () -> assertSame(ScalarElementwiseKind.MAX,
+                            lowerBound.provenance().orElseThrow().operation().kind()),
+                    () -> assertSame(ScalarElementwiseKind.MIN,
+                            upperBound.provenance().orElseThrow().operation().kind()),
+                    () -> assertSame(value, ((ScalarValueAttrs) lowerBound.provenance()
+                            .orElseThrow().operation().attrs()).value()),
+                    () -> assertSame(value, ((ScalarValueAttrs) upperBound.provenance()
+                            .orElseThrow().operation().attrs()).value()));
+        }
+    }
+
+    @Test
+    void integralAddSubMulRecordFixedWidthModularRequestsWithoutEvaluation() {
+        Tensor input = tensor(DataType.INT32, Shape.scalar(), false);
+        List<Tensor> requests = List.of(
+                input.add(ScalarValue.int32(Integer.MAX_VALUE)),
+                input.sub(ScalarValue.int32(Integer.MIN_VALUE)),
+                input.mul(ScalarValue.int32(-1)));
+
+        assertAll(
+                () -> assertSame(ScalarElementwiseKind.ADD,
+                        requests.get(0).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(ScalarElementwiseKind.SUB,
+                        requests.get(1).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(ScalarElementwiseKind.MUL,
+                        requests.get(2).provenance().orElseThrow().operation().kind()),
+                () -> assertTrue(requests.stream()
+                        .allMatch(result -> result.hostStorage().isEmpty())));
+    }
+
+    @Test
     void doubleOverloadsAreExactFloat64Adapters() {
         Tensor float64 = tensor(DataType.FLOAT64, Shape.scalar(), false);
         double rawNaN = Double.longBitsToDouble(0xFFF8_0000_0000_1234L);
@@ -223,6 +286,7 @@ class TensorScalarElementwiseTest {
     void validatesInExactOrderAndAllocatesNoIdentityOnFailure() throws Exception {
         Tensor floating = tensor(DataType.FLOAT32, Shape.scalar(), false);
         Tensor integral = tensor(DataType.INT32, Shape.scalar(), false);
+        Tensor bool = tensor(DataType.BOOL, Shape.scalar(), false);
         AtomicLong nextId = nextTensorIdState();
         long beforeFailures = nextId.get();
 
@@ -237,9 +301,21 @@ class TensorScalarElementwiseTest {
                 () -> TensorScalarExpressions.applyScalar(
                         integral, ScalarElementwiseKind.CLAMP, ScalarValue.int32(1)));
         assertFailure(IllegalArgumentException.class,
-                "input must be a floating data type, but was INT32",
+                "scalar data type FLOAT64 must match input data type INT32",
                 () -> TensorScalarExpressions.applyScalar(
                         integral, ScalarElementwiseKind.ADD, ScalarValue.float64(1.0)));
+        assertFailure(IllegalArgumentException.class,
+                "input must be a numeric data type, but was BOOL",
+                () -> TensorScalarExpressions.applyScalar(
+                        bool, ScalarElementwiseKind.ADD, ScalarValue.bool(true)));
+        assertFailure(IllegalArgumentException.class,
+                "DIV does not support integral data types",
+                () -> TensorScalarExpressions.applyScalar(
+                        integral, ScalarElementwiseKind.DIV, ScalarValue.float64(1.0)));
+        assertFailure(IllegalArgumentException.class,
+                "POW does not support integral data types",
+                () -> TensorScalarExpressions.applyScalar(
+                        integral, ScalarElementwiseKind.POW, ScalarValue.float64(1.0)));
         assertFailure(IllegalArgumentException.class,
                 "input must be a floating data type, but was INT32",
                 () -> TensorScalarExpressions.applyClamp(

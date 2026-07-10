@@ -27,8 +27,11 @@ capability. Immutable `TensorProvenance` origin metadata is also implemented. Th
 now uses identity-bearing immutable `TensorProducer` occurrences and indexed
 `TensorProvenance` results. Concrete operation kind support now includes the parameterless
 `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
-`MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
-construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
+`MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public Tensor expression construction with
+same-category floating promotion and selected signed-integral ADD/SUB/MUL/MIN/MAX domains, local
+broadcasting, descriptor derivation, and ordered provenance. Integral ADD/SUB/MUL are fixed-width
+two's-complement modular requests; integral extrema use signed order. DIV and POW remain
+floating-only.
 The parameterless `UnaryElementwiseKind` vocabulary is also implemented for sixteen unary
 arithmetic, transcendental, and activation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
@@ -38,13 +41,16 @@ returns fixed non-differentiable BOOL metadata. Public pairwise extrema are name
 `maximum`; aggregate reductions retain
 `min` and `max`. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
 `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`, together with exact typed
-`ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating Tensor
-expression construction with exact receiver/value type equality, exact type/shape retention, and
-one-input provenance. One-bound clamp methods are conveniences over scalar MAX and MIN.
+`ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating and selected
+signed-integral Tensor expression construction with exact receiver/value type equality, exact
+type/shape retention, and one-input provenance. Integral DIV, POW, and range CLAMP remain
+unsupported. One-bound clamp methods are conveniences over scalar MAX and MIN and therefore
+accept exact integral bounds.
 The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
 `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
-public floating comparison Tensor expression construction with local broadcasting, fixed
-non-differentiable BOOL descriptors, and ordered provenance. The parameterless
+public same-category floating or signed-integral comparison Tensor expression construction with
+local broadcasting, fixed non-differentiable BOOL descriptors, signed integral ordering, and
+ordered provenance. The parameterless
 `BooleanLogicalKind` vocabulary is implemented for elementwise `AND`, `OR`, and `NOT` truth
 meanings, plus matching public BOOL-only logical Tensor expression construction. Binary AND and OR
 use local broadcasting and ordered provenance; unary NOT retains the exact input shape; and every
@@ -532,6 +538,19 @@ values and define no accumulation, gradient, compiler, backend, or execution beh
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
 
+### Numeric promotion
+
+The implemented backend-independent rule that selects a common operation data type for two
+operands from the same numeric category. Floating pairs use
+`BFLOAT16 < FLOAT32 < FLOAT64`; signed-integral pairs use `INT32 < INT64`. When an integral pair
+promotes to INT64, the INT32 operand participates by conceptual sign extension. Same-width pairs
+retain their type. BOOL and mixed floating/integral pairs are rejected, so a caller records an
+explicit [`cast`](#cast-expression) when cross-category conversion is intended.
+
+Promotion selects expression metadata only. It does not insert a cast producer, convert or read
+values, capture a graph, choose a backend, or execute. See
+[numeric promotion](api/tensor-api.md#numeric-promotion).
+
 ### Typed scalar value / `ScalarValue`
 
 An implemented immutable backend-independent operation parameter containing one exact
@@ -865,24 +884,27 @@ so equal bounds, both signed-zero orderings, ordered infinities, and floating Na
 valid. The enum and attributes perform no Tensor expression construction,
 descriptor inference, numerical execution behavior, gradients, or backend support by themselves.
 The implemented public scalar Tensor methods consume these values while separately owning
-floating validation, descriptor derivation, exact attribute composition, and one-input
-provenance.
+floating or selected signed-integral validation, descriptor derivation, exact attribute
+composition, and one-input provenance. Signed-integral support is limited to ADD, SUB, MUL, MIN,
+and MAX; DIV, POW, and first-class range CLAMP remain floating-only.
 
-Scalar and binary MIN/MAX propagate NaN, order infinities normally, and select negative zero for
+Floating scalar and binary MIN/MAX propagate NaN, order infinities normally, and select negative zero for
 minimum or positive zero for maximum when comparing opposite signed zeros. Range CLAMP means one
 first-class request value-equivalent to `minimum(maximum(input, lower), upper)`. Public
 `clampMin` creates one scalar MAX producer and `clampMax` one scalar MIN producer; no separate
 one-bound kind exists. These semantics promise no NaN payload, algorithm, gradient rule, backend
-route, or execution.
+route, or execution. Integral ADD, SUB, and MUL use fixed-width two's-complement modular meaning;
+integral MIN and MAX use ordinary signed order.
 
 The fourth production family is `BinaryComparisonKind`, an enum containing exactly
 `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
 values identify ordered, parameterless tensor-to-tensor comparison meanings and compose with
 `NoOperationAttrs.INSTANCE`. The enum stores no operands, broadcast geometry, BOOL result facts,
 numeric edge policy, or execution metadata. The implemented public comparison Tensor methods
-consume these values while separately owning floating input validation, local broadcasting, fixed
-BOOL result derivation, and ordered provenance. Numerical comparison policy, compiler capture,
-gradients, execution, and backend support remain planned. Its inherited names are diagnostic
+consume these values while separately owning same-category floating or signed-integral input
+validation, local broadcasting, fixed BOOL result derivation, and ordered provenance. Integral
+relations use ordinary signed order after promotion; EQUAL and NOT_EQUAL compare exact promoted
+signed values. Floating edge policy, compiler capture, gradients, execution, and backend support remain planned. Its inherited names are diagnostic
 rather than serialization or dispatch keys, and an equally named kind from another family remains
 a different typed value.
 
@@ -1817,9 +1839,10 @@ attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
 
 The implemented standalone `PublicationBinding` connects the two identity domains. The planned
 compiler-owned publication plan will provide owning-graph and publication-policy context. Public
-descriptor-based leaf construction, immutable provenance, and floating binary arithmetic,
-comparison, unary, and scalar Tensor expression construction are implemented, as is BOOL-only
-logical expression construction, explicit cast expression construction, floating numeric
+descriptor-based leaf construction, immutable provenance, and floating plus selected signed-
+integral binary arithmetic, comparison, and scalar Tensor expression construction are
+implemented. Unary construction remains floating-only; BOOL-only logical expression construction,
+explicit cast expression construction, floating numeric
 aggregate expression construction for sum, mean, product, minimum, and maximum, and BOOL
 aggregate expression construction for all and any. Axis-only index-producing construction for
 arg-max, shape-preserving cumulative-sum construction, and shape-preserving softmax/log-softmax

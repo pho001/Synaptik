@@ -14,9 +14,11 @@ import java.util.Optional;
  * Constructs locally validated storage-free scalar elementwise tensor expressions.
  *
  * <p>This package-private boundary owns the deterministic construction path for scalar
- * arithmetic and inclusive clamp requests. It accepts only floating inputs, retains the input's
- * exact data type and shape reference, preserves gradient eligibility, and records exact matching
- * typed scalar parameters unchanged in operation attributes. It does not inspect values or
+ * arithmetic and inclusive clamp requests. One-value ADD, SUB, MUL, MIN, and MAX requests accept
+ * floating or signed-integral input, while DIV, POW, and the first-class two-bound CLAMP remain
+ * floating-only. Every accepted scalar exactly matches the input data type. Construction retains
+ * the input's exact data type and shape reference, preserves gradient eligibility, and records
+ * exact typed scalar parameters unchanged in operation attributes. It does not inspect values or
  * storage, convert parameters, evaluate mathematics,
  * validate numerical domains, canonicalize or decompose expressions, create gradient rules, or
  * capture a graph.</p>
@@ -31,20 +33,22 @@ final class TensorScalarExpressions {
      *
      * <p>Validation occurs in this exact order: null-check {@code input}, {@code kind}, and
      * {@code value}; reject {@link ScalarElementwiseKind#CLAMP} because it requires range
-     * attributes; validate the input's floating data type; then require exact value/input data-
-     * type equality. The exact supplied reference is retained in one
+     * attributes; validate a floating or signed-integral input; reject integral {@code DIV} and
+     * {@code POW}; then require exact value/input data-type equality. The exact supplied reference
+     * is retained in one
      * {@link ScalarValueAttrs}, which is paired with the exact supplied kind before common result
      * construction. A failed validation allocates no tensor identity.</p>
      *
-     * @param input non-null floating tensor retained by exact reference in result provenance
+     * @param input non-null floating or integral tensor retained by exact reference in result
+     *     provenance
      * @param kind non-null scalar kind other than {@code CLAMP}, retained in the result operation
      * @param value non-null exact scalar arithmetic parameter; its data type must
      *     equal the input data type and it is retained by exact reference
      * @return the non-null exact fresh derived tensor returned by the central factory
      * @throws NullPointerException if {@code input}, {@code kind}, or {@code value} is null,
      *     checked in that order with the parameter name as the message
-     * @throws IllegalArgumentException if {@code kind} is {@code CLAMP}, or if the input data type
-     *     is not floating, or if the scalar and input data types differ
+     * @throws IllegalArgumentException if {@code kind} is {@code CLAMP}, the input is boolean, an
+     *     integral request is {@code DIV} or {@code POW}, or the scalar and input types differ
      * @throws IllegalStateException if tensor identifier space is exhausted after local model
      *     values have been constructed
      */
@@ -57,9 +61,13 @@ final class TensorScalarExpressions {
         }
 
         DataType dataType = input.descriptor().dataType();
-        if (!dataType.isFloating()) {
+        if (!dataType.isFloating() && !dataType.isIntegral()) {
             throw new IllegalArgumentException(
-                    "input must be a floating data type, but was " + dataType);
+                    "input must be a numeric data type, but was " + dataType);
+        }
+        if (dataType.isIntegral()
+                && (kind == ScalarElementwiseKind.DIV || kind == ScalarElementwiseKind.POW)) {
+            throw new IllegalArgumentException(kind + " does not support integral data types");
         }
         if (value.dataType() != dataType) {
             throw new IllegalArgumentException(
@@ -124,7 +132,7 @@ final class TensorScalarExpressions {
      *
      * @param input non-null source tensor whose shape, gradient eligibility, and exact reference
      *     are retained without mutation
-     * @param dataType non-null validated floating input data type retained exactly
+     * @param dataType non-null validated floating or integral input data type retained exactly
      * @param operation non-null fully constructed scalar operation retained exactly in provenance
      * @return the non-null fresh, unlabeled, storage-free derived tensor returned by the factory
      * @throws NullPointerException if an internal caller violates a documented non-null argument

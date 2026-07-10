@@ -61,27 +61,35 @@ parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
 right-aligned target-shape expressions.
-Arithmetic, numeric unary, scalar, and conditional-selection results remain floating. Unary
+Binary ADD, SUB, MUL, MIN, and MAX now accept same-category floating or signed-integral operands;
+DIV and POW remain floating-only. All six comparisons accept the same floating or integral
+pairing rules and produce BOOL results. Integral promotion uses `INT32 < INT64`, with conceptual
+sign extension into the INT64 domain, while mixed numeric categories require an explicit cast and
+BOOL is excluded. Numeric unary and conditional-selection results remain floating. Unary
 `rsqrt`, `log1p`, and `expm1` are first-class transforms rather than stored decompositions.
 Together with `exp` and `tanh`, they record portable mathematical requests without selecting an
 algorithm, bitwise result, fixed accuracy bound, or backend route. Floating classifications,
 comparisons, and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
-typed `ScalarValue` operation attributes rather than Tensor inputs. Public scalar/clamp expression
-construction requires their data type to equal the floating receiver type; constant padding uses
-the same equality rule for all six current data types. Tensor-to-Tensor and scalar arithmetic now
-share `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW`; public pairwise extrema are named
-`minimum`/`maximum`, while aggregate reductions remain `min`/`max`. Extrema propagate NaN, order
-infinities normally, and select negative zero for minimum or positive zero for maximum. Range
+typed `ScalarValue` operation attributes rather than Tensor inputs. Scalar ADD, SUB, MUL, MIN, and
+MAX plus one-bound clamp conveniences accept exact matching floating or integral values; scalar
+DIV, POW, and first-class range CLAMP remain floating-only. Constant padding uses exact equality
+for all six current data types. Tensor-to-Tensor and scalar arithmetic share the seven semantic
+kinds, while the accepted integral subset is the five operations above; public pairwise extrema
+are named `minimum`/`maximum`, while aggregate reductions remain `min`/`max`. Floating extrema
+propagate NaN, order infinities normally, and select negative zero for minimum or positive zero
+for maximum. Range
 `CLAMP` remains first-class; `clampMin` creates one scalar `MAX` producer and `clampMax` one scalar
-`MIN` producer. These are current model semantics and metadata-construction facts, not compiler
+`MIN` producer. Integral ADD, SUB, and MUL have fixed-width two's-complement modular meaning, and
+integral MIN, MAX, and comparisons use signed order. These are current model semantics and
+metadata-construction facts, not compiler
 capture, validation, gradient, lowering, backend, or execution claims. An `OperationSignature`
 still validates only the exact attribute class and occurrence cardinality because an `Operation`
 has no operand
-descriptor. Future compiler graph validation must repeat exact scalar/input data-type equality for
-captured or otherwise constructed occurrences; this requirement does not claim that such compiler
-validation is implemented today. `Tensor.where` requires an exact BOOL
+descriptor. Future compiler graph validation is expected to revalidate operand domains and exact
+scalar/input data-type equality for captured or otherwise constructed occurrences; no compiler
+capture or revalidation is implemented today. `Tensor.where` requires an exact BOOL
 condition, promotes two floating branches, composes branch-first and condition-second local
 broadcasts, propagates gradient eligibility from the branches only, and records exact ordered
 condition/true-branch/false-branch provenance. It constructs no selected values or gradient rule.
