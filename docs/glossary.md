@@ -23,8 +23,8 @@ Public stateless `TensorRandoms` separately owns explicit-source normal and boun
 continuous-uniform population for the three floating types, bounded integral population for exact
 `INT32` and `INT64` output, and BOOL Bernoulli population from a finite scalar probability.
 Strict and cyclic prefix preparation is test-fixture mechanics rather than a production Tensor
-capability. Immutable `TensorProvenance` origin metadata is also implemented. Concrete operation
-That origin model now uses identity-bearing immutable `TensorProducer` occurrences and indexed
+capability. Immutable `TensorProvenance` origin metadata is also implemented. That origin model
+now uses identity-bearing immutable `TensorProducer` occurrences and indexed
 `TensorProvenance` results. Concrete operation kind support now includes the parameterless
 `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
@@ -32,11 +32,12 @@ construction with local promotion, broadcasting, descriptor derivation, and orde
 The parameterless `UnaryElementwiseKind` vocabulary is also implemented for thirteen unary
 arithmetic, transcendental, and activation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
-provenance. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
-`MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`, together with exact typed
+provenance. Public pairwise extrema are named `minimum` and `maximum`; aggregate reductions retain
+`min` and `max`. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
+`ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`, together with exact typed
 `ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating Tensor
 expression construction with exact receiver/value type equality, exact type/shape retention, and
-one-input provenance.
+one-input provenance. One-bound clamp methods are conveniences over scalar MAX and MIN.
 The parameterless `BinaryComparisonKind` vocabulary is implemented for ordered `GREATER_THAN`,
 `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL` meanings, plus matching
 public floating comparison Tensor expression construction with local broadcasting, fixed
@@ -230,7 +231,8 @@ semantic types describe requested meaning only. The current public `sum`, `mean`
 reduction `min`, and reduction `max` methods add floating input eligibility, local result-shape
 derivation, exact type and gradient-eligibility retention, and provenance. Aggregate extrema use
 one input and `AggregateReductionKind.MIN` or `AggregateReductionKind.MAX`; binary elementwise
-extrema use two ordered inputs and the distinct `BinaryArithmeticKind` constants. The aggregate
+extrema use two ordered inputs, the public names `minimum`/`maximum`, and the distinct
+`BinaryArithmeticKind` constants. The aggregate
 methods still define no numerical or empty-domain policy, comparison, NaN or signed-zero handling,
 extrema-tie gradient rule, or executable behavior. Public `all` and `any` instead require exact
 BOOL input and produce exact BOOL with false gradient eligibility, using the same shape and
@@ -831,10 +833,10 @@ approximation-bound, or backend-route promise. The enum defines no descriptor in
 provenance, gradient, execution, or backend support. The implemented public unary Tensor methods
 consume these values while separately owning local expression construction.
 
-The third production family is `ScalarElementwiseKind`, an enum containing exactly `MUL`, `POW`,
-`CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX`. These values identify parameterized one-input elementwise
-meanings. `MUL`, `POW`, `CLAMP_MIN`, and `CLAMP_MAX` pair with `ScalarValueAttrs`; `CLAMP` pairs
-with `ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
+The third production family is `ScalarElementwiseKind`, an enum containing exactly `ADD`, `SUB`,
+`MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`. These values identify parameterized one-input
+elementwise meanings. The first seven pair with `ScalarValueAttrs`; `CLAMP` pairs with
+`ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
 family signatures enforce each exact attributes class and one-input, one-output cardinality. The
 attributes retain exact typed scalar values by reference. Clamp-range construction requires the
 same non-BOOL data type and rejects only a strict inversion in that represented primitive type,
@@ -844,6 +846,13 @@ descriptor inference, numerical execution behavior, gradients, or backend suppor
 The implemented public scalar Tensor methods consume these values while separately owning
 floating validation, descriptor derivation, exact attribute composition, and one-input
 provenance.
+
+Scalar and binary MIN/MAX propagate NaN, order infinities normally, and select negative zero for
+minimum or positive zero for maximum when comparing opposite signed zeros. Range CLAMP means one
+first-class request value-equivalent to `minimum(maximum(input, lower), upper)`. Public
+`clampMin` creates one scalar MAX producer and `clampMax` one scalar MIN producer; no separate
+one-bound kind exists. These semantics promise no NaN payload, algorithm, gradient rule, backend
+route, or execution.
 
 The fourth production family is `BinaryComparisonKind`, an enum containing exactly
 `GREATER_THAN`, `GREATER_OR_EQUAL`, `LESS_THAN`, `LESS_OR_EQUAL`, `EQUAL`, and `NOT_EQUAL`. These
@@ -1365,10 +1374,12 @@ zero-argument unary methods also create fresh floating expression tensors. They 
 input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
 plus exactly one input reference without domain checks or canonicalization. The current scalar
-`mul`, scalar `pow`, `clamp`, `clampMin`, and `clampMax` methods likewise create fresh floating
+`add`, `sub`, `mul`, `div`, `minimum`, `maximum`, `pow`, `clamp`, `clampMin`, and `clampMax`
+methods likewise create fresh floating
 one-input expressions. They retain the exact type and Shape, preserve gradient eligibility, and
 store exact matching typed scalar attributes without conversion or canonicalization; retained
-`double` overloads mean exact FLOAT64, and range clamp remains one first-class `CLAMP` operation.
+`double` overloads mean exact FLOAT64, range clamp remains one first-class `CLAMP` operation, and
+the one-bound conveniences create scalar MAX/MIN producers.
 Other expression families, gradient rules and objects, trainable
 role, publication behavior, compiler integration, device buffers, numerical execution, and
 runtime residency remain planned. The current `sum`, `mean`, `prod`, reduction `min`, and

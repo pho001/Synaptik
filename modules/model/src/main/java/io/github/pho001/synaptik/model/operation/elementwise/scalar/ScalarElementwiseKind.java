@@ -12,10 +12,11 @@ import java.util.List;
  * they are not additional Tensor inputs. Each kind declares a one-input, one-output signature and
  * retains no input, graph occurrence, result fact, executable behavior, or backend information.</p>
  *
- * <p>The valid kind-to-attributes pairings are {@link #MUL}, {@link #POW}, {@link #CLAMP_MIN},
- * and {@link #CLAMP_MAX} with {@link ScalarValueAttrs}, and {@link #CLAMP} with {@link
- * ClampRangeAttrs}. {@link io.github.pho001.synaptik.model.operation.Operation Operation}
- * construction enforces these exact pairings through the family-owned signatures.</p>
+ * <p>The valid kind-to-attributes pairings are {@link #ADD}, {@link #SUB}, {@link #MUL},
+ * {@link #DIV}, {@link #MIN}, {@link #MAX}, and {@link #POW} with {@link ScalarValueAttrs}, and
+ * {@link #CLAMP} with {@link ClampRangeAttrs}. {@link
+ * io.github.pho001.synaptik.model.operation.Operation Operation} construction enforces these
+ * exact pairings through the family-owned signatures.</p>
  *
  * <p>Enum identity supplies typed equality and hashing, so equally named constants in another
  * operation family remain different semantic values. The inherited {@link #name()} and {@link
@@ -24,6 +25,23 @@ import java.util.List;
  */
 public enum ScalarElementwiseKind implements OperationKind {
     /**
+     * Adds the scalar addend in {@link ScalarValueAttrs} to each input value.
+     *
+     * <p>The request is ordinary ordered IEEE-754 addition in the input data type. It stores the
+     * addend as metadata and promises no NaN payload, intermediate precision, exact instruction,
+     * bitwise result, gradient rule, or executable backend route.</p>
+     */
+    ADD,
+
+    /**
+     * Subtracts the scalar subtrahend in {@link ScalarValueAttrs} from each input value.
+     *
+     * <p>The input-minus-scalar order is semantic. This kind stores no input or result facts and
+     * promises no numerical algorithm, gradient rule, execution, or backend support.</p>
+     */
+    SUB,
+
+    /**
      * Multiplies each input value by the scalar multiplier in {@link ScalarValueAttrs}.
      *
      * <p>The multiplier is a semantic parameter rather than a second Tensor input. Input
@@ -31,6 +49,34 @@ public enum ScalarElementwiseKind implements OperationKind {
      * execution, and backend support belong to later owning contracts.</p>
      */
     MUL,
+
+    /**
+     * Divides each input value by the scalar denominator in {@link ScalarValueAttrs}.
+     *
+     * <p>The input-divided-by-scalar order is semantic. This kind stores no input or result facts
+     * and promises no numerical algorithm, gradient rule, execution, or backend support.</p>
+     */
+    DIV,
+
+    /**
+     * Selects the minimum of each input value and the scalar candidate in {@link
+     * ScalarValueAttrs}.
+     *
+     * <p>The portable request propagates NaN, orders infinities normally, and selects negative
+     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result and
+     * records no evaluation algorithm, gradient rule, or backend implementation.</p>
+     */
+    MIN,
+
+    /**
+     * Selects the maximum of each input value and the scalar candidate in {@link
+     * ScalarValueAttrs}.
+     *
+     * <p>The portable request propagates NaN, orders infinities normally, and selects positive
+     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result and
+     * records no evaluation algorithm, gradient rule, or backend implementation.</p>
+     */
+    MAX,
 
     /**
      * Raises each input value, as the base, to the scalar exponent in {@link ScalarValueAttrs}.
@@ -45,29 +91,13 @@ public enum ScalarElementwiseKind implements OperationKind {
      * Constrains each input value to the inclusive lower and upper bounds in {@link
      * ClampRangeAttrs}.
      *
-     * <p>The bounds are semantic parameters rather than Tensor inputs. Input eligibility, scalar
-     * conversion, result type and shape, special-value and boundary behavior, gradients,
-     * execution, and backend support belong to later owning contracts.</p>
+     * <p>The bounds are semantic parameters rather than Tensor inputs. Its value meaning is
+     * {@code minimum(maximum(input, lower), upper)} under this family's NaN, infinity, and
+     * signed-zero extrema policy, while remaining one operation occurrence. Bound validation,
+     * input eligibility, result metadata, gradients, execution, and backend support belong to
+     * their owning contracts.</p>
      */
-    CLAMP,
-
-    /**
-     * Constrains each input value to be no lower than the minimum in {@link ScalarValueAttrs}.
-     *
-     * <p>The minimum is a semantic parameter rather than a Tensor input. Input eligibility,
-     * scalar conversion, result type and shape, special-value and boundary behavior, gradients,
-     * execution, and backend support belong to later owning contracts.</p>
-     */
-    CLAMP_MIN,
-
-    /**
-     * Constrains each input value to be no greater than the maximum in {@link ScalarValueAttrs}.
-     *
-     * <p>The maximum is a semantic parameter rather than a Tensor input. Input eligibility,
-     * scalar conversion, result type and shape, special-value and boundary behavior, gradients,
-     * execution, and backend support belong to later owning contracts.</p>
-     */
-    CLAMP_MAX;
+    CLAMP;
 
     private static final List<OperationSignature> SCALAR_SIGNATURES =
             List.of(OperationSignature.fixed(ScalarValueAttrs.class, 1, 1));

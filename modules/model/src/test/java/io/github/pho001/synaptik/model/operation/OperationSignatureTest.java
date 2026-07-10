@@ -163,10 +163,13 @@ public final class OperationSignatureTest {
         assertKinds(List.of(noAttrsUnary), BooleanLogicalKind.NOT);
         assertKinds(
                 List.of(fixed(ScalarValueAttrs.class, 1)),
+                ScalarElementwiseKind.ADD,
+                ScalarElementwiseKind.SUB,
                 ScalarElementwiseKind.MUL,
-                ScalarElementwiseKind.POW,
-                ScalarElementwiseKind.CLAMP_MIN,
-                ScalarElementwiseKind.CLAMP_MAX);
+                ScalarElementwiseKind.DIV,
+                ScalarElementwiseKind.MIN,
+                ScalarElementwiseKind.MAX,
+                ScalarElementwiseKind.POW);
         assertKinds(
                 List.of(fixed(ClampRangeAttrs.class, 1)), ScalarElementwiseKind.CLAMP);
         assertFamily(List.of(fixed(NoOperationAttrs.class, 3)), WhereSelectionKind.values());

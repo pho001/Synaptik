@@ -8,11 +8,12 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager normal,
 continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
-source. The current concrete expression surface contains seven
-floating tensor-to-tensor binary arithmetic methods, six floating tensor-to-tensor comparison
-methods, three BOOL-only logical methods, thirteen floating unary elementwise methods, and five
-floating scalar arithmetic and clamp methods, plus one static conditional-selection method and one
-explicit cast method. Fifteen floating aggregate methods add full, one-axis, and retained-axis
+source. The current concrete expression surface contains seven floating tensor-to-tensor binary
+arithmetic methods, six floating tensor-to-tensor comparison methods, three BOOL-only logical
+methods, thirteen floating unary elementwise methods, seven exact-typed plus seven exact-FLOAT64
+scalar arithmetic methods, and six range/one-bound clamp methods, plus one static conditional-
+selection method and one explicit cast method. Fifteen floating aggregate methods add full,
+one-axis, and retained-axis
 `sum`, `mean`, `prod`, reduction `min`, and reduction `max` expression construction. Six BOOL
 aggregate methods add the same three forms for `all` and `any`, and three axis-only `argMax`
 methods add fixed INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
@@ -241,7 +242,7 @@ AxisScatterKind + ScatterElementsAttrs                    = functional scatter-e
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
 UnaryElementwiseKind                                          = thirteen parameterless unary elementwise semantics
-ScalarElementwiseKind                                         = five parameterized one-input scalar semantics
+ScalarElementwiseKind                                         = eight parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
 ValueId + TensorDescriptor                                    = GraphValue
 NodeId + Operation + ordered input/output ValueIds            = CompiledNode
@@ -371,19 +372,21 @@ ONNX mapping, and execution remain outside these semantic values. Public `Tensor
 `Tensor.tile` separately perform the input-dependent model validation and metadata construction
 described under [pad and tile expressions](#pad-and-tile-expressions).
 `UnaryElementwiseKind` names thirteen parameterless unary arithmetic, transcendental, and
-activation meanings. `ScalarElementwiseKind` names five parameterized
+activation meanings. `ScalarElementwiseKind` names eight parameterized
 one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
-`ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `min`,
-`max`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
+`ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `minimum`,
+`maximum`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
 from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `exp`, `erf`, `sqrt`,
 `floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` methods use the unary
 kinds to create storage-free expressions from one floating input. The public scalar overloads
-`Tensor.mul(ScalarValue)`, `pow(ScalarValue)`, `clamp(ScalarValue, ScalarValue)`,
-`clampMin(ScalarValue)`, and `clampMax(ScalarValue)` use the scalar kinds and typed attributes to
-create one-input storage-free expressions with exact receiver/value type matching. Their retained
-`double` overloads are exact-FLOAT64 adapters. The public
+`Tensor.add(ScalarValue)`, `sub(ScalarValue)`, `mul(ScalarValue)`, `div(ScalarValue)`,
+`minimum(ScalarValue)`, `maximum(ScalarValue)`, and `pow(ScalarValue)` use matching scalar kinds
+and typed attributes to create one-input storage-free expressions with exact receiver/value type
+matching. Their retained `double` overloads are exact-FLOAT64 adapters. First-class
+`clamp(ScalarValue, ScalarValue)` retains one range operation; `clampMin` delegates to scalar
+`maximum`, and `clampMax` delegates to scalar `minimum`. The public
 `Tensor.logicalAnd`, `logicalOr`, and `logicalNot` methods use the logical kinds to construct
 storage-free `BOOL` expressions from exact `BOOL` inputs. AND and OR derive a right-aligned
 broadcast shape and preserve receiver/argument order; NOT retains the exact input `Shape`
@@ -1986,13 +1989,17 @@ The seven current expression methods build model semantics; they do not calculat
 | `sub` | left minus the right subtrahend |
 | `mul` | left multiplied by the right factor |
 | `div` | left divided by the right denominator |
-| `min` | minimum of the left and right operands |
-| `max` | maximum of the left and right operands |
+| `minimum` | pairwise minimum of the left and right operands |
+| `maximum` | pairwise maximum of the left and right operands |
 | `pow` | left base raised to the right exponent |
 
 The receiver is always the ordered left input and the argument is always the ordered right input.
 This order remains in provenance even for operations whose mathematical result is commonly
 commutative.
+
+Pairwise `minimum` and `maximum` propagate NaN, order infinities normally, and choose negative
+zero for minimum or positive zero for maximum when comparing opposite signed zeros. They promise
+no NaN payload or bitwise result. The reduction names remain `min` and `max`.
 
 Each method accepts only `BFLOAT16`, `FLOAT32`, and `FLOAT64`. It promotes the two types through
 `BFLOAT16 < FLOAT32 < FLOAT64`, applies the existing right-aligned local broadcast rule, and
@@ -2653,16 +2660,26 @@ backend support, or execution.
 
 ### Scalar arithmetic and clamp expressions
 
-The five current scalar operations have exact `ScalarValue` overloads and retained `double`
-conveniences:
+The scalar arithmetic surface parallels the seven Tensor-to-Tensor relationships. Each has one
+exact `ScalarValue` overload and one retained exact-FLOAT64 `double` convenience:
 
 | Typed method | FLOAT64 convenience | Elementwise meaning | Attributes |
 |---|---|---|---|
+| `add(ScalarValue)` | `add(double)` | Add the scalar. | `ScalarValueAttrs` |
+| `sub(ScalarValue)` | `sub(double)` | Subtract the scalar from the input. | `ScalarValueAttrs` |
 | `mul(ScalarValue)` | `mul(double)` | Multiply by the scalar. | `ScalarValueAttrs` |
+| `div(ScalarValue)` | `div(double)` | Divide the input by the scalar. | `ScalarValueAttrs` |
+| `minimum(ScalarValue)` | `minimum(double)` | Select the pairwise scalar minimum. | `ScalarValueAttrs` |
+| `maximum(ScalarValue)` | `maximum(double)` | Select the pairwise scalar maximum. | `ScalarValueAttrs` |
 | `pow(ScalarValue)` | `pow(double)` | Raise the input to the scalar exponent. | `ScalarValueAttrs` |
-| `clamp(ScalarValue, ScalarValue)` | `clamp(double, double)` | Constrain to inclusive bounds. | `ClampRangeAttrs` |
-| `clampMin(ScalarValue)` | `clampMin(double)` | Apply an inclusive lower bound. | `ScalarValueAttrs` |
-| `clampMax(ScalarValue)` | `clampMax(double)` | Apply an inclusive upper bound. | `ScalarValueAttrs` |
+
+The clamp surface retains one first-class range operation and two one-bound conveniences:
+
+| Typed method | FLOAT64 convenience | Meaning | Stored kind/attributes |
+|---|---|---|---|
+| `clamp(ScalarValue, ScalarValue)` | `clamp(double, double)` | Constrain to inclusive bounds. | `CLAMP` + `ClampRangeAttrs` |
+| `clampMin(ScalarValue)` | `clampMin(double)` | Apply an inclusive lower bound through scalar maximum. | `MAX` + `ScalarValueAttrs` |
+| `clampMax(ScalarValue)` | `clampMax(double)` | Apply an inclusive upper bound through scalar minimum. | `MIN` + `ScalarValueAttrs` |
 
 Each operation accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`, and every typed value must have
 the receiver's exact data type. The `double` methods construct exact FLOAT64 values; they do not
@@ -2672,16 +2689,23 @@ type and immutable `Shape` reference, preserves `requiresGrad`, and leaves layou
 
 Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
 Its provenance contains the exact matching `ScalarElementwiseKind`, typed attributes, and exactly
-the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` operation; it is not
-expanded into `CLAMP_MIN` followed by `CLAMP_MAX`. Repeated, nested, identity-like, and
-special-value calls are not interned, folded, or simplified at this boundary.
+the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` operation with the
+value meaning `minimum(maximum(input, lower), upper)`, but no stored intermediate producers.
+`clampMin` creates exactly one scalar `MAX` producer, and `clampMax` exactly one scalar `MIN`
+producer. Repeated, nested, identity-like, and special-value calls are not interned, folded, or
+simplified at this boundary.
+
+Scalar and Tensor-to-Tensor extrema share the same selected semantics: NaN propagates, infinities
+use normal numerical order, minimum selects negative zero from opposite signed zeros, and maximum
+selects positive zero. The model promises no NaN payload, gradient convention, algorithm, backend
+route, or execution.
 
 For `clamp`, null checks and floating-input eligibility precede bound construction. The bounds
 must share one non-BOOL type, and `ClampRangeAttrs` compares the exact represented primitive type.
 It rejects only a strict inversion; equal bounds, either ordering of signed zeros, ordered
 infinities, and a floating NaN endpoint remain representable. The common bound type must then
-equal the receiver type. Numerical special-value behavior, optimization, gradients, graph
-capture, and backend execution remain later responsibilities.
+equal the receiver type. NaN payload selection, numerical evaluation, optimization, gradients,
+graph capture, and backend execution remain later responsibilities.
 
 #### Complete scalar-expression example
 
@@ -2824,12 +2848,14 @@ or `MAX` aggregate operation and exactly the receiver reference. The eligibility
 request in model metadata; preserving it for product or an extrema reduction does not install or
 promise a gradient rule or a policy for distributing gradients across tied extrema.
 
-The aggregate `min()` and `max()` families are distinct from binary elementwise `min(Tensor)` and
-`max(Tensor)`. An aggregate form has one provenance input, uses `AggregateReductionKind.MIN` or
-`AggregateReductionKind.MAX`, and reduces every axis or one selected axis. A binary form has two
+The aggregate `min()` and `max()` families are distinct from pairwise elementwise
+`minimum(Tensor)` and `maximum(Tensor)`. An aggregate form has one provenance input, uses
+`AggregateReductionKind.MIN` or `AggregateReductionKind.MAX`, and reduces every axis or one
+selected axis. A binary form has two
 ordered provenance inputs, uses `BinaryArithmeticKind.MIN` or `BinaryArithmeticKind.MAX`, and
-broadcasts corresponding elements without reducing rank. Java overload signatures select the
-family; equal enum constant names do not make the typed operation kinds equal.
+broadcasts corresponding elements without reducing rank. The distinct method names make pairwise
+selection and aggregation visible at the call site; equal enum constant names do not make the
+typed operation kinds equal.
 
 Zero-sized and dynamic dimensions are valid structural inputs. Expression construction does not
 inspect element counts or define an empty-domain result, a mean denominator, accumulation
@@ -5250,7 +5276,7 @@ composition while the table also lists the current production families:
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
 | `UnaryElementwiseKind` | The implemented production enum for thirteen parameterless unary elementwise meanings. |
-| `ScalarElementwiseKind` | The implemented production enum for five parameterized one-input scalar elementwise meanings. |
+| `ScalarElementwiseKind` | The implemented production enum for eight parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable holder for one exact typed scalar parameter. |
 | `ClampRangeAttrs` | The implemented immutable value for exact same-type numeric inclusive clamp bounds. |
 
@@ -5307,9 +5333,12 @@ claim. No family factory or implicit attributes assignment is provided.
 
 Broadcast geometry is derived from operand shapes rather than stored on the enum or in operation
 attributes. The current public Tensor methods own local floating eligibility, promotion,
-broadcasting, result-descriptor construction, and ordered provenance. Numerical edge behavior,
-gradient rules, compiler capture, execution, and backend availability remain deferred to their
-owning contracts. The inherited enum names and text are stable diagnostics, not serialization
+broadcasting, result-descriptor construction, and ordered provenance. ADD, SUB, MUL, and DIV are
+ordinary ordered IEEE-754 requests in the result type. MIN and MAX propagate NaN, order infinities
+normally, and choose negative or positive zero, respectively, from opposite signed zeros. No NaN
+payload, intermediate precision, exact instruction, bitwise result, gradient rule, compiler
+capture, execution, or backend availability is promised here. The inherited enum names and text
+are stable diagnostics, not serialization
 tokens, registry keys, or string-dispatch contracts. Equality remains typed: an `ADD` value
 declared by another kind family is not equal to `BinaryArithmeticKind.ADD` even though both
 diagnostics may contain `ADD`.
@@ -6370,14 +6399,17 @@ The public enum
 
 | Kind | Elementwise meaning | Required attributes |
 |---|---|---|
+| `ADD` | Input value plus a scalar addend. | `ScalarValueAttrs` |
+| `SUB` | Input value minus a scalar subtrahend. | `ScalarValueAttrs` |
 | `MUL` | Input value multiplied by a scalar multiplier. | `ScalarValueAttrs` |
+| `DIV` | Input value divided by a scalar denominator. | `ScalarValueAttrs` |
+| `MIN` | Pairwise minimum of the input and scalar candidate. | `ScalarValueAttrs` |
+| `MAX` | Pairwise maximum of the input and scalar candidate. | `ScalarValueAttrs` |
 | `POW` | Input value as the base raised to a scalar exponent. | `ScalarValueAttrs` |
 | `CLAMP` | Input value constrained to inclusive lower and upper scalar bounds. | `ClampRangeAttrs` |
-| `CLAMP_MIN` | Input value constrained to be no lower than a scalar minimum. | `ScalarValueAttrs` |
-| `CLAMP_MAX` | Input value constrained to be no greater than a scalar maximum. | `ScalarValueAttrs` |
 
 The scalar parameter or bounds are operation attributes, not additional Tensor inputs. The family
-signatures enforce the table: `CLAMP` accepts exactly `ClampRangeAttrs`, while the other four kinds
+signatures enforce the table: `CLAMP` accepts exactly `ClampRangeAttrs`, while the other seven kinds
 accept exactly `ScalarValueAttrs`; every variant declares one input and one output.
 
 `ScalarValueAttrs` retains one non-null `ScalarValue` by exact reference without conversion,
@@ -6405,6 +6437,11 @@ Both attribute records compose `ScalarValue` equality, which includes the exact 
 bits. Positive and negative floating zero are unequal, and distinct NaN payloads remain unequal.
 An `Operation` has no operand descriptor, so direct construction does not prove that these FLOAT32
 attributes will eventually be attached to a FLOAT32 input.
+
+Scalar MIN/MAX use the same NaN propagation, normal infinity ordering, and opposite-zero choices
+as the binary family. `CLAMP(input, lower, upper)` has the value meaning
+`minimum(maximum(input, lower), upper)` but remains one semantic occurrence. The one-bound public
+methods are conveniences over scalar MAX and MIN rather than separate kinds.
 
 The kinds and attributes alone do not
 infer result descriptors, define scalar conversion, establish numerical or special-value execution

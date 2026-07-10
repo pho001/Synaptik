@@ -33,10 +33,13 @@ import org.junit.jupiter.api.Test;
 
 class TensorScalarElementwiseTest {
     private static final List<ScalarCall> SCALAR_CALLS = List.of(
+            new ScalarCall("add", ScalarElementwiseKind.ADD, Tensor::add),
+            new ScalarCall("sub", ScalarElementwiseKind.SUB, Tensor::sub),
             new ScalarCall("mul", ScalarElementwiseKind.MUL, Tensor::mul),
-            new ScalarCall("pow", ScalarElementwiseKind.POW, Tensor::pow),
-            new ScalarCall("clampMin", ScalarElementwiseKind.CLAMP_MIN, Tensor::clampMin),
-            new ScalarCall("clampMax", ScalarElementwiseKind.CLAMP_MAX, Tensor::clampMax));
+            new ScalarCall("div", ScalarElementwiseKind.DIV, Tensor::div),
+            new ScalarCall("minimum", ScalarElementwiseKind.MIN, Tensor::minimum),
+            new ScalarCall("maximum", ScalarElementwiseKind.MAX, Tensor::maximum),
+            new ScalarCall("pow", ScalarElementwiseKind.POW, Tensor::pow));
 
     @Test
     void helperAndTensorOverloadsHaveExactlyTheRequiredShape() throws Exception {
@@ -79,8 +82,24 @@ class TensorScalarElementwiseTest {
         assertPublicTensorMethod(
                 Tensor.class.getDeclaredMethod("clamp", double.class, double.class),
                 double.class, double.class);
-        assertPublicTensorMethod(Tensor.class.getDeclaredMethod("mul", Tensor.class), Tensor.class);
-        assertPublicTensorMethod(Tensor.class.getDeclaredMethod("pow", Tensor.class), Tensor.class);
+        for (String methodName : List.of(
+                "add", "sub", "mul", "div", "minimum", "maximum", "pow")) {
+            assertPublicTensorMethod(
+                    Tensor.class.getDeclaredMethod(methodName, Tensor.class), Tensor.class);
+        }
+        assertAll(
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", Tensor.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", Tensor.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", ScalarValue.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", ScalarValue.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", double.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", double.class)));
     }
 
     @Test
@@ -96,7 +115,10 @@ class TensorScalarElementwiseTest {
                     () -> assertSame(call.kind(), provenance.operation().kind()),
                     () -> assertSame(value, attrs.value()),
                     () -> assertEquals(List.of(input), provenance.inputs()),
-                    () -> assertSame(input, provenance.inputs().getFirst()));
+                    () -> assertSame(input, provenance.inputs().getFirst()),
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertSame(result.descriptor(), provenance.outputDescriptor()));
         }
 
         ScalarValue min = ScalarValue.float32(-0.0f);
@@ -112,10 +134,38 @@ class TensorScalarElementwiseTest {
 
         Tensor right = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
         assertAll(
+                () -> assertSame(BinaryArithmeticKind.ADD,
+                        input.add(right).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.SUB,
+                        input.sub(right).provenance().orElseThrow().operation().kind()),
                 () -> assertSame(BinaryArithmeticKind.MUL,
                         input.mul(right).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.DIV,
+                        input.div(right).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.MIN,
+                        input.minimum(right).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(BinaryArithmeticKind.MAX,
+                        input.maximum(right).provenance().orElseThrow().operation().kind()),
                 () -> assertSame(BinaryArithmeticKind.POW,
                         input.pow(right).provenance().orElseThrow().operation().kind()));
+
+        Tensor minimumClamp = input.clampMin(value);
+        Tensor maximumClamp = input.clampMax(value);
+        TensorProvenance minimumClampProvenance = minimumClamp.provenance().orElseThrow();
+        TensorProvenance maximumClampProvenance = maximumClamp.provenance().orElseThrow();
+        assertAll(
+                () -> assertSame(
+                        ScalarElementwiseKind.MAX, minimumClampProvenance.operation().kind()),
+                () -> assertSame(
+                        ScalarElementwiseKind.MIN, maximumClampProvenance.operation().kind()),
+                () -> assertSame(value,
+                        ((ScalarValueAttrs) minimumClampProvenance.operation().attrs()).value()),
+                () -> assertSame(value,
+                        ((ScalarValueAttrs) maximumClampProvenance.operation().attrs()).value()),
+                () -> assertEquals(List.of(input), minimumClampProvenance.inputs()),
+                () -> assertEquals(List.of(input), maximumClampProvenance.inputs()),
+                () -> assertEquals(0, minimumClampProvenance.outputIndex()),
+                () -> assertEquals(0, maximumClampProvenance.outputIndex()));
     }
 
     @Test
@@ -144,15 +194,29 @@ class TensorScalarElementwiseTest {
         Tensor float64 = tensor(DataType.FLOAT64, Shape.scalar(), false);
         double rawNaN = Double.longBitsToDouble(0xFFF8_0000_0000_1234L);
 
-        ScalarValueAttrs attrs = (ScalarValueAttrs) float64.mul(rawNaN)
-                .provenance().orElseThrow().operation().attrs();
+        List<Tensor> scalarResults = List.of(
+                float64.add(rawNaN),
+                float64.sub(rawNaN),
+                float64.mul(rawNaN),
+                float64.div(rawNaN),
+                float64.minimum(rawNaN),
+                float64.maximum(rawNaN),
+                float64.pow(rawNaN));
         ClampRangeAttrs range = (ClampRangeAttrs) float64.clamp(-0.0d, rawNaN)
                 .provenance().orElseThrow().operation().attrs();
 
+        for (Tensor result : scalarResults) {
+            ScalarValueAttrs attrs = (ScalarValueAttrs) result.provenance()
+                    .orElseThrow().operation().attrs();
+            assertEquals(ScalarValue.float64(rawNaN), attrs.value());
+        }
         assertAll(
-                () -> assertEquals(ScalarValue.float64(rawNaN), attrs.value()),
                 () -> assertEquals(ScalarValue.float64(-0.0d), range.minValue()),
-                () -> assertEquals(ScalarValue.float64(rawNaN), range.maxValue()));
+                () -> assertEquals(ScalarValue.float64(rawNaN), range.maxValue()),
+                () -> assertSame(ScalarElementwiseKind.MAX,
+                        float64.clampMin(rawNaN).provenance().orElseThrow().operation().kind()),
+                () -> assertSame(ScalarElementwiseKind.MIN,
+                        float64.clampMax(rawNaN).provenance().orElseThrow().operation().kind()));
     }
 
     @Test
@@ -174,11 +238,15 @@ class TensorScalarElementwiseTest {
                         integral, ScalarElementwiseKind.CLAMP, ScalarValue.int32(1)));
         assertFailure(IllegalArgumentException.class,
                 "input must be a floating data type, but was INT32",
+                () -> TensorScalarExpressions.applyScalar(
+                        integral, ScalarElementwiseKind.ADD, ScalarValue.float64(1.0)));
+        assertFailure(IllegalArgumentException.class,
+                "input must be a floating data type, but was INT32",
                 () -> TensorScalarExpressions.applyClamp(
                         integral, ScalarValue.int32(2), ScalarValue.int32(1)));
         assertFailure(IllegalArgumentException.class,
                 "scalar data type FLOAT64 must match input data type FLOAT32",
-                () -> floating.mul(1.0d));
+                () -> floating.add(1.0d));
         assertFailure(IllegalArgumentException.class,
                 "clamp data type FLOAT64 must match input data type FLOAT32",
                 () -> floating.clamp(ScalarValue.float64(0.0), ScalarValue.float64(1.0)));

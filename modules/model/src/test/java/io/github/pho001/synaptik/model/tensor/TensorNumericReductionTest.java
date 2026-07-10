@@ -360,8 +360,8 @@ class TensorNumericReductionTest {
 
         Tensor aggregateMinimum = left.min();
         Tensor aggregateMaximum = left.max(1);
-        Tensor binaryMinimum = left.min(right);
-        Tensor binaryMaximum = left.max(right);
+        Tensor binaryMinimum = left.minimum(right);
+        Tensor binaryMaximum = left.maximum(right);
 
         assertAll(
                 () -> assertSame(

@@ -7,9 +7,11 @@ import java.util.Objects;
 /**
  * Carries one exact scalar parameter for a scalar elementwise operation.
  *
- * <p>The value is the multiplier for {@link ScalarElementwiseKind#MUL}, exponent for {@link
- * ScalarElementwiseKind#POW}, minimum for {@link ScalarElementwiseKind#CLAMP_MIN}, or maximum for
- * {@link ScalarElementwiseKind#CLAMP_MAX}. The owning kind determines that role. Construction
+ * <p>The value is the addend for {@link ScalarElementwiseKind#ADD}, subtrahend for {@link
+ * ScalarElementwiseKind#SUB}, multiplier for {@link ScalarElementwiseKind#MUL}, denominator for
+ * {@link ScalarElementwiseKind#DIV}, minimum candidate for {@link ScalarElementwiseKind#MIN},
+ * maximum candidate for {@link ScalarElementwiseKind#MAX}, or exponent for {@link
+ * ScalarElementwiseKind#POW}. The owning kind determines that role. Construction
  * retains the supplied {@link ScalarValue} by exact reference without conversion, normalization,
  * alternate-precision caching, or defaulting. Receiver compatibility is deliberately not checked
  * here because attributes contain no input Tensor descriptor.</p>
@@ -19,8 +21,9 @@ import java.util.Objects;
  * therefore remain distinct. Record-generated text is diagnostic only and is not a
  * serialization, parsing, scalar-conversion, or backend format.</p>
  *
- * @param value the exact scalar multiplier, exponent, minimum, or maximum selected by the owning
- *     kind; must be non-null and is retained by exact immutable reference
+ * @param value the exact scalar addend, subtrahend, multiplier, denominator, minimum candidate,
+ *     maximum candidate, or exponent selected by the owning kind; must be non-null and is retained
+ *     by exact immutable reference
  */
 public record ScalarValueAttrs(ScalarValue value) implements OperationAttrs {
     /**
@@ -35,9 +38,9 @@ public record ScalarValueAttrs(ScalarValue value) implements OperationAttrs {
     /**
      * Returns the exact scalar parameter supplied at construction.
      *
-     * <p>The owning {@link ScalarElementwiseKind} determines whether this value is a multiplier,
-     * exponent, minimum, or maximum. The value is returned without validation, conversion,
-     * normalization, or replacement. No input compatibility is implied.</p>
+     * <p>The owning {@link ScalarElementwiseKind} determines the value's arithmetic role. The
+     * value is returned without validation, conversion, normalization, or replacement. No input
+     * compatibility is implied.</p>
      *
      * @return the non-null exact stored scalar parameter by the same reference supplied at
      *     construction

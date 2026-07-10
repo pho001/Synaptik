@@ -29,54 +29,61 @@ public enum BinaryArithmeticKind implements OperationKind {
     /**
      * Adds the left element value to the corresponding right element value.
      *
-     * <p>This kind defines operand order and mathematical addition only. Operand eligibility,
-     * broadcasting, result data type, numeric edge behavior, differentiation, execution, and
-     * backend availability are defined by later owning contracts.</p>
+     * <p>The semantic request is ordinary ordered IEEE-754 addition in the eventual result data
+     * type, including its NaN, infinity, signed-zero, overflow, and underflow classifications.
+     * It promises no NaN payload, intermediate precision, exact instruction, or bitwise result.
+     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
+     * backend availability belong to their owning contracts.</p>
      */
     ADD,
 
     /**
      * Subtracts the right element value from the corresponding left element value.
      *
-     * <p>The left-minus-right order is semantic. Operand eligibility, broadcasting, result data
-     * type, numeric edge behavior, differentiation, execution, and backend availability are
-     * defined by later owning contracts.</p>
+     * <p>The left-minus-right order and ordinary IEEE-754 subtraction in the eventual result data
+     * type are semantic. The request promises no NaN payload, intermediate precision, exact
+     * instruction, or bitwise result. Operand eligibility, broadcasting, result-data-type
+     * derivation, gradients, execution, and backend availability belong to their owners.</p>
      */
     SUB,
 
     /**
      * Multiplies the left element value by the corresponding right element value.
      *
-     * <p>This kind defines operand order and mathematical multiplication only. Operand
-     * eligibility, broadcasting, result data type, numeric edge behavior, differentiation,
-     * execution, and backend availability are defined by later owning contracts.</p>
+     * <p>The semantic request is ordinary ordered IEEE-754 multiplication in the eventual result
+     * data type. It promises no NaN payload, intermediate precision, exact instruction, or
+     * bitwise result. Operand eligibility, broadcasting, result-data-type derivation, gradients,
+     * execution, and backend availability belong to their owning contracts.</p>
      */
     MUL,
 
     /**
      * Divides the left element value by the corresponding right element value.
      *
-     * <p>The left-divided-by-right order is semantic. Operand eligibility, broadcasting, result
-     * data type, integer and floating-point edge behavior, differentiation, execution, and backend
-     * availability are defined by later owning contracts.</p>
+     * <p>The left-divided-by-right order and ordinary IEEE-754 division in the eventual result
+     * data type are semantic. The request promises no NaN payload, intermediate precision, exact
+     * instruction, or bitwise result. Operand eligibility, broadcasting, result-data-type
+     * derivation, gradients, execution, and backend availability belong to their owners.</p>
      */
     DIV,
 
     /**
      * Selects the mathematical minimum of the corresponding left and right element values.
      *
-     * <p>This kind does not define operand eligibility, broadcasting, result data type, tie, NaN,
-     * or signed-zero behavior, differentiation, execution, or backend availability. Later owning
-     * contracts define those semantics.</p>
+     * <p>The portable request propagates NaN, orders infinities normally, and selects negative
+     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result.
+     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
+     * backend availability belong to their owning contracts.</p>
      */
     MIN,
 
     /**
      * Selects the mathematical maximum of the corresponding left and right element values.
      *
-     * <p>This kind does not define operand eligibility, broadcasting, result data type, tie, NaN,
-     * or signed-zero behavior, differentiation, execution, or backend availability. Later owning
-     * contracts define those semantics.</p>
+     * <p>The portable request propagates NaN, orders infinities normally, and selects positive
+     * zero when comparing opposite signed zeros. It promises no NaN payload or bitwise result.
+     * Operand eligibility, broadcasting, result-data-type derivation, gradients, execution, and
+     * backend availability belong to their owning contracts.</p>
      */
     MAX,
 

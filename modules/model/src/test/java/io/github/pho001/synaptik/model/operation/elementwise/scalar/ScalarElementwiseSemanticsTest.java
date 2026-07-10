@@ -28,20 +28,27 @@ class ScalarElementwiseSemanticsTest {
         assertAll(
                 () -> assertArrayEquals(
                         new ScalarElementwiseKind[] {
+                            ScalarElementwiseKind.ADD,
+                            ScalarElementwiseKind.SUB,
                             ScalarElementwiseKind.MUL,
+                            ScalarElementwiseKind.DIV,
+                            ScalarElementwiseKind.MIN,
+                            ScalarElementwiseKind.MAX,
                             ScalarElementwiseKind.POW,
-                            ScalarElementwiseKind.CLAMP,
-                            ScalarElementwiseKind.CLAMP_MIN,
-                            ScalarElementwiseKind.CLAMP_MAX
+                            ScalarElementwiseKind.CLAMP
                         },
                         values),
                 () -> assertEquals(
-                        List.of("MUL", "POW", "CLAMP", "CLAMP_MIN", "CLAMP_MAX"),
+                        List.of("ADD", "SUB", "MUL", "DIV", "MIN", "MAX", "POW", "CLAMP"),
                         Arrays.stream(values).map(ScalarElementwiseKind::name).toList()),
-                () -> assertInstanceOf(OperationKind.class, ScalarElementwiseKind.MUL),
+                () -> assertInstanceOf(OperationKind.class, ScalarElementwiseKind.ADD),
                 () -> assertSame(
                         ScalarElementwiseKind.CLAMP,
-                        ScalarElementwiseKind.valueOf("CLAMP")));
+                        ScalarElementwiseKind.valueOf("CLAMP")),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> ScalarElementwiseKind.valueOf("CLAMP_MIN")),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> ScalarElementwiseKind.valueOf("CLAMP_MAX")));
     }
 
     @Test
@@ -76,39 +83,39 @@ class ScalarElementwiseSemanticsTest {
 
     @Test
     void keepsScalarKindsDistinctFromEquallyNamedBinaryKinds() {
-        assertAll(
-                () -> assertEquals(
-                        BinaryArithmeticKind.MUL.name(), ScalarElementwiseKind.MUL.name()),
-                () -> assertEquals(
-                        BinaryArithmeticKind.POW.name(), ScalarElementwiseKind.POW.name()),
-                () -> assertNotEquals(BinaryArithmeticKind.MUL, ScalarElementwiseKind.MUL),
-                () -> assertNotEquals(BinaryArithmeticKind.POW, ScalarElementwiseKind.POW),
-                () -> assertThrows(
-                        IllegalArgumentException.class,
-                        () -> new Operation(
-                                BinaryArithmeticKind.MUL,
-                                new ScalarValueAttrs(v(2.0)))),
-                () -> assertEquals(
-                        ScalarElementwiseKind.MUL,
-                        new Operation(
-                                        ScalarElementwiseKind.MUL,
-                                        new ScalarValueAttrs(v(2.0)))
-                                .kind()));
+        for (BinaryArithmeticKind binaryKind : BinaryArithmeticKind.values()) {
+            ScalarElementwiseKind scalarKind = ScalarElementwiseKind.valueOf(binaryKind.name());
+            assertAll(
+                    () -> assertEquals(binaryKind.name(), scalarKind.name()),
+                    () -> assertNotEquals(binaryKind, scalarKind),
+                    () -> assertThrows(
+                            IllegalArgumentException.class,
+                            () -> new Operation(binaryKind, new ScalarValueAttrs(v(2.0)))),
+                    () -> assertEquals(
+                            scalarKind,
+                            new Operation(scalarKind, new ScalarValueAttrs(v(2.0))).kind()));
+        }
     }
 
     @Test
     void composesEveryKindWithItsDocumentedExactAttributesReference() {
-        ScalarValueAttrs multiplier = new ScalarValueAttrs(v(0.5));
-        ScalarValueAttrs exponent = new ScalarValueAttrs(v(2.0));
-        ClampRangeAttrs range = new ClampRangeAttrs(v(-1.0), v(1.0));
+        ScalarValueAttrs addend = new ScalarValueAttrs(v(0.5));
+        ScalarValueAttrs subtrahend = new ScalarValueAttrs(v(1.0));
+        ScalarValueAttrs multiplier = new ScalarValueAttrs(v(2.0));
+        ScalarValueAttrs denominator = new ScalarValueAttrs(v(4.0));
         ScalarValueAttrs minimum = new ScalarValueAttrs(v(-3.0));
         ScalarValueAttrs maximum = new ScalarValueAttrs(v(3.0));
+        ScalarValueAttrs exponent = new ScalarValueAttrs(v(0.5));
+        ClampRangeAttrs range = new ClampRangeAttrs(v(-1.0), v(1.0));
 
+        assertComposition(ScalarElementwiseKind.ADD, addend);
+        assertComposition(ScalarElementwiseKind.SUB, subtrahend);
         assertComposition(ScalarElementwiseKind.MUL, multiplier);
+        assertComposition(ScalarElementwiseKind.DIV, denominator);
+        assertComposition(ScalarElementwiseKind.MIN, minimum);
+        assertComposition(ScalarElementwiseKind.MAX, maximum);
         assertComposition(ScalarElementwiseKind.POW, exponent);
         assertComposition(ScalarElementwiseKind.CLAMP, range);
-        assertComposition(ScalarElementwiseKind.CLAMP_MIN, minimum);
-        assertComposition(ScalarElementwiseKind.CLAMP_MAX, maximum);
     }
 
     @Test

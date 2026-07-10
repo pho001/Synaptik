@@ -14,10 +14,10 @@ import java.util.Optional;
  * Constructs locally validated storage-free scalar elementwise tensor expressions.
  *
  * <p>This package-private boundary owns the deterministic construction path for scalar
- * multiplication, scalar exponentiation, and inclusive clamp requests. It accepts only floating
- * inputs, retains the input's exact data type and shape reference, preserves gradient eligibility,
- * and records exact matching typed scalar parameters unchanged in operation attributes. It does
- * not inspect values or storage, convert parameters, evaluate mathematics,
+ * arithmetic and inclusive clamp requests. It accepts only floating inputs, retains the input's
+ * exact data type and shape reference, preserves gradient eligibility, and records exact matching
+ * typed scalar parameters unchanged in operation attributes. It does not inspect values or
+ * storage, convert parameters, evaluate mathematics,
  * validate numerical domains, canonicalize or decompose expressions, create gradient rules, or
  * capture a graph.</p>
  */
@@ -38,7 +38,7 @@ final class TensorScalarExpressions {
      *
      * @param input non-null floating tensor retained by exact reference in result provenance
      * @param kind non-null scalar kind other than {@code CLAMP}, retained in the result operation
-     * @param value non-null exact multiplier, exponent, or single clamp bound; its data type must
+     * @param value non-null exact scalar arithmetic parameter; its data type must
      *     equal the input data type and it is retained by exact reference
      * @return the non-null exact fresh derived tensor returned by the central factory
      * @throws NullPointerException if {@code input}, {@code kind}, or {@code value} is null,

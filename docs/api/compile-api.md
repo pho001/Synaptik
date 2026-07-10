@@ -44,9 +44,10 @@ does not retain a public `Tensor`, gradient role, runtime target, storage, backe
 state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
-comparison methods, three boolean logical methods, thirteen unary elementwise methods, and five
-scalar arithmetic and clamp methods, plus one static conditional-selection method and one explicit
-cast method, fifteen full/axis numeric aggregate methods, and six full/axis boolean aggregate
+comparison methods, three boolean logical methods, thirteen unary elementwise methods, seven
+exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/one-bound clamp
+methods, plus one static conditional-selection method and one explicit cast method, fifteen
+full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
 tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
@@ -67,8 +68,15 @@ eligibility. Logical AND and OR require exact BOOL inputs and derive a local bro
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
 typed `ScalarValue` operation attributes rather than Tensor inputs. Public scalar/clamp expression
 construction requires their data type to equal the floating receiver type; constant padding uses
-the same equality rule for all six current data types. An `OperationSignature` still validates
-only the exact attribute class and occurrence cardinality because an `Operation` has no operand
+the same equality rule for all six current data types. Tensor-to-Tensor and scalar arithmetic now
+share `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW`; public pairwise extrema are named
+`minimum`/`maximum`, while aggregate reductions remain `min`/`max`. Extrema propagate NaN, order
+infinities normally, and select negative zero for minimum or positive zero for maximum. Range
+`CLAMP` remains first-class; `clampMin` creates one scalar `MAX` producer and `clampMax` one scalar
+`MIN` producer. These are current model semantics and metadata-construction facts, not compiler
+capture, validation, gradient, lowering, backend, or execution claims. An `OperationSignature`
+still validates only the exact attribute class and occurrence cardinality because an `Operation`
+has no operand
 descriptor. Future compiler graph validation must repeat exact scalar/input data-type equality for
 captured or otherwise constructed occurrences; this requirement does not claim that such compiler
 validation is implemented today. `Tensor.where` requires an exact BOOL

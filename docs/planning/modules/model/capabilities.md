@@ -143,10 +143,29 @@ apply them in task order; completed task 0018O has already finalized indexing.
 | Large `Tensor` and `TensorFactory` surfaces | Keep Tensor as the public identity/fluent entry point, but continue to isolate implementation by cohesive helpers. Completed task [0018S](tasks/0018s-tensor-factory-surface-cleanup.md) narrowed TensorFactory to identity, construction, allocation, imports, constants, and integer ranges; promoted existing stateless `TensorRandoms` as the sole public explicit-source random owner; and moved prefix population to test source. Class size alone does not justify another facade. |
 
 Completed task 0018P retains `EXP` and `TANH` as portable mathematical requests without promising an
-algorithm, bitwise result, approximation bound, or backend route. It leaves the exact typed scalar
-vocabulary `MUL`, `POW`, `CLAMP`, `CLAMP_MIN`, and `CLAMP_MAX` unchanged. Draft task 0018T remains
-the owner of scalar add/subtract/divide/minimum/maximum plus `rsqrt`, `log1p`, `expm1`, and
-floating diagnostics; the cleanup does not add them early.
+algorithm, bitwise result, approximation bound, or backend route. It deliberately left the
+provisional exact typed scalar vocabulary unchanged. Completed task
+[0018T](tasks/0018t-scalar-arithmetic-family-normalization.md) now selects a complete parallel
+`ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW` Tensor/binary and Tensor/scalar vocabulary,
+retains `CLAMP` as the only distinct range kind, and removes `CLAMP_MIN`/`CLAMP_MAX` in favor of
+public conveniences over scalar `MAX`/`MIN`. Pairwise public extrema use `minimum`/`maximum` while
+aggregate reductions keep `min`/`max`. Draft task 0018T1 separately owns `rsqrt`, `log1p`,
+`expm1`, and floating diagnostics.
+
+### Scalar arithmetic normalization
+
+Completed task 0018T is intentionally the complete scalar arithmetic family rather than a partial
+set of new overloads. Every selected Tensor-to-Tensor arithmetic relationship receives the matching
+exact typed scalar form. A `ScalarValue` remains an operation attribute, not an eager rank-zero
+Tensor input; the current exact receiver/value data-type check and floating-only public boundary
+remain until task 0018U deliberately broadens selected integral domains.
+
+The public vocabulary distinguishes pairwise extrema from reduction: `minimum(other-or-scalar)`
+and `maximum(other-or-scalar)` select one value at each output coordinate, whereas `min(...)` and
+`max(...)` aggregate a domain. The extrema semantics propagate NaN, order infinities normally,
+select negative zero for minimum and positive zero for maximum. `CLAMP(x, lower, upper)` means one
+first-class semantic request equivalent in value to `minimum(maximum(x, lower), upper)`; one-bound
+clamp methods remain conveniences that create only scalar `MAX` or `MIN` producers.
 
 ## Indexing taxonomy
 

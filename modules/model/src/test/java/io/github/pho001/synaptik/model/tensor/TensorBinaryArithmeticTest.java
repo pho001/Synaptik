@@ -37,8 +37,8 @@ class TensorBinaryArithmeticTest {
             new BinaryCall("sub", BinaryArithmeticKind.SUB, Tensor::sub),
             new BinaryCall("mul", BinaryArithmeticKind.MUL, Tensor::mul),
             new BinaryCall("div", BinaryArithmeticKind.DIV, Tensor::div),
-            new BinaryCall("min", BinaryArithmeticKind.MIN, Tensor::min),
-            new BinaryCall("max", BinaryArithmeticKind.MAX, Tensor::max),
+            new BinaryCall("minimum", BinaryArithmeticKind.MIN, Tensor::minimum),
+            new BinaryCall("maximum", BinaryArithmeticKind.MAX, Tensor::maximum),
             new BinaryCall("pow", BinaryArithmeticKind.POW, Tensor::pow));
 
     @Test
@@ -96,7 +96,10 @@ class TensorBinaryArithmeticTest {
                     () -> assertSame(NoOperationAttrs.INSTANCE, operation.attrs()),
                     () -> assertEquals(2, provenance.inputs().size()),
                     () -> assertSame(left, provenance.inputs().get(0)),
-                    () -> assertSame(right, provenance.inputs().get(1)));
+                    () -> assertSame(right, provenance.inputs().get(1)),
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertSame(result.descriptor(), provenance.outputDescriptor()));
         }
     }
 

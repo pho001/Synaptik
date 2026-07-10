@@ -83,11 +83,11 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(111, declaredPublicMethods.size());
+        assertEquals(121, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
-                        "div", "min", "max", "pow", "abs", "neg", "reciprocal", "log", "exp",
+                        "div", "min", "max", "minimum", "maximum", "pow", "abs", "neg", "reciprocal", "log", "exp",
                         "erf", "sqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
                         "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
@@ -118,7 +118,8 @@ class TensorTest {
                 () -> assertFalse(Modifier.isSynchronized(
                         Tensor.class.getDeclaredMethod("provenance").getModifiers())));
 
-        for (String methodName : List.of("add", "sub", "mul", "div", "min", "max", "pow")) {
+        for (String methodName : List.of(
+                "add", "sub", "mul", "div", "minimum", "maximum", "pow")) {
             var method = Tensor.class.getDeclaredMethod(methodName, Tensor.class);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -480,7 +481,9 @@ class TensorTest {
         assertThrows(NoSuchMethodException.class, () -> Tensor.class.getDeclaredMethod(
                 "foldAxis", int.class, long.class, long.class));
 
-        for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
+        for (String methodName : List.of(
+                "add", "sub", "mul", "div", "minimum", "maximum", "pow", "clampMin",
+                "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, double.class);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -491,7 +494,9 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
 
-        for (String methodName : List.of("mul", "pow", "clampMin", "clampMax")) {
+        for (String methodName : List.of(
+                "add", "sub", "mul", "div", "minimum", "maximum", "pow", "clampMin",
+                "clampMax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, ScalarValue.class);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -518,6 +523,20 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(typedClamp.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(typedClamp.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(typedClamp.getModifiers())));
+
+        assertAll(
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", Tensor.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", Tensor.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", ScalarValue.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", ScalarValue.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("min", double.class)),
+                () -> assertThrows(NoSuchMethodException.class,
+                        () -> Tensor.class.getDeclaredMethod("max", double.class)));
 
         for (String methodName : List.of(
                 "abs", "neg", "reciprocal", "log", "exp", "erf", "sqrt", "floor", "ceil",
