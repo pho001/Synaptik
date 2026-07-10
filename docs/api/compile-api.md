@@ -44,8 +44,9 @@ does not retain a public `Tensor`, gradient role, runtime target, storage, backe
 state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
-comparison methods, three boolean logical methods, thirteen unary elementwise methods, seven
-exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/one-bound clamp
+comparison methods, three boolean logical methods, sixteen unary elementwise methods, three
+floating-classification methods, seven exact-typed plus seven exact-FLOAT64 scalar arithmetic
+methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method, fifteen
 full/axis numeric aggregate methods, and six full/axis boolean aggregate
 methods, two axis-removing masked aggregate methods, three axis-only `argMax` methods, and two
@@ -60,10 +61,11 @@ parameterless `contiguous` method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
 right-aligned target-shape expressions.
-Arithmetic, unary, scalar, and conditional-selection results remain floating. Unary `exp` and
-`tanh` record portable mathematical requests without selecting an algorithm, bitwise result,
-approximation bound, or backend route. Comparison and logical results are unresolved-layout
-`BOOL` descriptors with false gradient
+Arithmetic, numeric unary, scalar, and conditional-selection results remain floating. Unary
+`rsqrt`, `log1p`, and `expm1` are first-class transforms rather than stored decompositions.
+Together with `exp` and `tanh`, they record portable mathematical requests without selecting an
+algorithm, bitwise result, fixed accuracy bound, or backend route. Floating classifications,
+comparisons, and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
 typed `ScalarValue` operation attributes rather than Tensor inputs. Public scalar/clamp expression
@@ -87,6 +89,14 @@ condition/true-branch/false-branch provenance. It constructs no selected values 
 leaves layout unresolved, and retains a true gradient request only for floating-to-floating casts.
 Every call remains a fresh explicit expression, including a same-type request, with typed target
 attributes and exact one-input provenance.
+`Tensor.rsqrt`, `log1p`, and `expm1` accept floating input, retain its exact type, Shape, and
+gradient eligibility, leave layout unresolved, and record one-input parameterless provenance.
+Their selected special-value semantics distinguish signed zero, infinities, and NaN, but current
+construction neither reads values nor promises correct rounding or a fixed numerical tolerance.
+`Tensor.isFinite`, `isNaN`, and `isInf` accept floating input and construct fixed BOOL results with
+the exact input Shape, unresolved layout, false gradient eligibility, and one-input parameterless
+provenance. They record graph-visible value classifications; they do not eagerly classify host
+storage or define compiler validation, gradients, lowering, backend support, or execution.
 `Tensor.sum`, `mean`, `prod`, reduction `min`, and reduction `max` accept floating inputs and
 construct full, axis-removing, or retained-axis expressions. Full forms have canonical rank-zero
 shape and use the canonical no-attributes singleton; axis forms normalize the caller axis and
@@ -274,7 +284,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
   Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary, scalar, numeric aggregate expression construction for sum, mean,
+  selection, cast, unary numeric, floating-classification, scalar, numeric aggregate expression
+  construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, axis-only arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous

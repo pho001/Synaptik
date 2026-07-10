@@ -216,7 +216,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018R | [Slice and window public-contract cleanup](tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete | 0017G–0017N, 0018K–0018M | Normalize signed non-zero slices as start/length/step sequences, add one-SLICE flip, and remove public foldAxis while retaining compiler-only FOLD_AXIS semantics. |
 | 0018S | [Tensor factory surface cleanup](tasks/0018s-tensor-factory-surface-cleanup.md) | Complete | 0012–0012I, 0013A, 0018N | Keep identity/construction/import/constants/range in TensorFactory, promote TensorRandoms as the focused public random owner, and move prefix population to test-only fixtures. |
 | 0018T | [Scalar arithmetic family normalization](tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete | 0014A–0014B, 0014E–0014F, 0018K, 0018N, 0018P | Complete parallel seven-operation Tensor/binary and Tensor/scalar arithmetic, distinguish pairwise `minimum`/`maximum` from reductions, and demote one-bound clamp kinds to conveniences. |
-| 0018T1 | [Unary numeric gaps and floating diagnostics](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Ready | 0014C–0014D, 0018K, 0018P, 0018T | Add floating-preserving `rsqrt`/`log1p`/`expm1` plus separately typed BOOL `isFinite`/`isNaN`/`isInf` classification semantics and public construction. |
+| 0018T1 | [Unary numeric gaps and floating diagnostics](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete | 0014C–0014D, 0018K, 0018P, 0018T | Add floating-preserving `rsqrt`/`log1p`/`expm1` plus separately typed BOOL `isFinite`/`isNaN`/`isInf` classification semantics and public construction. |
 | 0018U | Integral arithmetic and comparison domains | Draft | 0014A–0015B, 0016A–0016E, 0018K, 0018T | Add the selected signed-integral arithmetic, comparisons, arg-min, and reduction domains with explicit overflow and accumulation policy. |
 | 0018V | Multi-axis and statistical reductions | Draft | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U | Add ordered multi-axis reduction, log-sum-exp, variance, standard deviation, and L1/L2 norm semantics. |
 | 0019 | Linear algebra and attention operations | Draft | 0018K, 0018M–0018N, 0018T | Represent matmul, linear convenience, and scaled dot-product attention after the ordered reset. |
@@ -272,9 +272,9 @@ values and conservative Shape integration. Task 0018M1 is complete with canonica
 padding, tiling, and concat Shape derivation. Task 0018N is complete with exact typed scalar
 representation, migrated attributes, and receiver-aware Tensor validation. Task 0018O is complete
 with the final indexing taxonomy and repeated-SELECT unstack. Task 0018P is complete with the
-final thirteen-kind unary vocabulary. Tasks 0018Q, 0018R, 0018S, and 0018T are complete. Task
-0018T1 is Ready as the current implementation frontier with the only next detailed specification.
-Task 0018U and every later task remain Draft without detailed specifications.
+final thirteen-kind unary vocabulary. Tasks 0018Q, 0018R, 0018S, 0018T, and 0018T1 are complete.
+Task 0018U is the next Draft frontier, and it and every later task remain without detailed
+specifications.
 
 Task 0018S leaves exactly 31 public TensorFactory construction/import/constant/range methods,
 makes field-free `TensorRandoms` the sole public owner of five explicit caller-source random
@@ -408,13 +408,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   bridge. `EXP` and `TANH` remain portable mathematical requests without an algorithm, bitwise,
   approximation-bound, or backend-route promise. The typed scalar family remains unchanged by
   0018P. Completed task 0018T owns the complete seven-operation scalar arithmetic family and
-  pairwise-extrema naming. Ready task 0018T1 separately owns floating-preserving `rsqrt`, `log1p`,
+  pairwise-extrema naming. Completed task 0018T1 separately owns floating-preserving `rsqrt`, `log1p`,
   and `expm1` plus fixed-BOOL floating classifications in a distinct semantic family.
 - Its implementation context passed the focused 50-test contract set and the 725-test/88-suite
   model suite. Independent documentation review finalized the unary Javadocs, Tensor and Compile
   APIs, glossary, capability baseline, task evidence, master plan, and roadmap after model
   Javadoc, the runnable reciprocal example, generated-page and removed-vocabulary checks,
   Markdown structure, exact thirteen-path scope, synchronized status, and whitespace validation.
+- Task 0018T1 extends that cleaned unary family to sixteen kinds with first-class `RSQRT`, `LOG1P`,
+  and `EXPM1`, and adds separate `IS_FINITE`, `IS_NAN`, and `IS_INF` classifications whose public
+  results are fixed non-differentiable BOOL metadata. Its implementation context passed the exact
+  focused command and final model suite. Independent documentation review finalized all affected
+  Javadocs and seven documentation/planning files after model Javadoc, a runnable transform-plus-
+  classification metadata example, generated-page, 127-method/helper/alias, 493-link/139-anchor,
+  exact eighteen-path, status, formatting, and whitespace checks passed.
 - Completed task 0018Q removes heuristic masked-reduction axis mapping and simplifies
   `MaskedReductionAttrs` to one normalized axis. Ordinary right-aligned broadcasting of masks
   must produce exactly the input Shape, so callers make other axis intent visible with reshape or
@@ -1255,9 +1262,9 @@ Completed task
 [0018K](tasks/0018k-operation-signature-and-construction-hardening.md) was an explicitly
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
-Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, and 0018T are complete.
-Task 0018T1 is Ready with the only next detailed specification. Task 0018U and every later task
-remain Draft without detailed specifications. Other operation-family rows are not permission for oversized
+Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
+complete. Task 0018U and every later task remain Draft without detailed specifications. Other
+operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
@@ -1313,8 +1320,7 @@ public Gather-ND expression construction. Task 0018G is complete with functional
 semantic values. Task 0018H is complete with public functional axis-scatter expression
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
-0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T are complete; 0018T1 is Ready
-as the current frontier, while 0018U and every later task remain Draft without a detailed
-specification.
+0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T and task 0018T1 are complete,
+while 0018U and every later task remain Draft without a detailed specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

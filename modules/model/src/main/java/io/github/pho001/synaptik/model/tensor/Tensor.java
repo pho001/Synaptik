@@ -5,6 +5,7 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
@@ -105,10 +106,12 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
- * Scalar methods and the thirteen parameterless unary methods accept one floating input and
+ * Scalar methods and the sixteen parameterless unary methods accept one floating input and
  * retain its exact data type, shape reference, and gradient eligibility. Scalar methods retain
  * exact matching typed values in attributes; their {@code double} conveniences mean exact
- * FLOAT64.
+ * FLOAT64. The three floating-classification methods also accept one floating input, but produce
+ * fixed non-differentiable {@code BOOL} descriptors with the exact input shape and unresolved
+ * layout. They record classification semantics without reading or classifying values.
  * Every expression result has a fresh factory identity and no label or storage. Most expression
  * results leave layout unresolved; a contiguous request instead publishes newly resolved
  * canonical dense row-major geometry for a fully static Shape and remains unresolved for a
@@ -154,7 +157,8 @@ import java.util.Optional;
  * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
- * {@link ScalarElementwiseKind}, or {@link UnaryElementwiseKind}.
+ * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
+ * {@link FloatingClassificationKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -1165,6 +1169,25 @@ public final class Tensor {
     }
 
     /**
+     * Builds an elementwise natural-logarithm-of-one-plus-input expression from this Tensor.
+     *
+     * <p>The input must be floating. This is one first-class {@link UnaryElementwiseKind#LOG1P}
+     * request rather than stored addition and logarithm operations. The fresh result preserves
+     * the exact input type, shape reference, and gradient-eligibility request, leaves layout
+     * unresolved, and has no label or storage. The mathematical target preserves signed zero,
+     * produces negative infinity at negative one, NaN below negative one or for NaN input, and
+     * positive infinity for positive infinity. Model construction does not evaluate those values or select an
+     * accuracy policy, gradient rule, execution route, or backend.</p>
+     *
+     * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor log1p() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.LOG1P);
+    }
+
+    /**
      * Builds an elementwise natural-exponential expression from this tensor.
      *
      * <p>The input must be floating. The fresh result retains the exact data type and shape
@@ -1181,6 +1204,25 @@ public final class Tensor {
      */
     public Tensor exp() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.EXP);
+    }
+
+    /**
+     * Builds an elementwise natural-exponential-minus-one expression from this Tensor.
+     *
+     * <p>The input must be floating. This is one first-class {@link UnaryElementwiseKind#EXPM1}
+     * request rather than stored exponential and subtraction operations. The fresh result
+     * preserves the exact input type, shape reference, and gradient-eligibility request, leaves
+     * layout unresolved, and has no label or storage. The mathematical target preserves signed
+     * zero, maps negative infinity to negative one, maps positive infinity to positive infinity,
+     * and produces NaN for NaN input. Model construction does not evaluate those values or select an accuracy policy,
+     * gradient rule, execution route, or backend.</p>
+     *
+     * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor expm1() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.EXPM1);
     }
 
     /**
@@ -1216,6 +1258,26 @@ public final class Tensor {
      */
     public Tensor sqrt() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SQRT);
+    }
+
+    /**
+     * Builds an elementwise reciprocal-square-root expression from this Tensor.
+     *
+     * <p>The input must be floating. This is one first-class {@link UnaryElementwiseKind#RSQRT}
+     * request rather than stored square-root and reciprocal operations. The fresh result preserves
+     * the exact input type, shape reference, and gradient-eligibility request, leaves layout
+     * unresolved, and has no label or storage. Its mathematical target is {@code 1 / sqrt(x)}:
+     * signed zero maps to same-signed infinity, positive infinity maps to positive zero, and
+     * negative finite values and negative infinity map to NaN, and NaN maps to NaN. Model
+     * construction does not evaluate values or select an accuracy policy, gradient rule,
+     * execution route, or backend.</p>
+     *
+     * @return a non-null fresh derived Tensor preserving type, shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor rsqrt() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.RSQRT);
     }
 
     /**
@@ -1323,6 +1385,60 @@ public final class Tensor {
      */
     public Tensor tanh() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.TANH);
+    }
+
+    /**
+     * Builds an elementwise finite-value classification from this floating Tensor.
+     *
+     * <p>The fresh result has BOOL type, the exact input shape reference, unresolved layout,
+     * disabled gradient eligibility, no label or storage, and provenance containing {@link
+     * FloatingClassificationKind#IS_FINITE}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * input. The represented result is true for finite normal, subnormal, and signed-zero values,
+     * and false for infinities and NaNs. Model construction does not inspect or classify stored
+     * values, capture a graph, define gradients, or execute work.</p>
+     *
+     * @return a non-null fresh, non-gradient BOOL classification Tensor with the same shape
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor isFinite() {
+        return TensorFloatingClassifications.apply(this, FloatingClassificationKind.IS_FINITE);
+    }
+
+    /**
+     * Builds an elementwise not-a-number classification from this floating Tensor.
+     *
+     * <p>The fresh result has BOOL type, the exact input shape reference, unresolved layout,
+     * disabled gradient eligibility, no label or storage, and provenance containing {@link
+     * FloatingClassificationKind#IS_NAN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * input. The represented result is true only for NaN, independent of sign, signaling or quiet
+     * encoding, and payload. Model construction does not inspect or classify stored values,
+     * capture a graph, define gradients, or execute work.</p>
+     *
+     * @return a non-null fresh, non-gradient BOOL classification Tensor with the same shape
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor isNaN() {
+        return TensorFloatingClassifications.apply(this, FloatingClassificationKind.IS_NAN);
+    }
+
+    /**
+     * Builds an elementwise infinity classification from this floating Tensor.
+     *
+     * <p>The fresh result has BOOL type, the exact input shape reference, unresolved layout,
+     * disabled gradient eligibility, no label or storage, and provenance containing {@link
+     * FloatingClassificationKind#IS_INF}, {@code NoOperationAttrs.INSTANCE}, and exactly this
+     * input. The represented result is true only for positive or negative infinity and false for
+     * finite values and NaNs. Model construction does not inspect or classify stored values,
+     * capture a graph, define gradients, or execute work.</p>
+     *
+     * @return a non-null fresh, non-gradient BOOL classification Tensor with the same shape
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor isInf() {
+        return TensorFloatingClassifications.apply(this, FloatingClassificationKind.IS_INF);
     }
 
     /**

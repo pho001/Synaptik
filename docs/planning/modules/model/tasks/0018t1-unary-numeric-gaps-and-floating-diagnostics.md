@@ -2,7 +2,7 @@
 
 ## Status
 
-Ready
+Complete
 
 ## Goal
 
@@ -634,20 +634,114 @@ without a detailed specification.
 
 ## Local decisions
 
-Empty until implemented.
+- Kept `RSQRT`, `LOG1P`, and `EXPM1` in the existing unary family because their public result
+  metadata preserves floating input type and gradient eligibility.
+- Kept floating classifications in a separate kind family and package-private construction helper
+  because their public result metadata is fixed non-differentiable BOOL. No result-kind flag,
+  shared category abstraction, registry, or switch was added.
+- Preserved each transform as one first-class operation occurrence. No eager constant,
+  decomposition, alias, fast variant, accuracy mode, or backend hint was introduced.
 
 ## Known limitations
 
-Empty until implemented.
+- This task constructs model descriptors and provenance only. It does not evaluate numeric or
+  classification values, capture a graph, define gradients, lower operations, select kernels, or
+  provide execution support.
+- The numeric transforms select portable special-value semantics but no exact rounding, NaN
+  payload, bitwise result, fixed ULP/relative-error bound, algorithm, or backend tolerance.
+- Both families remain floating-input-only. Integral arithmetic and comparison domains remain
+  deferred to Draft task 0018U.
 
 ## Validation evidence
 
-Empty until implemented.
+- Implementation context `/root/task_0018t1_implementation` ran the exact focused command listed
+  above. Its initial run exposed only the expected stale `Tensor` public-method inventory; after
+  correcting that inventory, the exact command passed.
+- The same implementation context ran `./gradlew :modules:model:test` after executable Java
+  stabilized. It passed with `BUILD SUCCESSFUL in 1s`; three tasks were actionable, one executed,
+  two were up-to-date, and the configuration cache was reused. Executable Java did not change
+  afterward. Documentation context
+  `/root/task_0018t1_implementation/task_0018t1_docs` reused this evidence and did not rerun the
+  successful Java suite.
+- The clean documentation context applied the General, API/Javadoc, Planning, and Example
+  profiles to the final source/tests and the seven authorized documentation/planning files. It
+  independently finalized all five affected production Javadocs plus Tensor API, Compile API,
+  glossary, capabilities, task, master plan, and roadmap.
+- `./gradlew :modules:model:javadoc` passed after final Javadoc edits with `BUILD SUCCESSFUL in
+  1s`; both actionable tasks executed and the configuration cache was reused. Generated pages
+  contain all three new unary constants, all three classification constants, all six Tensor
+  methods, the exact special-value/result-type boundaries, and valid cross-links.
+- `javac -cp modules/model/build/classes/java/main -d
+  /tmp/synaptik-floating-metadata-example /tmp/FloatingMetadataExample.java && java -cp
+  modules/model/build/classes/java/main:/tmp/synaptik-floating-metadata-example
+  FloatingMetadataExample` compiled and ran the documented Java 26 example. It printed
+  `transformType=FLOAT32`, `transformGrad=true`, `transformKind=LOG1P`,
+  `classificationType=BOOL`, `classificationGrad=false`, `classificationKind=IS_NAN`, exact
+  Shape and input retention, canonical parameterless attributes, one input for each producer, and
+  output indexes `0,0`. It made no evaluated-value claim.
+- A compiled Java 26 `FloatingSurfaceCheck` passed. It verified the exact sixteen unary values,
+  exact three classification values, all six zero-argument Tensor methods, exactly 127 declared
+  public Tensor methods, both field-free/final/package-private one-method helper shapes, and the
+  absence of aliases, old `inv`, and fast variants.
+- The targeted local Markdown checker resolved 493 local links, including 139 heading anchors,
+  across the seven changed documentation/planning files with zero failures. Formatting checks
+  found balanced fences, final newlines, and no trailing whitespace.
+- Final inventory inspection found exactly 18 authorized paths: five production Java files, six
+  tests, and seven documentation/planning files. The task, model master plan, and roadmap all mark
+  0018T1 Complete; 0018U and every later task remain Draft, and no detailed 0018U-or-later task
+  specification exists. Final `git diff --check` passed with no output.
+- Training API remains accurate unchanged because this task adds no gradient object, autograd,
+  optimizer, session, or training behavior. The Compile API was updated only to distinguish
+  current model metadata construction from planned capture, descriptor revalidation, autograd,
+  lowering, and execution.
+- `Operation`, `OperationKind`, `OperationSignature`, `NoOperationAttrs`, `DataType`,
+  `TensorDescriptor`, `TensorProducer`, and `TensorProvenance` remain accurate unchanged: the new
+  kinds use the existing exact no-attributes/one-input/one-output structure, public construction
+  owns floating eligibility and result derivation, and provenance remains output index zero over
+  one exact input.
+- `ARCHITECTURE.md`, focused architecture documents/tests, dependencies, Gradle and Java version,
+  backend-conformance/integration tests, other modules, and review-only foundations remain
+  unchanged because this is one model-owned semantic/metadata capability with no dependency,
+  lifecycle, graph representation, compiler, backend, runtime, build, or executable-behavior
+  change. Repository-wide validation remains deferred to the recorded capability-reset checkpoint
+  after 0018V and CI.
 
 ## Implementation notes
 
-Empty until implemented.
+- Extended `UnaryElementwiseKind` and the unchanged unary helper path with exact `LOG1P`, `EXPM1`,
+  and `RSQRT` placement and public delegations.
+- Added exact `FloatingClassificationKind` semantics and one cohesive package-private helper for
+  fixed BOOL, unresolved-layout, false-gradient result construction.
+- Added focused signature, vocabulary, metadata, provenance, special-value non-inspection,
+  freshness, validation-order, helper-shape, and exact public-surface coverage.
+- Finalized current API, glossary terminology, capability status, and planning evidence without
+  changing completed predecessor history or creating the next detailed task.
 
 ## Completion summary
 
-Empty until implemented.
+- Completed changes: Added and documented first-class `RSQRT`, `LOG1P`, and `EXPM1` numeric
+  transforms plus separately typed `IS_FINITE`, `IS_NAN`, and `IS_INF` floating classifications
+  and their six public Tensor construction methods.
+- Files changed or created: Exactly five production Java files, six tests, and seven
+  documentation/planning files in the authorized 18-path scope.
+- Tests and validation: Reused the passing exact focused command and final model suite; final model
+  Javadoc, compiled metadata example, generated-page inspection, exact enum/method/helper/alias
+  surface check, 493-link/139-anchor check, formatting, exact scope/status/no-later-spec checks,
+  and `git diff --check` passed.
+- Documentation-agent review: Clean context
+  `/root/task_0018t1_implementation/task_0018t1_docs` completed the independent pass using the
+  General, API/Javadoc, Planning, and Example profiles.
+- Documentation impact: Tensor and Compile APIs, glossary, capability baseline, task, master plan,
+  and roadmap now describe the implemented surface and preserve compiler/backend/execution
+  boundaries.
+- Javadoc review: All five affected production paths were independently reviewed and finalized;
+  review-only operation, descriptor, data-type, producer, and provenance contracts remain accurate
+  unchanged for the reasons recorded above.
+- Glossary impact: Added reusable floating-classification terminology and updated current unary,
+  operation-family, provenance, and Tensor distinctions.
+- Architecture impact: None.
+- Unresolved issues: None.
+- Follow-up required: None for task 0018T1. Task 0018U and later work remain Draft without detailed
+  specifications.
+
+Status: Complete

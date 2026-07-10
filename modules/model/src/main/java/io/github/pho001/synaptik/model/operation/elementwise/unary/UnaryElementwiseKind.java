@@ -6,7 +6,7 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies thirteen backend-independent parameterless unary elementwise semantics.
+ * Identifies sixteen backend-independent parameterless unary elementwise semantics.
  *
  * <p>Each kind describes the mathematical or activation meaning applied independently to one
  * logical input. The shared signature declares one input and one output; the kind does not retain
@@ -63,6 +63,17 @@ public enum UnaryElementwiseKind implements OperationKind {
     LOG,
 
     /**
+     * Produces the natural logarithm of one plus each input value.
+     *
+     * <p>This portable mathematical request preserves signed zero, produces negative infinity at
+     * negative one, produces NaN below negative one and for NaN input, and maps positive infinity
+     * to positive infinity. It does not select an algorithm or promise correct rounding, a
+     * bitwise result, an accuracy bound, a gradient rule, an execution route, or backend
+     * availability.</p>
+     */
+    LOG1P,
+
+    /**
      * Produces the natural exponential of each input value.
      *
      * <p>This portable mathematical request does not select an algorithm or promise a bitwise
@@ -71,6 +82,16 @@ public enum UnaryElementwiseKind implements OperationKind {
      * belong to later owning contracts.</p>
      */
     EXP,
+
+    /**
+     * Produces the natural exponential of each input value minus one.
+     *
+     * <p>This portable mathematical request preserves signed zero, maps negative infinity to
+     * negative one and positive infinity to positive infinity, and produces NaN for NaN input.
+     * It does not select an algorithm or promise correct rounding, a bitwise result, an accuracy
+     * bound, a gradient rule, an execution route, or backend availability.</p>
+     */
+    EXPM1,
 
     /**
      * Produces the Gaussian error function of each input value.
@@ -89,6 +110,18 @@ public enum UnaryElementwiseKind implements OperationKind {
      * contracts define those rules.</p>
      */
     SQRT,
+
+    /**
+     * Produces the reciprocal of the principal square root of each input value.
+     *
+     * <p>This is one first-class mathematical request. Positive and negative zero map to
+     * same-signed infinity, positive infinity maps to positive zero, negative finite values and
+     * negative infinity produce NaN, and NaN produces NaN. It does not store a square-root
+     * operation followed by a reciprocal operation or promise correct rounding, a bitwise result,
+     * or an accuracy bound. Gradients, execution, and backend availability belong to later owning
+     * contracts.</p>
+     */
+    RSQRT,
 
     /**
      * Produces the greatest integer-valued result not greater than each input value.

@@ -29,10 +29,13 @@ now uses identity-bearing immutable `TensorProducer` occurrences and indexed
 `BinaryArithmeticKind` vocabulary for `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, and `POW`, plus matching public floating binary Tensor expression
 construction with local promotion, broadcasting, descriptor derivation, and ordered provenance.
-The parameterless `UnaryElementwiseKind` vocabulary is also implemented for thirteen unary
+The parameterless `UnaryElementwiseKind` vocabulary is also implemented for sixteen unary
 arithmetic, transcendental, and activation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
-provenance. Public pairwise extrema are named `minimum` and `maximum`; aggregate reductions retain
+provenance. The separate parameterless `FloatingClassificationKind` vocabulary is implemented for
+finite, NaN, and infinity classification, together with floating-only public construction that
+returns fixed non-differentiable BOOL metadata. Public pairwise extrema are named `minimum` and
+`maximum`; aggregate reductions retain
 `min` and `max`. The parameterized `ScalarElementwiseKind` vocabulary is implemented for scalar
 `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`, together with exact typed
 `ScalarValue`, `ScalarValueAttrs`, and `ClampRangeAttrs`, plus matching public floating Tensor
@@ -565,6 +568,17 @@ sentinels, and local code does not assume that different names or distinct unkno
 
 The number of storage elements advanced when one logical index advances by one position along an axis. Strides are measured in elements, not bytes. A stride of zero can represent repeated data, while canonical row-major strides describe contiguous geometry.
 
+### Floating classification
+
+An elementwise semantic request that reports which broad value class a floating input represents.
+The implemented `FloatingClassificationKind` family distinguishes finite values, NaN, and either
+infinity. Public `Tensor.isFinite`, `isNaN`, and `isInf` accept only `BFLOAT16`, `FLOAT32`, or
+`FLOAT64` and construct fixed non-differentiable BOOL result metadata with the exact input Shape.
+
+A floating classification is a graph-visible value-producing operation, not a numeric transform,
+trace diagnostic, validation warning, eager Java boolean, or storage inspection. Model
+construction records the request and provenance without calculating classification values.
+
 ### Forward graph
 
 The graph that computes outputs from user inputs in the original direction of the tensor expression. It exists before any gradient computation is added. A forward-only compile uses this computation; a backward-capable compile may expand it with a [backward graph](#backward-graph).
@@ -825,15 +839,22 @@ while separately owning local expression construction. The enum's inherited name
 rather than serialization or dispatch keys.
 
 The second production family is `UnaryElementwiseKind`, an enum containing exactly `ABS`, `NEG`,
-`RECIPROCAL`, `LOG`, `EXP`, `ERF`, `SQRT`, `FLOOR`, `CEIL`, `SIGN`, `RELU`, `SIGMOID`, and
-`TANH`. These values identify one-input elementwise mathematical or activation meanings and
-compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares one input and one
-output. `EXP` and `TANH` are portable mathematical requests without an algorithm, bitwise-result,
-approximation-bound, or backend-route promise. The enum defines no descriptor inference,
-provenance, gradient, execution, or backend support. The implemented public unary Tensor methods
-consume these values while separately owning local expression construction.
+`RECIPROCAL`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, `RSQRT`, `FLOOR`, `CEIL`, `SIGN`,
+`RELU`, `SIGMOID`, and `TANH`. These values identify one-input elementwise mathematical or
+activation meanings and compose with `NoOperationAttrs.INSTANCE`. Their shared signature declares
+one input and one output. `RSQRT`, `LOG1P`, and `EXPM1` remain first-class rather than decomposed
+transforms. No kind promises an algorithm, bitwise result, fixed accuracy bound, or backend route.
+The enum defines no descriptor inference, provenance, gradient, execution, or backend support.
+The implemented public unary Tensor methods consume these values while separately owning local
+expression construction.
 
-The third production family is `ScalarElementwiseKind`, an enum containing exactly `ADD`, `SUB`,
+The separate `FloatingClassificationKind` family contains exactly `IS_FINITE`, `IS_NAN`, and
+`IS_INF`. It uses the same parameterless one-input, one-output structural signature but remains a
+distinct family because public construction fixes the result to non-differentiable BOOL instead
+of preserving the floating input type. The enum stores no result metadata and does not inspect or
+classify values.
+
+The next production family is `ScalarElementwiseKind`, an enum containing exactly `ADD`, `SUB`,
 `MUL`, `DIV`, `MIN`, `MAX`, `POW`, and `CLAMP`. These values identify parameterized one-input
 elementwise meanings. The first seven pair with `ScalarValueAttrs`; `CLAMP` pairs with
 `ClampRangeAttrs`. The scalar values are attributes rather than additional Tensor inputs, and
@@ -1078,7 +1099,9 @@ producing a storage-free non-differentiable BOOL result. Boolean logical AND and
 retain exact ordered receiver/argument inputs with `BooleanLogicalKind`; NOT retains exactly the
 receiver as its one input. The implemented floating unary methods use the exact matching
 `UnaryElementwiseKind` and canonical no-attributes value, also with exactly the receiver as their
-one input. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and retains exact ordered inputs
+one input. Floating-classification methods instead use the exact matching
+`FloatingClassificationKind` with the same one-input parameterless provenance while constructing
+fixed BOOL metadata. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and retains exact ordered inputs
 `[condition, ifTrue, ifFalse]`, including repeated branch references. These construction paths do
 not change provenance's general role or make it graph membership. `Tensor.cast` uses
 `CastKind.CAST`, retains its exact target in `CastAttrs`, and records exactly the receiver as its
@@ -1348,7 +1371,7 @@ data types with typed main-diagonal ones and off-diagonal zeros. Eager non-empty
 continuous-uniform, bounded-integral, and Bernoulli eager initialization. Strict and cyclic
 prefix preparation exists only in test source and is not a product capability. Random Operations,
 typed access and export, and deterministic native-resource ownership remain planned. The current `add`, `sub`,
-`mul`, `div`, `min`, `max`, and tensor-valued `pow` methods create fresh storage-free binary
+`mul`, `div`, `minimum`, `maximum`, and tensor-valued `pow` methods create fresh storage-free binary
 arithmetic expression tensors from floating operands. They promote data type, broadcast shape,
 leave layout unresolved, propagate gradient eligibility as input OR, and retain exact matching
 operation semantics plus ordered provenance. The current `greaterThan`, `greaterOrEqual`,
@@ -1369,11 +1392,13 @@ all current source/target pairs and creates a fresh explicit result even for a s
 retains the exact input Shape, leaves layout unresolved, retains gradient eligibility only across
 an already-eligible floating-to-floating cast, and records typed target attributes plus exact
 one-input provenance. It does not inspect or convert values/storage, define numerical or gradient
-rules, canonicalize casts, capture a graph, or execute conversion. The current thirteen
+rules, canonicalize casts, capture a graph, or execute conversion. The current sixteen
 zero-argument unary methods also create fresh floating expression tensors. They retain the exact
 input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind
-plus exactly one input reference without domain checks or canonicalization. The current scalar
+plus exactly one input reference without domain checks or canonicalization. The three floating-
+classification methods instead return fixed non-differentiable BOOL metadata with the exact input
+Shape and one-input provenance. They do not inspect or classify stored values. The current scalar
 `add`, `sub`, `mul`, `div`, `minimum`, `maximum`, `pow`, `clamp`, `clampMin`, and `clampMax`
 methods likewise create fresh floating
 one-input expressions. They retain the exact type and Shape, preserve gradient eligibility, and
@@ -1836,7 +1861,7 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
 | `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary reduction-axis, arg-max, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
@@ -1847,8 +1872,9 @@ A kind distinguishes computations, while attributes carry parameters within a co
 signature. None of these
 values identifies where computation occurs in a graph; an implemented [node](#node) represents
 that occurrence. Binary arithmetic, binary comparison, boolean logical, conditional selection,
-unary elementwise, scalar elementwise, cast, and aggregate reduction kinds are implemented.
-Arithmetic, unary, scalar, and comparison public Tensor construction paths are also implemented,
+unary elementwise, floating-classification, scalar elementwise, cast, and aggregate reduction
+kinds are implemented. Arithmetic, unary, floating-classification, scalar, and comparison public
+Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-max aggregate Tensor construction, including masked
 sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction are also

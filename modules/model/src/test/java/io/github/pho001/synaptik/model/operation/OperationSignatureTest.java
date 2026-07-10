@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
 import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ClampRangeAttrs;
@@ -174,6 +175,7 @@ public final class OperationSignatureTest {
                 List.of(fixed(ClampRangeAttrs.class, 1)), ScalarElementwiseKind.CLAMP);
         assertFamily(List.of(fixed(NoOperationAttrs.class, 3)), WhereSelectionKind.values());
         assertFamily(List.of(noAttrsUnary), UnaryElementwiseKind.values());
+        assertFamily(List.of(noAttrsUnary), FloatingClassificationKind.values());
 
         assertFamily(List.of(fixed(IndexAxisAttrs.class, 2)), AxisGatherKind.values());
         assertFamily(
@@ -243,6 +245,11 @@ public final class OperationSignatureTest {
                         IllegalArgumentException.class,
                         () -> new Operation(
                                 ScalarElementwiseKind.MUL, NoOperationAttrs.INSTANCE)),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
+                                FloatingClassificationKind.IS_FINITE,
+                                new SelectAttrs(0, 0))),
                 () -> assertThrows(
                         IllegalArgumentException.class,
                         () -> new Operation(

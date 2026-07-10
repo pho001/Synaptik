@@ -10,10 +10,10 @@ tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager n
 continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
 source. The current concrete expression surface contains seven floating tensor-to-tensor binary
 arithmetic methods, six floating tensor-to-tensor comparison methods, three BOOL-only logical
-methods, thirteen floating unary elementwise methods, seven exact-typed plus seven exact-FLOAT64
-scalar arithmetic methods, and six range/one-bound clamp methods, plus one static conditional-
-selection method and one explicit cast method. Fifteen floating aggregate methods add full,
-one-axis, and retained-axis
+methods, sixteen floating unary elementwise methods, three floating-classification methods, seven
+exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/one-bound clamp
+methods, plus one static conditional-selection method and one explicit cast method. Fifteen
+floating aggregate methods add full, one-axis, and retained-axis
 `sum`, `mean`, `prod`, reduction `min`, and reduction `max` expression construction. Six BOOL
 aggregate methods add the same three forms for `all` and `any`, and three axis-only `argMax`
 methods add fixed INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
@@ -192,6 +192,7 @@ left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcas
 BOOL Tensor + NOT                                               = fresh shape-preserving BOOL expression Tensor
 BOOL condition + true/false floating branches                  = fresh broadcast selection Tensor
 input Tensor + unary kind                                      = fresh descriptor + provenance Tensor
+floating Tensor + classification kind                         = fresh BOOL descriptor + provenance Tensor
 input Tensor + scalar kind + matching ScalarValue attributes  = fresh descriptor + provenance Tensor
 input Tensor + target DataType                                 = fresh explicit cast Tensor
 floating Tensor + numeric aggregate kind + full/axis attributes = fresh reduced-shape Tensor
@@ -241,7 +242,8 @@ GatherNdKind + GatherNdAttrs                              = tuple-index meaning 
 AxisScatterKind + ScatterElementsAttrs                    = functional scatter-elements meaning + axis/reduction
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
-UnaryElementwiseKind                                          = thirteen parameterless unary elementwise semantics
+UnaryElementwiseKind                                          = sixteen parameterless unary elementwise semantics
+FloatingClassificationKind                                   = three parameterless floating classifications
 ScalarElementwiseKind                                         = eight parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
 ValueId + TensorDescriptor                                    = GraphValue
@@ -371,16 +373,19 @@ descriptors, layout, provenance, gradients, materialization, compiler behavior, 
 ONNX mapping, and execution remain outside these semantic values. Public `Tensor.pad` and
 `Tensor.tile` separately perform the input-dependent model validation and metadata construction
 described under [pad and tile expressions](#pad-and-tile-expressions).
-`UnaryElementwiseKind` names thirteen parameterless unary arithmetic, transcendental, and
-activation meanings. `ScalarElementwiseKind` names eight parameterized
+`UnaryElementwiseKind` names sixteen parameterless unary arithmetic, transcendental, and
+activation meanings. `FloatingClassificationKind` separately names three parameterless floating
+classifications with fixed BOOL results. `ScalarElementwiseKind` names eight parameterized
 one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
 `ClampRangeAttrs`. The public `Tensor.add`, `sub`, `mul`, `div`, `minimum`,
 `maximum`, and tensor-valued `pow` methods use the binary kinds to construct storage-free expression
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
-from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `exp`, `erf`, `sqrt`,
-`floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` methods use the unary
-kinds to create storage-free expressions from one floating input. The public scalar overloads
+from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `log1p`, `exp`,
+`expm1`, `erf`, `sqrt`, `rsqrt`, `floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` methods use
+the unary kinds to create storage-free expressions from one floating input. `Tensor.isFinite`,
+`isNaN`, and `isInf` use the classification kinds to create storage-free, non-differentiable BOOL
+expressions from one floating input. The public scalar overloads
 `Tensor.add(ScalarValue)`, `sub(ScalarValue)`, `mul(ScalarValue)`, `div(ScalarValue)`,
 `minimum(ScalarValue)`, `maximum(ScalarValue)`, and `pow(ScalarValue)` use matching scalar kinds
 and typed attributes to create one-input storage-free expressions with exact receiver/value type
@@ -2527,10 +2532,9 @@ execute either request.
 - Exhausting the factory's tensor-ID space fails after the local descriptor, attributes,
   operation, and provenance values are built.
 
-### Unary elementwise expressions
+### Unary numeric transforms and floating classifications
 
-The thirteen current zero-argument methods create one-input elementwise semantics without reading
-or calculating element values:
+Sixteen zero-argument unary methods create one-input, floating-preserving elementwise semantics:
 
 | Method | Elementwise meaning |
 |---|---|
@@ -2538,9 +2542,12 @@ or calculating element values:
 | `neg` | Additive inverse. |
 | `reciprocal` | Multiplicative reciprocal. |
 | `log` | Natural logarithm. |
+| `log1p` | Natural logarithm of one plus the input. |
 | `exp` | Portable natural exponential request. |
+| `expm1` | Natural exponential of the input minus one. |
 | `erf` | Gaussian error function. |
 | `sqrt` | Principal square root. |
+| `rsqrt` | Reciprocal of the principal square root. |
 | `floor` | Greatest integer-valued result not greater than the input. |
 | `ceil` | Least integer-valued result not less than the input. |
 | `sign` | Numeric negative, zero, or positive classification. |
@@ -2549,31 +2556,49 @@ or calculating element values:
 | `tanh` | Portable hyperbolic tangent request. |
 
 Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
-data type and immutable `Shape` reference; no promotion or shape algebra is needed for one input.
-Its layout is unresolved even when the input layout is resolved, because expression construction
-does not select storage geometry or a materialization route. The input `requiresGrad` value is
-preserved for every kind, including `floor`, `ceil`, and `sign`. That flag remains eligibility
-metadata and does not assert that a derivative or backward rule exists.
+data type, immutable `Shape` reference, and `requiresGrad` flag, while leaving layout unresolved.
+That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
-Every valid call returns a fresh Tensor with a new factory identity, no label, and no host storage.
-Its provenance contains one `Operation` with the exact matching `UnaryElementwiseKind` and
-`NoOperationAttrs.INSTANCE`, followed by exactly the receiver reference. A chain retains its
-immediately preceding result as the next input. Calls are never interned or simplified at this
-boundary, and `log`, `sqrt`, and `reciprocal` do not inspect values to enforce mathematical
-domains.
-Compiler optimization, autograd, numerical edge behavior, and backend execution remain later
-responsibilities.
+`rsqrt`, `log1p`, and `expm1` are first-class transforms, not stored compositions. Their selected
+special-value meanings are:
 
-`exp` and `tanh` are portable mathematical requests. Neither selects an algorithm nor promises a
-bitwise result, approximation bound, or backend route. Those numerical and implementation choices
-belong to later owning contracts.
+| Method | Selected special-value behavior |
+|---|---|
+| `rsqrt` | Positive/negative zero becomes same-signed infinity; positive infinity becomes positive zero; negative finite values and negative infinity produce NaN; NaN produces NaN. |
+| `log1p` | Signed zero is preserved; `-1` produces negative infinity; values below `-1`, including negative infinity, produce NaN; positive infinity remains positive infinity; NaN produces NaN. |
+| `expm1` | Signed zero is preserved; negative infinity becomes exactly `-1`; positive infinity remains positive infinity; NaN produces NaN. |
 
-#### Complete unary-expression example
+These names select portable mathematical targets. They do not promise correct rounding, a fixed
+unit-in-the-last-place (ULP) or relative-error bound, a bitwise result, an algorithm, or a backend
+route. Compiler and backend work may preserve useful near-zero accuracy for `log1p` and `expm1`
+because the model records the transforms without decomposition.
+
+Three separate floating-classification methods describe BOOL values:
+
+| Method | True exactly when |
+|---|---|
+| `isFinite` | The input is finite: normal, subnormal, positive zero, or negative zero. |
+| `isNaN` | The input is NaN, independent of sign, quiet/signaling encoding, or payload. |
+| `isInf` | The input is positive or negative infinity. |
+
+Classification accepts the same three floating input types but always produces `BOOL`, retains
+the exact input `Shape`, leaves layout unresolved, and sets `requiresGrad=false`. These methods
+are non-differentiable value classifications, not numeric unary transforms, trace diagnostics,
+eager Java booleans, or validation checks. For every represented floating value, exactly one of
+the three classifications is true when the operation is eventually evaluated.
+
+Every valid transform or classification call returns a fresh Tensor with no label or host
+storage. Its provenance contains one parameterless `Operation`, exactly the receiver reference,
+one producer output, and output index zero. Model construction reads no values and calculates no
+result.
+
+#### Complete transform-and-classification example
 
 ##### Goal and inputs
 
-Build a reciprocal expression from a storage-free `FLOAT32` tensor of shape `[2, 3]` that requests
-gradient eligibility. The example observes expression metadata, not reciprocal values.
+Build one `LOG1P` transform and one `IS_NAN` classification from a storage-free `FLOAT32` Tensor
+of Shape `[2, 3]`. The example observes metadata only; it does not claim transformed or classified
+element values.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -2585,78 +2610,83 @@ import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import java.util.Optional;
 
-public final class UnaryExpressionExample {
+public final class FloatingMetadataExample {
     public static void main(String[] args) {
         Shape shape = Shape.of(2, 3);
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
-        Tensor result = input.reciprocal();
-        TensorProvenance provenance = result.provenance().orElseThrow();
+        Tensor transformed = input.log1p();
+        Tensor classified = input.isNaN();
+        TensorProvenance transformOrigin = transformed.provenance().orElseThrow();
+        TensorProvenance classificationOrigin = classified.provenance().orElseThrow();
 
-        System.out.println("type=" + result.descriptor().dataType());
-        System.out.println("sameShape=" + (result.descriptor().shape() == shape));
-        System.out.println("layoutUnresolved=" + result.descriptor().layout().isEmpty());
-        System.out.println("requiresGrad=" + result.descriptor().requiresGrad());
-        System.out.println("unlabeled=" + result.label().isEmpty());
-        System.out.println("storageFree=" + result.hostStorage().isEmpty());
-        System.out.println("kind=" + provenance.operation().kind());
+        System.out.println("transformType=" + transformed.descriptor().dataType());
+        System.out.println("transformGrad=" + transformed.descriptor().requiresGrad());
+        System.out.println("transformKind=" + transformOrigin.operation().kind());
+        System.out.println("classificationType=" + classified.descriptor().dataType());
+        System.out.println("classificationGrad=" + classified.descriptor().requiresGrad());
+        System.out.println("classificationKind=" + classificationOrigin.operation().kind());
+        System.out.println("sameShape="
+                + (transformed.descriptor().shape() == shape
+                && classified.descriptor().shape() == shape));
         System.out.println("parameterless="
-                + (provenance.operation().attrs() == NoOperationAttrs.INSTANCE));
-        System.out.println("exactInput=" + (provenance.inputs().getFirst() == input));
-        System.out.println("outputIndex=" + provenance.outputIndex());
-        System.out.println("oneOutput=" + (provenance.producer().outputCount() == 1));
-        System.out.println("fresh=" + (result != input));
+                + (transformOrigin.operation().attrs() == NoOperationAttrs.INSTANCE
+                && classificationOrigin.operation().attrs() == NoOperationAttrs.INSTANCE));
+        System.out.println("exactInputs="
+                + (transformOrigin.inputs().getFirst() == input
+                && classificationOrigin.inputs().getFirst() == input));
+        System.out.println("oneInputEach="
+                + (transformOrigin.inputs().size() == 1
+                && classificationOrigin.inputs().size() == 1));
+        System.out.println("outputIndexes="
+                + transformOrigin.outputIndex() + "," + classificationOrigin.outputIndex());
     }
 }
 ```
 
 ##### Meaningful lines and intermediate results
 
-- `TensorFactory.create` makes a provenance-free leaf whose exact immutable shape object is
-  `shape` and whose descriptor requests gradients.
-- `input.reciprocal()` creates a new semantic expression without reading storage, dividing values,
-  or checking zero. It retains `FLOAT32`, the exact `shape` reference, and the true eligibility
-  flag.
-- The operation kind is `RECIPROCAL`, and its complete parameter value is the canonical
-  no-attributes singleton. Provenance retains `input` as its sole exact input reference and
-  selects output index zero from a one-output producer.
+- `input.log1p()` records one `UnaryElementwiseKind.LOG1P` occurrence and preserves the input's
+  floating type and gradient-eligibility request.
+- `input.isNaN()` records one distinct `FloatingClassificationKind.IS_NAN` occurrence and fixes
+  the result descriptor to non-gradient `BOOL`.
+- Both results retain the exact `shape` and input references, use canonical no-attributes state,
+  and select output index zero from a one-output producer.
 
 ##### Result and interpretation
 
 The program prints:
 
 ```text
-type=FLOAT32
+transformType=FLOAT32
+transformGrad=true
+transformKind=LOG1P
+classificationType=BOOL
+classificationGrad=false
+classificationKind=IS_NAN
 sameShape=true
-layoutUnresolved=true
-requiresGrad=true
-unlabeled=true
-storageFree=true
-kind=RECIPROCAL
 parameterless=true
-exactInput=true
-outputIndex=0
-oneOutput=true
-fresh=true
+exactInputs=true
+oneInputEach=true
+outputIndexes=0,0
 ```
 
-The output proves exact type and shape retention, unresolved layout, gradient-eligibility
-propagation, fresh identity, and one-input, output-index-zero provenance. It does not prove
-division, zero or special-value behavior, numerical accuracy, a gradient rule, graph capture,
-backend support, or execution.
+The output proves the result-type distinction, exact operation kinds, Shape and input retention,
+parameterless construction, and one-input, output-index-zero provenance. It does not prove that
+`log1p` or NaN classification ran, that numerical accuracy or a gradient rule exists, that a graph
+was captured, or that any backend supports either operation.
 
 ##### Failures and useful variations
 
-- Calling any unary elementwise method on an `INT32`, `INT64`, or `BOOL` tensor fails with
+- Calling any of these methods on an `INT32`, `INT64`, or `BOOL` Tensor fails with
   `IllegalArgumentException` before result identity allocation; no implicit cast is inserted.
-- Scalar, zero-sized, ordinary static, and dynamic shapes are accepted. A resolved input layout is
-  deliberately not copied to the result.
-- Calling `reciprocal()` on a zero-valued stored tensor still creates metadata because expression
-  construction does not inspect values or define zero handling.
-- Chaining another unary call records the first result, not the original leaf, as its exact input.
-- Exhausting the factory's tensor-ID space fails after the local descriptor, operation, and
-  provenance values are built.
+- Scalar, zero-sized, ordinary static, and dynamic Shapes are accepted. A resolved input layout is
+  deliberately not copied to either result.
+- Stored values, including signed zero, infinity, and NaN, are not inspected during construction.
+- Chaining a transform records the immediately preceding result as its exact input.
+- Exhausting the factory's Tensor-ID space fails after local descriptor and provenance values are
+  built.
 
 ### Scalar arithmetic and clamp expressions
 
@@ -5275,7 +5305,8 @@ composition while the table also lists the current production families:
 | `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
-| `UnaryElementwiseKind` | The implemented production enum for thirteen parameterless unary elementwise meanings. |
+| `UnaryElementwiseKind` | The implemented production enum for sixteen parameterless unary numeric and activation meanings. |
+| `FloatingClassificationKind` | The implemented production enum for three parameterless floating value classifications with fixed BOOL results. |
 | `ScalarElementwiseKind` | The implemented production enum for eight parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable holder for one exact typed scalar parameter. |
 | `ClampRangeAttrs` | The implemented immutable value for exact same-type numeric inclusive clamp bounds. |
@@ -6363,9 +6394,12 @@ The public enum
 | `NEG` | Additive inverse of the input value. |
 | `RECIPROCAL` | Multiplicative reciprocal of the input value. |
 | `LOG` | Natural logarithm of the input value. |
+| `LOG1P` | Natural logarithm of one plus the input value. |
 | `EXP` | Natural exponential of the input value. |
+| `EXPM1` | Natural exponential of the input value minus one. |
 | `ERF` | Gaussian error function of the input value. |
 | `SQRT` | Principal square root of the input value. |
+| `RSQRT` | Reciprocal of the principal square root of the input value. |
 | `FLOOR` | Greatest integer-valued result not greater than the input value. |
 | `CEIL` | Least integer-valued result not less than the input value. |
 | `SIGN` | Negative, zero, or positive sign classification represented numerically. |
@@ -6373,7 +6407,7 @@ The public enum
 | `SIGMOID` | Logistic sigmoid of the input value. |
 | `TANH` | Hyperbolic tangent of the input value. |
 
-All thirteen kinds have one logical input and no intrinsic parameters. Their shared signature
+All sixteen kinds have one logical input and no intrinsic parameters. Their shared signature
 declares exact `NoOperationAttrs`, one input, and one output; canonical composition remains
 explicit:
 
@@ -6384,12 +6418,29 @@ Operation exponential = new Operation(
 ```
 
 The enum does not store the input, infer a result descriptor, or create provenance. The current
-public unary Tensor methods own those expression-construction rules. `EXP` and `TANH` are portable
-mathematical requests; neither selects an algorithm nor promises a bitwise result, approximation
-bound, or backend route. Their accuracy, special-value behavior, differentiation, execution, and
-backend availability remain undefined here. Inherited enum names are diagnostic text, not
-serialization or dispatch keys, and equally named kinds from another family remain different typed
-values.
+public unary Tensor methods own those expression-construction rules. `RSQRT`, `LOG1P`, and `EXPM1`
+remain first-class operations rather than decompositions. Together with `EXP` and `TANH`, they are
+portable mathematical requests: no kind selects an algorithm, bitwise result, fixed accuracy
+bound, or backend route. The selected special-value semantics are documented in [Unary numeric
+transforms and floating classifications](#unary-numeric-transforms-and-floating-classifications).
+Inherited enum names are diagnostic text, not serialization or dispatch keys, and equally named
+kinds from another family remain different typed values.
+
+### Floating-classification semantic kinds
+
+The public enum
+`io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind`
+implements `OperationKind` with exactly `IS_FINITE`, `IS_NAN`, and `IS_INF`, in that order. Each
+kind has exact `NoOperationAttrs`, one input, and one output. The semantic family is separate from
+`UnaryElementwiseKind` because its public construction produces fixed non-differentiable BOOL
+metadata instead of preserving a floating result type.
+
+The kind values name elementwise classifications only. They do not retain an operand descriptor,
+infer BOOL metadata, inspect a NaN encoding or other stored value, create provenance, define
+gradients, execute classification, or report backend support. The public Tensor methods own
+floating-only input validation, exact Shape retention, unresolved layout, false gradient
+eligibility, and one-input provenance. “Classification” here is graph-visible result semantics;
+it is unrelated to tracing diagnostics.
 
 ### Scalar arithmetic and clamp semantic kinds
 
@@ -6491,14 +6542,14 @@ The example demonstrates the implemented descriptor's construction, ownership, e
 compatibility, and record value semantics for an attributes-bearing test value. It does not create
 a graph node, infer a result shape or data type, report backend support,
 select a kernel, or execute computation. Production `BinaryArithmeticKind`,
-`BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, and `UnaryElementwiseKind`
-provide parameterless families, and
+`BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`, and
+`FloatingClassificationKind` provide parameterless families, and
 `ScalarElementwiseKind` provides a parameterized family with `ScalarValueAttrs` and
 `ClampRangeAttrs`; `CastKind` provides the parameterized cast family with `CastAttrs`. Additional
 kind families, compiler behavior, and executable support remain later work in their owning layers.
-Binary arithmetic, binary comparison, unary elementwise, and
-scalar elementwise semantics have current public Tensor expression methods, as do boolean logical
-and conditional-selection semantics. Cast semantics also have current public Tensor expression
+Binary arithmetic, binary comparison, unary elementwise, floating-classification, and scalar
+elementwise semantics have current public Tensor expression methods, as do boolean logical and
+conditional-selection semantics. Cast semantics also have current public Tensor expression
 construction.
 
 ## Graph values and compiled nodes
@@ -6680,7 +6731,8 @@ The following contracts appear in the architecture and planning documents but ar
 - random Operations and typed tensor access or export;
 - native, mapped, runtime, and backend allocation with deterministic resource ownership;
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary elementwise, scalar elementwise, the current value- and
+  selection, cast, unary elementwise, floating-classification, scalar elementwise, the current
+  value- and
   index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, repeated-select unstack, scalar select, Gather, Gather Elements, Gather-ND Tensor
@@ -6688,7 +6740,8 @@ The following contracts appear in the architecture and planning documents but ar
   fold2d requests; plus gradient
   and trainable state and publication behavior;
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
-  logical, unary elementwise, scalar elementwise, conditional selection, cast, aggregate
+  logical, unary elementwise, floating-classification, scalar elementwise, conditional selection,
+  cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
   axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
@@ -6699,7 +6752,8 @@ The following contracts appear in the architecture and planning documents but ar
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
-`ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`, `CastKind`, `CastAttrs`,
+`FloatingClassificationKind`, `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`,
+`CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `ArgMaxTiePolicy`, `ArgMaxAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
@@ -7036,15 +7090,20 @@ remain planned.
   exhaustion follows local descriptor and provenance construction. The method does not inspect
   values, choose or evaluate a branch, define gradient routing, capture a graph, or provide ONNX
   or backend execution.
-- `Tensor.abs`, `neg`, `reciprocal`, `log`, `exp`, `erf`, `sqrt`, `floor`, `ceil`, `sign`, `relu`,
-  `sigmoid`, and `tanh` accept only floating receiver data types and retain
+- `Tensor.abs`, `neg`, `reciprocal`, `log`, `log1p`, `exp`, `expm1`, `erf`, `sqrt`, `rsqrt`,
+  `floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` accept only floating receiver data types and retain
   the exact data type, shape reference, and gradient-eligibility flag. Each successful call returns
   a fresh unlabeled storage-free Tensor with unresolved layout and exact matching parameterless
   operation plus one-input provenance. Type failures precede ID allocation; identity exhaustion
   follows local descriptor and provenance construction. The methods do not inspect mathematical
   domains, simplify chains, define numerical accuracy, capture graphs, or provide gradient or
-  backend behavior. `exp` and `tanh` select no algorithm, bitwise result, approximation bound, or
-  backend route.
+  backend behavior. `rsqrt`, `log1p`, and `expm1` are first-class transforms; together with `exp`
+  and `tanh`, they select no algorithm, bitwise result, fixed accuracy bound, or backend route.
+- `Tensor.isFinite`, `isNaN`, and `isInf` accept only floating receiver data types and construct
+  fixed BOOL results with the exact input Shape, unresolved layout, false gradient eligibility,
+  and exact matching one-input provenance. They record future value classifications without
+  inspecting storage, eagerly producing booleans, defining gradients, capturing a graph, or
+  executing work.
 - The `ScalarValue` overloads of `Tensor.mul`, `pow`, `clamp`, `clampMin`, and `clampMax` accept
   only floating receivers and require exact receiver/value data-type equality. Their `double`
   overloads adapt only to exact FLOAT64. All forms preserve the input type, shape reference, and

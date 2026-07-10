@@ -149,7 +149,7 @@ provisional exact typed scalar vocabulary unchanged. Completed task
 `ADD`, `SUB`, `MUL`, `DIV`, `MIN`, `MAX`, and `POW` Tensor/binary and Tensor/scalar vocabulary,
 retains `CLAMP` as the only distinct range kind, and removes `CLAMP_MIN`/`CLAMP_MAX` in favor of
 public conveniences over scalar `MAX`/`MIN`. Pairwise public extrema use `minimum`/`maximum` while
-aggregate reductions keep `min`/`max`. Ready task
+aggregate reductions keep `min`/`max`. Completed task
 [0018T1](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) separately owns
 floating-preserving `rsqrt`, `log1p`, and `expm1` plus fixed-BOOL floating classifications.
 
@@ -170,8 +170,8 @@ clamp methods remain conveniences that create only scalar `MAX` or `MIN` produce
 
 ### Unary numeric completion and floating classification
 
-Task 0018T1 selects `RSQRT`, `LOG1P`, and `EXPM1` as first-class parameterless unary functions
-rather than public compositions. Keeping the original semantic request lets later compiler and
+Completed task 0018T1 selects `RSQRT`, `LOG1P`, and `EXPM1` as first-class parameterless unary
+functions rather than public compositions. Keeping the original semantic request lets later compiler and
 backend work preserve accuracy near zero for `log1p`/`expm1` and choose an appropriate reciprocal-
 square-root implementation without exposing a backend route in model. These transforms preserve
 the floating input type, Shape, and gradient-eligibility request.
@@ -187,6 +187,12 @@ The numerical function names identify portable mathematical targets and exact sp
 classes, not a machine instruction, bitwise result, restored fast variant, or fixed model-level
 ULP bound. Backend conformance must establish per-data-type accuracy tolerances before execution
 support is claimed.
+
+The selected special-value classes preserve signed zero for `log1p` and `expm1`; map the two
+signed zeros to same-signed infinities for `rsqrt`; map positive infinity to positive zero for
+`rsqrt`; map `-1` to negative infinity for `log1p`; map negative infinity to exactly `-1` for
+`expm1`; and produce NaN for the documented out-of-domain or NaN cases. This capability records
+those meanings without evaluating them or fixing rounding, payload, algorithm, or tolerance.
 
 ## Indexing taxonomy
 
@@ -234,7 +240,7 @@ multi-output operation.
 Foundation hardening above precedes these operations.
 
 - exact scalar add, subtract, multiply, divide, minimum, and maximum;
-- `reciprocal`, `rsqrt`, `log1p`, `expm1`, and diagnostic `isFinite`, `isNaN`, and `isInf`;
+- `reciprocal`, `rsqrt`, `log1p`, `expm1`, and classifications `isFinite`, `isNaN`, and `isInf`;
 - signed integral add, subtract, multiply, minimum, maximum, comparisons, and reductions where an
   accumulation and overflow policy has been selected;
 - `argMin` matching the explicit tie-policy structure of `argMax`;

@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -30,46 +31,35 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 
-class TensorUnaryElementwiseTest {
-    private static final List<UnaryCall> UNARY_CALLS = List.of(
-            new UnaryCall("abs", UnaryElementwiseKind.ABS, Tensor::abs),
-            new UnaryCall("neg", UnaryElementwiseKind.NEG, Tensor::neg),
-            new UnaryCall("reciprocal", UnaryElementwiseKind.RECIPROCAL, Tensor::reciprocal),
-            new UnaryCall("log", UnaryElementwiseKind.LOG, Tensor::log),
-            new UnaryCall("log1p", UnaryElementwiseKind.LOG1P, Tensor::log1p),
-            new UnaryCall("exp", UnaryElementwiseKind.EXP, Tensor::exp),
-            new UnaryCall("expm1", UnaryElementwiseKind.EXPM1, Tensor::expm1),
-            new UnaryCall("erf", UnaryElementwiseKind.ERF, Tensor::erf),
-            new UnaryCall("sqrt", UnaryElementwiseKind.SQRT, Tensor::sqrt),
-            new UnaryCall("rsqrt", UnaryElementwiseKind.RSQRT, Tensor::rsqrt),
-            new UnaryCall("floor", UnaryElementwiseKind.FLOOR, Tensor::floor),
-            new UnaryCall("ceil", UnaryElementwiseKind.CEIL, Tensor::ceil),
-            new UnaryCall("sign", UnaryElementwiseKind.SIGN, Tensor::sign),
-            new UnaryCall("relu", UnaryElementwiseKind.RELU, Tensor::relu),
-            new UnaryCall("sigmoid", UnaryElementwiseKind.SIGMOID, Tensor::sigmoid),
-            new UnaryCall("tanh", UnaryElementwiseKind.TANH, Tensor::tanh));
+class TensorFloatingClassificationTest {
+    private static final List<ClassificationCall> CLASSIFICATION_CALLS = List.of(
+            new ClassificationCall(
+                    "isFinite", FloatingClassificationKind.IS_FINITE, Tensor::isFinite),
+            new ClassificationCall("isNaN", FloatingClassificationKind.IS_NAN, Tensor::isNaN),
+            new ClassificationCall("isInf", FloatingClassificationKind.IS_INF, Tensor::isInf));
 
     @Test
     void helperAndTensorMethodsHaveExactlyTheRequiredShape() throws ReflectiveOperationException {
-        int classModifiers = TensorUnaryExpressions.class.getModifiers();
-        var constructors = TensorUnaryExpressions.class.getDeclaredConstructors();
-        var methods = TensorUnaryExpressions.class.getDeclaredMethods();
+        int classModifiers = TensorFloatingClassifications.class.getModifiers();
+        var constructors = TensorFloatingClassifications.class.getDeclaredConstructors();
+        var methods = TensorFloatingClassifications.class.getDeclaredMethods();
 
         assertAll(
                 () -> assertTrue(Modifier.isFinal(classModifiers)),
                 () -> assertFalse(Modifier.isPublic(classModifiers)),
                 () -> assertFalse(Modifier.isProtected(classModifiers)),
-                () -> assertFalse(TensorUnaryExpressions.class.isRecord()),
-                () -> assertEquals(Set.of(), Set.of(TensorUnaryExpressions.class.getInterfaces())),
-                () -> assertEquals(0, TensorUnaryExpressions.class.getDeclaredFields().length),
-                () -> assertEquals(0, TensorUnaryExpressions.class.getDeclaredClasses().length),
+                () -> assertFalse(TensorFloatingClassifications.class.isRecord()),
+                () -> assertEquals(
+                        Set.of(), Set.of(TensorFloatingClassifications.class.getInterfaces())),
+                () -> assertEquals(0, TensorFloatingClassifications.class.getDeclaredFields().length),
+                () -> assertEquals(0, TensorFloatingClassifications.class.getDeclaredClasses().length),
                 () -> assertEquals(1, constructors.length),
                 () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(0, constructors[0].getParameterCount()),
                 () -> assertEquals(1, methods.length));
 
-        Method apply = TensorUnaryExpressions.class.getDeclaredMethod(
-                "apply", Tensor.class, UnaryElementwiseKind.class);
+        Method apply = TensorFloatingClassifications.class.getDeclaredMethod(
+                "apply", Tensor.class, FloatingClassificationKind.class);
         assertAll(
                 () -> assertEquals(apply, methods[0]),
                 () -> assertEquals(Tensor.class, apply.getReturnType()),
@@ -79,7 +69,7 @@ class TensorUnaryElementwiseTest {
                 () -> assertFalse(Modifier.isPrivate(apply.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(apply.getModifiers())));
 
-        for (UnaryCall call : UNARY_CALLS) {
+        for (ClassificationCall call : CLASSIFICATION_CALLS) {
             Method method = Tensor.class.getDeclaredMethod(call.methodName());
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -89,24 +79,19 @@ class TensorUnaryElementwiseTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
 
-        for (String removed : List.of(
-                "inv",
-                "inverseSqrt",
-                "logOnePlus",
-                "expMinusOne",
-                "fastExp",
-                "fastTanh")) {
+        for (String alias : List.of(
+                "isInfinite", "isNotFinite", "isNormal", "isSubnormal", "isZero")) {
             assertThrows(
                     NoSuchMethodException.class,
-                    () -> Tensor.class.getDeclaredMethod(removed));
+                    () -> Tensor.class.getDeclaredMethod(alias));
         }
     }
 
     @Test
     void mapsEveryPublicMethodToItsExactKindAndOneInputProvenance() {
-        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3), true);
 
-        for (UnaryCall call : UNARY_CALLS) {
+        for (ClassificationCall call : CLASSIFICATION_CALLS) {
             Tensor result = call.apply(input);
             TensorProvenance provenance = result.provenance().orElseThrow();
             Operation operation = provenance.operation();
@@ -125,7 +110,7 @@ class TensorUnaryElementwiseTest {
     }
 
     @Test
-    void acceptsEveryFloatingTypeAndRetainsExactShapeReferenceAcrossShapeStates() {
+    void acceptsEveryFloatingTypeAndReturnsFixedBoolMetadataAcrossShapeStates() {
         Shape scalar = Shape.scalar();
         Shape empty = Shape.of(2, 0, 4);
         Shape ordinary = Shape.of(2, 3);
@@ -136,25 +121,24 @@ class TensorUnaryElementwiseTest {
                 DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             for (Shape shape : List.of(scalar, empty, ordinary, dynamic)) {
                 Tensor input = tensor(dataType, shape, true);
-
-                for (UnaryCall call : UNARY_CALLS) {
+                for (ClassificationCall call : CLASSIFICATION_CALLS) {
                     Tensor result = call.apply(input);
                     assertAll(
-                            () -> assertSame(dataType, result.descriptor().dataType()),
+                            () -> assertSame(DataType.BOOL, result.descriptor().dataType()),
                             () -> assertSame(shape, result.descriptor().shape()),
                             () -> assertTrue(result.descriptor().layout().isEmpty()),
-                            () -> assertTrue(result.descriptor().requiresGrad()));
+                            () -> assertFalse(result.descriptor().requiresGrad()));
                 }
             }
         }
 
         TensorDescriptor resolvedDescriptor = new TensorDescriptor(
-                DataType.FLOAT32,
+                DataType.FLOAT64,
                 ordinary,
                 Optional.of(LayoutDescriptor.contiguous(ordinary)),
-                false);
+                true);
         Tensor resolvedInput = TensorFactory.create(resolvedDescriptor);
-        Tensor resolvedResult = resolvedInput.abs();
+        Tensor resolvedResult = resolvedInput.isFinite();
         assertAll(
                 () -> assertSame(ordinary, resolvedResult.descriptor().shape()),
                 () -> assertTrue(resolvedResult.descriptor().layout().isEmpty()),
@@ -162,49 +146,30 @@ class TensorUnaryElementwiseTest {
     }
 
     @Test
-    void propagatesGradientEligibilityUnchangedForEveryKind() {
-        for (boolean requiresGrad : List.of(false, true)) {
-            Tensor input = tensor(DataType.FLOAT32, Shape.of(2), requiresGrad);
-            for (UnaryCall call : UNARY_CALLS) {
-                assertEquals(requiresGrad, call.apply(input).descriptor().requiresGrad());
-            }
-        }
-
-        Tensor input = tensor(DataType.FLOAT32, Shape.scalar(), true);
-        assertAll(
-                () -> assertTrue(input.floor().descriptor().requiresGrad()),
-                () -> assertTrue(input.ceil().descriptor().requiresGrad()),
-                () -> assertTrue(input.sign().descriptor().requiresGrad()));
-    }
-
-    @Test
     void everyValidCallIsFreshUnlabeledStorageFreeAndNeverCanonicalized() {
-        Tensor input = TensorFactory.scalar(1.0f, Optional.of("input"), true);
-        Tensor firstNegation = input.neg();
-        Tensor secondNegation = input.neg();
-        Tensor doubleNegation = firstNegation.neg();
-        Tensor doubleReciprocal = input.reciprocal().reciprocal();
-        Tensor exponential = input.exp();
-        Tensor hyperbolicTangent = input.tanh();
+        Tensor input = TensorFactory.scalar(Double.NaN, Optional.of("input"), true);
+        Tensor first = input.isNaN();
+        Tensor second = input.isNaN();
+        Tensor finite = input.isFinite();
+        Tensor infinite = input.isInf();
 
         assertAll(
-                () -> assertNotSame(input, firstNegation),
-                () -> assertNotSame(firstNegation, secondNegation),
-                () -> assertNotEquals(firstNegation.id(), secondNegation.id()),
+                () -> assertNotSame(input, first),
+                () -> assertNotSame(first, second),
+                () -> assertNotEquals(first.id(), second.id()),
                 () -> assertNotSame(
-                        firstNegation.provenance().orElseThrow().producer(),
-                        secondNegation.provenance().orElseThrow().producer()),
-                () -> assertNotSame(input, doubleNegation),
-                () -> assertNotSame(input, doubleReciprocal),
-                () -> assertSame(firstNegation,
-                        doubleNegation.provenance().orElseThrow().inputs().getFirst()),
-                () -> assertSame(UnaryElementwiseKind.EXP,
-                        exponential.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.TANH,
-                        hyperbolicTangent.provenance().orElseThrow().operation().kind()),
-                () -> assertTrue(firstNegation.label().isEmpty()),
-                () -> assertTrue(firstNegation.hostStorage().isEmpty()),
-                () -> assertTrue(firstNegation.descriptor().layout().isEmpty()));
+                        first.provenance().orElseThrow().producer(),
+                        second.provenance().orElseThrow().producer()),
+                () -> assertNotSame(
+                        first.provenance().orElseThrow().producer(),
+                        finite.provenance().orElseThrow().producer()),
+                () -> assertNotSame(
+                        finite.provenance().orElseThrow().producer(),
+                        infinite.provenance().orElseThrow().producer()),
+                () -> assertTrue(first.label().isEmpty()),
+                () -> assertTrue(first.hostStorage().isEmpty()),
+                () -> assertTrue(first.descriptor().layout().isEmpty()),
+                () -> assertFalse(first.descriptor().requiresGrad()));
     }
 
     @Test
@@ -215,19 +180,21 @@ class TensorUnaryElementwiseTest {
         long beforeFailures = nextId.get();
 
         NullPointerException nullInput = assertThrows(
-                NullPointerException.class, () -> TensorUnaryExpressions.apply(null, null));
+                NullPointerException.class,
+                () -> TensorFloatingClassifications.apply(null, null));
         NullPointerException nullKind = assertThrows(
                 NullPointerException.class,
-                () -> TensorUnaryExpressions.apply(floating, null));
+                () -> TensorFloatingClassifications.apply(floating, null));
 
         assertAll(
                 () -> assertEquals("input", nullInput.getMessage()),
-                () -> assertEquals("kind", nullKind.getMessage()));
+                () -> assertEquals("kind", nullKind.getMessage()),
+                () -> assertEquals(beforeFailures, nextId.get()));
 
         for (DataType dataType : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
             Tensor invalid = tensor(dataType, Shape.scalar(), false);
             long beforeTypeFailure = nextId.get();
-            for (UnaryCall call : UNARY_CALLS) {
+            for (ClassificationCall call : CLASSIFICATION_CALLS) {
                 IllegalArgumentException failure = assertThrows(
                         IllegalArgumentException.class, () -> call.apply(invalid));
                 assertEquals(
@@ -240,42 +207,9 @@ class TensorUnaryElementwiseTest {
     }
 
     @Test
-    void doesNotInspectDomainsOrStoredValues() {
-        Tensor negative = TensorFactory.scalar(-1.0f, Optional.of("negative"), false);
-        Tensor zero = TensorFactory.scalar(0.0f, Optional.of("zero"), false);
-
-        Tensor logarithm = negative.log();
-        Tensor logOnePlus = negative.log1p();
-        Tensor squareRoot = negative.sqrt();
-        Tensor reciprocalSquareRoot = negative.rsqrt();
-        Tensor reciprocal = zero.reciprocal();
-        Tensor exponentialMinusOne = zero.expm1();
-
-        assertAll(
-                () -> assertSame(UnaryElementwiseKind.LOG,
-                        logarithm.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.LOG1P,
-                        logOnePlus.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.SQRT,
-                        squareRoot.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.RSQRT,
-                        reciprocalSquareRoot.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.RECIPROCAL,
-                        reciprocal.provenance().orElseThrow().operation().kind()),
-                () -> assertSame(UnaryElementwiseKind.EXPM1,
-                        exponentialMinusOne.provenance().orElseThrow().operation().kind()),
-                () -> assertTrue(logarithm.hostStorage().isEmpty()),
-                () -> assertTrue(logOnePlus.hostStorage().isEmpty()),
-                () -> assertTrue(squareRoot.hostStorage().isEmpty()),
-                () -> assertTrue(reciprocalSquareRoot.hostStorage().isEmpty()),
-                () -> assertTrue(reciprocal.hostStorage().isEmpty()),
-                () -> assertTrue(exponentialMinusOne.hostStorage().isEmpty()));
-    }
-
-    @Test
-    void preservesInputMetadataProvenanceStorageAssociationAndContents() {
-        float[] values = {-1.0f, 0.0f, 2.0f};
-        Shape shape = Shape.of(3);
+    void doesNotInspectNegativeZeroInfinityOrNanStoredValues() {
+        float[] values = {-1.0f, -0.0f, Float.POSITIVE_INFINITY, Float.NaN};
+        Shape shape = Shape.of(values.length);
         TensorDescriptor descriptor = new TensorDescriptor(
                 DataType.FLOAT32,
                 shape,
@@ -283,26 +217,52 @@ class TensorUnaryElementwiseTest {
                 true);
         HostTensorStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
-        Tensor leaf = TensorFactory.create(
-                descriptor, Optional.of("leaf"), Optional.of(storage));
-        Operation inputOperation =
-                new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE);
+        Tensor input = TensorFactory.create(
+                descriptor, Optional.of("special-values"), Optional.of(storage));
+
+        for (ClassificationCall call : CLASSIFICATION_CALLS) {
+            Tensor result = call.apply(input);
+            assertAll(
+                    () -> assertTrue(result.hostStorage().isEmpty()),
+                    () -> assertSame(input, result.provenance().orElseThrow().inputs().getFirst()),
+                    () -> assertSame(DataType.BOOL, result.descriptor().dataType()));
+        }
+
+        assertAll(
+                () -> assertSame(storage, input.hostStorage().orElseThrow()),
+                () -> assertArrayEquals(
+                        new float[] {-1.0f, -0.0f, Float.POSITIVE_INFINITY, Float.NaN},
+                        values));
+    }
+
+    @Test
+    void preservesAlreadyDerivedInputMetadataProvenanceAndStorageAssociation() {
+        Shape shape = Shape.of(2);
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.FLOAT32,
+                shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)),
+                true);
+        Tensor leaf = TensorFactory.create(descriptor);
         Tensor input = TensorFactory.createDerived(
-                descriptor, Optional.of("derived"), inputOperation, List.of(leaf));
+                descriptor,
+                Optional.of("derived"),
+                new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE),
+                List.of(leaf));
+        HostTensorStorage storage = new MemorySegmentStorage(
+                DataType.FLOAT32, 2, MemorySegment.ofArray(new float[] {1.0f, 2.0f}));
         TensorProvenance inputProvenance = input.provenance().orElseThrow();
         input.replaceHostStorage(storage);
 
-        Tensor result = input.sqrt();
+        Tensor result = input.isFinite();
 
         assertAll(
                 () -> assertSame(descriptor, input.descriptor()),
-                () -> assertSame(shape, input.descriptor().shape()),
-                () -> assertEquals(Optional.of("derived"), input.label()),
                 () -> assertSame(inputProvenance, input.provenance().orElseThrow()),
                 () -> assertSame(storage, input.hostStorage().orElseThrow()),
                 () -> assertTrue(result.hostStorage().isEmpty()),
                 () -> assertSame(input, result.provenance().orElseThrow().inputs().getFirst()),
-                () -> assertArrayEquals(new float[] {-1.0f, 0.0f, 2.0f}, values));
+                () -> assertFalse(result.descriptor().requiresGrad()));
     }
 
     private static Tensor tensor(DataType dataType, Shape shape, boolean requiresGrad) {
@@ -316,9 +276,9 @@ class TensorUnaryElementwiseTest {
         return (AtomicLong) field.get(null);
     }
 
-    private record UnaryCall(
+    private record ClassificationCall(
             String methodName,
-            UnaryElementwiseKind kind,
+            FloatingClassificationKind kind,
             Function<Tensor, Tensor> function) {
         private Tensor apply(Tensor input) {
             return function.apply(input);

@@ -106,16 +106,24 @@ The latest completed implementation frontier now also includes:
 Task 0018P completed one atomic migration to the exact thirteen-kind unary vocabulary with
 `RECIPROCAL`/`reciprocal`, no `INV` or fast variants, portable `EXP`/`TANH` meanings, and no
 aliases. It preserves typed scalar semantics. Completed task 0018T owns complete scalar arithmetic
-normalization. Ready task 0018T1 separately owns floating-preserving `rsqrt`, `log1p`, and
+normalization. Completed task 0018T1 separately owns floating-preserving `rsqrt`, `log1p`, and
 `expm1` plus fixed-BOOL floating classifications.
 
 Tasks [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) and
 [0018R](modules/model/tasks/0018r-slice-and-window-public-contract-cleanup.md) are complete. Task
 [0018S](modules/model/tasks/0018s-tensor-factory-surface-cleanup.md) is also complete. Task
 [0018T](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) is Complete. Task
-[0018T1](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) is Ready as the
-current implementation frontier. Task 0018U and every later task remain Draft without a detailed
+[0018T1](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) is Complete.
+Task 0018U is the next Draft frontier, and it and every later task remain without a detailed
 specification.
+
+Task 0018T1 added first-class `rsqrt`, `log1p`, and `expm1` metadata plus separately typed
+`isFinite`, `isNaN`, and `isInf` BOOL classifications. Its implementation context passed the
+exact focused command and final model suite. Independent documentation review finalized the five
+affected production Javadocs and seven documentation/planning files after model Javadoc, the
+runnable transform/classification metadata example, generated-page and exact-surface checks,
+493 local links including 139 anchors, exact 18-path/status checks, formatting, and
+`git diff --check` passed.
 
 Task 0018S narrowed TensorFactory to construction, import, constants, and integer ranges; made
 stateless `TensorRandoms` the sole public explicit-source random owner; and moved prefix fixture
@@ -151,16 +159,16 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018T are complete. Task 0018T1 is Ready with the only next detailed specification; task
-0018U and later rows remain Draft without detailed specifications.
+through 0018T and task 0018T1 are complete; task 0018U and later rows remain Draft without
+detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
 composition, and unfold/fold contracts can be implemented and validated independently. Tasks
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
-expressions. Tasks 0018A through 0018J and tasks 0018K through 0018T are complete. Task 0018T1 is
-Ready; task 0018U and later tasks remain Draft.
+expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
+task 0018U and later tasks remain Draft.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -597,7 +605,7 @@ authorized Compile API status correction.
 | 87 | [0018R Slice and window public-contract cleanup](modules/model/tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete |
 | 88 | [0018S Tensor factory surface cleanup](modules/model/tasks/0018s-tensor-factory-surface-cleanup.md) | Complete |
 | 89 | [0018T Scalar arithmetic family normalization](modules/model/tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete |
-| 90 | [0018T1 Unary numeric gaps and floating diagnostics](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Ready |
+| 90 | [0018T1 Unary numeric gaps and floating diagnostics](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete |
 | 91 | 0018U Integral arithmetic and comparison domains | Draft |
 | 92 | 0018V Multi-axis and statistical reductions | Draft |
 | 93 | 0019 Linear algebra and attention operations | Draft |
@@ -657,8 +665,8 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018T are complete; 0018T1 is Ready with the only next detailed
-specification, while 0018U and every later task remain Draft without a detailed specification.
+before 0019. Tasks 0018K through 0018T and task 0018T1 are complete, while 0018U and every later
+task remain Draft without a detailed specification.
 Completed task 0016E adds fixed-INT64,
 one-axis arg-max expression metadata without changing the ordinary reduction helper or adding
 value comparison, empty-axis policy, or execution.
