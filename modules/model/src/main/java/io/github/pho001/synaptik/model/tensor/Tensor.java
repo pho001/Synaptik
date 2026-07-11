@@ -127,7 +127,7 @@ import java.util.Optional;
  * Scalar ADD, SUB, MUL, MIN, and MAX plus the one-bound clamp conveniences accept one floating or
  * signed-integral input; scalar DIV, POW, and first-class range CLAMP remain floating-only.
  * Scalar methods retain exact matching typed values in attributes, so they do not promote, and
- * their {@code double} conveniences mean exact FLOAT64. The sixteen parameterless unary methods
+ * their {@code double} conveniences mean exact FLOAT64. The nineteen parameterless unary methods
  * remain floating-only. The three floating-classification methods also accept one floating input,
  * but produce
  * fixed non-differentiable {@code BOOL} descriptors with the exact input shape and unresolved
@@ -1471,6 +1471,70 @@ public final class Tensor {
      */
     public Tensor tanh() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.TANH);
+    }
+
+    /**
+     * Builds an elementwise exact Gaussian error linear unit (GELU) expression from this Tensor.
+     *
+     * <p>The selected mathematical target is {@code x * Phi(x)}, equivalently
+     * {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its continuous extension maps negative infinity
+     * to negative zero, preserves signed zero, maps positive infinity to positive infinity, and
+     * produces NaN for NaN input. The input must be floating. The fresh result retains the exact
+     * data type and Shape reference, has unresolved layout and unchanged gradient eligibility, no
+     * label or storage, and provenance containing {@link UnaryElementwiseKind#GELU},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Construction does not inspect
+     * values, compose primitive operations, choose an evaluation algorithm, define a gradient,
+     * capture a graph, or promise execution or backend support.</p>
+     *
+     * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor gelu() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.GELU);
+    }
+
+    /**
+     * Builds an elementwise fixed hyperbolic-tangent GELU approximation from this Tensor.
+     *
+     * <p>The selected mathematical target is
+     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. Its continuous extension
+     * maps negative infinity to negative zero, preserves signed zero, maps positive infinity to
+     * positive infinity, and produces NaN for NaN input. The input must be floating. The fresh
+     * result retains the exact data type and Shape reference, has unresolved layout and unchanged
+     * gradient eligibility, no label or storage, and provenance containing {@link
+     * UnaryElementwiseKind#GELU_TANH_APPROXIMATION}, {@code NoOperationAttrs.INSTANCE}, and exactly
+     * this input. The fixed target is not permission to select another approximation.
+     * Construction does not inspect values, compose primitive operations, choose an evaluation
+     * algorithm, define a gradient, capture a graph, or promise execution or backend support.</p>
+     *
+     * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor geluTanhApproximation() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.GELU_TANH_APPROXIMATION);
+    }
+
+    /**
+     * Builds an elementwise sigmoid linear unit (SiLU) expression from this Tensor.
+     *
+     * <p>The selected mathematical target is {@code x * sigmoid(x)}, equivalently
+     * {@code x / (1 + exp(-x))}. Its continuous extension maps negative infinity to negative
+     * zero, preserves signed zero, maps positive infinity to positive infinity, and produces NaN
+     * for NaN input. The input must be floating. The fresh result retains the exact data type and
+     * Shape reference, has unresolved layout and unchanged gradient eligibility, no label or
+     * storage, and provenance containing {@link UnaryElementwiseKind#SILU},
+     * {@code NoOperationAttrs.INSTANCE}, and exactly this input. Construction does not inspect
+     * values, compose primitive operations, add an alias, choose an evaluation algorithm, define
+     * a gradient, capture a graph, or promise execution or backend support.</p>
+     *
+     * @return a non-null fresh derived Tensor with preserved type, Shape, and gradient eligibility
+     * @throws IllegalArgumentException if this Tensor's data type is not floating
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor silu() {
+        return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SILU);
     }
 
     /**

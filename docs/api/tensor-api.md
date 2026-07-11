@@ -11,7 +11,7 @@ continuous-uniform, bounded-integral, and Bernoulli initialization from an expli
 source. The current concrete expression surface contains seven tensor-to-tensor binary arithmetic
 methods, of which ADD, SUB, MUL, MIN, and MAX also accept signed integral operands; six floating
 or signed-integral tensor-to-tensor comparison methods; three BOOL-only logical
-methods, sixteen floating unary elementwise methods, three floating-classification methods, seven
+methods, nineteen floating unary elementwise methods, three floating-classification methods, seven
 exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method. Fifteen
 numeric aggregate methods add full, one-axis, and retained-axis `sum`, `mean`, `prod`, reduction
@@ -247,7 +247,7 @@ GatherNdKind + GatherNdAttrs                              = tuple-index meaning 
 AxisScatterKind + ScatterElementsAttrs                    = functional scatter-elements meaning + axis/reduction
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
 WindowTransformKind + window attributes                      = unfold/fold meaning + normalized geometry
-UnaryElementwiseKind                                          = sixteen parameterless unary elementwise semantics
+UnaryElementwiseKind                                          = nineteen parameterless unary elementwise semantics
 FloatingClassificationKind                                   = three parameterless floating classifications
 ScalarElementwiseKind                                         = eight parameterized one-input scalar semantics
 ScalarValueAttrs / ClampRangeAttrs                            = exact scalar parameters or ordered clamp bounds
@@ -383,7 +383,7 @@ descriptors, layout, provenance, gradients, materialization, compiler behavior, 
 ONNX mapping, and execution remain outside these semantic values. Public `Tensor.pad` and
 `Tensor.tile` separately perform the input-dependent model validation and metadata construction
 described under [pad and tile expressions](#pad-and-tile-expressions).
-`UnaryElementwiseKind` names sixteen parameterless unary arithmetic, transcendental, and
+`UnaryElementwiseKind` names nineteen parameterless unary arithmetic, transcendental, and
 activation meanings. `FloatingClassificationKind` separately names three parameterless floating
 classifications with fixed BOOL results. `ScalarElementwiseKind` names eight parameterized
 one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
@@ -392,8 +392,9 @@ one-input meanings, with exact typed parameters carried by `ScalarValueAttrs` or
 tensors. The public `Tensor.greaterThan`, `greaterOrEqual`, `lessThan`, `lessOrEqual`, `equalTo`,
 and `notEqualTo` methods use the comparison kinds to construct storage-free `BOOL` expressions
 from ordered floating inputs. The public `Tensor.abs`, `neg`, `reciprocal`, `log`, `log1p`, `exp`,
-`expm1`, `erf`, `sqrt`, `rsqrt`, `floor`, `ceil`, `sign`, `relu`, `sigmoid`, and `tanh` methods use
-the unary kinds to create storage-free expressions from one floating input. `Tensor.isFinite`,
+`expm1`, `erf`, `sqrt`, `rsqrt`, `floor`, `ceil`, `sign`, `relu`, `sigmoid`, `tanh`, `gelu`,
+`geluTanhApproximation`, and `silu` methods use the unary kinds to create storage-free expressions
+from one floating input. `Tensor.isFinite`,
 `isNaN`, and `isInf` use the classification kinds to create storage-free, non-differentiable BOOL
 expressions from one floating input. The public scalar overloads
 `Tensor.add(ScalarValue)`, `sub(ScalarValue)`, `mul(ScalarValue)`, `div(ScalarValue)`,
@@ -2570,7 +2571,7 @@ execute either request.
 
 ### Unary numeric transforms and floating classifications
 
-Sixteen zero-argument unary methods create one-input, floating-preserving elementwise semantics:
+Nineteen zero-argument unary methods create one-input, floating-preserving elementwise semantics:
 
 | Method | Elementwise meaning |
 |---|---|
@@ -2590,21 +2591,35 @@ Sixteen zero-argument unary methods create one-input, floating-preserving elemen
 | `relu` | Rectified linear unit. |
 | `sigmoid` | Logistic sigmoid. |
 | `tanh` | Portable hyperbolic tangent request. |
+| `gelu` | Exact Gaussian error linear unit, `x * Phi(x)`. |
+| `geluTanhApproximation` | Fixed conventional tanh approximation to GELU. |
+| `silu` | Sigmoid linear unit, `x * sigmoid(x)`. |
 
 Each method accepts only `BFLOAT16`, `FLOAT32`, or `FLOAT64`. The result retains the exact input
 data type, immutable `Shape` reference, and `requiresGrad` flag, while leaving layout unresolved.
 That flag is eligibility metadata; it does not assert that a derivative or backward rule exists.
 
-`rsqrt`, `log1p`, and `expm1` are first-class transforms, not stored compositions. Their selected
-special-value meanings are:
+`rsqrt`, `log1p`, `expm1`, both GELU variants, and SiLU are first-class transforms, not stored
+compositions. Exact GELU selects
+`x * Phi(x) = 0.5 * x * (1 + erf(x / sqrt(2)))`. The explicitly named tanh approximation selects
+the fixed function
+`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`; it is not configurable permission
+to substitute another approximation. SiLU selects `x * sigmoid(x) = x / (1 + exp(-x))`. The API
+uses canonical `silu` naming and provides no `swish` alias. Their selected special-value meanings
+are:
 
 | Method | Selected special-value behavior |
 |---|---|
 | `rsqrt` | Positive/negative zero becomes same-signed infinity; positive infinity becomes positive zero; negative finite values and negative infinity produce NaN; NaN produces NaN. |
 | `log1p` | Signed zero is preserved; `-1` produces negative infinity; values below `-1`, including negative infinity, produce NaN; positive infinity remains positive infinity; NaN produces NaN. |
 | `expm1` | Signed zero is preserved; negative infinity becomes exactly `-1`; positive infinity remains positive infinity; NaN produces NaN. |
+| `gelu` | Negative infinity becomes negative zero by continuous extension; signed zero is preserved; positive infinity remains positive infinity; NaN produces NaN. |
+| `geluTanhApproximation` | Negative infinity becomes negative zero by continuous extension; signed zero is preserved; positive infinity remains positive infinity; NaN produces NaN. |
+| `silu` | Negative infinity becomes negative zero by continuous extension; signed zero is preserved; positive infinity remains positive infinity; NaN produces NaN. |
 
-These names select portable mathematical targets. They do not promise correct rounding, a fixed
+These names select portable mathematical targets. The infinity entries for GELU and SiLU are
+function-level continuous extensions, not a required literal order of primitive floating
+operations. The names do not promise correct rounding, a fixed
 unit-in-the-last-place (ULP) or relative-error bound, a bitwise result, an algorithm, or a backend
 route. Compiler and backend work may preserve useful near-zero accuracy for `log1p` and `expm1`
 because the model records the transforms without decomposition.
@@ -2632,9 +2647,9 @@ result.
 
 ##### Goal and inputs
 
-Build one `LOG1P` transform and one `IS_NAN` classification from a storage-free `FLOAT32` Tensor
-of Shape `[2, 3]`. The example observes metadata only; it does not claim transformed or classified
-element values.
+Build one exact `GELU` transform and one `IS_NAN` classification from a storage-free `FLOAT32`
+Tensor of Shape `[2, 3]`. The example observes metadata only; it does not claim transformed or
+classified element values.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -2652,7 +2667,7 @@ public final class FloatingMetadataExample {
         Tensor input = TensorFactory.create(new TensorDescriptor(
                 DataType.FLOAT32, shape, Optional.empty(), true));
 
-        Tensor transformed = input.log1p();
+        Tensor transformed = input.gelu();
         Tensor classified = input.isNaN();
         TensorProvenance transformOrigin = transformed.provenance().orElseThrow();
         TensorProvenance classificationOrigin = classified.provenance().orElseThrow();
@@ -2683,7 +2698,7 @@ public final class FloatingMetadataExample {
 
 ##### Meaningful lines and intermediate results
 
-- `input.log1p()` records one `UnaryElementwiseKind.LOG1P` occurrence and preserves the input's
+- `input.gelu()` records one `UnaryElementwiseKind.GELU` occurrence and preserves the input's
   floating type and gradient-eligibility request.
 - `input.isNaN()` records one distinct `FloatingClassificationKind.IS_NAN` occurrence and fixes
   the result descriptor to non-gradient `BOOL`.
@@ -2697,7 +2712,7 @@ The program prints:
 ```text
 transformType=FLOAT32
 transformGrad=true
-transformKind=LOG1P
+transformKind=GELU
 classificationType=BOOL
 classificationGrad=false
 classificationKind=IS_NAN
@@ -2710,7 +2725,7 @@ outputIndexes=0,0
 
 The output proves the result-type distinction, exact operation kinds, Shape and input retention,
 parameterless construction, and one-input, output-index-zero provenance. It does not prove that
-`log1p` or NaN classification ran, that numerical accuracy or a gradient rule exists, that a graph
+GELU or NaN classification ran, that numerical accuracy or a gradient rule exists, that a graph
 was captured, or that any backend supports either operation.
 
 ##### Failures and useful variations
@@ -5603,7 +5618,7 @@ composition while the table also lists the current production families:
 | `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
-| `UnaryElementwiseKind` | The implemented production enum for sixteen parameterless unary numeric and activation meanings. |
+| `UnaryElementwiseKind` | The implemented production enum for nineteen parameterless unary numeric and activation meanings. |
 | `FloatingClassificationKind` | The implemented production enum for three parameterless floating value classifications with fixed BOOL results. |
 | `ScalarElementwiseKind` | The implemented production enum for eight parameterized one-input scalar elementwise meanings. |
 | `ScalarValueAttrs` | The implemented immutable holder for one exact typed scalar parameter. |
@@ -6721,8 +6736,11 @@ The public enum
 | `RELU` | Rectified linear unit of the input value. |
 | `SIGMOID` | Logistic sigmoid of the input value. |
 | `TANH` | Hyperbolic tangent of the input value. |
+| `GELU` | Exact Gaussian error linear unit, `x * Phi(x)`. |
+| `GELU_TANH_APPROXIMATION` | Fixed conventional tanh GELU approximation with coefficient `0.044715`. |
+| `SILU` | Sigmoid linear unit, `x * sigmoid(x)`. |
 
-All sixteen kinds have one logical input and no intrinsic parameters. Their shared signature
+All nineteen kinds have one logical input and no intrinsic parameters. Their shared signature
 declares exact `NoOperationAttrs`, one input, and one output; canonical composition remains
 explicit:
 
@@ -6733,10 +6751,12 @@ Operation exponential = new Operation(
 ```
 
 The enum does not store the input, infer a result descriptor, or create provenance. The current
-public unary Tensor methods own those expression-construction rules. `RSQRT`, `LOG1P`, and `EXPM1`
-remain first-class operations rather than decompositions. Together with `EXP` and `TANH`, they are
-portable mathematical requests: no kind selects an algorithm, bitwise result, fixed accuracy
-bound, or backend route. The selected special-value semantics are documented in [Unary numeric
+public unary Tensor methods own those expression-construction rules. `RSQRT`, `LOG1P`, `EXPM1`,
+`GELU`, `GELU_TANH_APPROXIMATION`, and `SILU` remain first-class operations rather than
+decompositions. The two GELU kinds select distinct exact functions; neither carries configurable
+attributes. Together with `EXP` and `TANH`, these are portable mathematical requests: no kind
+selects an algorithm, bitwise result, fixed accuracy bound, gradient rule, or backend route. The
+selected formulas and special-value semantics are documented in [Unary numeric
 transforms and floating classifications](#unary-numeric-transforms-and-floating-classifications).
 Inherited enum names are diagnostic text, not serialization or dispatch keys, and equally named
 kinds from another family remain different typed values.

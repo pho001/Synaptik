@@ -32,10 +32,12 @@ same-category floating promotion and selected signed-integral ADD/SUB/MUL/MIN/MA
 broadcasting, descriptor derivation, and ordered provenance. Integral ADD/SUB/MUL are fixed-width
 two's-complement modular requests; integral extrema use signed order. DIV and POW remain
 floating-only.
-The parameterless `UnaryElementwiseKind` vocabulary is also implemented for sixteen unary
+The parameterless `UnaryElementwiseKind` vocabulary is also implemented for nineteen unary
 arithmetic, transcendental, and activation meanings, plus matching
 public floating unary Tensor expression construction with exact type/shape retention and one-input
-provenance. The separate parameterless `FloatingClassificationKind` vocabulary is implemented for
+provenance. The family includes exact GELU, a separately named fixed tanh-approximation GELU, and
+canonical SiLU without a `swish` alias. The separate parameterless `FloatingClassificationKind`
+vocabulary is implemented for
 finite, NaN, and infinity classification, together with floating-only public construction that
 returns fixed non-differentiable BOOL metadata. Public pairwise extrema are named `minimum` and
 `maximum`; aggregate reductions retain
@@ -646,6 +648,20 @@ infinity. Public `Tensor.isFinite`, `isNaN`, and `isInf` accept only `BFLOAT16`,
 A floating classification is a graph-visible value-producing operation, not a numeric transform,
 trace diagnostic, validation warning, eager Java boolean, or storage inspection. Model
 construction records the request and provenance without calculating classification values.
+
+### Gaussian error linear unit / GELU
+
+A smooth floating activation with exact mathematical target `x * Phi(x)`, where `Phi` is the
+standard normal cumulative distribution function. Equivalently, exact GELU is
+`0.5 * x * (1 + erf(x / sqrt(2)))`. Synaptik represents it as the parameterless first-class
+`UnaryElementwiseKind.GELU` semantic identity.
+
+`UnaryElementwiseKind.GELU_TANH_APPROXIMATION` is a separate fixed function:
+`0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))`. It is not a configurable mode of
+exact GELU. Both functions use the continuous extension negative infinity to negative zero,
+preserve signed zero, map positive infinity to positive infinity, and propagate NaN. Current
+`Tensor.gelu()` and `geluTanhApproximation()` construct model metadata and provenance only; they do
+not execute either function or define compiler decomposition, gradients, or backend algorithms.
 
 ### Forward graph
 
@@ -1298,6 +1314,16 @@ Gradients, compiler capture and canonicalization, materialization, backend lower
 remain planned. See [Scalar select semantic kind and
 attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
+### Sigmoid linear unit / SiLU
+
+A smooth floating activation with mathematical target `x * sigmoid(x)`, equivalently
+`x / (1 + exp(-x))`. Synaptik represents it as the parameterless first-class
+`UnaryElementwiseKind.SILU` semantic identity and exposes the canonical `Tensor.silu()` spelling;
+the public API has no `swish` alias. Its continuous extension maps negative infinity to negative
+zero, preserves signed zero, maps positive infinity to positive infinity, and propagates NaN.
+Current Tensor construction records type-, Shape-, eligibility-, and provenance metadata without
+executing the function or defining compiler decomposition, gradients, or backend algorithms.
+
 ### Slice
 
 An implemented backend-independent logical selection represented by `SliceKind.SLICE` and
@@ -1479,7 +1505,7 @@ all current source/target pairs and creates a fresh explicit result even for a s
 retains the exact input Shape, leaves layout unresolved, retains gradient eligibility only across
 an already-eligible floating-to-floating cast, and records typed target attributes plus exact
 one-input provenance. It does not inspect or convert values/storage, define numerical or gradient
-rules, canonicalize casts, capture a graph, or execute conversion. The current sixteen
+rules, canonicalize casts, capture a graph, or execute conversion. The current nineteen
 zero-argument unary methods also create fresh floating expression tensors. They retain the exact
 input data type and Shape,
 leave layout unresolved, preserve gradient eligibility, and record the matching parameterless kind

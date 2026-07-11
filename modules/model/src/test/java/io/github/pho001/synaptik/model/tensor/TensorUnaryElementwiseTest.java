@@ -47,7 +47,13 @@ class TensorUnaryElementwiseTest {
             new UnaryCall("sign", UnaryElementwiseKind.SIGN, Tensor::sign),
             new UnaryCall("relu", UnaryElementwiseKind.RELU, Tensor::relu),
             new UnaryCall("sigmoid", UnaryElementwiseKind.SIGMOID, Tensor::sigmoid),
-            new UnaryCall("tanh", UnaryElementwiseKind.TANH, Tensor::tanh));
+            new UnaryCall("tanh", UnaryElementwiseKind.TANH, Tensor::tanh),
+            new UnaryCall("gelu", UnaryElementwiseKind.GELU, Tensor::gelu),
+            new UnaryCall(
+                    "geluTanhApproximation",
+                    UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                    Tensor::geluTanhApproximation),
+            new UnaryCall("silu", UnaryElementwiseKind.SILU, Tensor::silu));
 
     @Test
     void helperAndTensorMethodsHaveExactlyTheRequiredShape() throws ReflectiveOperationException {
@@ -95,7 +101,8 @@ class TensorUnaryElementwiseTest {
                 "logOnePlus",
                 "expMinusOne",
                 "fastExp",
-                "fastTanh")) {
+                "fastTanh",
+                "swish")) {
             assertThrows(
                     NoSuchMethodException.class,
                     () -> Tensor.class.getDeclaredMethod(removed));
@@ -186,6 +193,9 @@ class TensorUnaryElementwiseTest {
         Tensor doubleReciprocal = input.reciprocal().reciprocal();
         Tensor exponential = input.exp();
         Tensor hyperbolicTangent = input.tanh();
+        Tensor exactGelu = input.gelu();
+        Tensor approximateGelu = input.geluTanhApproximation();
+        Tensor silu = input.silu();
 
         assertAll(
                 () -> assertNotSame(input, firstNegation),
@@ -202,6 +212,15 @@ class TensorUnaryElementwiseTest {
                         exponential.provenance().orElseThrow().operation().kind()),
                 () -> assertSame(UnaryElementwiseKind.TANH,
                         hyperbolicTangent.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(UnaryElementwiseKind.GELU,
+                        exactGelu.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                        approximateGelu.provenance().orElseThrow().operation().kind()),
+                () -> assertSame(UnaryElementwiseKind.SILU,
+                        silu.provenance().orElseThrow().operation().kind()),
+                () -> assertNotSame(
+                        exactGelu.provenance().orElseThrow().producer(),
+                        approximateGelu.provenance().orElseThrow().producer()),
                 () -> assertTrue(firstNegation.label().isEmpty()),
                 () -> assertTrue(firstNegation.hostStorage().isEmpty()),
                 () -> assertTrue(firstNegation.descriptor().layout().isEmpty()));

@@ -6,7 +6,7 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies sixteen backend-independent parameterless unary elementwise semantics.
+ * Identifies nineteen backend-independent parameterless unary elementwise semantics.
  *
  * <p>Each kind describes the mathematical or activation meaning applied independently to one
  * logical input. The shared signature declares one input and one output; the kind does not retain
@@ -177,7 +177,42 @@ public enum UnaryElementwiseKind implements OperationKind {
      * special-value behavior, differentiation, execution, and backend availability belong to
      * later owning contracts.</p>
      */
-    TANH;
+    TANH,
+
+    /**
+     * Applies the exact Gaussian error linear unit to each input value.
+     *
+     * <p>The selected mathematical target is {@code x * Phi(x)}, equivalently
+     * {@code 0.5 * x * (1 + erf(x / sqrt(2)))}. Its continuous extension maps negative infinity
+     * to negative zero, preserves signed zero, maps positive infinity to positive infinity, and
+     * produces NaN for NaN input. This first-class request does not prescribe composition,
+     * rounding, an approximation algorithm, a gradient rule, execution, or backend support.</p>
+     */
+    GELU,
+
+    /**
+     * Applies the fixed conventional hyperbolic-tangent GELU approximation to each input value.
+     *
+     * <p>The selected mathematical target is
+     * {@code 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))}. Its continuous extension
+     * maps negative infinity to negative zero, preserves signed zero, maps positive infinity to
+     * positive infinity, and produces NaN for NaN input. This is a distinct parameterless
+     * semantic request, not configurable permission to choose another approximation. It does not
+     * prescribe composition, rounding, an evaluation algorithm, a gradient rule, execution, or
+     * backend support.</p>
+     */
+    GELU_TANH_APPROXIMATION,
+
+    /**
+     * Applies the sigmoid linear unit activation to each input value.
+     *
+     * <p>The selected mathematical target is {@code x * sigmoid(x)}, equivalently
+     * {@code x / (1 + exp(-x))}. Its continuous extension maps negative infinity to negative
+     * zero, preserves signed zero, maps positive infinity to positive infinity, and produces NaN
+     * for NaN input. This first-class request does not prescribe literal composition, rounding,
+     * an evaluation algorithm, a gradient rule, execution, or backend support.</p>
+     */
+    SILU;
 
     private static final List<OperationSignature> SIGNATURES =
             List.of(OperationSignature.fixed(NoOperationAttrs.class, 1, 1));

@@ -83,12 +83,13 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(157, declaredPublicMethods.size());
+        assertEquals(160, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
                         "div", "min", "max", "minimum", "maximum", "pow", "abs", "neg", "reciprocal", "log", "log1p", "exp",
                         "expm1", "erf", "sqrt", "rsqrt", "floor", "ceil", "sign", "relu", "sigmoid", "tanh",
+                        "gelu", "geluTanhApproximation", "silu",
                         "isFinite", "isNaN", "isInf",
                         "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
@@ -576,7 +577,7 @@ class TensorTest {
 
         for (String methodName : List.of(
                 "abs", "neg", "reciprocal", "log", "exp", "erf", "sqrt", "floor", "ceil",
-                "sign", "relu", "sigmoid", "tanh")) {
+                "sign", "relu", "sigmoid", "tanh", "gelu", "geluTanhApproximation", "silu")) {
             var method = Tensor.class.getDeclaredMethod(methodName);
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),

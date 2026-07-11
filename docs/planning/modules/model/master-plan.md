@@ -225,7 +225,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018U1 | [Integral reductions and arg-min normalization](tasks/0018u1-integral-reductions-and-arg-min-normalization.md) | Complete | 0016A–0016E, 0018K, 0018U | Added exact-type modular integral SUM/PROD, signed MIN/MAX with bounded empty identities, and shared `argMin`/`argMax` attributes, ordering, tie, and empty-axis contracts. |
 | 0018V | [Multi-axis and statistical reductions](tasks/0018v-multi-axis-and-statistical-reductions.md) | Complete | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U1 | Added ordered multi-axis ordinary reductions plus first-class floating log-sum-exp, corrected variance/standard deviation, and L1/L2 norm semantics and Tensor construction. |
 | 0019 | [Matmul semantics and Tensor expression](tasks/0019-matmul-semantics-and-tensor-expression.md) | Complete | 0001–0002, 0005–0007, 0011–0013, 0018K–0018N, 0018T, 0018U–0018V | Added first-class vector, matrix, and batched MATMUL metadata with exact Shape, type, numerical, and provenance contracts. |
-| 0019A | Modern activation and embedding conveniences | Draft | 0015F, 0018O, 0018P, 0018T | Add GELU, SiLU/Swish, embedding, and one-hot public compositions without unnecessary primitive kinds. |
+| 0019A | [Modern activation semantics and Tensor expressions](tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) | Complete | 0014C–0014D, 0018K, 0018P | Added exact GELU, fixed tanh-approximation GELU, and canonical SiLU as first-class floating unary semantics. |
+| 0019A1 | Embedding convenience | Draft | 0018K, 0018O | Add rank-two floating `weights.embedding(indices)` as validated axis-zero Gather composition with no padding option or new kind. |
+| 0019A2 | One-hot encoding | Draft | 0001–0002, 0018K | Add trailing-axis, positive-static-depth BOOL one-hot semantics for INT32/INT64 indices without broad configuration. |
 | 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
 | 0019C | Sorting and top-K operations | Draft | 0018K–0018L, 0018U | Represent sort, argsort, and genuine multi-output top-K with explicit ordering, tie, NaN, and stability policies. |
 | 0019D | Linear convenience | Draft | 0019 | Add conventional weight-transposed MATMUL plus optional one-dimensional bias as explicit public composition without a LINEAR kind. |
@@ -233,7 +235,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -247,7 +249,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   - foundation-contract checkpoint after 0018N;
   - public-surface cleanup checkpoint after 0018S; and
   - completed capability-reset checkpoint after 0018V.
-- Selected modern operation families: tasks 0019–0022, including 0019A–0019E; checkpoint after
+- Selected modern operation families: tasks 0019–0022, including 0019A–0019A2 and 0019B–0019E;
+  checkpoint after
   0022 before compiler-generated semantic work
 - Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
 
@@ -288,8 +291,11 @@ Completed task [0018V](tasks/0018v-multi-axis-and-statistical-reductions.md) clo
 capability-reset frontier. Its cohesive 17-path scope kept shared ordered-axis normalization,
 semantic signatures, Shape/result construction, numerical policy, tests, and public
 documentation in one compilable state. The former broad task 0019 is now decomposed. Focused
-[task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) completed MATMUL. Task 0019A is
-the next Draft frontier; tasks 0019A–0019E remain Draft rows without detailed specifications.
+[task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) completed MATMUL. Completed
+[task 0019A](tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) added exact GELU,
+fixed tanh-approximation GELU, and SiLU semantics and Tensor expressions. Draft tasks 0019A1 and
+0019A2 split embedding and one-hot from it; existing tasks 0019B–0019E remain stable Draft rows
+without detailed specifications. No model task is currently Ready.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -344,6 +350,15 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   inference/training target, not by blanket legacy parity.
 - The former broad task 0019 is split without renumbering established 0019A–0019C. Task 0019 is
   the cohesive MATMUL primitive; 0019D owns `linear`; 0019E owns scaled dot-product attention.
+- The former 0019A umbrella is split without changing 0019B–0019E. Completed task 0019A owns exact
+  GELU, fixed tanh-approximation GELU, and canonical SiLU as first-class parameterless unary kinds.
+  Literal primitive compositions are insufficient because their infinity-times-zero intermediate
+  does not preserve the selected negative-infinity continuous extension. Draft task 0019A1 owns
+  rank-two `weights.embedding(indices)` as axis-zero Gather composition with no padding option.
+  Draft task 0019A2 owns trailing-axis BOOL one-hot with positive static depth and no configurable
+  axis, result type, or on/off values. Existing `RELU`/`relu()` remains complete under tasks
+  0014C–0014D and is not duplicated. Unchanged Draft task 0019B remains the sole dropout owner
+  because dropout requires explicit graph RNG/state semantics.
 - MATMUL is one first-class `MATMUL` kind with no attributes, two inputs, one output, and one
   public `matmul(Tensor)` method. It follows rank-one promotion/removal and right-aligned batch
   broadcasting across vector-vector, matrix-vector, vector-matrix, matrix-matrix, and batched
@@ -1329,15 +1344,16 @@ documented atomic-migration exception to the usual file-count guardrail because 
 enforcement would either break valid current families or retain a permissive unsafe fallback.
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
-0019 is complete. Task 0019A is the next Draft frontier; tasks 0019A–0019E and every later task
-remain Draft without detailed specifications.
+0019 and 0019A are complete. Tasks 0019A1, 0019A2, 0019B–0019E, and every later task remain Draft
+without detailed specifications; no model task is currently Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
-The 0019A–0019C suffixes are established sequential rows after task 0019. New 0019D–0019E rows
-continue that stable sequence without overwriting those names or renumbering 0020–0024. All five
-are independent follow-ups, not hidden subtasks of 0019; their `Depends on` entries list technical
+The 0019A–0019C suffixes are established sequential rows after task 0019. Decimal follow-ups
+0019A1–0019A2 split the original 0019A scope without changing established 0019B–0019E or
+renumbering 0020–0024. These rows are independent frontiers, not hidden subtasks of 0019; their
+`Depends on` entries list technical
 prerequisites, while table order remains the default execution order.
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
@@ -1389,7 +1405,7 @@ construction. Task 0018I is complete with functional Scatter-ND semantic values.
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
-specification. Task 0019A is the next Draft frontier; tasks 0019A–0019E and every later task remain
-Draft without detailed specifications.
+specification. Task 0019A is complete; tasks 0019A1, 0019A2, 0019B–0019E, and every later task
+remain Draft without detailed specifications. No model task is currently Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

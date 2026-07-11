@@ -278,7 +278,7 @@ Foundation hardening above precedes these operations.
   retained-dimension, correction, and accumulation-type policies;
 - vector, matrix, and batched `matmul`;
 - a public `linear` convenience over matmul plus optional bias;
-- GELU and SiLU/Swish conveniences over selected primitives;
+- exact GELU, fixed tanh-approximation GELU, and SiLU as first-class floating unary activations;
 - layer normalization and RMS normalization with explicit epsilon and normalized axes;
 - dense and index-target losses needed for classification, with explicit reduction and ignore
   policies;
@@ -330,18 +330,55 @@ no attention weights, and has no dropout parameter. Graph RNG and dropout remain
 0019B; initial attention has no technical dependency on that task, and any later attention
 dropout must consume its explicit state.
 
-`square`, scalar arithmetic overloads, `linear`, GELU, SiLU, embedding, one-hot, flatten,
-swap-axes, split, and chunk are conveniences unless a focused task demonstrates a semantic reason
-for a distinct kind. Layer/RMS normalization and scaled dot-product attention remain named
+`square`, scalar arithmetic overloads, `linear`, embedding, flatten, swap-axes, split, and chunk
+are conveniences unless a focused task demonstrates a semantic reason for a distinct kind.
+Task 0019A demonstrates that reason for GELU and SiLU: literal primitive chains encounter
+infinity-times-zero at negative infinity and do not preserve the selected continuous extensions.
+Exact GELU, its fixed tanh approximation, and SiLU therefore remain named unary semantics.
+One-hot is also selected as a focused first-class encoding because composing it from the current
+eager range factory would allocate a depth-sized host Tensor and obscure its rank-changing BOOL
+contract. Layer/RMS normalization and scaled dot-product attention remain named
 high-level semantics because their numerical and masking contracts must survive compiler
 inspection even when a compiler can decompose them.
+
+The former 0019A umbrella is split by semantic boundary. Completed task 0019A owns `gelu()`,
+`geluTanhApproximation()`, and canonical `silu()` without a `swish` alias. `GELU` uses
+`x * Phi(x)`; `GELU_TANH_APPROXIMATION` uses the fixed conventional coefficient `0.044715`; and
+`SILU` uses `x * sigmoid(x)`. All three are parameterless, floating-only, same-Shape operations
+whose mathematical continuous extensions map negative infinity to negative zero, preserve signed
+zero, map positive infinity to positive infinity, and propagate NaN. They preserve type and
+gradient-eligibility metadata with unresolved layout, without defining algorithms or gradients.
+ReLU is already current through completed tasks 0014C–0014D and is not duplicated by 0019A.
+Dropout remains wholly owned by unchanged Draft task 0019B because it consumes and produces
+explicit graph RNG state rather than behaving as a deterministic unary activation.
+
+Draft task 0019A1 owns exactly `weights.embedding(indices)`. The receiver is a rank-two floating
+table `[vocabulary, embeddingDimension]`; indices are INT32 or INT64; the result Shape is the
+complete indices Shape followed by the exact embedding dimension. It is direct
+`weights.gather(indices, 0)` composition with no EMBEDDING kind or padding-index option. Result
+gradient eligibility comes only from weights as inherited from Gather; compiler autograd owns any
+scatter-add rule. Index values must be non-negative and below the table's axis-zero extent when
+executed. Construction reads no values; compiler validation may reject captured constant indices,
+while backend preparation and its prepared executable must preserve safe execution-time bounds
+handling after dynamic extents are bound. Runtime executes that prepared behavior without
+inspecting the original Gather operation.
+
+Draft task 0019A2 owns exactly `indices.oneHot(long depth)`. The receiver is INT32 or INT64,
+`depth` is a positive static `long`, and one static depth axis is appended after every input axis.
+Every existing indices Dimension is retained exactly, including dynamic dimensions.
+The output is non-differentiable BOOL with `false` off and `true` at the matching coordinate.
+Negative indices and indices at least `depth` produce an all-false row. No axis, output-type,
+on/off-value, negative-wrap, or dynamic-depth configuration is selected. It is a first-class
+one-input operation rather than TensorFactory construction or an eager range/comparison
+composition. The selected Draft contract is `OneHotKind.ONE_HOT` with
+`OneHotAttrs(long depth)` and an exact one-input, one-output signature.
 
 ### Important shortly afterward
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
 - sort, argsort, and true multi-output top-K with axis, order, stability, tie, and NaN policies;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
-- embedding and one-hot conveniences;
+- embedding convenience and focused one-hot encoding semantics;
 - convolution and max/average pooling after symbolic extent expressions are complete;
 - batch normalization, including explicit training/inference statistics and auxiliary outputs;
 - graph random sampling operations using the explicit RNG-state contract; and

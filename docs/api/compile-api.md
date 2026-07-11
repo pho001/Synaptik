@@ -44,7 +44,7 @@ does not retain a public `Tensor`, gradient role, runtime target, storage, backe
 state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
-comparison methods, three boolean logical methods, sixteen unary elementwise methods, three
+comparison methods, three boolean logical methods, nineteen unary elementwise methods, three
 floating-classification methods, seven exact-typed plus seven exact-FLOAT64 scalar arithmetic
 methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method, fifteen
@@ -67,9 +67,12 @@ DIV and POW remain floating-only. All six comparisons accept the same floating o
 pairing rules and produce BOOL results. Integral promotion uses `INT32 < INT64`, with conceptual
 sign extension into the INT64 domain, while mixed numeric categories require an explicit cast and
 BOOL is excluded. Numeric unary and conditional-selection results remain floating. Unary
-`rsqrt`, `log1p`, and `expm1` are first-class transforms rather than stored decompositions.
-Together with `exp` and `tanh`, they record portable mathematical requests without selecting an
-algorithm, bitwise result, fixed accuracy bound, or backend route. Floating classifications,
+`rsqrt`, `log1p`, `expm1`, exact `gelu`, fixed `geluTanhApproximation`, and canonical `silu` are
+first-class transforms rather than stored decompositions. Exact GELU selects `x * Phi(x)`; the
+tanh spelling selects only its fixed conventional `0.044715` approximation; and SiLU selects
+`x * sigmoid(x)`. There is no `swish` alias or configurable approximation. Together with `exp`
+and `tanh`, they record portable mathematical requests without selecting an algorithm, bitwise
+result, fixed accuracy bound, gradient rule, or backend route. Floating classifications,
 comparisons, and logical results are unresolved-layout `BOOL` descriptors with false gradient
 eligibility. Logical AND and OR require exact BOOL inputs and derive a local broadcast shape;
 logical NOT requires exact BOOL and retains the exact input shape. Scalar parameters remain exact
@@ -105,8 +108,9 @@ unresolved-versus-static batch singleton-or-equal cases remain obligations for l
 validation or concrete binding. This is current model-expression metadata only: expression
 capture, graph-wide validation, constraint proof, gradients, lowering, backend support, and
 execution remain planned.
-`Tensor.rsqrt`, `log1p`, and `expm1` accept floating input, retain its exact type, Shape, and
-gradient eligibility, leave layout unresolved, and record one-input parameterless provenance.
+`Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
+retain its exact type, Shape, and gradient eligibility, leave layout unresolved, and record
+one-input parameterless provenance.
 Their selected special-value semantics distinguish signed zero, infinities, and NaN, but current
 construction neither reads values nor promises correct rounding or a fixed numerical tolerance.
 `Tensor.isFinite`, `isNaN`, and `isInf` accept floating input and construct fixed BOOL results with
@@ -327,7 +331,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 
 - `output` will identify a current public `Tensor` expression for the future compiler to capture.
   Public Tensor state plus binary arithmetic, binary comparison, boolean logical, conditional
-  selection, cast, unary numeric, floating-classification, scalar, numeric aggregate expression
+  selection, cast, unary numeric including exact GELU, fixed tanh-approximation GELU, and SiLU,
+  floating-classification, scalar, numeric aggregate expression
   construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
@@ -344,7 +349,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   plus public general-axis unfold and NCHW unfold/fold window-transform construction,
   are implemented;
   the compiler entry point, traversal, capture,
-  scan/reduction/normalization inference and canonicalization, optional softmax decomposition,
+  scan/reduction/normalization inference and canonicalization, optional softmax or activation
+  decomposition, activation-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
   axis-gather/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,

@@ -41,7 +41,10 @@ class UnaryElementwiseKindTest {
                             UnaryElementwiseKind.SIGN,
                             UnaryElementwiseKind.RELU,
                             UnaryElementwiseKind.SIGMOID,
-                            UnaryElementwiseKind.TANH
+                            UnaryElementwiseKind.TANH,
+                            UnaryElementwiseKind.GELU,
+                            UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                            UnaryElementwiseKind.SILU
                         },
                         values),
                 () -> assertEquals(
@@ -61,7 +64,10 @@ class UnaryElementwiseKindTest {
                                 "SIGN",
                                 "RELU",
                                 "SIGMOID",
-                                "TANH"),
+                                "TANH",
+                                "GELU",
+                                "GELU_TANH_APPROXIMATION",
+                                "SILU"),
                         Arrays.stream(values).map(UnaryElementwiseKind::name).toList()));
     }
 
@@ -95,7 +101,10 @@ class UnaryElementwiseKindTest {
                         () -> UnaryElementwiseKind.valueOf("FAST" + "_EXP")),
                 () -> assertThrows(
                         IllegalArgumentException.class,
-                        () -> UnaryElementwiseKind.valueOf("FAST" + "_TANH")));
+                        () -> UnaryElementwiseKind.valueOf("FAST" + "_TANH")),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> UnaryElementwiseKind.valueOf("SW" + "ISH")));
     }
 
     @Test
