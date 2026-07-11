@@ -29,6 +29,7 @@ import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
 import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
@@ -64,8 +65,8 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise expression methods create fresh storage-free tensors whose immutable provenance
- * records the requested semantics and exact inputs; they do not execute mathematics, validate
+ * elementwise and matrix-multiplication expression methods create fresh storage-free tensors
+ * whose immutable provenance records the requested semantics and exact inputs; they do not execute mathematics, validate
  * numerical domains, create gradient rules, or capture a graph.
  * Binary ADD, SUB, MUL, MIN, and MAX promote same-category floating or signed-integral operands;
  * integral ADD, SUB, and MUL have fixed-width two's-complement modular meaning, while integral
@@ -177,7 +178,7 @@ import java.util.Optional;
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
- * {@link FloatingClassificationKind}.
+ * {@link FloatingClassificationKind}, or {@link MatmulKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -486,6 +487,46 @@ public final class Tensor {
      */
     public Tensor pow(Tensor right) {
         return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
+    }
+
+    /**
+     * Builds the vector, matrix, or batched matrix product {@code this @ right}.
+     *
+     * <p>Both operands must have rank at least one and same-category floating or signed-integral
+     * types, which promote without an inserted cast. The final left axis contracts with the final
+     * right axis for a vector or the penultimate right axis otherwise. A rank-one left operand
+     * omits its temporary row axis from the result; a rank-one right operand omits its temporary
+     * column axis. Leading batch dimensions broadcast right-aligned under MATMUL's local exact-
+     * shape rules.</p>
+     *
+     * <p>Static contraction mismatches and non-broadcastable static batches fail immediately.
+     * Unresolved contraction equality and unresolved-versus-static batch singleton-or-equal
+     * requirements are deferred for compiler validation or later binding. Two unequal unresolved
+     * batch dimensions fail because no exact result extent can be selected locally.</p>
+     *
+     * <p>The fresh result has the promoted type, exact derived Shape, unresolved layout,
+     * gradient eligibility equal to the logical OR of the operands, no label or storage, and
+     * provenance containing {@link MatmulKind#MATMUL}, {@code NoOperationAttrs.INSTANCE}, ordered
+     * exact inputs {@code [this, right]}, and output index zero. FLOAT64 results accumulate in
+     * FLOAT64; FLOAT32 and BFLOAT16 results accumulate in FLOAT32, with BFLOAT16 conversion at
+     * output. Floating reassociation and fused multiply-add are permitted without a bitwise-order
+     * guarantee. Signed-integral accumulation is modular in the promoted width. Empty contraction
+     * produces positive floating zero or integral zero. This method does not evaluate values,
+     * guarantee gradient support, capture or compile a graph, choose a backend, allocate result
+     * storage, or execute.</p>
+     *
+     * @param right non-null ordered right operand retained by exact reference in result provenance
+     *     and not mutated
+     * @return a non-null fresh, unlabeled, storage-free result with promoted type, exact derived
+     *     Shape, unresolved layout, propagated gradient request, and MATMUL provenance
+     * @throws NullPointerException if {@code right} is null, with message {@code right}
+     * @throws IllegalArgumentException if promotion fails; either operand has rank zero; static
+     *     contraction dimensions differ; or batch dimensions cannot produce an exact locally
+     *     broadcast result
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor matmul(Tensor right) {
+        return TensorMatmulExpressions.apply(this, right);
     }
 
     /**

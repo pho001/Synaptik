@@ -5303,6 +5303,117 @@ fails before identity allocation. Checked geometry overflow propagates as `Arith
 Null references are rejected in parameter order. Identifier exhaustion remains possible only at
 final derived-Tensor construction after all local immutable metadata has been prepared.
 
+### Matrix-multiplication expressions
+
+`Tensor.matmul(right)` constructs one storage-free expression for matrix multiplication, written
+mathematically as `left @ right`. A **contraction dimension** is the shared extent whose pairwise
+products are summed. For rank-two-or-greater operands, the last two axes are matrix axes: the
+left Shape ends in `[M, K]`, the right Shape ends in `[K, N]`, and `K` is the contraction
+dimension. Earlier axes are **batch dimensions** and broadcast right-aligned.
+
+A rank-one left operand is treated as `[1, K]` for the operation and its inserted row axis is
+removed from the result. A rank-one right operand is treated as `[K, 1]` and its inserted column
+axis is removed. This gives the complete rank/Shape relationship:
+
+| Left Shape | Right Shape | Result Shape | Interpretation |
+|---|---|---|---|
+| `[K]` | `[K]` | `[]` | vector dot product, returned as a scalar |
+| `[M, K]` | `[K]` | `[M]` | matrix times vector |
+| `[K]` | `[K, N]` | `[N]` | vector times matrix |
+| `[M, K]` | `[K, N]` | `[M, N]` | matrix times matrix |
+| `[2, M, K]` | `[1, K, N]` | `[2, M, N]` | batched multiplication with singleton expansion |
+| `[K]` | `[B, K, N]` | `[B, N]` | vector broadcast over a right batch |
+| `[B, M, K]` | `[K]` | `[B, M]` | right vector broadcast over a left batch |
+
+Read each row by first broadcasting the leading batch prefixes, then appending `M` unless the
+left operand is rank one and appending `N` unless the right operand is rank one. Every retained
+row, column, equal batch, singleton-opposing, or unpaired batch Dimension is the exact input
+reference.
+
+#### Concrete matrix example
+
+The input values and Shapes are:
+
+```text
+left  Shape [2, 3] = [[1, 2, 3],
+                      [4, 5, 6]]
+
+right Shape [3, 2] = [[1, 2],
+                      [3, 4],
+                      [5, 6]]
+```
+
+Each output position is one left-row/right-column dot product:
+
+```text
+result[0,0] = 1*1 + 2*3 + 3*5 = 22
+result[0,1] = 1*2 + 2*4 + 3*6 = 28
+result[1,0] = 4*1 + 5*3 + 6*5 = 49
+result[1,1] = 4*2 + 5*4 + 6*6 = 64
+```
+
+Therefore the mathematical result has Shape `[2, 2]` and values:
+
+```text
+[[22, 28],
+ [49, 64]]
+```
+
+This calculation explains the recorded operation meaning. Calling `matmul` does not read the
+input values or produce these values eagerly; the current model creates metadata only.
+
+#### Dynamic dimensions and local failures
+
+Both ranks must be at least one. Two unequal static contraction dimensions fail immediately.
+When either contraction dimension is unresolved, equality is deferred because it does not affect
+the exact result Shape and both input descriptors remain in provenance. Batch broadcasting is
+more restrictive because construction must select an exact output Dimension:
+
+- equal unresolved dimensions retain the exact left reference;
+- a static singleton retains the exact opposing reference;
+- an unpaired leading batch dimension retains its exact input reference;
+- an unresolved dimension paired with static non-singleton `S` selects that exact static result
+  Dimension and defers the obligation that the unresolved extent bind to `1` or `S`;
+- unequal unresolved batch dimensions fail because no exact result Dimension is locally
+  derivable; and
+- unequal static non-singleton batch dimensions fail.
+
+These rules are local to MATMUL and do not change general `ShapeBroadcast`. Null checks, numeric
+promotion, rank checks, static contraction checks, and leading-to-trailing batch checks all occur
+before result identity allocation. Later compiler validation or concrete binding must prove every
+deferred equality or singleton-or-equal obligation before execution.
+
+#### Data type, numerical meaning, and result metadata
+
+`DataTypePromotion.promoteNumeric` accepts same-category floating pairs
+(`BFLOAT16`, `FLOAT32`, `FLOAT64`) and same-category signed-integral pairs (`INT32`, `INT64`).
+The promoted type is the result type. BOOL and floating/integral pairs fail, and construction
+inserts no cast.
+
+For a `FLOAT64` result, pairwise products accumulate in FLOAT64. `FLOAT32` and `BFLOAT16` results
+accumulate in FLOAT32, with the latter converted to BFLOAT16 output. Floating implementations may
+reassociate terms and use fused multiply-add, so no traversal order, bitwise result, or identical
+cross-backend rounding is promised. IEEE-754 special values follow the selected multiply and add
+operations; an empty contraction produces positive floating zero. Integral products and sums use
+the promoted signed width modulo `2^32` or `2^64`; an empty integral contraction produces zero.
+
+Every valid call returns a fresh, unlabeled Tensor with the promoted type, exact derived Shape,
+unresolved layout, no storage, and gradient eligibility equal to the logical OR of the operands.
+Its one-output provenance has index zero and retains `MatmulKind.MATMUL`,
+`NoOperationAttrs.INSTANCE`, and exact ordered inputs `[left, right]`. This metadata records a
+gradient request, not a gradient rule. It neither captures or compiles a graph nor promises
+compiler validation, backend lowering, a kernel, storage allocation, or execution.
+
+### Matrix-multiplication semantic kind
+
+`MatmulKind` contains exactly `MATMUL`. The kind pairs only with
+`NoOperationAttrs.INSTANCE`; its family-owned `OperationSignature` fixes two logical inputs and
+one logical output. It records backend-independent vector, matrix, and batched matrix
+multiplication meaning, including the accumulation policies above. The kind stores no operands,
+Shapes, deferred constraints, result descriptor, provenance, algorithm, gradient, compiler,
+backend, or execution state. `Tensor.matmul` separately owns input-aware local validation and
+expression construction.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.
@@ -6986,6 +7097,11 @@ and public Tensor expression construction are also current, including static res
 unresolved result-layout rules. Reshape and expand semantic values and both public Tensor
 expression families are current, with their distinct count-preserving and directional-
 broadcasting validation and layout rules.
+MATMUL semantics and public `Tensor.matmul` expression construction are current for rank-one and
+higher floating or signed-integral operands. Construction promotes within one numeric category,
+derives exact vector/matrix/broadcast-batch Shape metadata, defers only the documented unresolved
+obligations, and records fresh ordered two-input provenance. It performs no multiplication,
+gradient construction, compiler capture, backend selection, or execution.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and

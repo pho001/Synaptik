@@ -53,7 +53,7 @@ multi-axis methods, twelve floating advanced/statistical reduction methods, two 
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
 tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
-methods and three functional Scatter-ND methods, construct
+methods and three functional Scatter-ND methods, plus one matrix-multiplication method, construct
 storage-free expressions with immutable producer-and-output-index provenance. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
 one entry and whose provenance index is zero. The producer snapshots the exact operation and input
@@ -98,6 +98,13 @@ condition/true-branch/false-branch provenance. It constructs no selected values 
 leaves layout unresolved, and retains a true gradient request only for floating-to-floating casts.
 Every call remains a fresh explicit expression, including a same-type request, with typed target
 attributes and exact one-input provenance.
+`Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
+vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
+contraction dimensions fail locally; unresolved contraction equality and the accepted
+unresolved-versus-static batch singleton-or-equal cases remain obligations for later compiler
+validation or concrete binding. This is current model-expression metadata only: expression
+capture, graph-wide validation, constraint proof, gradients, lowering, backend support, and
+execution remain planned.
 `Tensor.rsqrt`, `log1p`, and `expm1` accept floating input, retain its exact type, Shape, and
 gradient eligibility, leave layout unresolved, and record one-input parameterless provenance.
 Their selected special-value semantics distinguish signed zero, infinities, and NaN, but current

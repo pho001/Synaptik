@@ -296,6 +296,40 @@ types. It also completes floating and BOOL empty/special-value reduction policie
 storage-free Tensor metadata; algorithms, gradients, compiler validation, backend lowering, and
 execution remain separately owned.
 
+The former broad linear-algebra/attention row is decomposed without disturbing established tasks
+0019A–0019C. Completed [task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) owns only
+the first-class `MATMUL` primitive and public expression. Draft task 0019D owns the `linear`
+convenience, and Draft task 0019E owns scaled dot-product attention. This keeps each task within
+one semantic and review boundary.
+
+The current MATMUL expression follows rank-one promotion/removal plus right-aligned broadcasting
+of leading batch axes.
+It accepts same-category floating or signed-integral inputs through current promotion. A
+BFLOAT16 result accumulates in FLOAT32; FLOAT32/FLOAT64 results accumulate in their promoted type;
+integral results are the promoted-width modular sum of products. Floating reassociation and fused
+multiply-add are permitted without a bitwise-order guarantee. Static incompatibilities fail.
+Unresolved contraction equality may defer because it does not affect output Shape; unresolved
+batch compatibility defers only when one exact output extent remains derivable.
+
+`linear` is selected as `input.matmul(weight.transpose())` plus optional ADD, not a first-class
+`LINEAR` operation. Weight Shape is `[outFeatures, inFeatures]`, input rank is at least one with
+final extent `inFeatures`, and optional bias is exactly `[outFeatures]`. The composition keeps
+transpose, MATMUL, and ADD visible to later compiler inspection and lets backend prepare fuse a
+profitable pattern without placing a fused variant in model.
+
+Scaled dot-product attention remains a named high-level operation. Query `[...batch, L, E]`, key
+`[...batch, S, E]`, and value `[...batch, S, Ev]` broadcast batch/head prefixes and produce
+`[..., L, Ev]`. One kind accepts ordered `[query, key, value]` or
+`[query, key, value, mask]` and produces exactly one output. Its immutable attributes carry an
+optional exact typed scale and causal flag; absent scale selects `1 / sqrt(E)`, while a present
+scale is finite, positive, floating, and exactly matches the promoted input type. A BOOL mask
+broadcasts to score Shape `[..., L, S]`, where true participates and false masks. Causal mode
+additionally retains positions `j <= i`, and softmax is over the final key axis.
+All-masked rows have zero weights and zero output. The initial operation has one output, exposes
+no attention weights, and has no dropout parameter. Graph RNG and dropout remain owned by task
+0019B; initial attention has no technical dependency on that task, and any later attention
+dropout must consume its explicit state.
+
 `square`, scalar arithmetic overloads, `linear`, GELU, SiLU, embedding, one-hot, flatten,
 swap-axes, split, and chunk are conveniences unless a focused task demonstrates a semantic reason
 for a distinct kind. Layer/RMS normalization and scaled dot-product attention remain named

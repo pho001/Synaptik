@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(156, declaredPublicMethods.size());
+        assertEquals(157, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -93,7 +93,7 @@ class TensorTest {
                         "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax",
+                        "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul",
                         "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",

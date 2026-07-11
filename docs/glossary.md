@@ -473,6 +473,15 @@ A concrete implementation choice inside one backend, such as a CPU scalar loop, 
 
 The graph of gradient computations derived by autograd from a forward graph. It propagates derivatives from requested outputs toward differentiable inputs or parameters. In backward-capable compile modes, the compiler may combine it with the forward graph before post-autograd optimization and planning. See [Training graph](architecture/training-graph.md).
 
+### Batch dimension
+
+A leading Shape dimension that identifies independent groups of the same logical operation rather
+than one operation's elementwise or matrix coordinates. For matrix multiplication, every axis
+before the final two matrix axes is a batch dimension; rank-one operands have no batch prefix.
+The two prefixes broadcast right-aligned before row and column result axes are appended. A batch
+dimension is logical Shape metadata, not a runtime batch scheduler, storage partition, or backend
+execution unit. See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+
 ### Broadcasting
 
 A shape rule that combines compatible inputs by aligning axes from the right and expanding static
@@ -564,6 +573,15 @@ retain exact Shape/type/gradient-eligibility metadata with unresolved layout, an
 one-input provenance in a fresh unlabeled, storage-free Tensor. They calculate none of the example
 values and define no accumulation, gradient, compiler, backend, or execution behavior. See
 [Cumulative-sum semantic kind and attributes](api/tensor-api.md#cumulative-sum-semantic-kind-and-attributes).
+
+### Contraction dimension
+
+The shared input extent over which pairwise products are summed by a contraction operation. In
+current `MATMUL`, it is the final left axis and either the final right axis for a vector or the
+penultimate right axis otherwise. Equal static extents are required; equality involving an
+unresolved extent is deferred because the contraction extent is absent from the output Shape.
+The term describes mathematical and Shape meaning, not an accumulation loop or kernel choice.
+See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
 ### Data type / `DataType`
 
@@ -728,6 +746,17 @@ expressions before the reduction. A static zero-sized reduction axis produces ze
 NaN mean slices; runtime zero-sized or all-false dynamic slices follow the same semantics. Storage
 alignment, value selection, counting, aggregation, division, gradient rules, compiler capture,
 backend behavior, and numerical execution remain planned.
+
+### Matrix multiplication / `MATMUL`
+
+The implemented backend-independent operation that contracts the final left axis with the right
+vector axis or the penultimate right matrix axis, broadcasts leading batch dimensions
+right-aligned, and retains the remaining row and column axes. Rank-one operands are temporarily
+promoted to matrices and their inserted result axes are removed, so vector-vector `MATMUL`
+produces a scalar. `MatmulKind.MATMUL` is parameterless with exactly two logical inputs and one
+output; public `Tensor.matmul` constructs the current storage-free expression metadata. The
+operation does not itself capture a graph, multiply stored values, define gradients, select a
+backend algorithm, or execute. See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
 ### Memory slot
 

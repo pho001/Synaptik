@@ -108,6 +108,9 @@ io.github.pho001.synaptik.model.operation.scan
 io.github.pho001.synaptik.model.operation.normalization
   Typed shape-preserving normalization meanings and immutable normalization parameters.
 
+io.github.pho001.synaptik.model.operation.linalg
+  Typed backend-independent linear-algebra meanings; currently contains parameterless MATMUL.
+
 io.github.pho001.synaptik.model.operation.layout
   Typed backend-independent layout and view operation meanings and immutable parameters.
 
@@ -221,14 +224,16 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018U | [Integral elementwise arithmetic and comparisons](tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete | 0001, 0014A–0015B, 0018K, 0018N, 0018T–0018T1 | Add same-category promotion, selected modular INT32/INT64 elementwise arithmetic, exact scalar domains, and all six integral comparisons. |
 | 0018U1 | [Integral reductions and arg-min normalization](tasks/0018u1-integral-reductions-and-arg-min-normalization.md) | Complete | 0016A–0016E, 0018K, 0018U | Added exact-type modular integral SUM/PROD, signed MIN/MAX with bounded empty identities, and shared `argMin`/`argMax` attributes, ordering, tie, and empty-axis contracts. |
 | 0018V | [Multi-axis and statistical reductions](tasks/0018v-multi-axis-and-statistical-reductions.md) | Complete | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U1 | Added ordered multi-axis ordinary reductions plus first-class floating log-sum-exp, corrected variance/standard deviation, and L1/L2 norm semantics and Tensor construction. |
-| 0019 | Linear algebra and attention operations | Draft | 0018K, 0018M–0018N, 0018T | Represent matmul, linear convenience, and scaled dot-product attention after the ordered reset. |
+| 0019 | [Matmul semantics and Tensor expression](tasks/0019-matmul-semantics-and-tensor-expression.md) | Complete | 0001–0002, 0005–0007, 0011–0013, 0018K–0018N, 0018T, 0018U–0018V | Added first-class vector, matrix, and batched MATMUL metadata with exact Shape, type, numerical, and provenance contracts. |
 | 0019A | Modern activation and embedding conveniences | Draft | 0015F, 0018O, 0018P, 0018T | Add GELU, SiLU/Swish, embedding, and one-hot public compositions without unnecessary primitive kinds. |
 | 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
 | 0019C | Sorting and top-K operations | Draft | 0018K–0018L, 0018U | Represent sort, argsort, and genuine multi-output top-K with explicit ordering, tie, NaN, and stability policies. |
+| 0019D | Linear convenience | Draft | 0019 | Add conventional weight-transposed MATMUL plus optional one-dimensional bias as explicit public composition without a LINEAR kind. |
+| 0019E | Scaled dot-product attention | Draft | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Add one-output high-level attention semantics with exact query/key/value, mask, causal, scale, and all-masked-row contracts, excluding dropout. |
 | 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019C including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -242,7 +247,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   - foundation-contract checkpoint after 0018N;
   - public-surface cleanup checkpoint after 0018S; and
   - completed capability-reset checkpoint after 0018V.
-- Selected modern operation families: tasks 0019–0022, including 0019A–0019C
+- Selected modern operation families: tasks 0019–0022, including 0019A–0019E; checkpoint after
+  0022 before compiler-generated semantic work
 - Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
@@ -281,8 +287,9 @@ exact-type integral reductions and the normalized shared arg-extrema family. Tas
 Completed task [0018V](tasks/0018v-multi-axis-and-statistical-reductions.md) closed the
 capability-reset frontier. Its cohesive 17-path scope kept shared ordered-axis normalization,
 semantic signatures, Shape/result construction, numerical policy, tests, and public
-documentation in one compilable state. Task 0019 is now the next Draft frontier, and it and every
-later task remain Draft without detailed specifications.
+documentation in one compilable state. The former broad task 0019 is now decomposed. Focused
+[task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) completed MATMUL. Task 0019A is
+the next Draft frontier; tasks 0019A–0019E remain Draft rows without detailed specifications.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -335,6 +342,45 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
+- The former broad task 0019 is split without renumbering established 0019A–0019C. Task 0019 is
+  the cohesive MATMUL primitive; 0019D owns `linear`; 0019E owns scaled dot-product attention.
+- MATMUL is one first-class `MATMUL` kind with no attributes, two inputs, one output, and one
+  public `matmul(Tensor)` method. It follows rank-one promotion/removal and right-aligned batch
+  broadcasting across vector-vector, matrix-vector, vector-matrix, matrix-matrix, and batched
+  inputs. Locally provable incompatibilities fail; contraction equality may defer because it does
+  not affect output Shape, while batch deferral is accepted only when the exact output extent is
+  still derivable.
+- MATMUL accepts only same-category floating or signed-integral inputs through current promotion.
+  BFLOAT16 results use FLOAT32 accumulation; other floating results accumulate in their promoted
+  type without a bitwise-order guarantee. Integral results are the promoted-width modular sum of
+  products. Layout remains unresolved and gradient eligibility is input-request OR.
+- `linear` is not a model operation kind. Task 0019D will add `linear(weight)` and
+  `linear(weight, bias)` as explicit composition `input.matmul(weight.transpose())` plus optional
+  ADD. Weight Shape is `[outFeatures, inFeatures]`; input rank is at least one with final extent
+  `inFeatures`; optional bias is exactly rank one `[outFeatures]`. It inherits MATMUL and ADD
+  promotion, numerical, metadata, and provenance instead of hiding a fused semantic operation.
+- Scaled dot-product attention remains a distinct first-class high-level semantic operation in
+  task 0019E because mask, causal, scale, softmax, and all-masked-row meaning must survive compiler
+  inspection. It will use one `SCALED_DOT_PRODUCT_ATTENTION` kind, input range three to four,
+  exactly one output, ordered inputs `[query, key, value]` or `[query, key, value, mask]`, and
+  immutable `ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)`.
+  The public receiver methods will be `scaledDotProductAttention(key, value)`,
+  `scaledDotProductAttention(key, value, attrs)`,
+  `scaledDotProductAttention(key, value, mask)`, and
+  `scaledDotProductAttention(key, value, mask, attrs)`. Absent scale selects the default, while a
+  present scale must be finite, positive, floating, and exactly match the promoted
+  query/key/value type. Query `[...batch, L, E]`, key
+  `[...batch, S, E]`, and value
+  `[...batch, S, Ev]` use broadcast batch/head prefixes and produce
+  `[...broadcastBatch, L, Ev]`. Inputs are floating; BOOL mask `true` participates and `false`
+  masks, broadcasting exactly to score Shape `[..., L, S]`; causal masking additionally retains
+  key positions `j <= i`; the default scale is `1 / sqrt(E)` and explicit scale is finite and
+  positive; softmax is over final key axis `S`; an all-masked row has zero weights and zero output.
+- Initial attention has one output only, exposes no attention-weight output, and has no dropout
+  parameter. It therefore needs neither shared multi-output construction beyond the existing
+  foundation nor RNG ownership and has no technical dependency on task 0019B, although table order
+  places it afterward. Task 0019B owns graph RNG and dropout; a later attention-dropout extension
+  must consume that explicit state rather than hide a generator.
 - The current unconstrained `Operation(kind, attrs)` pairing is not an acceptable stable contract.
   Task 0018K adds compact family-owned signature validation, including occurrence cardinality,
   without a global registry.
@@ -1282,16 +1328,17 @@ Completed task
 documented atomic-migration exception to the usual file-count guardrail because partial signature
 enforcement would either break valid current families or retain a permissive unsafe fallback.
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
-complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Task 0019 is the next
-Draft frontier, and it and every later task remain Draft without detailed specifications.
+complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
+0019 is complete. Task 0019A is the next Draft frontier; tasks 0019A–0019E and every later task
+remain Draft without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
-The 0019A–0019C suffixes are sequential rows inserted after established task 0019 while preserving
-the existing 0020–0024 identifiers. They are independent follow-ups, not hidden subtasks of 0019;
-their `Depends on` entries list only technical prerequisites, while table order still places them
-after linear algebra.
+The 0019A–0019C suffixes are established sequential rows after task 0019. New 0019D–0019E rows
+continue that stable sequence without overwriting those names or renumbering 0020–0024. All five
+are independent follow-ups, not hidden subtasks of 0019; their `Depends on` entries list technical
+prerequisites, while table order remains the default execution order.
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
@@ -1341,7 +1388,8 @@ semantic values. Task 0018H is complete with public functional axis-scatter expr
 construction. Task 0018I is complete with functional Scatter-ND semantic values. Task 0018J is
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
-0018U1 and linked task 0018V are complete. Task 0019 is the next Draft frontier, and it and every
-later task remain Draft without a detailed specification.
+0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
+specification. Task 0019A is the next Draft frontier; tasks 0019A–0019E and every later task remain
+Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
