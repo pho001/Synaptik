@@ -52,8 +52,9 @@ full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fo
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
-tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, and two
-Gather-ND methods, plus two functional Scatter Elements
+tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, one
+trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
+Scatter Elements
 methods and three functional Scatter-ND methods, plus one matrix-multiplication method, construct
 storage-free expressions with immutable producer-and-output-index provenance. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
@@ -116,6 +117,13 @@ type and gradient eligibility come only from weights. This is public model-expre
 not compiler support: capture, constant-index analysis, repeated-index autograd construction,
 dynamic binding, safe bounds enforcement, lowering, backend support, and execution remain owned by
 later lifecycle layers. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
+`Tensor.oneHot(depth)` currently validates exact INT32/INT64 receiver metadata before positive
+static depth, preserves every input Dimension reference, and appends one fresh
+`StaticDimension(depth)`. It constructs one storage-free, non-differentiable BOOL result with one
+`ONE_HOT` producer and exact sole-input provenance. This is a current model-expression inventory
+entry, not compiler support. Construction reads no index values; valid eventual execution
+requires `0 <= i < depth`, while capture, constant analysis, dynamic bounds enforcement,
+gradients, lowering, backend support, and execution remain planned in their owning layers.
 `Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
 retain its exact type, Shape, and gradient eligibility, leave layout unresolved, and record
 one-input parameterless provenance.
@@ -349,7 +357,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   signed-step slice plus one-occurrence flip construction, plus conditional-view scalar-select construction and
-  unresolved-layout Gather/Gather Elements construction, plus unresolved-layout Gather-ND,
+  unresolved-layout Gather/Gather Elements and trailing-axis one-hot construction, plus
+  unresolved-layout Gather-ND,
   functional Scatter Elements, and functional Scatter-ND
   construction, plus
   unresolved constant-pad and complete-pattern tile
@@ -360,7 +369,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   scan/reduction/normalization inference and canonicalization, optional softmax or activation
   decomposition, activation-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
-  axis-gather/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
+  axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
   shared-producer traversal and output-slot capture,
   compiler-generated `FOLD_AXIS` construction, deferred

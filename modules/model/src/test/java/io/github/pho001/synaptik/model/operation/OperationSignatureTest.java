@@ -23,6 +23,8 @@ import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
 import io.github.pho001.synaptik.model.operation.index.GatherNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
+import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
@@ -185,6 +187,7 @@ public final class OperationSignatureTest {
         assertFamily(List.of(fixed(GatherNdAttrs.class, 2)), GatherNdKind.values());
         assertFamily(List.of(fixed(ScatterNdAttrs.class, 3)), ScatterNdKind.values());
         assertFamily(List.of(fixed(SelectAttrs.class, 1)), SelectKind.values());
+        assertFamily(List.of(fixed(OneHotAttrs.class, 1)), OneHotKind.values());
 
         assertKinds(
                 List.of(fixed(PermutationAttrs.class, 1)), AxisTransformKind.PERMUTE);

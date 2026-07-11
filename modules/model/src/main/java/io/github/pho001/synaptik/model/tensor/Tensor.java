@@ -3804,6 +3804,40 @@ public final class Tensor {
     }
 
     /**
+     * Creates a fresh dense one-hot encoding of this signed-integral indices Tensor.
+     *
+     * <p>This Tensor must have exact INT32 or INT64 type. The result appends one static trailing
+     * axis of positive {@code depth}, preserves every input Dimension reference, and has BOOL
+     * type, false gradient eligibility, unresolved layout, no label, and no host storage. A scalar
+     * receiver becomes Shape {@code [depth]}; zero-element receivers and
+     * {@link Long#MAX_VALUE} depth are structurally valid without calculating a total element
+     * count. For an input coordinate {@code p} with eventual value {@code i}, the exact logical
+     * formula is {@code result[p..., j] = (i == j)} for {@code 0 <= j < depth}.</p>
+     *
+     * <p>Construction creates one {@link io.github.pho001.synaptik.model.operation.index.OneHotKind#ONE_HOT}
+     * producer with this Tensor as its sole input, provenance output index zero, and one fresh
+     * Tensor identifier. Repeated calls create distinct results and producers. It does not inspect
+     * values, execute the encoding, allocate result storage, define gradients, or provide
+     * compiler/backend support. Valid execution requires {@code 0 <= i < depth}.
+     * Negative and out-of-range values do not wrap, clamp, select a default, or produce an
+     * all-false row.</p>
+     *
+     * @param depth positive {@code long} extent of the appended one-hot axis; every positive value
+     *     through {@link Long#MAX_VALUE} is structurally accepted
+     * @return a non-null fresh storage-free BOOL Tensor whose Shape retains every receiver
+     *     Dimension reference and appends one fresh static Dimension
+     * @throws IllegalArgumentException if this Tensor is not INT32 or INT64, with message
+     *     {@code oneHot indices data type must be INT32 or INT64: <type>}, checked before depth
+     *     validation, or if {@code depth} is not positive, with message
+     *     {@code depth must be positive: <depth>}
+     * @throws IllegalStateException if Tensor identifier space is exhausted, with message
+     *     {@code tensor identifier space exhausted}
+     */
+    public Tensor oneHot(long depth) {
+        return TensorOneHotExpressions.apply(this, depth);
+    }
+
+    /**
      * Creates a fresh same-rank expression whose indices align with data away from one axis.
      *
      * <p>Indices must be exact INT32 or INT64, have the same rank as data, and have equal

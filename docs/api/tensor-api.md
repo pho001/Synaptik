@@ -38,6 +38,9 @@ logical view geometry when the input layout is resolved and the result is non-em
 `gather(Tensor, int)` replaces one data axis with the complete indices Shape.
 `gatherElements(Tensor, int)` retains the exact same-rank indices Shape after checking every
 non-selected Dimension. These are the complete public axis-index gather spellings.
+`oneHot(long)` treats an INT32 or INT64 receiver as logical indices and appends one positive
+static class axis. It produces storage-free BOOL metadata for one first-class `ONE_HOT`
+occurrence without reading any index value.
 `gatherNd(Tensor)` and `gatherNd(Tensor, int)` use coordinate tuples to index several data axes
 after zero or more structurally equal shared batch Dimensions. They require a static positive
 tuple depth, derive the result from the indices prefix plus the untouched data suffix, and never
@@ -128,6 +131,16 @@ normalization, exact `INT32`/`INT64` index representation, family-specific struc
 and construction, and exact ordered two-input provenance. Both consume an existing index Tensor.
 None of the methods interprets index values or checks their bounds.
 
+`OneHotKind.ONE_HOT` is the current index-encoding semantic identity. It pairs with
+`OneHotAttrs(depth)`, which stores one positive static trailing-axis extent, and consumes ordered
+logical input `[indices]`. Public `Tensor.oneHot(depth)` requires exact INT32 or INT64 index
+metadata, preserves every receiver Dimension reference, appends one fresh
+`StaticDimension(depth)`, and constructs a fixed-BOOL, non-differentiable result. Construction
+reads no values. Valid eventual execution requires every index `i` to satisfy `0 <= i < depth`;
+invalid values do not wrap, clamp, select a default, or produce an all-false row. Compiler
+capture, constant analysis, bounds enforcement, lowering, backend support, and execution are not
+implemented by this model contract.
+
 `GatherNdKind.GATHER_ND` is the current tuple-index semantic identity. It pairs with
 `GatherNdAttrs(batchDimensions)`, which stores only the normalized non-negative count of shared
 leading batch Dimensions. Ordered logical inputs are `[data, indices]`; the final indices
@@ -217,6 +230,7 @@ Tensor + explicit axes + SLICE                     = fresh one-occurrence flippe
 Tensor + one axis and scalar coordinate + SELECT  = fresh conditional-view rank-reduced Tensor
 Tensor + arbitrary indices + GATHER               = fresh inserted-Shape gather Tensor
 Tensor + same-rank aligned indices + GATHER_ELEMENTS = fresh exact-indices-Shape Tensor
+INT32/INT64 indices Tensor + positive depth + ONE_HOT = fresh trailing-axis BOOL Tensor
 Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-data-suffix Tensor
 Tensor + same-rank indices/updates + SCATTER_ELEMENTS = fresh data-Shape replacement/reduction Tensor
 Tensor + coordinate-tuple indices/updates + SCATTER_ND = fresh data-Shape replacement/reduction Tensor
@@ -243,6 +257,7 @@ TileKind + TileAttrs                                        = complete-pattern p
 TensorCompositionKind + CompositionAxisAttrs                = concat/stack meaning + normalized axis
 SelectKind + SelectAttrs                                   = scalar coordinate + normalized source axis/index
 AxisGatherKind + IndexAxisAttrs                            = gather/gather-elements meanings + normalized data axis
+OneHotKind + OneHotAttrs                                 = one-hot meaning + positive static depth
 GatherNdKind + GatherNdAttrs                              = tuple-index meaning + normalized shared batch count
 AxisScatterKind + ScatterElementsAttrs                    = functional scatter-elements meaning + axis/reduction
 ScatterNdKind + ScatterNdAttrs                             = functional tuple-scatter meaning + batch count/reduction
@@ -4715,6 +4730,83 @@ or execution.
 - For both signatures, local validation completes before result identity
   allocation. Identifier exhaustion can occur only during final derived construction.
 
+### One-hot encoding expressions
+
+`indices.oneHot(depth)` creates metadata for one dense trailing-axis indicator encoding. The
+receiver must have exact INT32 or INT64 type, and `depth` must be a positive `long`. For receiver
+Shape `[d0, ..., dn]`, the result Shape is:
+
+```text
+[exact d0 reference, ..., exact dn reference, new StaticDimension(depth)]
+```
+
+Every existing Dimension object is retained by reference and in order. The appended Dimension is
+fresh. A scalar receiver therefore produces Shape `[depth]`; a receiver containing a zero extent
+remains valid and has zero logical rows. `Long.MAX_VALUE` depth is structurally accepted because
+construction does not calculate a result element count or materialize storage.
+
+For an input coordinate `p` with eventual index value `i`, the exact logical meaning is:
+
+```text
+result[p..., j] = (i == j), for 0 <= j < depth
+```
+
+The result has exact BOOL type, `requiresGrad=false`, unresolved layout, no label, and no host
+storage. Each successful call creates one `ONE_HOT` operation with `OneHotAttrs(depth)`, one fresh
+single-output producer retaining exact input `[indices]`, provenance output index zero, and one
+fresh Tensor identity.
+
+#### Conceptual vector and scalar examples
+
+The goal is to connect index values to the requested logical result while keeping the current
+metadata-only boundary explicit. For conceptual INT64 values `[2, 0, 1]` with Shape `[3]` and
+depth `3`, the requested values are:
+
+```text
+input:  [2, 0, 1]
+result: [[false, false, true],
+         [true,  false, false],
+         [false, true,  false]]
+```
+
+Each input position becomes one row on the new trailing class axis. Index `2` selects trailing
+position `2`, index `0` selects position `0`, and index `1` selects position `1`. The result Shape
+is `[3, 3]`. A conceptual scalar INT32 index `2` with depth `4` instead requests rank-one Shape
+`[4]` and values `[false, false, true, false]`.
+
+These value arrays are conceptual expected results, not output produced by current code.
+`oneHot` inspects only receiver metadata, so it does not read the example values, allocate the
+BOOL result, compile an operation, or execute encoding. A caller can inspect the current
+construction contract with storage-free metadata:
+
+```java
+Tensor indices = TensorFactory.create(new TensorDescriptor(
+        DataType.INT64, Shape.of(3), Optional.empty(), false));
+Tensor encoded = indices.oneHot(3);
+
+System.out.println(encoded.descriptor().shape());
+System.out.println(encoded.descriptor().dataType());
+System.out.println(encoded.provenance().orElseThrow().operation());
+```
+
+The observable metadata is Shape `[3, 3]`, BOOL, and an operation whose kind is `ONE_HOT` and
+whose attributes are `OneHotAttrs[depth=3]`. This proves Shape, type, and semantic provenance; it
+does not prove or calculate the conceptual BOOL values.
+
+#### Failures and execution boundary
+
+- A receiver whose type is not INT32 or INT64 fails before depth validation with
+  `oneHot indices data type must be INT32 or INT64: <type>`.
+- Depth zero or a negative depth fails with `depth must be positive: <depth>`. Null helper input,
+  type failure, and depth failure occur before Tensor identity allocation.
+- Valid eventual execution requires `0 <= i < depth` for every index value. Negative and
+  out-of-range values are invalid; they do not wrap, clamp, select a default, or produce an
+  all-false row. Model construction deliberately accepts stored invalid values because it never
+  reads storage. A later compiler may reject provably invalid constants, while future preparation
+  or prepared execution must safely enforce the bound for dynamically supplied values.
+- There is no configurable axis, Tensor-valued depth, on/off value, output type, ignore index,
+  sparse form, gradient rule, compiler support, backend lowering, or runtime implementation.
+
 ### Gather-ND expressions
 
 The two public Gather-ND methods consume ordered logical inputs `[data, indices]`. The receiver is
@@ -5700,6 +5792,8 @@ composition while the table also lists the current production families:
 | `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
 | `AxisGatherKind` | The implemented production enum for canonical Gather and aligned same-rank Gather Elements meanings. |
 | `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by Gather and Gather Elements. |
+| `OneHotKind` | The implemented production enum whose sole `ONE_HOT` value identifies dense trailing-axis BOOL index encoding. |
+| `OneHotAttrs` | The implemented immutable positive static depth of one-hot's appended class axis. |
 | `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
@@ -6501,6 +6595,23 @@ Shape checks and derivation, result metadata, and exact `[data, indices]` proven
 semantic values nor public expression construction inspect index values or bounds, define
 gradients, provide compiler behavior, choose a backend, or execute work.
 
+### One-hot semantic kind and attributes
+
+The public enum `io.github.pho001.synaptik.model.operation.index.OneHotKind` implements
+`OperationKind` with exactly `ONE_HOT`. It consumes ordered logical input `[indices]`, produces
+one dense BOOL output, requires exact `OneHotAttrs`, and declares exactly one input and one output.
+`OneHotAttrs(depth)` retains one positive `long` unchanged. It rejects zero or a negative value
+with `depth must be positive: <depth>` and accepts every positive value through
+`Long.MAX_VALUE` without claiming that later storage can materialize the Shape.
+
+For an index value `i`, output coordinate `j` on the new trailing axis is true exactly when
+`i == j`. Eventual execution requires `0 <= i < depth`; an invalid index is not a request for
+wrapping, clamping, a default row, or an all-false row. The kind and attributes contain no input
+Tensor, Shape, axis, on/off values, output type, bounds policy, compiler state, backend support,
+storage, or execution state. Public `Tensor.oneHot` separately owns input-type and depth
+validation, Shape/descriptor construction, and exact one-input provenance as described under
+[one-hot encoding expressions](#one-hot-encoding-expressions).
+
 ### Gather-ND semantic kind and attributes
 
 The public enum `io.github.pho001.synaptik.model.operation.index.GatherNdKind` implements
@@ -7163,7 +7274,8 @@ The following contracts appear in the architecture and planning documents but ar
   logical, unary elementwise, floating-classification, scalar elementwise, conditional selection,
   cast, aggregate
   reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
-  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND,
+  axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, one-hot,
+  gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
 - compiler entry points and transformations, compiler-owned `PublicationPlan` and
@@ -7180,7 +7292,7 @@ The following contracts appear in the architecture and planning documents but ar
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
-`SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`,
+`SelectKind`, `SelectAttrs`, `AxisGatherKind`, `IndexAxisAttrs`, `OneHotKind`, `OneHotAttrs`,
 `GatherNdKind`, `GatherNdAttrs`, `AxisScatterKind`, `ScatterReduction`, `ScatterElementsAttrs`,
 `ScatterNdKind`, `ScatterNdAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,

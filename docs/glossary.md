@@ -175,6 +175,13 @@ construction validates exact `INT32`/`INT64` index type, normalizes the data axi
 family-specific structural Shape rule, preserves data metadata with unresolved layout, and records
 fresh ordered two-input provenance. Index-value access and bounds checks, gradients, compiler
 behavior, backend behavior, and execution remain planned or separately owned.
+The `OneHotKind` vocabulary is implemented with the sole `ONE_HOT` index-encoding meaning and
+`OneHotAttrs` carrying one positive static depth. Public `Tensor.oneHot` construction accepts
+INT32/INT64 index metadata, appends one fresh static trailing Dimension after the exact input
+Dimension references, and records a non-differentiable BOOL result with fresh one-input
+provenance. It reads no index values. Negative or out-of-range values are invalid for eventual
+execution rather than wrapping, clamping, selecting a default, or producing an all-false row;
+compiler analysis, bounds enforcement, lowering, and execution remain planned.
 The `GatherNdKind` vocabulary is implemented with the sole tuple-index `GATHER_ND` meaning,
 together with `GatherNdAttrs` carrying one normalized non-negative count of shared leading batch
 Dimensions. Gather-ND has ordered logical inputs `[data, indices]`; the final indices Dimension
@@ -333,6 +340,30 @@ invalid for later ordinary Gather execution, and there is no wrapping, padding r
 gradient, maximum-norm, or frequency-scaling option. Gradient construction, compiler analysis,
 bounds enforcement, lowering, backend behavior, and execution remain separately owned. See the
 [embedding convenience](api/tensor-api.md#embedding-convenience).
+
+### One-hot encoding
+
+An implemented backend-independent index-encoding meaning represented by
+`OneHotKind.ONE_HOT` and `OneHotAttrs(depth)`. It consumes one INT32 or INT64 indices Tensor and
+adds a positive static trailing class axis. For each input coordinate `p` with eventual value `i`,
+its dense BOOL meaning is:
+
+```text
+result[p..., j] = (i == j), for 0 <= j < depth
+```
+
+Public `indices.oneHot(depth)` retains every input Dimension reference, appends one fresh
+`StaticDimension(depth)`, and creates a storage-free BOOL result with `requiresGrad=false`, one
+producer, output index zero, and one fresh Tensor identity. Scalar indices produce Shape
+`[depth]`; zero-element input and `Long.MAX_VALUE` depth are structurally valid without result
+materialization.
+
+One-hot differs from [Gather](#gather): Gather uses index values to select existing data, whereas
+one-hot turns each index into a new trailing indicator row. Construction reads no values. Valid
+eventual execution requires `0 <= i < depth`; negative and out-of-range values do not wrap,
+clamp, select a default, or produce an all-false row. Compiler analysis, bounds enforcement,
+gradient construction, lowering, backend support, and execution remain separately owned. See
+[one-hot encoding expressions in the Tensor API](api/tensor-api.md#one-hot-encoding-expressions).
 
 ### Gather Elements
 
@@ -894,6 +925,8 @@ ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds on
 shared by concat and stack. `SelectAttrs` holds one normalized source axis and one normalized
 scalar coordinate for axis-removing scalar select and repeated-select unstack. `IndexAxisAttrs`
 holds one normalized data axis shared by `GATHER` and `GATHER_ELEMENTS`.
+`OneHotAttrs` holds one positive static `long` depth for the trailing class axis of `ONE_HOT` and
+contains no input value, Shape, axis, on/off value, output type, or execution policy.
 `GatherNdAttrs` holds the normalized count of shared leading batch Dimensions
 for `GATHER_ND`; tuple depth remains the final indices Dimension rather than attribute state.
 `ScatterElementsAttrs` holds one normalized data axis plus an explicit non-null
@@ -1098,14 +1131,16 @@ pair with `CompositionAxisAttrs`, as described under [tensor composition](#tenso
 The eighteenth is `SelectKind`, whose
 sole `SELECT` value pairs with `SelectAttrs` as described under [scalar select](#scalar-select).
 The nineteenth is `AxisGatherKind`, whose `GATHER` and `GATHER_ELEMENTS` values pair with
-`IndexAxisAttrs` as described under [Gather](#gather) and [Gather Elements](#gather-elements). The twentieth is
-`GatherNdKind`, whose sole `GATHER_ND` value pairs with `GatherNdAttrs` as described under
-[Gather-ND](#gather-nd). The twenty-first is `AxisScatterKind`, whose sole `SCATTER_ELEMENTS`
+`IndexAxisAttrs` as described under [Gather](#gather) and [Gather Elements](#gather-elements).
+The twentieth is `OneHotKind`, whose sole `ONE_HOT` value pairs with `OneHotAttrs` as described
+under [one-hot encoding](#one-hot-encoding). The twenty-first is `GatherNdKind`, whose sole
+`GATHER_ND` value pairs with `GatherNdAttrs` as described under [Gather-ND](#gather-nd). The
+twenty-second is `AxisScatterKind`, whose sole `SCATTER_ELEMENTS`
 value pairs with `ScatterElementsAttrs` and one `ScatterReduction`, as described under
 [Scatter Elements](#scatter-elements).
-The twenty-second is `ScatterNdKind`, whose sole `SCATTER_ND` value pairs with `ScatterNdAttrs`
+The twenty-third is `ScatterNdKind`, whose sole `SCATTER_ND` value pairs with `ScatterNdAttrs`
 and the shared reduction vocabulary, as described under [Scatter-ND](#scatter-nd). The
-twenty-third is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
+twenty-fourth is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with
 `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
 under [window transform](#window-transform). These semantic families do not by themselves

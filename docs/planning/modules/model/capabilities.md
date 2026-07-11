@@ -365,14 +365,17 @@ while backend preparation and its prepared executable must preserve safe executi
 handling after dynamic extents are bound. Runtime executes that prepared behavior without
 inspecting the original Gather operation.
 
-Draft task 0019A2 owns exactly `indices.oneHot(long depth)`. The receiver is INT32 or INT64,
+Completed [task 0019A2](tasks/0019a2-one-hot-encoding.md) adds exactly
+`indices.oneHot(long depth)`. The receiver is INT32 or INT64,
 `depth` is a positive static `long`, and one static depth axis is appended after every input axis.
 Every existing indices Dimension is retained exactly, including dynamic dimensions.
 The output is non-differentiable BOOL with `false` off and `true` at the matching coordinate.
-Negative indices and indices at least `depth` produce an all-false row. No axis, output-type,
-on/off-value, negative-wrap, or dynamic-depth configuration is selected. It is a first-class
-one-input operation rather than TensorFactory construction or an eager range/comparison
-composition. The selected Draft contract is `OneHotKind.ONE_HOT` with
+Negative indices and indices at least `depth` are invalid at execution; they do not wrap, clamp,
+select a default, or produce an all-false row. Construction reads no index values, so later
+compiler/backend/execution work must enforce that boundary safely. No axis, output-type,
+on/off-value, ignore-index, sparse, or dynamic-depth configuration is selected. It is a
+first-class one-input operation rather than TensorFactory construction or an eager
+range/comparison composition. The implemented contract is `OneHotKind.ONE_HOT` with
 `OneHotAttrs(long depth)` and an exact one-input, one-output signature.
 
 ### Important shortly afterward
