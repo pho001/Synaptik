@@ -132,9 +132,11 @@ broad RNG/dropout frontier is split: completed
 graph RNG state foundation, and completed
 [task 0019B1](modules/model/tasks/0019b1-explicit-graph-dropout-construction.md) owns dropout with
 explicit state. The former sorting/top-K row is split: completed
-[task 0019C](modules/model/tasks/0019c-sort-and-argsort.md) owns full stable sort/argsort, and Draft
-task 0019C1 owns genuine multi-output top-K without a detailed specification. Tasks 0019D–0019E
-and every later task remain Draft.
+[task 0019C](modules/model/tasks/0019c-sort-and-argsort.md) owns full stable sort/argsort, and
+completed [task 0019C1](modules/model/tasks/0019c1-top-k-values-and-indices.md) owns genuine
+multi-output top-K. Its final model suite, independent documentation review, Javadoc, runnable example,
+Markdown, exact 18-path audit, repository checkpoint, status, and whitespace validation passed.
+Tasks 0019D–0019E and every later task remain Draft.
 
 Task 0018U added same-category numeric promotion, selected modular INT32/INT64 ADD, SUB, MUL, MIN,
 and MAX Tensor and exact-scalar construction, and all six signed-integral comparisons without a
@@ -190,9 +192,10 @@ through 0018T1, task 0018U, task 0018U1, linked task 0018V, and focused MATMUL t
 complete. Tasks 0019A, 0019A1, and
 [task 0019A2](modules/model/tasks/0019a2-one-hot-encoding.md) and task 0019B are also complete. Task
 0019B owns only explicit graph RNG state, with dropout separated into completed task 0019B1.
-Task 0019C is now complete for stable sort/argsort. Its Draft 0019C1 follow-up owns top-K, while
-linear and attention remain Draft tasks 0019D and 0019E. No model task is currently Ready or
-Review needed.
+Task 0019C is now complete for stable sort/argsort. Its completed
+[0019C1 follow-up](modules/model/tasks/0019c1-top-k-values-and-indices.md) owns top-K, while linear
+and attention remain Draft tasks 0019D and 0019E. No model task is currently Ready or Review
+needed.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -201,9 +204,8 @@ composition, and unfold/fold contracts can be implemented and validated independ
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
 task 0018U, task 0018U1, task 0018V, focused MATMUL task 0019, task 0019A, and task 0019A1 are
-Complete. Tasks 0019A2, 0019B, 0019B1, and 0019C are also Complete. Task 0019C1, tasks
-0019D–0019E, and later tasks remain Draft without detailed specifications. No model task is
-currently Ready.
+Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, and 0019C1 are also Complete. Tasks 0019D–0019E
+and later tasks remain Draft without detailed specifications. No model task is currently Ready.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -654,7 +656,7 @@ authorized Compile API status correction.
 | 98 | [0019B Explicit graph RNG state foundation](modules/model/tasks/0019b-explicit-graph-rng-state-foundation.md) | Complete |
 | 99 | [0019B1 Explicit graph dropout construction](modules/model/tasks/0019b1-explicit-graph-dropout-construction.md) | Complete |
 | 100 | [0019C Sort and argsort](modules/model/tasks/0019c-sort-and-argsort.md) | Complete |
-| 101 | 0019C1 Top-K values and indices | Draft |
+| 101 | [0019C1 Top-K values and indices](modules/model/tasks/0019c1-top-k-values-and-indices.md) | Complete |
 | 102 | 0019D Linear convenience | Draft |
 | 103 | 0019E Scaled dot-product attention | Draft |
 | 104 | 0020 Convolution and pooling operations | Draft |
@@ -711,9 +713,9 @@ complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 001
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
 before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, linked 0018V, and task 0019 are
-complete. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, and 0019C are also complete. Task 0019C1,
-tasks 0019D–0019E, and every later task remain Draft without detailed specifications. No model task
-is currently Ready.
+complete. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, and 0019C1 are also complete. Tasks
+0019D–0019E and every later task remain Draft without detailed specifications. No model task is
+currently Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

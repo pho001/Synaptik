@@ -134,6 +134,16 @@ directions with stable logical-index ties. Sort preserves input type and gradien
 argsort uses non-differentiable INT64. These are current model-expression and provenance facts,
 not implemented compiler capture, operand revalidation, gradient construction, algorithm
 selection, lowering, backend support, runtime behavior, or execution.
+`Tensor.topK(k, axis[, largest, sorted])` currently constructs one compiler-neutral
+`TopKKind.TOP_K` model occurrence with ordered outputs `[values, indices]`. The values output
+preserves input type and gradient eligibility; indices are non-differentiable INT64. Both share
+one fresh Shape whose selected dimension is static `k`, one exact producer, and provenance slots
+zero and one. A known static selected extent is checked during Tensor construction. When that
+extent is dynamic or expression-based, the obligation `bound extent >= k` is deliberately
+deferred: future compiler or binding validation must reject an insufficient bound rather than
+clamp, pad, wrap, or reduce the output count. These are current model-expression facts, not a
+claim that a compiler captures TOP_K, infers or revalidates its descriptors, constructs gradients,
+selects an algorithm, lowers it, reports backend support, or executes it.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result

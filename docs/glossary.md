@@ -328,6 +328,23 @@ single-output provenance without comparing values or providing compiler, backend
 execution behavior. See [Stable sort and argsort
 expressions](api/tensor-api.md#stable-sort-and-argsort-expressions).
 
+### Top-K selected set
+
+The implemented model request represented by `TopKKind.TOP_K` and
+`TopKAttrs(axis, k, largest, sorted)`. The **selected set** is the first `k` entries of the same
+complete stable numerical order used by full ordering, requested largest or smallest. NaNs remain
+after all non-NaNs in either direction, signed zero and infinities use the fixed numerical policy,
+and equal candidates prefer increasing original logical-axis index. When `sorted` is false, the
+same selected value/index pairs use deterministic increasing original logical-index order; the
+flag never permits a backend-dependent permutation.
+
+Public `Tensor.topK` returns `TopKResult(values, indices)` from one shared producer at output slots
+zero and one. Construction replaces the selected Shape dimension with static `k`, checks a known
+static extent, and defers a dynamic or expression-bound capacity obligation to later compiler or
+binding validation. This is model meaning and provenance, not value evaluation, an algorithm,
+gradient construction, compiler support, backend lowering, runtime behavior, or execution. See
+[Top-K values and indices](api/tensor-api.md#top-k-values-and-indices).
+
 ### Gather
 
 An implemented backend-independent tensor-index meaning represented by `AxisGatherKind.GATHER`

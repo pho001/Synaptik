@@ -619,6 +619,53 @@ public final class Tensor {
     }
 
     /**
+     * Selects the largest {@code k} values and their logical indices in stable sorted order.
+     *
+     * <p>This convenience is exactly {@code topK(k, axis, true, true)}.</p>
+     *
+     * @param k non-negative number of pairs to select; must not exceed a known static selected
+     *     extent, while a dynamic or expression-bound extent is deferred
+     * @param axis positive or negative input axis normalized against this Tensor's Shape
+     * @return fresh, non-null values and INT64 indices wrappers sharing one exact two-output
+     *     producer and derived Shape
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalArgumentException if {@code k} is negative or exceeds a selected static extent
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public TopKResult topK(long k, int axis) {
+        return topK(k, axis, true, true);
+    }
+
+    /**
+     * Selects {@code k} values and their logical input indices along one axis.
+     *
+     * <p>Selection uses stable largest or smallest numerical order, including infinities, with
+     * NaNs last in either direction, negative zero below positive zero before direction reversal,
+     * and increasing logical indices for equal finite, integral, BOOL, or NaN keys. Sorted output
+     * retains that selection order; unsorted output deterministically uses increasing original
+     * logical index. Construction accepts every current data type, replaces the selected Shape
+     * dimension with static {@code k}, preserves every unselected Dimension reference, and defers
+     * dynamic selected-extent bounds. Values preserve this Tensor's type and gradient request;
+     * indices use non-differentiable INT64, and both results have unresolved layout, no label, and
+     * no storage. It records model metadata only and performs no evaluation, gradient construction,
+     * compilation, backend selection, runtime work, or execution.</p>
+     *
+     * @param k non-negative number of pairs to select; must not exceed a known static selected
+     *     extent, while a dynamic or expression-bound extent is deferred
+     * @param axis positive or negative input axis normalized against this Tensor's Shape
+     * @param largest whether to select largest rather than smallest values
+     * @param sorted whether output retains selection order rather than logical-index order
+     * @return fresh, non-null values and INT64 indices wrappers sharing one exact two-output
+     *     producer and derived Shape
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalArgumentException if {@code k} is negative or exceeds a selected static extent
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public TopKResult topK(long k, int axis, boolean largest, boolean sorted) {
+        return TensorTopKExpressions.apply(this, k, axis, largest, sorted);
+    }
+
+    /**
      * Builds an elementwise expression testing whether this left operand is greater than
      * {@code right}.
      *

@@ -430,9 +430,10 @@ storage-free semantics for later graph execution. Neither owns or discovers a hi
 
 The former broad sorting row is split at the output/Shape boundary. Completed
 [task 0019C](tasks/0019c-sort-and-argsort.md) owns stable full-axis `sort` and `argsort` as distinct
-single-output semantics. Draft task 0019C1 owns genuine top-K because it replaces one Shape extent
+single-output semantics. Completed [task 0019C1](tasks/0019c1-top-k-values-and-indices.md) owns genuine
+top-K because it replaces one Shape extent
 with `k`, validates static or deferred selected-axis capacity, and returns values and indices from
-one shared two-output producer. Task 0019C1 has no detailed specification until 0019C is complete;
+one shared two-output producer. Its detailed specification follows completed task 0019C;
 established tasks 0019D and 0019E retain their IDs.
 
 Task 0019C selects exactly `sort(axis)`, `sort(axis, descending)`, `argsort(axis)`, and
@@ -457,9 +458,11 @@ uses the mainstream `sort`/`argsort`, axis, and descending vocabulary documented
 [JAX](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.sort.html) without importing their
 algorithm-selection options.
 
-Draft task 0019C1 will add exactly `topK(long k, int axis)` and
+Completed [task 0019C1](tasks/0019c1-top-k-values-and-indices.md) adds exactly
+`topK(long k, int axis)` and
 `topK(long k, int axis, boolean largest, boolean sorted)`, with largest/sorted defaults, plus
-`TopKResult(values, indices)`. One `TOP_K` producer consumes the input and describes ordered values
+`TopKResult(values, indices)`. Focused `TopKKind.TOP_K` preserves `OrderingKind`'s exact existing
+SORT/ARGSORT signatures. One TOP_K producer consumes the input and describes ordered values
 and indices slots zero and one, so the carrier retains the exact two wrappers and exactly two IDs
 under the current factory seam. The `largest`/`sorted` names follow the conventional
 [PyTorch top-k](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.topk.html) surface.
@@ -475,8 +478,8 @@ input type/gradient eligibility, and indices are INT64/non-gradient; both are un
 unlabeled, and storage-free. Neither task implements evaluation, gradients, compiler capture,
 lowering, kernels, or execution.
 
-Top-K local validation will check input, normalize axis, require non-negative `k`, then reject a
-known static `k > extent`, before wrapper/ID allocation. Its exact planned failures are
+Top-K local validation checks input, normalizes axis, requires non-negative `k`, then rejects a
+known static `k > extent`, before wrapper/ID allocation. Its exact failures are
 `k must be non-negative: <k>` and
 `k must not exceed selected static extent: k=<k>, axis=<axis>, extent=<extent>`. A dynamic extent
 records the deferred inequality instead of choosing a backend-dependent result.
@@ -484,7 +487,6 @@ records the deferred inequality instead of choosing a backend-dependent result.
 ### Important shortly afterward
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
-- true multi-output top-K after completed task 0019C's stable sort and argsort foundation;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
 - convolution and max/average pooling after symbolic extent expressions are complete;
