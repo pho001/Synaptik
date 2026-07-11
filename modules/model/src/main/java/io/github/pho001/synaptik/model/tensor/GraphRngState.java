@@ -19,10 +19,10 @@ import java.util.Optional;
  *
  * <p>Instances are shallowly immutable and inherit ordinary object-identity equality and hashing.
  * Equal key/counter inputs request equivalent abstract stream positions but create distinct state,
- * Tensor, producer, and identifier occurrences. Branching the same state into multiple future
- * consumers intentionally reuses its interval; sequential callers will thread each operation's
- * next state. The immutable wrapper may be shared, but it does not synchronize consuming
- * execution.</p>
+ * Tensor, producer, and identifier occurrences. Branching the same state into multiple dropout
+ * consumers intentionally requests interval reuse; sequential callers thread each operation's
+ * {@link DropoutResult#nextState() next state}. The immutable wrapper may be shared, but it does
+ * not synchronize consuming execution.</p>
  *
  * <p>No random algorithm or portable bitstream is selected. Replay is therefore bounded to a
  * conforming prepared implementation and configuration that defines the consuming operation.

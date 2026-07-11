@@ -351,8 +351,8 @@ gradient-eligibility metadata with unresolved layout, without defining algorithm
 ReLU is already current through completed tasks 0014C–0014D and is not duplicated by 0019A.
 The former broad dropout/RNG frontier is split at the reusable semantic boundary. Completed
 [task 0019B](tasks/0019b-explicit-graph-rng-state-foundation.md) owns only explicit graph RNG
-state. Draft task 0019B1 owns dropout because it consumes and produces that state rather than
-behaving as a deterministic unary activation.
+state. Completed [task 0019B1](tasks/0019b1-explicit-graph-dropout-construction.md) owns dropout because
+it consumes and produces that state rather than behaving as a deterministic unary activation.
 
 Completed [task 0019A1](tasks/0019a1-embedding-convenience.md) adds exactly
 `weights.embedding(indices)`. The receiver is a rank-two floating
@@ -405,7 +405,7 @@ of sampled values is bounded to the same conforming prepared implementation and 
 Future graph serialization must preserve the two raw words losslessly, but no byte encoding or
 stable serialization token is current.
 
-Draft task 0019B1 will add training dropout as
+Completed [task 0019B1](tasks/0019b1-explicit-graph-dropout-construction.md) adds training dropout as
 `input.dropout(double probability, GraphRngState state)`. Its public `DropoutResult` exposes the
 dropped Tensor and next state. One producer consumes ordered `[input, state]` and produces ordered
 `[output, auxiliaryMask, nextState]`; the same-Shape BOOL mask is a non-public auxiliary slot for
@@ -414,6 +414,13 @@ compiler-owned backward construction. Dropout is floating-only, uses finite drop
 element even at probability zero, and advances dynamic Shapes by their bound execution count.
 Empty tensors consume zero draws. Inference bypasses the operation and state advancement rather
 than using a model-level training flag.
+
+The current multi-output factory creates one indexed Tensor wrapper per output descriptor, so one
+dropout occurrence allocates exactly three wrappers and three Tensor IDs: public output slot zero,
+short-lived non-public mask slot one, and next-state slot two. The public output and wrapped state
+retain the shared producer and therefore keep the auxiliary BOOL descriptor/position available to
+later compiler capture without exposing a public mask. No descriptor-only factory output or live
+sibling-result registry is selected.
 
 This graph contract is distinct from `TensorRandoms`. `TensorRandoms` eagerly consumes a
 caller-owned JDK `RandomGenerator` to create host-backed leaf data. `GraphRngState` records
@@ -471,7 +478,7 @@ policies, not backend algorithm designs.
 | Norms and normalization | Epsilon placement/type, zero norm, infinity, NaN, accumulation type, and empty normalized regions. |
 | Transcendentals and activations | Domain, overflow/underflow, special values, accuracy contract, and discontinuity/subgradient convention. |
 | Attention and losses | Mask meaning, all-masked rows, label bounds, ignored targets, reduction denominator, stability, and deterministic expectations. |
-| RNG and dropout | Completed task 0019B fixes two unsigned 64-bit state words, modular counter meaning, and bounded replay without a bitstream; Draft 0019B1 fixes finite drop probability `[0,1)`, inverted scaling, one draw per element, auxiliary mask, and next-state output. |
+| RNG and dropout | Completed task 0019B fixes two unsigned 64-bit state words, modular counter meaning, and bounded replay without a bitstream; completed task 0019B1 fixes finite drop probability `[0,1)`, inverted scaling, one draw per element, auxiliary mask, three wrapper/ID outputs, and next-state output. |
 
 Model records the selected meaning. Compiler owns differentiability rules and backward graph
 construction; backends may use different algorithms only when they satisfy that meaning.

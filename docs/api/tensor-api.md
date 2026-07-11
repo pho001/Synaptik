@@ -10,7 +10,9 @@ tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager n
 continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
 source. `GraphRngState` separately represents an explicit, opaque random-number-generator (RNG)
 state occurrence for later graph execution; it neither exposes a numerical Tensor nor performs a
-random draw. The current concrete expression surface contains seven tensor-to-tensor binary arithmetic
+random draw. `Tensor.dropout(probability, state)` constructs one training-only inverted-dropout
+occurrence and returns its public output together with the explicitly threaded next state. The
+current concrete expression surface contains seven tensor-to-tensor binary arithmetic
 methods, of which ADD, SUB, MUL, MIN, and MAX also accept signed integral operands; six floating
 or signed-integral tensor-to-tensor comparison methods; three BOOL-only logical
 methods, nineteen floating unary elementwise methods, three floating-classification methods, seven
@@ -1881,27 +1883,130 @@ false
 This proves public construction and identity equality. It does not expose the private state
 Tensor, sample a value, choose a random algorithm, or prove a cross-backend bitstream.
 
-#### Planned threading example
+### Explicit-state dropout construction
 
-The following code is conceptual; task 0019B1 owns these dropout APIs, and they are not currently
-available:
+`Tensor.dropout(double probability, GraphRngState state)` is the implemented model-construction
+boundary for training-only inverted dropout. It accepts only a floating receiver and a finite drop
+probability in `[0.0, 1.0)`. The result is a `DropoutResult(output, nextState)`; it deliberately has
+no public mask component.
 
-```java
-GraphRngState start = GraphRngState.initial(0x1234L, 0L);
+One call creates one exact producer with these ordered positions:
 
-DropoutResult first = activations.dropout(0.1d, start);
-DropoutResult replay = activations.dropout(
-        0.1d, GraphRngState.initial(0x1234L, 0L));
-DropoutResult second = first.output().dropout(0.1d, first.nextState());
+| Slot | Role | Descriptor | Publicly returned |
+|---:|---|---|---|
+| input 0 | input value | Exact input floating type and Shape | Existing receiver |
+| input 1 | RNG state | Private `INT64 Shape[2]` state Tensor | Through opaque input state only |
+| output 0 | dropped value | Input type/Shape/gradient eligibility; unresolved layout | `DropoutResult.output()` |
+| output 1 | auxiliary keep mask | `BOOL`, exact input Shape, no gradients, unresolved layout | No |
+| output 2 | next RNG state | `INT64 Shape[2]`, no gradients, unresolved layout | `DropoutResult.nextState()` |
+
+The table shows producer roles, not storage. Every output is unlabeled and storage-free. The
+multi-output factory creates three fresh Tensor wrappers and three Tensor IDs, one for each output
+slot. The slot-one wrapper is discarded from the public result, while the producer retained by
+slots zero and two still describes its BOOL mask position for later compiler capture.
+
+For logical element position `i`, the operation means one abstract draw `u[i]` in `[0, 1)` and:
+
+```text
+keep[i] = u[i] >= probability
+output[i] = keep[i] ? input[i] / (1 - probability) : +0
 ```
 
-`first` and `replay` begin at equivalent abstract positions. `second` instead consumes the state
-returned by `first`, expressing sequential use without hidden mutation. Reusing `start` for both
-branches would intentionally request interval reuse. This example fixes the state-threading mental
-model only; dropout, masking, scaling, state advancement, and execution are not implemented by the
-current foundation.
+This is inverted dropout: kept values are scaled so their ideal expectation matches the input.
+Dropped values are positive zero even for negative zero, NaN, or infinite input. Kept signed zero
+and infinity retain their sign; kept NaN remains NaN without a payload promise. Construction does
+not evaluate this formula or select its finite-precision algorithm.
 
-The raw words, fixed descriptor, and occurrence ordering are portable model semantics. No
+#### Complete dropout-construction example
+
+##### Goal and inputs
+
+Build two replay-equivalent dropout occurrences and one explicitly threaded successor for a
+storage-free `FLOAT32` input with Shape `[2, 3]`. The probability is `0.1`, the key is `0x1234`,
+and the initial counter is zero.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.DropoutResult;
+import io.github.pho001.synaptik.model.tensor.GraphRngState;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProducer;
+import java.util.Optional;
+
+public final class DropoutConstructionExample {
+    public static void main(String[] args) {
+        Shape shape = Shape.of(2, 3);
+        Tensor activations = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), true));
+        GraphRngState start = GraphRngState.initial(0x1234L, 0L);
+        DropoutResult first = activations.dropout(0.1d, start);
+        DropoutResult replay = activations.dropout(
+                0.1d, GraphRngState.initial(0x1234L, 0L));
+        DropoutResult second = first.output().dropout(0.1d, first.nextState());
+
+        TensorProducer producer = first.output().provenance().orElseThrow().producer();
+        System.out.println(producer.inputs().size());
+        System.out.println(producer.outputCount());
+        System.out.println(producer.outputDescriptors().get(1).dataType());
+        System.out.println(first.output().descriptor().shape() == shape);
+        System.out.println(first.output() == replay.output());
+        System.out.println(second.output() == first.output());
+    }
+}
+```
+
+##### Meaningful lines
+
+- `first` and `replay` use equal key/counter words, so eventual conforming execution requests the
+  same abstract interval. They remain distinct Tensor and producer occurrences.
+- `second` consumes `first.nextState()`, which expresses sequential non-overlap without mutating
+  `start` or storing a hidden generator.
+- The producer exposes two inputs and three descriptors. Descriptor slot one is the non-public
+  BOOL auxiliary keep mask.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+2
+3
+BOOL
+true
+false
+false
+```
+
+This proves the current public construction surface, output-slot description, Shape identity, and
+fresh occurrence identity. It does not sample a mask, calculate output values, expose the state
+Tensor, capture a graph, construct a gradient, or execute a backend.
+
+#### State advancement, branching, and edge cases
+
+For a bound logical element count `N`, eventual conforming execution consumes counter positions
+`counter` through `counter + N - 1` and returns the same key with `counter + N modulo 2^64`.
+Scalar input uses `N == 1`. A fully static Shape uses its mathematical extent product, including
+products too large for signed `long`; a dynamic or symbolic Shape uses the non-negative count after
+its extents are bound. Any bound zero extent gives `N == 0`, so output and mask are empty and the
+next state has the same abstract key/counter value while remaining a distinct expression
+occurrence.
+
+Both signed probability-zero values are retained. Because every draw lies in `[0, 1)`, probability
+zero keeps every value, but a non-empty occurrence still consumes one draw per element and advances
+state. Reusing one state for two calls intentionally branches over the same interval. Threading
+each returned `nextState` expresses sequential intervals. Sharing the immutable wrapper does not
+synchronize execution.
+
+Input eligibility is checked before probability, and probability before state nullity. Integral or
+BOOL input fails; NaN, infinity, negative probability, and probability at least one fail; then a
+null state fails. These local failures allocate no Tensor ID. Successful construction performs no
+sampling, reads no storage, and mutates neither input nor state.
+
+The raw words, fixed descriptor, occurrence ordering, and modular advancement meaning are portable
+model semantics. No
 portable pseudorandom-number-generator algorithm, key schedule, counter-to-bits function,
 floating conversion, or bitstream is selected, so equal state does not promise bitwise samples
 across backends, routes, providers, or versions. Until an algorithm is selected, sampled replay is

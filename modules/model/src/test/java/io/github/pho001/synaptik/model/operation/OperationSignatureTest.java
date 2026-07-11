@@ -51,6 +51,8 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -217,6 +219,9 @@ public final class OperationSignatureTest {
         assertKinds(List.of(fixed(Fold2dAttrs.class, 1)), WindowTransformKind.FOLD2D);
 
         assertFamily(List.of(fixed(SoftmaxAttrs.class, 1)), SoftmaxKind.values());
+        assertFamily(
+                List.of(OperationSignature.fixed(DropoutAttrs.class, 2, 3)),
+                DropoutKind.values());
         assertFamily(
                 List.of(OperationSignature.fixed(GraphRngStateAttrs.class, 0, 1)),
                 GraphRngKind.values());

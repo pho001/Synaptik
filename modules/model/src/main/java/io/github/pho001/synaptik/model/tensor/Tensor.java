@@ -31,6 +31,7 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
@@ -183,7 +184,8 @@ import java.util.Optional;
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
- * {@link FloatingClassificationKind}, {@link MatmulKind}, or {@link GraphRngKind}.
+ * {@link FloatingClassificationKind}, {@link MatmulKind}, {@link DropoutKind}, or
+ * {@link GraphRngKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -1540,6 +1542,42 @@ public final class Tensor {
      */
     public Tensor silu() {
         return TensorUnaryExpressions.apply(this, UnaryElementwiseKind.SILU);
+    }
+
+    /**
+     * Builds one training-only inverted-dropout expression with explicit graph RNG state.
+     *
+     * <p>The probability must be finite and in {@code [0.0, 1.0)}. One producer consumes this
+     * Tensor and the state's private Tensor and describes three fresh outputs: the public dropped
+     * value, a non-public BOOL keep mask, and the returned next state. The numerical output
+     * preserves this Tensor's exact floating type, Shape reference, and gradient eligibility; all
+     * outputs have unresolved layout and no label or storage.</p>
+     *
+     * <p>For a later-execution bound logical element count {@code N}, the operation means one
+     * abstract draw per element and unsigned counter advancement by {@code N} modulo 2^64. Kept values use inverted
+     * scale {@code 1 / (1 - probability)} and dropped values become positive zero. Probability
+     * zero still creates an occurrence whose eventual execution advances state. An empty bound
+     * shape consumes zero draws but still has a distinct next-state occurrence. Branching a state reuses an interval;
+     * sequential non-overlap requires threading {@link DropoutResult#nextState()}.</p>
+     *
+     * <p>This method constructs model semantics only. It performs no sampling or execution,
+     * selects no portable random algorithm, exposes no mask, and implements no inference rewrite
+     * or gradient rule. Later compiler work owns mask capture and backward construction.</p>
+     *
+     * @param probability finite drop probability in {@code [0.0, 1.0)}; either signed zero is
+     *     accepted
+     * @param state non-null opaque explicit graph RNG state; retained through its exact private
+     *     Tensor input and not mutated
+     * @return non-null fresh dropped output and fresh next-state wrapper
+     * @throws IllegalArgumentException if this Tensor is not floating or probability is non-finite,
+     *     negative, or at least one
+     * @throws NullPointerException if {@code state} is null after input eligibility and probability
+     *     validation
+     * @throws IllegalStateException if Tensor identifier space is exhausted; already allocated
+     *     output IDs are not rolled back
+     */
+    public DropoutResult dropout(double probability, GraphRngState state) {
+        return TensorDropoutExpressions.apply(this, probability, state);
     }
 
     /**

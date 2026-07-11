@@ -24,6 +24,9 @@ continuous-uniform population for the three floating types, bounded integral pop
 `INT32` and `INT64` output, and BOOL Bernoulli population from a finite scalar probability.
 Opaque `GraphRngState` separately owns explicit storage-free graph RNG state construction from two
 raw unsigned 64-bit key/counter words; it does not replace eager `TensorRandoms`.
+Training-only inverted dropout is also implemented as explicit-state model construction. One
+producer consumes the input and private state Tensor, describes public output, auxiliary BOOL
+keep-mask, and next-state slots, and performs no sampling or execution.
 Strict and cyclic prefix preparation is test-fixture mechanics rather than a production Tensor
 capability. Immutable `TensorProvenance` origin metadata is also implemented. That origin model
 now uses identity-bearing immutable `TensorProducer` occurrences and indexed
@@ -500,6 +503,13 @@ The normative rules that define Synaptik's module responsibilities, dependency d
 
 Automatic differentiation: a compiler transformation that derives gradient computations from the forward computation when the compile mode requires them. In Synaptik, the compiler performs global autograd and constructs the backward graph. A concrete backend does not perform global autograd; it prepares and executes only its assigned regions. See [Training graph](architecture/training-graph.md).
 
+### Auxiliary mask
+
+A non-public BOOL result of a multi-output operation that records which logical positions were
+selected during eventual forward execution. Current dropout describes its keep mask at producer
+output slot one while returning only output slots zero and two. A later compiler may capture and
+retain the mask for backward construction; no current compiler or gradient rule does so.
+
 ### Backend
 
 An execution target identified at planning time, such as CPU, Metal, or CUDA. A backend is responsible for reporting capabilities and preparing the partitions assigned to it. Generic architecture discussions use “backend” for this role; a [concrete backend](#concrete-backend) is the module that implements it.
@@ -542,6 +552,13 @@ symbol, exact expression dimensions are equal structurally, and constrained unkn
 only when the same unknown is reused. Other symbolic pairings remain unprovable locally.
 Broadcasting describes logical repetition; a resolved layout may represent that repetition with
 a zero element stride.
+
+### Bounded replay
+
+A reproducibility promise limited to the same conforming prepared implementation path and
+configuration. Equal graph RNG key/counter state and equal consuming-operation inputs request
+equal results within that boundary. It is not a cross-backend or cross-version bitstream promise,
+because no portable pseudorandom-number-generator algorithm is currently selected.
 
 ### Cast expression
 
@@ -624,6 +641,14 @@ retain exact Shape/type/gradient-eligibility metadata with unresolved layout, an
 one-input provenance in a fresh unlabeled, storage-free Tensor. They calculate none of the example
 values and define no accumulation, gradient, compiler, backend, or execution behavior. See
 [Cumulative-sum semantic kind and attributes](api/tensor-api.md#cumulative-sum-semantic-kind-and-attributes).
+
+### Dropout / inverted dropout
+
+A training-only stochastic operation that drops a requested fraction of logical input positions.
+Current `Tensor.dropout(probability, state)` represents inverted dropout: a kept value is ideally
+scaled by `1 / (1 - probability)`, while a dropped value becomes positive zero. It consumes
+explicit graph RNG state and returns the next state; construction itself performs no draw,
+scaling, masking, or execution. There is no model-level training flag or inference rewrite.
 
 ### Contraction dimension
 
@@ -757,8 +782,8 @@ storage mutation, generator, split, copy, or arbitrary-wrap API.
 
 State objects use identity equality. Equal words in distinct initializers request
 replay-equivalent abstract positions but create different state, Tensor, producer, and identifier
-occurrences. A future consuming operation retains the key and advances counter modulo `2^64` by
-its specified logical draw count. Reusing one state on separate branches deliberately reuses its
+occurrences. Current dropout retains the key and means counter advancement modulo `2^64` by its
+bound logical element count. Reusing one state on separate branches deliberately reuses its
 interval; sequential callers thread the returned next state. The wrapper is shallowly immutable
 and may be shared, but does not synchronize execution.
 
@@ -766,9 +791,16 @@ The words, state descriptor, and ordered state edges are portable model semantic
 algorithm, key schedule, counter-to-bits function, floating conversion, or bitstream is selected,
 so sampled replay is bounded to the same conforming prepared implementation and configuration.
 A future graph serializer must preserve both words losslessly, but no byte encoding, parser,
-schema version, or stable enum token exists. Current construction does not sample, advance state,
-allocate storage, execute, capture a graph, implement dropout, define gradients, or add runtime or
-backend state. See [Explicit graph RNG state](api/tensor-api.md#explicit-graph-rng-state).
+schema version, or stable enum token exists. Current construction does not sample, materialize an
+advanced state value, allocate storage, execute, capture a graph, define gradients, or add runtime
+or backend state. See [Explicit graph RNG state](api/tensor-api.md#explicit-graph-rng-state).
+
+### State threading
+
+Passing one state-consuming expression's returned next state into the following expression.
+Threading expresses sequential, non-overlapping abstract random intervals without hidden mutation.
+Reusing the same input state for multiple consumers instead expresses branching and intentional
+interval reuse; sharing an immutable state wrapper does not serialize execution.
 
 ### Host storage
 

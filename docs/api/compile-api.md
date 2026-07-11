@@ -349,8 +349,14 @@ indices. It can read the producer's exact operation, immutable ordered inputs, i
 output descriptors, and signature-validated count. Capture may then assign graph-local `NodeId`
 and `ValueId` values for that compilation. The producer does not prescribe those identities, and
 the same public expression may be captured into separate graphs with different graph-local IDs.
-No current production operation creates shared outputs, and no compiler traversal or graph-node
-creation is implemented yet.
+
+Dropout is the first current production occurrence that uses this shared-output seam. Its public
+output selects producer slot zero and its opaque next-state wrapper retains slot two. The producer
+also describes slot one as a same-Shape BOOL auxiliary keep mask even though `DropoutResult` exposes
+no mask Tensor. A later capture pass can therefore create a graph value for slot one by reading the
+reachable producer's ordered descriptors; it does not need a public sibling-output lookup. A later
+autograd pass may retain that captured forward mask for backward construction. Neither capture,
+auxiliary-value lifetime policy, nor a dropout gradient rule is implemented today.
 
 ## Current expression input and planned compiler output
 
@@ -379,7 +385,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, plus
   unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable repeated-SELECT unstack construction,
-  plus public general-axis unfold and NCHW unfold/fold window-transform construction,
+  plus public general-axis unfold and NCHW unfold/fold window-transform construction, plus
+  explicit-state training-dropout construction with public output and next-state results and one
+  non-public producer mask slot,
   are implemented;
   the compiler entry point, traversal, capture,
   scan/reduction/normalization inference and canonicalization, optional softmax or activation
@@ -393,8 +401,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   bound validation placement, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
-  `Tensor` output. Future state-consuming operations may place its private state Tensor in their
-  ordered producer inputs and outputs. Capturing, serializing, preserving or deliberately
+  `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
+  producer output two as the next state. Capturing, serializing, preserving or deliberately
   transforming that state edge remains compiler work; current compilation exposes no such API.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
