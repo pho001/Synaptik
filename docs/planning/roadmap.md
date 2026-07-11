@@ -116,8 +116,11 @@ Tasks [0018Q](modules/model/tasks/0018q-masked-reduction-redesign.md) and
 [0018T1](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) is Complete.
 Task [0018U](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) is
 Complete. Task [0018U1](modules/model/tasks/0018u1-integral-reductions-and-arg-min-normalization.md)
-is also Complete. Task 0018V is the next Draft implementation frontier; it and every later task
-remain without a detailed specification.
+is also Complete. Task
+Completed task [0018V](modules/model/tasks/0018v-multi-axis-and-statistical-reductions.md) closes
+ordered multi-axis and statistical reduction semantics and the capability-reset checkpoint in a
+cohesive 17-path change. Task 0019 is the next Draft frontier, and it and every later task remain
+Draft without detailed specifications.
 
 Task 0018U added same-category numeric promotion, selected modular INT32/INT64 ADD, SUB, MUL, MIN,
 and MAX Tensor and exact-scalar construction, and all six signed-integral comparisons without a
@@ -169,8 +172,8 @@ surface, Markdown, exact 29-path, status, and whitespace validation.
 The capability-reset audit found that operation validity, shared multi-output provenance,
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
-through 0018T1, task 0018U, and task 0018U1 are complete; task 0018V is the next Draft frontier,
-while it and later rows remain without detailed specifications.
+through 0018T1, task 0018U, task 0018U1, and linked task 0018V are complete. Task 0019 is the next
+Draft frontier, while it and later rows remain Draft without detailed specifications.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -178,7 +181,8 @@ composition, and unfold/fold contracts can be implemented and validated independ
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
-task 0018U and task 0018U1 are Complete, and task 0018V and later tasks remain Draft.
+task 0018U, task 0018U1, and task 0018V are Complete. Task 0019 is the next Draft frontier, and it
+and later tasks remain Draft.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -621,7 +625,7 @@ authorized Compile API status correction.
 | 90 | [0018T1 Unary numeric gaps and floating diagnostics](modules/model/tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete |
 | 91 | [0018U Integral elementwise arithmetic and comparisons](modules/model/tasks/0018u-integral-elementwise-arithmetic-and-comparisons.md) | Complete |
 | 92 | [0018U1 Integral reductions and arg-min normalization](modules/model/tasks/0018u1-integral-reductions-and-arg-min-normalization.md) | Complete |
-| 93 | 0018V Multi-axis and statistical reductions | Draft |
+| 93 | [0018V Multi-axis and statistical reductions](modules/model/tasks/0018v-multi-axis-and-statistical-reductions.md) | Complete |
 | 94 | 0019 Linear algebra and attention operations | Draft |
 | 95 | 0019A Modern activation and embedding conveniences | Draft |
 | 96 | 0019B Explicit graph RNG and dropout | Draft |
@@ -679,8 +683,9 @@ complete, and 0017F1, 0017G, 0017H, 0017I, 0017J, 0017K, 0017L, 0017M, and 0017N
 complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 0018A and 0018B are
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
-before 0019. Tasks 0018K through 0018T1, task 0018U, and task 0018U1 are complete; 0018V is the
-next Draft frontier, while it and every later task remain Draft without a detailed specification.
+before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, and linked 0018V are complete.
+Task 0019 is the next Draft frontier, while it and every later task remain Draft without a
+detailed specification.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

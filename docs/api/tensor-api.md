@@ -16,9 +16,11 @@ exact-typed plus seven exact-FLOAT64 scalar arithmetic methods, and six range/on
 methods, plus one static conditional-selection method and one explicit cast method. Fifteen
 numeric aggregate methods add full, one-axis, and retained-axis `sum`, `mean`, `prod`, reduction
 `min`, and reduction `max` expression construction: mean remains floating-only, while the other
-four families also accept signed-integral input. Six BOOL aggregate methods add the same three
-forms for `all` and `any`, and six axis-only `argMin`/`argMax` methods add fixed INT64 index
-results. Two one-axis `cumSum` methods add shape-preserving numeric
+four families also accept signed-integral input. Six BOOL methods provide full/single-axis
+`all`/`any`; ten additional numeric and four BOOL methods add ordered distinct multi-axis forms.
+Twelve floating methods add first-class log-sum-exp, corrected
+variance/standard deviation, and L1/L2 norms. Six axis-only `argMin`/`argMax` methods add fixed
+INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
 scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
 normalization expressions. The parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
@@ -228,7 +230,7 @@ BinaryComparisonKind                                          = six parameterles
 BooleanLogicalKind                                            = three parameterless boolean logical semantics
 WhereSelectionKind                                            = one parameterless ternary conditional-selection semantic
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
-AggregateReductionKind + reduction attributes                = full/axis aggregate + shared arg-extrema semantics
+AggregateReductionKind + reduction attributes                = full/single-/multi-axis aggregate + statistics + arg extrema
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordinary broadcast mask
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
@@ -304,15 +306,19 @@ carries its exact non-null target `DataType`. The public `Tensor.cast` method co
 with the receiver's source descriptor to create a fresh storage-free expression for every current
 source/target combination, including a same-type request.
 `AggregateReductionKind` names numeric sum, mean, product, minimum, and maximum reductions,
-boolean all and any reductions, and index-producing arg-min and arg-max. `AxisReductionAttrs` carries one
+boolean all and any reductions, floating log-sum-exp, variance, standard deviation, L1/L2 norm,
+and index-producing arg-min and arg-max. `AxisReductionAttrs` carries one
 already normalized non-negative axis plus a retained-dimension choice for ordinary single-axis
 forms. Ordinary full forms instead use `NoOperationAttrs.INSTANCE`, so no negative axis sentinel
-means "all axes." `ArgExtremaAttrs` carries the normalized axis, retained-dimension choice, and an
+means "all axes." `MultiAxisReductionAttrs` carries a caller-ordered immutable set of distinct
+normalized axes plus retention; `StatisticalReductionAttrs` adds non-negative correction.
+`ArgExtremaAttrs` carries the normalized axis, retained-dimension choice, and an
 explicit `ArgExtremaTiePolicy`. `MaskedReductionAttrs` carries only the normalized reduction axis for
 masked, axis-removing `SUM` and `MEAN`. These reduction semantics are implemented, and public Tensor reduction
 methods currently cover `sum`, `mean`, `prod`, reduction `min`, reduction `max`, boolean `all`,
-boolean `any`, and numeric `argMin`/`argMax`. Ordinary full forms produce a canonical rank-zero scalar;
-all axis forms normalize the caller axis, then remove it or retain it with extent one. Arg extrema
+boolean `any`, floating log-sum-exp/statistics/norms, and numeric `argMin`/`argMax`. Ordinary full
+forms produce a canonical rank-zero scalar; single- and multi-axis forms normalize caller axes,
+then remove them or retain them with extent one. Arg extrema
 have no full form, accept floating and integral inputs, and produce fixed INT64 results.
 Masked `sum(axis, mask)` and `mean(axis, mask)` require ordinary right-aligned broadcasting to
 produce exactly the input Shape, remove the selected axis, and record exact `[input, mask]`
@@ -3050,6 +3056,122 @@ capture, backend implementation, or execution.
 - Repeated and nested calls always create fresh expression tensors; this API performs no
   canonicalization or common-subexpression elimination.
 
+### Multi-axis and statistical reduction expressions
+
+Twenty-six methods extend aggregate construction without changing full or single-axis overloads:
+
+| Family | Axes removed | Axes optionally retained | Default correction |
+|---|---|---|---:|
+| `sum`, `mean`, `prod`, `min`, `max`, `all`, `any` | `family(int... axes)` | `family(int[] axes, boolean keepDimensions)` | — |
+| `logSumExp`, `l1Norm`, `l2Norm` | `family(int... axes)` | `family(int[] axes, boolean keepDimensions)` | — |
+| `variance`, `standardDeviation` | `family(int... axes)` | `family(int[] axes, boolean keepDimensions)` | `0` |
+| Corrected variance/standard deviation | — | `family(int[] axes, boolean keepDimensions, long correction)` | Caller value |
+
+Each positive or negative caller axis is normalized exactly once in caller order. The normalized
+axes must be distinct. Order is retained in immutable attributes for equality, diagnostics,
+transformation, and interchange, but Shape derivation uses axis membership and the numerical target
+does not define a sequential fold. Reversing `[2, 0]` to `[0, 2]` therefore preserves the same
+domain and Shape while producing a distinct attributes value. Caller arrays are cloned.
+
+With `keepDimensions=false`, every selected axis is removed and each unselected immutable
+`Dimension` reference is preserved in input order. With `true`, selected positions become new
+static extent-one Dimensions. Removing every axis produces canonical `Shape.scalar()`. An empty
+axis list is not full reduction: it selects a one-value point domain at every input position,
+leaves Shape unchanged, and creates a fresh occurrence. Ordinary families and log-sum-exp return
+the point value, norms return absolute value, and population variance/standard deviation return
+positive zero. Correction at least one is invalid because point-domain count is one.
+
+Ordinary input domains remain unchanged: SUM/PROD/MIN/MAX accept floating or signed integral,
+MEAN is floating-only, and ALL/ANY are BOOL-only. Log-sum-exp, variance, standard deviation, and
+both norms accept only floating input. Every result preserves exact input data type and gradient
+eligibility, leaves layout unresolved, has no label/storage, and records a fresh one-output
+producer with exact input `[input]` and provenance index zero. Construction does not read values,
+create a gradient, capture a graph, lower, report backend support, or execute.
+
+The portable floating target is exact real arithmetic plus the rules below, rounded once to result
+format with round-to-nearest, ties-to-even. Equal-or-wider intermediates and reassociation are
+permitted only within future conformance tolerance and exact special rules; narrower accumulation,
+model-visible promotion, saturation, and bitwise guarantees are not selected. Finite overflow is
+signed infinity. NaN payload/sign and signaling preservation are unspecified.
+
+- SUM propagates NaN; opposite infinities produce NaN; empty is positive zero. Exact non-empty
+  zero is negative only when every selected value is negative zero.
+- MEAN is exact sum divided by positive count; empty and opposite infinities produce NaN; zero sign
+  follows SUM.
+- PROD propagates NaN; zero times infinity produces NaN; empty is positive one; zero/infinity sign
+  follows multiplication parity.
+- MIN/MAX propagate NaN, order infinities normally, select negative/positive zero respectively,
+  and use positive/negative infinity for empty floating domains.
+- Empty ALL is true and empty ANY is false.
+- LOG_SUM_EXP means `log(sum(exp(x_i)))`: empty and all-negative-infinity domains produce negative
+  infinity; NaN produces NaN; positive infinity wins unless NaN exists; a finite point preserves
+  its value and signed zero.
+- VARIANCE means `sum((x_i - mean)^2) / (N - correction)` and STANDARD_DEVIATION its non-negative
+  principal square root. `N` must exceed correction. NaN or infinity produces NaN; a valid constant
+  finite domain produces positive zero.
+- L1 norm is `sum(abs(x_i))`; L2 norm is `sqrt(sum(x_i*x_i))`. Empty is positive zero, point is
+  absolute value, NaN produces NaN, and infinity produces positive infinity unless NaN exists.
+
+Integral ordinary reductions retain task 0018U1's exact-width modular sum/product, signed extrema,
+and bounded empty identities. No algorithm, pass count, compensation scheme, traversal, vector
+route, or kernel is part of these semantic contracts.
+
+For corrected statistics, construction rejects negative correction and rejects a statically known
+selected-domain count `N <= correction` before Tensor identity allocation. Static zero proves
+`N=0`; checked non-zero multiplication overflow proves `N` exceeds every non-negative `long`
+correction. Dynamic/expression counts are accepted structurally and must be proven valid by a later
+owning compiler or binding path before execution.
+
+#### Complete multi-axis metadata example
+
+The following Java 26 example constructs metadata only:
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+Tensor input = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT32, Shape.of(2, 3, 4), Optional.empty(), true));
+
+int[] axes = {2, 0};
+Tensor totals = input.sum(axes, false);
+Tensor retained = input.mean(new int[] {-1, 0}, true);
+Tensor sampleVariance = input.variance(new int[] {2, 0}, false, 1);
+
+axes[0] = 1; // does not change already constructed attributes
+
+MultiAxisReductionAttrs totalAttrs = (MultiAxisReductionAttrs)
+        totals.provenance().orElseThrow().operation().attrs();
+StatisticalReductionAttrs varianceAttrs = (StatisticalReductionAttrs)
+        sampleVariance.provenance().orElseThrow().operation().attrs();
+
+System.out.println(totals.descriptor().shape());
+System.out.println(retained.descriptor().shape());
+System.out.println(totalAttrs.axes());
+System.out.println(varianceAttrs.correction());
+System.out.println(sampleVariance.provenance().orElseThrow().outputIndex());
+```
+
+Output:
+
+```text
+Shape[3]
+Shape[1, 3, 1]
+[2, 0]
+1
+0
+```
+
+This proves ordered normalization, caller-array isolation, structural Shape derivation, correction
+retention, and index-zero provenance. It does not evaluate a sum, mean, or variance and does not
+prove a numerical algorithm, gradient, compiler capture, backend route, or execution.
+
 ### Masked sum and mean expressions
 
 The two masked aggregate overloads build one axis-removing expression from a floating input and
@@ -5338,8 +5460,10 @@ composition while the table also lists the current production families:
 | `WhereSelectionKind` | The implemented production enum for one parameterless ternary conditional-selection meaning. |
 | `CastKind` | The implemented production enum for one parameterized elementwise data-type conversion meaning. |
 | `CastAttrs` | The implemented immutable value for one exact non-null target `DataType`. |
-| `AggregateReductionKind` | The implemented production enum for seven ordinary aggregate meanings plus axis-only arg-min and arg-max. |
+| `AggregateReductionKind` | The implemented production enum for seven ordinary aggregates, five floating advanced/statistical reductions, and axis-only arg-min/arg-max. |
 | `AxisReductionAttrs` | The implemented immutable normalized-axis and retained-dimension value for ordinary single-axis reductions. |
+| `MultiAxisReductionAttrs` | The implemented immutable caller-ordered distinct normalized axes and retained-dimension value for ordinary, log-sum-exp, and norm reductions. |
+| `StatisticalReductionAttrs` | The implemented immutable ordered axes, retained-dimension choice, and non-negative correction for variance/standard deviation. |
 | `ArgExtremaAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value shared by arg-min and arg-max. |
 | `ArgExtremaTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal extrema. |
 | `MaskedReductionAttrs` | The implemented immutable normalized reduction axis for first-class, two-input masked sum and mean semantics. |
@@ -5591,6 +5715,11 @@ The public enum
 | `ANY` | Compute boolean disjunction in the selected reduction domain. | Full or one normalized axis. |
 | `ARG_MAX` | Select a logical index of a maximum value along one axis. | One normalized axis with an explicit tie policy. |
 | `ARG_MIN` | Select a logical index of a minimum value along one axis. | One normalized axis with an explicit tie policy. |
+| `LOG_SUM_EXP` | Compute log of summed exponentials. | Ordered distinct normalized axes. |
+| `VARIANCE` | Compute corrected second central moment. | Ordered distinct normalized axes plus correction. |
+| `STANDARD_DEVIATION` | Compute non-negative square root of corrected variance. | Ordered distinct normalized axes plus correction. |
+| `L1_NORM` | Sum absolute values. | Ordered distinct normalized axes. |
+| `L2_NORM` | Compute square root of summed squares. | Ordered distinct normalized axes. |
 
 A full ordinary reduction combines every input axis and pairs the kind with
 `NoOperationAttrs.INSTANCE`. A single-axis ordinary reduction pairs the same kind with
@@ -5654,13 +5783,20 @@ requirements for later execution; constructing `MaskedReductionAttrs` does not i
 count values, divide, derive an output descriptor, or execute computation. The signature matrix
 accepts `MaskedReductionAttrs` only for `SUM` and `MEAN`.
 
+Multi-axis ordinary, log-sum-exp, and norm occurrences use
+`MultiAxisReductionAttrs(axes, keepDimensions)`. Variance and standard deviation use
+`StatisticalReductionAttrs(axes, keepDimensions, correction)`. Both snapshot ordered distinct
+normalized axes; the statistical value additionally rejects negative correction. An empty axis
+list means a point domain, not full reduction.
+
 The public Tensor surface now covers every current aggregate semantic kind. `Tensor.sum`, `prod`,
 reduction `min`, and reduction `max` provide floating/integral full and single-axis expression
 construction; `mean` remains floating-only. Public `Tensor.all` and `Tensor.any` provide the
 corresponding exact-BOOL forms with fixed false gradient eligibility. Public `Tensor.argMin` and
 `Tensor.argMax` provide axis-only floating/integral construction with fixed INT64, false-gradient
-results and explicit tie semantics. Every current family derives Shapes locally and records exact
-one-input provenance. Integral ordinary reductions use exact-type modular sum/product, signed
+results and explicit tie semantics. Twenty-six multi-axis/statistical methods add ordered axes,
+optional retention, and population-default/explicit correction. Every current family derives
+Shapes locally and records exact one-input provenance. Integral ordinary reductions use exact-type modular sum/product, signed
 minimum/maximum, and bounded empty identities. Arg extrema use shared NaN, signed-zero, infinity,
 tie, and invalid-empty-selected-axis policy. Aggregate extrema remain typed separately from equally
 named binary elementwise kinds, while aggregate ALL/ANY remain typed separately from elementwise
@@ -6822,7 +6958,8 @@ The following contracts appear in the architecture and planning documents but ar
 `BinaryComparisonKind`, `BooleanLogicalKind`, `WhereSelectionKind`, `UnaryElementwiseKind`,
 `FloatingClassificationKind`, `ScalarElementwiseKind`, `ScalarValueAttrs`, `ClampRangeAttrs`,
 `CastKind`, `CastAttrs`,
-`AggregateReductionKind`, `AxisReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
+`AggregateReductionKind`, `AxisReductionAttrs`, `MultiAxisReductionAttrs`,
+`StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,

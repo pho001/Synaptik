@@ -287,6 +287,15 @@ Foundation hardening above precedes these operations.
 - explicit graph RNG state plus dropout as a state-consuming, state-producing operation with no
   hidden process-global generator.
 
+Completed task [0018V](tasks/0018v-multi-axis-and-statistical-reductions.md) closes the selected
+reduction frontier as one cohesive task. It fixes caller-ordered distinct normalized axes,
+empty-axis point domains, exact structural dimension retention, population-default non-negative
+integral correction, floating-only log-sum-exp/statistics/L1/L2 results, and exact input/result
+types. It also completes floating and BOOL empty/special-value reduction policies while preserving
+0018U1's exact-type modular integral reductions. The task records first-class semantics and
+storage-free Tensor metadata; algorithms, gradients, compiler validation, backend lowering, and
+execution remain separately owned.
+
 `square`, scalar arithmetic overloads, `linear`, GELU, SiLU, embedding, one-hot, flatten,
 swap-axes, split, and chunk are conveniences unless a focused task demonstrates a semantic reason
 for a distinct kind. Layer/RMS normalization and scaled dot-product attention remain named

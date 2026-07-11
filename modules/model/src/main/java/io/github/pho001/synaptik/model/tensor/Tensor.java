@@ -86,13 +86,18 @@ import java.util.Optional;
  * optionally retaining it with extent one. Integral SUM and PROD mean fixed-width modular
  * arithmetic with reassociation permitted, while integral MIN and MAX use signed order. Their
  * empty-domain identities are zero, one, the input type's maximum, and the input type's minimum,
- * respectively. Construction records those meanings without aggregating values. Boolean
- * aggregate methods require exact BOOL input and construct non-differentiable BOOL results with
- * the same full- or single-axis shape rules, without inspecting truth values or defining
- * empty-domain identities. Masked sum and mean require a BOOL mask whose ordinary right-aligned
+ * respectively. Full, single-axis, and ordered distinct multi-axis forms share these policies;
+ * an empty multi-axis list selects a point domain rather than every axis. Construction records
+ * those meanings without aggregating values. Boolean aggregate methods require exact BOOL input
+ * and construct non-differentiable BOOL results with full, single-axis, or multi-axis Shape rules;
+ * empty ALL is true and empty ANY is false. Masked sum and mean require a BOOL mask whose ordinary right-aligned
  * broadcast is exactly the input Shape, remove one axis, and record exact {@code [input, mask]}
  * provenance without inspecting values. False positions exclude even NaN and infinity before
- * aggregation; an empty selected set means zero for sum and NaN for mean. Arg-min and arg-max
+ * aggregation; an empty selected set means zero for sum and NaN for mean. Floating-only
+ * log-sum-exp, corrected variance/standard deviation, and L1/L2 norm methods use ordered distinct
+ * axes, preserve exact input metadata, and record their first-class numerical targets without
+ * decomposition or evaluation. Statistical construction rejects a statically known domain count
+ * at most correction and defers dynamic proof. Arg-min and arg-max
  * accept one non-empty selected axis of a floating or integral input, use an explicit first- or
  * last-logical-index tie policy, and produce a non-differentiable {@code INT64} result. Integral
  * candidates use signed order. Floating candidates prefer NaN, order negative zero below positive
@@ -1524,8 +1529,9 @@ public final class Tensor {
      *
      * <p>For INT32 and INT64 input, addition occurs in the exact result type modulo
      * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces zero.
-     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating
-     * accumulation and empty-domain behavior remain unchanged. This method records semantics only:
+     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating sum
+     * follows the documented NaN, infinity, signed-zero, and positive-zero empty-domain policy.
+     * This method records semantics only:
      * it does not read storage, sum values, implement an algorithm, create a gradient rule,
      * capture a graph, lower an operation, or execute work.</p>
      *
@@ -1556,7 +1562,8 @@ public final class Tensor {
      * <p>For integral input, the exact result type uses modular addition with reassociation
      * permitted, and every empty selected-axis slice produces zero. Other zero output axes may
      * make the result itself empty. Dynamic extents are accepted and use the same identity when
-     * later bound to zero. Floating behavior remains unchanged. This method reads no value or
+     * later bound to zero. Floating sum follows the documented NaN, infinity, signed-zero, and
+     * positive-zero empty-slice policy. This method reads no value or
      * storage and provides no algorithm, gradient rule, compiler lowering, backend, or execution
      * behavior.</p>
      *
@@ -1590,7 +1597,8 @@ public final class Tensor {
      * <p>For integral input, the exact result type uses modular addition with reassociation
      * permitted, and every empty selected-axis slice produces zero independent of retention.
      * Zero and dynamic extents are accepted structurally; a dynamic selected extent later bound
-     * to zero uses the same identity. Floating behavior remains unchanged. This method does not
+     * to zero uses the same identity. Floating sum follows the documented NaN, infinity,
+     * signed-zero, and positive-zero empty-slice policy. This method does not
      * inspect values or storage, choose an algorithm, define a gradient rule, or provide compiler,
      * backend, runtime, or execution behavior.</p>
      *
@@ -1668,8 +1676,10 @@ public final class Tensor {
      * {@link AggregateReductionKind#MEAN}, {@code NoOperationAttrs.INSTANCE}, and exactly this
      * tensor. Scalar, static, zero-extent, and dynamic shapes are accepted structurally.</p>
      *
-     * <p>This method neither reads values nor defines denominator, accumulation, empty-domain,
-     * numerical accuracy, gradient, compiler, or execution behavior.</p>
+     * <p>Mean is exact sum divided by count: NaN and opposite infinities produce NaN, a sole
+     * infinity sign is preserved, an empty domain produces NaN, and zero sign follows SUM. This
+     * method reads no values and selects no execution algorithm, gradient, compiler, or backend
+     * behavior.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged floating data type and
      *     gradient eligibility, unresolved layout, and exact one-input provenance
@@ -1691,8 +1701,9 @@ public final class Tensor {
      * type and gradient eligibility, unresolved layout, no label or storage, and provenance with
      * {@link AggregateReductionKind#MEAN}, normalized single-axis attributes, and this input.</p>
      *
-     * <p>No values are read and no denominator, empty-domain, accumulation, gradient, compiler,
-     * or execution policy is defined.</p>
+     * <p>NaN and opposite infinities produce NaN, a sole infinity sign is preserved, an empty
+     * selected axis produces NaN, and zero sign follows SUM. No values are read and no algorithm,
+     * gradient, compiler, backend, or execution behavior is selected.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
@@ -1719,8 +1730,9 @@ public final class Tensor {
      * type and gradient eligibility, has unresolved layout and no label or storage, and records
      * {@link AggregateReductionKind#MEAN}, normalized axis attributes, and this sole input.</p>
      *
-     * <p>Zero and dynamic extents remain structurally valid. No values are read, and denominator,
-     * empty-domain, accumulation, gradient, compiler, and execution policies remain deferred.</p>
+     * <p>Zero and dynamic extents remain structurally valid. The completed floating mean policy
+     * covers NaN, infinities, zero sign, and empty selected axes. No values are read, and no
+     * algorithm, gradient, compiler, backend, or execution behavior is selected.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
      *     count from the final axis
@@ -1799,8 +1811,9 @@ public final class Tensor {
      *
      * <p>For INT32 and INT64 input, multiplication occurs in the exact result type modulo
      * {@code 2^32} or {@code 2^64}; reassociation is permitted, and an empty domain produces one.
-     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating
-     * behavior remains unchanged. This method reads no value or storage, implements no algorithm,
+     * Scalar, static, zero-extent, and dynamic Shapes are accepted structurally. Floating product
+     * propagates NaN, makes zero times infinity NaN, follows sign parity for zero/infinity, and
+     * returns positive one for empty. This method reads no value or storage, implements no algorithm,
      * creates no gradient rule, and provides no compiler, backend, runtime, or execution behavior.</p>
      *
      * @return a non-null fresh storage-free scalar tensor with unchanged numeric data type and
@@ -1828,7 +1841,8 @@ public final class Tensor {
      * <p>For integral input, the exact result type uses modular multiplication with reassociation
      * permitted, and every empty selected-axis slice produces one. Other zero output axes may
      * make the result itself empty. Dynamic extents are accepted and use the same identity when
-     * later bound to zero. Floating behavior remains unchanged. This method reads no value or
+     * later bound to zero. Floating product follows the documented NaN, zero-times-infinity,
+     * sign-parity, and positive-one empty-slice policy. This method reads no value or
      * storage and provides no algorithm, gradient rule, compiler lowering, backend, or execution
      * behavior.</p>
      *
@@ -1862,7 +1876,8 @@ public final class Tensor {
      * <p>For integral input, the exact result type uses modular multiplication with reassociation
      * permitted, and every empty selected-axis slice produces one independent of retention. Zero
      * and dynamic extents remain structurally valid; a dynamic selected extent later bound to
-     * zero uses the same identity. Floating behavior remains unchanged. This method reads no
+     * zero uses the same identity. Floating product follows the documented NaN,
+     * zero-times-infinity, sign-parity, and positive-one empty-slice policy. This method reads no
      * value or storage and provides no algorithm, gradient rule, compiler lowering, backend,
      * runtime, or execution behavior.</p>
      *
@@ -1898,7 +1913,8 @@ public final class Tensor {
      *
      * <p>Integral values use signed order, and an empty INT32 or INT64 domain produces
      * {@link Integer#MAX_VALUE} or {@link Long#MAX_VALUE}. Scalar, static, zero-extent, and dynamic
-     * Shapes are accepted structurally. Floating behavior remains unchanged. This method does not
+     * Shapes are accepted structurally. Floating minimum propagates NaN, orders infinities,
+     * selects negative zero, and returns positive infinity for empty. This method does not
      * inspect or compare values, implement an algorithm, create an extrema gradient rule, capture
      * a graph, lower an operation, or execute work.</p>
      *
@@ -1926,8 +1942,9 @@ public final class Tensor {
      *
      * <p>Integral values use signed order, and every empty selected-axis slice produces the
      * input type's maximum value. Other zero output axes may make the result itself empty.
-     * Dynamic selected extents use the same identity when later bound to zero. Floating behavior
-     * remains unchanged. This method reads no value or storage and provides no algorithm,
+     * Dynamic selected extents use the same identity when later bound to zero. Floating minimum
+     * uses the documented NaN, infinity, negative-zero, and positive-infinity empty policy. This
+     * method reads no value or storage and provides no algorithm,
      * gradient rule, compiler lowering, backend, or execution behavior. It is distinct from
      * {@link #minimum(Tensor)}.</p>
      *
@@ -1961,7 +1978,8 @@ public final class Tensor {
      * <p>Integral values use signed order, and every empty selected-axis slice produces the input
      * type's maximum value independent of retention. Zero and dynamic extents remain structurally
      * valid; a dynamic selected extent later bound to zero uses the same identity. Floating
-     * behavior remains unchanged. This method reads no value or storage and provides no algorithm,
+     * minimum uses the documented NaN, infinity, negative-zero, and positive-infinity empty
+     * policy. This method reads no value or storage and provides no algorithm,
      * gradient rule, compiler lowering, backend, runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
@@ -1996,7 +2014,8 @@ public final class Tensor {
      *
      * <p>Integral values use signed order, and an empty INT32 or INT64 domain produces
      * {@link Integer#MIN_VALUE} or {@link Long#MIN_VALUE}. Scalar, static, zero-extent, and dynamic
-     * Shapes are accepted structurally. Floating behavior remains unchanged. This method does not
+     * Shapes are accepted structurally. Floating maximum propagates NaN, orders infinities,
+     * selects positive zero, and returns negative infinity for empty. This method does not
      * inspect or compare values, implement an algorithm, create an extrema gradient rule, capture
      * a graph, lower an operation, or execute work.</p>
      *
@@ -2024,8 +2043,9 @@ public final class Tensor {
      *
      * <p>Integral values use signed order, and every empty selected-axis slice produces the input
      * type's minimum value. Other zero output axes may make the result itself empty. Dynamic
-     * selected extents use the same identity when later bound to zero. Floating behavior remains
-     * unchanged. This method reads no value or storage and provides no algorithm, gradient rule,
+     * selected extents use the same identity when later bound to zero. Floating maximum uses the
+     * documented NaN, infinity, positive-zero, and negative-infinity empty policy. This method
+     * reads no value or storage and provides no algorithm, gradient rule,
      * compiler lowering, backend, or execution behavior. It is distinct from
      * {@link #maximum(Tensor)}.</p>
      *
@@ -2059,7 +2079,8 @@ public final class Tensor {
      * <p>Integral values use signed order, and every empty selected-axis slice produces the input
      * type's minimum value independent of retention. Zero and dynamic extents remain structurally
      * valid; a dynamic selected extent later bound to zero uses the same identity. Floating
-     * behavior remains unchanged. This method reads no value or storage and provides no algorithm,
+     * maximum uses the documented NaN, infinity, positive-zero, and negative-infinity empty
+     * policy. This method reads no value or storage and provides no algorithm,
      * gradient rule, compiler lowering, backend, runtime, or execution behavior.</p>
      *
      * @param axis input axis in the inclusive range {@code [-rank, rank - 1]}; negative values
@@ -2090,7 +2111,7 @@ public final class Tensor {
      * {@code NoOperationAttrs.INSTANCE}. Scalar, static, zero-extent, and dynamic shapes are
      * accepted structurally.</p>
      *
-     * <p>This method does not inspect truth values or storage, define an empty-domain identity,
+     * <p>An empty domain produces true. This method does not inspect truth values or storage,
      * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate
      * ALL is distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
      *
@@ -2114,8 +2135,8 @@ public final class Tensor {
      * unresolved layout and no label or storage, and records normalized axis attributes and this
      * sole provenance input.</p>
      *
-     * <p>This method does not inspect truth values, define an empty-domain identity, create a
-     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
+     * <p>An empty selected-axis slice produces true. This method does not inspect truth values,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
      * distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
      *
      * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
@@ -2141,8 +2162,8 @@ public final class Tensor {
      * and exact one-input aggregate provenance. Zero and dynamic extents are accepted
      * structurally.</p>
      *
-     * <p>This method does not inspect truth values, define an empty-domain identity, create a
-     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
+     * <p>An empty selected-axis slice produces true. This method does not inspect truth values,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate ALL is
      * distinct from the two-input elementwise {@link BooleanLogicalKind#AND} operation.</p>
      *
      * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
@@ -2169,7 +2190,7 @@ public final class Tensor {
      * {@code NoOperationAttrs.INSTANCE}. Scalar, static, zero-extent, and dynamic shapes are
      * accepted structurally.</p>
      *
-     * <p>This method does not inspect truth values or storage, define an empty-domain identity,
+     * <p>An empty domain produces false. This method does not inspect truth values or storage,
      * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate
      * ANY is distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
      *
@@ -2192,8 +2213,8 @@ public final class Tensor {
      * non-differentiable BOOL with unresolved layout, no label or storage, normalized axis
      * attributes, and this sole provenance input.</p>
      *
-     * <p>This method does not inspect truth values, define an empty-domain identity, create a
-     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
+     * <p>An empty selected-axis slice produces false. This method does not inspect truth values,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
      * distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
      *
      * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
@@ -2219,8 +2240,8 @@ public final class Tensor {
      * and exact one-input aggregate provenance. Zero and dynamic extents are accepted
      * structurally.</p>
      *
-     * <p>This method does not inspect truth values, define an empty-domain identity, create a
-     * gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
+     * <p>An empty selected-axis slice produces false. This method does not inspect truth values,
+     * create a gradient rule, capture a graph, report backend support, or execute work. Aggregate ANY is
      * distinct from the two-input elementwise {@link BooleanLogicalKind#OR} operation.</p>
      *
      * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
@@ -2236,6 +2257,504 @@ public final class Tensor {
     public Tensor any(int axis, boolean keepDimensions) {
         return TensorReductionExpressions.applyAxis(
                 this, AggregateReductionKind.ANY, axis, keepDimensions);
+    }
+
+    /**
+     * Builds a sum over caller-ordered distinct axes and removes those axes.
+     *
+     * <p>Axes are normalized once in caller order; normalized duplicates are rejected. An empty
+     * array selects a point domain and returns the point value, unlike {@link #sum()} full
+     * reduction. Floating sum uses the documented NaN, infinity, signed-zero, positive-zero empty,
+     * and result-format rounding policy; integral sum retains exact type and modular semantics.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh unlabeled, storage-free result with selected axes removed, exact
+     *     type/eligibility, unresolved layout, and one-input output-index-zero provenance
+     * @throws NullPointerException if {@code axes} is null, with message {@code axes}
+     * @throws IllegalArgumentException if this Tensor is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid for this Tensor's Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted after local validation
+     */
+    public Tensor sum(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.SUM, axes, false);
+    }
+
+    /**
+     * Builds a sum over caller-ordered distinct axes with explicit dimension retention.
+     *
+     * <p>This has the same type, numerical, normalization, freshness, and provenance contract as
+     * {@link #sum(int...)}, but retained selected positions become new extent-one Dimensions.
+     * Unselected Dimensions retain exact references. An empty list leaves Shape unchanged while
+     * {@code keepDimensions} remains part of attributes identity.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free sum expression with the requested Shape and exact
+     *     input type/eligibility
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if this Tensor is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor sum(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.SUM, axes, keepDimensions);
+    }
+
+    /**
+     * Builds a floating arithmetic mean over ordered distinct axes and removes them.
+     *
+     * <p>The result preserves exact floating type/eligibility. Mean is exact sum divided by count:
+     * NaN and opposite infinities produce NaN, a sole infinity sign is preserved, empty domains
+     * produce NaN, and zero sign follows SUM. Empty axes select one point and return it.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free reduced-Shape mean with unresolved layout and exact
+     *     one-input output-index-zero provenance
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if this Tensor is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor mean(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MEAN, axes, false);
+    }
+
+    /**
+     * Builds a floating arithmetic mean with explicit selected-axis retention.
+     *
+     * <p>Numerical, axis-order, metadata, and failure behavior matches {@link #mean(int...)}.
+     * Selected positions are removed or replaced with new extent-one Dimensions; unselected
+     * references are retained exactly.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free mean with requested Shape and exact type/eligibility
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor mean(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MEAN, axes, keepDimensions);
+    }
+
+    /**
+     * Builds a product over ordered distinct axes and removes them.
+     *
+     * <p>Floating product propagates NaN, makes zero times infinity NaN, follows multiplication
+     * parity for zero/infinity sign, and uses positive one for an empty domain. Integral product
+     * retains exact type with fixed-width modular semantics. Empty axes return the point value.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free reduced-Shape product preserving type/eligibility
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor prod(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.PROD, axes, false);
+    }
+
+    /**
+     * Builds a product with explicit selected-axis retention.
+     *
+     * <p>Numerical, ordered-axis, metadata, and failure behavior matches {@link #prod(int...)};
+     * retained selected axes become extent one and unselected Dimension references remain exact.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free product with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor prod(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.PROD, axes, keepDimensions);
+    }
+
+    /**
+     * Builds a minimum over ordered distinct axes and removes them.
+     *
+     * <p>Floating minimum propagates NaN, orders infinities normally, selects negative zero, and
+     * returns positive infinity for an empty domain. Integral minimum uses signed order and its
+     * bounded maximum empty identity. Empty axes return the point value.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free reduced-Shape minimum preserving exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor min(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MIN, axes, false);
+    }
+
+    /**
+     * Builds a minimum with explicit selected-axis retention.
+     *
+     * <p>Numerical, ordered-axis, metadata, and failure behavior matches {@link #min(int...)};
+     * selected positions are removed or replaced with extent one.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free minimum with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor min(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MIN, axes, keepDimensions);
+    }
+
+    /**
+     * Builds a maximum over ordered distinct axes and removes them.
+     *
+     * <p>Floating maximum propagates NaN, orders infinities normally, selects positive zero, and
+     * returns negative infinity for an empty domain. Integral maximum uses signed order and its
+     * bounded minimum empty identity. Empty axes return the point value.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free reduced-Shape maximum preserving exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor max(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MAX, axes, false);
+    }
+
+    /**
+     * Builds a maximum with explicit selected-axis retention.
+     *
+     * <p>Numerical, ordered-axis, metadata, and failure behavior matches {@link #max(int...)};
+     * selected positions are removed or replaced with extent one.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free maximum with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor max(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.MAX, axes, keepDimensions);
+    }
+
+    /**
+     * Builds BOOL conjunction over ordered distinct axes and removes them.
+     *
+     * <p>Exact BOOL input/result is required. An empty reduction domain produces true; an empty
+     * axis list returns each point value. The fresh result is non-differentiable, unresolved,
+     * unlabeled, storage-free, and records exact one-input output-index-zero provenance.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh reduced-Shape BOOL conjunction expression
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor all(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.ALL, axes, false);
+    }
+
+    /**
+     * Builds BOOL conjunction with explicit selected-axis retention.
+     *
+     * <p>Truth, ordered-axis, metadata, and failure behavior matches {@link #all(int...)};
+     * selected positions are removed or replaced with extent one.</p>
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free BOOL conjunction with requested Shape
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor all(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.ALL, axes, keepDimensions);
+    }
+
+    /**
+     * Builds BOOL disjunction over ordered distinct axes and removes them.
+     *
+     * <p>Exact BOOL input/result is required. An empty reduction domain produces false; an empty
+     * axis list returns each point value. Result metadata and provenance match {@link #all(int...)}.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh reduced-Shape BOOL disjunction expression
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor any(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.ANY, axes, false);
+    }
+
+    /**
+     * Builds BOOL disjunction with explicit selected-axis retention.
+     *
+     * <p>Truth, ordered-axis, metadata, and failure behavior matches {@link #any(int...)};
+     * selected positions are removed or replaced with extent one.</p>
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free BOOL disjunction with requested Shape
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not BOOL or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor any(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyOrdinary(
+                this, AggregateReductionKind.ANY, axes, keepDimensions);
+    }
+
+    /**
+     * Builds floating log-sum-exp over ordered distinct axes and removes them.
+     *
+     * <p>The first-class target is {@code log(sum(exp(x_i)))} without prescribing an algorithm.
+     * Empty domains and all-negative-infinity domains produce negative infinity; NaN produces
+     * NaN; positive infinity produces positive infinity unless NaN exists; and a point domain
+     * returns its value, preserving signed zero. Exact floating type/eligibility are preserved.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free reduced-Shape log-sum-exp with unresolved layout and
+     *     exact one-input output-index-zero provenance
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor logSumExp(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.LOG_SUM_EXP, axes, false);
+    }
+
+    /**
+     * Builds floating log-sum-exp with explicit selected-axis retention.
+     *
+     * <p>Numerical, ordered-axis, metadata, and failure behavior matches
+     * {@link #logSumExp(int...)}; selected positions are removed or replaced with extent one.</p>
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free log-sum-exp with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor logSumExp(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.LOG_SUM_EXP, axes, keepDimensions);
+    }
+
+    /**
+     * Builds population variance over ordered distinct axes and removes them.
+     *
+     * <p>This is exactly {@link #variance(int[], boolean, long)} with dimensions removed and
+     * correction zero. A point domain, including empty axes, produces positive zero. Exact
+     * floating type/eligibility are preserved.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free population-variance expression
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor variance(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.VARIANCE, axes, false, 0);
+    }
+
+    /**
+     * Builds population variance with explicit selected-axis retention and correction zero.
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free population variance with requested Shape
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor variance(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.VARIANCE, axes, keepDimensions, 0);
+    }
+
+    /**
+     * Builds corrected variance over ordered distinct axes.
+     *
+     * <p>For count {@code N}, correction {@code c}, and exact mean {@code mu}, the target is
+     * {@code sum((x_i-mu)^2)/(N-c)} and requires {@code N > c}. A statically invalid denominator
+     * fails locally; dynamic proof is deferred. NaN or infinity produces NaN; a valid constant
+     * finite domain produces positive zero. Construction preserves exact floating type and
+     * eligibility, derives Shape, and records one fresh storage-free one-input occurrence without
+     * evaluating values or choosing an algorithm.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @param correction non-negative value subtracted from selected-domain count
+     * @return a non-null fresh corrected-variance expression with exact metadata and provenance
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating, correction is negative,
+     *     normalized axes repeat, or static count is at most correction
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor variance(int[] axes, boolean keepDimensions, long correction) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.VARIANCE, axes, keepDimensions, correction);
+    }
+
+    /**
+     * Builds population standard deviation over ordered distinct axes and removes them.
+     *
+     * <p>This is {@link #standardDeviation(int[], boolean, long)} with dimensions removed and
+     * correction zero. A point domain produces positive zero.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free population-standard-deviation expression
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor standardDeviation(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.STANDARD_DEVIATION, axes, false, 0);
+    }
+
+    /**
+     * Builds population standard deviation with explicit axis retention and correction zero.
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free population standard deviation with requested Shape
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor standardDeviation(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.STANDARD_DEVIATION, axes, keepDimensions, 0);
+    }
+
+    /**
+     * Builds corrected standard deviation over ordered distinct axes.
+     *
+     * <p>The target is the non-negative principal square root of corrected variance and shares
+     * its required {@code N > correction}, NaN/infinity, metadata, and deferred-execution policy.
+     * A valid zero result is positive zero, never negative zero.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @param correction non-negative value subtracted from selected-domain count
+     * @return a non-null fresh corrected-standard-deviation expression with exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating, correction is negative,
+     *     normalized axes repeat, or static count is at most correction
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor standardDeviation(int[] axes, boolean keepDimensions, long correction) {
+        return TensorMultiAxisReductionExpressions.applyStatistical(
+                this, AggregateReductionKind.STANDARD_DEVIATION, axes, keepDimensions, correction);
+    }
+
+    /**
+     * Builds floating L1 norm over ordered distinct axes and removes them.
+     *
+     * <p>The target is {@code sum(abs(x_i))}. Empty domains produce positive zero, point domains
+     * produce absolute value, NaN produces NaN, and infinity produces positive infinity unless
+     * NaN exists. Finite results are non-negative.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free L1 norm preserving exact type/eligibility
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor l1Norm(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.L1_NORM, axes, false);
+    }
+
+    /**
+     * Builds floating L1 norm with explicit selected-axis retention.
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free L1 norm with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor l1Norm(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.L1_NORM, axes, keepDimensions);
+    }
+
+    /**
+     * Builds floating L2 norm over ordered distinct axes and removes them.
+     *
+     * <p>The target is {@code sqrt(sum(x_i*x_i))}. It shares L1 norm's empty, point, NaN,
+     * infinity, and positive-zero policy and identifies one first-class operation rather than a
+     * stored decomposition.</p>
+     *
+     * @param axes non-null caller-owned positive or negative axes; may be empty and is not retained
+     * @return a non-null fresh storage-free L2 norm preserving exact type/eligibility
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor l2Norm(int... axes) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.L2_NORM, axes, false);
+    }
+
+    /**
+     * Builds floating L2 norm with explicit selected-axis retention.
+     *
+     * @param axes non-null caller-owned axes; may be empty and is not retained
+     * @param keepDimensions whether selected axes remain with extent one
+     * @return a non-null fresh storage-free L2 norm with requested Shape and exact metadata
+     * @throws NullPointerException if {@code axes} is null
+     * @throws IllegalArgumentException if input is not floating or normalized axes repeat
+     * @throws IndexOutOfBoundsException if an axis is invalid
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor l2Norm(int[] axes, boolean keepDimensions) {
+        return TensorMultiAxisReductionExpressions.applyAdvanced(
+                this, AggregateReductionKind.L2_NORM, axes, keepDimensions);
     }
 
     /**

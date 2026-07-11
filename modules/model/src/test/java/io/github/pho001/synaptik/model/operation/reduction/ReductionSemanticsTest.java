@@ -45,12 +45,18 @@ class ReductionSemanticsTest {
                             AggregateReductionKind.ALL,
                             AggregateReductionKind.ANY,
                             AggregateReductionKind.ARG_MAX,
-                            AggregateReductionKind.ARG_MIN
+                            AggregateReductionKind.ARG_MIN,
+                            AggregateReductionKind.LOG_SUM_EXP,
+                            AggregateReductionKind.VARIANCE,
+                            AggregateReductionKind.STANDARD_DEVIATION,
+                            AggregateReductionKind.L1_NORM,
+                            AggregateReductionKind.L2_NORM
                         },
                         values),
                 () -> assertEquals(
                         List.of("SUM", "MEAN", "PROD", "MIN", "MAX", "ALL", "ANY", "ARG_MAX",
-                                "ARG_MIN"),
+                                "ARG_MIN", "LOG_SUM_EXP", "VARIANCE", "STANDARD_DEVIATION",
+                                "L1_NORM", "L2_NORM"),
                         Arrays.stream(values).map(AggregateReductionKind::name).toList()),
                 () -> assertInstanceOf(OperationKind.class, AggregateReductionKind.SUM),
                 () -> assertSame(
@@ -106,7 +112,59 @@ class ReductionSemanticsTest {
                                 "hashCode():int",
                                 "keepDimensions():boolean",
                                 "tiePolicy():io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy",
+                                "toString():java.lang.String")),
+                () -> assertRecordShape(
+                        MultiAxisReductionAttrs.class,
+                        List.of("axes", "keepDimensions"),
+                        List.of(List.class, boolean.class),
+                        List.of(
+                                "axes():java.util.List",
+                                "equals(java.lang.Object):boolean",
+                                "hashCode():int",
+                                "keepDimensions():boolean",
+                                "toString():java.lang.String")),
+                () -> assertRecordShape(
+                        StatisticalReductionAttrs.class,
+                        List.of("axes", "keepDimensions", "correction"),
+                        List.of(List.class, boolean.class, long.class),
+                        List.of(
+                                "axes():java.util.List",
+                                "correction():long",
+                                "equals(java.lang.Object):boolean",
+                                "hashCode():int",
+                                "keepDimensions():boolean",
                                 "toString():java.lang.String")));
+    }
+
+    @Test
+    void validatesAndSnapshotsOrderedMultiAxisAttributes() {
+        var source = new java.util.ArrayList<>(List.of(2, 0));
+        MultiAxisReductionAttrs ordinary = new MultiAxisReductionAttrs(source, true);
+        StatisticalReductionAttrs statistical =
+                new StatisticalReductionAttrs(source, false, 1);
+        source.set(0, 1);
+
+        assertAll(
+                () -> assertEquals(List.of(2, 0), ordinary.axes()),
+                () -> assertTrue(ordinary.keepDimensions()),
+                () -> assertEquals(List.of(2, 0), statistical.axes()),
+                () -> assertEquals(1, statistical.correction()),
+                () -> assertThrows(UnsupportedOperationException.class,
+                        () -> ordinary.axes().add(3)));
+
+        assertEquals("axes", assertThrows(NullPointerException.class,
+                () -> new MultiAxisReductionAttrs(null, false)).getMessage());
+        assertEquals("axes[1]", assertThrows(NullPointerException.class,
+                () -> new MultiAxisReductionAttrs(Arrays.asList(0, null), false)).getMessage());
+        assertEquals("axes[1] must be non-negative: -1", assertThrows(
+                IllegalArgumentException.class,
+                () -> new MultiAxisReductionAttrs(List.of(0, -1), false)).getMessage());
+        assertEquals("axes contains duplicate axis 0 at index 2", assertThrows(
+                IllegalArgumentException.class,
+                () -> new StatisticalReductionAttrs(List.of(0, 1, 0), false, -1)).getMessage());
+        assertEquals("correction must be non-negative: -1", assertThrows(
+                IllegalArgumentException.class,
+                () -> new StatisticalReductionAttrs(List.of(), false, -1)).getMessage());
     }
 
     @Test
@@ -203,12 +261,36 @@ class ReductionSemanticsTest {
             AxisReductionAttrs axisAttrs = new AxisReductionAttrs(3, true);
             Operation axisOperation = new Operation(kind, axisAttrs);
             Operation fullOperation = new Operation(kind, NoOperationAttrs.INSTANCE);
+            MultiAxisReductionAttrs multiAttrs =
+                    new MultiAxisReductionAttrs(List.of(2, 0), false);
+            Operation multiOperation = new Operation(kind, multiAttrs);
 
             assertAll(
                     () -> assertSame(kind, axisOperation.kind()),
                     () -> assertSame(axisAttrs, axisOperation.attrs()),
                     () -> assertSame(kind, fullOperation.kind()),
-                    () -> assertSame(NoOperationAttrs.INSTANCE, fullOperation.attrs()));
+                    () -> assertSame(NoOperationAttrs.INSTANCE, fullOperation.attrs()),
+                    () -> assertSame(multiAttrs, multiOperation.attrs()));
+        }
+    }
+
+    @Test
+    void composesAdvancedKindsOnlyWithTheirExactAttributeFamilies() {
+        MultiAxisReductionAttrs axes = new MultiAxisReductionAttrs(List.of(1), true);
+        StatisticalReductionAttrs statistics =
+                new StatisticalReductionAttrs(List.of(1), true, 1);
+        for (AggregateReductionKind kind : List.of(
+                AggregateReductionKind.LOG_SUM_EXP,
+                AggregateReductionKind.L1_NORM,
+                AggregateReductionKind.L2_NORM)) {
+            assertSame(axes, new Operation(kind, axes).attrs());
+            assertThrows(IllegalArgumentException.class, () -> new Operation(kind, statistics));
+        }
+        for (AggregateReductionKind kind : List.of(
+                AggregateReductionKind.VARIANCE,
+                AggregateReductionKind.STANDARD_DEVIATION)) {
+            assertSame(statistics, new Operation(kind, statistics).attrs());
+            assertThrows(IllegalArgumentException.class, () -> new Operation(kind, axes));
         }
     }
 

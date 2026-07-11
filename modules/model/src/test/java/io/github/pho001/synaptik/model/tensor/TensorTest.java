@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(130, declaredPublicMethods.size());
+        assertEquals(156, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -94,7 +94,8 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax",
-                        "logSoftmax", "contiguous", "reshape", "expand", "permute",
+                        "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
+                        "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "gatherElements", "gatherNd",
                         "scatterElements", "scatterNd", "pad",
@@ -190,6 +191,37 @@ class TensorTest {
                     () -> assertEquals(
                             List.of(int.class, boolean.class),
                             Arrays.asList(retained.getParameterTypes())));
+
+            var multi = Tensor.class.getDeclaredMethod(methodName, int[].class);
+            var multiRetained = Tensor.class.getDeclaredMethod(
+                    methodName, int[].class, boolean.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, multi.getReturnType()),
+                    () -> assertTrue(multi.isVarArgs()),
+                    () -> assertEquals(Tensor.class, multiRetained.getReturnType()),
+                    () -> assertFalse(multiRetained.isVarArgs()));
+        }
+
+        for (String methodName : List.of("logSumExp", "l1Norm", "l2Norm")) {
+            var multi = Tensor.class.getDeclaredMethod(methodName, int[].class);
+            var retained = Tensor.class.getDeclaredMethod(methodName, int[].class, boolean.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, multi.getReturnType()),
+                    () -> assertTrue(multi.isVarArgs()),
+                    () -> assertEquals(Tensor.class, retained.getReturnType()),
+                    () -> assertFalse(retained.isVarArgs()));
+        }
+
+        for (String methodName : List.of("variance", "standardDeviation")) {
+            var multi = Tensor.class.getDeclaredMethod(methodName, int[].class);
+            var retained = Tensor.class.getDeclaredMethod(methodName, int[].class, boolean.class);
+            var corrected = Tensor.class.getDeclaredMethod(
+                    methodName, int[].class, boolean.class, long.class);
+            assertAll(
+                    () -> assertEquals(Tensor.class, multi.getReturnType()),
+                    () -> assertTrue(multi.isVarArgs()),
+                    () -> assertEquals(Tensor.class, retained.getReturnType()),
+                    () -> assertEquals(Tensor.class, corrected.getReturnType()));
         }
 
         for (String methodName : List.of("sum", "mean")) {

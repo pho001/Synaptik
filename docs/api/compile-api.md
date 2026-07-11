@@ -48,8 +48,9 @@ comparison methods, three boolean logical methods, sixteen unary elementwise met
 floating-classification methods, seven exact-typed plus seven exact-FLOAT64 scalar arithmetic
 methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method, fifteen
-full/axis numeric aggregate methods, and six full/axis boolean aggregate
-methods, two axis-removing masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
+full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fourteen ordinary
+multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
+masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
 tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
 methods and three functional Scatter-ND methods, construct
@@ -143,6 +144,22 @@ does not compare values, select an index, define gradients, capture or validate 
 lower, report backend support, or execute. A future compiler must prove or validate that a dynamic
 selected extent is positive before index selection, but its callable API and failure type remain
 unspecified.
+The 26 multi-axis/statistical methods accept ordered distinct positive or negative axes. Caller
+order is retained in immutable `MultiAxisReductionAttrs` or `StatisticalReductionAttrs`; Shape
+derivation uses membership to remove selected axes or retain them with extent one. An empty axis
+list selects a point domain and creates a fresh occurrence rather than requesting full reduction.
+Ordinary type domains remain unchanged. Floating-only `LOG_SUM_EXP`, `VARIANCE`,
+`STANDARD_DEVIATION`, `L1_NORM`, and `L2_NORM` preserve exact input type/eligibility and remain
+first-class operations rather than stored decompositions. Variance and standard deviation default
+to correction zero or retain explicit non-negative correction, rejecting a statically known
+domain count at most correction while deferring dynamic proof.
+
+The model now fixes floating and BOOL empty/special-value reduction semantics, including NaN,
+infinity, signed zero, positive-zero/one or infinite identities, ALL/ANY identities, stable
+log-sum-exp targets, corrected statistical formulas, and non-negative norm targets. These are
+compiler-visible requested meanings, not implemented capture, operand revalidation, numerical
+algorithms, gradients, lowering, backend support, or execution. A future compiler must revalidate
+dynamic corrected-domain counts before execution without inventing a callable API here.
 `Tensor.cumSum` accepts floating or integral input and one positive or negative axis. Its short
 form explicitly selects inclusive forward traversal; its complete form retains exact exclusive
 and reverse flags. Every result retains the exact input Shape, data type, and gradient eligibility,
@@ -306,7 +323,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   selection, cast, unary numeric, floating-classification, scalar, numeric aggregate expression
   construction for sum, mean,
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
-  construction for all and any, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
+  construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
+  construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis

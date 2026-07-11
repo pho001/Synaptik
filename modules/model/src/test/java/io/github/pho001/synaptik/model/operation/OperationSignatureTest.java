@@ -53,6 +53,8 @@ import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKin
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import java.lang.reflect.Modifier;
@@ -213,9 +215,13 @@ public final class OperationSignatureTest {
         List<OperationSignature> sumMean = List.of(
                 noAttrsUnary,
                 fixed(AxisReductionAttrs.class, 1),
+                fixed(MultiAxisReductionAttrs.class, 1),
                 fixed(MaskedReductionAttrs.class, 2));
         List<OperationSignature> ordinaryReduction =
-                List.of(noAttrsUnary, fixed(AxisReductionAttrs.class, 1));
+                List.of(
+                        noAttrsUnary,
+                        fixed(AxisReductionAttrs.class, 1),
+                        fixed(MultiAxisReductionAttrs.class, 1));
         assertKinds(
                 sumMean, AggregateReductionKind.SUM, AggregateReductionKind.MEAN);
         assertKinds(
@@ -229,6 +235,15 @@ public final class OperationSignatureTest {
                 List.of(fixed(ArgExtremaAttrs.class, 1)),
                 AggregateReductionKind.ARG_MAX,
                 AggregateReductionKind.ARG_MIN);
+        assertKinds(
+                List.of(fixed(MultiAxisReductionAttrs.class, 1)),
+                AggregateReductionKind.LOG_SUM_EXP,
+                AggregateReductionKind.L1_NORM,
+                AggregateReductionKind.L2_NORM);
+        assertKinds(
+                List.of(fixed(StatisticalReductionAttrs.class, 1)),
+                AggregateReductionKind.VARIANCE,
+                AggregateReductionKind.STANDARD_DEVIATION);
         assertFamily(
                 List.of(fixed(CumulativeSumAttrs.class, 1)), CumulativeSumKind.values());
     }
