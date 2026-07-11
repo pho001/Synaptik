@@ -426,10 +426,65 @@ This graph contract is distinct from `TensorRandoms`. `TensorRandoms` eagerly co
 caller-owned JDK `RandomGenerator` to create host-backed leaf data. `GraphRngState` records
 storage-free semantics for later graph execution. Neither owns or discovers a hidden generator.
 
+### Sorting and top-K frontier
+
+The former broad sorting row is split at the output/Shape boundary. Completed
+[task 0019C](tasks/0019c-sort-and-argsort.md) owns stable full-axis `sort` and `argsort` as distinct
+single-output semantics. Draft task 0019C1 owns genuine top-K because it replaces one Shape extent
+with `k`, validates static or deferred selected-axis capacity, and returns values and indices from
+one shared two-output producer. Task 0019C1 has no detailed specification until 0019C is complete;
+established tasks 0019D and 0019E retain their IDs.
+
+Task 0019C selects exactly `sort(axis)`, `sort(axis, descending)`, `argsort(axis)`, and
+`argsort(axis, descending)`. `OrderingKind.SORT` returns values only and
+`OrderingKind.ARGSORT` returns fixed-INT64 indices only; both use normalized
+`SortAttrs(axis, descending)`, one input, and one output. Calling both methods creates distinct
+producers rather than a shared multi-output sort result. Every current DataType is accepted:
+floating and signed-integral values use numerical order, while BOOL uses `false < true`. Sort
+preserves exact input type, Shape reference, and gradient-eligibility request; argsort preserves
+the exact Shape reference but is non-differentiable INT64. Both leave layout unresolved.
+
+Full sorting is always stable: equal values retain increasing logical input-coordinate order, so
+argsort indices are deterministic and independent of physical layout or backend traversal. NaNs
+form one final class after every non-NaN in both ascending and descending results; multiple NaNs
+are stable and sort retains their exact input representations. Negative zero precedes positive
+zero ascending and follows it descending, while infinities use ordinary numerical order.
+Duplicates remain present. A static empty selected axis is valid, a dynamic extent is accepted
+without binding because Shape is unchanged, and scalar input rejects every axis. Stability and
+NaN placement are fixed semantics rather than attributes or backend choices. This selected API
+uses the mainstream `sort`/`argsort`, axis, and descending vocabulary documented by
+[NumPy](https://numpy.org/doc/stable/reference/generated/numpy.sort.html) and
+[JAX](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.sort.html) without importing their
+algorithm-selection options.
+
+Draft task 0019C1 will add exactly `topK(long k, int axis)` and
+`topK(long k, int axis, boolean largest, boolean sorted)`, with largest/sorted defaults, plus
+`TopKResult(values, indices)`. One `TOP_K` producer consumes the input and describes ordered values
+and indices slots zero and one, so the carrier retains the exact two wrappers and exactly two IDs
+under the current factory seam. The `largest`/`sorted` names follow the conventional
+[PyTorch top-k](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.topk.html) surface.
+`TopKAttrs(axis, k, largest, sorted)` retains normalized axis and
+non-negative static `k`. All current input types remain eligible. The selected set is the first
+`k` items under the requested non-NaN order with NaNs last, so NaNs participate only when fewer
+than `k` non-NaNs exist; equal boundary candidates prefer lower logical indices. `k == 0` is
+valid; static `k > extent` fails; a dynamic selected extent defers `extent >= k` until binding;
+scalar input remains invalid. A static empty axis therefore accepts only zero. The output Shape
+replaces the selected Dimension with static `k`. Sorted output follows requested value order;
+unsorted output uses increasing original logical index so it remains deterministic. Values retain
+input type/gradient eligibility, and indices are INT64/non-gradient; both are unresolved,
+unlabeled, and storage-free. Neither task implements evaluation, gradients, compiler capture,
+lowering, kernels, or execution.
+
+Top-K local validation will check input, normalize axis, require non-negative `k`, then reject a
+known static `k > extent`, before wrapper/ID allocation. Its exact planned failures are
+`k must be non-negative: <k>` and
+`k must not exceed selected static extent: k=<k>, axis=<axis>, extent=<extent>`. A dynamic extent
+records the deferred inequality instead of choosing a backend-dependent result.
+
 ### Important shortly afterward
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
-- sort, argsort, and true multi-output top-K with axis, order, stability, tie, and NaN policies;
+- true multi-output top-K after completed task 0019C's stable sort and argsort foundation;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
 - convolution and max/average pooling after symbolic extent expressions are complete;

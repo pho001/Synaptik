@@ -72,7 +72,8 @@ tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gat
 trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
 Scatter Elements
 methods and three functional Scatter-ND methods, plus one matrix-multiplication method, construct
-storage-free expressions with immutable producer-and-output-index provenance. Every current
+storage-free expressions with immutable producer-and-output-index provenance. Four full-ordering
+methods add ascending or explicitly directed `sort` and `argsort` requests. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
 one entry and whose provenance index is zero. The producer snapshots the exact operation and input
 Tensor references and retains no output Tensor objects. The
@@ -126,6 +127,13 @@ unresolved-versus-static batch singleton-or-equal cases remain obligations for l
 validation or concrete binding. This is current model-expression metadata only: expression
 capture, graph-wide validation, constraint proof, gradients, lowering, backend support, and
 execution remain planned.
+`Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
+distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
+exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
+directions with stable logical-index ties. Sort preserves input type and gradient eligibility;
+argsort uses non-differentiable INT64. These are current model-expression and provenance facts,
+not implemented compiler capture, operand revalidation, gradient construction, algorithm
+selection, lowering, backend support, runtime behavior, or execution.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result

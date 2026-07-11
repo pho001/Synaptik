@@ -312,6 +312,22 @@ Integral candidates use signed order. Floating candidates prefer NaN to non-NaN,
 NaNs as ties, order negative zero below positive zero, and order infinities normally. These
 semantics define the requested index without choosing an algorithm or executing a reduction.
 
+### Stable full ordering
+
+An implemented axis-wise request represented by `OrderingKind.SORT` for values or
+`OrderingKind.ARGSORT` for logical indices. **Stable** means values in the same ordering class
+retain increasing original logical-axis index, independently of physical layout or backend
+traversal. **NaN-last** means all floating not-a-number (NaN) values form one final class after
+every non-NaN in both ascending and descending requests; NaNs remain stable within that class.
+Negative zero precedes positive zero ascending and follows it descending, while infinities use
+ordinary numerical order. `SortAttrs` stores only the normalized axis and descending flag because
+stability and NaN placement are fixed family semantics. Public `Tensor.sort` preserves input type,
+Shape reference, and gradient eligibility; `Tensor.argsort` preserves the exact Shape reference
+but produces non-differentiable INT64 indices. Both construct metadata and independent
+single-output provenance without comparing values or providing compiler, backend, runtime, or
+execution behavior. See [Stable sort and argsort
+expressions](api/tensor-api.md#stable-sort-and-argsort-expressions).
+
 ### Gather
 
 An implemented backend-independent tensor-index meaning represented by `AxisGatherKind.GATHER`

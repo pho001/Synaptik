@@ -5812,6 +5812,72 @@ Shapes, deferred constraints, result descriptor, provenance, algorithm, gradient
 backend, or execution state. `Tensor.matmul` separately owns input-aware local validation and
 expression construction.
 
+### Stable sort and argsort expressions
+
+`input.sort(axis)` and `input.argsort(axis)` request ascending stable ordering along one logical
+axis. Their two-argument overloads select descending non-NaN order when `descending` is true.
+Every current data type is eligible: signed integers use signed numerical order, BOOL uses
+`false < true`, and floating values use numerical order with the additional rules below.
+
+For each independent slice along the normalized axis:
+
+- equal finite, integral, or BOOL values keep increasing original logical indices;
+- negative zero precedes positive zero ascending and follows it descending;
+- negative and positive infinity participate in ordinary numerical order;
+- all NaNs remain after every non-NaN in both directions; multiple NaNs keep input order; and
+- `sort` retains the selected input representation, including signed zero and NaN payload bits.
+
+The following value table shows the requested result for one conceptual FLOAT64 row. It describes
+eventual ordering semantics; current model construction does not evaluate the row.
+
+| Request | Values | Logical indices |
+|---|---|---|
+| Input | `[3.0, NaN, -0.0, +0.0, 3.0]` | `[0, 1, 2, 3, 4]` |
+| Ascending | `[-0.0, +0.0, 3.0, 3.0, NaN]` | `[2, 3, 0, 4, 1]` |
+| Descending | `[3.0, 3.0, +0.0, -0.0, NaN]` | `[0, 4, 3, 2, 1]` |
+
+#### Complete metadata example
+
+The example constructs both requests and inspects facts that the current model actually records.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.shape.Shape;
+import java.util.Optional;
+
+Tensor input = TensorFactory.create(new TensorDescriptor(
+        DataType.FLOAT64, Shape.of(5), Optional.empty(), true));
+Tensor values = input.sort(-1);
+Tensor indices = input.argsort(0, true);
+
+System.out.println(values.descriptor().dataType());
+System.out.println(indices.descriptor().dataType());
+System.out.println(values.provenance().orElseThrow().operation());
+System.out.println(indices.provenance().orElseThrow().operation());
+```
+
+The output metadata is FLOAT64, INT64, `Operation[kind=SORT,
+attrs=SortAttrs[axis=0, descending=false]]`, and `Operation[kind=ARGSORT,
+attrs=SortAttrs[axis=0, descending=true]]`. The negative axis was normalized before attributes
+construction. This proves type and semantic provenance; it does not calculate the table's values.
+
+Each successful call creates a fresh, independent one-input, one-output producer at output slot
+zero. Both results retain the exact input Shape reference and leave layout unresolved. `sort`
+also preserves input type and gradient eligibility; `argsort` always uses INT64 and false gradient
+eligibility. Results are unlabeled and storage-free. Static empty and singleton selected extents
+are valid, as are dynamic extents, because the Shape does not change. A scalar has no valid axis.
+
+`OrderingKind` contains exactly `SORT` and `ARGSORT`. Each kind requires `SortAttrs`, one input,
+and one output. `SortAttrs(axis, descending)` holds an already normalized non-negative axis and
+the direction flag; stability and NaN-last placement are fixed semantics, not attributes.
+Construction checks only metadata and creates provenance. It neither compares values nor selects
+an algorithm, gradient rule, compiler behavior, backend route, runtime behavior, or execution
+support. A future top-K capability is separate because it changes Shape and needs one shared
+values-and-indices producer.
+
 ## Host-visible storage
 
 The public storage contracts live in `io.github.pho001.synaptik.model.storage`.

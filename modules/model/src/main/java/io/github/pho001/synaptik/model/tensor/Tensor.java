@@ -31,6 +31,7 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -126,6 +127,11 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
+ * Stable sort and argsort accept one axis of every current input type. Sort preserves the exact
+ * input type, Shape reference, and gradient request, while argsort produces non-differentiable
+ * INT64 logical indices with the exact input Shape. Both keep NaNs last in either direction,
+ * distinguish negative from positive zero, retain equal keys in increasing logical-index order,
+ * and record metadata without comparing or moving values.
  * Explicit graph random-number-generator (RNG) state is represented separately by
  * {@link GraphRngState}. Its privately retained, storage-free state Tensor records a zero-input
  * {@link GraphRngKind#INITIAL_STATE} occurrence, but is deliberately not exposed as an ordinary
@@ -184,7 +190,8 @@ import java.util.Optional;
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
- * {@link FloatingClassificationKind}, {@link MatmulKind}, {@link DropoutKind}, or
+ * {@link FloatingClassificationKind}, {@link MatmulKind}, {@link OrderingKind},
+ * {@link DropoutKind}, or
  * {@link GraphRngKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
@@ -534,6 +541,81 @@ public final class Tensor {
      */
     public Tensor matmul(Tensor right) {
         return TensorMatmulExpressions.apply(this, right);
+    }
+
+    /**
+     * Creates a stable ascending full sort along one logical axis.
+     *
+     * <p>This convenience is exactly {@code sort(axis, false)}.</p>
+     *
+     * @param axis positive or negative input axis; negative values count from the final axis
+     * @return a non-null fresh sort expression preserving exact type, Shape, and gradient request
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor sort(int axis) {
+        return sort(axis, false);
+    }
+
+    /**
+     * Creates a stable full sort along one logical axis.
+     *
+     * <p>Every current data type is accepted; BOOL uses false before true in ascending order.
+     * Equal keys retain increasing logical input-index order. Floating NaNs are last in both
+     * directions, negative zero is below positive zero in ascending order, and infinities use
+     * numerical order. Duplicates are retained, including multiple stable NaNs with their exact
+     * representations. Empty, singleton, dynamic, and expression selected extents are valid;
+     * scalar input rejects every axis. The result preserves exact input type, Shape reference,
+     * and gradient eligibility while leaving layout unresolved. It is fresh, unlabeled,
+     * storage-free, and has
+     * one independent {@link OrderingKind#SORT} producer at output index zero. Construction does
+     * not inspect values, choose an algorithm, create gradients, compile, or execute.</p>
+     *
+     * @param axis positive or negative input axis; negative values count from the final axis
+     * @param descending whether non-NaN values use descending rather than ascending order
+     * @return a non-null fresh sort expression preserving exact input descriptor facts except
+     *     layout
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor sort(int axis, boolean descending) {
+        return TensorSortExpressions.apply(this, OrderingKind.SORT, axis, descending);
+    }
+
+    /**
+     * Creates stable ascending logical indices along one axis.
+     *
+     * <p>This convenience is exactly {@code argsort(axis, false)}.</p>
+     *
+     * @param axis positive or negative input axis; negative values count from the final axis
+     * @return a non-null fresh INT64, false-gradient argsort expression with exact input Shape
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor argsort(int axis) {
+        return argsort(axis, false);
+    }
+
+    /**
+     * Creates stable logical input indices for a full axis ordering.
+     *
+     * <p>The order matches {@link #sort(int, boolean)}, including fixed NaN-last placement and
+     * stable duplicate handling. Indices are logical axis coordinates, independent of physical
+     * layout. Empty, singleton, dynamic, and expression selected extents follow the same
+     * Shape-preserving contract, while scalar input rejects every axis. The result uses INT64,
+     * false gradient eligibility, the exact input Shape reference, unresolved layout, and one
+     * fresh independent {@link OrderingKind#ARGSORT} producer. It has
+     * no label or storage and performs no value evaluation, gradient, compiler, backend, runtime,
+     * or execution work.</p>
+     *
+     * @param axis positive or negative input axis; negative values count from the final axis
+     * @param descending whether non-NaN values use descending rather than ascending order
+     * @return a non-null fresh INT64, false-gradient argsort expression with exact input Shape
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid, including every scalar axis
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor argsort(int axis, boolean descending) {
+        return TensorSortExpressions.apply(this, OrderingKind.ARGSORT, axis, descending);
     }
 
     /**
