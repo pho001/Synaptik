@@ -22,6 +22,8 @@ rectangular identity matrices with `eye` as a pure alias, plus eager typed integ
 Public stateless `TensorRandoms` separately owns explicit-source normal and bounded
 continuous-uniform population for the three floating types, bounded integral population for exact
 `INT32` and `INT64` output, and BOOL Bernoulli population from a finite scalar probability.
+Opaque `GraphRngState` separately owns explicit storage-free graph RNG state construction from two
+raw unsigned 64-bit key/counter words; it does not replace eager `TensorRandoms`.
 Strict and cyclic prefix preparation is test-fixture mechanics rather than a production Tensor
 capability. Immutable `TensorProvenance` origin metadata is also implemented. That origin model
 now uses identity-bearing immutable `TensorProducer` occurrences and indexed
@@ -737,6 +739,36 @@ The implemented `GraphPhase` enum classifies compiled nodes as exactly `FORWARD`
 compile-time work. It helps later compiler, publication, planning, and diagnostic work distinguish
 the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
 serialization, or optimizer-update phase.
+
+### Graph RNG state / `GraphRngState`
+
+The implemented opaque public value for one explicit random-number-generator (RNG) state
+occurrence in a Tensor expression graph. `GraphRngState.initial(key, counter)` accepts every Java
+`long` bit pattern for both words. Key is caller-selected stream/domain identity; counter is the
+next abstract logical sample position. Both are interpreted as unsigned 64-bit raw bits, so signed
+decimal rendering and ordering have no semantic meaning.
+
+Each initializer creates a fresh zero-input, one-output `GraphRngKind.INITIAL_STATE` producer with
+exact `GraphRngStateAttrs(long key, long counter)`. Its private Tensor is `INT64 Shape[2]`, with
+lane zero carrying key bits and lane one counter bits, unresolved layout, false gradient
+eligibility, no label or storage, and provenance output index zero. The lanes are an opaque state
+representation, not public numerical Tensor inputs. The wrapper exposes no public Tensor, words,
+storage mutation, generator, split, copy, or arbitrary-wrap API.
+
+State objects use identity equality. Equal words in distinct initializers request
+replay-equivalent abstract positions but create different state, Tensor, producer, and identifier
+occurrences. A future consuming operation retains the key and advances counter modulo `2^64` by
+its specified logical draw count. Reusing one state on separate branches deliberately reuses its
+interval; sequential callers thread the returned next state. The wrapper is shallowly immutable
+and may be shared, but does not synchronize execution.
+
+The words, state descriptor, and ordered state edges are portable model semantics. No random
+algorithm, key schedule, counter-to-bits function, floating conversion, or bitstream is selected,
+so sampled replay is bounded to the same conforming prepared implementation and configuration.
+A future graph serializer must preserve both words losslessly, but no byte encoding, parser,
+schema version, or stable enum token exists. Current construction does not sample, advance state,
+allocate storage, execute, capture a graph, implement dropout, define gradients, or add runtime or
+backend state. See [Explicit graph RNG state](api/tensor-api.md#explicit-graph-rng-state).
 
 ### Host storage
 

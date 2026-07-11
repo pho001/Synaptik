@@ -11,7 +11,7 @@ prepared executables.
 
 ## Current model contracts
 
-The `io.github.pho001.synaptik.model.operation` and
+The `io.github.pho001.synaptik.model.operation`, `io.github.pho001.synaptik.model.tensor`, and
 `io.github.pho001.synaptik.model.graph` packages now provide compiler-neutral data that later
 compiler work can produce and consume:
 
@@ -20,6 +20,7 @@ compiler work can produce and consume:
 | `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural occurrence contract, not operand inference or executable support |
 | `TensorProducer` | Identity of one pre-capture expression occurrence with exact operation, ordered input Tensors, and ordered output descriptors | Public-expression origin, not `CompiledNode`, graph membership, or compiler state |
 | `TensorProvenance` | Exact producer plus one zero-based output index, with derived operation, inputs, and descriptor | Indexed result association, not `NodeId`, `ValueId`, or graph output binding |
+| `GraphRngState` | Opaque public wrapper around one explicit key/counter state-expression occurrence | Expression identity and threading boundary, not a generator, exposed numerical Tensor, runtime state, or bitstream |
 | `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
 | `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
@@ -42,6 +43,21 @@ A `PublicationBinding` carries only two identities. A later compiler-owned `Publ
 group bindings with their owning compilation context and publication policy. The binding itself
 does not retain a public `Tensor`, gradient role, runtime target, storage, backend, or execution
 state.
+
+`GraphRngState.initial(key, counter)` is also current model construction. It creates a fresh
+zero-input, one-output `GraphRngKind.INITIAL_STATE` occurrence whose exact
+`GraphRngStateAttrs(long key, long counter)` words are retained in provenance. The private state
+Tensor is fixed `INT64 Shape[2]`, unresolved-layout, non-gradient, unlabeled, and storage-free,
+with output index zero. Both `long` values are unsigned 64-bit bit patterns: key identifies a
+caller-selected stream/domain, and counter identifies the next abstract logical sample position.
+Equal words request replay-equivalent positions but do not merge expression identities.
+
+This is compiler-visible semantic input, not implemented compiler support. A future capture pass
+may preserve the state producer and ordered state edges, and a future serializer must preserve the
+raw words losslessly. This task defines neither capture nor serialization, common-subexpression
+policy, gradient rules, a byte encoding, a stable enum token, a random algorithm, prepared state,
+or execution. Without a selected portable algorithm, no cross-backend or cross-version bitstream
+follows from equal state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
 comparison methods, three boolean logical methods, nineteen unary elementwise methods, three
@@ -376,6 +392,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   dynamic reshape count validation, expand compatibility constraints, and dynamic select upper-
   bound validation placement, layout materialization
   planning, and conversion into graph values and nodes remain planned.
+- `GraphRngState` is an implemented opaque model expression value rather than a public numerical
+  `Tensor` output. Future state-consuming operations may place its private state Tensor in their
+  ordered producer inputs and outputs. Capturing, serializing, preserving or deliberately
+  transforming that state edge remains compiler work; current compilation exposes no such API.
 - `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
   publication policy as data. It will not contain live backend services.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and

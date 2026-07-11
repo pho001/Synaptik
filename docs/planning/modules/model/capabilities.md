@@ -349,8 +349,10 @@ whose mathematical continuous extensions map negative infinity to negative zero,
 zero, map positive infinity to positive infinity, and propagate NaN. They preserve type and
 gradient-eligibility metadata with unresolved layout, without defining algorithms or gradients.
 ReLU is already current through completed tasks 0014C–0014D and is not duplicated by 0019A.
-Dropout remains wholly owned by unchanged Draft task 0019B because it consumes and produces
-explicit graph RNG state rather than behaving as a deterministic unary activation.
+The former broad dropout/RNG frontier is split at the reusable semantic boundary. Completed
+[task 0019B](tasks/0019b-explicit-graph-rng-state-foundation.md) owns only explicit graph RNG
+state. Draft task 0019B1 owns dropout because it consumes and produces that state rather than
+behaving as a deterministic unary activation.
 
 Completed [task 0019A1](tasks/0019a1-embedding-convenience.md) adds exactly
 `weights.embedding(indices)`. The receiver is a rank-two floating
@@ -377,6 +379,45 @@ on/off-value, ignore-index, sparse, or dynamic-depth configuration is selected. 
 first-class one-input operation rather than TensorFactory construction or an eager
 range/comparison composition. The implemented contract is `OneHotKind.ONE_HOT` with
 `OneHotAttrs(long depth)` and an exact one-input, one-output signature.
+
+### Explicit graph RNG state and dropout
+
+Completed [task 0019B](tasks/0019b-explicit-graph-rng-state-foundation.md) implements one opaque public
+`GraphRngState` backed privately by a storage-free Tensor expression. Callers create a state with
+explicit key and counter words. Both Java `long` values are interpreted as unsigned 64-bit bit
+patterns: the key selects a caller-owned stream/domain and the counter is the next abstract
+logical sample position. Every bit pattern is valid. Equal key/counter attributes request the
+same abstract position but separately constructed states retain distinct Tensor and producer
+identities.
+
+`GraphRngKind.INITIAL_STATE` is a zero-input, one-output operation with immutable
+`GraphRngStateAttrs(long key, long counter)`. Its output is an opaque `INT64 Shape[2]` Tensor with
+unresolved layout, false gradient eligibility, no label, no storage, and provenance output index
+zero. The two lanes are raw state words, not signed numerical values or a public arithmetic API.
+State-consuming operations keep the key and advance the counter modulo `2^64` by their exact
+logical draw count. Branching one state intentionally reuses a counter interval; sequential use
+threads the returned next state.
+
+The state format, operation ordering, and advancement counts are portable model semantics, but
+no random algorithm, key schedule, counter-to-bits function, floating conversion, or cross-backend
+bitstream is selected. Until a portable algorithm is deliberately specified, deterministic replay
+of sampled values is bounded to the same conforming prepared implementation and configuration.
+Future graph serialization must preserve the two raw words losslessly, but no byte encoding or
+stable serialization token is current.
+
+Draft task 0019B1 will add training dropout as
+`input.dropout(double probability, GraphRngState state)`. Its public `DropoutResult` exposes the
+dropped Tensor and next state. One producer consumes ordered `[input, state]` and produces ordered
+`[output, auxiliaryMask, nextState]`; the same-Shape BOOL mask is a non-public auxiliary slot for
+compiler-owned backward construction. Dropout is floating-only, uses finite drop probability in
+`[0, 1)`, scales kept values by `1 / (1 - probability)`, consumes one abstract draw per logical
+element even at probability zero, and advances dynamic Shapes by their bound execution count.
+Empty tensors consume zero draws. Inference bypasses the operation and state advancement rather
+than using a model-level training flag.
+
+This graph contract is distinct from `TensorRandoms`. `TensorRandoms` eagerly consumes a
+caller-owned JDK `RandomGenerator` to create host-backed leaf data. `GraphRngState` records
+storage-free semantics for later graph execution. Neither owns or discovers a hidden generator.
 
 ### Important shortly afterward
 
@@ -430,7 +471,7 @@ policies, not backend algorithm designs.
 | Norms and normalization | Epsilon placement/type, zero norm, infinity, NaN, accumulation type, and empty normalized regions. |
 | Transcendentals and activations | Domain, overflow/underflow, special values, accuracy contract, and discontinuity/subgradient convention. |
 | Attention and losses | Mask meaning, all-masked rows, label bounds, ignored targets, reduction denominator, stability, and deterministic expectations. |
-| RNG and dropout | State format, state advancement, reproducibility boundary, probability endpoints, output scaling, and multi-output contract. |
+| RNG and dropout | Completed task 0019B fixes two unsigned 64-bit state words, modular counter meaning, and bounded replay without a bitstream; Draft 0019B1 fixes finite drop probability `[0,1)`, inverted scaling, one draw per element, auxiliary mask, and next-state output. |
 
 Model records the selected meaning. Compiler owns differentiability rules and backward graph
 construction; backends may use different algorithms only when they satisfy that meaning.

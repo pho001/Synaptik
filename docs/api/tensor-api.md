@@ -8,7 +8,9 @@ and `TensorFactory` provides the public construction boundary for completed desc
 primitive-array import, independent dense constants including full-value and rectangular identity
 tensors, and integer ranges. `TensorRandoms` is the sole public owner of eager normal,
 continuous-uniform, bounded-integral, and Bernoulli initialization from an explicit caller-owned
-source. The current concrete expression surface contains seven tensor-to-tensor binary arithmetic
+source. `GraphRngState` separately represents an explicit, opaque random-number-generator (RNG)
+state occurrence for later graph execution; it neither exposes a numerical Tensor nor performs a
+random draw. The current concrete expression surface contains seven tensor-to-tensor binary arithmetic
 methods, of which ADD, SUB, MUL, MIN, and MAX also accept signed integral operands; six floating
 or signed-integral tensor-to-tensor comparison methods; three BOOL-only logical
 methods, nineteen floating unary elementwise methods, three floating-classification methods, seven
@@ -203,6 +205,7 @@ TensorFactory + integral bounds/step                          = copied dense INT
 TensorRandoms + static shape/type + caller RandomGenerator    = copied dense normal/uniform Tensor
 TensorRandoms + static shape + primitive bounds + source      = copied dense INT32/INT64 random Tensor
 TensorRandoms + static shape + probability + source           = copied dense BOOL random Tensor
+GraphRngState.initial(key, counter)                            = opaque storage-free state expression
 left Tensor + binary kind + right Tensor                       = fresh descriptor + provenance Tensor
 left Tensor + comparison kind + right Tensor                   = fresh BOOL descriptor + provenance Tensor
 left BOOL Tensor + AND/OR + right BOOL Tensor                   = fresh broadcast BOOL expression Tensor
@@ -1809,6 +1812,104 @@ cross-generator reproducibility, or create a random graph Operation or runtime/b
 - If `nextDouble()` throws, earlier calls remain consumed, but no destination or ID exists.
 - A blank label fails after all calls, destination allocation, and ID allocation; the ID is
   consumed and no state is rolled back.
+
+### Explicit graph RNG state
+
+`GraphRngState` is the implemented public boundary for one explicit RNG state occurrence in a
+Tensor expression graph. It is distinct from eager `TensorRandoms`: eager initialization consumes
+a caller-owned JDK `RandomGenerator` immediately and returns host-backed leaf data, whereas graph
+state records storage-free semantics for a future prepared implementation to consume.
+
+The public initializer is `GraphRngState.initial(long key, long counter)`. Both arguments are raw
+unsigned 64-bit words carried by Java `long`; every bit pattern is valid. Signed decimal display
+and signed comparison do not define their meaning. The key identifies a caller-selected stream or
+domain. The counter identifies the next abstract logical sample position. A future consuming
+operation retains the key and advances the counter modulo `2^64` by that operation's documented
+logical draw count.
+
+Each call privately wraps one fresh, unlabeled, storage-free Tensor with exact descriptor
+`INT64`, `Shape.of(2)`, unresolved layout, and `requiresGrad == false`. Its
+`GraphRngKind.INITIAL_STATE` producer has `GraphRngStateAttrs(key, counter)`, no inputs, one output,
+and provenance output index zero. Lane zero conceptually carries the key bits and lane one the
+counter bits. The wrapper intentionally provides no public Tensor, lane, storage, mutation,
+generator, split, or copy accessor, so those lanes are not an invitation to apply numerical Tensor
+operations to state.
+
+Instances use object-identity equality. Two calls with equal words request replay-equivalent
+abstract stream positions but create distinct state, Tensor, producer, and identifier
+occurrences. The wrapper is shallowly immutable and may be shared, but it performs no
+synchronization. Branching one state to multiple future consumers deliberately reuses the same
+abstract interval; sequential use threads the returned next state instead.
+
+#### Complete current-state example
+
+##### Goal and inputs
+
+Create two expression occurrences at the same explicit abstract position. The key bits are
+`0x1234`, and the counter bits are zero.
+
+```java
+import io.github.pho001.synaptik.model.tensor.GraphRngState;
+
+public final class GraphRngStateExample {
+    public static void main(String[] args) {
+        GraphRngState start = GraphRngState.initial(0x1234L, 0L);
+        GraphRngState replay = GraphRngState.initial(0x1234L, 0L);
+
+        System.out.println(start == replay);
+        System.out.println(start.equals(replay));
+    }
+}
+```
+
+##### Meaningful lines
+
+- Both initializer calls retain the same raw key/counter attributes, so they request the same
+  abstract stream position.
+- Each call creates a fresh expression occurrence. Both reference and inherited object equality
+  therefore report that the wrappers are distinct.
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+false
+false
+```
+
+This proves public construction and identity equality. It does not expose the private state
+Tensor, sample a value, choose a random algorithm, or prove a cross-backend bitstream.
+
+#### Planned threading example
+
+The following code is conceptual; task 0019B1 owns these dropout APIs, and they are not currently
+available:
+
+```java
+GraphRngState start = GraphRngState.initial(0x1234L, 0L);
+
+DropoutResult first = activations.dropout(0.1d, start);
+DropoutResult replay = activations.dropout(
+        0.1d, GraphRngState.initial(0x1234L, 0L));
+DropoutResult second = first.output().dropout(0.1d, first.nextState());
+```
+
+`first` and `replay` begin at equivalent abstract positions. `second` instead consumes the state
+returned by `first`, expressing sequential use without hidden mutation. Reusing `start` for both
+branches would intentionally request interval reuse. This example fixes the state-threading mental
+model only; dropout, masking, scaling, state advancement, and execution are not implemented by the
+current foundation.
+
+The raw words, fixed descriptor, and occurrence ordering are portable model semantics. No
+portable pseudorandom-number-generator algorithm, key schedule, counter-to-bits function,
+floating conversion, or bitstream is selected, so equal state does not promise bitwise samples
+across backends, routes, providers, or versions. Until an algorithm is selected, sampled replay is
+bounded to the same conforming prepared implementation and configuration. A future graph
+serializer must preserve both raw words losslessly, but no byte encoding, parser, schema version,
+or stable enum token exists today. Compiler capture and serialization policy, prepared state,
+materialization, sampling, kernels, runtime execution, gradients, and backend support remain in
+their owning future layers.
 
 ### Complete flat-import example
 

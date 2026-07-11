@@ -31,6 +31,7 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
+import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
@@ -124,6 +125,10 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
+ * Explicit graph random-number-generator (RNG) state is represented separately by
+ * {@link GraphRngState}. Its privately retained, storage-free state Tensor records a zero-input
+ * {@link GraphRngKind#INITIAL_STATE} occurrence, but is deliberately not exposed as an ordinary
+ * numerical Tensor or as a method on this class.
  * Scalar ADD, SUB, MUL, MIN, and MAX plus the one-bound clamp conveniences accept one floating or
  * signed-integral input; scalar DIV, POW, and first-class range CLAMP remain floating-only.
  * Scalar methods retain exact matching typed values in attributes, so they do not promote, and
@@ -178,7 +183,7 @@ import java.util.Optional;
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
  * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
- * {@link FloatingClassificationKind}, or {@link MatmulKind}.
+ * {@link FloatingClassificationKind}, {@link MatmulKind}, or {@link GraphRngKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>

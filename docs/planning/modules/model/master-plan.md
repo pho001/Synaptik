@@ -228,7 +228,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019A | [Modern activation semantics and Tensor expressions](tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) | Complete | 0014C–0014D, 0018K, 0018P | Added exact GELU, fixed tanh-approximation GELU, and canonical SiLU as first-class floating unary semantics. |
 | 0019A1 | [Embedding convenience](tasks/0019a1-embedding-convenience.md) | Complete | 0018K, 0018O | Added rank-two floating `weights.embedding(indices)` as validated axis-zero Gather composition with no padding option or new kind. |
 | 0019A2 | [One-hot encoding](tasks/0019a2-one-hot-encoding.md) | Complete | 0001–0002, 0005–0007, 0011–0013, 0018K–0018O | Added first-class trailing-axis, positive-static-depth BOOL one-hot semantics for INT32/INT64 indices with invalid-value execution boundaries and no broad configuration. |
-| 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
+| 0019B | [Explicit graph RNG state foundation](tasks/0019b-explicit-graph-rng-state-foundation.md) | Complete | 0018K–0018L, 0018N, 0018S | Added an opaque public key/counter graph-state value and zero-input Tensor producer without a hidden generator or selected bitstream. |
+| 0019B1 | Explicit graph dropout construction | Draft | 0019B, 0018K–0018L | Add floating training dropout with explicit state input, auxiliary mask, next-state output, and no hidden mutation. |
 | 0019C | Sorting and top-K operations | Draft | 0018K–0018L, 0018U | Represent sort, argsort, and genuine multi-output top-K with explicit ordering, tie, NaN, and stability policies. |
 | 0019D | Linear convenience | Draft | 0019 | Add conventional weight-transposed MATMUL plus optional one-dimensional bias as explicit public composition without a LINEAR kind. |
 | 0019E | Scaled dot-product attention | Draft | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Add one-output high-level attention semantics with exact query/key/value, mask, causal, scale, and all-masked-row contracts, excluding dropout. |
@@ -296,8 +297,10 @@ documentation in one compilable state. The former broad task 0019 is now decompo
 fixed tanh-approximation GELU, and SiLU semantics and Tensor expressions. Completed
 [task 0019A1](tasks/0019a1-embedding-convenience.md) added embedding as direct axis-zero Gather.
 Completed [task 0019A2](tasks/0019a2-one-hot-encoding.md) added first-class trailing-axis BOOL
-one-hot semantics. Existing tasks 0019B–0019E remain stable Draft rows without detailed
-specifications. No model task is currently Ready.
+one-hot semantics. The former broad 0019B frontier is now split: completed
+[task 0019B](tasks/0019b-explicit-graph-rng-state-foundation.md) owns the explicit graph RNG state
+foundation, while 0019B1 remains a Draft dropout follow-up without a detailed specification.
+Tasks 0019C–0019E retain their established IDs and remain Draft.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -360,9 +363,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   option.
   Completed task 0019A2 adds trailing-axis BOOL one-hot with positive static depth, invalid
   negative/out-of-range execution values, and no configurable axis, result type, or on/off values.
-  Existing `RELU`/`relu()` remains complete under tasks
-  0014C–0014D and is not duplicated. Unchanged Draft task 0019B remains the sole dropout owner
-  because dropout requires explicit graph RNG/state semantics.
+  Existing `RELU`/`relu()` remains complete under tasks 0014C–0014D and is not duplicated. Completed
+  task 0019B owns explicit graph RNG state, while Draft task 0019B1 is the sole dropout owner.
 - MATMUL is one first-class `MATMUL` kind with no attributes, two inputs, one output, and one
   public `matmul(Tensor)` method. It follows rank-one promotion/removal and right-aligned batch
   broadcasting across vector-vector, matrix-vector, vector-matrix, matrix-matrix, and batched
@@ -398,8 +400,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Initial attention has one output only, exposes no attention-weight output, and has no dropout
   parameter. It therefore needs neither shared multi-output construction beyond the existing
   foundation nor RNG ownership and has no technical dependency on task 0019B, although table order
-  places it afterward. Task 0019B owns graph RNG and dropout; a later attention-dropout extension
-  must consume that explicit state rather than hide a generator.
+  places it afterward. Task 0019B owns graph RNG state and Draft task 0019B1 owns dropout; a later
+  attention-dropout extension must consume that explicit state rather than hide a generator.
+- The former broad 0019B frontier is split without changing established tasks 0019C–0019E.
+  Completed task 0019B adds public opaque `GraphRngState`, zero-input/one-output
+  `GraphRngKind.INITIAL_STATE`, and exact `GraphRngStateAttrs(long key, long counter)`. Both words
+  are unsigned 64-bit bit patterns; the state Tensor is fixed `INT64 Shape[2]`, unresolved,
+  non-gradient, unlabeled, storage-free, and producer output zero. State objects use expression
+  identity equality. The model selects no PRNG algorithm or cross-backend bitstream.
+- Draft task 0019B1 owns `Tensor.dropout(double, GraphRngState)` and public
+  `DropoutResult(output, nextState)`. One producer will consume `[input, state]` and produce
+  `[output, auxiliaryMask, nextState]`. The hidden same-Shape BOOL mask supports compiler-owned
+  backward construction. Drop probability is finite in `[0,1)`, kept values use inverted scaling,
+  every element consumes one draw including probability zero, empty tensors consume none, and
+  dynamic Shapes advance by their bound execution count. Inference bypasses dropout and state
+  advancement. No detailed 0019B1 spec exists yet.
 - The current unconstrained `Operation(kind, attrs)` pairing is not an acceptable stable contract.
   Task 0018K adds compact family-owned signature validation, including occurrence cardinality,
   without a global registry.
@@ -1349,15 +1364,17 @@ enforcement would either break valid current families or retain a permissive uns
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
-Task 0019A2 is complete. Tasks 0019B–0019E and every later task remain Draft without detailed
-specifications. No model task is currently Ready.
+Task 0019A2 and task 0019B are complete. Task 0019B1, tasks 0019C–0019E, and every later task
+remain Draft without detailed specifications. No model task is currently Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
 
 The 0019A–0019C suffixes are established sequential rows after task 0019. Decimal follow-ups
 0019A1–0019A2 split the original 0019A scope without changing established 0019B–0019E or
-renumbering 0020–0024. These rows are independent frontiers, not hidden subtasks of 0019; their
+renumbering 0020–0024. Follow-up 0019B1 similarly splits dropout from the reusable 0019B state
+foundation without changing 0019C–0019E. These rows are independent frontiers, not hidden
+subtasks of 0019; their
 `Depends on` entries list technical
 prerequisites, while table order remains the default execution order.
 
@@ -1410,7 +1427,8 @@ construction. Task 0018I is complete with functional Scatter-ND semantic values.
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
-specification. Tasks 0019A, 0019A1, and 0019A2 are complete. Tasks 0019B–0019E and every later
-task remain Draft without detailed specifications. No model task is currently Ready.
+specification. Tasks 0019A, 0019A1, 0019A2, and 0019B are complete. Task 0019B1, tasks 0019C–0019E,
+and every later task remain Draft without detailed specifications. No model task is currently
+Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
