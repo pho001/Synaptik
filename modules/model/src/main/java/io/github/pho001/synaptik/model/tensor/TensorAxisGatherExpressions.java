@@ -11,7 +11,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs locally validated, storage-free axis-gather expressions for {@link Tensor}.
+ * Constructs locally validated, storage-free axis-gather expressions and embedding composition
+ * for {@link Tensor}.
  *
  * <p>Every operation consumes ordered {@code [data, indices]} inputs and requires exact
  * {@link DataType#INT32} or {@link DataType#INT64} indices. {@link AxisGatherKind#GATHER}
@@ -58,6 +59,56 @@ final class TensorAxisGatherExpressions {
         IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
         return create(
                 data, indices, dataDescriptor, resultShape, AxisGatherKind.GATHER, attrs);
+    }
+
+    /**
+     * Validates an embedding-weight table and creates one canonical axis-zero GATHER expression.
+     *
+     * <p>{@code weights} must have rank two and exact BFLOAT16, FLOAT32, or FLOAT64 type. Its
+     * axis zero is the vocabulary axis and axis one is the embedding Dimension. Indices may have
+     * any rank, including scalar, but must have exact INT32 or INT64 type. The result Shape is the
+     * complete indices Shape followed by the exact weight axis-one Dimension.</p>
+     *
+     * <p>After embedding-specific validation, this method delegates directly to
+     * {@link #gather(Tensor, Tensor, int)} with axis zero. The sole resulting producer therefore
+     * retains the ordinary {@link AxisGatherKind#GATHER} operation, {@code IndexAxisAttrs(0)},
+     * exact ordered inputs {@code [weights, indices]}, and one output at provenance index zero.
+     * It preserves the weight type and gradient eligibility and creates a fresh ID only during
+     * final derived-Tensor construction. No index value is read: negative and out-of-range values
+     * remain invalid for future ordinary Gather execution, where bounds must be enforced safely
+     * without wrapping, clamping, padding, or selecting a default row. No padding-index,
+     * sparse-gradient, maximum-norm, or frequency-scaling option changes that ordinary Gather
+     * occurrence.</p>
+     *
+     * @param weights non-null rank-two BFLOAT16, FLOAT32, or FLOAT64 table retained as provenance
+     *     input zero and never mutated
+     * @param indices non-null INT32 or INT64 coordinates of any rank retained as provenance input
+     *     one and never mutated
+     * @return a non-null fresh storage-free GATHER tensor whose Shape is the indices Shape plus
+     *     the exact weight embedding Dimension, with weight metadata and unresolved layout
+     * @throws NullPointerException if {@code weights} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if weights are not rank two, weights are not floating, or
+     *     indices are not INT32 or INT64, checked in that order before ID allocation
+     * @throws ArithmeticException if checked Gather result-Shape metadata construction overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor embedding(Tensor weights, Tensor indices) {
+        Objects.requireNonNull(weights, "weights");
+        Objects.requireNonNull(indices, "indices");
+        TensorDescriptor weightsDescriptor = weights.descriptor();
+        int weightsRank = weightsDescriptor.shape().rank();
+        if (weightsRank != 2) {
+            throw new IllegalArgumentException(
+                    "embedding weights rank must be 2: actual=" + weightsRank);
+        }
+        DataType weightsDataType = weightsDescriptor.dataType();
+        if (!weightsDataType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "embedding weights data type must be BFLOAT16, FLOAT32, or FLOAT64: "
+                            + weightsDataType);
+        }
+        validateIndexType("embedding", indices.descriptor());
+        return gather(weights, indices, 0);
     }
 
     /**

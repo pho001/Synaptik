@@ -352,10 +352,12 @@ ReLU is already current through completed tasks 0014C–0014D and is not duplica
 Dropout remains wholly owned by unchanged Draft task 0019B because it consumes and produces
 explicit graph RNG state rather than behaving as a deterministic unary activation.
 
-Draft task 0019A1 owns exactly `weights.embedding(indices)`. The receiver is a rank-two floating
+Completed [task 0019A1](tasks/0019a1-embedding-convenience.md) adds exactly
+`weights.embedding(indices)`. The receiver is a rank-two floating
 table `[vocabulary, embeddingDimension]`; indices are INT32 or INT64; the result Shape is the
 complete indices Shape followed by the exact embedding dimension. It is direct
-`weights.gather(indices, 0)` composition with no EMBEDDING kind or padding-index option. Result
+axis-zero Gather composition with no EMBEDDING kind, intermediate producer, or
+padding/sparse/max-norm/frequency option. Result
 gradient eligibility comes only from weights as inherited from Gather; compiler autograd owns any
 scatter-add rule. Index values must be non-negative and below the table's axis-zero extent when
 executed. Construction reads no values; compiler validation may reject captured constant indices,

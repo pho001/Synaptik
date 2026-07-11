@@ -226,7 +226,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018V | [Multi-axis and statistical reductions](tasks/0018v-multi-axis-and-statistical-reductions.md) | Complete | 0016A–0016J, 0018K, 0018M, 0018T1, 0018U1 | Added ordered multi-axis ordinary reductions plus first-class floating log-sum-exp, corrected variance/standard deviation, and L1/L2 norm semantics and Tensor construction. |
 | 0019 | [Matmul semantics and Tensor expression](tasks/0019-matmul-semantics-and-tensor-expression.md) | Complete | 0001–0002, 0005–0007, 0011–0013, 0018K–0018N, 0018T, 0018U–0018V | Added first-class vector, matrix, and batched MATMUL metadata with exact Shape, type, numerical, and provenance contracts. |
 | 0019A | [Modern activation semantics and Tensor expressions](tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) | Complete | 0014C–0014D, 0018K, 0018P | Added exact GELU, fixed tanh-approximation GELU, and canonical SiLU as first-class floating unary semantics. |
-| 0019A1 | Embedding convenience | Draft | 0018K, 0018O | Add rank-two floating `weights.embedding(indices)` as validated axis-zero Gather composition with no padding option or new kind. |
+| 0019A1 | [Embedding convenience](tasks/0019a1-embedding-convenience.md) | Complete | 0018K, 0018O | Added rank-two floating `weights.embedding(indices)` as validated axis-zero Gather composition with no padding option or new kind. |
 | 0019A2 | One-hot encoding | Draft | 0001–0002, 0018K | Add trailing-axis, positive-static-depth BOOL one-hot semantics for INT32/INT64 indices without broad configuration. |
 | 0019B | Explicit graph RNG and dropout | Draft | 0018K–0018L, 0018N | Define state-consuming/state-producing graph randomness and dropout without hidden global generator state. |
 | 0019C | Sorting and top-K operations | Draft | 0018K–0018L, 0018U | Represent sort, argsort, and genuine multi-output top-K with explicit ordering, tie, NaN, and stability policies. |
@@ -293,9 +293,10 @@ semantic signatures, Shape/result construction, numerical policy, tests, and pub
 documentation in one compilable state. The former broad task 0019 is now decomposed. Focused
 [task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) completed MATMUL. Completed
 [task 0019A](tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) added exact GELU,
-fixed tanh-approximation GELU, and SiLU semantics and Tensor expressions. Draft tasks 0019A1 and
-0019A2 split embedding and one-hot from it; existing tasks 0019B–0019E remain stable Draft rows
-without detailed specifications. No model task is currently Ready.
+fixed tanh-approximation GELU, and SiLU semantics and Tensor expressions. Completed
+[task 0019A1](tasks/0019a1-embedding-convenience.md) added embedding as direct axis-zero Gather;
+0019A2 and existing tasks 0019B–0019E remain stable Draft rows without detailed specifications.
+No model task is currently Ready.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -353,8 +354,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - The former 0019A umbrella is split without changing 0019B–0019E. Completed task 0019A owns exact
   GELU, fixed tanh-approximation GELU, and canonical SiLU as first-class parameterless unary kinds.
   Literal primitive compositions are insufficient because their infinity-times-zero intermediate
-  does not preserve the selected negative-infinity continuous extension. Draft task 0019A1 owns
-  rank-two `weights.embedding(indices)` as axis-zero Gather composition with no padding option.
+  does not preserve the selected negative-infinity continuous extension. Completed task 0019A1
+  adds rank-two `weights.embedding(indices)` as axis-zero Gather composition with no padding
+  option.
   Draft task 0019A2 owns trailing-axis BOOL one-hot with positive static depth and no configurable
   axis, result type, or on/off values. Existing `RELU`/`relu()` remains complete under tasks
   0014C–0014D and is not duplicated. Unchanged Draft task 0019B remains the sole dropout owner
@@ -1344,8 +1346,9 @@ documented atomic-migration exception to the usual file-count guardrail because 
 enforcement would either break valid current families or retain a permissive unsafe fallback.
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
-0019 and 0019A are complete. Tasks 0019A1, 0019A2, 0019B–0019E, and every later task remain Draft
-without detailed specifications; no model task is currently Ready.
+0019, 0019A, and 0019A1 are complete.
+Tasks 0019A2, 0019B–0019E, and every later task remain Draft without detailed specifications.
+No model task is currently Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1405,7 +1408,7 @@ construction. Task 0018I is complete with functional Scatter-ND semantic values.
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
-specification. Task 0019A is complete; tasks 0019A1, 0019A2, 0019B–0019E, and every later task
-remain Draft without detailed specifications. No model task is currently Ready.
+specification. Tasks 0019A and 0019A1 are complete. Tasks 0019A2, 0019B–0019E, and every later
+task remain Draft without detailed specifications. No model task is currently Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

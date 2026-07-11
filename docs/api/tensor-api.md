@@ -4514,17 +4514,19 @@ alias, a gradient rule, compiler capture, materialization, backend lowering, or 
 
 ### Axis-gather expressions
 
-The two public axis-gather methods produce expressions with ordered logical inputs
+The public axis-gather methods produce expressions with ordered logical inputs
 `[data, indices]`. `data` is the receiver and supplies the result data type and gradient
 eligibility. Both require exact `INT32` or `INT64` indices; no floating or BOOL index tensor is
-accepted or implicitly cast. They normalize one positive or negative axis exactly once against
-the data Shape after their null and index-type checks.
+accepted or implicitly cast. `gather` and `gatherElements` normalize one positive or negative axis
+exactly once against the data Shape after their null and index-type checks; `embedding` fixes that
+axis at zero after validating its rank-two floating receiver.
 
 The methods differ in how they relate the two input Shapes to the result:
 
 | Public method | Semantic kind | Shape rule |
 |---|---|---|
 | `gather(indices, axis)` | `GATHER` | Replace the selected data Dimension with every indices Dimension in order. |
+| `embedding(indices)` | `GATHER` at axis zero | Require rank-two floating weights and append their exact axis-one embedding Dimension to the complete indices Shape. |
 | `gatherElements(indices, axis)` | `GATHER_ELEMENTS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
 
 Structural equality is conservative for dynamic Dimensions. The same dynamic symbol passes where
@@ -4540,6 +4542,89 @@ semantic kind, one `IndexAxisAttrs` with the normalized axis, and exact input re
 Expression construction never interprets, normalizes, clamps, or bounds-checks index values. It
 defines no gradient or repeated-index rule, compiler capture or canonicalization, materialization,
 backend lowering, or execution behavior.
+
+#### Embedding convenience
+
+`weights.embedding(indices)` gives the common lookup-table use of Gather a direct public spelling.
+The receiver is a rank-two floating table shaped `[vocabulary, embeddingSize]`; indices may have
+any rank but must use exact `INT32` or `INT64`. The result Shape is:
+
+```text
+indices.shape + [weights.shape[1]]
+```
+
+Every indices Dimension is retained by exact reference and in its original order, followed by the
+exact weight axis-one Dimension. Scalar indices therefore produce `[embeddingSize]`. Result type
+and gradient eligibility come only from weights. Layout remains unresolved, and the result has no
+label or storage.
+
+##### Complete embedding metadata example
+
+The goal is to construct lookup metadata for weights shaped `[10, 4]` and indices shaped `[2, 3]`
+and inspect the ordinary Gather occurrence. Both inputs are storage-free because construction
+uses descriptors, not element values.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class EmbeddingExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor weights = tensor(DataType.FLOAT32, Shape.of(10, 4), true);
+        Tensor indices = tensor(DataType.INT64, Shape.of(2, 3), false);
+
+        Tensor embedded = weights.embedding(indices);
+        var provenance = embedded.provenance().orElseThrow();
+
+        System.out.println(embedded.descriptor().shape());
+        System.out.println(provenance.operation().kind());
+        System.out.println(provenance.operation().attrs());
+        System.out.println(provenance.inputs().get(0) == weights);
+        System.out.println(provenance.inputs().get(1) == indices);
+        System.out.println(provenance.outputIndex());
+        System.out.println(embedded.descriptor().requiresGrad());
+        System.out.println(embedded.descriptor().layout().isEmpty()
+                && embedded.label().isEmpty()
+                && embedded.hostStorage().isEmpty());
+    }
+}
+```
+
+The indices axes `2` and `3` are retained first, and the weight embedding extent `4` is appended.
+The program prints:
+
+```text
+Shape[2, 3, 4]
+GATHER
+IndexAxisAttrs[axis=0]
+true
+true
+0
+true
+true
+```
+
+This proves the derived Shape, direct axis-zero Gather semantics, ordered `[weights, indices]`
+provenance, single output at index zero, weight-only gradient eligibility, and storage-free result
+metadata. Each valid call creates one producer and one fresh Tensor ID. It does not read the six
+index values, select weight rows, construct a gradient, compile a graph, or execute work.
+
+Negative and out-of-range stored index values remain accepted at construction because model code
+does not inspect values. They are invalid for later ordinary Gather execution and must not wrap,
+clamp, select padding, or select a default row. Compiler constant analysis may reject values it can
+prove invalid; after dynamic extents are bound, preparation or prepared execution must enforce the
+ordinary Gather bounds contract safely. This convenience adds no `EMBEDDING` kind and no
+padding-index, sparse-gradient, maximum-norm, or frequency-scaling option.
 
 #### Complete axis-gather expression example
 

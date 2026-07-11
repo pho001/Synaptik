@@ -123,11 +123,12 @@ cohesive 17-path change. The former broad task 0019 is decomposed. Focused
 [task 0019](modules/model/tasks/0019-matmul-semantics-and-tensor-expression.md) is Complete for
 MATMUL. Completed
 [task 0019A](modules/model/tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) added
-exact GELU, fixed tanh-approximation GELU, and SiLU. Draft tasks 0019A1 and
-0019A2 split embedding and one-hot from that activation task. ReLU remains current from completed
+exact GELU, fixed tanh-approximation GELU, and SiLU. Completed
+[task 0019A1](modules/model/tasks/0019a1-embedding-convenience.md) adds embedding, while Draft task
+0019A2 owns one-hot after that activation task. ReLU remains current from completed
 tasks 0014C–0014D, and unchanged Draft task 0019B remains the sole dropout/RNG-state owner.
 Existing tasks 0019B–0019E and every later task remain Draft without detailed specifications. No
-model task is currently Ready.
+other model task is currently Ready.
 
 Task 0018U added same-category numeric promotion, selected modular INT32/INT64 ADD, SUB, MUL, MIN,
 and MAX Tensor and exact-scalar construction, and all six signed-integral comparisons without a
@@ -180,9 +181,9 @@ The capability-reset audit found that operation validity, shared multi-output pr
 symbolic extent arithmetic, typed scalar values, and several provisional legacy-derived APIs must
 be hardened before linear algebra. Tasks 0018K–0018V now form that ordered reset. Tasks 0018K
 through 0018T1, task 0018U, task 0018U1, linked task 0018V, and focused MATMUL task 0019 are
-complete. Task 0019A is also complete; embedding and one-hot are separate Draft tasks 0019A1 and
-0019A2. Linear and attention remain separated into Draft tasks 0019D and 0019E without changing
-established tasks 0019B–0019E. No model task is currently Ready.
+complete. Tasks 0019A and 0019A1 are also complete; one-hot remains
+Draft task 0019A2. Linear and attention remain separated into Draft tasks 0019D and 0019E without
+changing established tasks 0019B–0019E. No other model task is currently Ready.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -190,8 +191,8 @@ composition, and unfold/fold contracts can be implemented and validated independ
 0017A–0017N have detailed specifications and are complete. The former broad task 0018 is now
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
-task 0018U, task 0018U1, task 0018V, focused MATMUL task 0019, and task 0019A are Complete. Tasks
-0019A1, 0019A2, 0019B–0019E, and later tasks remain Draft; no model task is currently Ready.
+task 0018U, task 0018U1, task 0018V, focused MATMUL task 0019, task 0019A, and task 0019A1 are
+Complete. Tasks 0019A2, 0019B–0019E, and later tasks remain Draft. No model task is Ready.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -637,7 +638,7 @@ authorized Compile API status correction.
 | 93 | [0018V Multi-axis and statistical reductions](modules/model/tasks/0018v-multi-axis-and-statistical-reductions.md) | Complete |
 | 94 | [0019 Matmul semantics and Tensor expression](modules/model/tasks/0019-matmul-semantics-and-tensor-expression.md) | Complete |
 | 95 | [0019A Modern activation semantics and Tensor expressions](modules/model/tasks/0019a-modern-activation-semantics-and-tensor-expressions.md) | Complete |
-| 96 | 0019A1 Embedding convenience | Draft |
+| 96 | [0019A1 Embedding convenience](modules/model/tasks/0019a1-embedding-convenience.md) | Complete |
 | 97 | 0019A2 One-hot encoding | Draft |
 | 98 | 0019B Explicit graph RNG and dropout | Draft |
 | 99 | 0019C Sorting and top-K operations | Draft |
@@ -697,9 +698,8 @@ complete. The former broad task 0018 is decomposed into 0018A–0018J. Tasks 001
 complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete. Task 0018H is
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
 before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, linked 0018V, and task 0019 are
-complete. Task 0019A is also complete with the only new detailed specification. Tasks 0019A1,
-0019A2, 0019B–0019E, and every later task remain Draft without detailed specifications. No model
-task is currently Ready.
+complete. Tasks 0019A and 0019A1 are also complete. Tasks 0019A2, 0019B–0019E, and every later
+task remain Draft without detailed specifications. No model task is currently Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

@@ -83,7 +83,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(160, declaredPublicMethods.size());
+        assertEquals(161, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -98,7 +98,7 @@ class TensorTest {
                         "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
-                        "gather", "gatherElements", "gatherNd",
+                        "gather", "embedding", "gatherElements", "gatherNd",
                         "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold",
                         "unfold2d", "fold2d"),

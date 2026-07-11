@@ -3770,6 +3770,40 @@ public final class Tensor {
     }
 
     /**
+     * Creates a fresh embedding lookup from this rank-two floating weight table.
+     *
+     * <p>This tensor supplies weights shaped {@code [vocabulary, embeddingSize]}; its axis zero is
+     * the vocabulary axis. {@code indices} must have exact INT32 or INT64 type and may have any
+     * rank, including scalar. The result Shape is the complete indices Shape followed by the exact
+     * weight axis-one Dimension. For weights {@code [10, 4]} and indices {@code [2, 3]}, the result
+     * is {@code [2, 3, 4]}; scalar indices produce {@code [4]}. All indices Dimensions and the
+     * embedding Dimension are retained by exact reference.</p>
+     *
+     * <p>This convenience creates exactly one ordinary axis-zero {@link AxisGatherKind#GATHER}
+     * occurrence by delegating directly to the existing Gather construction path at axis zero.
+     * Ordered provenance is {@code [this, indices]}, with one producer, provenance output index
+     * zero, and one fresh Tensor identity. The result preserves this table's exact type and
+     * gradient eligibility, has unresolved layout, and has no label or host storage. It reads no
+     * index value and defines no gradient, compiler, backend, or runtime behavior. Negative and
+     * out-of-range values are invalid for future ordinary Gather execution; they do not wrap,
+     * clamp, select padding, or select a default row. This convenience has no padding-index,
+     * sparse-gradient, maximum-norm, or frequency-scaling option.</p>
+     *
+     * @param indices non-null INT32 or INT64 coordinate tensor of any rank, retained as exact
+     *     provenance input one and never mutated
+     * @return a non-null fresh storage-free GATHER tensor whose Shape is the indices Shape plus
+     *     the exact embedding Dimension, with weight metadata and unresolved layout
+     * @throws NullPointerException if {@code indices} is null, with message {@code indices}
+     * @throws IllegalArgumentException if this tensor is not rank two, its type is not BFLOAT16,
+     *     FLOAT32, or FLOAT64, or the indices type is not INT32 or INT64, checked in that order
+     * @throws ArithmeticException if checked Gather result-Shape metadata construction overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    public Tensor embedding(Tensor indices) {
+        return TensorAxisGatherExpressions.embedding(this, indices);
+    }
+
+    /**
      * Creates a fresh same-rank expression whose indices align with data away from one axis.
      *
      * <p>Indices must be exact INT32 or INT64, have the same rank as data, and have equal

@@ -318,6 +318,22 @@ or checking bounds. See [Gather and Gather Elements semantic kinds and
 attributes](api/tensor-api.md#gather-and-gather-elements-semantic-kinds-and-attributes) and
 [axis-gather expressions](api/tensor-api.md#axis-gather-expressions).
 
+### Embedding
+
+An implemented public convenience for using a rank-two floating weight table as an ordinary
+axis-zero [Gather](#gather). For weights `[vocabulary, embeddingSize]` and INT32 or INT64 indices,
+`weights.embedding(indices)` produces metadata shaped
+`indices.shape + [embeddingSize]`. It retains the exact indices Dimensions followed by the exact
+weight axis-one Dimension, with result type and gradient eligibility inherited only from weights.
+
+Embedding is not a separate operation kind: each call creates one `GATHER` occurrence with
+`IndexAxisAttrs(0)`, ordered `[weights, indices]` provenance, one output at index zero, and one
+fresh Tensor identity. Construction reads no index values. Negative and out-of-range values are
+invalid for later ordinary Gather execution, and there is no wrapping, padding row, sparse
+gradient, maximum-norm, or frequency-scaling option. Gradient construction, compiler analysis,
+bounds enforcement, lowering, backend behavior, and execution remain separately owned. See the
+[embedding convenience](api/tensor-api.md#embedding-convenience).
+
 ### Gather Elements
 
 An implemented aligned tensor-index meaning represented by

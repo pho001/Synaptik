@@ -52,7 +52,8 @@ full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fo
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
-tensor-index axis-gather methods, and two Gather-ND methods, plus two functional Scatter Elements
+tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, and two
+Gather-ND methods, plus two functional Scatter Elements
 methods and three functional Scatter-ND methods, plus one matrix-multiplication method, construct
 storage-free expressions with immutable producer-and-output-index provenance. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
@@ -108,6 +109,13 @@ unresolved-versus-static batch singleton-or-equal cases remain obligations for l
 validation or concrete binding. This is current model-expression metadata only: expression
 capture, graph-wide validation, constraint proof, gradients, lowering, backend support, and
 execution remain planned.
+`Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
+INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
+The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result
+type and gradient eligibility come only from weights. This is public model-expression construction,
+not compiler support: capture, constant-index analysis, repeated-index autograd construction,
+dynamic binding, safe bounds enforcement, lowering, backend support, and execution remain owned by
+later lifecycle layers. No `EMBEDDING` kind or padding/sparse/max-norm/frequency option exists.
 `Tensor.rsqrt`, `log1p`, `expm1`, `gelu`, `geluTanhApproximation`, and `silu` accept floating input,
 retain its exact type, Shape, and gradient eligibility, leave layout unresolved, and record
 one-input parameterless provenance.

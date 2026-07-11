@@ -42,7 +42,7 @@ class TensorAxisGatherExpressionTest {
 
         assertEquals(
                 List.of(
-                        "create", "gather", "gatherElements", "gatherShape",
+                        "create", "embedding", "gather", "gatherElements", "gatherShape",
                         "validateGatherElements", "validateIndexType"),
                 Arrays.stream(TensorAxisGatherExpressions.class.getDeclaredMethods())
                         .map(Method::getName)
