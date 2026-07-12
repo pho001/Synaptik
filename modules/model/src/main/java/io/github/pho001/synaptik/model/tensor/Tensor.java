@@ -33,6 +33,7 @@ import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
@@ -724,6 +725,47 @@ public final class Tensor {
      */
     public Tensor matmul(Tensor right) {
         return TensorMatmulExpressions.apply(this, right);
+    }
+
+    /**
+     * Builds a mean-squared-error loss against an exact-shape target.
+     *
+     * <p>For each logical coordinate, the semantic loss is
+     * {@code (prediction - target) * (prediction - target)}. {@link LossReduction#NONE} preserves
+     * this tensor's exact Shape reference; {@link LossReduction#SUM} and
+     * {@link LossReduction#MEAN} return the shared scalar Shape, with mean dividing by the complete
+     * logical element count. Empty sum is positive zero and empty mean is NaN. Target broadcasting
+     * and implicit casts are not accepted.</p>
+     *
+     * <p>BFLOAT16 and FLOAT32 results perform formula and reduction arithmetic in FLOAT32;
+     * FLOAT64 results use FLOAT64. NaN operands and equal-sign infinity pairs produce NaN squared
+     * error. One finite and one infinite operand, or opposite-sign infinities, produce positive
+     * infinity; every exact zero difference squares to positive zero. Reduced NaN propagates and,
+     * otherwise, any positive infinity produces positive infinity. Finite arithmetic may overflow
+     * or underflow. Reassociation and equal-or-wider intermediates are permitted, but an algebraic
+     * expansion that changes these value classes is not; traversal, bitwise identity, identical
+     * finite rounding, and NaN payload or sign preservation are not promised.</p>
+     *
+     * <p>The result uses floating promotion across prediction and target, unresolved layout, and
+     * the logical OR of their gradient-eligibility metadata. This method constructs one fresh
+     * storage-free producer with ordered {@code [prediction, target]} provenance; it reads no
+     * values and defines no gradient, compiler, backend, runtime, execution, or training behavior.</p>
+     *
+     * @param target non-null BFLOAT16, FLOAT32, or FLOAT64 target with equal rank and positionally
+     *     compatible dimensions; unequal static dimensions are rejected and unresolved equality
+     *     is deferred
+     * @param reduction non-null explicit none, sum, or complete-domain mean reduction
+     * @return a fresh unlabeled, storage-free loss tensor with promoted floating type, selected
+     *     Shape, combined gradient eligibility, unresolved layout, and output-index-zero provenance
+     * @throws NullPointerException if {@code target} or {@code reduction} is null, checked in that
+     *     order
+     * @throws IllegalArgumentException if prediction or target is not floating, ranks differ, or
+     *     corresponding static dimensions differ
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    public Tensor meanSquaredError(Tensor target, LossReduction reduction) {
+        return TensorLossExpressions.meanSquaredError(this, target, reduction);
     }
 
     /**

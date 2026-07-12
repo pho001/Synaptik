@@ -152,8 +152,11 @@ Complete for layer normalization. Completed
 [task 0021A](modules/model/tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) adds
 RMS normalization. Focused
 [task 0021B](modules/model/tasks/0021b-batch-normalization-inference.md) is Complete for stateless
-five-input inference. Task 0021C is Complete; tasks 0022–0024 remain Draft without detailed
-specifications.
+five-input inference. Task 0021C is Complete. The former broad loss row is now split into completed
+[task 0022](modules/model/tasks/0022-mean-squared-error-loss.md), Draft task 0022A for dense-target
+categorical cross-entropy with logits, and Draft task 0022B for index-target categorical
+cross-entropy with logits. Only task 0022 has a detailed specification; established tasks
+0023–0024 remain Draft without detailed specifications.
 
 Task 0021A adds one distinct RMS-normalization kind and typed attributes, exact no-scale and
 scale-only receiver methods, uncentered mean-square semantics, and one-output provenance. Its
@@ -245,7 +248,8 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 0020, 0020A, 0020A1, 0021, and 0021A are Complete. Task
 [0021B](modules/model/tasks/0021b-batch-normalization-inference.md) is Complete. Focused
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
-Complete. Tasks 0022–0024 remain Draft without detailed future specs.
+Complete. Task 0022 is Complete with its one detailed specification. Tasks 0022A–0022B and 0023–0024
+remain Draft without detailed future specifications.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -706,9 +710,11 @@ authorized Compile API status correction.
 | 108 | [0021A RMS normalization semantics and Tensor expressions](modules/model/tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) | Complete |
 | 109 | [0021B Batch-normalization inference](modules/model/tasks/0021b-batch-normalization-inference.md) | Complete |
 | 110 | [0021C Batch-normalization training and statistic transition](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) | Complete |
-| 111 | 0022 Loss operations | Draft |
-| 112 | 0023 Compiler-generated semantic operations | Draft |
-| 113 | 0024 Model capability selection audit | Draft |
+| 111 | [0022 Mean-squared-error loss](modules/model/tasks/0022-mean-squared-error-loss.md) | Complete |
+| 112 | 0022A Dense-target categorical cross-entropy with logits | Draft |
+| 113 | 0022B Index-target categorical cross-entropy with logits | Draft |
+| 114 | 0023 Compiler-generated semantic operations | Draft |
+| 115 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -761,7 +767,9 @@ before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, linked 0018V, 
 complete. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are also complete.
 Tasks 0019E, 0020, 0020A, 0020A1, 0021, 0021A, and 0021B are complete. Task
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
-Complete. Tasks 0022–0024 remain Draft without detailed specifications.
+Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Complete as the sole
+detailed loss specification. Tasks 0022A–0022B and established tasks 0023–0024 remain Draft
+without detailed specifications.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

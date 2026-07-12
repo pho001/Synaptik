@@ -116,6 +116,12 @@ without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftma
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
 retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
 behavior, backend behavior, and execution remain planned.
+The `LossKind` vocabulary is implemented with the sole `MEAN_SQUARED_ERROR` meaning, together with
+the shared loss-only `LossReduction` values `NONE`, `SUM`, and `MEAN` and immutable
+`MeanSquaredErrorAttrs`. Public `Tensor.meanSquaredError` constructs one fresh exact-shape
+two-input expression with ordered prediction and target provenance. It performs no broadcasting,
+value evaluation, gradient construction, compiler work, backend work, runtime execution, or
+training coordination.
 The `BatchNormKind` vocabulary is implemented with distinct stateless `BATCH_NORM_INFERENCE` and
 pure `BATCH_NORM_TRAINING` meanings. Both have fixed ordered inputs
 `[input, scale, bias, runningMean, runningVariance]`. `BatchNormInferenceAttrs` retains one
@@ -955,6 +961,24 @@ The ordered stages through which Synaptik state moves. The core lifecycle is com
 
 Translation from a planned, backend-neutral graph region into a backend-specific executable form. Lowering may include backend-specific decomposition, fusion, specialization, and representation building. In Synaptik it happens during prepare inside the owning concrete backend, not in planning or the runtime hot path. See [Backend-owned lowering](#backend-owned-lowering).
 
+### Loss
+
+A backend-independent computation meaning that compares model predictions with target values and
+produces one or more error values. A **prediction** is the model-produced operand being assessed;
+a **target** is the caller-supplied reference operand it is compared with. The current implemented
+loss family contains only [mean-squared error](#mean-squared-error--mse). A loss operation is model
+metadata, not a gradient rule, optimizer, training session, compiler pass, backend kernel, or
+executed value.
+
+### Loss reduction
+
+The explicit policy that maps a loss's logical error domain to its result Shape. The current
+`LossReduction` vocabulary contains `NONE`, which retains every error coordinate; `SUM`, which
+combines the complete domain into one scalar; and `MEAN`, which divides that sum by a
+family-defined denominator. The vocabulary stores no default, axis, denominator, weight, mask,
+ignore value, Tensor, or executable behavior. It is distinct from aggregate Tensor reduction
+because a loss first combines ordered prediction and target roles.
+
 ### Materialization
 
 Creating a concrete stored representation when a logical value or view cannot be consumed in its current form. For example, a backend route may require a contiguous copy of a strided view. Planning expresses logical materialization requirements; prepare and backend/runtime mechanisms realize the required storage and copy work. Materialization is not a property decided by `LayoutDescriptor` alone.
@@ -994,6 +1018,20 @@ expressions before the reduction. A static zero-sized reduction axis produces ze
 NaN mean slices; runtime zero-sized or all-false dynamic slices follow the same semantics. Storage
 alignment, value selection, counting, aggregation, division, gradient rules, compiler capture,
 backend behavior, and numerical execution remain planned.
+
+### Mean-squared error / MSE
+
+The implemented loss meaning represented by `LossKind.MEAN_SQUARED_ERROR` and
+`MeanSquaredErrorAttrs(reduction)`. For prediction `p_i` and exact-shape target `t_i`, each logical
+error is `(p_i - t_i)^2`. `NONE` preserves the exact prediction Shape, while `SUM` and `MEAN`
+produce a scalar. The MSE mean denominator is the complete logical element count after unresolved
+Dimensions are bound: a scalar count is one, and a zero-extent domain has empty `NONE`, positive-
+zero `SUM`, and NaN `MEAN`.
+
+Current public construction accepts BFLOAT16, FLOAT32, and FLOAT64, promotes the two operands,
+rejects unequal static Dimensions, defers equality involving unresolved Dimensions, and never
+broadcasts the target. It records exact ordered `[prediction, target]` provenance and reads no
+values. See [Mean-squared-error loss expressions](api/tensor-api.md#mean-squared-error-loss-expressions).
 
 ### Matrix multiplication / `MATMUL`
 
@@ -1098,6 +1136,7 @@ axis. Its concrete attributes class distinguishes the first-class masked occurre
 scan-family `CumulativeSumAttrs` holds one
 normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
 `SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax;
+implemented loss-family `MeanSquaredErrorAttrs` holds one exact non-null `LossReduction`;
 `BatchNormInferenceAttrs` holds one normalized layout-neutral channel axis and exact typed epsilon
 for stateless five-input inference. `BatchNormTrainingAttrs` adds exact typed new-batch-weight
 momentum for pure five-input/five-output training and running-statistic transition. Implemented
@@ -1331,7 +1370,10 @@ and the shared reduction vocabulary, as described under [Scatter-ND](#scatter-nd
 twenty-fourth is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with
 `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
-under [window transform](#window-transform). These semantic families do not by themselves
+under [window transform](#window-transform). The twenty-fifth is `LossKind`, whose sole
+`MEAN_SQUARED_ERROR` value pairs with `MeanSquaredErrorAttrs` and the separate `LossReduction`
+vocabulary, as described under [mean-squared error](#mean-squared-error--mse). These semantic
+families do not by themselves
 construct Tensors or define compiler, backend, or execution behavior.
 
 ### Padding
@@ -1452,6 +1494,9 @@ one immediate input, including in same-type and chained requests. `Tensor.cumSum
 `CumulativeSumAttrs`, and likewise records exactly the receiver as its sole input.
 `Tensor.softmax` and `Tensor.logSoftmax` use the exact corresponding `SoftmaxKind`, retain the
 normalized axis in `SoftmaxAttrs`, and record exactly the receiver as their sole input.
+`Tensor.meanSquaredError` uses `LossKind.MEAN_SQUARED_ERROR`, retains its explicit reduction in
+`MeanSquaredErrorAttrs`, and records ordered inputs `[prediction, target]` under one fresh
+single-output producer.
 `Tensor.contiguous()` uses `ContiguousKind.CONTIGUOUS` and `NoOperationAttrs.INSTANCE`, and records
 exactly the receiver even when it already has canonical dense layout. That provenance does not
 imply that a copy or materialization occurred.

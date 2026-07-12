@@ -108,6 +108,10 @@ io.github.pho001.synaptik.model.operation.scan
 io.github.pho001.synaptik.model.operation.normalization
   Typed shape-preserving normalization meanings and immutable normalization parameters.
 
+io.github.pho001.synaptik.model.operation.loss
+  Typed backend-independent loss meanings, explicit loss-reduction policy, and immutable
+  family-specific loss parameters; no optimizer, training-session, gradient, or backend state.
+
 io.github.pho001.synaptik.model.operation.linalg
   Typed backend-independent linear-algebra meanings; currently contains parameterless MATMUL.
 
@@ -261,8 +265,10 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0021A | [RMS normalization semantics and Tensor expressions](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) | Complete | 0018K, 0018L, 0018N, 0018V, 0021 | Added distinct one-output root-mean-square normalization with exact no-scale/scale-only inputs, typed epsilon, and no layer-attrs reuse or bias. |
 | 0021B | [Batch-normalization inference](tasks/0021b-batch-normalization-inference.md) | Complete | 0018K, 0018L, 0018N, 0018V, 0021–0021A | Added stateless layout-neutral per-channel inference with mandatory explicit affine/running-statistic inputs, exact typed epsilon, one output, and no hidden mode or mutation. |
 | 0021C | [Batch-normalization training and statistic transition](tasks/0021c-batch-normalization-training-and-statistic-transition.md) | Complete | 0021B, 0018L, 0018N, 0018V | Added one pure five-input/five-output training occurrence with explicit next running statistics and hidden saved mean/inverse-standard-deviation outputs, without cross-step state ownership. |
-| 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 including 0020A–0020A1 and 0021A–0021C | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
+| 0022 | [Mean-squared-error loss](tasks/0022-mean-squared-error-loss.md) | Complete | 0018K, 0018N, 0018V | Added the minimal dense regression loss with exact-shape targets and explicit `NONE`/`SUM`/`MEAN` reduction and empty-domain policy. |
+| 0022A | Dense-target categorical cross-entropy with logits | Draft | 0022, 0016I–0016J | Add exact-shape floating targets, explicit class axis, stable logits semantics, and the shared loss reductions without ignore-index behavior. |
+| 0022B | Index-target categorical cross-entropy with logits | Draft | 0022A, 0018O | Add INT32/INT64 class-index targets with class-axis removal, explicit optional ignore index, non-ignored mean denominator, and execution-time bounds obligations. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022B including 0020A–0020A1 and 0021A–0021C | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -344,7 +350,8 @@ renumbering 0022–0024: focused task 0021 is Complete for layer normalization, 
 [0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete for RMS
 normalization. Focused [task 0021B](tasks/0021b-batch-normalization-inference.md) is Complete.
 Task [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete.
-Tasks 0022–0024 remain Draft without detailed specifications.
+Completed [task 0022](tasks/0022-mean-squared-error-loss.md) is the only detailed loss specification.
+Tasks 0022A–0022B and established tasks 0023–0024 remain Draft without detailed specifications.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -410,6 +417,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable
   focused task.
+- Dense and index categorical-loss details remain intentionally Draft until task 0022 completes
+  and establishes the shared reduction vocabulary. Their rows select family order but do not
+  authorize implementation or act as detailed specifications.
 
 ## Decisions made
 
@@ -417,6 +427,13 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
+- The former broad loss row is split without renumbering established tasks 0023–0024. Ready task
+  0022 establishes one exact-shape mean-squared-error operation and shared explicit loss reduction.
+  Draft task 0022A then owns dense floating categorical cross-entropy from logits; Draft task
+  0022B owns index-target logits cross-entropy, class-axis removal, ignore index, and its
+  non-ignored denominator. Standalone probability-input cross entropy, standalone log-probability
+  negative-log-likelihood, weights, masks, label smoothing, binary cross entropy, and additional
+  losses are not selected for this minimal frontier.
 - The former broad task 0019 is split without renumbering established 0019A–0019C. Task 0019 is
   the cohesive MATMUL primitive; 0019D owns `linear`; 0019E owns scaled dot-product attention.
 - The former 0019A umbrella is split without changing 0019B–0019E. Completed task 0019A owns exact
@@ -1497,8 +1514,9 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 0019E, task 0020, task 0020A, task 0020A1, and task 0021 are complete. Task
 [0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete. Task
 0021B is Complete. Task
-[0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Tasks
-0022–0024 remain Draft without detailed specifications.
+[0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
+0022 is Complete with its one detailed specification. Tasks 0022A–0022B and 0023–0024 remain Draft
+without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1571,7 +1589,8 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
 Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Complete. Task
-[0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Tasks
-0022–0024 remain Draft without detailed specifications.
+[0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
+0022 is Complete with its one detailed specification. Tasks 0022A–0022B and 0023–0024 remain Draft
+without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

@@ -4306,6 +4306,76 @@ checkpoint ownership remain planned training-extension work. Runtime publication
 remain planned runtime work, while lowering, algorithms, kernels, and tolerances remain backend
 work. No layer, buffer owner, training mode, in-place update, or state across calls is created.
 
+### Mean-squared-error loss expressions
+
+Mean-squared error (MSE) compares a prediction Tensor with a target Tensor at the same logical
+coordinates. The sole current receiver form requires an explicit loss reduction:
+
+```java
+public Tensor meanSquaredError(Tensor target, LossReduction reduction)
+```
+
+The receiver is the prediction at producer input position zero, and `target` is input position
+one. Both inputs must be BFLOAT16, FLOAT32, or FLOAT64. Their data types are promoted in that
+order with floating promotion; no cast Tensor is inserted. Prediction and target must have equal
+rank and positionally compatible Dimensions. Structurally equal Dimensions pass, unequal static
+Dimensions fail, and an unequal pair involving an unresolved Dimension defers an equality
+obligation to later compiler capture or concrete binding. No scalar, singleton, leading-axis,
+right-aligned, or other target broadcasting is accepted.
+
+For each logical coordinate `i`, the selected mathematical loss is:
+
+```text
+d_i    = prediction_i - target_i
+loss_i = d_i * d_i
+```
+
+Let `E` be the complete logical element count after every unresolved Dimension is bound. The
+explicit reduction determines both output and Shape:
+
+| Reduction | Result | Result Shape |
+|---|---|---|
+| `LossReduction.NONE` | One `loss_i` for every logical coordinate | The exact prediction Shape reference |
+| `LossReduction.SUM` | `sum_i(loss_i)` | Shared `Shape.scalar()` |
+| `LossReduction.MEAN` | `sum_i(loss_i) / E` | Shared `Shape.scalar()` |
+
+`E` counts every logical coordinate, not only a batch or leading axis. A scalar has `E = 1`. A
+Shape with any zero extent has `E = 0`: `NONE` is empty, `SUM` is positive zero, and `MEAN` is
+NaN because it is the selected zero-over-zero empty mean.
+
+For prediction `[1, 2, 4]` and target `[1, 4, 1]`, the coordinate losses are `[0, 4, 9]`, `SUM`
+is `13`, and `MEAN` is `13 / 3`. This mathematical example explains the metadata request;
+constructing the expression reads no values. It is comparable to official
+[PyTorch MSE loss](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.mse_loss.html),
+while Synaptik deliberately has no default reduction, weights, or broadcasting.
+
+BFLOAT16 and FLOAT32 results use FLOAT32 subtraction, multiplication, accumulation, and division;
+FLOAT64 results use FLOAT64. Final values are rounded to the promoted result type. Implementations
+may use equal-or-wider intermediates, stable or compensated sums, vectorization, parallelization,
+fusion, and reassociation when later tolerances and the required special-value classes remain
+intact. No fixed traversal, bitwise cross-backend identity, finite rounding identity, or NaN
+payload/sign preservation is promised.
+
+NaN in either operand produces NaN squared error. Equal-sign infinities subtract to NaN;
+opposite-sign infinities or one finite and one infinite operand square to positive infinity.
+Every exact zero difference, including any signed-zero pairing, squares to positive zero. Finite
+subtraction or squaring may overflow to positive infinity or underflow to positive zero. A
+reduced NaN propagates; otherwise any positive infinity makes the reduced result positive
+infinity, and an all-finite exact-zero domain reduces to positive zero before mean division. An
+implementation must not replace `(p - t) * (p - t)` with an algebraic expansion that changes
+these value classes.
+
+Every success creates one fresh, unlabeled, storage-free, unresolved-layout Tensor with one fresh
+producer, one Tensor ID, and provenance output index zero. The result's `requiresGrad` metadata is
+the logical OR of prediction and target eligibility. Repeated equal calls remain identity-
+distinct. No input is mutated, and local null, type, rank, or static-Dimension failures occur
+before factory delegation and consume no result ID.
+
+These are current model metadata facts. They do not define a gradient rule or implement compiler
+capture, deferred equality proof, decomposition, backend support, numerical execution, runtime
+behavior, or training-session coordination. The compiler, backend prepare, runtime, and training
+extension retain those separate planned responsibilities.
+
 ### Contiguous expressions
 
 The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result
@@ -7657,6 +7727,29 @@ provenance, numerical policy, gradient, compiler decomposition, storage, backend
 executable behavior. Public floating `Tensor.softmax` and `Tensor.logSoftmax` now add Shape-aware
 caller-axis normalization, exact shape/type/eligibility retention in unresolved descriptors, and
 fresh one-input provenance without changing that semantic boundary.
+
+### Loss semantic kind, reduction, and attributes
+
+The public `LossKind` enum currently contains exactly `MEAN_SQUARED_ERROR`. Its sole signature is
+fixed to exact `MeanSquaredErrorAttrs`, two ordered inputs, and one output:
+
+```java
+OperationSignature.fixed(MeanSquaredErrorAttrs.class, 2, 1)
+```
+
+The ordered roles are `[prediction, target]`; the output role is the selected loss. The public
+`LossReduction` enum contains exactly `NONE`, `SUM`, and `MEAN`. It is typed configuration rather
+than `OperationAttrs`: it stores no axis, denominator, default, parser, mask, Tensor, or executable
+behavior. `MeanSquaredErrorAttrs(reduction)` retains one exact non-null reduction and contains no
+input, Shape, element count, data type, algorithm, gradient, graph, compiler, backend, or runtime
+state.
+
+The semantic contract is elementwise `(prediction - target)^2`, optionally summed over the
+complete logical domain or divided by its complete element count. It fixes scalar and empty-domain
+meaning plus the NaN, infinity, signed-zero, overflow, reassociation, and determinism boundaries
+documented in [Mean-squared-error loss expressions](#mean-squared-error-loss-expressions). The
+kind and attributes alone do not validate operand descriptors, derive a result, construct a
+Tensor, read values, or add compiler, backend, runtime, gradient, or training behavior.
 
 ### Contiguous semantic kind
 

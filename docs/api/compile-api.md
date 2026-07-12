@@ -328,6 +328,17 @@ eligibility, and indexed provenance. This does not implement capture of any posi
 publication, liveness, graph optimization, lowering, preparation, execution, or cross-step
 statistic ownership. Those remain planned in the compiler, training extension, runtime, and
 backend layers that own them.
+`Tensor.meanSquaredError(target, reduction)` is current one-output model metadata with exact
+ordered inputs `[prediction, target]`. It records `LossKind.MEAN_SQUARED_ERROR` and one
+`MeanSquaredErrorAttrs` carrying explicit `NONE`, `SUM`, or `MEAN` reduction. Local construction
+accepts only floating inputs, promotes them in input order, rejects unequal known static Shapes
+without broadcasting, and defers unequal pairs involving an unresolved Dimension. `NONE` retains
+the exact prediction Shape; `SUM` and `MEAN` use the scalar Shape. Mean divides by the complete
+logical element count, so scalar count is one, empty sum is positive zero, and empty mean is NaN.
+This is compiler-visible requested meaning only. Capture, revalidation, representation and proof
+of deferred equality, gradient or adjoint construction, legal decomposition, optimization,
+lowering, backend support, runtime execution, and training coordination remain planned in their
+owning layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -488,9 +499,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
-  sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, and explicit
+  sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, explicit
   five-input batch-normalization inference and five-output training/statistic-transition
-  construction, plus
+  construction, and exact-shape mean-squared-error construction with explicit loss reduction,
+  plus
   first-class
   scaled-dot-product-attention
   construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
@@ -512,8 +524,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the compiler entry point, traversal, capture,
-  scan/reduction/normalization/attention inference and canonicalization, layer-, RMS-, and batch-
-  normalization deferred-constraint proof, saved-statistic and gradient construction, optional
+  scan/reduction/normalization/loss/attention inference and canonicalization, layer-, RMS-, batch-
+  normalization, and loss deferred-constraint proof, saved-statistic and gradient construction,
+  optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
