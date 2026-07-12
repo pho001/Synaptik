@@ -66,7 +66,7 @@ class TensorMatmulExpressionTest {
                 () -> assertTrue(Modifier.isPublic(matmul.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(matmul.getModifiers())),
                 () -> assertEquals(Tensor.class, matmul.getReturnType()),
-                () -> assertEquals(181, publicTensorMethods),
+                () -> assertEquals(183, publicTensorMethods),
                 () -> assertEquals(1, publicMatmulMethods));
     }
 

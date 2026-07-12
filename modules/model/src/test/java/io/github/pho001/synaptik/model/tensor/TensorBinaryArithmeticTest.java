@@ -69,7 +69,7 @@ class TensorBinaryArithmeticTest {
         long publicTensorMethodCount = Arrays.stream(Tensor.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .count();
-        assertEquals(181, publicTensorMethodCount);
+        assertEquals(183, publicTensorMethodCount);
 
         Method apply = TensorBinaryExpressions.class.getDeclaredMethod(
                 "apply", Tensor.class, Tensor.class, BinaryArithmeticKind.class);

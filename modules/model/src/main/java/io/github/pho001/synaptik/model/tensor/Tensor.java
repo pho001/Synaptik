@@ -3852,6 +3852,69 @@ public final class Tensor {
     }
 
     /**
+     * Creates root-mean-square normalization over an exact non-empty trailing Shape.
+     *
+     * <p>Each non-empty slice computes
+     * {@code x / sqrt(sum(x * x) / N + epsilon)}. The mean square is uncentered, divides by the
+     * population count {@code N}, and receives epsilon inside the square root. Static trailing
+     * extents must match; unresolved unequal dimensions defer equality proof. Empty results
+     * evaluate no divisor. BFLOAT16 and FLOAT32 results accumulate in FLOAT32; FLOAT64 results
+     * accumulate in FLOAT64. NaN, infinity, signed-zero, and finite overflow follow the documented
+     * RMS-normalization semantic policy without selecting an algorithm or fixed traversal.</p>
+     *
+     * <p>The fresh result retains this Tensor's exact Shape, data type, and gradient eligibility,
+     * has unresolved layout, no label or storage, and exact one-input provenance at output index
+     * zero. Construction reads no values and creates no scale, bias, saved statistic, parameter,
+     * gradient, compiler, backend, runtime, or execution behavior.</p>
+     *
+     * @param normalizedShape non-null positive-rank Shape describing exact trailing input axes
+     * @param epsilon non-null finite positive floating value with this Tensor's exact data type
+     * @return fresh unlabeled, storage-free, unresolved-layout one-output expression retaining the
+     *     exact input Shape and type, with this Tensor as sole provenance input at output index
+     *     zero; never {@code null}
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if this Tensor is non-floating, normalized Shape has rank
+     *     zero or exceeds input rank, statically known trailing extents differ, or epsilon is not
+     *     finite, positive, floating, and exactly input-typed
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor rmsNorm(Shape normalizedShape, ScalarValue epsilon) {
+        return TensorRmsNormExpressions.apply(this, normalizedShape, epsilon);
+    }
+
+    /**
+     * Creates root-mean-square normalization followed by explicit elementwise scale.
+     *
+     * <p>The normalized value is {@code x / sqrt(sum(x * x) / N + epsilon)} and the result is
+     * {@code normalized * scale}. Scale Shape must exactly equal {@code normalizedShape}; it is
+     * reused across leading slices and is not broadcast. Input and scale floating types promote
+     * in occurrence order, epsilon must have the exact result type, and accumulation uses FLOAT32
+     * for BFLOAT16/FLOAT32 results or FLOAT64 for FLOAT64 results. Empty and special-value rules
+     * apply before ordinary floating scale multiplication.</p>
+     *
+     * <p>The fresh result retains the exact input Shape, has unresolved layout, no label or
+     * storage, and ordered {@code [input, scale]} provenance at output index zero. Construction
+     * reads no values and creates no hidden constant, bias, saved statistic, parameter, gradient,
+     * compiler, backend, runtime, or execution behavior.</p>
+     *
+     * @param normalizedShape non-null positive-rank Shape describing exact trailing input axes
+     * @param scale non-null floating scale with Shape exactly equal to normalized Shape
+     * @param epsilon non-null finite positive floating value with exact promoted result type
+     * @return fresh unlabeled, storage-free, unresolved-layout one-output scaled expression with
+     *     exact input Shape, promoted type, combined operand gradient eligibility, and ordered
+     *     {@code [input, scale]} provenance at output index zero; never {@code null}
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if an operand is non-floating, normalized Shape has rank
+     *     zero or exceeds input rank, a trailing static extent differs, scale Shape is not exactly
+     *     normalized Shape, or epsilon is not finite, positive, floating, and exactly the promoted
+     *     result type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor rmsNorm(Shape normalizedShape, Tensor scale, ScalarValue epsilon) {
+        return TensorRmsNormExpressions.apply(this, normalizedShape, scale, epsilon);
+    }
+
+    /**
      * Creates a fresh expression requesting canonical dense row-major result geometry.
      *
      * <p>The result preserves this tensor's exact logical Shape, DataType, and gradient-

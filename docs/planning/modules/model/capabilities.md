@@ -369,8 +369,10 @@ inspection even when a compiler can decompose them.
 
 The former broad task 0021 is split by formula and lifecycle boundary. Completed
 [task 0021](tasks/0021-layer-normalization-semantics-and-tensor-expressions.md) owns deterministic
-one-output layer normalization. Draft 0021A separately owns RMS normalization because it uses the
-uncentered root-mean-square formula and may select a scale-only affine surface. Draft 0021B owns
+one-output layer normalization. Completed
+[task 0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) separately owns RMS
+normalization because it uses the uncentered root-mean-square formula and selects explicit
+no-scale and scale-only forms. Draft 0021B owns
 batch-normalization inference with explicit running statistics and one output. Draft 0021C owns
 training-time batch statistics, explicit running-stat transition, saved statistics, and genuine
 multi-output provenance. No variant selects a hidden training/evaluation flag, process-global
@@ -392,6 +394,24 @@ Its standardization formula and trailing-axis interpretation also align with off
 [ONNX LayerNormalization](https://onnx.ai/onnx/operators/onnx__LayerNormalization.html), while
 Synaptik deliberately omits ONNX's optional saved-statistic outputs from this first public model
 operation.
+
+Completed task 0021A selects one `RMS_NORM` kind with one
+`RmsNormAttrs(normalizedShape, epsilon)` input-range signature. Its exact valid occurrences are
+one-output `[input]` and `[input, scale]`; consecutive counts one and two make one bounded
+signature safe, unlike layer normalization's one/three cardinality hole. Scale Shape must exactly
+equal the non-empty trailing normalized Shape, and bias is absent. The formula is
+`x / sqrt(mean(x * x) + epsilon)`: it is uncentered, always divides mean square by `N`, and has no
+correction option. No-scale results retain input type; scaled results use ordered floating
+promotion. Epsilon is finite, positive, exact-result-typed, and inside the square root.
+BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 in FLOAT64. Static trailing mismatches fail;
+unresolved equality may defer because result Shape stays exactly the input. The task adds no saved
+statistic, bias, hidden parameter, algorithm, gradient, compiler, backend, or execution behavior.
+
+This narrow formula and trailing-dimension interpretation align with official
+[PyTorch RMSNorm](https://docs.pytorch.org/docs/stable/generated/torch.nn.RMSNorm.html) and
+[ONNX RMSNormalization](https://onnx.ai/onnx/operators/onnx__RMSNormalization.html), while
+Synaptik deliberately does not copy their defaults, layer state, broadcast scale, or configurable
+accumulation surface.
 
 The former 0019A umbrella is split by semantic boundary. Completed task 0019A owns `gelu()`,
 `geluTanhApproximation()`, and canonical `silu()` without a `swish` alias. `GELU` uses

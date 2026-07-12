@@ -258,7 +258,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020A | [NCHW Max Pool2d semantics and Tensor expression](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) | Complete | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Added floating max pooling with exact static/symbolic geometry, literal ceil windows, excluded padding, and deterministic extrema semantics. |
 | 0020A1 | [NCHW Average Pool2d semantics and Tensor expression](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) | Complete | 0020A | Added floating average pooling with a dedicated attrs type, literal floor/ceil grid, fixed count-padding divisor, selected accumulation, and exact special/empty-window policies. |
 | 0021 | [Layer normalization semantics and Tensor expressions](tasks/0021-layer-normalization-semantics-and-tensor-expressions.md) | Complete | 0018K, 0018L, 0018N, 0018V | Added one-output trailing-Shape layer normalization with exact typed epsilon and explicit all-or-none affine inputs. |
-| 0021A | RMS normalization | Draft | 0018K, 0018L, 0018N, 0018V | Add distinct one-output root-mean-square normalization and decide its explicit scale-only/no-affine surface without reusing layer-normalization attrs. |
+| 0021A | [RMS normalization semantics and Tensor expressions](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) | Complete | 0018K, 0018L, 0018N, 0018V, 0021 | Added distinct one-output root-mean-square normalization with exact no-scale/scale-only inputs, typed epsilon, and no layer-attrs reuse or bias. |
 | 0021B | Batch-normalization inference | Draft | 0018K, 0018L, 0018N, 0018V | Represent inference with explicit affine and running-statistic inputs, one output, and no hidden training mode or mutation. |
 | 0021C | Batch-normalization training and statistic transition | Draft | 0021B, 0018L | Represent batch statistics, explicit running-stat inputs/outputs, and saved statistics through genuine multi-output provenance without stateful services. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
@@ -340,8 +340,10 @@ for NCHW convolution. The former combined pooling follow-up is now split: focuse
 pooling. Focused average-pooling follow-up
 [0020A1](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) is also Complete and
 was the only detailed specification after 0020A. The former broad 0021 row is now split without
-renumbering 0022–0024: focused task 0021 is Complete for layer normalization, while 0021A–0021C and
-0022–0024 remain Draft without detailed specifications.
+renumbering 0022–0024: focused task 0021 is Complete for layer normalization, and focused task
+[0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete for RMS
+normalization. Tasks 0021B–0021C and 0022–0024 remain Draft without detailed specifications; no
+model task is Ready.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -539,7 +541,7 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   without bitwise or cross-backend rounding identity.
 - The former broad normalization row is split by semantic and lifecycle boundary without
   renumbering tasks 0022–0024. Completed task 0021 owns deterministic one-output layer normalization;
-  Draft 0021A owns the distinct RMS formula; Draft 0021B owns one-output batch-normalization
+  completed task 0021A owns the distinct RMS formula; Draft 0021B owns one-output batch-normalization
   inference with explicit running statistics; and Draft 0021C owns training-time batch statistics,
   explicit running-stat transition, saved statistics, and genuine multi-output provenance. No
   model-level training/evaluation flag or hidden mutable state is selected.
@@ -551,6 +553,21 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   variance uses correction zero; BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 in FLOAT64.
   Saved mean/inverse-standard-deviation outputs remain compiler concerns rather than public task-
   0021 results.
+- Task 0021A selects one `RMS_NORM` kind, one `RmsNormAttrs` value, and a signature whose inclusive
+  one-to-two input range safely represents exact `[input]` and `[input, scale]` occurrences. It
+  adds `rmsNorm(normalizedShape, epsilon)` and
+  `rmsNorm(normalizedShape, scale, epsilon)`, requires scale Shape exactly equal to the non-empty
+  trailing normalized Shape, and adds no bias. The formula is the uncentered
+  `x / sqrt(mean(x * x) + epsilon)` with population divisor `N`, no correction option, and exact
+  result-typed finite positive epsilon. No-scale results retain input type; scaled results promote
+  input and scale in occurrence order. BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 in
+  FLOAT64. Empty, symbolic, NaN, infinity, signed-zero, overflow, reassociation, freshness, and
+  exact one-output provenance policies are fixed without specifying execution.
+- Task 0021A's implementation context passed the exact focused command and final 908-test model
+  suite. Independent documentation review finalized four production Javadocs, Tensor/Compile
+  APIs, glossary, capability/task/master/roadmap records, generated Javadoc, 607 local links with
+  165 anchors, official references, exact 183-method surface, exact 19-path scope, synchronized
+  status, fences/newlines/whitespace, and `git diff --check` without repeating Java tests.
 - Task 0018M completed canonical positive-coefficient linear combinations with signed constant
   offsets, explicit floor/ceiling division, identity-based bounded unknowns, non-static Shape
   inspection, readable diagnostics, and structurally conservative broadcasting. It owns only the
@@ -1475,9 +1492,9 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E, task 0020, task 0020A, task 0020A1, and task 0021 are complete. Task 0021 remains the only
-detailed specification after task 0020A1. Tasks 0021A–0021C and 0022–0024 remain Draft without
-detailed specifications; no model task is Ready.
+0019E, task 0020, task 0020A, task 0020A1, and task 0021 are complete. Task
+[0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete. Tasks
+0021B–0021C and 0022–0024 remain Draft without detailed specifications; no model task is Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1549,8 +1566,7 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Tasks 0019E, 0020, 0020A, 0020A1, and 0021 are complete. Task 0021 is the sole detailed
-specification after 0020A1. Tasks 0021A–0021C and 0022–0024 remain Draft without detailed
-specifications; no model task is Ready.
+Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Tasks 0021B–0021C and 0022–0024
+remain Draft without detailed specifications; no model task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

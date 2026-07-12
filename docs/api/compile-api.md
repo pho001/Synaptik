@@ -68,6 +68,7 @@ full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fo
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape `layerNorm`
+methods, and two trailing-Shape `rmsNorm`
 methods, scalar `select`, two
 tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, one
 trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
@@ -295,6 +296,15 @@ unresolved trailing-dimension equality when output Shape is still exact. This is
 metadata, not compiler support: capture, operand revalidation, representing and proving deferred
 constraints, saved-statistic lifetime, gradients or adjoints, legal decomposition, lowering, and
 execution remain planned in their owning layers.
+`Tensor.rmsNorm` is current model metadata construction for exact trailing-Shape uncentered
+root-mean-square normalization. One `RmsNormAttrs(normalizedShape, epsilon)` value supports the
+safe ordered inputs `[input]` and `[input, scale]`, each with exactly one output at index zero. The
+result retains the exact input Shape; the scaled form requires scale Shape exactly equal to the
+normalized Shape. Local construction rejects known static trailing mismatches and defers
+unresolved equality. This metadata does not imply compiler support: capture and operand
+revalidation, representation and proof of deferred constraints, compiler-generated saved values,
+gradients or adjoints, legal decomposition, lowering, backend preparation, tolerance enforcement,
+and runtime execution remain planned in their owning layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -455,7 +465,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
-  sum, softmax/log-softmax, and trailing-Shape layer-normalization construction, plus first-class
+  sum, softmax/log-softmax, and trailing-Shape layer- and RMS-normalization construction, plus
+  first-class
   scaled-dot-product-attention
   construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
   construction with optional bias and exact geometry/group attributes, plus NCHW maximum- and
@@ -476,9 +487,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the compiler entry point, traversal, capture,
-  scan/reduction/normalization/attention inference and canonicalization, layer-normalization
-  deferred-constraint proof, saved-statistic and gradient construction, optional softmax,
-  layer-normalization, attention, or activation decomposition,
+  scan/reduction/normalization/attention inference and canonicalization, layer- and RMS-
+  normalization deferred-constraint proof, saved-statistic and gradient construction, optional
+  softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform

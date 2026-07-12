@@ -1625,9 +1625,23 @@ metadata and provenance but does not calculate statistics, capture a graph, defi
 select an algorithm, or execute. See [Layer-normalization
 expressions](api/tensor-api.md#layer-normalization-expressions).
 
+### RMS normalization
+
+Implemented shape-preserving root-mean-square normalization that divides every value in a
+non-empty trailing slice by `sqrt(uncenteredMeanSquare + epsilon)`. It does not center values,
+calculate variance, apply a correction, or accept bias. The no-scale form records `[input]`; the
+scaled form records `[input, scale]`, with scale Shape exactly equal to the
+[`normalized Shape`](#normalized-shape). `RmsNormKind.RMS_NORM` and one
+`RmsNormAttrs(normalizedShape, epsilon)` input-range signature represent both safe cardinalities
+and exactly one output.
+
+Current `Tensor.rmsNorm` constructs metadata and provenance but does not calculate the root mean
+square, capture a graph, create saved statistics or gradients, select an algorithm, or execute.
+See [RMS-normalization expressions](api/tensor-api.md#rms-normalization-expressions).
+
 ### Normalized Shape
 
-The exact positive-rank `Shape` that identifies the trailing axes standardized by layer
+The exact positive-rank `Shape` that identifies the trailing axes normalized by layer or RMS
 normalization. If input rank is `R` and normalized rank is `K`, normalized axis `j` corresponds to
 input axis `R - K + j`. Known static extents must match; unresolved equality may be deferred when
 the result Shape remains exactly the input Shape. This is different from a [normalized
@@ -1640,12 +1654,28 @@ population count `N`, not `N - 1`. Current layer normalization uses population v
 epsilon inside the denominator square root. The term describes mathematical semantics, not a
 reduction traversal or backend algorithm.
 
+### Uncentered mean square
+
+The sum of squared values divided by the population count `N`, without first subtracting a mean:
+`sum_i(x_i * x_i) / N`. Current RMS normalization uses this quantity instead of variance and has
+no statistical-correction option. The term defines mathematical semantics, not accumulation
+order or a backend algorithm.
+
+### Root mean square
+
+The positive square root of an uncentered mean square. Current RMS normalization adds epsilon to
+the mean square before taking that root, then divides each input value by the result. This meaning
+is distinct from standard deviation because the input is not centered and variance is not
+calculated.
+
 ### Epsilon
 
 A small positive value added to a denominator-related quantity to state a numerical semantic
-boundary. In current layer normalization it is an exact typed `ScalarValue`, must be finite and
-strictly positive, must match the result data type, and is added to population variance inside the
-square root. Epsilon is operation metadata, not a Tensor input or a default hidden constant.
+boundary. In current layer and RMS normalization it is an exact typed `ScalarValue`, must be
+finite and strictly positive, and must match the result data type. Layer normalization adds it to
+population variance inside the square root; RMS normalization adds it to uncentered mean square
+inside the square root. Epsilon is operation metadata, not a Tensor input or a default hidden
+constant.
 
 ### Affine transform
 
@@ -1657,15 +1687,16 @@ Shape. It does not broadcast them, infer them, initialize parameters, or accept 
 
 The floating format in which a semantic reduction such as a sum, mean, or variance is accumulated
 before conversion to the result format. It can differ from result type: current BFLOAT16 layer
-normalization accumulates mean and variance in FLOAT32. An accumulator type constrains numerical
-meaning without selecting traversal order, a kernel, or an executable algorithm.
+normalization accumulates mean and variance in FLOAT32, and BFLOAT16 RMS normalization accumulates
+squares and sums in FLOAT32. An accumulator type constrains numerical meaning without selecting
+traversal order, a kernel, or an executable algorithm.
 
 ### Saved statistic
 
 An intermediate statistic retained for a later transformation, commonly a mean or inverse
-standard deviation retained for backward construction. Current public layer normalization creates
-no saved-statistic output. A future compiler may derive saved values or a distinct semantic
-operation, but that does not change the current producer's one-output contract.
+standard deviation retained for backward construction. Current public layer and RMS normalization
+create no saved-statistic output. A future compiler may derive saved values or a distinct semantic
+operation, but that does not change either current producer's one-output contract.
 
 ### Referenced element span
 
@@ -2293,8 +2324,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax and layer normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax, layer normalization, RMS normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, RMS-normalization, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
@@ -2310,7 +2341,8 @@ Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-min/arg-max aggregate Tensor construction, including
 ordered multi-axis forms, floating log-sum-exp, corrected variance/standard deviation, L1/L2
-norms, and masked sum/mean. Cumulative-sum, softmax/log-softmax, and layer-normalization semantics
+norms, and masked sum/mean. Cumulative-sum, softmax/log-softmax, layer-normalization, and RMS-
+normalization semantics
 and public Tensor construction are also implemented. Contiguous-request semantics and public contiguous Tensor construction are
 also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public

@@ -28,7 +28,9 @@ INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
 scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
 probability-normalization expressions. Two `layerNorm` methods add population-variance
 normalization over an exact trailing Shape, either without affine operands or with explicit scale
-and bias. The parameterless `contiguous` method adds a shape-preserving request
+and bias. Two `rmsNorm` methods separately add uncentered root-mean-square normalization over an
+exact trailing Shape, either without scale or with one explicit exact-Shape scale. The
+parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
 `Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
@@ -257,6 +259,7 @@ SUM/MEAN + MaskedReductionAttrs                              = masked axis seman
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 LayerNormKind + LayerNormAttrs / AffineLayerNormAttrs         = trailing-Shape population normalization semantics
+RmsNormKind + RmsNormAttrs                                   = trailing-Shape uncentered RMS normalization semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
@@ -370,6 +373,13 @@ normalized Shape and exact typed positive epsilon. Public `Tensor.layerNorm` val
 trailing extents, defers unresolved equality, derives the result type and metadata, and records
 one output at provenance index zero. It does not calculate mean or variance, expose saved
 statistics, define gradients, or select an execution algorithm.
+`RmsNormKind.RMS_NORM` provides uncentered root-mean-square normalization over an exact non-empty
+trailing Shape. One `RmsNormAttrs` value retains the normalized Shape and exact typed positive
+epsilon for ordered inputs `[input]` or `[input, scale]`, each with exactly one output. Public
+`Tensor.rmsNorm` rejects known static trailing mismatches, defers unresolved equality, requires
+scale Shape exactly equal to the normalized Shape, and retains the exact input result Shape.
+Construction adds no centering, variance, correction, bias, default, broadcast scale, saved
+statistic, numerical evaluation, gradient rule, compiler behavior, or execution behavior.
 `ContiguousKind.CONTIGUOUS` provides the parameterless semantic request that one logical input
 retain its values, Shape, DataType, and row-major element order while the result targets canonical
 dense row-major geometry with logical storage offset zero. The kind is distinct from
@@ -470,6 +480,13 @@ floating input. Its no-affine form retains input type and records `[input]`; its
 promotes floating `[input, scale, bias]` in occurrence order. Both preserve the exact input Shape,
 leave layout unresolved, and produce one fresh storage-free output at provenance index zero. They
 record no saved statistics and perform no numerical evaluation.
+`Tensor.rmsNorm` constructs exact trailing-Shape uncentered RMS-normalization expressions from
+floating input. Its no-scale form retains input type and records `[input]`; its scaled form
+promotes floating `[input, scale]` in occurrence order and requires scale Shape exactly equal to
+the normalized Shape. Both preserve the exact input Shape, leave layout unresolved, and produce
+one fresh storage-free output at provenance index zero. They add no centering, correction, bias,
+default, broadcast scale, saved statistic, numerical evaluation, compiler behavior, or execution
+behavior.
 `Tensor.contiguous()` accepts every current data type and preserves the exact input Shape, type, and
 gradient eligibility. A fully static result receives a newly constructed canonical dense
 row-major layout; a dynamic result remains unresolved. Each call records `CONTIGUOUS` with
@@ -3917,6 +3934,81 @@ revalidation, saved values, gradients or adjoints, and legal decomposition are p
 responsibilities. Backend prepare will own algorithm selection, lowering, specialization, and
 tolerance satisfaction; runtime will execute prepared work. Calling `layerNorm` today performs
 none of those steps and does not read or normalize stored values.
+
+### RMS-normalization expressions
+
+Root-mean-square (RMS) normalization divides each value in an exact non-empty trailing slice by
+the square root of that slice's uncentered mean square plus epsilon. Unlike layer normalization,
+it does not subtract a mean, calculate variance, or accept bias. The two current receiver methods
+are exactly:
+
+```java
+public Tensor rmsNorm(Shape normalizedShape, ScalarValue epsilon)
+public Tensor rmsNorm(Shape normalizedShape, Tensor scale, ScalarValue epsilon)
+```
+
+The operands and Shape relationships are:
+
+| Form | Ordered inputs | Required Shapes | Result type |
+|---|---|---|---|
+| No scale | `[input]` | `normalizedShape` exactly describes a non-empty trailing input Shape | Exact input type |
+| Scaled | `[input, scale]` | Same trailing rule; scale Shape exactly equals `normalizedShape` and is not broadcast | Ordered floating promotion of input then scale |
+
+Both forms accept only BFLOAT16, FLOAT32, and FLOAT64 operands. Epsilon is an exact typed
+`ScalarValue`: it must be floating, finite, strictly positive, and have the exact result type.
+There is no default epsilon. BFLOAT16 and FLOAT32 results accumulate squares and sums in FLOAT32;
+FLOAT64 results accumulate them in FLOAT64.
+
+For a non-empty slice of `N` values, the mathematical contract is:
+
+```text
+meanSquare   = sum_i(x_i * x_i) / N
+rms          = sqrt(meanSquare + epsilon)
+normalized_i = x_i / rms
+output_i     = normalized_i                 // no-scale form
+output_i     = normalized_i * scale_i       // scaled form
+```
+
+For FLOAT64 input `[1, 2, 3]`, normalized Shape `[3]`, and epsilon `1e-5`, `meanSquare` is
+`14 / 3`, `rms` is approximately `2.1602492140182963`, and the no-scale result is approximately
+`[0.4629095539120194, 0.9258191078240388, 1.3887286617360581]`. A scale value `2` at the final
+coordinate makes that coordinate approximately `2.7774573234721163`. This example states the
+mathematical contract; constructing the Tensor does not calculate these values.
+
+The normalized Shape must have positive rank no greater than input rank. Known static trailing
+extents must match. For input Shape `[2, 3, 4]`, normalized Shape `[5, 4]` fails during local
+construction:
+
+```text
+rmsNorm normalized dimension mismatch at normalized axis 0: input=StaticDimension[size=3], normalized=StaticDimension[size=5]
+```
+
+When corresponding unequal Dimensions are unresolved, local construction defers their equality
+proof because the result Shape remains the exact input Shape. A future compiler must represent
+and prove that constraint before execution. Scale is stricter at construction: its complete Shape
+must be structurally equal to `normalizedShape`, including dynamic or expression structure.
+
+A corresponding zero normalized extent or any zero leading extent makes the entire result empty;
+no divisor or root mean square is evaluated. In a non-empty slice, any NaN makes all normalized
+values NaN. Without NaN, an infinite input makes the root mean square positive infinity: finite
+inputs then produce same-signed zero and infinite inputs produce NaN. Positive epsilon preserves
+the sign of finite positive or negative zero before scale. Finite square or sum overflow may also
+produce an infinite denominator and same-signed zero for finite numerators. In the scaled form,
+ordinary floating multiplication then applies, including NaN scale and infinity-times-zero
+behavior. Implementations may reassociate or use equal-or-wider intermediates while preserving
+these value classes and later conformance tolerances; fixed traversal, bitwise identity, NaN
+payload/sign retention, and cross-backend identical rounding are not promised.
+
+Every successful call produces one fresh, unlabeled, storage-free Tensor with unresolved layout,
+the exact input Shape reference, combined operand gradient eligibility, one producer, output index
+zero, and ordered provenance `[input]` or `[input, scale]`. Construction allocates exactly one
+result identity and does not mutate inputs or create a hidden scale, bias, parameter, saved
+statistic, sibling output, or gradient rule.
+
+This is current model metadata construction only. Compiler capture, revalidation and proof of
+deferred constraints, saved-value and gradient construction, legal decomposition, backend
+lowering, preparation, tolerance enforcement, runtime execution, and numerical evaluation remain
+planned in their owning lifecycle stages. See the [Compile API](compile-api.md) for that boundary.
 
 ### Contiguous expressions
 
