@@ -33,6 +33,7 @@ import io.github.pho001.synaptik.model.operation.layout.TileKind;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
+import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
@@ -135,6 +136,9 @@ import java.util.Optional;
  * reading or accumulating values. Softmax and log-softmax accept one axis of a floating input,
  * preserve its shape, type, and gradient eligibility, and record probability or log-probability
  * normalization semantics without calculating values or selecting a numerical algorithm.
+ * Layer normalization accepts an exact non-empty trailing Shape and exact positive typed epsilon,
+ * with either no affine inputs or explicit scale and bias. It preserves the exact input Shape and
+ * records population-variance semantics without evaluating values or exposing saved statistics.
  * Stable sort and argsort accept one axis of every current input type. Sort preserves the exact
  * input type, Shape reference, and gradient request, while argsort produces non-differentiable
  * INT64 logical indices with the exact input Shape. Both keep NaNs last in either direction,
@@ -3784,6 +3788,67 @@ public final class Tensor {
      */
     public Tensor logSoftmax(int axis) {
         return TensorSoftmaxExpressions.apply(this, SoftmaxKind.LOG_SOFTMAX, axis);
+    }
+
+    /**
+     * Creates no-affine layer normalization over an exact non-empty trailing Shape.
+     *
+     * <p>Each non-empty slice computes {@code (x - mean) / sqrt(variance + epsilon)} using
+     * population variance and adds epsilon inside the square root. Static trailing extents must
+     * match; unequal unresolved dimensions defer equality proof. Empty results contain no
+     * normalized values. The semantic contract propagates a NaN or infinity anywhere in a
+     * non-empty slice to NaN throughout that standardized slice and gives a finite constant slice
+     * exact positive-zero standardized values. The fresh result retains this Tensor's exact Shape,
+     * data type, and gradient eligibility. BFLOAT16 and FLOAT32 results accumulate in FLOAT32;
+     * FLOAT64 results accumulate in FLOAT64. Construction reads no values, calculates no saved
+     * statistic, creates no gradient, and selects no compiler, backend, or runtime behavior.</p>
+     *
+     * @param normalizedShape non-null positive-rank Shape describing exact trailing input axes
+     * @param epsilon non-null finite positive floating value with this Tensor's exact data type
+     * @return fresh unlabeled, storage-free, unresolved-layout one-output expression retaining the
+     *     exact input Shape and type, with this Tensor as sole provenance input at output index
+     *     zero; never {@code null}
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if this Tensor is non-floating, normalized Shape has rank
+     *     zero or exceeds input rank, statically known trailing extents differ, or epsilon is not
+     *     finite, positive, floating, and exactly input-typed
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor layerNorm(Shape normalizedShape, ScalarValue epsilon) {
+        return TensorLayerNormExpressions.apply(this, normalizedShape, epsilon);
+    }
+
+    /**
+     * Creates affine layer normalization over an exact non-empty trailing Shape.
+     *
+     * <p>After population-variance standardization, this computes
+     * {@code standardized * scale + bias}. Scale and bias must each have Shape exactly equal to
+     * {@code normalizedShape}; broadcasting and partial affine forms are not accepted. The three
+     * floating operand types promote in input, scale, bias order, and epsilon must have that exact
+     * result type. BFLOAT16/FLOAT32 results accumulate mean and variance in FLOAT32, while FLOAT64
+     * results use FLOAT64; affine arithmetic occurs in the result type. Empty and standardized
+     * special-value behavior is the same as the no-affine form, after which ordinary floating
+     * multiply/add class behavior applies. Construction reads no values, creates no implicit
+     * affine constants or saved statistics, and defines no gradient, compiler, backend, or runtime
+     * behavior.</p>
+     *
+     * @param normalizedShape non-null positive-rank Shape describing exact trailing input axes
+     * @param scale non-null floating scale with exact normalized Shape
+     * @param bias non-null floating bias with exact normalized Shape
+     * @param epsilon non-null finite positive floating value with exact promoted result type
+     * @return fresh unlabeled, storage-free, unresolved-layout one-output affine expression with
+     *     the exact input Shape, promoted type, combined operand gradient eligibility, and ordered
+     *     {@code [input, scale, bias]} provenance at output index zero; never {@code null}
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if an operand is non-floating, normalized Shape has rank
+     *     zero or exceeds input rank, a trailing static extent differs, scale or bias Shape is not
+     *     exactly normalized Shape, or epsilon is not finite, positive, floating, and exactly the
+     *     promoted result type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor layerNorm(
+            Shape normalizedShape, Tensor scale, Tensor bias, ScalarValue epsilon) {
+        return TensorLayerNormExpressions.apply(this, normalizedShape, scale, bias, epsilon);
     }
 
     /**

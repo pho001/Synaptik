@@ -1611,6 +1611,62 @@ They still calculate none of the example values and define no gradient, compiler
 execution behavior. See [Softmax expressions](api/tensor-api.md#softmax-expressions) and [Softmax
 semantic kinds and attributes](api/tensor-api.md#softmax-semantic-kinds-and-attributes).
 
+### Layer normalization
+
+Implemented shape-preserving normalization that standardizes every non-empty trailing slice by
+subtracting its mean and dividing by `sqrt(populationVariance + epsilon)`. A
+[`normalized Shape`](#normalized-shape) identifies the trailing axes. The no-affine form records
+one input; the affine form then applies explicit scale and bias and records ordered inputs
+`[input, scale, bias]`. Both forms produce exactly one result and no public saved statistic.
+
+`LayerNormKind.LAYER_NORM` has distinct `LayerNormAttrs` and `AffineLayerNormAttrs` signatures so
+the exact valid input counts are one and three, never two. Current `Tensor.layerNorm` constructs
+metadata and provenance but does not calculate statistics, capture a graph, define gradients,
+select an algorithm, or execute. See [Layer-normalization
+expressions](api/tensor-api.md#layer-normalization-expressions).
+
+### Normalized Shape
+
+The exact positive-rank `Shape` that identifies the trailing axes standardized by layer
+normalization. If input rank is `R` and normalized rank is `K`, normalized axis `j` corresponds to
+input axis `R - K + j`. Known static extents must match; unresolved equality may be deferred when
+the result Shape remains exactly the input Shape. This is different from a [normalized
+axis](#normalized-axis), which is one non-negative integer axis position.
+
+### Population variance
+
+Variance with correction zero: the sum of squared deviations from the mean is divided by the
+population count `N`, not `N - 1`. Current layer normalization uses population variance and adds
+epsilon inside the denominator square root. The term describes mathematical semantics, not a
+reduction traversal or backend algorithm.
+
+### Epsilon
+
+A small positive value added to a denominator-related quantity to state a numerical semantic
+boundary. In current layer normalization it is an exact typed `ScalarValue`, must be finite and
+strictly positive, must match the result data type, and is added to population variance inside the
+square root. Epsilon is operation metadata, not a Tensor input or a default hidden constant.
+
+### Affine transform
+
+An elementwise scale followed by bias: `standardized * scale + bias`. Current affine layer
+normalization requires both explicit operands, each with Shape exactly equal to the normalized
+Shape. It does not broadcast them, infer them, initialize parameters, or accept a scale-only form.
+
+### Accumulator type
+
+The floating format in which a semantic reduction such as a sum, mean, or variance is accumulated
+before conversion to the result format. It can differ from result type: current BFLOAT16 layer
+normalization accumulates mean and variance in FLOAT32. An accumulator type constrains numerical
+meaning without selecting traversal order, a kernel, or an executable algorithm.
+
+### Saved statistic
+
+An intermediate statistic retained for a later transformation, commonly a mean or inverse
+standard deviation retained for backward construction. Current public layer normalization creates
+no saved-statistic output. A future compiler may derive saved values or a distinct semantic
+operation, but that does not change the current producer's one-output contract.
+
 ### Referenced element span
 
 The minimum count of storage elements needed to include every index referenced by a resolved layout. For non-empty shapes it is the greatest referenced element index plus one; for shapes with a zero-sized dimension it is zero. The span includes a storage offset and is not necessarily equal to the logical element count.
@@ -2237,8 +2293,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax and layer normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
@@ -2254,8 +2310,8 @@ Tensor construction paths are also implemented,
 together with boolean logical, conditional-selection, cast, and
 sum/mean/product/minimum/maximum/all/any/arg-min/arg-max aggregate Tensor construction, including
 ordered multi-axis forms, floating log-sum-exp, corrected variance/standard deviation, L1/L2
-norms, and masked sum/mean. Cumulative-sum and softmax/log-softmax semantics and public Tensor construction
-are also implemented. Contiguous-request semantics and public contiguous Tensor construction are
+norms, and masked sum/mean. Cumulative-sum, softmax/log-softmax, and layer-normalization semantics
+and public Tensor construction are also implemented. Contiguous-request semantics and public contiguous Tensor construction are
 also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation

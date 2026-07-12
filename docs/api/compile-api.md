@@ -67,7 +67,8 @@ methods, plus one static conditional-selection method and one explicit cast meth
 full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fourteen ordinary
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
-one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, scalar `select`, two
+one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape `layerNorm`
+methods, scalar `select`, two
 tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, one
 trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
 Scatter Elements
@@ -285,6 +286,15 @@ unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind wi
 provenance. Construction does not read values, calculate probabilities or logarithms, select a
 numerical algorithm, define a gradient rule, capture or decompose a graph operation, lower a
 backend operation, or execute work.
+`Tensor.layerNorm` is current model metadata construction for exact trailing-Shape population
+normalization. The no-affine form records `LayerNormAttrs` and ordered input `[input]`; the affine
+form records `AffineLayerNormAttrs` and ordered inputs `[input, scale, bias]`. Both retain exact
+normalized Shape and typed epsilon parameters, exact input result Shape, one output at index zero,
+and no saved-statistic output. Local construction rejects known static mismatches and defers an
+unresolved trailing-dimension equality when output Shape is still exact. This is compiler-visible
+metadata, not compiler support: capture, operand revalidation, representing and proving deferred
+constraints, saved-statistic lifetime, gradients or adjoints, legal decomposition, lowering, and
+execution remain planned in their owning layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -445,7 +455,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
-  sum and softmax/log-softmax construction, plus first-class scaled-dot-product-attention
+  sum, softmax/log-softmax, and trailing-Shape layer-normalization construction, plus first-class
+  scaled-dot-product-attention
   construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
   construction with optional bias and exact geometry/group attributes, plus NCHW maximum- and
   average-pooling construction with operation-specific attributes and exact floor/ceil spatial
@@ -465,8 +476,10 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the compiler entry point, traversal, capture,
-  scan/reduction/normalization/attention inference and canonicalization, optional softmax,
-  attention, or activation decomposition, activation/attention-gradient construction,
+  scan/reduction/normalization/attention inference and canonicalization, layer-normalization
+  deferred-constraint proof, saved-statistic and gradient construction, optional softmax,
+  layer-normalization, attention, or activation decomposition,
+  activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,

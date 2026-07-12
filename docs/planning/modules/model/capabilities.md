@@ -279,7 +279,8 @@ Foundation hardening above precedes these operations.
 - vector, matrix, and batched `matmul`;
 - a public `linear` convenience over matmul plus optional bias;
 - exact GELU, fixed tanh-approximation GELU, and SiLU as first-class floating unary activations;
-- layer normalization and RMS normalization with explicit epsilon and normalized axes;
+- layer normalization and RMS normalization with exact typed epsilon and explicit normalized
+  trailing-Shape contracts;
 - dense and index-target losses needed for classification, with explicit reduction and ignore
   policies;
 - scaled dot-product attention as a backend-independent high-level semantic operation with mask,
@@ -363,6 +364,34 @@ eager range factory would allocate a depth-sized host Tensor and obscure its ran
 contract. Layer/RMS normalization and scaled dot-product attention remain named
 high-level semantics because their numerical and masking contracts must survive compiler
 inspection even when a compiler can decompose them.
+
+### Normalization frontier
+
+The former broad task 0021 is split by formula and lifecycle boundary. Completed
+[task 0021](tasks/0021-layer-normalization-semantics-and-tensor-expressions.md) owns deterministic
+one-output layer normalization. Draft 0021A separately owns RMS normalization because it uses the
+uncentered root-mean-square formula and may select a scale-only affine surface. Draft 0021B owns
+batch-normalization inference with explicit running statistics and one output. Draft 0021C owns
+training-time batch statistics, explicit running-stat transition, saved statistics, and genuine
+multi-output provenance. No variant selects a hidden training/evaluation flag, process-global
+state, or mutable model service.
+
+Completed task 0021 normalizes a non-empty trailing `Shape` with population variance (correction zero) and
+epsilon inside the square root. One `LAYER_NORM` kind has exact no-affine `[input]` and affine
+`[input, scale, bias]` one-output variants selected by distinct typed attrs classes, because the
+current exact-class signature contract must not accept the invalid two-input count. Scale and bias
+must exactly match the normalized Shape. No-affine results retain input type; affine results use
+ordered floating promotion. Epsilon is a finite positive `ScalarValue` whose type exactly matches
+the result. BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 in FLOAT64. Static trailing
+mismatches fail; unresolved equality may defer because output Shape remains exactly the input.
+Saved mean/inverse-standard-deviation outputs remain compiler concerns rather than public results.
+
+This selected trailing-Shape/population-variance model is consistent with the official
+[PyTorch LayerNorm contract](https://docs.pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html).
+Its standardization formula and trailing-axis interpretation also align with official
+[ONNX LayerNormalization](https://onnx.ai/onnx/operators/onnx__LayerNormalization.html), while
+Synaptik deliberately omits ONNX's optional saved-statistic outputs from this first public model
+operation.
 
 The former 0019A umbrella is split by semantic boundary. Completed task 0019A owns `gelu()`,
 `geluTanhApproximation()`, and canonical `silu()` without a `swish` alias. `GELU` uses
@@ -550,7 +579,8 @@ make their numerical parameters interchangeable.
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
 - average pooling with its separate divisor contract after completed NCHW max pooling;
-- batch normalization, including explicit training/inference statistics and auxiliary outputs;
+- batch normalization split into explicit one-output inference and a later training/state-
+  transition occurrence with running-stat and saved-stat outputs;
 - graph random sampling operations using the explicit RNG-state contract; and
 - FLOAT16 before accelerator mixed-precision inference or training is claimed.
 

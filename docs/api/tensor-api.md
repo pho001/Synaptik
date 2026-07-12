@@ -26,7 +26,9 @@ Twelve floating methods add first-class log-sum-exp, corrected
 variance/standard deviation, and L1/L2 norms. Six axis-only `argMin`/`argMax` methods add fixed
 INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
 scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
-normalization expressions. The parameterless `contiguous` method adds a shape-preserving request
+probability-normalization expressions. Two `layerNorm` methods add population-variance
+normalization over an exact trailing Shape, either without affine operands or with explicit scale
+and bias. The parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
 `Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
@@ -254,6 +256,7 @@ AggregateReductionKind + reduction attributes                = full/single-/mult
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordinary broadcast mask
 CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
+LayerNormKind + LayerNormAttrs / AffineLayerNormAttrs         = trailing-Shape population normalization semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
@@ -360,6 +363,13 @@ accept floating input, normalize a positive or negative caller axis, preserve th
 data type, and gradient-eligibility metadata in an unresolved descriptor, and record exact
 one-input provenance. Construction calculates no probability or logarithm and defines no
 numerical algorithm or gradient rule.
+`LayerNormKind.LAYER_NORM` provides population-variance normalization over an exact non-empty
+trailing Shape. `LayerNormAttrs` selects the exact one-input form, while
+`AffineLayerNormAttrs` selects ordered inputs `[input, scale, bias]`; both attributes retain the
+normalized Shape and exact typed positive epsilon. Public `Tensor.layerNorm` validates static
+trailing extents, defers unresolved equality, derives the result type and metadata, and records
+one output at provenance index zero. It does not calculate mean or variance, expose saved
+statistics, define gradients, or select an execution algorithm.
 `ContiguousKind.CONTIGUOUS` provides the parameterless semantic request that one logical input
 retain its values, Shape, DataType, and row-major element order while the result targets canonical
 dense row-major geometry with logical storage offset zero. The kind is distinct from
@@ -455,6 +465,11 @@ values.
 floating input. Both preserve the exact input Shape, type, and gradient eligibility, leave layout
 unresolved, and record exactly the receiver as provenance. They retain distinct first-class
 SOFTMAX or LOG_SOFTMAX semantics without calculating values or selecting a decomposition.
+`Tensor.layerNorm` constructs exact trailing-Shape population-normalization expressions from
+floating input. Its no-affine form retains input type and records `[input]`; its affine form
+promotes floating `[input, scale, bias]` in occurrence order. Both preserve the exact input Shape,
+leave layout unresolved, and produce one fresh storage-free output at provenance index zero. They
+record no saved statistics and perform no numerical evaluation.
 `Tensor.contiguous()` accepts every current data type and preserves the exact input Shape, type, and
 gradient eligibility. A fully static result receives a newly constructed canonical dense
 row-major layout; a dynamic result remains unresolved. Each call records `CONTIGUOUS` with
@@ -3800,6 +3815,108 @@ compiler capture or decomposition, backend support, or execution.
   for a scalar input.
 - Dynamic and zero extents are accepted structurally when the selected axis exists. Repeated
   equivalent requests still return fresh expression identities.
+
+### Layer-normalization expressions
+
+Layer normalization standardizes each trailing logical slice selected by an exact non-empty
+normalized Shape. It is distinct from softmax: layer normalization centers values and divides by
+population standard deviation, while softmax converts one axis to probabilities. The two current
+receiver signatures are exactly:
+
+```java
+public Tensor layerNorm(Shape normalizedShape, ScalarValue epsilon)
+public Tensor layerNorm(
+        Shape normalizedShape, Tensor scale, Tensor bias, ScalarValue epsilon)
+```
+
+For input Shape `[D0, ..., D(R-1)]` and normalized Shape `[N0, ..., N(K-1)]`, normalized axis `j`
+corresponds to input axis `R - K + j`. This table shows the two supported forms.
+
+| Form | Ordered producer inputs | Shape requirements | Result type |
+|---|---|---|---|
+| No affine | `[input]` | `normalizedShape` exactly describes trailing input axes | Exact input type |
+| Affine | `[input, scale, bias]` | Same trailing rule; scale and bias Shapes each equal `normalizedShape` exactly | Floating promotion in input, scale, bias order |
+
+Every operand must be BFLOAT16, FLOAT32, or FLOAT64. Epsilon is an exact `ScalarValue`: it must be
+floating, finite, strictly positive, and have the exact result type. There is no default epsilon,
+`double` convenience, axis-array overload, scale-only form, affine broadcasting, or implicit scale
+or bias Tensor.
+
+For a non-empty slice of `N` values, the semantic formula is:
+
+```text
+mean           = sum_i(x_i) / N
+variance       = sum_i((x_i - mean) * (x_i - mean)) / N
+standardized_i = (x_i - mean) / sqrt(variance + epsilon)
+output_i       = standardized_i                         // no affine
+output_i       = standardized_i * scale_i + bias_i      // affine
+```
+
+This is population variance, so correction is zero. Epsilon is inside the square root. Scale and
+bias coordinates span the normalized Shape and are reused for every leading slice.
+
+#### Finite numerical example
+
+The goal is to illustrate the selected formula, not current execution. For one FLOAT64 slice
+`[1, 2, 3]`, normalized Shape `[3]`, and epsilon `0.00001`, mean is `2`, population variance is
+`2 / 3`, and the denominator is `sqrt(2 / 3 + 0.00001)`.
+
+```text
+no-affine result  ~= [-1.2247356859, 0.0, 1.2247356859]
+scale = 2.0
+bias  = 0.5
+affine result     ~= [-1.9494713718, 0.5, 2.9494713718]
+```
+
+This establishes centering, population correction, epsilon placement, and affine order. It does
+not promise bitwise rounding or a reduction traversal. Conforming execution may reassociate finite
+arithmetic or use wider intermediates subject to later tolerance. BFLOAT16 and FLOAT32 results
+accumulate mean and variance in FLOAT32; FLOAT64 results use FLOAT64. Affine multiply and add occur
+in the result type.
+
+#### Static checks and symbolic deferral
+
+For input Shape `[2, 3, 4]`, normalized Shape `[3, 4]` is valid. Normalized Shape `[5, 4]` fails
+locally because its first extent conflicts with the known trailing input extent:
+
+```text
+layerNorm normalized dimension mismatch at normalized axis 0: input=StaticDimension[size=3], normalized=StaticDimension[size=5]
+```
+
+Structurally equal symbolic dimensions pass immediately. If a trailing input dimension is `N`
+and its normalized dimension is a different unresolved symbol `M`, construction also succeeds
+because the exact result Shape is still the input Shape. Future compiler capture or concrete
+binding must prove `N == M`; model construction does not invent a replacement extent. Scale and
+bias are stricter: each complete Shape must structurally equal the normalized Shape, so ordinary
+broadcasting is insufficient.
+
+#### Empty and special-value policy
+
+A static zero normalized extent is valid when the corresponding input extent is zero. A zero
+leading extent is also valid. The result is then empty, contains no normalized values, and exposes
+no mean, variance, NaN, infinity, or signed-zero result.
+
+Within a non-empty slice, any NaN or either infinity makes every standardized value in that slice
+NaN. A finite constant slice, including mixed positive and negative zero, has positive-zero
+variance and exact positive-zero standardized values. The affine form then applies ordinary
+floating multiply/add class behavior: infinite scale times standardized zero is NaN, while a
+finite product plus one infinite bias retains that bias infinity. Overflow, underflow, and finite
+non-zero rounding follow the selected accumulator and result formats; NaN payloads and
+cross-backend bitwise identity are not promised.
+
+#### Result identity and lifecycle boundary
+
+Every valid call creates one fresh, unlabeled, storage-free, layout-unresolved result and retains
+the exact input Shape reference. Gradient eligibility is the input flag for no-affine construction
+and the logical OR of input, scale, and bias flags for affine construction. One producer has one
+output at index zero and exact inputs `[input]` or `[input, scale, bias]`; no saved mean, variance,
+inverse standard deviation, sibling result, hidden affine constant, or extra output is created.
+
+These facts are current model API behavior. Compiler capture, proof of deferred equality, operand
+revalidation, saved values, gradients or adjoints, and legal decomposition are planned compiler
+responsibilities. Backend prepare will own algorithm selection, lowering, specialization, and
+tolerance satisfaction; runtime will execute prepared work. Calling `layerNorm` today performs
+none of those steps and does not read or normalize stored values.
 
 ### Contiguous expressions
 

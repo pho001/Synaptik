@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(179, declaredPublicMethods.size());
+        assertEquals(181, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -101,7 +101,7 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
-                        "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
+                        "logSoftmax", "layerNorm", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "embedding", "oneHot", "gatherElements", "gatherNd",
@@ -328,6 +328,21 @@ class TensorTest {
                     () -> assertEquals(Tensor.class, method.getReturnType()),
                     () -> assertEquals(
                             List.of(int.class), Arrays.asList(method.getParameterTypes())),
+                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+        }
+
+        for (Class<?>[] parameters : List.of(
+                new Class<?>[] {Shape.class, ScalarValue.class},
+                new Class<?>[] {
+                        Shape.class, Tensor.class, Tensor.class, ScalarValue.class
+                })) {
+            var method = Tensor.class.getDeclaredMethod("layerNorm", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, method.getReturnType()),
+                    () -> assertEquals(List.of(parameters),
+                            Arrays.asList(method.getParameterTypes())),
                     () -> assertTrue(Modifier.isPublic(method.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));

@@ -257,9 +257,12 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0020 | [NCHW Conv2d semantics and Tensor expressions](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) | Complete | 0018K–0018L, 0018M–0018M1, 0018N, 0018V, 0019 | Added grouped NCHW cross-correlation with optional bias, exact static/symbolic Shape, floating numerical policy, and ordered provenance. |
 | 0020A | [NCHW Max Pool2d semantics and Tensor expression](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) | Complete | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Added floating max pooling with exact static/symbolic geometry, literal ceil windows, excluded padding, and deterministic extrema semantics. |
 | 0020A1 | [NCHW Average Pool2d semantics and Tensor expression](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) | Complete | 0020A | Added floating average pooling with a dedicated attrs type, literal floor/ceil grid, fixed count-padding divisor, selected accumulation, and exact special/empty-window policies. |
-| 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
+| 0021 | [Layer normalization semantics and Tensor expressions](tasks/0021-layer-normalization-semantics-and-tensor-expressions.md) | Complete | 0018K, 0018L, 0018N, 0018V | Added one-output trailing-Shape layer normalization with exact typed epsilon and explicit all-or-none affine inputs. |
+| 0021A | RMS normalization | Draft | 0018K, 0018L, 0018N, 0018V | Add distinct one-output root-mean-square normalization and decide its explicit scale-only/no-affine surface without reusing layer-normalization attrs. |
+| 0021B | Batch-normalization inference | Draft | 0018K, 0018L, 0018N, 0018V | Represent inference with explicit affine and running-statistic inputs, one output, and no hidden training mode or mutation. |
+| 0021C | Batch-normalization training and statistic transition | Draft | 0021B, 0018L | Represent batch statistics, explicit running-stat inputs/outputs, and saved statistics through genuine multi-output provenance without stateful services. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 including 0020A–0020A1 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 including 0020A–0020A1 and 0021A–0021C | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -273,7 +276,8 @@ Operation-family subpackages are introduced only when a focused operation task d
   - foundation-contract checkpoint after 0018N;
   - public-surface cleanup checkpoint after 0018S; and
   - completed capability-reset checkpoint after 0018V.
-- Selected modern operation families: tasks 0019–0022, including 0019A–0019A2 and 0019B–0019E;
+- Selected modern operation families: tasks 0019–0022, including 0019A–0019A2, 0019B–0019E,
+  0020A–0020A1, and 0021A–0021C;
   checkpoint after
   0022 before compiler-generated semantic work
 - Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
@@ -335,8 +339,9 @@ for NCHW convolution. The former combined pooling follow-up is now split: focuse
 [task 0020A](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) is Complete for max
 pooling. Focused average-pooling follow-up
 [0020A1](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) is also Complete and
-remains the only detailed specification after 0020A. Tasks 0021–0024 remain Draft without detailed
-specifications.
+was the only detailed specification after 0020A. The former broad 0021 row is now split without
+renumbering 0022–0024: focused task 0021 is Complete for layer normalization, while 0021A–0021C and
+0022–0024 remain Draft without detailed specifications.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -532,6 +537,20 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   only when every divisor contribution is an in-bounds negative zero. NaN propagates, opposing
   infinities produce NaN, one infinity sign is retained, and conforming reassociation is allowed
   without bitwise or cross-backend rounding identity.
+- The former broad normalization row is split by semantic and lifecycle boundary without
+  renumbering tasks 0022–0024. Completed task 0021 owns deterministic one-output layer normalization;
+  Draft 0021A owns the distinct RMS formula; Draft 0021B owns one-output batch-normalization
+  inference with explicit running statistics; and Draft 0021C owns training-time batch statistics,
+  explicit running-stat transition, saved statistics, and genuine multi-output provenance. No
+  model-level training/evaluation flag or hidden mutable state is selected.
+- Task 0021 selects one `LAYER_NORM` kind with exact no-affine `[input]` and affine
+  `[input, scale, bias]` one-output variants. Separate `LayerNormAttrs` and
+  `AffineLayerNormAttrs` preserve those disjoint cardinalities under the current exact-class
+  signature contract. Both retain a non-empty trailing normalized Shape and exact typed finite
+  positive epsilon. The affine result promotes floating inputs in occurrence order; population
+  variance uses correction zero; BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 in FLOAT64.
+  Saved mean/inverse-standard-deviation outputs remain compiler concerns rather than public task-
+  0021 results.
 - Task 0018M completed canonical positive-coefficient linear combinations with signed constant
   offsets, explicit floor/ceiling division, identity-based bounded unknowns, non-static Shape
   inspection, readable diagnostics, and structurally conservative broadcasting. It owns only the
@@ -1456,9 +1475,9 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E, task 0020, task 0020A, and task 0020A1 are complete. Task 0020A1 is the only detailed
-specification after task 0020A; tasks 0021–0024 remain Draft without detailed specifications, so
-no model task is Ready.
+0019E, task 0020, task 0020A, task 0020A1, and task 0021 are complete. Task 0021 remains the only
+detailed specification after task 0020A1. Tasks 0021A–0021C and 0022–0024 remain Draft without
+detailed specifications; no model task is Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1530,8 +1549,8 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Tasks 0019E, 0020, 0020A, and 0020A1 are complete. Task 0020A1 is the only detailed specification
-after task 0020A. Tasks 0021–0024 remain Draft without detailed specifications; no model task is
-Ready.
+Tasks 0019E, 0020, 0020A, 0020A1, and 0021 are complete. Task 0021 is the sole detailed
+specification after 0020A1. Tasks 0021A–0021C and 0022–0024 remain Draft without detailed
+specifications; no model task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.
