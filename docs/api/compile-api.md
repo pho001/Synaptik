@@ -155,6 +155,17 @@ spatial non-negativity remain obligations for future compiler validation or conc
 This metadata does not mean the current repository compiles convolution. Capture, constraint
 representation and proof, legal decomposition, convolution gradients/adjoints and saved values,
 backend lowering, algorithm selection, and execution remain planned in their owning layers.
+`Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
+`MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
+index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions, and
+static or canonical-symbolic floor/ceil spatial extents. Dynamic spatial non-negativity remains a
+future compiler-validation or concrete-binding obligation. Literal ceil mode retains every
+ceiling-grid window, even when the terminal window is all-padding; padding exclusion, negative-
+infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
+semantic metadata. This does not mean the current repository compiles pooling. A future compiler
+owns capture, operand revalidation and binding proof, any legal decomposition, gradients and
+adjoints, and any saved-index decision. Backend lowering, algorithms, kernels, and execution
+remain planned in their owning layers.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
@@ -423,7 +434,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus first-class scaled-dot-product-attention
   construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
-  construction with optional bias and exact geometry/group attributes, plus static-resolved or
+  construction with optional bias and exact geometry/group attributes, plus NCHW maximum-pooling
+  construction with exact window geometry and floor/ceil spatial expressions, plus static-resolved or
   dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
@@ -447,8 +459,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   shared-producer traversal and output-slot capture,
   compiler-generated `FOLD_AXIS` construction, deferred
   dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
-  validation placement, attention and convolution deferred-constraint proof, legal convolution
-  decomposition and convolution-gradient construction, layout materialization
+  validation placement, attention, convolution, and maximum-pooling deferred-constraint proof,
+  legal convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
+  policy, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps

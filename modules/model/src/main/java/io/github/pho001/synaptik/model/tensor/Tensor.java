@@ -35,6 +35,7 @@ import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
@@ -71,7 +72,8 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise, matrix-multiplication, grouped NCHW convolution, and scaled-dot-product-attention
+ * elementwise, matrix-multiplication, grouped NCHW convolution, NCHW maximum pooling, and
+ * scaled-dot-product-attention
  * expression methods create
  * fresh storage-free tensors
  * whose immutable provenance records the requested semantics and exact inputs; they do not execute mathematics, validate
@@ -592,6 +594,46 @@ public final class Tensor {
      */
     public Tensor conv2d(Tensor weight, Tensor bias, Conv2dAttrs attrs) {
         return TensorConv2dExpressions.apply(this, weight, bias, attrs);
+    }
+
+    /**
+     * Builds one two-dimensional maximum-pooling expression over this NCHW tensor.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, H, W]}. For each spatial input
+     * extent {@code D}, kernel sample count {@code k}, symmetric padding per side {@code p},
+     * dilation {@code d}, and stride {@code s}, the effective kernel is
+     * {@code d * (k - 1) + 1}. The output extent is floor or ceiling division of
+     * {@code D + 2 * p - effectiveKernel} by {@code s}, plus one. Ceiling mode uses that literal
+     * symmetric padded grid and does not remove a terminal window that lies entirely in trailing
+     * padding. Static invalid geometry fails locally; unresolved geometry retains an exact
+     * expression whose numerator must be non-negative when later bound.</p>
+     *
+     * <p>Padding positions are excluded from selection. A window containing an in-bounds NaN
+     * selects the first NaN in increasing kernel-height then kernel-width order. Otherwise values
+     * use ordinary numerical maximum, with positive zero above negative zero and the same first-
+     * sample rule for equal values. Infinities use ordinary order. An all-padding window produces
+     * exact negative infinity in this input's type. NaN payload/sign and signaling preservation
+     * are unspecified. These rules define meaning without evaluating values or promising an
+     * algorithm.</p>
+     *
+     * <p>The fresh result retains the exact input type, batch and channel Dimension references,
+     * and gradient request; it has derived spatial dimensions, unresolved layout, no label or
+     * storage, and exact one-input {@code MAX_POOL2D} provenance at output index zero. This method
+     * creates no indices, gradient rule, graph capture, compiler binding, lowering, backend work,
+     * allocation, or execution.</p>
+     *
+     * @param attrs non-null immutable kernel, stride, excluded-padding, dilation, and literal
+     *     ceil-mode semantics retained by exact reference
+     * @return non-null fresh unlabeled storage-free result with retained type and metadata,
+     *     derived NCHW Shape, unresolved layout, and MAX_POOL2D provenance
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank four or its static
+     *     padded spatial geometry cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor maxPool2d(MaxPool2dAttrs attrs) {
+        return TensorMaxPool2dExpressions.apply(this, attrs);
     }
 
     /**

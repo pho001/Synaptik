@@ -520,16 +520,26 @@ unresolved grouped-channel and bias-channel obligations. Construction records on
 storage-free result and exact two- or three-input provenance without evaluation, gradients,
 compiler capture, algorithms, backend support, or execution.
 
-Draft 0020A owns max/average pooling because literal windows, padding/divisor policies, ceil mode,
-and all-padding windows are a distinct contract. Existing `Window2dAttrs` remains specific to
-unfold/fold.
+Completed task [0020A](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) owns floating
+NCHW max pooling. One `MAX_POOL2D` occurrence preserves type, batch, channel, and gradient-request
+metadata while deriving floor or ceil static/symbolic spatial extents. Ceil mode uses the literal
+symmetric padded grid and does not drop a terminal window that starts in trailing padding.
+Padding samples are excluded; an all-padding window returns negative infinity. NaNs dominate,
+positive zero is greater than negative zero, and equal candidates select the first height-major
+kernel sample. Existing `Window2dAttrs` remains specific to unfold/fold and conceptual zero
+padding, so max pooling owns `MaxPool2dAttrs` in the pooling package.
+
+Draft 0020A1 separately owns average pooling. Its divisor, padding-count, accumulation,
+special-value, and empty/all-padding policies require a different attributes contract and detailed
+specification. Combining the two operations would exceed the established cohesive path guardrail;
+sharing NCHW coordinates does not make their numerical parameters interchangeable.
 
 ### Important shortly afterward
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
-- NCHW max/average pooling after focused Conv2d establishes the shared spatial precedent;
+- average pooling with its separate divisor contract after completed NCHW max pooling;
 - batch normalization, including explicit training/inference statistics and auxiliary outputs;
 - graph random sampling operations using the explicit RNG-state contract; and
 - FLOAT16 before accelerator mixed-precision inference or training is claimed.

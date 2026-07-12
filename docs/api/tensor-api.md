@@ -6170,6 +6170,124 @@ and creates no gradient rule. Future compiler work owns capture, proof of deferr
 legal decomposition, gradients, adjoints, and saved values. Backend prepare owns conforming
 algorithms, lowering, and kernel selection; runtime owns only prepared execution.
 
+### NCHW maximum-pooling expressions
+
+`input.maxPool2d(attrs)` constructs one `MAX_POOL2D` expression over a floating rank-four input in
+NCHW axis order: batch (`N`), channel (`C`), height (`H`), then width (`W`). Pooling moves a
+two-dimensional window over each batch/channel plane and requests the greatest in-bounds sampled
+value. Current construction records that meaning and derives metadata; it does not read input
+values or perform pooling.
+
+The input and result contracts are:
+
+| Value | Required Shape and type | Result meaning |
+|---|---|---|
+| receiver input | `[N, C, H, W]`; BFLOAT16, FLOAT32, or FLOAT64 | one rank-four NCHW source |
+| result | `[N, C, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus derived spatial Dimensions |
+
+`MaxPool2dAttrs` carries the complete intrinsic window geometry. Each successful call retains the
+exact attributes reference in provenance.
+
+| Attribute | Constraint | Meaning |
+|---|---|---|
+| `kernelHeight`, `kernelWidth` | positive `long` | number of logical samples in the corresponding kernel axis |
+| `strideHeight`, `strideWidth` | positive `long` | distance between consecutive window starts |
+| `paddingHeight`, `paddingWidth` | non-negative `long` | symmetric coordinate positions per side; these positions are excluded from maximum selection |
+| `dilationHeight`, `dilationWidth` | positive `long` | spacing between consecutive kernel samples |
+| `ceilMode` | boolean | use the literal ceiling grid when true and the floor grid when false |
+
+For either spatial axis, let `D` be its input extent, `k` the kernel sample count, `p` the
+padding on each side, `d` the dilation, and `s` the stride:
+
+```text
+effectiveKernel = d * (k - 1) + 1
+numerator       = D + 2 * p - effectiveKernel
+floor output    = floor(numerator / s) + 1
+ceil output     = ceil(numerator / s) + 1
+```
+
+All literal geometry uses checked signed-`long` arithmetic. A static negative numerator fails
+before result construction. For an unresolved extent, construction retains the canonical
+`addConstant`, floor-or-ceiling divide, then `addConstant` expression. A later concrete binding
+must satisfy the retained obligation that the numerator is non-negative.
+
+#### Static floor and literal-ceil example
+
+The goal is to compare floor and ceil grids for input Shape `[1, 1, 2, 2]` with a one-sample
+kernel, stride three, no padding, and unit dilation.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class MaxPool2dShapeExample {
+    public static void main(String[] args) {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(1, 1, 2, 2), Optional.empty(), true));
+        MaxPool2dAttrs floor = new MaxPool2dAttrs(1, 1, 3, 3, 0, 0, 1, 1, false);
+        MaxPool2dAttrs ceil = new MaxPool2dAttrs(1, 1, 3, 3, 0, 0, 1, 1, true);
+
+        System.out.println(input.maxPool2d(floor).descriptor().shape());
+        System.out.println(input.maxPool2d(ceil).descriptor().shape());
+    }
+}
+```
+
+It prints:
+
+```text
+Shape[1, 1, 1, 1]
+Shape[1, 1, 2, 2]
+```
+
+For each axis, the numerator is `2 - 1 = 1`. Floor division gives zero, then adding one gives
+one output position. Ceiling division gives one, then adding one gives two. The second position
+starts beyond the input, but the selected literal ceil grid does not apply a terminal-window
+decrement. Its all-padding window has the eventual value negative infinity. This example proves
+Shape metadata only; current model code does not calculate either output Tensor's values.
+
+#### Symbolic floor and ceil example
+
+For input Shape `[N, C, H, W]`, kernel `3 x 5`, stride `2 x 3`, padding `1 x 0`, and dilation
+`2 x 1`, the effective kernels are five in both axes. Construction retains:
+
+```text
+floor Shape = [N, C, floor((H - 3) / 2) + 1, floor((W - 5) / 3) + 1]
+ceil Shape  = [N, C, ceil((H - 3) / 2) + 1,  ceil((W - 5) / 3) + 1]
+```
+
+These are exact symbolic expressions, not estimated extents. A later binding must reject any
+concrete `H` below three or `W` below five because that would make a numerator negative.
+
+#### Extrema and padding policy
+
+For output coordinate `o`, a spatial window starts at `o * stride - padding`. Logical kernel
+sample `r` reads coordinate `start + r * dilation`. Samples outside the input are excluded rather
+than converted to zero. If no sampled coordinate is in bounds, the result is exact negative
+infinity in the input type. Otherwise selection follows these rules:
+
+- any not-a-number (NaN) candidate wins over every non-NaN, so NaN propagates;
+- multiple NaNs select the first logical kernel sample, although NaN payload/sign and signaling
+  preservation are unspecified;
+- positive zero wins over negative zero;
+- infinities use ordinary numerical order; and
+- other equal candidates select the first sample in increasing kernel-height, then kernel-width,
+  order.
+
+Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It
+retains the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its
+one-output provenance has index zero and ordered inputs `[input]`. The gradient request is
+metadata, not a gradient implementation. Future compiler work owns capture, proof of deferred
+bindings, legal decomposition, gradient/adjoint construction, and any decision to retain max
+indices for backward use. Backend prepare owns conforming algorithms and kernel selection;
+runtime owns only prepared execution. No current compiler, backend, or runtime support for
+`MAX_POOL2D` is claimed here.
+
 ### Matrix-multiplication semantic kind
 
 `MatmulKind` contains exactly `MATMUL`. The kind pairs only with

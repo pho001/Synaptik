@@ -119,6 +119,10 @@ io.github.pho001.synaptik.model.operation.convolution
   Typed backend-independent NCHW two-dimensional convolution meaning and immutable stride,
   symmetric-padding, dilation, and group parameters; kernels are derived from weight Shape.
 
+io.github.pho001.synaptik.model.operation.pooling
+  Typed backend-independent NCHW pooling meanings and operation-specific immutable window
+  parameters; max and average policies do not share an attributes type.
+
 io.github.pho001.synaptik.model.operation.random
   Explicit graph RNG-state initialization and state-consuming stochastic operation semantics;
   distinct from eager host-data population in the tensor package.
@@ -251,10 +255,11 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019D | [Linear convenience](tasks/0019d-linear-convenience.md) | Complete | 0017F, 0014B, 0018K–0018N, 0018T, 0018U, 0019–0019C1 | Add conventional weight-transposed MATMUL plus optional exact rank-one bias as fully prevalidated explicit public composition without a LINEAR kind. |
 | 0019E | [Scaled dot-product attention](tasks/0019e-scaled-dot-product-attention.md) | Complete | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Added one-output attention semantics and four receiver overloads with exact query/key/value, mask, causal, scale, numerical, and deferred-constraint contracts, excluding dropout. |
 | 0020 | [NCHW Conv2d semantics and Tensor expressions](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) | Complete | 0018K–0018L, 0018M–0018M1, 0018N, 0018V, 0019 | Added grouped NCHW cross-correlation with optional bias, exact static/symbolic Shape, floating numerical policy, and ordered provenance. |
-| 0020A | NCHW max/average Pool2d semantics and Tensor expressions | Draft | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Represent max and average pooling with shared window geometry, explicit padding/divisor policies, and dynamic spatial results. |
+| 0020A | [NCHW Max Pool2d semantics and Tensor expression](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) | Complete | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Added floating max pooling with exact static/symbolic geometry, literal ceil windows, excluded padding, and deterministic extrema semantics. |
+| 0020A1 | NCHW Average Pool2d semantics and Tensor expression | Draft | 0020A | Represent floating average pooling with its own divisor, padding-count, accumulation, special-value, and empty-window policies. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
+| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 including 0020A–0020A1 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -326,7 +331,9 @@ genuine multi-output top-K and is Complete. Completed
 semantics, attrs, public construction, API-locking tests, and documentation together in 17 paths;
 no 0019E1 split was needed. The former broad 0020 frontier is split without renumbering later
 tasks: focused [task 0020](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) is Complete
-for NCHW convolution, while 0020A remains Draft for shared max/average pooling.
+for NCHW convolution. The former combined pooling follow-up is now split: focused
+[task 0020A](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) is Complete for max
+pooling, while average-pooling follow-up 0020A1 remains Draft without a detailed specification.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -502,6 +509,16 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   compiler capture was added.
 - Dynamic convolution and pooling require symbolic extent expressions for addition, constant
   multiplication, and floor/ceiling division before those families become Ready.
+- Max and average pooling are separate tasks. They share NCHW window-coordinate vocabulary but
+  not one attributes contract: max owns excluded padding and extrema ordering/ties, while average
+  owns divisor, padding-count, accumulation, and invalid-divisor semantics. Combining both would
+  exceed the established 18-path capability scope.
+- Task 0020A selects one `MAX_POOL2D` kind, one-input/one-output `MaxPool2dAttrs`, and
+  `Tensor.maxPool2d(attrs)`. Floor and ceil output extents use the literal symmetric padded grid;
+  ceil mode does not remove a terminal window whose start lies in trailing padding. Padding
+  samples are excluded, an all-padding window returns negative infinity, NaNs dominate, positive
+  zero is greater than negative zero, and equal candidates select the first height-major kernel
+  sample. Average pooling remains Draft 0020A1.
 - Task 0018M completed canonical positive-coefficient linear combinations with signed constant
   offsets, explicit floor/ceiling division, identity-based bounded unknowns, non-static Shape
   inspection, readable diagnostics, and structurally conservative broadcasting. It owns only the
@@ -1426,8 +1443,9 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E and task 0020 are complete. Task 0020 remains the only detailed post-0019E specification;
-0020A and tasks 0021–0024 remain Draft without detailed specifications, so no model task is Ready.
+0019E, task 0020, and task 0020A are complete. Task 0020A remains the only detailed specification
+after task 0020; 0020A1 and tasks 0021–0024 remain Draft without detailed specifications, so no
+model task is Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1441,12 +1459,13 @@ subtasks of 0019; their
 `Depends on` entries list technical
 prerequisites, while table order remains the default execution order.
 
-The former broad 0020 row is split into focused convolution task 0020 and pooling follow-up 0020A
-without renumbering established tasks 0021–0024. Convolution is first because it fixes the
-weight-derived kernel, grouped-channel, optional-bias, promotion, and dynamic spatial-expression
-precedents. Pooling then reuses those spatial decisions while selecting its distinct max/average,
-padding, divisor, ceil-mode, and all-padding-window policies. This is a cohesion and dependency
-split, not authorization to share an operation attribute whose meaning differs.
+The former broad 0020 row is split into focused convolution task 0020 and pooling follow-ups
+0020A–0020A1 without renumbering established tasks 0021–0024. Convolution is first because it
+fixes the weight-derived kernel, grouped-channel, optional-bias, promotion, and dynamic spatial-
+expression precedents. Max pooling is next because its excluded-padding, extrema, tie, and literal
+ceil-grid contract is cohesive. Average pooling follows because divisor and padding-count
+semantics are independent. This is a cohesion and dependency split, not authorization to share
+an operation attribute whose meaning differs.
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
@@ -1498,7 +1517,8 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Tasks 0019E and 0020 are complete. Task 0020 is the only detailed post-0019E specification. Task
-0020A and tasks 0021–0024 remain Draft without detailed specifications; no model task is Ready.
+Tasks 0019E, 0020, and 0020A are complete. Task 0020A is the only detailed specification after
+task 0020. Task 0020A1 and tasks 0021–0024 remain Draft without detailed specifications; no model
+task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

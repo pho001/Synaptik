@@ -142,8 +142,10 @@ adds first-class attention semantics, immutable attrs, four receiver overloads, 
 and documentation in one cohesive 17-path change. The former broad convolution/pooling frontier
 is split without renumbering later work: focused
 [task 0020](modules/model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) is Complete,
-while pooling follow-up 0020A and tasks 0021–0024 remain Draft without detailed specifications.
-Task 0020 remains the only detailed post-0019E task, and no model task is Ready.
+while the former pooling follow-up is split into completed
+[task 0020A](modules/model/tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) for max
+pooling and Draft 0020A1 for average pooling. Tasks 0021–0024 remain Draft. Task 0020A is the only
+detailed task after 0020, and no model task is Ready.
 
 Task 0019D adds conventional `[outFeatures, inFeatures]` weight-transposed MATMUL plus optional
 exact rank-one bias as visible PERMUTE -> MATMUL -> optional ADD composition. Complete local
@@ -213,7 +215,7 @@ Task 0019C is now complete for stable sort/argsort. Its completed
 [task 0019D](modules/model/tasks/0019d-linear-convenience.md) owns linear as explicit
 PERMUTE/MATMUL/optional-ADD composition. Completed
 [task 0019E](modules/model/tasks/0019e-scaled-dot-product-attention.md) owns first-class attention;
-task 0020 is Complete and no model task is Ready or in Review.
+tasks 0020 and 0020A are Complete; no model task is Ready.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -223,7 +225,8 @@ decomposed into focused tasks 0018A–0018J for select, gather, and functional-s
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
 task 0018U, task 0018U1, task 0018V, focused MATMUL task 0019, task 0019A, and task 0019A1 are
 Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also Complete. Task
-0020 is Complete; 0020A and tasks 0021–0024 remain Draft without detailed specs.
+0020 and 0020A are Complete, while 0020A1 and tasks 0021–0024 remain Draft without detailed
+future specs.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -678,11 +681,12 @@ authorized Compile API status correction.
 | 102 | [0019D Linear convenience](modules/model/tasks/0019d-linear-convenience.md) | Complete |
 | 103 | [0019E Scaled dot-product attention](modules/model/tasks/0019e-scaled-dot-product-attention.md) | Complete |
 | 104 | [0020 NCHW Conv2d semantics and Tensor expressions](modules/model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) | Complete |
-| 105 | 0020A NCHW max/average Pool2d semantics and Tensor expressions | Draft |
-| 106 | 0021 Normalization operations | Draft |
-| 107 | 0022 Loss operations | Draft |
-| 108 | 0023 Compiler-generated semantic operations | Draft |
-| 109 | 0024 Model capability selection audit | Draft |
+| 105 | [0020A NCHW Max Pool2d semantics and Tensor expression](modules/model/tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) | Complete |
+| 106 | 0020A1 NCHW Average Pool2d semantics and Tensor expression | Draft |
+| 107 | 0021 Normalization operations | Draft |
+| 108 | 0022 Loss operations | Draft |
+| 109 | 0023 Compiler-generated semantic operations | Draft |
+| 110 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -733,8 +737,9 @@ complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete.
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
 before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, linked 0018V, and task 0019 are
 complete. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are also complete.
-Tasks 0019E and 0020 are complete. Task 0020 is the only detailed post-0019E specification. Task
-0020A and tasks 0021–0024 remain Draft without detailed specifications; no model task is Ready.
+Tasks 0019E, 0020, and 0020A are complete. Task 0020A is the only detailed specification after
+task 0020. Task 0020A1 and tasks 0021–0024 remain Draft without detailed specifications; no model
+task is Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

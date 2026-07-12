@@ -2147,6 +2147,26 @@ lowering, backend/ONNX behavior, and execution remain planned. See
 [Window-transform semantic kinds and
 attributes](api/tensor-api.md#window-transform-semantic-kinds-and-attributes).
 
+### NCHW pooling window geometry
+
+NCHW names the rank-four logical axis order batch, channel, height, width. **Pooling** moves a
+spatial **window** over each batch/channel plane and combines sampled values into one result per
+window position. A window is the logical coordinate set; it does not imply a storage view or a
+physical traversal order.
+
+For each spatial axis, **padding** adds the same non-negative coordinate width on both sides,
+**dilation** is the positive spacing between kernel samples, and **effective kernel** is the span
+covered by those samples: `dilation * (kernel - 1) + 1`. **Ceil mode** rounds the output-position
+quotient upward; current maximum pooling uses the literal symmetric padded grid and does not
+remove a terminal window that begins entirely in trailing padding.
+
+The meaning of a padding coordinate depends on the operation. `UNFOLD2D` reads it as conceptual
+zero, Conv2d includes conceptual positive zero in multiplication, and `MAX_POOL2D` excludes it
+from maximum selection. An all-padding maximum-pooling window therefore returns negative infinity
+rather than zero. Current `MaxPool2dAttrs` is distinct from window-transform `Window2dAttrs`
+because extrema and padding-exclusion semantics are operation-specific. See [NCHW maximum-pooling
+expressions](api/tensor-api.md#nchw-maximum-pooling-expressions) and [Window transform](#window-transform).
+
 ## Common distinctions
 
 ### Tensor versus graph value
