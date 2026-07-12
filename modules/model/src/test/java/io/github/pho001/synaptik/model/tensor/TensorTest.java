@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(183, declaredPublicMethods.size());
+        assertEquals(184, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -101,7 +101,7 @@ class TensorTest {
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
-                        "logSoftmax", "layerNorm", "rmsNorm", "logSumExp", "variance", "standardDeviation", "l1Norm",
+                        "logSoftmax", "layerNorm", "rmsNorm", "batchNormInference", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "embedding", "oneHot", "gatherElements", "gatherNd",
@@ -321,6 +321,15 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        var batchNormInference = Tensor.class.getDeclaredMethod(
+                "batchNormInference", int.class, Tensor.class, Tensor.class, Tensor.class,
+                Tensor.class, ScalarValue.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, batchNormInference.getReturnType()),
+                () -> assertTrue(Modifier.isPublic(batchNormInference.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(batchNormInference.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(batchNormInference.getModifiers())));
 
         for (String methodName : List.of("softmax", "logSoftmax")) {
             var method = Tensor.class.getDeclaredMethod(methodName, int.class);

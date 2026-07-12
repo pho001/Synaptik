@@ -3915,6 +3915,58 @@ public final class Tensor {
     }
 
     /**
+     * Creates stateless per-channel batch-normalization inference with explicit affine and running
+     * statistic inputs.
+     *
+     * <p>For channel {@code c}, the result is
+     * {@code ((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]}.
+     * The channel axis is normalized against this Tensor's rank without interpreting layout. This
+     * Tensor must have rank at least two; scale, bias, running mean, and running variance must be
+     * exact rank-one {@code [C]} vectors matching the selected input extent. Unequal static
+     * extents fail locally, while equality involving unresolved extents is deferred.</p>
+     *
+     * <p>All five inputs must be floating and promote in producer order; epsilon must have the
+     * exact result type. BFLOAT16/FLOAT32 results compute in FLOAT32 and FLOAT64 results compute in
+     * FLOAT64. Construction reads no values: empty results evaluate no formula, and negative
+     * variance, NaN, infinity, signed zero, overflow, reassociation, and rounding follow the
+     * documented semantic policy for later execution.</p>
+     *
+     * <p>The fresh result retains the exact input Shape, has unresolved layout, no label or
+     * storage, combined gradient eligibility, and ordered
+     * {@code [input, scale, bias, runningMean, runningVariance]} provenance at output index zero.
+     * Construction creates no parameter, training mode, statistic update, saved output, mutation,
+     * gradient rule, compiler capture, backend route, runtime state, or executable result.</p>
+     *
+     * @param channelAxis channel axis in {@code [-rank, rank - 1]}, normalized layout-neutrally
+     * @param scale non-null floating rank-one per-channel scale
+     * @param bias non-null floating rank-one per-channel bias
+     * @param runningMean non-null floating rank-one estimated per-channel mean
+     * @param runningVariance non-null floating rank-one estimated per-channel variance used
+     *     directly, without correction or mutation
+     * @param epsilon non-null exact finite positive floating value matching promoted result type
+     * @return fresh unlabeled, storage-free, unresolved-layout one-output expression with exact
+     *     input Shape, promoted type, combined gradient eligibility, and ordered provenance;
+     *     never {@code null}
+     * @throws NullPointerException if an operand or epsilon is null, checked in logical input
+     *     order and then epsilon
+     * @throws IllegalArgumentException if an input is non-floating, this Tensor has rank below
+     *     two, a per-channel operand is not rank one or is statically incompatible with the
+     *     channel extent, or epsilon is invalid or not exactly result-typed
+     * @throws IndexOutOfBoundsException if {@code channelAxis} is invalid for this Tensor's Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor batchNormInference(
+            int channelAxis,
+            Tensor scale,
+            Tensor bias,
+            Tensor runningMean,
+            Tensor runningVariance,
+            ScalarValue epsilon) {
+        return TensorBatchNormInferenceExpressions.apply(
+                this, channelAxis, scale, bias, runningMean, runningVariance, epsilon);
+    }
+
+    /**
      * Creates a fresh expression requesting canonical dense row-major result geometry.
      *
      * <p>The result preserves this tensor's exact logical Shape, DataType, and gradient-

@@ -288,6 +288,12 @@ Foundation hardening above precedes these operations.
 - explicit graph RNG state plus dropout as a state-consuming, state-producing operation with no
   hidden process-global generator.
 
+Batch-normalization inference is also selected for the minimal inference baseline. Its model
+contract is a stateless five-input occurrence with explicit data, scale, bias, running mean, and
+running variance, one output, an explicit layout-neutral channel axis, and no hidden mode or
+mutation. Task 0021B fixes its exact Shape, type, epsilon, formula, special-value, and provenance
+contracts before any training-time statistic transition is specified.
+
 Completed task [0018V](tasks/0018v-multi-axis-and-statistical-reductions.md) closes the selected
 reduction frontier as one cohesive task. It fixes caller-ordered distinct normalized axes,
 empty-axis point domains, exact structural dimension retention, population-default non-negative
@@ -372,11 +378,12 @@ The former broad task 0021 is split by formula and lifecycle boundary. Completed
 one-output layer normalization. Completed
 [task 0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) separately owns RMS
 normalization because it uses the uncentered root-mean-square formula and selects explicit
-no-scale and scale-only forms. Draft 0021B owns
-batch-normalization inference with explicit running statistics and one output. Draft 0021C owns
-training-time batch statistics, explicit running-stat transition, saved statistics, and genuine
-multi-output provenance. No variant selects a hidden training/evaluation flag, process-global
-state, or mutable model service.
+no-scale and scale-only forms. Completed
+[task 0021B](tasks/0021b-batch-normalization-inference.md) owns batch-normalization inference with
+mandatory explicit scale, bias, running mean, and running variance inputs and one output. Draft
+0021C owns training-time batch statistics, explicit running-stat transition, saved statistics,
+and genuine multi-output provenance. No variant selects a hidden training/evaluation flag,
+process-global state, or mutable model service.
 
 Completed task 0021 normalizes a non-empty trailing `Shape` with population variance (correction zero) and
 epsilon inside the square root. One `LAYER_NORM` kind has exact no-affine `[input]` and affine
@@ -412,6 +419,26 @@ This narrow formula and trailing-dimension interpretation align with official
 [ONNX RMSNormalization](https://onnx.ai/onnx/operators/onnx__RMSNormalization.html), while
 Synaptik deliberately does not copy their defaults, layer state, broadcast scale, or configurable
 accumulation surface.
+
+Completed task 0021B selects one `BATCH_NORM_INFERENCE` meaning with immutable normalized channel-axis and
+exact typed epsilon attributes, exact ordered inputs
+`[input, scale, bias, runningMean, runningVariance]`, and one output. Input rank is at least two;
+the channel axis may identify any input axis and therefore assumes no physical NCHW or NHWC
+layout. Every affine/statistic operand is an exact rank-one per-channel vector. Static channel
+mismatches fail locally, while equality involving unresolved Dimensions may defer because output
+Shape remains exactly the input Shape. All five operands are mandatory and use ordered floating
+promotion. Epsilon is finite, positive, exact-result-typed, and added to running variance inside
+the denominator square root. The supplied running variance is used directly as an estimated
+per-channel variance: inference applies no correction conversion, recomputation, clamp, momentum,
+or update. Negative values are not read or rejected during model construction and follow the
+formula's floating square-root behavior. There is one fresh output at provenance index zero and
+no saved statistic, training flag, optional affine form, hidden constant, or mutable state.
+
+This five-input inference formula and explicit estimated-statistic roles align with official
+[ONNX BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html), while
+Synaptik deliberately makes the channel axis explicit, requires exact typed epsilon and exact
+rank-one parameter/statistic Shapes, and separates inference from every training/state-transition
+contract.
 
 The former 0019A umbrella is split by semantic boundary. Completed task 0019A owns `gelu()`,
 `geluTanhApproximation()`, and canonical `silu()` without a `swish` alias. `GELU` uses

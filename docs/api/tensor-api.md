@@ -29,7 +29,9 @@ scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving f
 probability-normalization expressions. Two `layerNorm` methods add population-variance
 normalization over an exact trailing Shape, either without affine operands or with explicit scale
 and bias. Two `rmsNorm` methods separately add uncentered root-mean-square normalization over an
-exact trailing Shape, either without scale or with one explicit exact-Shape scale. The
+exact trailing Shape, either without scale or with one explicit exact-Shape scale. One
+`batchNormInference` method adds stateless per-channel inference from mandatory explicit scale,
+bias, running-mean, and running-variance vectors along a layout-neutral channel axis. The
 parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
@@ -260,6 +262,7 @@ CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving 
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 LayerNormKind + LayerNormAttrs / AffineLayerNormAttrs         = trailing-Shape population normalization semantics
 RmsNormKind + RmsNormAttrs                                   = trailing-Shape uncentered RMS normalization semantics
+BatchNormKind + BatchNormInferenceAttrs                     = explicit five-input per-channel inference semantics
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
@@ -380,6 +383,14 @@ epsilon for ordered inputs `[input]` or `[input, scale]`, each with exactly one 
 scale Shape exactly equal to the normalized Shape, and retains the exact input result Shape.
 Construction adds no centering, variance, correction, bias, default, broadcast scale, saved
 statistic, numerical evaluation, gradient rule, compiler behavior, or execution behavior.
+`BatchNormKind.BATCH_NORM_INFERENCE` provides stateless per-channel inference with one normalized
+layout-neutral channel axis and exact typed positive epsilon in `BatchNormInferenceAttrs`.
+Public `Tensor.batchNormInference` consumes ordered
+`[input, scale, bias, runningMean, runningVariance]`, requires each per-channel operand to be an
+exact rank-one `[C]` vector, promotes all five floating inputs in that order, preserves the exact
+input Shape, and records one output at provenance index zero. The supplied running variance is
+used directly; construction calculates or updates no statistic, reads no value, creates no saved
+output, and defines no training, gradient, compiler, backend, runtime, or execution behavior.
 `ContiguousKind.CONTIGUOUS` provides the parameterless semantic request that one logical input
 retain its values, Shape, DataType, and row-major element order while the result targets canonical
 dense row-major geometry with logical storage offset zero. The kind is distinct from
@@ -487,6 +498,13 @@ the normalized Shape. Both preserve the exact input Shape, leave layout unresolv
 one fresh storage-free output at provenance index zero. They add no centering, correction, bias,
 default, broadcast scale, saved statistic, numerical evaluation, compiler behavior, or execution
 behavior.
+`Tensor.batchNormInference` constructs one stateless five-input inference expression. It
+normalizes an explicit channel axis against rank-at-least-two input, requires exact rank-one
+scale, bias, running-mean, and running-variance vectors, and records those inputs in that order
+after the receiver. It preserves the exact input Shape, uses ordered floating promotion, leaves
+layout unresolved, combines all five gradient-eligibility flags, and produces one fresh
+storage-free output at provenance index zero. Construction does not read values, calculate or
+update statistics, add saved outputs, select an algorithm, capture a graph, or execute work.
 `Tensor.contiguous()` accepts every current data type and preserves the exact input Shape, type, and
 gradient eligibility. A fully static result receives a newly constructed canonical dense
 row-major layout; a dynamic result remains unresolved. Each call records `CONTIGUOUS` with
@@ -4010,6 +4028,128 @@ deferred constraints, saved-value and gradient construction, legal decomposition
 lowering, preparation, tolerance enforcement, runtime execution, and numerical evaluation remain
 planned in their owning lifecycle stages. See the [Compile API](compile-api.md) for that boundary.
 
+### Batch-normalization inference expressions
+
+Batch-normalization inference applies explicit estimated per-channel statistics without
+calculating or updating them. The sole receiver form is:
+
+```java
+public Tensor batchNormInference(
+        int channelAxis,
+        Tensor scale,
+        Tensor bias,
+        Tensor runningMean,
+        Tensor runningVariance,
+        ScalarValue epsilon)
+```
+
+This is an explicit stateless five-input occurrence. Its ordered producer roles and Shape rules
+are:
+
+| Position | Role | Required Shape |
+|---|---|---|
+| 0 | receiver input | Rank at least two; exact result Shape |
+| 1 | scale | Exact rank-one `[C]` vector |
+| 2 | bias | Exact rank-one `[C]` vector |
+| 3 | running mean | Exact rank-one `[C]` vector |
+| 4 | running variance | Exact rank-one `[C]` vector |
+
+`C` is the input extent at `channelAxis`. The caller axis may be positive or negative and is
+normalized against the input rank. It may identify any logical input axis: neither a resolved
+layout nor an NCHW or NHWC convention changes its meaning. Each coordinate that shares channel
+coordinate `c` uses the same four vector entries.
+
+All five Tensors must be BFLOAT16, FLOAT32, or FLOAT64. Their result type is derived by floating
+promotion in exact producer order: input with scale, then bias, running mean, and running
+variance. Epsilon must be a finite, strictly positive `ScalarValue` whose type exactly equals that
+result type. No cast producer or hidden default is inserted.
+
+For each output coordinate with channel `c`, the mathematical contract is:
+
+```text
+centered     = input - runningMean[c]
+denominator  = sqrt(runningVariance[c] + epsilon)
+standardized = centered / denominator
+output       = standardized * scale[c] + bias[c]
+```
+
+Epsilon is inside the square root. The running variance is used directly as the estimated
+variance supplied by the caller; inference applies no sample/population correction conversion,
+recomputation, clamp, momentum, or mutation. BFLOAT16 and FLOAT32 results perform formula
+arithmetic in FLOAT32 and round the final value to the result format. FLOAT64 results use FLOAT64.
+There is no reduction accumulator or configurable computation format.
+
+#### Finite numerical example
+
+The goal is to show the formula and affine order. For FLOAT64 input `[1, 2]` in one channel,
+scale `2`, bias `0.5`, running mean `1`, running variance `4`, and epsilon `1e-5`:
+
+```text
+input 1: ((1 - 1) / sqrt(4 + 1e-5)) * 2 + 0.5 = 0.5
+input 2: ((2 - 1) / sqrt(4 + 1e-5)) * 2 + 0.5 ~= 1.4999987500023437
+```
+
+This establishes direct variance use, epsilon placement, and scale-then-bias order. It does not
+show current numerical execution: constructing the expression reads no Tensor values.
+
+#### Static checks, symbolic deferral, and empty results
+
+Input rank below two and an out-of-range channel axis fail locally. Each of the four other inputs
+must have rank exactly one. For input Shape `[2, 3, 4]` and channel axis `1`, each vector must
+describe `[3]`; a static `[4]` scale, for example, fails with:
+
+```text
+batchNormInference scale channel dimension mismatch: input=StaticDimension[size=3], scale=StaticDimension[size=4]
+```
+
+Structurally equal static, dynamic, or symbolic-expression Dimensions pass. Unequal static
+Dimensions fail. If either unequal Dimension is unresolved, construction defers the equality
+obligation because the result Shape remains exactly the input Shape. Later compiler capture and
+binding must represent and prove that obligation before execution.
+
+A static channel extent zero is valid with four `[0]` vectors. A zero on another input axis is
+also valid while the vectors continue to describe `C`. Either case produces an empty result, so
+no subtraction, square root, division, or affine step is evaluated.
+
+#### Negative variance and special values
+
+Construction does not read running-variance values and therefore does not reject a Tensor that
+may later contain a negative value. Ordinary floating formula behavior applies:
+
+- a negative radicand produces NaN;
+- a zero radicand produces a zero denominator, so zero divided by zero is NaN and a non-zero
+  numerator divided by zero is signed infinity;
+- positive-infinite variance produces an infinite denominator, so a finite numerator produces
+  signed zero and an infinite numerator produces NaN; and
+- negative-infinite variance produces NaN.
+
+NaN in any participating value propagates through the coordinate. Infinite subtraction,
+division, multiplication, and addition follow ordinary floating value classes, including
+infinity divided by infinity and infinity multiplied by zero producing NaN. Finite overflow,
+underflow, and signed zero follow the selected computation format. A conforming future
+implementation may use equal-or-wider intermediates, reassociate finite operations, or use fused
+multiply-add when later tolerances and these special-value classes are preserved. Fixed grouping,
+NaN payload/sign preservation, bitwise cross-backend equality, and one algorithm are not promised.
+
+#### Metadata, provenance, and lifecycle boundary
+
+Every success creates a fresh unlabeled, storage-free Tensor with the exact input Shape reference,
+ordered-promoted result type, unresolved layout, and gradient eligibility equal to the logical OR
+of all five inputs. One identity-distinct producer has exact ordered inputs
+`[input, scale, bias, runningMean, runningVariance]`, one descriptor, and provenance output index
+zero. Repeated equal requests remain distinct. No input, statistic, parameter, descriptor, label,
+storage, or provenance is mutated.
+
+These facts are current model metadata behavior. There is no training/evaluation flag, batch-
+statistic calculation, running-statistic transition, momentum, saved statistic, auxiliary output,
+or hidden state. Compiler capture, deferred-constraint proof, operand revalidation, saved-value
+and gradient construction, and legal decomposition remain planned compiler work. Backend prepare
+will own algorithms, lowering, specialization, fusion, and tolerance satisfaction; runtime will
+execute only prepared work. The [Compile API](compile-api.md) records that boundary, and the
+formula corresponds to official [ONNX
+BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html) while retaining
+Synaptik's explicit channel axis and exact typed contracts.
+
 ### Contiguous expressions
 
 The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result
@@ -6928,6 +7068,8 @@ composition while the table also lists the current production families:
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
+| `BatchNormKind` | The implemented production enum for stateless explicit five-input batch-normalization inference. |
+| `BatchNormInferenceAttrs` | The implemented immutable normalized channel-axis and exact typed epsilon value. |
 | `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies one-output scaled dot-product attention. |
 | `ScaledDotProductAttentionAttrs` | The implemented immutable optional exact scale and top-left causal-eligibility value. |
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
@@ -8420,7 +8562,8 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, floating-classification, scalar elementwise, the current
   value- and
-  index-producing aggregate operations, cumulative-sum scans, softmax normalization, and
+  index-producing aggregate operations, cumulative-sum scans, softmax, layer, RMS, and batch-
+  normalization inference, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, repeated-select unstack, scalar select, Gather, Gather Elements, Gather-ND Tensor
   construction, Scatter Elements construction, Scatter-ND construction, unfold, unfold2d, and
@@ -8429,7 +8572,8 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, floating-classification, scalar elementwise, conditional selection,
   cast, aggregate
-  reduction, cumulative-sum scan, softmax normalization, contiguous-request, reshape/expand,
+  reduction, cumulative-sum scan, softmax, layer, RMS, and batch-normalization inference,
+  contiguous-request, reshape/expand,
   axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, one-hot,
   gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
@@ -8445,6 +8589,8 @@ The following contracts appear in the architecture and planning documents but ar
 `AggregateReductionKind`, `AxisReductionAttrs`, `MultiAxisReductionAttrs`,
 `StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
+`LayerNormKind`, `LayerNormAttrs`, `AffineLayerNormAttrs`, `RmsNormKind`, `RmsNormAttrs`,
+`BatchNormKind`, `BatchNormInferenceAttrs`,
 `ScaledDotProductAttentionKind`, `ScaledDotProductAttentionAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,

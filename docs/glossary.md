@@ -116,6 +116,14 @@ without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftma
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
 retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
 behavior, backend behavior, and execution remain planned.
+The `BatchNormKind` vocabulary is implemented with the sole stateless
+`BATCH_NORM_INFERENCE` meaning and fixed ordered inputs
+`[input, scale, bias, runningMean, runningVariance]`. `BatchNormInferenceAttrs` retains one
+normalized layout-neutral channel axis and exact typed positive epsilon. Public
+`Tensor.batchNormInference` requires rank-at-least-two floating input and exact rank-one `[C]`
+affine/statistic vectors, preserves the exact input Shape, and records one fresh output at
+provenance index zero. It reads or updates no statistic, creates no saved output or hidden state,
+and performs no compiler, backend, runtime, or execution work.
 The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class,
 one-output attention meaning, together with `ScaledDotProductAttentionAttrs` carrying optional
 exact scale and causal eligibility. Public `Tensor.scaledDotProductAttention` construction accepts
@@ -1084,7 +1092,9 @@ adds an explicit tie policy and `MaskedReductionAttrs` holds exactly one normali
 axis. Its concrete attributes class distinguishes the first-class masked occurrence. Implemented
 scan-family `CumulativeSumAttrs` holds one
 normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
-`SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax. Implemented
+`SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax;
+`BatchNormInferenceAttrs` holds one normalized layout-neutral channel axis and exact typed epsilon
+for stateless five-input inference. Implemented
 layout-operation `TargetShapeAttrs` holds one exact normalized semantic result Shape shared by
 reshape and expand. Layout-operation `PermutationAttrs` holds one complete normalized
 output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized non-negative
@@ -1639,6 +1649,33 @@ Current `Tensor.rmsNorm` constructs metadata and provenance but does not calcula
 square, capture a graph, create saved statistics or gradients, select an algorithm, or execute.
 See [RMS-normalization expressions](api/tensor-api.md#rms-normalization-expressions).
 
+### Batch normalization / batch-normalization inference
+
+Batch normalization uses statistics associated with a channel to center and scale values. The
+implemented inference-only meaning is `BatchNormKind.BATCH_NORM_INFERENCE`: one stateless
+five-input occurrence with ordered roles
+`[input, scale, bias, runningMean, runningVariance]`, one output, and
+`BatchNormInferenceAttrs(channelAxis, epsilon)`.
+
+The **channel axis** is one normalized non-negative logical input-axis position selected explicitly
+by the caller. It is layout-neutral: it does not imply NCHW, NHWC, a physical stride, or a batch
+scheduler. Its extent `C` must match each exact rank-one `[C]` scale, bias, running-mean, and
+running-variance vector, with unresolved equality deferred when the exact result Shape is still
+known.
+
+For channel `c`, inference requests
+`((input - runningMean[c]) / sqrt(runningVariance[c] + epsilon)) * scale[c] + bias[c]`. A
+**running mean** or **running variance** is an explicit estimated per-channel statistic supplied
+to this occurrence. The variance is used directly: the operation performs no correction
+conversion, recomputation, clamp, momentum update, or mutation. Construction also creates no
+training/evaluation mode, saved statistic, auxiliary output, or hidden state.
+
+Current `Tensor.batchNormInference` constructs metadata and provenance only. Compiler capture,
+deferred equality proof, saved-value and gradient construction, legal decomposition, backend
+preparation, runtime execution, and training statistic transition remain planned in their owning
+layers. See [Batch-normalization inference
+expressions](api/tensor-api.md#batch-normalization-inference-expressions).
+
 ### Normalized Shape
 
 The exact positive-rank `Shape` that identifies the trailing axes normalized by layer or RMS
@@ -1674,14 +1711,16 @@ A small positive value added to a denominator-related quantity to state a numeri
 boundary. In current layer and RMS normalization it is an exact typed `ScalarValue`, must be
 finite and strictly positive, and must match the result data type. Layer normalization adds it to
 population variance inside the square root; RMS normalization adds it to uncentered mean square
-inside the square root. Epsilon is operation metadata, not a Tensor input or a default hidden
-constant.
+inside the square root. Batch-normalization inference likewise requires exact-result-typed finite
+positive epsilon and adds it to the supplied running variance inside the square root. Epsilon is
+operation metadata, not a Tensor input or a default hidden constant.
 
 ### Affine transform
 
 An elementwise scale followed by bias: `standardized * scale + bias`. Current affine layer
 normalization requires both explicit operands, each with Shape exactly equal to the normalized
-Shape. It does not broadcast them, infer them, initialize parameters, or accept a scale-only form.
+Shape. Batch-normalization inference also requires both explicit operands, but each is an exact
+rank-one per-channel vector. Neither contract infers or initializes parameters.
 
 ### Accumulator type
 
@@ -1691,12 +1730,18 @@ normalization accumulates mean and variance in FLOAT32, and BFLOAT16 RMS normali
 squares and sums in FLOAT32. An accumulator type constrains numerical meaning without selecting
 traversal order, a kernel, or an executable algorithm.
 
+A **computation format** is the floating format used for non-reduction formula arithmetic. Current
+batch-normalization inference uses FLOAT32 formula arithmetic for BFLOAT16 or FLOAT32 results and
+FLOAT64 for FLOAT64 results. It has no reduction accumulator. Like an accumulator type, a
+computation format constrains meaning without selecting an algorithm, kernel, or traversal.
+
 ### Saved statistic
 
 An intermediate statistic retained for a later transformation, commonly a mean or inverse
 standard deviation retained for backward construction. Current public layer and RMS normalization
-create no saved-statistic output. A future compiler may derive saved values or a distinct semantic
-operation, but that does not change either current producer's one-output contract.
+and batch-normalization inference create no saved-statistic output. A future compiler may derive
+saved values or a distinct semantic operation, but that does not change any current producer's
+one-output contract.
 
 ### Referenced element span
 
