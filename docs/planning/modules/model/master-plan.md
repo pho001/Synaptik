@@ -240,7 +240,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019B1 | [Explicit graph dropout construction](tasks/0019b1-explicit-graph-dropout-construction.md) | Complete | 0019B, 0018K–0018L | Added floating training dropout construction with explicit state input, auxiliary mask, next-state output, and no hidden mutation. |
 | 0019C | [Sort and argsort](tasks/0019c-sort-and-argsort.md) | Complete | 0018K–0018L, 0018U–0018U1 | Added stable values-only sort and indices-only argsort with fixed NaN-last ordering and exact all-type Shape/provenance contracts. |
 | 0019C1 | [Top-K values and indices](tasks/0019c1-top-k-values-and-indices.md) | Complete | 0019C, 0018L | Added focused TOP_K semantics, deterministic largest/smallest selection, static/deferred `k` validation, and one shared two-output values/INT64-indices producer. |
-| 0019D | Linear convenience | Draft | 0019 | Add conventional weight-transposed MATMUL plus optional one-dimensional bias as explicit public composition without a LINEAR kind. |
+| 0019D | [Linear convenience](tasks/0019d-linear-convenience.md) | Complete | 0017F, 0014B, 0018K–0018N, 0018T, 0018U, 0019–0019C1 | Add conventional weight-transposed MATMUL plus optional exact rank-one bias as fully prevalidated explicit public composition without a LINEAR kind. |
 | 0019E | Scaled dot-product attention | Draft | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Add one-output high-level attention semantics with exact query/key/value, mask, causal, scale, and all-masked-row contracts, excluding dropout. |
 | 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
@@ -311,8 +311,19 @@ one-hot semantics. The former broad 0019B frontier is now split: completed
 foundation, while completed [task 0019B1](tasks/0019b1-explicit-graph-dropout-construction.md)
 owns explicit-state dropout construction. The former 0019C row is now split: completed
 [task 0019C](tasks/0019c-sort-and-argsort.md) owns full stable sort/argsort, while 0019C1 owns
-genuine multi-output top-K and is Complete. Tasks 0019D and
-0019E retain their established IDs and remain Draft.
+genuine multi-output top-K and is Complete. Completed
+[task 0019D](tasks/0019d-linear-convenience.md) adds explicit linear composition. Task 0019E
+retains its established ID and remains Draft; no model task is currently Ready.
+
+Task 0019D adds conventional `[outFeatures, inFeatures]` weight-transposed MATMUL plus optional
+exact rank-one bias as visible PERMUTE -> MATMUL -> optional ADD composition. Complete local
+validation precedes intermediate IDs; no-bias allocates two wrappers and returns MATMUL, while
+bias allocates three and returns ADD. The biased Shape is structurally equal to the product Shape
+and reuses its exact Dimension references, but its outer Shape object may differ. The
+implementation context passed 60 focused tests and one final 836-test/105-suite model run;
+independent documentation review finalized Javadocs, Tensor/Compile APIs, glossary, planning,
+the runnable producer-chain example, and all required surface, Markdown, scope, status, and
+whitespace checks.
 
 Task 0018U keeps the public Tensor surface at 127 methods and adds no operation kind. INT32/INT64
 Tensor pairs promote within their category, exact scalar attributes do not promote, integral
@@ -387,11 +398,15 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   BFLOAT16 results use FLOAT32 accumulation; other floating results accumulate in their promoted
   type without a bitwise-order guarantee. Integral results are the promoted-width modular sum of
   products. Layout remains unresolved and gradient eligibility is input-request OR.
-- `linear` is not a model operation kind. Task 0019D will add `linear(weight)` and
+- `linear` is not a model operation kind. Completed task 0019D adds `linear(weight)` and
   `linear(weight, bias)` as explicit composition `input.matmul(weight.transpose())` plus optional
   ADD. Weight Shape is `[outFeatures, inFeatures]`; input rank is at least one with final extent
-  `inFeatures`; optional bias is exactly rank one `[outFeatures]`. It inherits MATMUL and ADD
-  promotion, numerical, metadata, and provenance instead of hiding a fused semantic operation.
+  `inFeatures`; optional bias is exactly rank one `[outFeatures]` with structural Dimension
+  equality. It inherits current floating and signed-integral MATMUL/ADD promotion and numerical
+  policies. Complete validation precedes intermediate IDs. No-bias provenance ends at MATMUL after
+  two wrappers; bias provenance ends at ADD after three. Transpose may retain resolved view layout,
+  while MATMUL and ADD are unresolved. No LINEAR kind, layer state, gradient rule, compiler pass,
+  or backend behavior is added.
 - Scaled dot-product attention remains a distinct first-class high-level semantic operation in
   task 0019E because mask, causal, scale, softmax, and all-masked-row meaning must survive compiler
   inspection. It will use one `SCALED_DOT_PRODUCT_ATTENTION` kind, input range three to four,
@@ -1386,9 +1401,9 @@ enforcement would either break valid current families or retain a permissive uns
 Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and 0018T1 are
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
-Task 0019A2, task 0019B, task 0019B1, task 0019C, and task 0019C1 are complete. Tasks 0019D–0019E
-and every later task remain Draft without detailed specifications. No model task is currently
-Ready.
+Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
+0019E and every later task remain Draft without detailed specifications. No model task is
+currently Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1451,8 +1466,8 @@ construction. Task 0018I is complete with functional Scatter-ND semantic values.
 complete with public functional Scatter-ND expression construction. The capability reset inserted
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
-specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, and 0019C1 are complete. Tasks
-0019D–0019E and every later task remain Draft without detailed specifications. No model task is
+specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
+Task 0019E and every later task remain Draft without detailed specifications. No model task is
 currently Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

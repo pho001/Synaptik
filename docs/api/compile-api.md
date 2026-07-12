@@ -127,6 +127,16 @@ unresolved-versus-static batch singleton-or-equal cases remain obligations for l
 validation or concrete binding. This is current model-expression metadata only: expression
 capture, graph-wide validation, constraint proof, gradients, lowering, backend support, and
 execution remain planned.
+`Tensor.linear(weight)` and `Tensor.linear(weight, bias)` are also current model construction, but
+they add no LINEAR operation. Conventional `[outFeatures, inFeatures]` weight is explicitly
+transposed through PERMUTE `[1, 0]`, followed by MATMUL and optional exact rank-one
+`[outFeatures]` ADD bias. Complete caller-controlled validation precedes the first intermediate.
+No-bias returns the MATMUL product after two wrapper/ID allocations; biased construction returns
+ADD after three. The biased final Shape is structurally equal to the product Shape and reuses its
+ordered Dimension references, although the outer Shape object may differ. These visible primitive
+producer chains are inputs a future compiler may capture and canonicalize; this page does not
+claim capture, linear-pattern recognition, fusion, gradient construction, lowering, backend
+support, or execution.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both

@@ -298,9 +298,9 @@ execution remain separately owned.
 
 The former broad linear-algebra/attention row is decomposed without disturbing established tasks
 0019A–0019C. Completed [task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) owns only
-the first-class `MATMUL` primitive and public expression. Draft task 0019D owns the `linear`
-convenience, and Draft task 0019E owns scaled dot-product attention. This keeps each task within
-one semantic and review boundary.
+the first-class `MATMUL` primitive and public expression. Completed
+[task 0019D](tasks/0019d-linear-convenience.md) owns the `linear` convenience, and Draft task 0019E
+owns scaled dot-product attention. This keeps each task within one semantic and review boundary.
 
 The current MATMUL expression follows rank-one promotion/removal plus right-aligned broadcasting
 of leading batch axes.
@@ -312,10 +312,16 @@ Unresolved contraction equality may defer because it does not affect output Shap
 batch compatibility defers only when one exact output extent remains derivable.
 
 `linear` is selected as `input.matmul(weight.transpose())` plus optional ADD, not a first-class
-`LINEAR` operation. Weight Shape is `[outFeatures, inFeatures]`, input rank is at least one with
-final extent `inFeatures`, and optional bias is exactly `[outFeatures]`. The composition keeps
-transpose, MATMUL, and ADD visible to later compiler inspection and lets backend prepare fuse a
-profitable pattern without placing a fused variant in model.
+`LINEAR` operation. Completed task 0019D adds exactly `linear(weight)` and `linear(weight, bias)`.
+Weight Shape is `[outFeatures, inFeatures]`, input rank is at least one with final extent
+`inFeatures`, and optional bias is exactly rank one `[outFeatures]`. It retains the current
+same-category floating and signed-integral MATMUL/ADD promotion domains. Bias's sole Dimension
+must structurally equal the weight's `outFeatures` Dimension, so current broadcasting needs no new
+constraint. Complete prevalidation precedes intermediate allocation. The no-bias form creates
+PERMUTE then MATMUL wrappers and returns MATMUL provenance; the bias form additionally creates ADD
+and returns ADD provenance. Transpose may preserve resolved view layout, while MATMUL and ADD
+remain unresolved. The composition keeps every primitive visible to later compiler inspection and
+lets backend prepare fuse a profitable pattern without placing a fused variant in model.
 
 Scaled dot-product attention remains a named high-level operation. Query `[...batch, L, E]`, key
 `[...batch, S, E]`, and value `[...batch, S, Ev]` broadcast batch/head prefixes and produce

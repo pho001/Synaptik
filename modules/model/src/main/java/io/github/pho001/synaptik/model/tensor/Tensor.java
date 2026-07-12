@@ -544,6 +544,97 @@ public final class Tensor {
     }
 
     /**
+     * Builds a linear projection from this input and a conventional rank-two weight.
+     *
+     * <p>The weight Shape is {@code [outFeatures, inFeatures]}; this input must have rank at least
+     * one and its final axis is {@code inFeatures}. Construction is exactly
+     * {@code this.matmul(weight.transpose())}. It first creates a rank-two PERMUTE {@code [1, 0]}
+     * expression for the weight, then a MATMUL expression with ordered inputs
+     * {@code [this, transposedWeight]}. The returned object is that exact MATMUL product, so one
+     * successful call creates two fresh tensors and two identifiers in PERMUTE-then-MATMUL order.
+     * No LINEAR operation or wrapper is created.</p>
+     *
+     * <p>Floating input/weight pairs and signed-integral input/weight pairs use current numeric
+     * promotion without an inserted cast. Static unequal feature extents fail locally; equality
+     * involving an unresolved contraction extent may remain for compiler validation or later
+     * binding because the contracted extent is absent from the result. The result preserves every
+     * leading input Dimension reference in order and appends the exact weight out-features
+     * Dimension. It has the promoted type, unresolved layout, propagated gradient eligibility,
+     * no label or storage, and MATMUL provenance at output index zero. The transposed weight may
+     * retain a resolved logical view layout when the original weight layout is resolved.</p>
+     *
+     * <p>Null, promotion, rank, and locally provable contraction validation completes before the
+     * first intermediate is created, so those failures consume no Tensor identifier. Identifier
+     * exhaustion after a successful intermediate does not roll back an already consumed ID. This
+     * method constructs storage-free model metadata only; it does not create layer or parameter
+     * state, evaluate values, define gradients, capture or optimize a graph, select fusion, choose
+     * a backend, or execute.</p>
+     *
+     * @param weight non-null rank-two weight tensor in
+     *     {@code [outFeatures, inFeatures]} orientation; it is retained unchanged as the PERMUTE
+     *     input and is not mutated
+     * @return the non-null fresh MATMUL product with Shape {@code [..., outFeatures]}, promoted
+     *     type, unresolved layout, no label or storage, and exact PERMUTE-to-MATMUL provenance
+     * @throws NullPointerException if {@code weight} is null, with message {@code weight}
+     * @throws IllegalArgumentException if input/weight numeric promotion fails; this input has rank
+     *     zero; weight does not have rank two; or both contraction Dimensions are static and unequal
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor linear(Tensor weight) {
+        return TensorLinearExpressions.apply(this, weight);
+    }
+
+    /**
+     * Builds a biased linear projection using a conventional rank-two weight and exact rank-one
+     * bias.
+     *
+     * <p>This convenience is exactly
+     * {@code this.matmul(weight.transpose()).add(bias)}. A null bias is invalid; callers select
+     * the no-bias form through {@link #linear(Tensor)}. The weight Shape is
+     * {@code [outFeatures, inFeatures]}, and bias must have exact rank one with its sole Dimension
+     * structurally equal to the weight's out-features Dimension. This is deliberately stricter
+     * than general broadcasting: a singleton bias is accepted only when out-features is itself the
+     * static singleton, and unequal unresolved Dimensions are rejected.</p>
+     *
+     * <p>After complete prevalidation, construction creates three fresh tensors and identifiers in
+     * exact order: PERMUTE {@code [1, 0]} of weight, MATMUL of
+     * {@code [this, transposedWeight]}, then ADD of {@code [product, bias]}. The returned result has
+     * ADD provenance at output index zero; its first input exposes the MATMUL product, whose second
+     * input exposes the transposed weight and its PERMUTE producer. No LINEAR producer exists.</p>
+     *
+     * <p>The result has the product Shape structurally, and reuses the exact ordered Dimension
+     * object references from that product, but ordinary ADD may create a distinct outer Shape
+     * object. Its type is product/bias promotion, layout is unresolved, gradient eligibility is
+     * the logical OR of input, weight, and bias requests, and label and storage are absent.
+     * Floating and signed-integral composition inherits current MATMUL and ADD numerical policy;
+     * this convenience defines no additional numeric or execution semantics.</p>
+     *
+     * <p>Null, promotion, rank, contraction, and exact bias validation completes before PERMUTE,
+     * so every caller-controlled local failure consumes no identifier and leaves no partial chain.
+     * Identifier exhaustion after one or more successful intermediates does not roll back their
+     * IDs. This method adds no layer/parameter ownership, initialization, gradient rule, compiler
+     * capture or fusion, backend lowering, storage, or execution behavior.</p>
+     *
+     * @param weight non-null rank-two weight tensor in
+     *     {@code [outFeatures, inFeatures]} orientation; retained unchanged and not mutated
+     * @param bias non-null rank-one bias whose sole Dimension structurally equals weight
+     *     out-features; retained unchanged as the ordered right ADD input and not mutated
+     * @return a non-null fresh ADD result with Shape structurally equal to the MATMUL product and
+     *     exact matching Dimension references, promoted type, unresolved layout, no label or
+     *     storage, and reachable PERMUTE-to-MATMUL-to-ADD provenance
+     * @throws NullPointerException if {@code weight} or {@code bias} is null, with the parameter
+     *     name as the message
+     * @throws IllegalArgumentException if input/weight or product/bias numeric promotion fails;
+     *     this input has rank zero; weight does not have rank two; static contraction Dimensions
+     *     differ; bias does not have rank one; or its sole Dimension is not structurally equal to
+     *     weight out-features
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor linear(Tensor weight, Tensor bias) {
+        return TensorLinearExpressions.apply(this, weight, bias);
+    }
+
+    /**
      * Creates a stable ascending full sort along one logical axis.
      *
      * <p>This convenience is exactly {@code sort(axis, false)}.</p>

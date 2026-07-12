@@ -888,6 +888,23 @@ Translation from a planned, backend-neutral graph region into a backend-specific
 
 Creating a concrete stored representation when a logical value or view cannot be consumed in its current form. For example, a backend route may require a contiguous copy of a strided view. Planning expresses logical materialization requirements; prepare and backend/runtime mechanisms realize the required storage and copy work. Materialization is not a property decided by `LayoutDescriptor` alone.
 
+### Linear projection
+
+A convenience that maps an input's final **in-features** axis to an **out-features** axis using a
+conventional rank-two weight with Shape `[outFeatures, inFeatures]`. The implemented
+`Tensor.linear(weight)` is exactly PERMUTE `[1, 0]` followed by MATMUL;
+`Tensor.linear(weight, bias)` adds an exact rank-one `[outFeatures]` bias through ordinary ADD.
+There is no LINEAR operation kind. The visible primitive producer chain remains available for
+future compiler inspection.
+
+The optional bias Dimension must be structurally equal to the weight out-features Dimension; this
+is stricter than general broadcasting. No-bias returns the MATMUL product directly. In the biased
+form, ADD produces a structurally equal final Shape with the exact product Dimension references,
+although its outer Shape object may be distinct. A linear projection here is storage-free model
+metadata, not a stateful linear layer: it owns no parameters, initialization, serialization,
+gradient rule, compiler pass, fusion, backend kernel, or execution. See
+[Linear-projection convenience](api/tensor-api.md#linear-projection-convenience).
+
 ### Masked reduction
 
 An aggregate `SUM` or `MEAN` that excludes input positions whose aligned boolean mask position is

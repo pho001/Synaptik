@@ -32,6 +32,7 @@ preserving coordinate changes from either raw `long...` dimensions or an exact n
 `Shape`. Two `expand` overloads add directional right-aligned singleton and leading-axis
 repetition with locally derived zero-stride view geometry when possible. `permute(int...)` adds
 arbitrary complete axis reordering, and `transpose()` adds its rank-two `[1, 0]` convenience.
+Two `linear` overloads compose that transpose with MATMUL and optional exact rank-one ADD bias.
 `expandDims(int)` inserts one singleton axis, while `squeeze(int)` removes one selected statically
 known singleton axis. `slice(long[], long[], int[], long[])` adds general signed-step directional
 half-open selection. `sliceAxis(int, long, long)` supplies its one-axis step-one convenience,
@@ -5802,6 +5803,122 @@ Its one-output provenance has index zero and retains `MatmulKind.MATMUL`,
 gradient request, not a gradient rule. It neither captures or compiles a graph nor promises
 compiler validation, backend lowering, a kernel, storage allocation, or execution.
 
+### Linear-projection convenience
+
+`input.linear(weight)` and `input.linear(weight, bias)` expose the conventional parameter layout
+used by a linear projection without introducing a LINEAR operation. Weight has Shape
+`[outFeatures, inFeatures]`, while MATMUL needs its right operand as
+`[inFeatures, outFeatures]`. The public convenience is therefore literal composition:
+
+```text
+input.linear(weight)       = input.matmul(weight.transpose())
+input.linear(weight, bias) = input.matmul(weight.transpose()).add(bias)
+```
+
+Input rank must be at least one. Its final Dimension is `inFeatures`; every preceding input
+Dimension is retained in order, and the exact weight axis-zero `outFeatures` Dimension becomes
+the final result Dimension. Weight must have rank two. Optional bias is not general broadcasting:
+it must have exact rank one, and its sole Dimension must be structurally equal to weight
+out-features. A null bias is invalid; omit bias by selecting the one-argument overload.
+
+| Input | Weight | Bias | Result |
+|---|---|---|---|
+| `[K]` | `[N, K]` | absent or `[N]` | `[N]` |
+| `[B, K]` | `[N, K]` | absent or `[N]` | `[B, N]` |
+| `[B, T, K]` | `[N, K]` | absent or `[N]` | `[B, T, N]` |
+
+Floating pairs and signed-integral pairs inherit current MATMUL promotion. In the biased form,
+the product and bias are promoted again by ordinary ADD, so a wider bias may widen only the final
+result. No cast is inserted. Static unequal contraction Dimensions fail locally; equality
+involving an unresolved contraction extent may remain for later compiler validation or binding.
+Bias equality never defers: named and expression Dimensions must be structurally equal, and
+identity-based unknowns must be the same unknown.
+
+Every caller-controlled null, promotion, rank, static contraction, and bias failure is validated
+before construction, so no partial expression or Tensor ID is created. A successful no-bias call
+creates two fresh wrappers and IDs in PERMUTE-then-MATMUL order and returns the MATMUL product
+directly. A successful biased call creates three in PERMUTE-then-MATMUL-then-ADD order. Tensor-ID
+exhaustion after an earlier intermediate does not roll back that consumed ID.
+
+The no-bias result ends in MATMUL provenance. The biased result ends in ADD provenance with
+ordered inputs `[product, bias]`; the product exposes MATMUL inputs `[input, transposedWeight]`,
+and the transposed weight exposes PERMUTE input `[weight]` with axes `[1, 0]`. Every link has one
+output at provenance index zero. PERMUTE may preserve a resolved logical view layout, while
+MATMUL and ADD results are unresolved, unlabeled, and storage-free. The biased ADD Shape is
+structurally equal to the product Shape and reuses its exact ordered Dimension object references,
+but the outer Shape objects may differ. No-bias returns the product itself.
+
+#### Complete producer-chain example
+
+The example constructs a biased FLOAT32 projection from input `[2, 3]`, conventional weight
+`[4, 3]`, and bias `[4]`, then inspects the primitive producer chain.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProducer;
+import java.util.Optional;
+
+public final class LinearProducerChainExample {
+    public static void main(String[] args) {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), true));
+        Tensor weight = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(4, 3), Optional.empty(), true));
+        Tensor bias = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(4), Optional.empty(), true));
+
+        Tensor output = input.linear(weight, bias);
+        TensorProducer add = output.provenance().orElseThrow().producer();
+        Tensor product = add.inputs().getFirst();
+        TensorProducer matmul = product.provenance().orElseThrow().producer();
+        Tensor transposedWeight = matmul.inputs().get(1);
+        TensorProducer permute = transposedWeight.provenance().orElseThrow().producer();
+        PermutationAttrs attrs = (PermutationAttrs) permute.operation().attrs();
+
+        System.out.println(output.descriptor().shape());
+        System.out.println(add.operation().kind());
+        System.out.println(add.inputs().get(0) == product && add.inputs().get(1) == bias);
+        System.out.println(matmul.operation().kind());
+        System.out.println(matmul.inputs().get(0) == input
+                && matmul.inputs().get(1) == transposedWeight);
+        System.out.println(permute.operation().kind());
+        System.out.println(permute.inputs().getFirst() == weight);
+        System.out.println(attrs.axes());
+        System.out.println(output.provenance().orElseThrow().outputIndex() + ","
+                + product.provenance().orElseThrow().outputIndex() + ","
+                + transposedWeight.provenance().orElseThrow().outputIndex());
+        System.out.println(product.descriptor().shape().equals(output.descriptor().shape()));
+        System.out.println(product.descriptor().shape() == output.descriptor().shape());
+    }
+}
+```
+
+It prints:
+
+```text
+Shape[2, 4]
+ADD
+true
+MATMUL
+true
+PERMUTE
+true
+[1, 0]
+0,0,0
+true
+false
+```
+
+The final two lines distinguish structural Shape equality from outer Shape identity. Corresponding
+axes still reuse the exact input/product Dimension references. The example proves model metadata
+and ordered producer connectivity only; it does not evaluate numbers, capture a compiled graph,
+construct gradients, prove compiler recognition, or promise backend fusion or execution.
+
 ### Matrix-multiplication semantic kind
 
 `MatmulKind` contains exactly `MATMUL`. The kind pairs only with
@@ -7673,6 +7790,12 @@ higher floating or signed-integral operands. Construction promotes within one nu
 derives exact vector/matrix/broadcast-batch Shape metadata, defers only the documented unresolved
 obligations, and records fresh ordered two-input provenance. It performs no multiplication,
 gradient construction, compiler capture, backend selection, or execution.
+The two public `linear` overloads are current explicit composition over rank-two PERMUTE,
+MATMUL, and optional exact rank-one ADD bias. They introduce no LINEAR kind or layer state, fully
+prevalidate caller-controlled failures before intermediate IDs, and leave the primitive producer
+chain visible. The biased result is Shape-equal to its MATMUL product with exact corresponding
+Dimension references, but its outer Shape object may be distinct. Compiler capture, recognition,
+fusion, gradients, backend support, and execution remain planned.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and
