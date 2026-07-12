@@ -801,6 +801,14 @@ scalar values](api/tensor-api.md#exact-typed-scalar-values).
 
 A value whose purpose is to carry structured data across a boundary without owning the behavior that produced it. Synaptik's planned trace module uses typed DTOs so diagnostic consumers receive explicit fields without importing compiler, runtime, or backend business objects.
 
+### Dense target
+
+A dense target supplies one floating weight for every class in a categorical-loss slice. For
+current dense categorical cross entropy, its Shape matches logits exactly and each class-axis
+slice carries a caller obligation to be finite, non-negative, and normalized to one. It differs
+from a class-index target, which would identify one class with an integer and is not implemented
+by the current dense-target method.
+
 ### Dimension
 
 The size description for one axis of a [shape](#shape). A `StaticDimension` has a known
@@ -966,7 +974,8 @@ Translation from a planned, backend-neutral graph region into a backend-specific
 A backend-independent computation meaning that compares model predictions with target values and
 produces one or more error values. A **prediction** is the model-produced operand being assessed;
 a **target** is the caller-supplied reference operand it is compared with. The current implemented
-loss family contains only [mean-squared error](#mean-squared-error--mse). A loss operation is model
+loss family contains [mean-squared error](#mean-squared-error--mse) and dense-target categorical
+cross entropy directly from logits. A loss operation is model
 metadata, not a gradient rule, optimizer, training session, compiler pass, backend kernel, or
 executed value.
 
@@ -978,6 +987,12 @@ combines the complete domain into one scalar; and `MEAN`, which divides that sum
 family-defined denominator. The vocabulary stores no default, axis, denominator, weight, mask,
 ignore value, Tensor, or executable behavior. It is distinct from aggregate Tensor reduction
 because a loss first combines ordered prediction and target roles.
+
+### Logit
+
+An unnormalized score for one class. Dense categorical cross entropy consumes logits directly so
+its negative log-softmax meaning remains one stable semantic operation rather than first
+materializing probabilities.
 
 ### Materialization
 
@@ -1542,6 +1557,13 @@ Runtime knowledge of where a value's current physical representation exists, suc
 ### Run state / `RunState`
 
 Mutable state for one invocation of prepared execution, including input bindings, runtime slots, resources, and current residency facts as defined by future runtime contracts. It is separate from reusable `PreparedExecution` and immutable compile artifacts.
+
+### Sample domain
+
+For a class-axis loss, the sample domain is the coordinate space remaining after the class axis is
+removed. Its logical element count is the denominator for current dense categorical-cross-entropy
+`MEAN`; it is not the class count, logits element count, positive-target count, or target-weight
+sum.
 
 ### Shape
 

@@ -769,6 +769,62 @@ public final class Tensor {
     }
 
     /**
+     * Builds dense-target categorical cross-entropy directly from these logits.
+     *
+     * <p>The target must have the exact logits rank and positionally compatible dimensions; no
+     * broadcasting or implicit cast is inserted. {@code classAxis} accepts the Shape range
+     * {@code [-rank, rank - 1]} and is stored normalized. For each non-class coordinate the
+     * semantic loss is target-weighted negative log-softmax, evaluated from logits through stable
+     * log-sum-exp meaning. Specifically, for each slice, {@code m = max_c(z[c])},
+     * {@code lse = m + log(sum_c(exp(z[c] - m)))}, and
+     * {@code loss = sum_c(t[c] * (lse - z[c]))}, except that an exact-zero target weight always
+     * contributes exact positive zero. Target entries carry a caller/execution obligation to be
+     * finite, non-negative, and normalized along the class axis; construction reads no values and
+     * neither diagnoses nor renormalizes them. Obligation-violating targets have no portable
+     * categorical-result guarantee.</p>
+     *
+     * <p>{@link LossReduction#NONE} removes the class axis. Sum and mean return scalar Shape, with
+     * mean dividing by the number of non-class groups. An empty group domain produces empty none,
+     * positive-zero sum, and NaN mean. A non-empty group domain requires positive class extent;
+     * unresolved cases remain for later compiler binding. BFLOAT16 and FLOAT32 use FLOAT32
+     * computation meaning, while FLOAT64 uses FLOAT64; the public result has the floating type
+     * promoted from logits and target.</p>
+     *
+     * <p>For an obligation-satisfying target slice, any NaN or positive-infinity logit makes the
+     * group loss NaN, as does a slice whose logits are all negative infinity. If at least one logit
+     * is finite, a positive target weight on a negative-infinity logit makes the group loss
+     * positive infinity, while an exact-zero weight on that class contributes positive zero.
+     * Finite logits use stable log-sum-exp without exponential overflow, though later subtraction,
+     * weighting, or accumulation may still overflow or underflow in the selected computation
+     * format.</p>
+     *
+     * <p>The result has promoted floating type, unresolved layout, and gradient eligibility equal
+     * to the input logical OR. One fresh storage-free producer records ordered
+     * {@code [logits, target]} provenance at output index zero. This method defines no gradient,
+     * compiler, backend, runtime, execution, or training behavior.</p>
+     *
+     * @param target non-null BFLOAT16, FLOAT32, or FLOAT64 dense target with exact compatible
+     *     logits Shape and the stated probability-distribution value obligation
+     * @param classAxis positive or negative class axis in the logits Shape
+     * @param reduction non-null explicit none, sum, or sample-domain mean reduction
+     * @return fresh unlabeled, storage-free loss tensor with promoted type, selected Shape,
+     *     combined gradient eligibility, unresolved layout, and output-index-zero provenance
+     * @throws NullPointerException if {@code target} or {@code reduction} is null, checked in that
+     *     order
+     * @throws IndexOutOfBoundsException if {@code classAxis} is outside the logits rank, including
+     *     every axis for scalar logits
+     * @throws IllegalArgumentException if logits or target is not floating, target rank or static
+     *     dimensions mismatch, or class extent is statically zero for a definitely non-empty
+     *     sample domain
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor categoricalCrossEntropyWithLogits(
+            Tensor target, int classAxis, LossReduction reduction) {
+        return TensorLossExpressions.categoricalCrossEntropyWithLogits(
+                this, target, classAxis, reduction);
+    }
+
+    /**
      * Builds a linear projection from this input and a conventional rank-two weight.
      *
      * <p>The weight Shape is {@code [outFeatures, inFeatures]}; this input must have rank at least

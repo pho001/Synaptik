@@ -4376,6 +4376,81 @@ capture, deferred equality proof, decomposition, backend support, numerical exec
 behavior, or training-session coordination. The compiler, backend prepare, runtime, and training
 extension retain those separate planned responsibilities.
 
+### Dense-target categorical-cross-entropy-with-logits expressions
+
+Dense-target categorical cross entropy compares one logits slice with a full probability target
+slice. A *logit* is an unnormalized class score; a *dense target* supplies one floating weight for
+every class rather than one class index. The receiver is logits and the class axis is explicit:
+
+```java
+public Tensor categoricalCrossEntropyWithLogits(
+        Tensor target, int classAxis, LossReduction reduction)
+```
+
+Logits and target occupy producer input positions zero and one. Each must be BFLOAT16, FLOAT32,
+or FLOAT64, and floating promotion selects the result type without inserting a cast Tensor. They
+must have equal rank and positionally compatible Dimensions; broadcasting is not supported.
+Unequal static Dimensions fail locally, while a non-equal pair involving an unresolved Dimension
+records an equality obligation for later compiler binding. The class axis accepts
+`[-rank, rank - 1]` and is stored once as a normalized non-negative logits axis.
+
+For every coordinate group `g` outside the class axis, stable target-weighted log-softmax means:
+
+```text
+m[g]    = max_c(logits[g,c])
+lse[g]  = m[g] + log(sum_c(exp(logits[g,c] - m[g])))
+loss[g] = sum_c(target[g,c] * (lse[g] - logits[g,c]))
+```
+
+An exact zero target weight contributes positive zero even when its selected log probability is
+negative infinity. Each target slice carries a caller obligation to contain finite, non-negative
+weights normalized to one along the class axis. Construction reads no target values, does not
+diagnose that obligation, and neither clips nor renormalizes weights.
+
+For logits `[1, 2, 3]`, `lse` is approximately `3.407605964`. A one-hot dense target `[0, 0, 1]`
+therefore gives loss `0.407605964`. A target `[0.2, 0.3, 0.5]` gives
+`0.2 * 2.407605964 + 0.3 * 1.407605964 + 0.5 * 0.407605964 = 1.107605964`.
+These are mathematical illustrations; constructing a Tensor expression does not evaluate them.
+The formulation is comparable to official
+[PyTorch cross entropy](https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html)
+and [JAX log-softmax](https://docs.jax.dev/en/latest/_autosummary/jax.nn.log_softmax.html), while
+Synaptik deliberately provides no default axis, class-index target, ignore index, weight, or label
+smoothing in this method.
+
+Let `S` be the number of coordinate groups after removing the class axis:
+
+| Reduction | Result | Result Shape |
+|---|---|---|
+| `LossReduction.NONE` | One `loss[g]` per non-class group | Logits Shape with the class axis removed |
+| `LossReduction.SUM` | `sum_g(loss[g])` | Shared `Shape.scalar()` |
+| `LossReduction.MEAN` | `sum_g(loss[g]) / S` | Shared `Shape.scalar()` |
+
+The mean denominator is sample count `S`, not class count, logits element count, positive-target
+count, or target-weight sum. Rank-one logits have `S = 1`. If a non-class extent is zero,
+`S = 0`: `NONE` is empty, `SUM` is positive zero, and `MEAN` is NaN. A non-empty sample domain
+requires positive class extent. A statically zero class extent with a known non-empty sample
+domain fails locally; unresolved cases retain the obligation `S == 0 || classExtent > 0`.
+
+BFLOAT16 and FLOAT32 results use FLOAT32 computation; FLOAT64 results use FLOAT64. NaN or positive
+infinity in a logits slice makes its loss NaN. An all-negative-infinity slice is also NaN. With
+at least one finite logit, a positive target weight on a negative-infinity class contributes
+positive infinity, whereas a zero weight contributes positive zero. Finite logits use stable
+log-sum-exp, although later weighting or accumulation may still overflow. Exact-zero finite
+losses are positive zero. Invalid target values violate the caller obligation and have no portable
+categorical-result guarantee.
+
+Each successful call creates one fresh unlabeled, storage-free Tensor with unresolved layout, one
+producer, one ID, and output-index-zero provenance over exact ordered inputs `[logits, target]`.
+`requiresGrad` is metadata equal to the logical OR of input eligibility; it does not define a
+gradient rule. Construction adds no softmax, log-softmax, log-sum-exp, arithmetic, or reduction
+sub-producers and mutates neither input.
+
+These are current model-expression facts only. Compiler capture must later revalidate operands
+and prove deferred Shape and class-extent obligations. Gradient construction and legal
+decomposition belong to the compiler; stable lowering and tolerance satisfaction belong to
+backend preparation; runtime executes prepared work; training sessions may later consume the
+loss Tensor. None of those lifecycle stages is implemented by this method.
+
 ### Contiguous expressions
 
 The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result

@@ -52,9 +52,15 @@ class TensorMeanSquaredErrorExpressionTest {
                 () -> assertFalse(Modifier.isPublic(TensorLossExpressions.class.getModifiers())),
                 () -> assertEquals(0, TensorLossExpressions.class.getDeclaredFields().length),
                 () -> assertEquals(0, TensorLossExpressions.class.getDeclaredClasses().length),
-                () -> assertEquals(Set.of("meanSquaredError", "requireFloating", "validateExactShape"),
+                () -> assertEquals(Set.of(
+                                "meanSquaredError",
+                                "categoricalCrossEntropyWithLogits",
+                                "requireFloating",
+                                "validateExactShape",
+                                "validateClassExtent",
+                                "removeAxis"),
                         methodNames),
-                () -> assertEquals(186, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(187, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertEquals(1, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))

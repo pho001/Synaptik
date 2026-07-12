@@ -266,7 +266,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0021B | [Batch-normalization inference](tasks/0021b-batch-normalization-inference.md) | Complete | 0018K, 0018L, 0018N, 0018V, 0021–0021A | Added stateless layout-neutral per-channel inference with mandatory explicit affine/running-statistic inputs, exact typed epsilon, one output, and no hidden mode or mutation. |
 | 0021C | [Batch-normalization training and statistic transition](tasks/0021c-batch-normalization-training-and-statistic-transition.md) | Complete | 0021B, 0018L, 0018N, 0018V | Added one pure five-input/five-output training occurrence with explicit next running statistics and hidden saved mean/inverse-standard-deviation outputs, without cross-step state ownership. |
 | 0022 | [Mean-squared-error loss](tasks/0022-mean-squared-error-loss.md) | Complete | 0018K, 0018N, 0018V | Added the minimal dense regression loss with exact-shape targets and explicit `NONE`/`SUM`/`MEAN` reduction and empty-domain policy. |
-| 0022A | Dense-target categorical cross-entropy with logits | Draft | 0022, 0016I–0016J | Add exact-shape floating targets, explicit class axis, stable logits semantics, and the shared loss reductions without ignore-index behavior. |
+| 0022A | [Dense-target categorical cross-entropy with logits](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) | Complete | 0022, 0016I–0016J | Added one exact-shape floating-target logits loss with normalized class axis, stable target-weighted log-softmax, sample-count mean, and no ignore-index or broad options surface. |
 | 0022B | Index-target categorical cross-entropy with logits | Draft | 0022A, 0018O | Add INT32/INT64 class-index targets with class-axis removal, explicit optional ignore index, non-ignored mean denominator, and execution-time bounds obligations. |
 | 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022B including 0020A–0020A1 and 0021A–0021C | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
 | 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
@@ -282,10 +282,10 @@ Operation-family subpackages are introduced only when a focused operation task d
   - foundation-contract checkpoint after 0018N;
   - public-surface cleanup checkpoint after 0018S; and
   - completed capability-reset checkpoint after 0018V.
-- Selected modern operation families: tasks 0019–0022, including 0019A–0019A2, 0019B–0019E,
+- Selected modern operation families: tasks 0019–0022B, including 0019A–0019A2, 0019B–0019E,
   0020A–0020A1, and 0021A–0021C;
   checkpoint after
-  0022 before compiler-generated semantic work
+  0022B before compiler-generated semantic work
 - Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
@@ -350,8 +350,10 @@ renumbering 0022–0024: focused task 0021 is Complete for layer normalization, 
 [0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete for RMS
 normalization. Focused [task 0021B](tasks/0021b-batch-normalization-inference.md) is Complete.
 Task [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete.
-Completed [task 0022](tasks/0022-mean-squared-error-loss.md) is the only detailed loss specification.
-Tasks 0022A–0022B and established tasks 0023–0024 remain Draft without detailed specifications.
+Completed [task 0022](tasks/0022-mean-squared-error-loss.md) establishes shared loss reduction.
+[Task 0022A](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is Complete. Task
+0022B and established tasks 0023–0024 remain Draft without
+detailed specifications.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -417,9 +419,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 - Exact public overloads and operation-attribute record boundaries remain local to the applicable
   focused task.
-- Dense and index categorical-loss details remain intentionally Draft until task 0022 completes
-  and establishes the shared reduction vocabulary. Their rows select family order but do not
-  authorize implementation or act as detailed specifications.
+- Task 0022A now fixes the dense-target categorical-loss contract. Index-target Shape, ignore
+  index, bounds, and non-ignored denominator details remain intentionally Draft for task 0022B.
 
 ## Decisions made
 
@@ -427,9 +428,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
-- The former broad loss row is split without renumbering established tasks 0023–0024. Ready task
-  0022 establishes one exact-shape mean-squared-error operation and shared explicit loss reduction.
-  Draft task 0022A then owns dense floating categorical cross-entropy from logits; Draft task
+- The former broad loss row is split without renumbering established tasks 0023–0024. Completed
+  task 0022 establishes one exact-shape mean-squared-error operation and shared explicit loss
+  reduction. Completed task 0022A owns one exact-shape dense floating categorical cross-entropy from
+  logits with normalized class axis, stable target weighting, and sample-count mean; Draft task
   0022B owns index-target logits cross-entropy, class-axis removal, ignore index, and its
   non-ignored denominator. Standalone probability-input cross entropy, standalone log-probability
   negative-log-likelihood, weights, masks, label smoothing, binary cross entropy, and additional
@@ -1515,8 +1517,8 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 [0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete. Task
 0021B is Complete. Task
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
-0022 is Complete with its one detailed specification. Tasks 0022A–0022B and 0023–0024 remain Draft
-without detailed specifications.
+0022 and 0022A are Complete; tasks 0022B and
+0023–0024 remain Draft without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1590,7 +1592,7 @@ complete with public functional Scatter-ND expression construction. The capabili
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
 Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Complete. Task
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
-0022 is Complete with its one detailed specification. Tasks 0022A–0022B and 0023–0024 remain Draft
-without detailed specifications.
+0022 and 0022A are Complete; tasks 0022B and
+0023–0024 remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

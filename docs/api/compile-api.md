@@ -339,6 +339,17 @@ This is compiler-visible requested meaning only. Capture, revalidation, represen
 of deferred equality, gradient or adjoint construction, legal decomposition, optimization,
 lowering, backend support, runtime execution, and training coordination remain planned in their
 owning layers.
+`Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
+model metadata with ordered inputs `[logits, target]`. It records a normalized class axis,
+explicit loss reduction, promoted floating result type, exact-or-deferred positional Shape
+compatibility, and target-weighted stable log-softmax meaning. `NONE` removes the class axis;
+`SUM` and `MEAN` are scalar, and mean divides by the class-axis-removed sample count. Dense target
+values remain a finite, non-negative, class-normalized caller obligation that model construction
+does not inspect or enforce. A non-empty sample domain also requires positive class extent, with
+unresolved cases deferred. This metadata does not imply compiler support: capture, operand
+revalidation, proof of deferred equality and class-extent obligations, target-obligation policy,
+gradient or adjoint construction, legal decomposition and optimization, backend lowering,
+runtime execution, and training coordination remain planned in their owning layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and

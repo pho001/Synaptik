@@ -466,10 +466,13 @@ The former broad task 0022 is split at target representation and denominator bou
 preserving established task IDs 0023–0024. Completed
 [task 0022](tasks/0022-mean-squared-error-loss.md) established `NONE`, `SUM`, and `MEAN` as
 explicit loss reductions through one exact-shape
-mean-squared-error operation. Draft task 0022A will add dense floating categorical cross-entropy
-directly from logits with an explicit class axis. Draft task 0022B will add INT32/INT64 index-target
+mean-squared-error operation. Completed
+[task 0022A](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) adds dense
+floating categorical cross-entropy directly from logits with an explicit class axis. Draft task
+0022B will add INT32/INT64 index-target
 categorical cross-entropy from logits, class-axis removal, optional ignore index, and a `MEAN`
-denominator equal to the non-ignored target count. Only task 0022 has a detailed specification.
+denominator equal to the non-ignored target count. Task 0022B remains Draft without a detailed
+specification.
 
 Mean-squared error is the intentionally small regression baseline. Prediction and target Shapes
 must match positionally; the operation does not broadcast targets. `NONE` preserves the exact
@@ -488,10 +491,15 @@ denominator. Both families will accept rank-at-least-one floating logits and an 
 class axis. Dense targets will be floating and promoted with logits; index targets will be exact
 INT32 or INT64. `NONE` will produce the logits Shape with the class axis removed, while `SUM` and
 `MEAN` will be scalar. Dense `MEAN` will divide by the number of class-axis-removed groups, not by
-the class count or target-value sum. Index `MEAN` will divide by the non-ignored group count; an
-all-ignored or otherwise empty mean will be NaN, while the matching sum will be positive zero.
-A non-empty group domain will require a positive class extent. Non-ignore index bounds remain an
-execution-time obligation because model construction reads no target values. These target
+the class count or target-value sum. Dense target values carry a finite, non-negative,
+class-normalized caller obligation, but model construction will read no values, reject none, and
+will not renormalize supplied weights. Its one first-class loss will use target-weighted stable
+log-softmax directly from logits, including a positive-zero contribution for an exact zero target
+weight. Index `MEAN` will divide by the non-ignored group count; an all-ignored or otherwise empty
+mean will be NaN, while the matching sum will be positive zero. A non-empty group domain will
+require a positive class extent; zero class extent is valid only for an empty group domain, with
+unresolved cases deferred. Non-ignore index bounds remain an execution-time obligation because
+model construction reads no target values. These target
 alternatives and reductions are comparable to official
 [PyTorch cross entropy](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.cross_entropy)
 and [ONNX SoftmaxCrossEntropyLoss](https://onnx.ai/onnx/operators/onnx__SoftmaxCrossEntropyLoss.html),
