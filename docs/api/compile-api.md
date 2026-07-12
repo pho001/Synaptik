@@ -145,6 +145,16 @@ key/value sequence equality, batch singleton-or-equal, and mask singleton-or-equ
 obligations for later compiler validation or concrete binding. This is compiler-visible metadata,
 not current compiler support: no capture, revalidation, constraint representation, legal
 decomposition, attention gradient, saved value, backend lowering, or execution is implemented.
+`Tensor.conv2d(weight, attrs)` and `Tensor.conv2d(weight, bias, attrs)` are current first-class
+grouped NCHW cross-correlation model construction. Each call records one `CONV2D` occurrence with
+exact ordered inputs, intrinsic stride/padding/dilation/group attributes, promoted floating
+descriptor, and static or canonical-symbolic output Shape. Input and weight have Shapes
+`[N, C_in, H, W]` and `[C_out, C_in/groups, K_h, K_w]`; optional bias has `[C_out]`.
+Unresolved channel divisibility, grouped weight/input equality, bias/output equality, and dynamic
+spatial non-negativity remain obligations for future compiler validation or concrete binding.
+This metadata does not mean the current repository compiles convolution. Capture, constraint
+representation and proof, legal decomposition, convolution gradients/adjoints and saved values,
+backend lowering, algorithm selection, and execution remain planned in their owning layers.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
@@ -412,7 +422,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum and softmax/log-softmax construction, plus first-class scaled-dot-product-attention
-  construction with optional BOOL mask and scale/causal attributes, plus static-resolved or
+  construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
+  construction with optional bias and exact geometry/group attributes, plus static-resolved or
   dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
@@ -436,7 +447,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   shared-producer traversal and output-slot capture,
   compiler-generated `FOLD_AXIS` construction, deferred
   dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
-  validation placement, attention deferred-constraint proof, layout materialization
+  validation placement, attention and convolution deferred-constraint proof, legal convolution
+  decomposition and convolution-gradient construction, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps

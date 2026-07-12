@@ -733,6 +733,19 @@ unresolved extent is deferred because the contraction extent is absent from the 
 The term describes mathematical and Shape meaning, not an accumulation loop or kernel choice.
 See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
+### Convolution / Conv2d
+
+Current `Tensor.conv2d` records grouped two-dimensional cross-correlation in NCHW order: batch,
+channel, height, width. Cross-correlation uses the weight kernel in stored order; it does not
+reverse the kernel as mathematical convolution does. Input Shape is `[N, C_in, H, W]`, weight is
+`[C_out, C_in/groups, K_h, K_w]`, optional bias is `[C_out]`, and result is
+`[N, C_out, H_out, W_out]`. A group selects one contiguous input-channel subset and its associated
+output channels. Dilation is the positive spacing between stored kernel positions; the effective
+kernel extent is `dilation * (kernel - 1) + 1`. Symmetric conceptual positive-zero padding is
+applied on both sides of each spatial axis. Current model construction derives metadata and
+provenance only; compiler binding/capture/decomposition/gradients, backend algorithms, and
+execution remain planned. See [Tensor API](api/tensor-api.md#grouped-nchw-conv2d-expressions).
+
 ### Data type / `DataType`
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
@@ -907,7 +920,11 @@ or raw-access contract. See [Host-visible storage](api/tensor-api.md#host-visibl
 
 ### Kernel
 
-A concrete backend implementation route for executing prepared work, such as a scalar CPU routine, an OpenBLAS call, a Metal kernel, or a CUDA kernel. Planning never selects kernels. The owning backend selects a kernel or other executable route during prepare.
+A concrete backend implementation route for executing prepared work, such as a scalar CPU
+routine, an OpenBLAS call, a Metal kernel, or a CUDA kernel. Planning never selects executable
+kernels. The owning backend selects one during prepare. In convolution documentation, **weight
+kernel** instead means the logical `K_h` by `K_w` coefficient window stored in the weight Tensor;
+that semantic kernel is not an executable implementation route.
 
 ### Layout
 

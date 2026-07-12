@@ -507,12 +507,29 @@ known static `k > extent`, before wrapper/ID allocation. Its exact failures are
 `k must not exceed selected static extent: k=<k>, axis=<axis>, extent=<extent>`. A dynamic extent
 records the deferred inequality instead of choosing a backend-dependent result.
 
+### Convolution and pooling frontier
+
+Completed task 0020 adds grouped NCHW two-dimensional cross-correlation with weight-derived
+static kernels, optional exact output-channel bias, ordered floating promotion, selected
+accumulation/special-value meaning, and floor-mode static or symbolic spatial results. For dynamic
+spatial extent `D`, symmetric padding `p`, dilation `d`, static kernel `k`, and stride `s`, current
+construction retains the canonical equivalent of
+`floor((D + 2p - (d * (k - 1) + 1)) / s) + 1`; static invalid geometry fails locally and unresolved
+validity remains a compiler/binding obligation. Exact descriptors and attributes likewise retain
+unresolved grouped-channel and bias-channel obligations. Construction records one fresh
+storage-free result and exact two- or three-input provenance without evaluation, gradients,
+compiler capture, algorithms, backend support, or execution.
+
+Draft 0020A owns max/average pooling because literal windows, padding/divisor policies, ceil mode,
+and all-padding windows are a distinct contract. Existing `Window2dAttrs` remains specific to
+unfold/fold.
+
 ### Important shortly afterward
 
 - `cumProd` after its zero, overflow, and gradient policies are specified;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
-- convolution and max/average pooling after symbolic extent expressions are complete;
+- NCHW max/average pooling after focused Conv2d establishes the shared spatial precedent;
 - batch normalization, including explicit training/inference statistics and auxiliary outputs;
 - graph random sampling operations using the explicit RNG-state contract; and
 - FLOAT16 before accelerator mixed-precision inference or training is claimed.

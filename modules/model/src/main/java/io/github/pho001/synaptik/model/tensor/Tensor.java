@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -70,7 +71,8 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise, matrix-multiplication, and scaled-dot-product-attention expression methods create
+ * elementwise, matrix-multiplication, grouped NCHW convolution, and scaled-dot-product-attention
+ * expression methods create
  * fresh storage-free tensors
  * whose immutable provenance records the requested semantics and exact inputs; they do not execute mathematics, validate
  * numerical domains, create gradient rules, or capture a graph.
@@ -504,6 +506,92 @@ public final class Tensor {
      */
     public Tensor pow(Tensor right) {
         return TensorBinaryExpressions.apply(this, right, BinaryArithmeticKind.POW);
+    }
+
+    /**
+     * Builds grouped NCHW two-dimensional cross-correlation without bias.
+     *
+     * <p>This input has Shape {@code [N, C_in, H, W]}; {@code weight} has Shape
+     * {@code [C_out, C_in/groups, K_h, K_w]}. Both must be rank-four floating tensors, kernel
+     * extents must be statically known and positive, and every statically provable grouped-channel
+     * relation must hold. Relations involving unresolved channel Dimensions remain compiler or
+     * binding obligations retained by exact descriptors and attributes.</p>
+     *
+     * <p>For input spatial extent {@code D}, kernel {@code k}, symmetric padding per side
+     * {@code p}, dilation {@code d}, and stride {@code s}, the output extent is
+     * {@code floor((D + 2p - (d(k - 1) + 1)) / s) + 1}. Static geometry rejects a negative
+     * numerator; dynamic geometry retains this exact canonical formula and defers non-negativity.
+     * The result Shape is {@code [N, C_out, H_out, W_out]} and preserves the exact input batch and
+     * weight output-channel Dimension references.</p>
+     *
+     * <p>Input and weight types promote through the floating hierarchy. FLOAT64 output accumulates
+     * in FLOAT64; FLOAT32 and BFLOAT16 output accumulate in FLOAT32, with final conversion for
+     * BFLOAT16. Each output is the increasing-logical-index sum over its contiguous channel group
+     * and kernel positions. Out-of-range coordinates are conceptual positive zero and participate
+     * in ordinary IEEE-754 multiplication, including with infinity. NaN, infinity, and signed zero
+     * otherwise follow ordinary multiplication and addition. An empty channel contraction starts
+     * at positive zero. Reassociation and fused multiply-add are permitted without a fixed-order
+     * or bitwise cross-backend guarantee.</p>
+     *
+     * <p>The fresh result has promoted type, exact derived Shape, unresolved layout, gradient
+     * request equal to the input/weight logical OR, no label or storage, and exact ordered
+     * provenance {@code [this, weight]} at output index zero. This method reads no values, reverses
+     * no kernel, and provides no gradient rule, compiler capture, decomposition, algorithm,
+     * backend support, allocation, runtime, or execution behavior.</p>
+     *
+     * @param weight non-null rank-four floating weight retained as ordered input one and not
+     *     mutated
+     * @param attrs non-null immutable stride, padding, dilation, and group semantics retained by
+     *     exact reference
+     * @return non-null fresh unlabeled storage-free output with promoted type, NCHW Shape,
+     *     unresolved layout, propagated gradient request, and two-input CONV2D provenance
+     * @throws NullPointerException if {@code weight} or {@code attrs} is null, checked in that
+     *     order with the parameter name as message
+     * @throws IllegalArgumentException if floating, rank, kernel, grouped-channel, or spatial
+     *     geometry validation fails
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor conv2d(Tensor weight, Conv2dAttrs attrs) {
+        return TensorConv2dExpressions.apply(this, weight, attrs);
+    }
+
+    /**
+     * Builds grouped NCHW two-dimensional cross-correlation with per-output-channel bias.
+     *
+     * <p>This input and {@code weight} follow {@link #conv2d(Tensor, Conv2dAttrs)}. The non-null
+     * floating {@code bias} has exact rank one and Shape {@code [C_out]}; a statically known bias
+     * length must equal the statically known weight output-channel extent. Unresolved equality is
+     * deferred because the exact descriptors remain in provenance.</p>
+     *
+     * <p>Floating promotion processes input and weight first, then bias. Bias participates exactly
+     * once in the selected accumulation domain before the final output conversion. All shape,
+     * grouping, conceptual-padding, special-value, reassociation, and determinism policies are
+     * otherwise identical to the unbiased form.</p>
+     *
+     * <p>The fresh result has unresolved layout, no label or storage, gradient request equal to the
+     * logical OR across all three inputs, and exact ordered provenance
+     * {@code [this, weight, bias]} at output index zero. Construction performs no value work,
+     * mutation, gradient definition, graph capture, lowering, algorithm selection, allocation, or
+     * execution.</p>
+     *
+     * @param weight non-null rank-four floating weight retained as ordered input one and not
+     *     mutated
+     * @param bias non-null rank-one floating output-channel bias retained as ordered input two and
+     *     not mutated
+     * @param attrs non-null immutable stride, padding, dilation, and group semantics retained by
+     *     exact reference
+     * @return non-null fresh unlabeled storage-free output with promoted type, exact derived NCHW
+     *     Shape, unresolved layout, three-way gradient-request OR, and biased CONV2D provenance
+     * @throws NullPointerException if {@code weight}, {@code bias}, or {@code attrs} is null,
+     *     checked in that order with the parameter name as message
+     * @throws IllegalArgumentException if floating, rank, kernel, grouped-channel, bias-channel, or
+     *     spatial geometry validation fails
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor conv2d(Tensor weight, Tensor bias, Conv2dAttrs attrs) {
+        return TensorConv2dExpressions.apply(this, weight, bias, attrs);
     }
 
     /**

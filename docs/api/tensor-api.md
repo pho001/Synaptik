@@ -6024,6 +6024,152 @@ This example proves locally derived metadata and provenance. Current model const
 read values, expose attention weights, apply dropout, capture or decompose a compiled graph,
 construct gradients, choose an algorithm or backend, allocate storage, or execute attention.
 
+### Grouped NCHW Conv2d expressions
+
+`input.conv2d(weight, attrs)` and `input.conv2d(weight, bias, attrs)` construct one grouped
+two-dimensional cross-correlation expression in NCHW axis order: batch, input channel, height,
+width. Cross-correlation means that the weight kernel is used in its stored height/width order;
+it is not reversed as in the mathematical definition of convolution.
+
+The complete Shape contract is:
+
+| Value | Required Shape | Meaning |
+|---|---|---|
+| receiver input | `[N, C_in, H, W]` | rank-four NCHW input |
+| weight | `[C_out, C_in/groups, K_h, K_w]` | one stored kernel per output channel and input-channel position within its group |
+| optional bias | `[C_out]` | one value added to each spatial result for its output channel |
+| result | `[N, C_out, H_out, W_out]` | exact input batch and weight output-channel Dimensions plus derived spatial Dimensions |
+
+`Conv2dAttrs` carries only intrinsic geometry and grouping. Kernel extents come from the weight
+Shape, and bias presence comes from selecting the three-input overload.
+
+| Attribute | Constraint | Meaning |
+|---|---|---|
+| `strideHeight`, `strideWidth` | positive `long` | step between adjacent output positions |
+| `paddingHeight`, `paddingWidth` | non-negative `long` | conceptual positive-zero positions on each side of the corresponding axis |
+| `dilationHeight`, `dilationWidth` | positive `long` | spacing between adjacent stored kernel positions |
+| `groups` | positive `long` | number of independent contiguous input/output channel groups |
+
+`Conv2dAttrs.defaults()` selects unit stride, zero symmetric padding, unit dilation, and one
+group. The value owns no Tensor, Shape, data type, layout, storage, gradient, compiler, backend,
+or execution state.
+
+For either spatial axis, let `D` be its input extent, `k` its positive static kernel extent, `p`
+the padding on each side, `d` the dilation, and `s` the stride:
+
+```text
+effectiveKernel = d * (k - 1) + 1
+numerator       = D + 2 * p - effectiveKernel
+output          = floor(numerator / s) + 1
+```
+
+All literal arithmetic is checked in signed `long`. A static negative numerator fails locally;
+zero produces one output position. A dynamic input extent retains the canonical symbolic
+equivalent and defers the obligation that the bound numerator be non-negative. Kernel height and
+width must themselves be statically known and positive.
+
+Static input and output channel counts must each be divisible by `groups`. When the relevant
+Dimensions are static, `weightChannelsPerGroup * groups` must equal `C_in`, and bias length must
+equal `C_out`. A relation involving an unresolved Dimension is retained as an obligation for
+future compiler validation or concrete binding because the exact descriptors and attributes
+remain in provenance.
+
+#### Grouped Shape and provenance example
+
+The goal is to inspect current metadata for a two-group convolution. Input `[2, 4, 7, 7]`, weight
+`[6, 2, 3, 3]`, and bias `[6]` use two input channels per group. Unit stride and dilation with one
+padding position per side preserve the `7 x 7` spatial Shape.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class GroupedConv2dMetadataExample {
+    public static void main(String[] args) {
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 4, 7, 7), Optional.empty(), true));
+        Tensor weight = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(6, 2, 3, 3), Optional.empty(), false));
+        Tensor bias = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(6), Optional.empty(), false));
+        Conv2dAttrs attrs = new Conv2dAttrs(1, 1, 1, 1, 1, 1, 2);
+
+        Tensor output = input.conv2d(weight, bias, attrs);
+        var provenance = output.provenance().orElseThrow();
+
+        System.out.println(output.descriptor().dataType());
+        System.out.println(output.descriptor().shape());
+        System.out.println(output.descriptor().requiresGrad());
+        System.out.println(output.descriptor().layout().isEmpty()
+                && output.hostStorage().isEmpty());
+        System.out.println(provenance.operation().kind());
+        System.out.println(provenance.inputs().get(0) == input
+                && provenance.inputs().get(1) == weight
+                && provenance.inputs().get(2) == bias);
+    }
+}
+```
+
+It prints:
+
+```text
+FLOAT64
+Shape[2, 6, 7, 7]
+true
+true
+CONV2D
+true
+```
+
+The result type is FLOAT64 because promotion processes input and weight first, then bias. The
+example proves Shape, metadata, and ordered provenance only; it does not calculate convolution
+values, capture a graph, construct a gradient, or establish compiler/backend support.
+
+#### Dynamic-height example
+
+For input Shape `[N, 4, H, 9]`, weight Shape `[6, 4, 3, 3]`, vertical stride two, vertical padding
+one, vertical dilation two, and unit horizontal geometry, height becomes:
+
+```text
+effectiveKernelHeight = 2 * (3 - 1) + 1 = 5
+H_out = floor((H + 2 - 5) / 2) + 1
+      = floor((H - 3) / 2) + 1
+```
+
+The result Shape is `[N, 6, floor((H - 3) / 2) + 1, 7]`. This is an exact symbolic Shape
+expression, not a value chosen for `H`. A later binding must reject a concrete `H` for which the
+numerator is negative.
+
+#### Numerical and metadata policy
+
+For output channel `o`, its group selects the corresponding contiguous `C_in/groups` input
+channels. Each result element is the optional bias for `o`, applied exactly once, plus products
+over those channels and kernel height/width positions in increasing logical-index meaning.
+Coordinates outside the input are conceptual positive zero and still participate in ordinary
+IEEE-754 multiplication. In particular, a padded zero multiplied by an infinite weight follows
+ordinary floating behavior rather than being skipped.
+
+Input, weight, and present bias must be floating. Their promoted type is the output type. FLOAT64
+output accumulates in FLOAT64. FLOAT32 and BFLOAT16 output accumulate in FLOAT32, with final
+conversion for BFLOAT16. NaN, infinity, and signed zero follow ordinary multiplication and
+addition. An empty channel contraction starts from positive zero before optional bias. Empty
+batch and output-channel axes remain valid. Implementations may reassociate terms and use fused
+multiply-add, so traversal order, bitwise equality, and identical cross-backend rounding are not
+promised.
+
+Every successful call returns one fresh, unlabeled, storage-free Tensor with unresolved layout,
+the exact derived Shape, and gradient eligibility equal to the logical OR of the actual inputs.
+Its one-output provenance has index zero, retains the exact `Conv2dAttrs` reference, and records
+ordered inputs `[input, weight]` or `[input, weight, bias]`. Current construction reads no values
+and creates no gradient rule. Future compiler work owns capture, proof of deferred bindings,
+legal decomposition, gradients, adjoints, and saved values. Backend prepare owns conforming
+algorithms, lowering, and kernel selection; runtime owns only prepared execution.
+
 ### Matrix-multiplication semantic kind
 
 `MatmulKind` contains exactly `MATMUL`. The kind pairs only with

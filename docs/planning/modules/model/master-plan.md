@@ -115,6 +115,10 @@ io.github.pho001.synaptik.model.operation.attention
   Typed backend-independent scaled dot-product attention meaning and immutable scale/causal
   parameters; no dropout, attention-weight output, algorithm, or backend route.
 
+io.github.pho001.synaptik.model.operation.convolution
+  Typed backend-independent NCHW two-dimensional convolution meaning and immutable stride,
+  symmetric-padding, dilation, and group parameters; kernels are derived from weight Shape.
+
 io.github.pho001.synaptik.model.operation.random
   Explicit graph RNG-state initialization and state-consuming stochastic operation semantics;
   distinct from eager host-data population in the tensor package.
@@ -246,7 +250,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019C1 | [Top-K values and indices](tasks/0019c1-top-k-values-and-indices.md) | Complete | 0019C, 0018L | Added focused TOP_K semantics, deterministic largest/smallest selection, static/deferred `k` validation, and one shared two-output values/INT64-indices producer. |
 | 0019D | [Linear convenience](tasks/0019d-linear-convenience.md) | Complete | 0017F, 0014B, 0018K–0018N, 0018T, 0018U, 0019–0019C1 | Add conventional weight-transposed MATMUL plus optional exact rank-one bias as fully prevalidated explicit public composition without a LINEAR kind. |
 | 0019E | [Scaled dot-product attention](tasks/0019e-scaled-dot-product-attention.md) | Complete | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Added one-output attention semantics and four receiver overloads with exact query/key/value, mask, causal, scale, numerical, and deferred-constraint contracts, excluding dropout. |
-| 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
+| 0020 | [NCHW Conv2d semantics and Tensor expressions](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) | Complete | 0018K–0018L, 0018M–0018M1, 0018N, 0018V, 0019 | Added grouped NCHW cross-correlation with optional bias, exact static/symbolic Shape, floating numerical policy, and ordered provenance. |
+| 0020A | NCHW max/average Pool2d semantics and Tensor expressions | Draft | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Represent max and average pooling with shared window geometry, explicit padding/divisor policies, and dynamic spatial results. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
 | 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
@@ -319,7 +324,19 @@ genuine multi-output top-K and is Complete. Completed
 [task 0019D](tasks/0019d-linear-convenience.md) adds explicit linear composition. Completed
 [task 0019E](tasks/0019e-scaled-dot-product-attention.md) retains its established ID and delivers
 semantics, attrs, public construction, API-locking tests, and documentation together in 17 paths;
-no 0019E1 split was needed. No model task is currently Ready.
+no 0019E1 split was needed. The former broad 0020 frontier is split without renumbering later
+tasks: focused [task 0020](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) is Complete
+for NCHW convolution, while 0020A remains Draft for shared max/average pooling.
+
+Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
+methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
+output-channel Dimensions, derives checked static or canonical symbolic spatial extents, promotes
+floating inputs in occurrence order, and records one fresh exact two- or three-input producer.
+The implementation context passed 41 focused tests across seven suites and one final model run of
+860 tests across 109 suites. Independent context
+`/root/task_0020_implementation/task_0020_docs` finalized Javadocs, Tensor/Compile APIs, glossary,
+and planning records, then passed model Javadoc, example, Markdown, exact-scope/surface/status,
+and whitespace validation without repeating the successful Java suites.
 
 Task 0019D adds conventional `[outFeatures, inFeatures]` weight-transposed MATMUL plus optional
 exact rank-one bias as visible PERMUTE -> MATMUL -> optional ADD composition. Complete local
@@ -1409,8 +1426,8 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E is complete. Every later task remains Draft without a detailed specification, and no model
-task is currently Ready.
+0019E and task 0020 are complete. Task 0020 remains the only detailed post-0019E specification;
+0020A and tasks 0021–0024 remain Draft without detailed specifications, so no model task is Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1423,6 +1440,13 @@ foundation without changing 0019C–0019E. Follow-up 0019C1 splits genuine multi
 subtasks of 0019; their
 `Depends on` entries list technical
 prerequisites, while table order remains the default execution order.
+
+The former broad 0020 row is split into focused convolution task 0020 and pooling follow-up 0020A
+without renumbering established tasks 0021–0024. Convolution is first because it fixes the
+weight-derived kernel, grouped-channel, optional-bias, promotion, and dynamic spatial-expression
+precedents. Pooling then reuses those spatial decisions while selecting its distinct max/average,
+padding, divisor, ceil-mode, and all-padding-window policies. This is a cohesion and dependency
+split, not authorization to share an operation attribute whose meaning differs.
 
 Package migrations 0003A–0003C and tasks 0004–0009 are complete. Task 0008 added the two local
 immutable graph element records, and task 0009 added the structurally closed graph container,
@@ -1474,7 +1498,7 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Task 0019E is complete. Every later task remains Draft without a detailed specification, and no
-model task is currently Ready.
+Tasks 0019E and 0020 are complete. Task 0020 is the only detailed post-0019E specification. Task
+0020A and tasks 0021–0024 remain Draft without detailed specifications; no model task is Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

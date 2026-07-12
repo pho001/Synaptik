@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -84,7 +85,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(175, declaredPublicMethods.size());
+        assertEquals(177, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -96,7 +97,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
-                        "scaledDotProductAttention",
+                        "scaledDotProductAttention", "conv2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -172,6 +173,17 @@ class TensorTest {
                     () -> assertTrue(Modifier.isPublic(attention.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(attention.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(attention.getModifiers())));
+        }
+
+        for (var parameters : List.of(
+                new Class<?>[] {Tensor.class, Conv2dAttrs.class},
+                new Class<?>[] {Tensor.class, Tensor.class, Conv2dAttrs.class})) {
+            var conv2d = Tensor.class.getDeclaredMethod("conv2d", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, conv2d.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(conv2d.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(conv2d.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(conv2d.getModifiers())));
         }
 
         var where = Tensor.class.getDeclaredMethod(
