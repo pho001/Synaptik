@@ -3967,6 +3967,67 @@ public final class Tensor {
     }
 
     /**
+     * Creates a pure five-output batch-normalization training occurrence.
+     *
+     * <p>For each channel this method reduces every other logical axis, normalizes with biased
+     * population variance, applies scale and bias, and represents explicit next running mean and
+     * variance. The running-variance transition uses the corresponding correction-one unbiased
+     * estimate. Momentum weights the new batch, and epsilon appears only inside the saved inverse
+     * standard deviation. A statically positive channel requires reduction count at least two;
+     * a statically empty channel is valid and evaluates no values.</p>
+     *
+     * <p>If {@code N} is the product of all non-channel extents, the batch mean is
+     * {@code sum(input) / N}; forward variance divides squared deviations by {@code N}, while the
+     * running update divides them by {@code N - 1}. The transitions are
+     * {@code (1 - momentum) * old + momentum * batch}. The exact static or deferred domain
+     * obligation is {@code C == 0 || N >= 2}, where {@code C} is the channel extent.</p>
+     *
+     * <p>The result exposes normalized output and next running statistics. Two additional producer
+     * slots describe saved batch mean and inverse standard deviation for later compiler-owned
+     * capture, backward construction, and lifetime decisions; there is no public sibling lookup.
+     * Construction reads and mutates no values, retains no state across calls, and owns no
+     * training session, checkpoint, publication, runtime, backend, or execution behavior.</p>
+     *
+     * @param channelAxis channel axis in {@code [-rank, rank - 1]}, normalized layout-neutrally
+     * @param scale non-null floating rank-one per-channel scale
+     * @param bias non-null floating rank-one per-channel bias
+     * @param runningMean non-null floating rank-one old running mean
+     * @param runningVariance non-null floating rank-one old running variance, not mutated
+     * @param momentum non-null exact finite floating new-batch weight in {@code [0, 1]} matching
+     *     the promoted result type
+     * @param epsilon non-null exact finite positive floating value matching promoted result type
+     * @return public result containing fresh normalized output with the exact receiver Shape and
+     *     explicit next running statistics with a shared rank-one {@code [C]} Shape at producer
+     *     slots zero through two; never {@code null}
+     * @throws NullPointerException if an operand or scalar is null, checked in declaration order
+     * @throws IllegalArgumentException if an input is non-floating, this Tensor has rank below
+     *     two, a per-channel operand is not rank one or is statically channel-incompatible, a
+     *     statically positive channel has reduction count below two, or a scalar is invalid or not
+     *     exactly result-typed
+     * @throws IndexOutOfBoundsException if {@code channelAxis} is invalid for this Tensor's Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted; identifiers for
+     *     earlier output positions may remain consumed
+     */
+    public BatchNormTrainingResult batchNormTraining(
+            int channelAxis,
+            Tensor scale,
+            Tensor bias,
+            Tensor runningMean,
+            Tensor runningVariance,
+            ScalarValue momentum,
+            ScalarValue epsilon) {
+        return TensorBatchNormTrainingExpressions.apply(
+                this,
+                channelAxis,
+                scale,
+                bias,
+                runningMean,
+                runningVariance,
+                momentum,
+                epsilon);
+    }
+
+    /**
      * Creates a fresh expression requesting canonical dense row-major result geometry.
      *
      * <p>The result preserves this tensor's exact logical Shape, DataType, and gradient-

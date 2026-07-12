@@ -380,10 +380,13 @@ one-output layer normalization. Completed
 normalization because it uses the uncentered root-mean-square formula and selects explicit
 no-scale and scale-only forms. Completed
 [task 0021B](tasks/0021b-batch-normalization-inference.md) owns batch-normalization inference with
-mandatory explicit scale, bias, running mean, and running variance inputs and one output. Draft
-0021C owns training-time batch statistics, explicit running-stat transition, saved statistics,
-and genuine multi-output provenance. No variant selects a hidden training/evaluation flag,
-process-global state, or mutable model service.
+mandatory explicit scale, bias, running mean, and running variance inputs and one output. Completed
+[task 0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) owns one pure
+training-time transition with the same five ordered Tensor inputs, typed momentum and epsilon,
+and five shared outputs: public normalized output and next running mean/variance plus hidden saved
+batch mean/inverse standard deviation for later compiler autograd. No variant selects a hidden
+training/evaluation flag, process-global state, mutable model service, session, or checkpoint
+owner.
 
 Completed task 0021 normalizes a non-empty trailing `Shape` with population variance (correction zero) and
 epsilon inside the square root. One `LAYER_NORM` kind has exact no-affine `[input]` and affine
@@ -439,6 +442,23 @@ This five-input inference formula and explicit estimated-statistic roles align w
 Synaptik deliberately makes the channel axis explicit, requires exact typed epsilon and exact
 rank-one parameter/statistic Shapes, and separates inference from every training/state-transition
 contract.
+
+Completed task 0021C selects batch mean and biased population variance across every non-channel
+axis for normalization, while the explicit next running variance uses the corresponding unbiased
+estimate.
+Its momentum is the new-batch weight: `next = (1 - momentum) * old + momentum * batch`. A valid
+non-empty channel therefore needs reduction count at least two; a zero-channel occurrence is
+empty and evaluates no statistic. All five outputs share one producer in the order normalized
+output, next running mean, next running variance, saved batch mean, and saved inverse standard
+deviation. Only the first three are returned by `BatchNormTrainingResult`; saved outputs remain
+producer-described auxiliary values for later compiler autograd rather than public state. This
+biased-forward/unbiased-running distinction and momentum convention align with official
+[PyTorch BatchNorm1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html).
+The explicit running-stat transition and population-statistic formula are also comparable to
+official [ONNX BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html),
+but Synaptik deliberately keeps training separate from inference and does not copy ONNX's mode
+attribute, output surface, fixed channel position, defaults, or population running-variance
+update.
 
 The former 0019A umbrella is split by semantic boundary. Completed task 0019A owns `gelu()`,
 `geluTanhApproximation()`, and canonical `silu()` without a `swish` alias. `GELU` uses

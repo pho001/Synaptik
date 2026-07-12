@@ -31,7 +31,11 @@ normalization over an exact trailing Shape, either without affine operands or wi
 and bias. Two `rmsNorm` methods separately add uncentered root-mean-square normalization over an
 exact trailing Shape, either without scale or with one explicit exact-Shape scale. One
 `batchNormInference` method adds stateless per-channel inference from mandatory explicit scale,
-bias, running-mean, and running-variance vectors along a layout-neutral channel axis. The
+bias, running-mean, and running-variance vectors along a layout-neutral channel axis. One
+`batchNormTraining` method uses the same five Tensor roles plus exact typed momentum and epsilon
+to describe current-batch normalization and an explicit running-statistic transition. It returns
+the normalized output and next running statistics while its shared producer also describes two
+compiler-facing saved outputs. The
 parameterless `contiguous` method adds a shape-preserving request
 for canonical dense row-major result geometry. Two `reshape` overloads add ordered-element-
 preserving coordinate changes from either raw `long...` dimensions or an exact normalized
@@ -75,7 +79,12 @@ Typed access, other expression families, gradient objects and publication behavi
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
-The current semantic vocabulary also includes `ContiguousKind.CONTIGUOUS`, a parameterless
+The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
+`BATCH_NORM_TRAINING`. Inference has one output. Training has five ordered outputs: normalized
+output, next running mean, next running variance, saved batch mean, and saved inverse standard
+deviation. Only its first three Tensor wrappers are public results; all five descriptors and
+output positions remain current producer metadata. The current semantic vocabulary also includes
+`ContiguousKind.CONTIGUOUS`, a parameterless
 request for logically equivalent canonical dense row-major, zero-offset result geometry. Public
 `Tensor.contiguous()` now constructs that request without allocating or copying storage.
 `ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` are also current semantic identities.
@@ -263,6 +272,7 @@ SoftmaxKind + SoftmaxAttrs                                   = shape-preserving 
 LayerNormKind + LayerNormAttrs / AffineLayerNormAttrs         = trailing-Shape population normalization semantics
 RmsNormKind + RmsNormAttrs                                   = trailing-Shape uncentered RMS normalization semantics
 BatchNormKind + BatchNormInferenceAttrs                     = explicit five-input per-channel inference semantics
+BatchNormKind + BatchNormTrainingAttrs + BatchNormTrainingResult = pure five-output training/statistic transition
 ContiguousKind                                               = parameterless canonical dense row-major geometry request
 ShapeTransformKind + TargetShapeAttrs                        = reshape/expand meaning + normalized target Shape
 AxisTransformKind + PermutationAttrs / AxisTransformAttrs    = axis reorder/insertion/removal semantics
@@ -391,6 +401,12 @@ exact rank-one `[C]` vector, promotes all five floating inputs in that order, pr
 input Shape, and records one output at provenance index zero. The supplied running variance is
 used directly; construction calculates or updates no statistic, reads no value, creates no saved
 output, and defines no training, gradient, compiler, backend, runtime, or execution behavior.
+`BatchNormKind.BATCH_NORM_TRAINING` instead pairs with
+`BatchNormTrainingAttrs(channelAxis, momentum, epsilon)` and has a fixed five-input/five-output
+signature. Public `Tensor.batchNormTraining` calculates no values during construction; it records
+the pure transition from explicit old statistics to explicit next statistics, with current-batch
+mean and inverse standard deviation as additional producer-described outputs for later compiler
+capture. `BatchNormTrainingResult` exposes only output positions zero through two.
 `ContiguousKind.CONTIGUOUS` provides the parameterless semantic request that one logical input
 retain its values, Shape, DataType, and row-major element order while the result targets canonical
 dense row-major geometry with logical storage offset zero. The kind is distinct from
@@ -505,6 +521,11 @@ after the receiver. It preserves the exact input Shape, uses ordered floating pr
 layout unresolved, combines all five gradient-eligibility flags, and produces one fresh
 storage-free output at provenance index zero. Construction does not read values, calculate or
 update statistics, add saved outputs, select an algorithm, capture a graph, or execute work.
+`Tensor.batchNormTraining` constructs one pure five-input/five-output training occurrence. It
+returns normalized output and explicit next running mean and variance in
+`BatchNormTrainingResult`; saved batch mean and inverse standard deviation remain described at
+producer positions three and four. Construction retains no statistic between calls and does not
+capture, differentiate, publish, lower, or execute the occurrence.
 `Tensor.contiguous()` accepts every current data type and preserves the exact input Shape, type, and
 gradient eligibility. A fully static result receives a newly constructed canonical dense
 row-major layout; a dynamic result remains unresolved. Each call records `CONTIGUOUS` with
@@ -4150,6 +4171,141 @@ formula corresponds to official [ONNX
 BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html) while retaining
 Synaptik's explicit channel axis and exact typed contracts.
 
+### Batch-normalization training and statistic-transition expressions
+
+Batch-normalization training uses statistics from the current input occurrence for normalized
+output and returns an explicit transition from old running statistics to next running statistics.
+It is a pure expression, not a mutable layer or a training/evaluation mode. The sole receiver form
+is:
+
+```java
+public BatchNormTrainingResult batchNormTraining(
+        int channelAxis,
+        Tensor scale,
+        Tensor bias,
+        Tensor runningMean,
+        Tensor runningVariance,
+        ScalarValue momentum,
+        ScalarValue epsilon)
+```
+
+The receiver and four Tensor arguments have the same ordered roles and Shape rules as inference:
+
+| Input position | Role | Required Shape |
+|---|---|---|
+| 0 | receiver input | Rank at least two; exact normalized-output Shape |
+| 1 | scale | Exact rank-one `[C]` vector |
+| 2 | bias | Exact rank-one `[C]` vector |
+| 3 | old running mean | Exact rank-one `[C]` vector |
+| 4 | old running variance | Exact rank-one `[C]` vector |
+
+`C` is the extent of the explicitly selected logical channel axis. Every other logical axis,
+including every axis before or after it, belongs to the reduction domain; there is no separately
+distinguished batch axis or inferred NCHW/NHWC layout. Let `N` be the product of those
+non-channel extents. For each channel `c`, the five mathematical outputs are:
+
+```text
+batchMean[c]             = sum_i(x_i) / N
+sumSquaredDeviation[c]   = sum_i((x_i - batchMean[c])^2)
+biasedBatchVariance[c]   = sumSquaredDeviation[c] / N
+unbiasedBatchVariance[c] = sumSquaredDeviation[c] / (N - 1)
+savedInvStd[c]           = 1 / sqrt(biasedBatchVariance[c] + epsilon)
+output_i                 = ((x_i - batchMean[c]) * savedInvStd[c]) * scale[c] + bias[c]
+nextRunningMean[c]       = (1 - momentum) * runningMean[c]
+                           + momentum * batchMean[c]
+nextRunningVariance[c]   = (1 - momentum) * runningVariance[c]
+                           + momentum * unbiasedBatchVariance[c]
+```
+
+Forward normalization therefore uses biased population variance, while the running-variance
+transition uses the corresponding correction-one unbiased estimate. Momentum is the weight of
+the new batch, not the old statistic. Epsilon is added only inside the forward inverse-standard-
+deviation square root; it does not alter either variance estimate or the running transition.
+
+The one shared producer describes these exact ordered outputs:
+
+| Output position | Role | Shape | Public wrapper | `requiresGrad` |
+|---|---|---|---|---|
+| 0 | normalized affine output | Exact input Shape | `result.output()` | `input || scale || bias` |
+| 1 | next running mean | Shared rank-one `[C]` Shape | `result.nextRunningMean()` | `input || runningMean` |
+| 2 | next running variance | Shared rank-one `[C]` Shape | `result.nextRunningVariance()` | `input || runningVariance` |
+| 3 | saved batch mean | Shared rank-one `[C]` Shape | Not exposed | `input` |
+| 4 | saved inverse standard deviation | Shared rank-one `[C]` Shape | Not exposed | `input` |
+
+Slots three and four are hidden only at the public wrapper level. Their descriptors and indexed
+positions remain reachable through the exact producer retained by each public result. There is no
+public sibling-output lookup, and the result record contains exactly the first three outputs.
+Later compiler capture may create graph values for all five positions and own saved-value
+lifetime; the model does not retain the discarded Tensor wrappers or define backward formulas.
+
+#### Numerical example
+
+The goal is to show the biased-forward/unbiased-running distinction and momentum convention. For
+one FLOAT64 channel containing `[1, 2, 3]`, scale `2`, bias `0.5`, old mean `10`, old variance `4`,
+momentum `0.25`, and epsilon `1e-5`:
+
+```text
+batch mean                  = 2
+sum of squared deviations   = 2
+biased batch variance       = 2 / 3
+unbiased batch variance     = 1
+saved inverse std           = 1 / sqrt(2 / 3 + 1e-5)
+next running mean           = 0.75 * 10 + 0.25 * 2 = 8
+next running variance       = 0.75 * 4 + 0.25 * 1 = 3.25
+normalized output           ~= [-1.949471, 0.5, 2.949471]
+```
+
+This is a mathematical illustration. Expression construction reads no Tensor values and produces
+no numerical result. The convention matches official [PyTorch
+BatchNorm1d](https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html). Official
+[ONNX BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html) also
+models explicit running-statistic outputs, but Synaptik does not copy its combined mode, fixed
+channel position, scalar defaults, public output surface, or population running-variance update.
+
+#### Static checks, deferred obligations, and empty channels
+
+Input rank must be at least two. The positive or negative channel axis is normalized exactly once
+against that rank. Scale, bias, old running mean, and old running variance must be exact rank-one
+vectors. Structurally equal channel Dimensions pass, unequal static Dimensions fail locally, and
+unequal pairs involving an unresolved Dimension defer equality to later compiler binding.
+
+For a non-zero channel extent, the unbiased estimate requires `N >= 2`. The exact static or
+deferred obligation is `C == 0 || N >= 2`. A static positive `C` with `N` equal to zero or one
+fails locally. A static `C == 0` is valid for any non-negative reduction Shape: all five outputs
+are empty and no mean, variance, inverse standard deviation, affine result, or transition is
+evaluated. Overflow of a non-zero checked product already proves `N >= 2` and is not stored in
+attributes.
+
+All five Tensor inputs must be BFLOAT16, FLOAT32, or FLOAT64. Floating promotion follows input
+order, and both momentum and epsilon must have exactly the promoted result type. BFLOAT16 and
+FLOAT32 results use FLOAT32 for reductions and formula arithmetic; FLOAT64 results use FLOAT64.
+Final outputs are rounded to the result format. The operation selects no traversal, pass count,
+reassociation, compensation method, kernel, or backend algorithm.
+
+#### Special values, identity effects, and lifecycle boundary
+
+Construction reads no values and does not require old running variance to be non-negative. A NaN
+or infinity in a non-empty batch domain makes that channel's batch mean, both variance estimates,
+saved inverse standard deviation, and normalized outputs NaN. A finite constant domain has
+positive-zero variances and a positive saved inverse standard deviation. Scale, bias, old
+statistics, signed zero, overflow, and underflow otherwise follow ordinary floating arithmetic.
+The written momentum formula applies even at zero and one, so a zero coefficient does not suppress
+NaN or infinity. A conforming implementation must not use unstable cancellation to invent a
+negative finite variance, but may otherwise reassociate within future tolerance. Bitwise equality,
+NaN payload/sign preservation, and identical cross-backend rounding are not promised.
+
+Every success creates five fresh, unlabeled, storage-free, unresolved-layout Tensor outputs and
+five IDs in output order under one identity-distinct producer. Local validation failures occur
+before factory delegation and consume no ID. Identifier exhaustion may leave IDs for earlier
+output positions consumed, returns no partial result, and does not mutate a running statistic.
+
+These are current model metadata facts only. Compiler capture, proof of deferred constraints,
+saved-value materialization and lifetime, autograd/backward construction, publication, liveness,
+and graph optimization remain planned compiler work. Cross-step statistic assignment, session and
+checkpoint ownership remain planned training-extension work. Runtime publication and execution
+remain planned runtime work, while lowering, algorithms, kernels, and tolerances remain backend
+work. No layer, buffer owner, training mode, in-place update, or state across calls is created.
+
 ### Contiguous expressions
 
 The current parameterless `Tensor.contiguous()` method requests canonical dense row-major result
@@ -7068,8 +7224,10 @@ composition while the table also lists the current production families:
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
-| `BatchNormKind` | The implemented production enum for stateless explicit five-input batch-normalization inference. |
+| `BatchNormKind` | The implemented production enum for explicit five-input batch-normalization inference and pure five-output training/statistic-transition meanings. |
 | `BatchNormInferenceAttrs` | The implemented immutable normalized channel-axis and exact typed epsilon value. |
+| `BatchNormTrainingAttrs` | The implemented immutable normalized channel axis, exact typed new-batch-weight momentum, and exact typed epsilon. |
+| `BatchNormTrainingResult` | The implemented public carrier for training output, next running mean, and next running variance; saved producer outputs remain intentionally omitted. |
 | `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies one-output scaled dot-product attention. |
 | `ScaledDotProductAttentionAttrs` | The implemented immutable optional exact scale and top-left causal-eligibility value. |
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
@@ -8563,7 +8721,7 @@ The following contracts appear in the architecture and planning documents but ar
   selection, cast, unary elementwise, floating-classification, scalar elementwise, the current
   value- and
   index-producing aggregate operations, cumulative-sum scans, softmax, layer, RMS, and batch-
-  normalization inference, and
+  normalization inference/training transition, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, pad, tile, concat,
   stack, repeated-select unstack, scalar select, Gather, Gather Elements, Gather-ND Tensor
   construction, Scatter Elements construction, Scatter-ND construction, unfold, unfold2d, and
@@ -8572,7 +8730,7 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, floating-classification, scalar elementwise, conditional selection,
   cast, aggregate
-  reduction, cumulative-sum scan, softmax, layer, RMS, and batch-normalization inference,
+  reduction, cumulative-sum scan, softmax, layer, RMS, and batch-normalization inference/training,
   contiguous-request, reshape/expand,
   axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, one-hot,
   gather-ND,
@@ -8590,7 +8748,8 @@ The following contracts appear in the architecture and planning documents but ar
 `StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `LayerNormKind`, `LayerNormAttrs`, `AffineLayerNormAttrs`, `RmsNormKind`, `RmsNormAttrs`,
-`BatchNormKind`, `BatchNormInferenceAttrs`,
+`BatchNormKind`, `BatchNormInferenceAttrs`, `BatchNormTrainingAttrs`,
+`BatchNormTrainingResult`,
 `ScaledDotProductAttentionKind`, `ScaledDotProductAttentionAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
@@ -8602,8 +8761,8 @@ The following contracts appear in the architecture and planning documents but ar
 `Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API contracts.
-The producer/provenance pair can represent shared multi-output occurrences, although no current
-production operation or public result API creates one. Binary arithmetic, binary comparison,
+The producer/provenance pair represents current shared multi-output occurrences including
+dropout, top-K, and batch-normalization training. Binary arithmetic, binary comparison,
 boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate

@@ -69,7 +69,8 @@ multi-axis methods, twelve floating advanced/statistical reduction methods, two 
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape `layerNorm`
 methods, and two trailing-Shape `rmsNorm`
-methods, plus one explicit-axis five-input `batchNormInference` method, scalar `select`, two
+methods, plus explicit-axis five-input `batchNormInference` and `batchNormTraining` methods,
+scalar `select`, two
 tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, one
 trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
 Scatter Elements
@@ -313,9 +314,20 @@ and uses ordered floating promotion with exact-result-typed positive epsilon. Th
 layout-neutral, and running variance is interpreted directly by the formula with epsilon inside
 the denominator square root. This remains compiler-visible metadata, not implemented compiler
 support: capture, operand revalidation, deferred-constraint representation and proof, saved-value
-and gradient construction, legal decomposition, lowering, training statistic transition,
-backend preparation, tolerance enforcement, runtime execution, and numerical evaluation remain
-planned in their owning layers.
+and gradient construction, legal decomposition, lowering, backend preparation, tolerance
+enforcement, runtime execution, and numerical evaluation remain planned in their owning layers.
+`Tensor.batchNormTraining` is current five-output model metadata with exact ordered inputs
+`[input, scale, bias, runningMean, runningVariance]`. Its producer describes normalized output,
+next running mean, next running variance, saved batch mean, and saved inverse standard deviation
+in that order. `BatchNormTrainingResult` exposes positions zero through two; positions three and
+four remain real producer descriptors for future compiler capture. The model records a normalized
+channel axis, exact typed new-batch-weight momentum and epsilon, the all-non-channel reduction
+domain, biased forward variance, correction-one running variance, output Shapes, types, gradient
+eligibility, and indexed provenance. This does not implement capture of any position, deferred
+`C == 0 || N >= 2` proof, saved-value materialization or lifetime, autograd/backward construction,
+publication, liveness, graph optimization, lowering, preparation, execution, or cross-step
+statistic ownership. Those remain planned in the compiler, training extension, runtime, and
+backend layers that own them.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -477,7 +489,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, and explicit
-  five-input batch-normalization inference construction, plus
+  five-input batch-normalization inference and five-output training/statistic-transition
+  construction, plus
   first-class
   scaled-dot-product-attention
   construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d

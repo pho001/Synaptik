@@ -14,7 +14,10 @@ import org.junit.jupiter.api.Test;
 class BatchNormInferenceSemanticsTest {
     @Test
     void declaresExactlyOneInferenceKindAndFixedFiveInputOneOutputSignature() {
-        assertEquals(List.of(BatchNormKind.BATCH_NORM_INFERENCE), List.of(BatchNormKind.values()));
+        assertEquals(
+                List.of(BatchNormKind.BATCH_NORM_INFERENCE,
+                        BatchNormKind.BATCH_NORM_TRAINING),
+                List.of(BatchNormKind.values()));
         assertEquals(
                 List.of(OperationSignature.fixed(BatchNormInferenceAttrs.class, 5, 1)),
                 BatchNormKind.BATCH_NORM_INFERENCE.signatures());
