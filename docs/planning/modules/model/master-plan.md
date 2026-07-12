@@ -256,7 +256,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019E | [Scaled dot-product attention](tasks/0019e-scaled-dot-product-attention.md) | Complete | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Added one-output attention semantics and four receiver overloads with exact query/key/value, mask, causal, scale, numerical, and deferred-constraint contracts, excluding dropout. |
 | 0020 | [NCHW Conv2d semantics and Tensor expressions](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) | Complete | 0018K–0018L, 0018M–0018M1, 0018N, 0018V, 0019 | Added grouped NCHW cross-correlation with optional bias, exact static/symbolic Shape, floating numerical policy, and ordered provenance. |
 | 0020A | [NCHW Max Pool2d semantics and Tensor expression](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) | Complete | 0020, 0017M–0017N, 0018K–0018L, 0018M–0018M1, 0018N, 0018V | Added floating max pooling with exact static/symbolic geometry, literal ceil windows, excluded padding, and deterministic extrema semantics. |
-| 0020A1 | NCHW Average Pool2d semantics and Tensor expression | Draft | 0020A | Represent floating average pooling with its own divisor, padding-count, accumulation, special-value, and empty-window policies. |
+| 0020A1 | [NCHW Average Pool2d semantics and Tensor expression](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) | Complete | 0020A | Added floating average pooling with a dedicated attrs type, literal floor/ceil grid, fixed count-padding divisor, selected accumulation, and exact special/empty-window policies. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
 | 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022 including 0020A–0020A1 | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
@@ -333,7 +333,10 @@ no 0019E1 split was needed. The former broad 0020 frontier is split without renu
 tasks: focused [task 0020](tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md) is Complete
 for NCHW convolution. The former combined pooling follow-up is now split: focused
 [task 0020A](tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md) is Complete for max
-pooling, while average-pooling follow-up 0020A1 remains Draft without a detailed specification.
+pooling. Focused average-pooling follow-up
+[0020A1](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md) is also Complete and
+remains the only detailed specification after 0020A. Tasks 0021–0024 remain Draft without detailed
+specifications.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -518,7 +521,17 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   ceil mode does not remove a terminal window whose start lies in trailing padding. Padding
   samples are excluded, an all-padding window returns negative infinity, NaNs dominate, positive
   zero is greater than negative zero, and equal candidates select the first height-major kernel
-  sample. Average pooling remains Draft 0020A1.
+  sample.
+- Completed task 0020A1 adds exactly `averagePool2d(AveragePool2dAttrs)` and extends `Pool2dKind` with
+  `AVERAGE_POOL2D` without changing max semantics. It reuses the literal floor/ceil coordinate
+  grid but fixes count-padding as operation meaning: every kernel position contributes to the
+  divisor, padding contributes conceptual positive zero, and the divisor is always the positive
+  mathematical kernel-height-times-kernel-width product. There is no count flag, divisor
+  override, or valid-sample mode. BFLOAT16/FLOAT32 accumulate and divide in FLOAT32, FLOAT64 in
+  FLOAT64; an all-padding result is positive zero, while an exact-zero finite mean is negative zero
+  only when every divisor contribution is an in-bounds negative zero. NaN propagates, opposing
+  infinities produce NaN, one infinity sign is retained, and conforming reassociation is allowed
+  without bitwise or cross-backend rounding identity.
 - Task 0018M completed canonical positive-coefficient linear combinations with signed constant
   offsets, explicit floor/ceiling division, identity-based bounded unknowns, non-static Shape
   inspection, readable diagnostics, and structurally conservative broadcasting. It owns only the
@@ -1443,9 +1456,9 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E, task 0020, and task 0020A are complete. Task 0020A remains the only detailed specification
-after task 0020; 0020A1 and tasks 0021–0024 remain Draft without detailed specifications, so no
-model task is Ready.
+0019E, task 0020, task 0020A, and task 0020A1 are complete. Task 0020A1 is the only detailed
+specification after task 0020A; tasks 0021–0024 remain Draft without detailed specifications, so
+no model task is Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1517,8 +1530,8 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Tasks 0019E, 0020, and 0020A are complete. Task 0020A is the only detailed specification after
-task 0020. Task 0020A1 and tasks 0021–0024 remain Draft without detailed specifications; no model
-task is Ready.
+Tasks 0019E, 0020, 0020A, and 0020A1 are complete. Task 0020A1 is the only detailed specification
+after task 0020A. Tasks 0021–0024 remain Draft without detailed specifications; no model task is
+Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

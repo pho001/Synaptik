@@ -6288,6 +6288,111 @@ indices for backward use. Backend prepare owns conforming algorithms and kernel 
 runtime owns only prepared execution. No current compiler, backend, or runtime support for
 `MAX_POOL2D` is claimed here.
 
+### NCHW average-pooling expressions
+
+`input.averagePool2d(attrs)` is the canonical average-pooling receiver expression. It constructs
+one `AVERAGE_POOL2D` occurrence for a floating rank-four NCHW input. Each output combines one
+logical two-dimensional window using a fixed count-padding divisor: every kernel position counts,
+including positions outside the input. Current construction records this meaning and derives
+metadata; it does not read values or calculate an average.
+
+| Value | Required Shape and type | Result meaning |
+|---|---|---|
+| receiver input | `[N, C, H, W]`; BFLOAT16, FLOAT32, or FLOAT64 | one rank-four NCHW source |
+| result | `[N, C, H_out, W_out]`; exact input type | exact input `N` and `C` Dimension references plus derived spatial Dimensions |
+
+`AveragePool2dAttrs` is distinct from `MaxPool2dAttrs` because average pooling owns divisor and
+accumulation semantics rather than extrema semantics. Each successful call retains the exact
+attributes reference in provenance.
+
+| Attribute or policy | Constraint | Meaning |
+|---|---|---|
+| `kernelHeight`, `kernelWidth` | positive `long` | logical sample counts; their positive mathematical product is the fixed divisor |
+| `strideHeight`, `strideWidth` | positive `long` | distance between consecutive window starts |
+| `paddingHeight`, `paddingWidth` | non-negative `long` | symmetric positions per side; each contributes conceptual positive zero and still counts in the divisor |
+| `dilationHeight`, `dilationWidth` | positive `long` | spacing between consecutive kernel positions; it does not change the divisor |
+| `ceilMode` | boolean | use the literal ceiling grid when true and the floor grid when false |
+| accumulation and division | fixed by input type | BFLOAT16 and FLOAT32 use FLOAT32; FLOAT64 uses FLOAT64; divide the accumulated sum once |
+
+There is no count-padding option, valid-sample averaging mode, or divisor override. For either
+spatial axis, input extent `D`, kernel-position count `k`, padding per side `p`, dilation `d`, and
+stride `s` produce:
+
+```text
+effectiveKernel = d * (k - 1) + 1
+numerator       = D + 2 * p - effectiveKernel
+floor output    = floor(numerator / s) + 1
+ceil output     = ceil(numerator / s) + 1
+```
+
+Literal geometry uses checked signed-`long` arithmetic. A static negative numerator fails before
+result construction. An unresolved extent retains the canonical add, floor-or-ceiling divide,
+then add expression plus the obligation that a later concrete binding makes the numerator
+non-negative.
+
+#### Static floor, literal-ceil, and symbolic examples
+
+For input Shape `[1, 1, 2, 2]`, a `1 x 1` kernel, `3 x 3` stride, zero padding, and unit dilation,
+floor mode produces Shape `[1, 1, 1, 1]`, while literal ceil mode produces
+`[1, 1, 2, 2]`. The terminal ceil-grid positions begin in trailing padding and therefore describe
+all-padding windows; average pooling retains them and their eventual value is positive zero.
+
+For symbolic input Shape `[N, C, H, W]`, kernel `3 x 5`, stride `2 x 3`, padding `1 x 0`, and
+dilation `2 x 1`, both effective kernels are five. Construction retains these exact expressions:
+
+```text
+floor Shape = [N, C, floor((H - 3) / 2) + 1, floor((W - 5) / 3) + 1]
+ceil Shape  = [N, C, ceil((H - 3) / 2) + 1,  ceil((W - 5) / 3) + 1]
+```
+
+These examples prove current Shape metadata only. They do not bind `H` or `W`, evaluate a window,
+or establish compiler or backend support.
+
+#### Count-padding numerical example
+
+Consider one conceptual FLOAT32 input plane with values `[[1, 2], [3, 4]]`, a `2 x 2` kernel,
+unit stride and dilation, and padding one. The top-left window contains input value `1` and three
+padding positions. The selected average is:
+
+```text
+count-padding numerator = 1 + 0 + 0 + 0 = 1
+fixed divisor           = 2 * 2 = 4
+result                  = 1 / 4 = 0.25
+```
+
+Valid-sample averaging would divide by one and return `1.0`; that is deliberately not this
+operation. The calculation explains eventual semantics. Current model construction does not
+produce `0.25` or allocate result storage.
+
+#### Numerical, empty, and metadata policy
+
+Every in-bounds value contributes once to the numerator and every out-of-bounds position
+contributes exact positive zero. BFLOAT16 and FLOAT32 accumulate and divide in FLOAT32; FLOAT64
+uses FLOAT64. BFLOAT16 converts the final result back to BFLOAT16. The accumulator-domain sum is
+divided exactly once by `kernelHeight * kernelWidth`.
+
+- Any in-bounds not-a-number (NaN) makes the result NaN.
+- Positive and negative infinity together make the result NaN; otherwise an infinity retains its
+  sign.
+- An exact-zero finite mean is negative zero only when every divisor contribution is an in-bounds
+  negative zero. Cancellation, any positive zero, or any padding contribution produces positive
+  zero.
+- An all-padding window therefore returns exact positive zero.
+- Empty batch or channel extents are valid and produce no values. Positive kernel counts mean
+  there is no zero-divisor case.
+
+Implementations may reassociate finite summation, including tree reductions. No traversal order,
+bitwise result, NaN payload/sign preservation, or identical cross-backend rounding is promised;
+later backend conformance must select and validate tolerances.
+
+Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It retains
+the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its one-output
+provenance has index zero and ordered inputs `[input]`. The gradient request is metadata only.
+Future compiler work owns capture, deferred binding proof, any legal decomposition that preserves
+the fixed divisor and special-value policy, and gradient/adjoint construction. Backend prepare
+owns conforming algorithms and kernel selection; runtime executes only prepared work. No current
+compiler, backend, or runtime support for `AVERAGE_POOL2D` is claimed here.
+
 ### Matrix-multiplication semantic kind
 
 `MatmulKind` contains exactly `MATMUL`. The kind pairs only with

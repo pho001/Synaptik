@@ -2157,15 +2157,24 @@ physical traversal order.
 For each spatial axis, **padding** adds the same non-negative coordinate width on both sides,
 **dilation** is the positive spacing between kernel samples, and **effective kernel** is the span
 covered by those samples: `dilation * (kernel - 1) + 1`. **Ceil mode** rounds the output-position
-quotient upward; current maximum pooling uses the literal symmetric padded grid and does not
-remove a terminal window that begins entirely in trailing padding.
+quotient upward; current maximum and average pooling use the literal symmetric padded grid and do
+not remove a terminal window that begins entirely in trailing padding.
 
 The meaning of a padding coordinate depends on the operation. `UNFOLD2D` reads it as conceptual
 zero, Conv2d includes conceptual positive zero in multiplication, and `MAX_POOL2D` excludes it
-from maximum selection. An all-padding maximum-pooling window therefore returns negative infinity
-rather than zero. Current `MaxPool2dAttrs` is distinct from window-transform `Window2dAttrs`
-because extrema and padding-exclusion semantics are operation-specific. See [NCHW maximum-pooling
-expressions](api/tensor-api.md#nchw-maximum-pooling-expressions) and [Window transform](#window-transform).
+from maximum selection. An all-padding maximum-pooling window therefore returns negative infinity.
+`AVERAGE_POOL2D` instead uses **count-padding**: every logical kernel position contributes one to
+the positive **divisor** `kernelHeight * kernelWidth`, while an out-of-bounds position contributes
+conceptual positive zero to the numerator. This differs from valid-sample averaging, which would
+divide only by in-bounds sample count. An all-padding average-pooling window returns positive zero.
+
+`MaxPool2dAttrs`, `AveragePool2dAttrs`, and window-transform `Window2dAttrs` remain distinct because
+extrema selection, fixed-divisor averaging, and window extraction have different semantics.
+Average pooling accumulates and divides BFLOAT16/FLOAT32 in FLOAT32 and FLOAT64 in FLOAT64, with
+one final division; **accumulation** here names the intermediate arithmetic domain, not an
+algorithm or traversal order. See [NCHW maximum-pooling
+expressions](api/tensor-api.md#nchw-maximum-pooling-expressions), [NCHW average-pooling
+expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window transform](#window-transform).
 
 ## Common distinctions
 

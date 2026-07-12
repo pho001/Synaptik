@@ -35,6 +35,7 @@ import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
 import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
@@ -634,6 +635,51 @@ public final class Tensor {
      */
     public Tensor maxPool2d(MaxPool2dAttrs attrs) {
         return TensorMaxPool2dExpressions.apply(this, attrs);
+    }
+
+    /**
+     * Builds one fixed-count two-dimensional average-pooling expression over this NCHW tensor.
+     *
+     * <p>This input must have floating type and Shape {@code [N, C, H, W]}. For each spatial input
+     * extent {@code D}, kernel-position count {@code k}, symmetric padding per side {@code p},
+     * dilation {@code d}, and stride {@code s}, the effective kernel is
+     * {@code d * (k - 1) + 1}. The output extent is floor or ceiling division of
+     * {@code D + 2 * p - effectiveKernel} by {@code s}, plus one. Ceiling mode uses that literal
+     * symmetric padded grid and retains a terminal all-padding window. Static invalid geometry
+     * fails locally; unresolved geometry retains the exact formula and its later non-negative-
+     * numerator binding obligation.</p>
+     *
+     * <p>Every window has divisor {@code kernelHeight * kernelWidth}. Each in-bounds position
+     * contributes its value; each out-of-bounds position contributes exact positive zero while
+     * still counting in the divisor. BFLOAT16 and FLOAT32 accumulate and divide in FLOAT32;
+     * FLOAT64 uses FLOAT64, and BFLOAT16 converts the final value back to BFLOAT16. The sum is
+     * divided once. Reassociation is permitted, without fixed traversal, bitwise cross-backend,
+     * or NaN payload/sign guarantees.</p>
+     *
+     * <p>An in-bounds NaN produces NaN. Opposing infinities produce NaN; otherwise a present
+     * infinity retains its sign. An exact-zero finite mean is negative zero only when every
+     * divisor contribution is an in-bounds negative zero; cancellation, positive zero, or padding
+     * produces positive zero. An all-padding window therefore produces positive zero. Empty batch
+     * or channel axes contain no values.</p>
+     *
+     * <p>The fresh result retains the exact input type, batch and channel Dimension references,
+     * and gradient request; it has derived spatial dimensions, unresolved layout, no label or
+     * storage, and exact one-input {@code AVERAGE_POOL2D} provenance at output index zero. This
+     * method evaluates no values and provides no gradient, graph capture, compiler binding,
+     * decomposition, lowering, backend work, allocation, runtime, or execution behavior.</p>
+     *
+     * @param attrs non-null immutable kernel, stride, padding, dilation, and literal ceil-mode
+     *     geometry retained by exact reference; fixed count-padding is operation meaning
+     * @return non-null fresh unlabeled storage-free result with retained type and metadata,
+     *     derived NCHW Shape, unresolved layout, and AVERAGE_POOL2D provenance
+     * @throws NullPointerException if {@code attrs} is null, with message {@code attrs}
+     * @throws IllegalArgumentException if this tensor is not floating rank four or its static
+     *     padded spatial geometry cannot fit the effective kernel
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor averagePool2d(AveragePool2dAttrs attrs) {
+        return TensorAveragePool2dExpressions.apply(this, attrs);
     }
 
     /**

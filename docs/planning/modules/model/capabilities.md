@@ -529,10 +529,20 @@ positive zero is greater than negative zero, and equal candidates select the fir
 kernel sample. Existing `Window2dAttrs` remains specific to unfold/fold and conceptual zero
 padding, so max pooling owns `MaxPool2dAttrs` in the pooling package.
 
-Draft 0020A1 separately owns average pooling. Its divisor, padding-count, accumulation,
-special-value, and empty/all-padding policies require a different attributes contract and detailed
-specification. Combining the two operations would exceed the established cohesive path guardrail;
-sharing NCHW coordinates does not make their numerical parameters interchangeable.
+Completed task [0020A1](tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md)
+separately owns floating NCHW average pooling through exactly
+`averagePool2d(AveragePool2dAttrs)`. It extends `Pool2dKind` without weakening max pooling and uses
+a dedicated attributes type with the same literal floor/ceiling padded grid. Every logical kernel
+position counts: in-bounds values contribute to the numerator, padding contributes conceptual
+positive zero, and the fixed divisor is the positive mathematical product of the two kernel sample
+counts. Count-padding is not configurable and there is no divisor override or valid-sample mode.
+An all-padding window returns positive zero; an exact-zero finite mean is negative zero only when
+every divisor contribution is an in-bounds negative zero. BFLOAT16/FLOAT32 accumulate and divide
+in FLOAT32, while FLOAT64 uses FLOAT64; result type remains the exact input type. NaN propagates,
+opposing infinities produce NaN, and a single infinity sign is retained. Conforming summation
+reassociation is allowed without bitwise or cross-backend rounding identity. Combining the two
+pooling operations would exceed the cohesive path guardrail; sharing NCHW coordinates does not
+make their numerical parameters interchangeable.
 
 ### Important shortly afterward
 

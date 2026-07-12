@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
+import io.github.pho001.synaptik.model.operation.pooling.AveragePool2dAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -86,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(178, declaredPublicMethods.size());
+        assertEquals(179, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -98,7 +99,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
-                        "scaledDotProductAttention", "conv2d", "maxPool2d",
+                        "scaledDotProductAttention", "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -195,6 +196,15 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(maxPool2d.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(maxPool2d.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(maxPool2d.getModifiers())));
+        var averagePool2d = Tensor.class.getDeclaredMethod(
+                "averagePool2d", AveragePool2dAttrs.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, averagePool2d.getReturnType()),
+                () -> assertEquals(List.of(AveragePool2dAttrs.class),
+                        Arrays.asList(averagePool2d.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(averagePool2d.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(averagePool2d.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(averagePool2d.getModifiers())));
 
         var where = Tensor.class.getDeclaredMethod(
                 "where", Tensor.class, Tensor.class, Tensor.class);
