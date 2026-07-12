@@ -299,8 +299,10 @@ execution remain separately owned.
 The former broad linear-algebra/attention row is decomposed without disturbing established tasks
 0019A–0019C. Completed [task 0019](tasks/0019-matmul-semantics-and-tensor-expression.md) owns only
 the first-class `MATMUL` primitive and public expression. Completed
-[task 0019D](tasks/0019d-linear-convenience.md) owns the `linear` convenience, and Draft task 0019E
-owns scaled dot-product attention. This keeps each task within one semantic and review boundary.
+[task 0019D](tasks/0019d-linear-convenience.md) owns the `linear` convenience. Completed
+[task 0019E](tasks/0019e-scaled-dot-product-attention.md) owns scaled dot-product attention. Its
+kind, attrs, public construction, tests, and documentation landed as one cohesive 17-path
+capability rather than an unusable semantic/construction split.
 
 The current MATMUL expression follows rank-one promotion/removal plus right-aligned broadcasting
 of leading batch axes.
@@ -335,6 +337,21 @@ All-masked rows have zero weights and zero output. The initial operation has one
 no attention weights, and has no dropout parameter. Graph RNG and dropout remain owned by task
 0019B; initial attention has no technical dependency on that task, and any later attention
 dropout must consume its explicit state.
+
+The selected public receiver surface is exactly four overloads: key/value with defaults,
+key/value with operation-specific attrs, key/value/mask with defaults, and key/value/mask with
+attrs. The public immutable attrs record is inspectable semantic state rather than a general
+options framework. Query/key/value ranks are at least two; their batch/head prefixes use exact
+three-way right-aligned broadcasting. Embedding equality/positivity, key/value sequence equality,
+batch singleton-or-equal, and mask singleton-or-equal obligations defer only when exact output
+Shape references remain derivable. Static-zero embedding is invalid; empty query, key sequence,
+value-width, and batch axes follow the task's explicit empty-domain results.
+
+Eligible score NaN propagates through a row; positive-infinity score ties split unit weight;
+all-negative-infinity and all-masked rows produce positive-zero weights and output. Excluded
+mask/causal positions are removed before score and value arithmetic, so their NaN/infinity values
+do not contaminate the row. BFLOAT16/FLOAT32 accumulate in FLOAT32 and FLOAT64 accumulates in
+FLOAT64; conforming reassociation and stable algorithms are allowed without bitwise guarantees.
 
 `square`, scalar arithmetic overloads, `linear`, embedding, flatten, swap-axes, split, and chunk
 are conveniences unless a focused task demonstrates a semantic reason for a distinct kind.

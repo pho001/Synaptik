@@ -86,7 +86,7 @@ class TensorLinearExpressionTest {
                         method -> method.getReturnType() == Tensor.class)),
                 () -> assertFalse(Modifier.isStatic(withoutBias.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(withBias.getModifiers())),
-                () -> assertEquals(171, publicTensorMethods),
+                () -> assertEquals(175, publicTensorMethods),
                 () -> assertEquals(2, publicLinearMethods));
     }
 

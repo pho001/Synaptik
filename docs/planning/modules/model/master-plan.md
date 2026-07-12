@@ -111,6 +111,10 @@ io.github.pho001.synaptik.model.operation.normalization
 io.github.pho001.synaptik.model.operation.linalg
   Typed backend-independent linear-algebra meanings; currently contains parameterless MATMUL.
 
+io.github.pho001.synaptik.model.operation.attention
+  Typed backend-independent scaled dot-product attention meaning and immutable scale/causal
+  parameters; no dropout, attention-weight output, algorithm, or backend route.
+
 io.github.pho001.synaptik.model.operation.random
   Explicit graph RNG-state initialization and state-consuming stochastic operation semantics;
   distinct from eager host-data population in the tensor package.
@@ -241,7 +245,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0019C | [Sort and argsort](tasks/0019c-sort-and-argsort.md) | Complete | 0018K–0018L, 0018U–0018U1 | Added stable values-only sort and indices-only argsort with fixed NaN-last ordering and exact all-type Shape/provenance contracts. |
 | 0019C1 | [Top-K values and indices](tasks/0019c1-top-k-values-and-indices.md) | Complete | 0019C, 0018L | Added focused TOP_K semantics, deterministic largest/smallest selection, static/deferred `k` validation, and one shared two-output values/INT64-indices producer. |
 | 0019D | [Linear convenience](tasks/0019d-linear-convenience.md) | Complete | 0017F, 0014B, 0018K–0018N, 0018T, 0018U, 0019–0019C1 | Add conventional weight-transposed MATMUL plus optional exact rank-one bias as fully prevalidated explicit public composition without a LINEAR kind. |
-| 0019E | Scaled dot-product attention | Draft | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Add one-output high-level attention semantics with exact query/key/value, mask, causal, scale, and all-masked-row contracts, excluding dropout. |
+| 0019E | [Scaled dot-product attention](tasks/0019e-scaled-dot-product-attention.md) | Complete | 0016I–0016J, 0018K–0018L, 0018N, 0018Q, 0019 | Added one-output attention semantics and four receiver overloads with exact query/key/value, mask, causal, scale, numerical, and deferred-constraint contracts, excluding dropout. |
 | 0020 | Convolution and pooling operations | Draft | 0018K, 0018M, 0018N, 0018V | Represent NCHW convolution and two-dimensional pooling only after dynamic spatial extents are expressible. |
 | 0021 | Normalization operations | Draft | 0018K, 0018L, 0018N, 0018V | Represent batch, layer, and RMS normalization with explicit statistics, epsilon, axes, and auxiliary outputs. |
 | 0022 | Loss operations | Draft | 0018K, 0018N, 0018V | Represent selected dense/index classification losses and reductions with explicit denominator and ignore policies. |
@@ -312,8 +316,10 @@ foundation, while completed [task 0019B1](tasks/0019b1-explicit-graph-dropout-co
 owns explicit-state dropout construction. The former 0019C row is now split: completed
 [task 0019C](tasks/0019c-sort-and-argsort.md) owns full stable sort/argsort, while 0019C1 owns
 genuine multi-output top-K and is Complete. Completed
-[task 0019D](tasks/0019d-linear-convenience.md) adds explicit linear composition. Task 0019E
-retains its established ID and remains Draft; no model task is currently Ready.
+[task 0019D](tasks/0019d-linear-convenience.md) adds explicit linear composition. Completed
+[task 0019E](tasks/0019e-scaled-dot-product-attention.md) retains its established ID and delivers
+semantics, attrs, public construction, API-locking tests, and documentation together in 17 paths;
+no 0019E1 split was needed. No model task is currently Ready.
 
 Task 0019D adds conventional `[outFeatures, inFeatures]` weight-transposed MATMUL plus optional
 exact rank-one bias as visible PERMUTE -> MATMUL -> optional ADD composition. Complete local
@@ -412,11 +418,12 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   inspection. It will use one `SCALED_DOT_PRODUCT_ATTENTION` kind, input range three to four,
   exactly one output, ordered inputs `[query, key, value]` or `[query, key, value, mask]`, and
   immutable `ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)`.
-  The public receiver methods will be `scaledDotProductAttention(key, value)`,
+  The public receiver methods are `scaledDotProductAttention(key, value)`,
   `scaledDotProductAttention(key, value, attrs)`,
   `scaledDotProductAttention(key, value, mask)`, and
-  `scaledDotProductAttention(key, value, mask, attrs)`. Absent scale selects the default, while a
-  present scale must be finite, positive, floating, and exactly match the promoted
+  `scaledDotProductAttention(key, value, mask, attrs)`. This public operation-specific attrs value
+  is inspectable semantic state, not a broad options framework. Absent scale selects the default,
+  while a present scale must be finite, positive, floating, and exactly match the promoted
   query/key/value type. Query `[...batch, L, E]`, key
   `[...batch, S, E]`, and value
   `[...batch, S, Ev]` use broadcast batch/head prefixes and produce
@@ -1402,8 +1409,8 @@ Tasks 0018L, 0018M, 0018M1, 0018N, 0018O, 0018P, 0018Q, 0018R, 0018S, 0018T, and
 complete. Task 0018U, task 0018U1, and linked task 0018V are also complete. Focused MATMUL task
 0019, 0019A, and 0019A1 are complete.
 Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D are complete. Task
-0019E and every later task remain Draft without detailed specifications. No model task is
-currently Ready.
+0019E is complete. Every later task remains Draft without a detailed specification, and no model
+task is currently Ready.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1467,7 +1474,7 @@ complete with public functional Scatter-ND expression construction. The capabili
 0018K–0018V as the new foundation frontier. Tasks 0018K through 0018T1 and task 0018U are complete;
 0018U1 and linked task 0018V are complete. Task 0019 is complete with its detailed MATMUL
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
-Task 0019E and every later task remain Draft without detailed specifications. No model task is
-currently Ready.
+Task 0019E is complete. Every later task remains Draft without a detailed specification, and no
+model task is currently Ready.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

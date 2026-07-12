@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -83,7 +84,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(171, declaredPublicMethods.size());
+        assertEquals(175, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -95,6 +96,7 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
+                        "scaledDotProductAttention",
                         "sort", "argsort", "topK",
                         "logSoftmax", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -152,6 +154,25 @@ class TensorTest {
                 () -> assertTrue(Modifier.isPublic(logicalNot.getModifiers())),
                 () -> assertFalse(Modifier.isStatic(logicalNot.getModifiers())),
                 () -> assertFalse(Modifier.isSynchronized(logicalNot.getModifiers())));
+
+        for (var parameters : List.of(
+                new Class<?>[] {Tensor.class, Tensor.class},
+                new Class<?>[] {Tensor.class, Tensor.class, ScaledDotProductAttentionAttrs.class},
+                new Class<?>[] {Tensor.class, Tensor.class, Tensor.class},
+                new Class<?>[] {
+                        Tensor.class,
+                        Tensor.class,
+                        Tensor.class,
+                        ScaledDotProductAttentionAttrs.class
+                })) {
+            var attention = Tensor.class.getDeclaredMethod(
+                    "scaledDotProductAttention", parameters);
+            assertAll(
+                    () -> assertEquals(Tensor.class, attention.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(attention.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(attention.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(attention.getModifiers())));
+        }
 
         var where = Tensor.class.getDeclaredMethod(
                 "where", Tensor.class, Tensor.class, Tensor.class);

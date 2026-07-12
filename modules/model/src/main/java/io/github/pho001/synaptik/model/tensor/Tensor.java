@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -68,7 +70,8 @@ import java.util.Optional;
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary
- * elementwise and matrix-multiplication expression methods create fresh storage-free tensors
+ * elementwise, matrix-multiplication, and scaled-dot-product-attention expression methods create
+ * fresh storage-free tensors
  * whose immutable provenance records the requested semantics and exact inputs; they do not execute mathematics, validate
  * numerical domains, create gradient rules, or capture a graph.
  * Binary ADD, SUB, MUL, MIN, and MAX promote same-category floating or signed-integral operands;
@@ -189,10 +192,10 @@ import java.util.Optional;
  * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
  * {@link SliceKind}, {@link PadKind},
  * {@link TileKind}, {@link TensorCompositionKind}, {@link WindowTransformKind},
- * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind}, or
- * {@link FloatingClassificationKind}, {@link MatmulKind}, {@link OrderingKind},
- * {@link DropoutKind}, or
- * {@link GraphRngKind}.
+ * {@link ScalarElementwiseKind}, {@link UnaryElementwiseKind},
+ * {@link FloatingClassificationKind}, {@link MatmulKind},
+ * {@link ScaledDotProductAttentionKind}, {@link OrderingKind},
+ * {@link DropoutKind}, or {@link GraphRngKind}.
  * Gradient eligibility does not promise that a gradient rule exists.
  * The tensor owns no publication, device, runtime-residency, or prepared-execution state and
  * neither allocates nor closes storage.</p>
@@ -632,6 +635,125 @@ public final class Tensor {
      */
     public Tensor linear(Tensor weight, Tensor bias) {
         return TensorLinearExpressions.apply(this, weight, bias);
+    }
+
+    /**
+     * Creates scaled dot-product attention with the embedding-derived scale and no explicit mask.
+     *
+     * <p>This is equivalent to calling {@link #scaledDotProductAttention(Tensor, Tensor,
+     * ScaledDotProductAttentionAttrs)} with a fresh attributes value whose scale is empty and
+     * causal flag is false. The receiver is query. Query, key, and value must be rank-two-or-higher
+     * floating tensors shaped {@code [..., L, E]}, {@code [..., S, E]}, and
+     * {@code [..., S, Ev]}; their leading prefixes broadcast together under the attention exact-
+     * Shape contract. Empty scale means {@code 1 / sqrt(E)} after positive extent binding.</p>
+     *
+     * @param key non-null floating key retained as the second ordered producer input
+     * @param value non-null floating value retained as the third ordered producer input
+     * @return non-null fresh storage-free attention output shaped {@code [..., L, Ev]}, with
+     *     promoted type, unresolved layout, query/key/value gradient-request OR, and no label
+     * @throws NullPointerException if {@code key} or {@code value} is null
+     * @throws IllegalArgumentException if type, rank, contraction, or batch Shape validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor scaledDotProductAttention(Tensor key, Tensor value) {
+        return TensorScaledDotProductAttentionExpressions.apply(
+                this,
+                key,
+                value,
+                new ScaledDotProductAttentionAttrs(Optional.empty(), false));
+    }
+
+    /**
+     * Creates unmasked scaled dot-product attention with explicit immutable attributes.
+     *
+     * <p>For each broadcast batch and query row, eligible scores are scaled query/key dot
+     * products, softmax-normalized over the key-sequence axis, and used to weight value rows.
+     * Causal mode admits key position {@code j} only when {@code j <= i}. No eligible positions,
+     * an empty key sequence, or all eligible negative-infinity scores produces positive-zero
+     * output. Eligible NaN scores propagate NaN; positive-infinity ties split unit weight equally.
+     * The operation excludes ineligible score and value special values before arithmetic.</p>
+     *
+     * <p>The result is one fresh output with ordered exact inputs {@code [this, key, value]} and
+     * the exact supplied attributes reference. This constructs semantic metadata only; it does
+     * not expose weights, apply dropout, evaluate values, define gradients, capture or decompose a
+     * graph, select a backend algorithm, allocate storage, or execute.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param attrs non-null scale/causal semantics retained by exact reference; a present scale
+     *     must exactly match the promoted attention data type
+     * @return non-null fresh storage-free attention output shaped {@code [..., L, Ev]}, with
+     *     promoted type, exact selected Dimension references, unresolved layout, and provenance
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if type, rank, embedding, sequence, batch, or scale
+     *     validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor scaledDotProductAttention(
+            Tensor key, Tensor value, ScaledDotProductAttentionAttrs attrs) {
+        return TensorScaledDotProductAttentionExpressions.apply(this, key, value, attrs);
+    }
+
+    /**
+     * Creates explicitly masked attention with the embedding-derived scale and non-causal mode.
+     *
+     * <p>This is equivalent to the four-argument attributes form with empty scale and causal false.
+     * The non-null mask must be exact BOOL and must right-broadcast exactly to the derived score
+     * Shape {@code [..., L, S]}; scalar masks are valid. True admits and false excludes a position
+     * before its score or value special values participate.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param mask non-null BOOL mask right-broadcastable exactly to score Shape
+     * @return non-null fresh storage-free attention output with exact ordered inputs
+     *     {@code [this, key, value, mask]} and output index zero
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if type, rank, Shape, or mask validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor scaledDotProductAttention(Tensor key, Tensor value, Tensor mask) {
+        return TensorScaledDotProductAttentionExpressions.apply(
+                this,
+                key,
+                value,
+                mask,
+                new ScaledDotProductAttentionAttrs(Optional.empty(), false));
+    }
+
+    /**
+     * Creates one first-class masked scaled dot-product attention expression.
+     *
+     * <p>Query, key, and value leading prefixes broadcast right-aligned together. The mask then
+     * broadcasts exactly to score Shape {@code [..., L, S]}; causal eligibility, when selected,
+     * combines with it by logical AND. Floating promotion is query/key then value. FLOAT64 uses
+     * FLOAT64 score and output accumulation; FLOAT32 and BFLOAT16 use FLOAT32 accumulation, with
+     * BFLOAT16 converted at output. Reassociation and conforming stable softmax algorithms are
+     * allowed without a bitwise portability promise.</p>
+     *
+     * <p>Static-zero query embedding is invalid; unresolved positivity and equality obligations
+     * remain for compiler validation or binding. Zero query, key-sequence, value-feature, and
+     * batch extents otherwise follow their Shape meanings. The fresh result is unlabeled,
+     * storage-free, and records one exact operation occurrence. Inputs, mask, and attributes are
+     * not mutated. No attention weights, random state, execution, compiler support, gradient
+     * formula, backend policy, or kernel is provided by this model construction.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param mask non-null BOOL mask with rank no greater than score rank and exact broadcast
+     * @param attrs non-null scale/causal semantics retained by exact reference
+     * @return non-null fresh storage-free output shaped {@code [..., L, Ev]}, with promoted type,
+     *     unresolved layout, query/key/value gradient-request OR, and four-input provenance
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if floating types, ranks, static contractions, exact batch
+     *     Shape, mask, or scale validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    public Tensor scaledDotProductAttention(
+            Tensor key,
+            Tensor value,
+            Tensor mask,
+            ScaledDotProductAttentionAttrs attrs) {
+        return TensorScaledDotProductAttentionExpressions.apply(this, key, value, mask, attrs);
     }
 
     /**

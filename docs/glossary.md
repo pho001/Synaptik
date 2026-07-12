@@ -116,6 +116,13 @@ without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftma
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
 retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
 behavior, backend behavior, and execution remain planned.
+The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class,
+one-output attention meaning, together with `ScaledDotProductAttentionAttrs` carrying optional
+exact scale and causal eligibility. Public `Tensor.scaledDotProductAttention` construction accepts
+floating query/key/value inputs and an optional exact BOOL mask, derives exact broadcast-batch and
+output metadata, and records ordered three- or four-input provenance. It exposes no attention
+weights or dropout state. Numerical evaluation, compiler capture and deferred-constraint proof,
+gradients, lowering, backend support, and execution remain planned.
 The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
 It preserves logical values, Shape, DataType, and row-major element order while requesting
 canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
@@ -575,6 +582,40 @@ before the final two matrix axes is a batch dimension; rank-one operands have no
 The two prefixes broadcast right-aligned before row and column result axes are appended. A batch
 dimension is logical Shape metadata, not a runtime batch scheduler, storage partition, or backend
 execution unit. See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+
+### Scaled dot-product attention
+
+An implemented backend-independent operation meaning that compares query rows with key rows,
+softmax-normalizes the resulting eligible [attention scores](#attention-score), and uses those
+weights to combine value rows. For query `[..., L, E]`, key `[..., S, E]`, and value
+`[..., S, Ev]`, its score Shape is `[..., L, S]` and output Shape is `[..., L, Ev]` after
+right-aligned three-way batch broadcasting. An absent scale means `1 / sqrt(E)` after positive
+embedding binding; a present scale is an exact finite positive floating `ScalarValue`.
+
+Current public Tensor construction records one output and ordered inputs `[query, key, value]` or
+`[query, key, value, mask]`. It does not expose weights, apply dropout, evaluate numbers, create
+gradients, prove deferred constraints, choose a backend, or execute.
+
+### Attention score
+
+One scaled dot product between a query row and a key row before softmax normalization. In scaled
+dot-product attention, scores have Shape `[..., L, S]`, and each query row normalizes over the
+final key-sequence axis `S`. Masked-out positions are excluded before their score or value special
+values participate.
+
+### Causal mask
+
+Eligibility that prevents a query position from attending to a later key position. Synaptik's
+current attention semantics are top-left aligned: zero-based key position `j` is eligible for
+query position `i` exactly when `j <= i`, including rectangular query/key sequence lengths. A
+separate explicit BOOL mask combines with causal eligibility by logical AND.
+
+### All-masked row
+
+One attention query row with no eligible key positions after explicit and causal masking. The
+scaled-dot-product-attention contract assigns positive-zero weights and positive-zero output
+components to such a row rather than applying ordinary softmax to an all-negative-infinity
+sentinel row. An empty key sequence creates this case for every existing query row.
 
 ### Broadcasting
 

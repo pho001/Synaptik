@@ -137,6 +137,14 @@ ordered Dimension references, although the outer Shape object may differ. These 
 producer chains are inputs a future compiler may capture and canonicalize; this page does not
 claim capture, linear-pattern recognition, fusion, gradient construction, lowering, backend
 support, or execution.
+`Tensor.scaledDotProductAttention` is current first-class model construction with three ordered
+query/key/value inputs and an optional fourth BOOL mask input. It locally derives the promoted
+type and exact broadcast-batch/output Shape, retains optional exact scale and causal eligibility,
+and records one `SCALED_DOT_PRODUCT_ATTENTION` output. Unresolved embedding positivity/equality,
+key/value sequence equality, batch singleton-or-equal, and mask singleton-or-equal facts remain
+obligations for later compiler validation or concrete binding. This is compiler-visible metadata,
+not current compiler support: no capture, revalidation, constraint representation, legal
+decomposition, attention gradient, saved value, backend lowering, or execution is implemented.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
@@ -403,7 +411,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
-  sum and softmax/log-softmax construction, plus static-resolved or dynamic-unresolved contiguous
+  sum and softmax/log-softmax construction, plus first-class scaled-dot-product-attention
+  construction with optional BOOL mask and scale/causal attributes, plus static-resolved or
+  dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
   signed-step slice plus one-occurrence flip construction, plus conditional-view scalar-select construction and
@@ -418,15 +428,15 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the compiler entry point, traversal, capture,
-  scan/reduction/normalization inference and canonicalization, optional softmax or activation
-  decomposition, activation-gradient construction,
+  scan/reduction/normalization/attention inference and canonicalization, optional softmax,
+  attention, or activation decomposition, activation/attention-gradient construction,
   redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
   shared-producer traversal and output-slot capture,
   compiler-generated `FOLD_AXIS` construction, deferred
-  dynamic reshape count validation, expand compatibility constraints, and dynamic select upper-
-  bound validation placement, layout materialization
+  dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
+  validation placement, attention deferred-constraint proof, layout materialization
   planning, and conversion into graph values and nodes remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps

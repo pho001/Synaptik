@@ -5919,6 +5919,111 @@ axes still reuse the exact input/product Dimension references. The example prove
 and ordered producer connectivity only; it does not evaluate numbers, capture a compiled graph,
 construct gradients, prove compiler recognition, or promise backend fusion or execution.
 
+### Scaled dot-product attention expressions
+
+Scaled dot-product attention maps a query sequence to weighted value rows by comparing each query
+with every key. The receiver is the query. For right-broadcastable batch or head prefixes, the
+Shapes are:
+
+```text
+query  [..., L, E]
+key    [..., S, E]  -> attention scores [..., L, S]
+value  [..., S, Ev] -> output           [..., L, Ev]
+```
+
+An **attention score** is one scaled query/key dot product. Eligible scores in each query row are
+softmax-normalized over the final key-sequence axis `S`; the resulting weights select a weighted
+sum of value rows. An absent scale means `1 / sqrt(E)` after the positive embedding extent is
+bound. A present `ScalarValue` scale must be finite, strictly positive, floating, and exactly the
+promoted query/key/value type.
+
+The four receiver overloads keep optional semantics explicit:
+
+| Call | Explicit mask | Scale and causal mode |
+|---|---|---|
+| `query.scaledDotProductAttention(key, value)` | none | default scale, non-causal |
+| `query.scaledDotProductAttention(key, value, attrs)` | none | from `attrs` |
+| `query.scaledDotProductAttention(key, value, mask)` | exact BOOL mask | default scale, non-causal |
+| `query.scaledDotProductAttention(key, value, mask, attrs)` | exact BOOL mask | from `attrs` |
+
+`ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)` is immutable
+operation-specific semantic state. It is not a general options container. Causal mode uses a
+top-left-aligned **causal mask**: zero-based key position `j` is eligible for query position `i`
+exactly when `j <= i`, including when `L` and `S` differ. An explicit BOOL mask uses `true` for an
+eligible position and `false` for an excluded one. It must right-broadcast exactly to score Shape
+`[..., L, S]`; scalar masks are valid. Explicit and causal eligibility combine with logical AND.
+
+#### Shape, type, and deferred checks
+
+Query, key, and value must be floating and rank two or greater. Their leading prefixes broadcast
+right-aligned together. Construction retains exact selected input Dimension references. A static
+non-singleton can select an exact batch result while an unresolved participant leaves a future
+singleton-or-equal obligation; unequal unresolved candidates fail when no exact output Dimension
+can be derived. These rules are attention-specific and do not change general `ShapeBroadcast`.
+
+Static unequal query/key embedding extents or key/value sequence extents fail locally, as does a
+static-zero query embedding extent. When those extents are unresolved, equality or positivity is
+deferred for later compiler validation or concrete binding. A mask with an unresolved Dimension
+against a static non-singleton score Dimension is accepted with the corresponding deferred
+singleton-or-equal obligation; combinations that cannot preserve the already selected exact score
+Shape fail locally.
+
+Floating promotion occurs in query/key/value order. FLOAT64 scores and output sums accumulate in
+FLOAT64. FLOAT32 and BFLOAT16 use FLOAT32 accumulation, and BFLOAT16 converts the final output.
+Reassociation, fused multiply-add, and any stable softmax that preserves the specified special
+cases are allowed, so this contract gives no bitwise or cross-backend identical-rounding promise.
+
+#### Eligibility and special values
+
+Mask and causal exclusion happen before score or value arithmetic. NaN or infinity in an excluded
+key/value position therefore cannot contaminate a row. For each query row:
+
+- no eligible positions, including an all-masked row, produce positive-zero output components;
+- an eligible NaN score makes eligible weights and non-empty output components NaN;
+- eligible positive-infinity scores split unit weight equally, while other eligible positions get
+  positive-zero weight;
+- all eligible scores at negative infinity produce positive-zero weights and output; and
+- otherwise finite scores use ideal exponential ratios and eligible negative infinities get zero.
+
+Eligible value NaN still follows ordinary floating multiply/add even when its eligible weight is
+zero; only eligibility exclusion guarantees that a value is ignored. An empty key sequence is an
+all-masked-row case for every existing query row. Empty query, value-feature, and batch axes retain
+their ordinary Shape meanings.
+
+#### Conceptual metadata example
+
+The following conceptual snippet uses the current API, but is intentionally not a standalone
+program: the named variables stand for already-created Tensor metadata. It demonstrates the
+operation record rather than numerical execution.
+
+```java
+Tensor output = query.scaledDotProductAttention(
+        key,
+        value,
+        mask,
+        new ScaledDotProductAttentionAttrs(Optional.empty(), true));
+```
+
+Use these concrete inputs:
+
+```text
+query Shape [2, 4, 8]
+key   Shape [1, 6, 8]
+value Shape [2, 6, 10]
+mask  Shape [4, 6]
+```
+
+The three batch prefixes broadcast to `[2]`. The score Shape is therefore `[2, 4, 6]`, the output
+Shape is `[2, 4, 10]`, and the default scale means `1 / sqrt(8)`. The mask broadcasts across the
+batch axis, while causal mode also excludes every `j > i` position. The returned Tensor is fresh,
+unlabeled, storage-free, and layout-unresolved. Its one-output provenance has index zero, retains
+the exact attrs reference, and records ordered inputs `[query, key, value, mask]`. Gradient
+eligibility is the OR of query, key, and value only; it is not a gradient rule.
+
+This example proves locally derived metadata and provenance. Current model construction does not
+read values, expose attention weights, apply dropout, capture or decompose a compiled graph,
+construct gradients, choose an algorithm or backend, allocate storage, or execute attention.
+
 ### Matrix-multiplication semantic kind
 
 `MatmulKind` contains exactly `MATMUL`. The kind pairs only with
@@ -6245,6 +6350,8 @@ composition while the table also lists the current production families:
 | `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
+| `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies one-output scaled dot-product attention. |
+| `ScaledDotProductAttentionAttrs` | The implemented immutable optional exact scale and top-left causal-eligibility value. |
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
 | `ShapeTransformKind` | The implemented production enum for ordered-element-preserving `RESHAPE` and singleton/leading-axis-repeating `EXPAND` meanings. |
 | `TargetShapeAttrs` | The implemented immutable normalized target-`Shape` value shared by reshape and expand. |
@@ -7760,6 +7867,7 @@ The following contracts appear in the architecture and planning documents but ar
 `AggregateReductionKind`, `AxisReductionAttrs`, `MultiAxisReductionAttrs`,
 `StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
 `MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
+`ScaledDotProductAttentionKind`, `ScaledDotProductAttentionAttrs`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `PadKind`, `PadAttrs`,
 `TileKind`, `TileAttrs`, `TensorCompositionKind`, `CompositionAxisAttrs`,
@@ -7796,6 +7904,13 @@ prevalidate caller-controlled failures before intermediate IDs, and leave the pr
 chain visible. The biased result is Shape-equal to its MATMUL product with exact corresponding
 Dimension references, but its outer Shape object may be distinct. Compiler capture, recognition,
 fusion, gradients, backend support, and execution remain planned.
+The four public `scaledDotProductAttention` overloads are current first-class model construction.
+They derive exact broadcast-batch, score, and output Shapes for floating query/key/value inputs;
+optionally retain an exact BOOL mask; and record default-or-explicit scale plus causal eligibility
+in `ScaledDotProductAttentionAttrs`. Construction creates one output and no attention-weight or
+random-state output. Deferred embedding, sequence, batch, and mask obligations remain for future
+compiler validation or binding. Numerical execution, compiler capture or legal decomposition,
+gradients, dropout, backend support, and runtime execution remain planned in their owning layers.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and

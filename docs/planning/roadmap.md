@@ -137,8 +137,10 @@ completed [task 0019C1](modules/model/tasks/0019c1-top-k-values-and-indices.md) 
 multi-output top-K. Its final model suite, independent documentation review, Javadoc, runnable example,
 Markdown, exact 18-path audit, repository checkpoint, status, and whitespace validation passed.
 Completed [task 0019D](modules/model/tasks/0019d-linear-convenience.md) adds explicit linear
-composition. Task 0019E and every later task remain Draft without detailed specifications; no
-model task is currently Ready.
+composition. Completed [task 0019E](modules/model/tasks/0019e-scaled-dot-product-attention.md)
+adds first-class attention semantics, immutable attrs, four receiver overloads, API-locking tests,
+and documentation in one cohesive 17-path change. Task 0020 and every later task remain Draft
+without detailed specifications; no model task is currently Ready.
 
 Task 0019D adds conventional `[outFeatures, inFeatures]` weight-transposed MATMUL plus optional
 exact rank-one bias as visible PERMUTE -> MATMUL -> optional ADD composition. Complete local
@@ -206,8 +208,9 @@ complete. Tasks 0019A, 0019A1, and
 Task 0019C is now complete for stable sort/argsort. Its completed
 [0019C1 follow-up](modules/model/tasks/0019c1-top-k-values-and-indices.md) owns top-K. Completed
 [task 0019D](modules/model/tasks/0019d-linear-convenience.md) owns linear as explicit
-PERMUTE/MATMUL/optional-ADD composition; attention remains Draft task 0019E. No model task is Ready
-or in Review needed.
+PERMUTE/MATMUL/optional-ADD composition. Completed
+[task 0019E](modules/model/tasks/0019e-scaled-dot-product-attention.md) owns first-class attention;
+no model task is currently Ready or in Review.
 
 The former broad task 0017 is decomposed into tasks 0017A–0017N so parameterless contiguous
 meaning, public expression construction, shape/view transformations, slicing, pad/tile,
@@ -216,8 +219,8 @@ composition, and unfold/fold contracts can be implemented and validated independ
 decomposed into focused tasks 0018A–0018J for select, gather, and functional-scatter semantics and
 expressions. Tasks 0018A through 0018J, tasks 0018K through 0018T, and task 0018T1 are complete;
 task 0018U, task 0018U1, task 0018V, focused MATMUL task 0019, task 0019A, and task 0019A1 are
-Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are also Complete. Task 0019E and
-later tasks remain Draft without detailed specifications. No model task is currently Ready.
+Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also Complete. Later
+tasks remain Draft without detailed specs, and no model task is currently Ready.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -670,7 +673,7 @@ authorized Compile API status correction.
 | 100 | [0019C Sort and argsort](modules/model/tasks/0019c-sort-and-argsort.md) | Complete |
 | 101 | [0019C1 Top-K values and indices](modules/model/tasks/0019c1-top-k-values-and-indices.md) | Complete |
 | 102 | [0019D Linear convenience](modules/model/tasks/0019d-linear-convenience.md) | Complete |
-| 103 | 0019E Scaled dot-product attention | Draft |
+| 103 | [0019E Scaled dot-product attention](modules/model/tasks/0019e-scaled-dot-product-attention.md) | Complete |
 | 104 | 0020 Convolution and pooling operations | Draft |
 | 105 | 0021 Normalization operations | Draft |
 | 106 | 0022 Loss operations | Draft |
@@ -726,8 +729,8 @@ complete. Tasks 0018C, 0018D, 0018D1, 0018E, 0018F, and 0018G are also complete.
 also complete. Tasks 0018I and 0018J are complete. The capability reset inserts 0018K–0018V
 before 0019. Tasks 0018K through 0018T1, task 0018U, task 0018U1, linked 0018V, and task 0019 are
 complete. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are also complete.
-Task 0019E and every later task remain Draft without detailed specifications. No model task is
-currently Ready.
+Task 0019E is complete. Every later task remains Draft without a detailed specification, and no
+model task is currently Ready.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral
