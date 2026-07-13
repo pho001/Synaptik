@@ -95,7 +95,7 @@ class TensorSlicePlacementExpressionTest {
                 () -> assertFalse(Modifier.isStatic(publicCrop.getModifiers())),
                 () -> assertFalse(publicCrop.isVarArgs()),
                 () -> assertSame(Tensor.class, publicCrop.getReturnType()),
-                () -> assertEquals(194, publicTensorMethods),
+                () -> assertEquals(196, publicTensorMethods),
                 () -> assertEquals(1, publicMethodsNamed("sliceUpdate")),
                 () -> assertEquals(1, publicMethodsNamed("cropToShape")));
     }

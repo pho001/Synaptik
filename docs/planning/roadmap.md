@@ -159,10 +159,9 @@ five-input inference. Task 0021C is Complete. The former broad loss row is now s
 [task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) for
 dense-target categorical cross-entropy with logits, and completed task 0022B for index-target
 categorical cross-entropy with logits. Task 0022A is Complete;
-task 0023 is Complete with its detailed specification and final matrix. Tasks 0023A–0023D are
-Complete with their detailed specifications. Task 0023E is the next Draft frontier; concise Draft
-follow-up rows 0023E–0023F precede established task 0024, which remains Draft without a detailed
-specification.
+task 0023 is Complete with its detailed specification and final matrix. Tasks 0023A–0023E are
+Complete with their detailed specifications. Task 0023F is the next concise Draft follow-up before
+established task 0024, which remains Draft without a detailed specification.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -184,6 +183,15 @@ tests across 126 suites with no failures, errors, or skips. Independent document
 finalized all nine affected production Javadocs, Tensor/Compile APIs, glossary and planning
 records, then validated model Javadoc, a runnable Java 26 metadata example, generated API pages,
 the 194-method public Tensor surface, Markdown, exact 33-path scope, status, and whitespace.
+
+Completed [task 0023E](modules/model/tasks/0023e-cumulative-scan-normalization-and-product.md)
+atomically replaces the sum-only scan type/helper names with one `CUM_SUM`/`CUM_PROD` family,
+preserves the two public `cumSum` forms, and adds two public `cumProd` forms. Its focused run passed
+44 tests across five suites, and its single final model suite passed 1,008 tests across 126 suites
+with no failures, errors, or skips. Independent documentation review finalized the affected
+Javadocs, Tensor/Compile APIs, glossary and planning records, then validated model Javadoc, Java 26
+API reflection, generated API pages, the 196-method public Tensor surface, Markdown, exact 33-path
+scope, synchronized Complete/Draft status, and whitespace without rerunning executable Java tests.
 
 [Task 0023](modules/model/tasks/0023-adjoint-expressibility-audit.md) is the planning-only
 adjoint-expressibility frontier after the completed post-0022B checkpoint. Its
@@ -299,8 +307,8 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
 Complete. Tasks 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed
 audit specification and result artifact. Task 0023A is Complete with its detailed specification.
-Tasks 0023B, 0023C, and 0023D are Complete with their detailed specifications, while tasks
-0023E–0023F and task 0024 remain Draft without detailed specifications.
+Tasks 0023B, 0023C, 0023D, and 0023E are Complete with their detailed specifications, while task
+0023F and task 0024 remain Draft without detailed specifications.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -777,7 +785,7 @@ authorized Compile API status correction.
 | 116 | [0023B Gather-compatible scatter-add](modules/model/tasks/0023b-gather-compatible-scatter-add.md) | Complete |
 | 117 | [0023C Slice update and target-relative crop](modules/model/tasks/0023c-slice-update-and-target-relative-crop.md) | Complete |
 | 118 | [0023D Public foldAxis and dynamic window transforms](modules/model/tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete |
-| 119 | 0023E Cumulative-product scan | Draft |
+| 119 | [0023E Cumulative scan normalization and product](modules/model/tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete |
 | 120 | 0023F Attention weights output | Draft |
 | 121 | 0024 Model capability selection audit | Draft |
 
@@ -835,8 +843,8 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, 0021A, and 0021B are complete. Task
 Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Complete.
 [Task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is
 Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specification and
-result artifact. Tasks 0023A–0023D are Complete with their detailed specifications. Tasks
-0023E–0023F and established task 0024 remain Draft without detailed specifications.
+result artifact. Tasks 0023A–0023E are Complete with their detailed specifications; task 0023F and
+established task 0024 remain Draft without detailed specifications.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

@@ -43,7 +43,7 @@ import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.ArgExtremaTiePolicy;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import java.util.List;
@@ -209,7 +209,7 @@ import java.util.Optional;
  * an exact matching
  * {@link BinaryArithmeticKind}, {@link BinaryComparisonKind}, {@link BooleanLogicalKind},
  * {@link WhereSelectionKind}, {@link CastKind}, {@link AggregateReductionKind},
- * {@link CumulativeSumKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link GatherNdKind},
+ * {@link CumulativeScanKind}, {@link SoftmaxKind}, {@link AxisGatherKind}, {@link GatherNdKind},
  * {@link AxisScatterKind}, {@link ScatterNdKind},
  * {@link ContiguousKind}, {@link ShapeTransformKind}, {@link AxisTransformKind},
  * {@link SliceKind}, {@link PadKind},
@@ -3890,7 +3890,8 @@ public final class Tensor {
      *     validation and construction
      */
     public Tensor cumSum(int axis) {
-        return TensorCumulativeSumExpressions.apply(this, axis, false, false);
+        return TensorCumulativeScanExpressions.apply(
+                this, CumulativeScanKind.CUM_SUM, axis, false, false);
     }
 
     /**
@@ -3934,7 +3935,84 @@ public final class Tensor {
      *     validation and construction
      */
     public Tensor cumSum(int axis, boolean exclusive, boolean reverse) {
-        return TensorCumulativeSumExpressions.apply(this, axis, exclusive, reverse);
+        return TensorCumulativeScanExpressions.apply(
+                this, CumulativeScanKind.CUM_SUM, axis, exclusive, reverse);
+    }
+
+    /**
+     * Creates a fresh inclusive forward cumulative-product expression along one axis.
+     *
+     * <p>A cumulative product replaces each logical position with the product of the prefix ending
+     * at that position. For input {@code [2, 3, 4]}, inclusive forward mode represents
+     * {@code [2, 6, 24]}. This overload is exactly equivalent to
+     * {@code cumProd(axis, false, false)}.</p>
+     *
+     * <p>The axis may be positive or negative and is normalized against the input rank. The input
+     * must have FLOAT64, FLOAT32, BFLOAT16, INT32, or INT64 data type. Construction retains the
+     * exact input Shape, data type, and gradient-eligibility metadata, but leaves result layout
+     * unresolved. It returns a fresh unlabeled, storage-free Tensor whose provenance contains
+     * this Tensor as its sole input. Construction does not inspect or multiply values and does not
+     * define a gradient rule, compiler adoption, backend support, or execution behavior.</p>
+     *
+     * @param axis the positive or negative input axis accepted by
+     *     {@link io.github.pho001.synaptik.model.shape.Shape#normalizeAxis(int)}
+     * @return a non-null fresh inclusive forward cumulative-product expression with unresolved
+     *     layout, no label or storage, and exact one-input provenance
+     * @throws IllegalArgumentException if this Tensor has BOOL data type, with message
+     *     {@code input must have a numeric data type, but was BOOL}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside this Tensor's shape rank,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor cumProd(int axis) {
+        return TensorCumulativeScanExpressions.apply(
+                this, CumulativeScanKind.CUM_PROD, axis, false, false);
+    }
+
+    /**
+     * Creates a fresh cumulative-product expression with explicit inclusion and direction modes.
+     *
+     * <p>For input {@code [2, 3, 4]}, the four modes represent these results while preserving
+     * output position order:</p>
+     * <ul>
+     *   <li>inclusive forward ({@code false, false}): {@code [2, 6, 24]};</li>
+     *   <li>exclusive forward ({@code true, false}): {@code [1, 2, 6]};</li>
+     *   <li>inclusive reverse ({@code false, true}): {@code [24, 12, 4]}; and</li>
+     *   <li>exclusive reverse ({@code true, true}): {@code [12, 4, 1]}.</li>
+     * </ul>
+     *
+     * <p>Positive one is the exclusive boundary identity. A zero-length scan axis produces a
+     * zero-length result because it has no output position. Integral inputs retain their exact
+     * type and use fixed-width two's-complement modular multiplication. Floating multiplication
+     * propagates NaN, treats zero times infinity as NaN, and follows multiplication parity for
+     * zero and infinity signs. No accumulation precision, intermediate rounding, NaN payload,
+     * algorithm, or cross-backend bitwise result is selected.</p>
+     *
+     * <p>Construction preserves the exact input Shape reference, data type, and gradient
+     * eligibility; result layout is unresolved. The result is fresh, unlabeled, storage-free, and
+     * has exact one-input provenance. Construction does not read values, execute multiplication,
+     * define a gradient rule, capture a graph, or provide compiler, runtime, backend, or execution
+     * behavior.</p>
+     *
+     * @param axis the positive or negative input axis accepted by
+     *     {@link io.github.pho001.synaptik.model.shape.Shape#normalizeAxis(int)}
+     * @param exclusive {@code true} to omit the current position and emit positive one at the
+     *     first traversed position, or {@code false} to include it
+     * @param reverse {@code true} to traverse from the axis end toward its beginning while keeping
+     *     output positions ordered, or {@code false} to traverse forward
+     * @return a non-null fresh cumulative-product expression retaining the requested mode flags,
+     *     unresolved layout, no label or storage, and exact one-input provenance
+     * @throws IllegalArgumentException if this Tensor has BOOL data type, with message
+     *     {@code input must have a numeric data type, but was BOOL}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside this Tensor's shape rank,
+     *     including every axis for a scalar Tensor
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     validation and construction
+     */
+    public Tensor cumProd(int axis, boolean exclusive, boolean reverse) {
+        return TensorCumulativeScanExpressions.apply(
+                this, CumulativeScanKind.CUM_PROD, axis, exclusive, reverse);
     }
 
     /**

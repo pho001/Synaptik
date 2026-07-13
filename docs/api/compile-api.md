@@ -67,8 +67,9 @@ methods, plus one static conditional-selection method and one explicit cast meth
 full/axis numeric aggregate methods, one binding-aware target-Shape SUM method, six full/axis
 boolean aggregate methods, fourteen ordinary
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
-masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
-one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape `layerNorm`
+masked aggregate methods, six axis-only `argMin`/`argMax` methods, two one-axis `cumSum` methods,
+and two one-axis `cumProd` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape
+`layerNorm`
 methods, and two trailing-Shape `rmsNorm`
 methods, plus explicit-axis five-input `batchNormInference` and `batchNormTraining` methods,
 scalar `select`, two
@@ -286,12 +287,21 @@ log-sum-exp targets, corrected statistical formulas, and non-negative norm targe
 compiler-visible requested meanings, not implemented capture, operand revalidation, numerical
 algorithms, gradients, lowering, backend support, or execution. A future compiler must revalidate
 dynamic corrected-domain counts before execution without inventing a callable API here.
-`Tensor.cumSum` accepts floating or integral input and one positive or negative axis. Its short
-form explicitly selects inclusive forward traversal; its complete form retains exact exclusive
-and reverse flags. Every result retains the exact input Shape, data type, and gradient eligibility,
-leaves layout unresolved, and records `CUM_SUM` with exact one-input provenance. Construction does
-not read or accumulate values, create a gradient rule, capture a graph, lower a backend operation,
-or execute work.
+`Tensor.cumSum` and `Tensor.cumProd` are current model expressibility for shape-preserving
+cumulative addition and multiplication. Each family accepts floating or integral input and one
+positive or negative axis. Each short form explicitly selects inclusive forward traversal; each
+complete form retains exact exclusive and reverse flags. Every result retains the exact input
+Shape, data type, and gradient eligibility, leaves layout unresolved, and records the matching
+`CUM_SUM` or `CUM_PROD` with exact one-input provenance. Integral cumulative product has exact-
+width modular meaning; floating product has the selected NaN, zero-times-infinity, sign-parity,
+and positive-one identity semantics documented by the Tensor API. Construction does not read or
+accumulate values.
+
+Those model expressions are compiler-visible inputs, not implemented compiler adoption. Capture,
+dynamic validation, canonicalization, product-adjoint construction from prefix and suffix scans,
+gradient boundary policy, saved-value lifetime, numerical lowering, backend support, and execution
+remain planned. In particular, the current compiler API exposes no callable compilation path that
+turns either scan kind into executable work.
 `Tensor.softmax` and `Tensor.logSoftmax` accept floating input and one positive or negative axis.
 Every result retains the exact input Shape, data type, and gradient eligibility, leaves layout
 unresolved, and records the requested first-class SOFTMAX or LOG_SOFTMAX kind with exact one-input
@@ -553,8 +563,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   product, minimum, and maximum, binding-aware exact-target-Shape sum, masked sum and mean
   construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
-  construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
-  sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, explicit
+  construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative sum/product
+  scan, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, explicit
   five-input batch-normalization inference and five-output training/statistic-transition
   construction, exact-shape mean-squared-error construction with explicit loss reduction, and
   dense- or index-target categorical-cross-entropy-with-logits construction with exact target-type

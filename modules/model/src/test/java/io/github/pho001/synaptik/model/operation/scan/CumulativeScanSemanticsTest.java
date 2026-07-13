@@ -20,47 +20,57 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class CumulativeSumSemanticsTest {
+class CumulativeScanSemanticsTest {
     @Test
-    void declaresExactlyTheCumulativeSumKindWithTypedIdentity() {
-        OperationKind cumulativeSum = CumulativeSumKind.CUM_SUM;
+    void declaresExactlyTheCumulativeScanKindsInOrderWithTypedIdentity() {
+        OperationKind cumulativeSum = CumulativeScanKind.CUM_SUM;
+        OperationKind cumulativeProduct = CumulativeScanKind.CUM_PROD;
         OperationKind aggregateSum = AggregateReductionKind.SUM;
 
         assertAll(
                 () -> assertArrayEquals(
-                        new CumulativeSumKind[] {CumulativeSumKind.CUM_SUM},
-                        CumulativeSumKind.values()),
+                        new CumulativeScanKind[] {
+                                CumulativeScanKind.CUM_SUM, CumulativeScanKind.CUM_PROD
+                        },
+                        CumulativeScanKind.values()),
                 () -> assertEquals("CUM_SUM", cumulativeSum.name()),
                 () -> assertEquals("CUM_SUM", cumulativeSum.toString()),
                 () -> assertSame(
-                        CumulativeSumKind.CUM_SUM,
-                        CumulativeSumKind.valueOf("CUM_SUM")),
+                        CumulativeScanKind.CUM_SUM,
+                        CumulativeScanKind.valueOf("CUM_SUM")),
+                () -> assertEquals("CUM_PROD", cumulativeProduct.name()),
+                () -> assertEquals("CUM_PROD", cumulativeProduct.toString()),
+                () -> assertSame(
+                        CumulativeScanKind.CUM_PROD,
+                        CumulativeScanKind.valueOf("CUM_PROD")),
                 () -> assertInstanceOf(OperationKind.class, cumulativeSum),
+                () -> assertInstanceOf(OperationKind.class, cumulativeProduct),
+                () -> assertNotEquals(cumulativeSum, cumulativeProduct),
                 () -> assertNotEquals(cumulativeSum, aggregateSum));
     }
 
     @Test
     void exposesOnlyTheExactEnumShape() {
         io.github.pho001.synaptik.model.operation.OperationSignatureTest
-                .assertSignatureEnumShape(CumulativeSumKind.class);
+                .assertSignatureEnumShape(CumulativeScanKind.class);
     }
 
     @Test
     void exposesOnlyTheExactAttributesRecordShape() {
-        var components = CumulativeSumAttrs.class.getRecordComponents();
-        var constructors = CumulativeSumAttrs.class.getDeclaredConstructors();
-        var fields = CumulativeSumAttrs.class.getDeclaredFields();
+        var components = CumulativeScanAttrs.class.getRecordComponents();
+        var constructors = CumulativeScanAttrs.class.getDeclaredConstructors();
+        var fields = CumulativeScanAttrs.class.getDeclaredFields();
 
         assertAll(
                 () -> assertEquals(
                         "io.github.pho001.synaptik.model.operation.scan",
-                        CumulativeSumAttrs.class.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(CumulativeSumAttrs.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(CumulativeSumAttrs.class.getModifiers())),
-                () -> assertTrue(CumulativeSumAttrs.class.isRecord()),
+                        CumulativeScanAttrs.class.getPackageName()),
+                () -> assertTrue(Modifier.isPublic(CumulativeScanAttrs.class.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(CumulativeScanAttrs.class.getModifiers())),
+                () -> assertTrue(CumulativeScanAttrs.class.isRecord()),
                 () -> assertEquals(
                         List.of(OperationAttrs.class),
-                        Arrays.asList(CumulativeSumAttrs.class.getInterfaces())),
+                        Arrays.asList(CumulativeScanAttrs.class.getInterfaces())),
                 () -> assertEquals(
                         List.of("axis", "exclusive", "reverse"),
                         Arrays.stream(components).map(component -> component.getName()).toList()),
@@ -87,11 +97,11 @@ class CumulativeSumSemanticsTest {
                                 "hashCode():int",
                                 "reverse():boolean",
                                 "toString():java.lang.String"),
-                        Arrays.stream(CumulativeSumAttrs.class.getDeclaredMethods())
-                                .map(CumulativeSumSemanticsTest::methodSignature)
+                        Arrays.stream(CumulativeScanAttrs.class.getDeclaredMethods())
+                                .map(CumulativeScanSemanticsTest::methodSignature)
                                 .sorted()
                                 .toList()),
-                () -> assertEquals(0, CumulativeSumAttrs.class.getDeclaredClasses().length));
+                () -> assertEquals(0, CumulativeScanAttrs.class.getDeclaredClasses().length));
     }
 
     @Test
@@ -99,8 +109,8 @@ class CumulativeSumSemanticsTest {
         for (int axis : new int[] {0, 1, 37, Integer.MAX_VALUE}) {
             for (boolean exclusive : new boolean[] {false, true}) {
                 for (boolean reverse : new boolean[] {false, true}) {
-                    CumulativeSumAttrs attrs =
-                            new CumulativeSumAttrs(axis, exclusive, reverse);
+                    CumulativeScanAttrs attrs =
+                            new CumulativeScanAttrs(axis, exclusive, reverse);
 
                     assertAll(
                             () -> assertEquals(axis, attrs.axis()),
@@ -116,7 +126,7 @@ class CumulativeSumSemanticsTest {
         for (int axis : new int[] {-1, -2, -37, Integer.MIN_VALUE}) {
             IllegalArgumentException failure = assertThrows(
                     IllegalArgumentException.class,
-                    () -> new CumulativeSumAttrs(axis, true, true));
+                    () -> new CumulativeScanAttrs(axis, true, true));
 
             assertEquals("axis must be non-negative: " + axis, failure.getMessage());
         }
@@ -124,11 +134,11 @@ class CumulativeSumSemanticsTest {
 
     @Test
     void usesGeneratedRecordValueSemanticsAndDiagnosticText() {
-        var attrs = new CumulativeSumAttrs(2, true, false);
-        var equal = new CumulativeSumAttrs(2, true, false);
-        var differentAxis = new CumulativeSumAttrs(1, true, false);
-        var differentExclusive = new CumulativeSumAttrs(2, false, false);
-        var differentReverse = new CumulativeSumAttrs(2, true, true);
+        var attrs = new CumulativeScanAttrs(2, true, false);
+        var equal = new CumulativeScanAttrs(2, true, false);
+        var differentAxis = new CumulativeScanAttrs(1, true, false);
+        var differentExclusive = new CumulativeScanAttrs(2, false, false);
+        var differentReverse = new CumulativeScanAttrs(2, true, true);
 
         assertAll(
                 () -> assertEquals(attrs, equal),
@@ -137,7 +147,7 @@ class CumulativeSumSemanticsTest {
                 () -> assertNotEquals(attrs, differentExclusive),
                 () -> assertNotEquals(attrs, differentReverse),
                 () -> assertEquals(
-                        "CumulativeSumAttrs[axis=2, exclusive=true, reverse=false]",
+                        "CumulativeScanAttrs[axis=2, exclusive=true, reverse=false]",
                         attrs.toString()));
     }
 
@@ -145,23 +155,26 @@ class CumulativeSumSemanticsTest {
     void composesEveryModeWithTheExactKindAndAttributesReference() {
         for (boolean exclusive : new boolean[] {false, true}) {
             for (boolean reverse : new boolean[] {false, true}) {
-                CumulativeSumAttrs attrs = new CumulativeSumAttrs(1, exclusive, reverse);
-                Operation operation = new Operation(CumulativeSumKind.CUM_SUM, attrs);
+                for (CumulativeScanKind kind : CumulativeScanKind.values()) {
+                    CumulativeScanAttrs attrs =
+                            new CumulativeScanAttrs(1, exclusive, reverse);
+                    Operation operation = new Operation(kind, attrs);
 
-                assertAll(
-                        () -> assertSame(CumulativeSumKind.CUM_SUM, operation.kind()),
-                        () -> assertSame(attrs, operation.attrs()));
+                    assertAll(
+                            () -> assertSame(kind, operation.kind()),
+                            () -> assertSame(attrs, operation.attrs()));
+                }
             }
         }
     }
 
     @Test
     void remainsDistinctFromAggregateReductionSemanticsAndContainsNoCrossLayerState() {
-        CumulativeSumAttrs scanAttrs = new CumulativeSumAttrs(0, false, false);
+        CumulativeScanAttrs scanAttrs = new CumulativeScanAttrs(0, false, false);
         AxisReductionAttrs reductionAttrs = new AxisReductionAttrs(0, false);
-        Operation scan = new Operation(CumulativeSumKind.CUM_SUM, scanAttrs);
+        Operation scan = new Operation(CumulativeScanKind.CUM_SUM, scanAttrs);
         Operation reduction = new Operation(AggregateReductionKind.SUM, reductionAttrs);
-        var componentTypes = Arrays.stream(CumulativeSumAttrs.class.getRecordComponents())
+        var componentTypes = Arrays.stream(CumulativeScanAttrs.class.getRecordComponents())
                 .map(component -> component.getType().getName())
                 .toList();
 

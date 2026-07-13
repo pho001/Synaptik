@@ -274,7 +274,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0023B | [Gather-compatible scatter-add](tasks/0023b-gather-compatible-scatter-add.md) | Complete | 0023, 0023A | Added final `SCATTER_ADD` and one public fixed-add expression whose updates have the exact current Gather result Shape, preserving unresolved gathered extents and duplicate accumulation. |
 | 0023C | [Slice update and target-relative crop](tasks/0023c-slice-update-and-target-relative-crop.md) | Complete | 0023, 0023B | Added functional signed/multi-axis slice replacement plus exact target/prefix-Shape crop for unresolved Pad/Concat extents, without overlap addition or binding. |
 | 0023D | [Public foldAxis and dynamic window transforms](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete | 0023, 0023C | Restored public general-axis overlap-add fold, added exact typed-padding UNFOLD2D, and retained dynamic canonical rank-three columns through a canonical symbolic Dimension product. |
-| 0023E | Cumulative-product scan | Draft | 0023 | Add the general inclusive/exclusive, forward/reverse cumulative-product scan needed for zero-safe product adjoints. |
+| 0023E | [Cumulative scan normalization and product](tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete | 0016G–0016H, 0018K, 0018U–0018U1, 0023, 0023D | Atomically normalized the sum-only scan types into one CUM_SUM/CUM_PROD family, preserved public cumulative sum, and added the general product scan needed for zero-safe product adjoints. |
 | 0023F | Attention weights output | Draft | 0023 | Add a generally useful public attention result that retains same-occurrence normalized weights without weakening masked special-value semantics. |
 | 0024 | Model capability selection audit | Draft | 0001–0023F | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
@@ -367,9 +367,9 @@ specification. It adds no kind: SUM alone appends exact `SumToShapeAttrs`, and o
 target-one-or-equal obligations. The focused 14-suite run passed 131 tests, the replacement final
 model suite passed 977 tests, and the separate documentation pass validated model Javadoc,
 examples, Markdown, exact 25-path scope, the 189-method public surface, and synchronized status.
-Tasks 0023B, 0023C, and 0023D are Complete with their detailed specifications. Task 0023E is the
-next concise Draft frontier; tasks 0023E–0023F remain concise Draft rows
-without detailed specifications, and task 0024 remains Draft without a detailed specification.
+Tasks 0023B, 0023C, 0023D, and 0023E are Complete with their detailed specifications. Task 0023F
+remains the next concise Draft row without a detailed specification, and task 0024 remains Draft
+without a detailed specification.
 Task 0023B's
 focused 15-suite run passed 124 tests, its
 single final model suite passed 981 tests across 125 suites, and the separate documentation pass
@@ -396,6 +396,17 @@ finalized all nine affected production Javadocs, Tensor/Compile APIs, glossary a
 records, then validated model Javadoc, a runnable Java 26 metadata example, generated API pages,
 the 194-method public Tensor surface, Markdown, exact 33-path scope, status, and whitespace.
 
+Completed [task 0023E](tasks/0023e-cumulative-scan-normalization-and-product.md) atomically
+replaces the sum-only semantic/helper type names with the shared `CumulativeScanKind`,
+`CumulativeScanAttrs`, and `TensorCumulativeScanExpressions` family. It preserves both public
+`cumSum` overloads and adds exactly two `cumProd` overloads with selected integral modular,
+floating special-value, multiplicative-positive-one boundary, and zero-length-axis meanings. Its
+focused run passed 44 tests across five suites, and its single final model suite passed 1,008 tests
+across 126 suites with no failures, errors, or skips. The independent documentation pass finalized
+the affected Javadocs, Tensor/Compile APIs, glossary and planning records, then validated model
+Javadoc, Java 26 API reflection, generated API pages, the 196-method public Tensor surface,
+Markdown, exact 33-path scope, status, and whitespace without repeating executable Java tests.
+
 [Task 0023](tasks/0023-adjoint-expressibility-audit.md) executed after the completed post-0022B
 capability checkpoint. Its [planning-only matrix](adjoint-expressibility-audit.md) finds no proven
 compiler-only semantic gap and selects six general public prerequisites: binding-aware
@@ -406,11 +417,11 @@ Elements and Scatter-ND exactly serve Gather Elements and Gather-ND adjoints. Ty
 expanded to a target Shape provide uncontaminated dynamic zeros and ones. Maximum-pool routing can
 be recomputed through existing first-index arg-maximum semantics once dynamic windows exist, so it
 needs no indices-output task. Tasks 0023A and 0023B are Complete with detailed specifications.
-Tasks 0023C and 0023D are Complete with detailed specifications, while tasks 0023E–0023F remain
-Draft without detailed specifications.
+Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, and task 0023F remains
+Draft without a detailed specification.
 Operation-specific backward kinds, compiler traversal, execution, backend/runtime behavior,
-Gradle, dependencies, and architecture changes remain absent; 0023A and 0023B are the selected
-public prerequisites implemented so far.
+Gradle, dependencies, and architecture changes remain absent; 0023A–0023E are the selected public
+prerequisites implemented so far.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -1624,8 +1635,8 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Tasks 0023C and 0023D are Complete with detailed specifications; tasks 0023E–0023F
-and task 0024 remain Draft without detailed specifications.
+specifications. Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, while
+task 0023F and task 0024 remain Draft without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1701,7 +1712,7 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Co
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Tasks 0023C and 0023D are Complete with detailed specifications; tasks 0023E–0023F
-and task 0024 remain Draft without detailed specifications.
+specifications. Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, while
+task 0023F and task 0024 remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

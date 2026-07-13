@@ -24,9 +24,9 @@ four families also accept signed-integral input. Six BOOL methods provide full/s
 `all`/`any`; ten additional numeric and four BOOL methods add ordered distinct multi-axis forms.
 Twelve floating methods add first-class log-sum-exp, corrected
 variance/standard deviation, and L1/L2 norms. Six axis-only `argMin`/`argMax` methods add fixed
-INT64 index results. Two one-axis `cumSum` methods add shape-preserving numeric
-scan expressions, and one-axis `softmax` and `logSoftmax` add shape-preserving floating
-probability-normalization expressions. Two `layerNorm` methods add population-variance
+INT64 index results. Two one-axis `cumSum` methods and two matching `cumProd` methods add
+shape-preserving numeric scan expressions, and one-axis `softmax` and `logSoftmax` add shape-
+preserving floating probability-normalization expressions. Two `layerNorm` methods add population-variance
 normalization over an exact trailing Shape, either without affine operands or with explicit scale
 and bias. Two `rmsNorm` methods separately add uncentered root-mean-square normalization over an
 exact trailing Shape, either without scale or with one explicit exact-Shape scale. One
@@ -241,7 +241,7 @@ numeric Tensor + SUM/PROD/MIN/MAX + full/axis attributes         = fresh reduced
 floating Tensor + MEAN + full/axis attributes                   = fresh reduced-shape Tensor
 BOOL Tensor + ALL/ANY + full/axis attributes                    = fresh reduced-shape BOOL Tensor
 numeric Tensor + ARG_MIN/ARG_MAX + axis/tie attributes          = fresh reduced-shape INT64 Tensor
-numeric Tensor + CUM_SUM + axis/mode attributes                 = fresh shape-preserving Tensor
+numeric Tensor + CUM_SUM/CUM_PROD + axis/mode attributes        = fresh shape-preserving Tensor
 floating Tensor + SOFTMAX/LOG_SOFTMAX + axis attributes        = fresh shape-preserving Tensor
 Tensor + CONTIGUOUS                                = fresh static-resolved or dynamic-unresolved Tensor
 Tensor + raw/exact target Shape + RESHAPE          = fresh conditional-view reshape Tensor
@@ -272,7 +272,7 @@ WhereSelectionKind                                            = one parameterles
 CastKind + CastAttrs                                          = explicit cast identity + target DataType
 AggregateReductionKind + reduction attributes                = full/single-/multi-axis aggregate + statistics + arg extrema
 SUM/MEAN + MaskedReductionAttrs                              = masked axis semantics + ordinary broadcast mask
-CumulativeSumKind + CumulativeSumAttrs                       = shape-preserving cumulative-sum scan semantics
+CumulativeScanKind + CumulativeScanAttrs                     = shape-preserving cumulative sum/product semantics
 SoftmaxKind + SoftmaxAttrs                                   = shape-preserving probability normalization semantics
 LayerNormKind + LayerNormAttrs / AffineLayerNormAttrs         = trailing-Shape population normalization semantics
 RmsNormKind + RmsNormAttrs                                   = trailing-Shape uncentered RMS normalization semantics
@@ -371,12 +371,13 @@ provenance.
 Integral ordinary reduction and arg-extrema ordering/empty-domain semantics are documented below.
 Numerical or truth evaluation, floating ordinary empty-domain behavior, gradients, and execution
 remain planned.
-`CumulativeSumKind.CUM_SUM` and `CumulativeSumAttrs` provide the distinct shape-preserving scan
-semantics. Public `Tensor.cumSum(axis)` selects inclusive forward traversal, while
-`cumSum(axis, exclusive, reverse)` retains either caller-selected mode. Both accept floating and
-integral input, normalize one axis, retain the exact input Shape, data type, and gradient
-eligibility, leave layout unresolved, and record exact one-input provenance. They do not inspect
-or accumulate values.
+`CumulativeScanKind.CUM_SUM`, `CumulativeScanKind.CUM_PROD`, and `CumulativeScanAttrs` provide
+distinct shape-preserving cumulative-addition and cumulative-multiplication meanings through one
+shared scan family. Public `Tensor.cumSum` and `Tensor.cumProd` each provide an inclusive-forward
+short form and a complete overload retaining caller-selected exclusive and reverse modes. All four
+methods accept floating and integral input, normalize one axis, retain the exact input Shape, data
+type, and gradient eligibility, leave layout unresolved, and record exact one-input provenance.
+They do not inspect or accumulate values.
 `SoftmaxKind.SOFTMAX`, `SoftmaxKind.LOG_SOFTMAX`, and `SoftmaxAttrs` provide distinct
 shape-preserving probability and log-probability normalization semantics. The attributes carry
 one already normalized non-negative axis. Public `Tensor.softmax` and `Tensor.logSoftmax`
@@ -499,11 +500,11 @@ or integral input. Their convenience forms explicitly use `FIRST_INDEX`, while c
 retain an explicit first- or last-index policy. Every result is exact INT64 with false gradient
 eligibility. The shared contract fixes floating/integral ordering and rejects a statically empty
 selected axis; construction does not compare values or select an index.
-`Tensor.cumSum` constructs single-axis cumulative-addition expressions from floating or integral
-input. Its short form is inclusive and forward; its complete form retains explicit exclusive and
-reverse choices. Every result preserves the exact input Shape, type, and gradient eligibility,
-leaves layout unresolved, and records exactly the receiver as provenance without accumulating
-values.
+`Tensor.cumSum` and `Tensor.cumProd` construct single-axis cumulative-addition and cumulative-
+multiplication expressions from floating or integral input. Each short form is inclusive and
+forward; each complete form retains explicit exclusive and reverse choices. Every result preserves
+the exact input Shape, type, and gradient eligibility, leaves layout unresolved, and records
+exactly the receiver as provenance without accumulating values.
 `Tensor.softmax` and `Tensor.logSoftmax` construct single-axis normalization expressions from
 floating input. Both preserve the exact input Shape, type, and gradient eligibility, leave layout
 unresolved, and record exactly the receiver as provenance. They retain distinct first-class
@@ -3840,23 +3841,25 @@ validation; BOOL input fails before axis validation; and an axis outside
 input. Axis validation precedes static-zero inspection. These local failures occur before result
 identity allocation.
 
-### Cumulative-sum expressions
+### Cumulative-scan expressions
 
-The two current `cumSum` methods build a shape-preserving cumulative-addition scan along exactly
+The four current cumulative-scan methods preserve logical Shape while accumulating along exactly
 one input axis:
 
-| Public form | Inclusion | Direction |
-|---|---|---|
-| `cumSum(axis)` | Inclusive | Forward |
-| `cumSum(axis, exclusive, reverse)` | Selected by `exclusive` | Selected by `reverse` |
+| Public form | Arithmetic | Inclusion | Direction |
+|---|---|---|---|
+| `cumSum(axis)` | Addition | Inclusive | Forward |
+| `cumSum(axis, exclusive, reverse)` | Addition | Selected by `exclusive` | Selected by `reverse` |
+| `cumProd(axis)` | Multiplication | Inclusive | Forward |
+| `cumProd(axis, exclusive, reverse)` | Multiplication | Selected by `exclusive` | Selected by `reverse` |
 
 An axis identifies the dimension whose positions contribute to each cumulative prefix. Forward
 traversal visits that axis from lower to higher indices; reverse traversal visits it from higher
 to lower indices without reversing the returned dimension or output positions. Inclusive mode
-includes the current value. Exclusive mode omits it, so the first position visited in either
-direction has an empty prefix whose additive identity is zero.
+includes the current value. Exclusive mode omits it, so the first position visited has the
+operation identity: additive zero for `CUM_SUM` or multiplicative positive one for `CUM_PROD`.
 
-For logical input `[1, 2, 3]`, the four modes are:
+For logical sum input `[1, 2, 3]`, the four modes retain their existing meanings:
 
 | Call mode | Semantic result | Position-by-position interpretation |
 |---|---|---|
@@ -3865,21 +3868,38 @@ For logical input `[1, 2, 3]`, the four modes are:
 | `(false, true)` | `[6, 5, 3]` | Reverse-inclusive contributions are `1 + 2 + 3`, `2 + 3`, and `3`. |
 | `(true, true)` | `[5, 3, 0]` | Reverse-exclusive contributions are `2 + 3`, `3`, and the empty reverse prefix. |
 
-These values explain the requested operation. Current expression construction computes none of
-them: it reads no element or host storage and allocates no result storage.
+For logical product input `[2, 3, 4]`, the corresponding four modes are:
 
-Both methods accept `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `INT64`; `BOOL` is rejected
-without truthiness or conversion. A positive or negative caller axis is normalized exactly once
-against the input `Shape`. Every valid result is a fresh unlabeled, storage-free Tensor whose
-descriptor retains the exact input Shape reference, data type, and `requiresGrad` eligibility,
-but uses unresolved layout even when the input layout is resolved. Integral inputs necessarily
-remain ineligible for gradients under the descriptor contract.
+| Call mode | Semantic result | Position-by-position interpretation |
+|---|---|---|
+| `cumProd(axis)` or `(false, false)` | `[2, 6, 24]` | Forward prefixes are `2`, `2 * 3`, and `2 * 3 * 4`. |
+| `(true, false)` | `[1, 2, 6]` | Excluding each current value leaves positive one, `2`, and `2 * 3`. |
+| `(false, true)` | `[24, 12, 4]` | Reverse-inclusive contributions are `2 * 3 * 4`, `3 * 4`, and `4`. |
+| `(true, true)` | `[12, 4, 1]` | Reverse-exclusive contributions are `3 * 4`, `4`, and positive one. |
 
-Provenance records `CumulativeSumKind.CUM_SUM`, one
-`CumulativeSumAttrs(normalizedAxis, exclusive, reverse)`, and exact ordered inputs `[input]`.
+These values explain the requested operations. Current expression construction computes none of
+them: it reads no element or host storage and allocates no result storage. A zero-length selected
+axis produces a zero-length result with no position at which to emit an identity. On a non-empty
+exclusive scan, the identity appears at the first position in the selected traversal direction.
+
+All four methods accept exactly `FLOAT64`, `FLOAT32`, `BFLOAT16`, `INT32`, and `INT64`; `BOOL` is
+rejected without truthiness or conversion. A positive or negative caller axis is normalized
+exactly once against the input `Shape`. Every valid result is a fresh unlabeled, storage-free
+Tensor whose descriptor retains the exact input Shape reference, data type, and `requiresGrad`
+eligibility, but uses unresolved layout even when the input layout is resolved. Integral inputs
+necessarily remain ineligible for gradients under the descriptor contract.
+
+Integral cumulative product retains exact INT32 or INT64 type and means fixed-width two's-
+complement modular multiplication. Floating cumulative product propagates NaN, makes zero times
+infinity NaN, and determines zero and infinity signs by multiplication parity. Positive one is the
+empty product used by a non-empty exclusive boundary. The model selects no accumulation precision,
+intermediate rounding, NaN payload, bitwise cross-backend result, algorithm, or backend route.
+
+Provenance records the matching `CumulativeScanKind.CUM_SUM` or `CUM_PROD`, one
+`CumulativeScanAttrs(normalizedAxis, exclusive, reverse)`, and exact ordered inputs `[input]`.
 Repeated equivalent requests remain distinct expressions with fresh identities. Construction
-does not define accumulation precision, overflow, empty-axis value behavior, a gradient rule,
-compiler capture or canonicalization, backend lowering, or execution.
+defines no gradient rule, compiler capture or canonicalization, backend lowering, runtime behavior,
+or execution.
 
 Failure behavior is local and deterministic:
 
@@ -7867,8 +7887,8 @@ composition while the table also lists the current production families:
 | `ArgExtremaAttrs` | The implemented immutable normalized-axis, retained-dimension, and explicit tie-policy value shared by arg-min and arg-max. |
 | `ArgExtremaTiePolicy` | The implemented `FIRST_INDEX` or `LAST_INDEX` choice for equal extrema. |
 | `MaskedReductionAttrs` | The implemented immutable normalized reduction axis for first-class, two-input masked sum and mean semantics. |
-| `CumulativeSumKind` | The implemented production enum whose sole `CUM_SUM` value identifies cumulative addition along one axis. |
-| `CumulativeSumAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice for cumulative sum. |
+| `CumulativeScanKind` | The implemented production enum whose `CUM_SUM` and `CUM_PROD` values identify cumulative addition and multiplication along one axis. |
+| `CumulativeScanAttrs` | The implemented immutable normalized axis, inclusive/exclusive choice, and forward/reverse traversal choice shared by both cumulative-scan kinds. |
 | `SoftmaxKind` | The implemented production enum for one-axis probability and log-probability normalization meanings. |
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by softmax and log-softmax. |
 | `BatchNormKind` | The implemented production enum for explicit five-input batch-normalization inference and pure five-output training/statistic-transition meanings. |
@@ -8224,31 +8244,33 @@ AND/OR. These contracts define requested meaning only and do not evaluate values
 gradient or numerical algorithm, capture a graph, lower operations, report backend availability,
 or execute.
 
-### Cumulative-sum semantic kind and attributes
+### Cumulative-scan semantic kinds and attributes
 
 The public enum
-`io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind` implements `OperationKind`
-with exactly one constant, `CUM_SUM`. It identifies cumulative addition along one logical input
-axis. Unlike an aggregate reduction, a cumulative-sum scan preserves one output position for
-every input position and therefore preserves the logical shape. The normalized axis and scan mode
-are carried by `CumulativeSumAttrs(axis, exclusive, reverse)` rather than stored in the kind.
+`io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind` implements `OperationKind`
+with exactly `CUM_SUM` and `CUM_PROD`, in that order. They identify cumulative addition and
+multiplication along one logical input axis. Unlike an aggregate reduction, either cumulative scan
+preserves one output position for every input position and therefore preserves logical Shape. The
+normalized axis and scan mode are carried by
+`CumulativeScanAttrs(axis, exclusive, reverse)` rather than stored in either kind.
 
-The semantic pairing is explicit:
+The semantic pairings are explicit:
 
 ```java
-CumulativeSumAttrs attrs = new CumulativeSumAttrs(0, true, false);
-Operation cumulativeSum = new Operation(CumulativeSumKind.CUM_SUM, attrs);
+CumulativeScanAttrs attrs = new CumulativeScanAttrs(0, true, false);
+Operation cumulativeSum = new Operation(CumulativeScanKind.CUM_SUM, attrs);
+Operation cumulativeProduct = new Operation(CumulativeScanKind.CUM_PROD, attrs);
 ```
 
-The result is an immutable semantic descriptor for an exclusive forward cumulative sum on
-normalized axis zero. Its signature enforces the exact attributes class and declares one input and
-one output, but it does not validate axis bounds for a particular shape or result facts.
-`CumulativeSumAttrs` accepts every non-negative `int`, including `Integer.MAX_VALUE`, and
-rejects a negative axis with `IllegalArgumentException` and message
-`axis must be non-negative: <axis>`. The current Shape-aware `Tensor.cumSum` methods normalize and
-validate a caller-facing axis before constructing these attributes.
+The two results are immutable semantic descriptors for exclusive forward cumulative scans on
+normalized axis zero. Each kind's signature enforces the exact shared attributes class and declares
+one input and one output, but it does not validate axis bounds for a particular Shape or derive a
+result descriptor. `CumulativeScanAttrs` accepts every non-negative `int`, including
+`Integer.MAX_VALUE`, and rejects a negative axis with `IllegalArgumentException` and message
+`axis must be non-negative: <axis>`. The current Shape-aware `Tensor.cumSum` and `Tensor.cumProd`
+methods normalize and validate a caller-facing axis before constructing these attributes.
 
-For logical input `[1, 2, 3]`, the complete mode table is:
+For logical sum input `[1, 2, 3]`, the complete mode table is:
 
 | `exclusive` | `reverse` | Semantic output | Interpretation |
 |---|---|---|---|
@@ -8257,16 +8279,29 @@ For logical input `[1, 2, 3]`, the complete mode table is:
 | `false` | `true` | `[6, 5, 3]` | Reverse traversal includes the current value and accumulates from higher indices. |
 | `true` | `true` | `[5, 3, 0]` | Reverse traversal excludes the current value, so the highest-index output is additive zero. |
 
-The table describes requested mathematics; constructing either the semantic pair or a public
-Tensor expression does not execute these additions. Reverse changes traversal direction, not
-output order: all four outputs retain the same logical index order as the input. Exclusive mode
-excludes only the current value, and its zero is the additive identity at the first traversed
-position rather than a stored Tensor or attribute.
+For logical product input `[2, 3, 4]`, the same flags mean:
+
+| `exclusive` | `reverse` | Semantic output | Interpretation |
+|---|---|---|---|
+| `false` | `false` | `[2, 6, 24]` | Forward traversal includes the current value. |
+| `true` | `false` | `[1, 2, 6]` | Forward traversal starts with multiplicative positive one. |
+| `false` | `true` | `[24, 12, 4]` | Reverse traversal includes the current value and multiplies from higher indices. |
+| `true` | `true` | `[12, 4, 1]` | Reverse traversal ends in input order with multiplicative positive one. |
+
+The tables describe requested mathematics; constructing either semantic pair or a public Tensor
+expression performs no addition or multiplication. Reverse changes traversal direction, not output
+order. A zero-length axis has no output position and therefore emits no identity. A non-empty
+exclusive scan emits additive zero or multiplicative positive one at its first traversed position.
+
+Integral `CUM_PROD` uses exact-width two's-complement modular multiplication. Floating `CUM_PROD`
+propagates NaN, makes zero times infinity NaN, and follows multiplication parity for zero and
+infinity signs. These selected meanings promise no accumulation algorithm, intermediate rounding,
+NaN payload, bitwise cross-backend result, or backend route.
 
 The public methods separately own numeric input validation, caller-axis normalization, exact
 Shape/type/eligibility retention in an unresolved descriptor, fresh identity, and exact one-input
-provenance. Accumulation policy, empty-axis value behavior, numerical edge cases, gradients,
-compiler behavior, storage, backend support, and execution remain with later owning contracts.
+provenance. The semantic family and public construction add no value execution, gradient rule,
+compiler adoption, storage allocation, runtime behavior, or backend support.
 
 ### Softmax semantic kinds and attributes
 
@@ -9457,7 +9492,7 @@ The following contracts appear in the architecture and planning documents but ar
 - expression families beyond binary arithmetic, binary comparison, boolean logical, conditional
   selection, cast, unary elementwise, floating-classification, scalar elementwise, the current
   value- and
-  index-producing aggregate operations, cumulative-sum scans, softmax, layer, RMS, and batch-
+  index-producing aggregate operations, cumulative sum/product scans, softmax, layer, RMS, and batch-
   normalization inference/training transition, and
   contiguous, reshape, expand, permute, expand-dimensions, squeeze, slice, slice update,
   target-relative crop, pad, tile, concat,
@@ -9468,7 +9503,7 @@ The following contracts appear in the architecture and planning documents but ar
 - operation-kind families beyond the current binary arithmetic, binary comparison, boolean
   logical, unary elementwise, floating-classification, scalar elementwise, conditional selection,
   cast, aggregate
-  reduction, cumulative-sum scan, softmax, layer, RMS, and batch-normalization inference/training,
+  reduction, cumulative scan, softmax, layer, RMS, and batch-normalization inference/training,
   contiguous-request, reshape/expand,
   axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, one-hot,
   gather-ND,
@@ -9484,7 +9519,7 @@ The following contracts appear in the architecture and planning documents but ar
 `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `MultiAxisReductionAttrs`,
 `StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
-`MaskedReductionAttrs`, `SumToShapeAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
+`MaskedReductionAttrs`, `SumToShapeAttrs`, `CumulativeScanKind`, `CumulativeScanAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `LayerNormKind`, `LayerNormAttrs`, `AffineLayerNormAttrs`, `RmsNormKind`, `RmsNormAttrs`,
 `BatchNormKind`, `BatchNormInferenceAttrs`, `BatchNormTrainingAttrs`,
 `BatchNormTrainingResult`,
@@ -9509,7 +9544,7 @@ reduction is also a current production semantic family; `sum`, `mean`, `prod`, r
 reduction `max`, boolean `all`, boolean `any`, and axis-only `argMin`/`argMax` have matching public Tensor
 expression methods, including the masked `sum(axis, mask)`, `mean(axis, mask)`, and binding-aware
 `sumToShape(Shape)` forms. The graph
-records can compose these, current cumulative-sum expressions, or test-local semantics, but they
+records can compose these, current cumulative-scan expressions, or test-local semantics, but they
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
 values and their public Tensor expression construction are current. The contiguous semantic value
 and public Tensor expression construction are also current, including static resolved and dynamic
@@ -9773,14 +9808,14 @@ remain planned.
   construct exact `[input, mask]` provenance. Null, type, axis, and broadcast failures occur
   before result identity allocation. Construction performs no storage alignment, numerical work,
   gradient rule, compiler behavior, backend behavior, or execution.
-- `CumulativeSumAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the
+- `CumulativeScanAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the
   exact message `axis must be non-negative: <axis>`. It retains every non-negative axis and both
   mode flags unchanged. The value itself neither validates an input rank nor constructs or
-  executes a Tensor result. Public `Tensor.cumSum` separately accepts floating or integral input,
-  rejects BOOL before axis validation, normalizes one positive or negative axis, retains the exact
-  Shape/type/eligibility metadata in an unresolved descriptor, and records exact one-input
-  provenance. Each valid call is fresh and performs no accumulation, gradient work, compiler
-  capture, backend behavior, or execution.
+  executes a Tensor result. Public `Tensor.cumSum` and `Tensor.cumProd` separately accept floating
+  or integral input, reject BOOL before axis validation, normalize one positive or negative axis,
+  retain the exact Shape/type/eligibility metadata in an unresolved descriptor, and record exact
+  one-input provenance. Each valid call is fresh and performs no accumulation, gradient work,
+  compiler capture, backend behavior, or execution.
 - `SoftmaxAttrs` rejects a negative normalized axis with `IllegalArgumentException` and the exact
   message `axis must be non-negative: <axis>`. It retains every non-negative axis unchanged but
   does not itself validate rank, construct a Tensor or provenance, evaluate normalization, define

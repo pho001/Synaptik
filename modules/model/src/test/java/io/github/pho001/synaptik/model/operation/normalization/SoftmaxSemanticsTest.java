@@ -15,8 +15,8 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -174,10 +174,10 @@ class SoftmaxSemanticsTest {
     void remainsDistinctFromAggregateAndScanSemanticsAndContainsNoCrossLayerState() {
         SoftmaxAttrs normalizationAttrs = new SoftmaxAttrs(0);
         AxisReductionAttrs reductionAttrs = new AxisReductionAttrs(0, false);
-        CumulativeSumAttrs scanAttrs = new CumulativeSumAttrs(0, false, false);
+        CumulativeScanAttrs scanAttrs = new CumulativeScanAttrs(0, false, false);
         Operation normalization = new Operation(SoftmaxKind.SOFTMAX, normalizationAttrs);
         Operation reduction = new Operation(AggregateReductionKind.SUM, reductionAttrs);
-        Operation scan = new Operation(CumulativeSumKind.CUM_SUM, scanAttrs);
+        Operation scan = new Operation(CumulativeScanKind.CUM_SUM, scanAttrs);
         var componentTypes = Arrays.stream(SoftmaxAttrs.class.getRecordComponents())
                 .map(component -> component.getType().getName())
                 .toList();

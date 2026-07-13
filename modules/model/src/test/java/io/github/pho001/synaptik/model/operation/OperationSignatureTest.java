@@ -69,8 +69,8 @@ import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -288,7 +288,7 @@ public final class OperationSignatureTest {
                 AggregateReductionKind.VARIANCE,
                 AggregateReductionKind.STANDARD_DEVIATION);
         assertFamily(
-                List.of(fixed(CumulativeSumAttrs.class, 1)), CumulativeSumKind.values());
+                List.of(fixed(CumulativeScanAttrs.class, 1)), CumulativeScanKind.values());
     }
 
     @Test

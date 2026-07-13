@@ -12,8 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -31,25 +31,25 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
-class TensorCumulativeSumExpressionTest {
+class TensorCumulativeScanExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(160_000);
 
     @Test
     void helperAndPublicSurfaceAreExact() throws Exception {
-        var constructors = TensorCumulativeSumExpressions.class.getDeclaredConstructors();
-        var methods = TensorCumulativeSumExpressions.class.getDeclaredMethods();
+        var constructors = TensorCumulativeScanExpressions.class.getDeclaredConstructors();
+        var methods = TensorCumulativeScanExpressions.class.getDeclaredMethods();
         assertAll(
                 () -> assertTrue(Modifier.isFinal(
-                        TensorCumulativeSumExpressions.class.getModifiers())),
+                        TensorCumulativeScanExpressions.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(
-                        TensorCumulativeSumExpressions.class.getModifiers())),
-                () -> assertFalse(TensorCumulativeSumExpressions.class.isRecord()),
+                        TensorCumulativeScanExpressions.class.getModifiers())),
+                () -> assertFalse(TensorCumulativeScanExpressions.class.isRecord()),
                 () -> assertEquals(Set.of(), Set.of(
-                        TensorCumulativeSumExpressions.class.getInterfaces())),
+                        TensorCumulativeScanExpressions.class.getInterfaces())),
                 () -> assertEquals(0,
-                        TensorCumulativeSumExpressions.class.getDeclaredFields().length),
+                        TensorCumulativeScanExpressions.class.getDeclaredFields().length),
                 () -> assertEquals(0,
-                        TensorCumulativeSumExpressions.class.getDeclaredClasses().length),
+                        TensorCumulativeScanExpressions.class.getDeclaredClasses().length),
                 () -> assertEquals(1, constructors.length),
                 () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
                 () -> assertEquals(0, constructors[0].getParameterCount()),
@@ -58,12 +58,14 @@ class TensorCumulativeSumExpressionTest {
                         Set.of("apply", "validateNumericInput", "create"),
                         Arrays.stream(methods).map(Method::getName).collect(Collectors.toSet())));
 
-        Method apply = TensorCumulativeSumExpressions.class.getDeclaredMethod(
-                "apply", Tensor.class, int.class, boolean.class, boolean.class);
-        Method validate = TensorCumulativeSumExpressions.class.getDeclaredMethod(
+        Method apply = TensorCumulativeScanExpressions.class.getDeclaredMethod(
+                "apply", Tensor.class, CumulativeScanKind.class, int.class,
+                boolean.class, boolean.class);
+        Method validate = TensorCumulativeScanExpressions.class.getDeclaredMethod(
                 "validateNumericInput", Tensor.class);
-        Method create = TensorCumulativeSumExpressions.class.getDeclaredMethod(
-                "create", Tensor.class, Shape.class, CumulativeSumAttrs.class);
+        Method create = TensorCumulativeScanExpressions.class.getDeclaredMethod(
+                "create", Tensor.class, Shape.class, CumulativeScanKind.class,
+                CumulativeScanAttrs.class);
         assertAll(
                 () -> assertPackagePrivateStatic(apply, Tensor.class),
                 () -> assertPrivateStatic(validate, void.class),
@@ -72,43 +74,75 @@ class TensorCumulativeSumExpressionTest {
         for (Class<?>[] parameters : List.of(
                 new Class<?>[] {int.class},
                 new Class<?>[] {int.class, boolean.class, boolean.class})) {
-            Method method = Tensor.class.getDeclaredMethod("cumSum", parameters);
-            assertAll(
-                    () -> assertSame(Tensor.class, method.getReturnType()),
-                    () -> assertEquals(List.of(parameters),
-                            Arrays.asList(method.getParameterTypes())),
-                    () -> assertTrue(Modifier.isPublic(method.getModifiers())),
-                    () -> assertFalse(Modifier.isStatic(method.getModifiers())),
-                    () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+            for (String methodName : List.of("cumSum", "cumProd")) {
+                Method method = Tensor.class.getDeclaredMethod(methodName, parameters);
+                assertAll(
+                        () -> assertSame(Tensor.class, method.getReturnType()),
+                        () -> assertEquals(List.of(parameters),
+                                Arrays.asList(method.getParameterTypes())),
+                        () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                        () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                        () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
+            }
         }
     }
 
     @Test
-    void mapsDefaultAndAllFourExplicitModesToExactNormalizedAttributes() {
+    void mapsBothDefaultsAndAllFourExplicitModesToExactKindsAndNormalizedAttributes() {
         Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 3), true);
         List<Tensor> results = List.of(
                 input.cumSum(-1),
                 input.cumSum(1, false, false),
                 input.cumSum(1, true, false),
                 input.cumSum(1, false, true),
-                input.cumSum(1, true, true));
-        List<CumulativeSumAttrs> expected = List.of(
-                new CumulativeSumAttrs(1, false, false),
-                new CumulativeSumAttrs(1, false, false),
-                new CumulativeSumAttrs(1, true, false),
-                new CumulativeSumAttrs(1, false, true),
-                new CumulativeSumAttrs(1, true, true));
+                input.cumSum(1, true, true),
+                input.cumProd(-1),
+                input.cumProd(1, false, false),
+                input.cumProd(1, true, false),
+                input.cumProd(1, false, true),
+                input.cumProd(1, true, true));
+        List<CumulativeScanKind> expectedKinds = List.of(
+                CumulativeScanKind.CUM_SUM,
+                CumulativeScanKind.CUM_SUM,
+                CumulativeScanKind.CUM_SUM,
+                CumulativeScanKind.CUM_SUM,
+                CumulativeScanKind.CUM_SUM,
+                CumulativeScanKind.CUM_PROD,
+                CumulativeScanKind.CUM_PROD,
+                CumulativeScanKind.CUM_PROD,
+                CumulativeScanKind.CUM_PROD,
+                CumulativeScanKind.CUM_PROD);
+        List<CumulativeScanAttrs> expected = List.of(
+                new CumulativeScanAttrs(1, false, false),
+                new CumulativeScanAttrs(1, false, false),
+                new CumulativeScanAttrs(1, true, false),
+                new CumulativeScanAttrs(1, false, true),
+                new CumulativeScanAttrs(1, true, true),
+                new CumulativeScanAttrs(1, false, false),
+                new CumulativeScanAttrs(1, false, false),
+                new CumulativeScanAttrs(1, true, false),
+                new CumulativeScanAttrs(1, false, true),
+                new CumulativeScanAttrs(1, true, true));
 
         for (int index = 0; index < results.size(); index++) {
             Tensor result = results.get(index);
-            CumulativeSumAttrs expectedAttrs = expected.get(index);
+            CumulativeScanKind expectedKind = expectedKinds.get(index);
+            CumulativeScanAttrs expectedAttrs = expected.get(index);
             TensorProvenance provenance = result.provenance().orElseThrow();
-            CumulativeSumAttrs attrs = (CumulativeSumAttrs) provenance.operation().attrs();
+            CumulativeScanAttrs attrs = (CumulativeScanAttrs) provenance.operation().attrs();
             assertAll(
-                    () -> assertSame(CumulativeSumKind.CUM_SUM, provenance.operation().kind()),
+                    () -> assertSame(expectedKind, provenance.operation().kind()),
                     () -> assertEquals(expectedAttrs, attrs),
                     () -> assertSame(input, provenance.inputs().getFirst()),
                     () -> assertEquals(1, provenance.inputs().size()),
+                    () -> assertEquals(0, provenance.outputIndex()),
+                    () -> assertEquals(1, provenance.producer().outputCount()),
+                    () -> assertEquals(1,
+                            provenance.producer().outputDescriptors().size()),
+                    () -> assertSame(result.descriptor(), provenance.outputDescriptor()),
+                    () -> assertSame(
+                            result.descriptor(),
+                            provenance.producer().outputDescriptors().getFirst()),
                     () -> assertSame(input.descriptor().shape(), result.descriptor().shape()),
                     () -> assertSame(DataType.FLOAT32, result.descriptor().dataType()),
                     () -> assertTrue(result.descriptor().requiresGrad()),
@@ -127,12 +161,13 @@ class TensorCumulativeSumExpressionTest {
                 DataType.INT32,
                 DataType.INT64)) {
             Tensor input = tensor(dataType, Shape.of(2), dataType.isFloating());
-            Tensor result = input.cumSum(0);
-            assertAll(
-                    () -> assertSame(dataType, result.descriptor().dataType()),
-                    () -> assertSame(input.descriptor().shape(), result.descriptor().shape()),
-                    () -> assertEquals(input.descriptor().requiresGrad(),
-                            result.descriptor().requiresGrad()));
+            for (Tensor result : List.of(input.cumSum(0), input.cumProd(0))) {
+                assertAll(
+                        () -> assertSame(dataType, result.descriptor().dataType()),
+                        () -> assertSame(input.descriptor().shape(), result.descriptor().shape()),
+                        () -> assertEquals(input.descriptor().requiresGrad(),
+                                result.descriptor().requiresGrad()));
+            }
         }
 
         var batch = new DynamicDimension("batch");
@@ -141,10 +176,10 @@ class TensorCumulativeSumExpressionTest {
         Tensor dynamicInput = tensor(DataType.FLOAT64, dynamic, true);
         Tensor zeroInput = tensor(DataType.INT64, zeroExtent, false);
         assertAll(
-                () -> assertSame(dynamic, dynamicInput.cumSum(-1).descriptor().shape()),
+                () -> assertSame(dynamic, dynamicInput.cumProd(-1).descriptor().shape()),
                 () -> assertSame(batch,
                         dynamicInput.cumSum(0).descriptor().shape().dimensions().getFirst()),
-                () -> assertSame(zeroExtent, zeroInput.cumSum(1).descriptor().shape()));
+                () -> assertSame(zeroExtent, zeroInput.cumProd(1).descriptor().shape()));
     }
 
     @Test
@@ -156,19 +191,25 @@ class TensorCumulativeSumExpressionTest {
 
         NullPointerException nullInput = assertThrows(
                 NullPointerException.class,
-                () -> TensorCumulativeSumExpressions.apply(null, 9, true, true));
+                () -> TensorCumulativeScanExpressions.apply(
+                        null, null, 9, true, true));
+        NullPointerException nullKind = assertThrows(
+                NullPointerException.class,
+                () -> TensorCumulativeScanExpressions.apply(
+                        numeric, null, 9, true, true));
         IllegalArgumentException boolBeforeAxis = assertThrows(
-                IllegalArgumentException.class, () -> bool.cumSum(9));
+                IllegalArgumentException.class, () -> bool.cumProd(9));
         IndexOutOfBoundsException positive = assertThrows(
-                IndexOutOfBoundsException.class, () -> numeric.cumSum(1));
+                IndexOutOfBoundsException.class, () -> numeric.cumProd(1));
         IndexOutOfBoundsException negative = assertThrows(
-                IndexOutOfBoundsException.class, () -> numeric.cumSum(-2));
+                IndexOutOfBoundsException.class, () -> numeric.cumProd(-2));
         IndexOutOfBoundsException scalar = assertThrows(
                 IndexOutOfBoundsException.class,
-                () -> tensor(DataType.INT32, Shape.scalar(), false).cumSum(0));
+                () -> tensor(DataType.INT32, Shape.scalar(), false).cumProd(0));
 
         assertAll(
                 () -> assertEquals("input", nullInput.getMessage()),
+                () -> assertEquals("kind", nullKind.getMessage()),
                 () -> assertEquals(
                         "input must have a numeric data type, but was BOOL",
                         boolBeforeAxis.getMessage()),
@@ -188,10 +229,10 @@ class TensorCumulativeSumExpressionTest {
         HostTensorStorage storage = new MemorySegmentStorage(
                 DataType.FLOAT32, values.length, MemorySegment.ofArray(values));
         Tensor leaf = tensor(DataType.FLOAT32, shape, false);
-        CumulativeSumAttrs originalAttrs = new CumulativeSumAttrs(0, true, false);
+        CumulativeScanAttrs originalAttrs = new CumulativeScanAttrs(0, true, false);
         TensorProvenance originalProvenance = new TensorProvenance(
                 new TensorProducer(
-                        new Operation(CumulativeSumKind.CUM_SUM, originalAttrs),
+                        new Operation(CumulativeScanKind.CUM_SUM, originalAttrs),
                         List.of(leaf),
                         List.of(descriptor)),
                 0);
@@ -202,7 +243,7 @@ class TensorCumulativeSumExpressionTest {
                 Optional.of(originalProvenance),
                 Optional.of(storage));
 
-        Tensor result = input.cumSum(1, true, true);
+        Tensor result = input.cumProd(1, true, true);
 
         assertAll(
                 () -> assertSame(descriptor, input.descriptor()),
@@ -223,8 +264,8 @@ class TensorCumulativeSumExpressionTest {
     @Test
     void repeatedCallsAreFreshAndDoNotReturnInput() {
         Tensor input = tensor(DataType.INT64, Shape.of(3), false);
-        Tensor first = input.cumSum(0);
-        Tensor second = input.cumSum(0, false, false);
+        Tensor first = input.cumProd(0);
+        Tensor second = input.cumProd(0, false, false);
         assertAll(
                 () -> assertNotSame(input, first),
                 () -> assertNotSame(first, second),
@@ -243,7 +284,7 @@ class TensorCumulativeSumExpressionTest {
             next.set(Long.MAX_VALUE);
             claimed.set(true);
             IllegalStateException failure = assertThrows(
-                    IllegalStateException.class, () -> input.cumSum(0));
+                    IllegalStateException.class, () -> input.cumProd(0));
             assertAll(
                     () -> assertEquals("tensor identifier space exhausted", failure.getMessage()),
                     () -> assertEquals(Long.MAX_VALUE, next.get()),

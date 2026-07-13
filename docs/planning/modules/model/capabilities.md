@@ -701,7 +701,6 @@ make their numerical parameters interchangeable.
 
 ### Important shortly afterward
 
-- `cumProd` after its zero, overflow, and gradient policies are specified;
 - diagonal convenience (`flip` was finalized by completed task 0018R as one `SLICE` convenience);
 - embedding convenience and focused one-hot encoding semantics;
 - average pooling with its separate divisor contract after completed NCHW max pooling;
@@ -782,13 +781,22 @@ overlap addition, and changes no Shape, binding, compiler, or execution contract
 [task 0023D](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) retains canonical
 rank-three columns, adds the missing symbolic product for two unresolved spatial factors, restores
 public general-axis fold, generalizes 2D window Shapes, and adds exact typed padding metadata.
-Draft rows 0023E–0023F retain cumulative product and same-occurrence attention weights. The
+Completed [task 0023E](tasks/0023e-cumulative-scan-normalization-and-product.md) atomically
+normalizes the existing sum-only scan types into one `CUM_SUM`/`CUM_PROD` family and adds two
+public cumulative-product expressions. It fixes integral modular multiplication, floating product
+special values, multiplicative-positive-one exclusive boundaries, and zero-length-axis meaning
+without executing values or selecting gradient, compiler, runtime, or backend behavior. Draft task
+0023F retains same-occurrence attention weights. The
 detailed matrix owns formulas and policy-deferred boundary cases; this capability baseline
 intentionally does not duplicate them.
 
 The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
 runtime, or execution contract. Completed tasks 0023A–0023C change model semantic/expression
-metadata only. Task 0023D likewise changes only model values and expression metadata. Its focused
+metadata only. Tasks 0023D and 0023E likewise change only model values and expression metadata.
+Task 0023E's focused run passed 44 tests, and its single final model suite passed 1,008 tests across
+126 suites. Its separate documentation pass validated model Javadoc, Java 26 API shape, generated
+Javadoc, the 196-method public Tensor surface, Markdown, exact 33-path scope, and synchronized
+Complete/Draft status. Task 0023D's focused
 17-suite run passed 175 tests, and its single final model suite passed 1,008 tests across 126
 suites. The separate documentation pass validated model Javadoc, a runnable Java 26 metadata
 example, the 194-method public Tensor surface, Markdown, exact 33-path scope, and synchronized

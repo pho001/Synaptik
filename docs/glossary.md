@@ -103,12 +103,12 @@ input and produce fixed non-differentiable INT64 expressions with explicit first
 policy. Their shared ordering prefers NaN, orders signed zero and infinities deterministically,
 uses signed integral order, and rejects a statically empty selected axis. Numerical or truth
 evaluation, gradients, compiler capture, lowering, backend support, and execution remain planned.
-The `CumulativeSumKind` vocabulary is implemented with the sole `CUM_SUM` semantic identity,
-together with `CumulativeSumAttrs` carrying one normalized axis and exact exclusive/reverse mode
-flags. Public `Tensor.cumSum` now constructs all four traversal/inclusion modes for floating and
-integral inputs, retaining exact Shape/type/eligibility metadata in an unresolved descriptor and
-recording one-input provenance. Value accumulation, gradients, compiler behavior, and execution
-remain planned.
+The `CumulativeScanKind` vocabulary is implemented with `CUM_SUM` and `CUM_PROD` semantic
+identities, together with `CumulativeScanAttrs` carrying one normalized axis and exact exclusive/
+reverse mode flags. Public `Tensor.cumSum` and `Tensor.cumProd` construct all four traversal/
+inclusion modes for floating and integral inputs, retaining exact Shape/type/eligibility metadata
+in an unresolved descriptor and recording one-input provenance. Value accumulation, gradients,
+compiler behavior, and execution remain planned.
 The `SoftmaxKind` vocabulary is implemented with distinct `SOFTMAX` probability and
 `LOG_SOFTMAX` log-probability meanings, together with `SoftmaxAttrs` carrying one normalized axis.
 These semantic values preserve logical positions and describe complete normalization slices
@@ -782,12 +782,13 @@ model. See the [Compile API](api/compile-api.md#current-model-contracts).
 
 A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`. It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization, kernel selection, executable units, storage, workspaces, and native integration. Concrete backends do not own public tensor semantics or global graph compilation. See [Module boundaries](architecture/module-boundaries.md).
 
-### Cumulative sum / scan
+### Cumulative scan
 
-An ordered one-input operation that cumulatively adds values along one axis while preserving one
-output position for every input position. The implemented `CumulativeSumKind.CUM_SUM` identifies
-this meaning, and `CumulativeSumAttrs(axis, exclusive, reverse)` carries an already normalized
-non-negative axis plus the two independent mode choices.
+An ordered one-input operation that cumulatively combines values along one axis while preserving
+one output position for every input position. The implemented `CumulativeScanKind` contains
+`CUM_SUM` for addition and `CUM_PROD` for multiplication.
+`CumulativeScanAttrs(axis, exclusive, reverse)` carries an already normalized non-negative axis
+plus the two independent mode choices.
 
 For logical input `[1, 2, 3]`, inclusive forward produces `[1, 3, 6]` from `1`, `1 + 2`, and
 `1 + 2 + 3`. Exclusive forward produces `[0, 1, 3]` from the empty prefix, `1`, and `1 + 2`.
@@ -799,8 +800,17 @@ Public `Tensor.cumSum(axis)` selects inclusive forward mode, and the complete ov
 explicit exclusive and reverse flags. Both validate numeric input, normalize one caller axis,
 retain exact Shape/type/gradient-eligibility metadata with unresolved layout, and record exact
 one-input provenance in a fresh unlabeled, storage-free Tensor. They calculate none of the example
-values and define no accumulation, gradient, compiler, backend, or execution behavior. See
-[Cumulative-sum semantic kind and attributes](api/tensor-api.md#cumulative-sum-semantic-kind-and-attributes).
+values.
+
+Public `Tensor.cumProd` has the same two forms and metadata behavior. For `[2, 3, 4]`, its
+inclusive-forward, exclusive-forward, inclusive-reverse, and exclusive-reverse meanings are
+`[2, 6, 24]`, `[1, 2, 6]`, `[24, 12, 4]`, and `[12, 4, 1]`. Positive one is the exclusive
+boundary identity. A zero-length axis has no result position and therefore emits no identity.
+Integral product uses exact-width two's-complement modular multiplication. Floating product
+propagates NaN, makes zero times infinity NaN, and follows multiplication parity for zero and
+infinity signs. No algorithm, intermediate rounding, NaN payload, bitwise backend result,
+gradient, compiler adoption, runtime behavior, backend support, or execution is defined. See
+[Cumulative-scan semantic kinds and attributes](api/tensor-api.md#cumulative-scan-semantic-kinds-and-attributes).
 
 ### Dropout / inverted dropout
 
@@ -1179,8 +1189,9 @@ methods use the same boundary before constructing `ArgExtremaAttrs`.
 `MaskedReductionAttrs` follows the same normalized-axis boundary, and current public masked
 expression construction normalizes that axis and validates ordinary broadcast compatibility
 before creating the attributes.
-`CumulativeSumAttrs` also stores only an already normalized non-negative axis; current public
-Shape-aware `Tensor.cumSum` construction normalizes the caller axis before creating it.
+`CumulativeScanAttrs` also stores only an already normalized non-negative axis; current public
+Shape-aware `Tensor.cumSum` and `Tensor.cumProd` construction normalizes the caller axis before
+creating it.
 `SoftmaxAttrs` likewise stores only an already normalized non-negative axis; current public
 Shape-aware `Tensor.softmax` and `Tensor.logSoftmax` construction normalizes the caller axis
 before creating it.
@@ -1248,7 +1259,7 @@ non-null target `DataType` without duplicating a source type. Implemented reduct
 `AxisReductionAttrs` holds one normalized axis and retained-dimension choice, while `ArgExtremaAttrs`
 adds an explicit tie policy and `MaskedReductionAttrs` holds exactly one normalized reduction
 axis. Its concrete attributes class distinguishes the first-class masked occurrence. Implemented
-scan-family `CumulativeSumAttrs` holds one
+scan-family `CumulativeScanAttrs` holds one
 normalized axis plus exact exclusive and reverse flags. Implemented normalization-family
 `SoftmaxAttrs` holds one normalized axis shared by softmax and log-softmax;
 implemented loss-family `MeanSquaredErrorAttrs` holds one exact non-null `LossReduction`;
@@ -1440,15 +1451,16 @@ provenance. Public masked `sum` and `mean` separately own floating/BOOL validati
 right-aligned broadcast-to-input validation, axis-removing result derivation, exact input type and
 gradient eligibility, and `[input, mask]` provenance.
 
-The ninth production family is `CumulativeSumKind`, an enum containing exactly `CUM_SUM`. It
-identifies one-input cumulative addition along the already normalized axis in
-`CumulativeSumAttrs`. The attributes also select inclusive or exclusive output and forward or
-reverse traversal. The family preserves logical positions; reverse traversal does not reverse
-output order, and exclusive traversal emits additive zero at its first visited position. Its
-signature enforces `CumulativeSumAttrs` and declares one input and one output. The kind and attributes contain no
+The ninth production family is `CumulativeScanKind`, an enum containing exactly `CUM_SUM` and
+`CUM_PROD`. It identifies one-input cumulative addition or multiplication along the already
+normalized axis in `CumulativeScanAttrs`. The attributes also select inclusive or exclusive output
+and forward or reverse traversal. The family preserves logical positions; reverse traversal does
+not reverse output order. Exclusive traversal emits additive zero for sum or multiplicative
+positive one for product at its first visited position. Each kind's signature enforces
+`CumulativeScanAttrs` and declares one input and one output. The kind and attributes contain no
 Tensor, Shape, result descriptor, provenance, data-type policy, gradient rule, algorithm,
-executable behavior, or backend support. Public `Tensor.cumSum` separately owns numeric
-validation, Shape-aware axis normalization, descriptor construction, fresh identity, and
+executable behavior, or backend support. Public `Tensor.cumSum` and `Tensor.cumProd` separately own
+numeric validation, Shape-aware axis normalization, descriptor construction, fresh identity, and
 one-input provenance without accumulating values.
 
 The tenth production family is `SoftmaxKind`, an enum containing exactly `SOFTMAX` and
@@ -1613,9 +1625,10 @@ fixed BOOL metadata. Static `Tensor.where` uses `WhereSelectionKind.WHERE` and r
 `[condition, ifTrue, ifFalse]`, including repeated branch references. These construction paths do
 not change provenance's general role or make it graph membership. `Tensor.cast` uses
 `CastKind.CAST`, retains its exact target in `CastAttrs`, and records exactly the receiver as its
-one immediate input, including in same-type and chained requests. `Tensor.cumSum` uses
-`CumulativeSumKind.CUM_SUM`, retains its normalized axis and exact mode flags in
-`CumulativeSumAttrs`, and likewise records exactly the receiver as its sole input.
+one immediate input, including in same-type and chained requests. `Tensor.cumSum` and
+`Tensor.cumProd` use the matching `CumulativeScanKind.CUM_SUM` or `CUM_PROD`, retain the normalized
+axis and exact mode flags in `CumulativeScanAttrs`, and likewise record exactly the receiver as
+their sole input.
 `Tensor.softmax` and `Tensor.logSoftmax` use the exact corresponding `SoftmaxKind`, retain the
 normalized axis in `SoftmaxAttrs`, and record exactly the receiver as their sole input.
 `Tensor.meanSquaredError` uses `LossKind.MEAN_SQUARED_ERROR`, retains its explicit reduction in
@@ -2158,10 +2171,10 @@ right-aligned broadcasting that produces exactly the input Shape, removes the se
 records exact `[input, mask]` provenance. Callers explicitly reshape or expand masks to express
 other axis intent. It preserves input type and gradient eligibility but does not align storage,
 select or aggregate values, count true positions, divide, or define a gradient rule.
-A `cumSum` request accepts floating or integral input, preserves its exact Shape, data type, and
-gradient eligibility in an unresolved descriptor, and records one normalized axis plus exact
-exclusive/reverse flags. Each valid call is fresh and storage-free; construction performs no
-addition and defines no gradient, compiler, backend, or execution behavior.
+A `cumSum` or `cumProd` request accepts floating or integral input, preserves its exact Shape, data
+type, and gradient eligibility in an unresolved descriptor, and records one normalized axis plus
+exact exclusive/reverse flags. Each valid call is fresh and storage-free; construction performs no
+addition or multiplication and defines no gradient, compiler, backend, or execution behavior.
 A `softmax` or `logSoftmax` request accepts floating input, preserves its exact Shape, data type,
 and gradient eligibility in an unresolved descriptor, and records one normalized axis plus the
 exact probability or log-probability kind. Each valid call is fresh, unlabeled, and storage-free;
@@ -2598,7 +2611,7 @@ explicit cast expression construction, floating numeric aggregate expression con
 sum, mean, product, minimum, and maximum, selected signed-integral aggregate construction for sum,
 product, minimum, and maximum, and BOOL aggregate expression construction for all and any.
 Ordered multi-axis ordinary/log-sum-exp/statistical/norm construction and axis-only
-index-producing construction for arg-min and arg-max, shape-preserving cumulative-sum
+index-producing construction for arg-min and arg-max, shape-preserving cumulative-scan
 construction, and shape-preserving softmax/log-softmax construction are also implemented.
 Shape-preserving contiguous request construction is
 implemented with static-resolved and dynamic-unresolved result layout rules. Ordered-element-
@@ -2638,8 +2651,8 @@ without storing derived indexes.
 
 | Concept | Meaning | Current status |
 |---|---|---|
-| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax, layer normalization, RMS normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, RMS-normalization, target-shape, permutation, single-axis-transform, normalized slice and crop-to-Shape, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative scan, softmax, layer normalization, RMS normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-scan, softmax, layer-normalization, RMS-normalization, target-shape, permutation, single-axis-transform, normalized slice and crop-to-Shape, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
