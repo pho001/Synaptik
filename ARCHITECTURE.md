@@ -36,6 +36,7 @@ modules/runtime
 backends/cpu
 backends/metal
 extensions/training
+extensions/nn
 ```
 
 Example Java packages:
@@ -46,6 +47,7 @@ io.github.pho001.synaptik.compiler
 io.github.pho001.synaptik.runtime
 io.github.pho001.synaptik.backend.cpu
 io.github.pho001.synaptik.backend.metal
+io.github.pho001.synaptik.nn
 ```
 
 ## Repository layout
@@ -87,6 +89,7 @@ ComputationalGraph/
     cuda/
 
   extensions/
+    nn/
     training/
     onnx/
 
@@ -725,9 +728,38 @@ Backends must be registered explicitly through engine composition.
 
 It must not become a runtime hot-path mechanism.
 
+### `extensions/nn`
+
+`extensions/nn` owns the stateful neural-network composition layer. It defines model modules,
+their trainable parameters and persistent buffers, training/evaluation mode, and the forward
+context needed to apply that mode consistently through a module tree.
+
+Allowed:
+
+- `Module`
+- `Parameter`
+- `Buffer`
+- module-owned parameter and buffer traversal
+- training/evaluation mode propagation
+- forward-context contracts
+- neural-network layers, blocks, and functional conveniences composed from model semantics
+
+Forbidden:
+
+- optimizer algorithms
+- optimizer update orchestration
+- autograd construction
+- backend storage access
+- backend kernel selection
+- concrete backend dependencies
+
+`extensions/nn` depends on `modules/model` for tensor and operation semantics. It must not make
+the model depend on neural-network layers or stateful module ownership.
+
 ### `extensions/training`
 
-`extensions/training` owns training-level concepts and optimizer algorithms.
+`extensions/training` owns optimizer algorithms and training orchestration over parameters
+declared by `extensions/nn` modules.
 
 Allowed:
 
@@ -735,7 +767,6 @@ Allowed:
 - `Sgd`
 - `Adam`
 - `AdamW`
-- `Parameter`
 - `ParameterGroup`
 - `TrainingSession`
 - `TrainingStep`
@@ -749,6 +780,10 @@ Forbidden:
 - backend-specific optimizer execution
 - backend storage access
 - backend kernel selection
+
+Training depends on `extensions/nn`, not the reverse. `train()` and `eval()` mode are module
+forward-behavior concerns owned by `extensions/nn`; an optimizer neither selects nor changes
+that mode.
 
 Training owns optimizer algorithms, not backend-specific optimizer execution.
 
@@ -814,6 +849,7 @@ docs/
       0004-partition-scoring.md
       0005-training-combined-forward-backward-graph.md
       0006-no-runtime-service-locator.md
+      0007-neural-network-module-and-training-boundary.md
     notes/
 
   user-guide/
@@ -868,6 +904,14 @@ backends/cuda
   -> engine
 ```
 
+Neural-network composition and training use this extension direction:
+
+```text
+modules/model
+  -> extensions/nn
+  -> extensions/training
+```
+
 Concrete rules:
 
 - `modules/trace` must not depend on model, planning, compiler, runtime, prepare, engine, or concrete backends.
@@ -879,6 +923,8 @@ Concrete rules:
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
 - `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or Tensor API.
+- `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
+- `extensions/training` may depend on `extensions/nn` and backend-neutral contracts it requires, but must not make `extensions/nn` depend on training.
 - `extensions/training` must not depend on concrete backend modules.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
 
@@ -1010,7 +1056,9 @@ run:
 
 Rules:
 
+- `extensions/nn` owns module-declared trainable parameters, persistent buffers, and train/eval forward behavior.
 - Training owns optimizer algorithms.
+- Training consumes the parameters declared by `extensions/nn`; it does not own layer behavior or train/eval mode.
 - Training does not own backend-specific optimizer execution.
 - Concrete backend optimizer routes belong to backend prepare/kernels.
 - No training module may depend on backend-metal, backend-cpu, or backend-cuda.
@@ -1065,6 +1113,8 @@ Architecture tests should enforce:
 - `Operation` does not expose `supportedBackends()`
 - runtime hot path does not use `Operation` or `CompiledNode`
 - planning scoring does not reference concrete kernel classes
+- `extensions/nn` does not depend on training or execution/backend layers
+- `extensions/training` depends on `extensions/nn` when both modules exist, never in the reverse direction
 
 Backend behavior changes should include or update backend conformance tests under:
 
@@ -1091,6 +1141,8 @@ backend    = concrete lowering, fusion, kernel selection, storage
 runtime    = hot-path execution, residency, publication
 engine     = composition root and public lifecycle
 trace      = typed diagnostic leaf
+nn         = stateful neural-network composition, parameters, buffers, and train/eval behavior
+training   = optimizer algorithms and training orchestration over nn-declared parameters
 ```
 
 The most important invariant is:

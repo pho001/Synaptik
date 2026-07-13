@@ -45,6 +45,17 @@ backends/cuda
 
 These diagrams express architectural direction; individual modules should depend only on the contracts they actually use.
 
+Neural-network composition and training have a separate extension direction:
+
+```text
+modules/model
+  -> extensions/nn
+  -> extensions/training
+```
+
+`extensions/nn` owns modules, parameters, buffers, and train/eval forward behavior. Training
+consumes that module-owned parameter contract for optimizer algorithms and training orchestration.
+
 ## Concrete forbidden dependencies
 
 - `modules/trace` must not depend on model, planning, compiler, runtime, prepare, engine, or concrete backends.
@@ -56,6 +67,8 @@ These diagrams express architectural direction; individual modules should depend
 - `modules/prepare` must not depend on concrete backend implementations.
 - Concrete backends must not depend on `modules/engine`.
 - `backends/openblas-provider` must not depend on compiler, planning, runtime, prepare, engine, or the Tensor API.
+- `extensions/nn` may depend on `modules/model` but must not depend on `extensions/training`, compiler, runtime, prepare, engine, or concrete backends.
+- `extensions/training` may depend on `extensions/nn` and backend-neutral contracts it requires, but must not reverse that dependency.
 - `extensions/training` must not depend on concrete backend modules.
 - `extensions/onnx` must not depend on runtime hot-path execution internals.
 
@@ -77,6 +90,14 @@ Runtime executes `PreparedExecutable` and schedule contracts. Concrete backend p
 
 Engine is the outer composition root: it knows and wires concrete backend modules. If a backend depended on engine, composition would become cyclic and backend implementation would be coupled to the public orchestration layer.
 
+### Training is downstream of neural-network composition
+
+Layers need a stable way to declare their trainable values and persistent state whether or not an
+optimizer is selected. If `extensions/nn` imported training to represent a parameter or choose
+train/eval behavior, a layer would be coupled to optimizer orchestration and reusable inference
+composition would acquire a reverse dependency. Keeping `Parameter` and `Buffer` in `nn` lets a
+training extension traverse declared parameters without knowing concrete layer types.
+
 ## Dependency scenario
 
 A CPU partition preparer may implement a shared prepare contract and return a runtime `PreparedExecutable`; those dependencies point from the concrete backend toward shared inward contracts. Engine may then depend on CPU to register that implementation. If CPU imported engine to find configuration or register itself, the inward module would depend back on the composition root and create the prohibited reverse edge.
@@ -90,6 +111,7 @@ Source-level dependency tests should also protect the boundaries that type depen
 - Planning scoring must not reference concrete kernel classes or prepared executables.
 - Compile-time plans hold `BackendId`, not live backend services.
 - CPU routes such as scalar, Vector API, and OpenBLAS remain implementation routes inside the CPU backend.
+- `extensions/nn` owns `Parameter`, `Buffer`, and train/eval behavior; `extensions/training` owns optimizer algorithms and training orchestration.
 
 ## Architecture-test enforcement
 
@@ -104,5 +126,6 @@ Tests under `testing/architecture-tests/` should fail when forbidden module or p
 - absence of backend support APIs on `Operation`;
 - absence of compile-time graph types in the runtime hot path; and
 - absence of concrete implementation references in partition scoring.
+- the `modules/model -> extensions/nn -> extensions/training` direction when those extensions are introduced.
 
 Architecture tests enforce the contract; they do not redefine it. When a dependency rule changes, update [`ARCHITECTURE.md`](../../ARCHITECTURE.md), the relevant explanatory document, an ADR when significant, and the architecture tests in the same change.

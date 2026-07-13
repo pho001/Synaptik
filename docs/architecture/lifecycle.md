@@ -85,6 +85,12 @@ Suppose one compiled graph is prepared once for CPU and then run twice with diff
 
 ## Training lifecycle
 
+Before compilation, an `extensions/nn` module tree supplies forward behavior. Each module declares
+its trainable `Parameter` values and persistent `Buffer` values; `train()` or `eval()` propagates
+the selected mode to children. This is not optimizer work: for example, a batch-normalization
+layer can select its training or inference forward behavior before gradients exist. The generic
+Tensor operations used by that forward pass remain owned by `modules/model`.
+
 The compile mode determines how much graph the compiler constructs:
 
 - `FORWARD_ONLY` compiles forward computation only.
@@ -129,4 +135,6 @@ run:
   training-step schedule
 ```
 
-In both forms, the training extension owns optimizer algorithms and remains independent of concrete backends. Backend-specific optimizer execution belongs to backend prepare and kernels.
+In both forms, `extensions/training` owns optimizer algorithms and training orchestration over the
+parameters declared by `extensions/nn`. It remains independent of concrete backends. Backend-
+specific optimizer execution belongs to backend prepare and kernels.

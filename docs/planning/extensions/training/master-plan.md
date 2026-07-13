@@ -2,18 +2,20 @@
 
 ## Goal
 
-Define backend-agnostic optimizer algorithms, parameters, sessions, and training-step concepts.
+Define backend-agnostic optimizer algorithms, sessions, and training-step orchestration over
+parameters declared by `extensions/nn`.
 
 ## Architecture references
 
 - [Architecture contract](../../../../ARCHITECTURE.md)
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
+- [NN master plan](../nn/master-plan.md)
 
 ## Scope
 
 - optimizer algorithms
-- parameters and parameter groups
+- parameter groups over `extensions/nn` parameters
 - training sessions and steps
 - backend-neutral optimizer update representation
 
@@ -23,15 +25,19 @@ Define backend-agnostic optimizer algorithms, parameters, sessions, and training
 - kernel selection
 - CPU, Metal, or CUDA optimizer bridges
 - backend-specific optimizer execution
+- `Module`, `Parameter`, `Buffer`, layer behavior, and train/eval mode
 
 ## Module invariants
 
 - Training owns algorithms, not backend execution.
+- NN owns `Parameter` and `Buffer`; training consumes declared parameters for optimization.
+- Training depends on NN, not the reverse.
 - Training never depends on concrete backend modules.
 
 ## Allowed dependencies
 
 - modules/model
+- extensions/nn
 - modules/config
 - modules/compiler and other backend-neutral contracts when required
 
@@ -49,7 +55,7 @@ Define backend-agnostic optimizer algorithms, parameters, sessions, and training
 
 ## Milestones
 
-- Parameter and optimizer contracts
+- Optimizer contracts over NN-declared parameters
 - Initial optimizer steps
 - Training session integration
 
@@ -66,6 +72,7 @@ This extension is not yet planned in detail. Detailed task specifications will b
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
+- `Parameter` ownership and train/eval behavior belong to `extensions/nn`.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 
 ## Risks

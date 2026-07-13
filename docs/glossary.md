@@ -885,6 +885,22 @@ not execute either function or define compiler decomposition, gradients, or back
 
 The graph that computes outputs from user inputs in the original direction of the tensor expression. It exists before any gradient computation is added. A forward-only compile uses this computation; a backward-capable compile may expand it with a [backward graph](#backward-graph).
 
+### Neural-network module, parameter, buffer, and forward context
+
+These are planned `extensions/nn` contracts; no Gradle `nn` project or production Java API exists
+yet. A **module** is a stateful neural-network composition unit that can declare child modules,
+trainable **parameters**, and persistent **buffers**. A parameter is module-owned state that an
+optimizer may update. A buffer is persistent module-owned state that an optimizer does not update,
+such as a running statistic. A **forward context** carries the module's selected train/eval mode
+through a module tree so layers can choose their forward behavior consistently.
+
+`extensions/nn` composes generic [`Tensor`](#tensor) and operation semantics from
+`modules/model`. [`extensions/training`](#training-graph) consumes nn-declared parameters for
+optimizer algorithms and training orchestration, but it does not own modules, buffers, or
+train/eval behavior. None of these planned contracts grants autograd, backend storage, kernel
+selection, runtime execution, or a concrete backend dependency. See [Module
+boundaries](architecture/module-boundaries.md#extensions).
+
 ### Graph
 
 A directed dataflow model of a computation. [Nodes](#node) represent computation occurrences, and [values](#graph-value) carry logical data from graph inputs or producing nodes to consuming nodes and graph outputs. A graph describes computation and data dependencies; it is not a runtime schedule or a collection of physical buffers.

@@ -46,6 +46,11 @@ These are global graph concerns, so they belong to compiler and backend-neutral 
 
 ## Optimizer as a backend-agnostic step
 
+`extensions/nn` owns the model-module side of a training step: modules declare their trainable
+`Parameter` values, persistent `Buffer` values, and train/eval forward behavior. `extensions/training`
+is downstream of that declaration and owns optimizer algorithms and training-step orchestration.
+This distinction lets a module be used for inference without importing an optimizer.
+
 The initial training lifecycle keeps the optimizer algorithm in `extensions/training` and runs its step after gradients are produced:
 
 ```text
@@ -54,7 +59,10 @@ prepared forward/backward execution
   -> optimizer.step()
 ```
 
-Training owns the mathematical update represented by optimizers such as SGD, Adam, and AdamW. It does not select a Metal, CUDA, CPU, or other backend-specific execution route.
+Training owns the mathematical update represented by optimizers such as SGD, Adam, and AdamW.
+It consumes parameters declared by `extensions/nn`; it does not own `Parameter`, `Buffer`, layer
+behavior, or train/eval mode. It does not select a Metal, CUDA, CPU, or other backend-specific
+execution route.
 
 ## Future compiled optimizer graph
 

@@ -14,6 +14,7 @@ Decision records are retrospective summaries of rules present in the architectur
 - [ADR 0004: Backend-neutral partition scoring](decisions/0004-partition-scoring.md)
 - [ADR 0005: Combined forward and backward training graph](decisions/0005-training-combined-forward-backward-graph.md)
 - [ADR 0006: No runtime service locator](decisions/0006-no-runtime-service-locator.md)
+- [ADR 0007: Neural-network module and training boundary](decisions/0007-neural-network-module-and-training-boundary.md)
 
 ## Design notes
 

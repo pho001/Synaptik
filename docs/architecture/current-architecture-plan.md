@@ -16,6 +16,7 @@ Focused architecture documentation:
 - [Dependency rules](dependency-rules.md)
 - [Partition scoring](partition-scoring.md)
 - [Training graph](training-graph.md)
+- [ADR 0007: Neural-network module and training boundary](../design/decisions/0007-neural-network-module-and-training-boundary.md)
 - [Tracing](tracing.md)
 - [Runtime / Prepare / Backend boundary](runtime-prepare-backend-boundary.md)
 

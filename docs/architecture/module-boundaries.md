@@ -76,11 +76,29 @@ Backends may consume model, config, planning, runtime, prepare, backend-contract
 
 ## Extensions
 
+### `extensions/nn`
+
+Owns stateful neural-network composition: `Module`, `Parameter`, `Buffer`, module-tree traversal,
+train/eval mode, forward context, layers, blocks, and neural-network functional conveniences.
+A parameter is a module-owned trainable value; a buffer is persistent module state that an
+optimizer does not update. `train()` and `eval()` are module forward-behavior modes, so their
+propagation belongs here rather than in an optimizer.
+
+`extensions/nn` composes the generic tensor semantics supplied by `modules/model`. It does not
+own autograd construction, optimizer algorithms, training-step orchestration, backend storage,
+kernel selection, or concrete backend dependencies.
+
 ### `extensions/training`
 
-Owns training concepts and optimizer algorithms such as `Optimizer`, `Sgd`, `Adam`, `AdamW`, parameters, sessions, and training steps. It describes the mathematical update but does not access backend storage, select backend kernels, or implement backend-specific optimizer execution.
+Owns training concepts and optimizer algorithms such as `Optimizer`, `Sgd`, `Adam`, `AdamW`,
+parameter groups, sessions, and training steps. It consumes the trainable parameters declared by
+`extensions/nn` modules and describes their mathematical updates; it does not own `Parameter`,
+`Buffer`, layer behavior, or train/eval mode.
 
-Training must not depend on concrete backend modules. A fused Adam route on Metal, for example, is a Metal backend prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training Graph](training-graph.md).
+The dependency direction is `modules/model -> extensions/nn -> extensions/training`. Training
+must not depend on concrete backend modules. A fused Adam route on Metal, for example, is a Metal
+backend prepare/kernel concern rather than a `MetalOptimizerBridge` in training. See [Training
+Graph](training-graph.md).
 
 ### `extensions/onnx`
 
@@ -97,6 +115,8 @@ backend    = concrete lowering, implementation choice, and storage
 runtime    = prepared execution and dynamic run state
 engine     = explicit composition and public lifecycle
 trace      = typed diagnostic leaf
+nn         = module composition, parameters, buffers, and forward mode
+training   = optimizer algorithms and training orchestration
 ```
 
 The dependency implications of these responsibilities are detailed in [Dependency Rules](dependency-rules.md).
