@@ -65,6 +65,7 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.StatisticalReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeSumKind;
 import java.lang.reflect.Modifier;
@@ -233,18 +234,24 @@ public final class OperationSignatureTest {
         assertFamily(
                 List.of(OperationSignature.fixed(GraphRngStateAttrs.class, 0, 1)),
                 GraphRngKind.values());
-        List<OperationSignature> sumMean = List.of(
+        List<OperationSignature> maskedReduction = List.of(
                 noAttrsUnary,
                 fixed(AxisReductionAttrs.class, 1),
                 fixed(MultiAxisReductionAttrs.class, 1),
                 fixed(MaskedReductionAttrs.class, 2));
+        List<OperationSignature> sumToShapeReduction = List.of(
+                noAttrsUnary,
+                fixed(AxisReductionAttrs.class, 1),
+                fixed(MultiAxisReductionAttrs.class, 1),
+                fixed(MaskedReductionAttrs.class, 2),
+                fixed(SumToShapeAttrs.class, 1));
         List<OperationSignature> ordinaryReduction =
                 List.of(
                         noAttrsUnary,
                         fixed(AxisReductionAttrs.class, 1),
                         fixed(MultiAxisReductionAttrs.class, 1));
-        assertKinds(
-                sumMean, AggregateReductionKind.SUM, AggregateReductionKind.MEAN);
+        assertKinds(sumToShapeReduction, AggregateReductionKind.SUM);
+        assertKinds(maskedReduction, AggregateReductionKind.MEAN);
         assertKinds(
                 ordinaryReduction,
                 AggregateReductionKind.PROD,

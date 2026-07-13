@@ -65,7 +65,7 @@ public final class TensorScaledDotProductAttentionExpressionTest {
                         method -> method.getReturnType() == Tensor.class)),
                 () -> assertTrue(publicMethods.stream().noneMatch(
                         method -> Modifier.isStatic(method.getModifiers()))),
-                () -> assertEquals(188, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(189, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
 
         assertMethod(Tensor.class.getDeclaredMethod(

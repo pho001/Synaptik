@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(188, declaredPublicMethods.size());
+        assertEquals(189, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -98,7 +98,7 @@ class TensorTest {
                         "clamp", "clampMin", "clampMax", "greaterThan",
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
-                        "mean", "prod", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
+                        "mean", "prod", "sumToShape", "all", "any", "argMin", "argMax", "cumSum", "softmax", "matmul", "linear",
                         "scaledDotProductAttention", "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "meanSquaredError", "categoricalCrossEntropyWithLogits", "layerNorm", "rmsNorm", "batchNormInference", "batchNormTraining", "logSumExp", "variance", "standardDeviation", "l1Norm",
@@ -256,6 +256,16 @@ class TensorTest {
                     () -> assertEquals(Tensor.class, multiRetained.getReturnType()),
                     () -> assertFalse(multiRetained.isVarArgs()));
         }
+
+        var sumToShape = Tensor.class.getDeclaredMethod("sumToShape", Shape.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, sumToShape.getReturnType()),
+                () -> assertEquals(
+                        List.of(Shape.class), Arrays.asList(sumToShape.getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(sumToShape.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(sumToShape.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(sumToShape.getModifiers())),
+                () -> assertFalse(sumToShape.isVarArgs()));
 
         for (String methodName : List.of("logSumExp", "l1Norm", "l2Norm")) {
             var multi = Tensor.class.getDeclaredMethod(methodName, int[].class);

@@ -302,6 +302,28 @@ expressions](api/tensor-api.md#arg-extrema-expressions), [Multi-axis and statist
 expressions](api/tensor-api.md#multi-axis-and-statistical-reduction-expressions), and [Masked sum and mean
 expressions](api/tensor-api.md#masked-sum-and-mean-expressions).
 
+### Sum-to-Shape
+
+An implemented binding-aware [`aggregate reduction`](#aggregate-reduction) that adds a numeric
+Tensor into an exact target `Shape`. `Tensor.sumToShape(Shape)` right-aligns that target with the
+input: unmatched leading input axes reduce and disappear, aligned target-one axes reduce and
+remain with extent one, and equal aligned axes preserve their coordinates. Other fully concrete
+pairs are invalid. A pair involving an unresolved Dimension is accepted as a
+target-one-or-input-equal obligation for later binding validation.
+
+The operation uses the existing `AggregateReductionKind.SUM` with
+`SumToShapeAttrs(targetShape)`; it is not a new operation kind. The fresh result retains exact
+input type and gradient eligibility, the exact target Shape, unresolved layout, and ordered
+one-input/output-index-zero provenance. It does not bind dimensions, resolve axes, read values,
+capture a graph, build a gradient, lower, or execute.
+
+Sum-to-Shape differs from reshape, which changes coordinate interpretation while preserving
+element count; from ordinary fixed-axis SUM, whose axes are known when the expression is built;
+and from broadcasting, which repeats values toward a larger compatible Shape. A future compiler
+may use this public semantic variant when constructing adjoints, but compiler-generated backward
+graphs and target binding proof are not current capabilities. See [Binding-aware sum-to-Shape
+expressions](api/tensor-api.md#binding-aware-sum-to-shape-expressions).
+
 ### Multi-axis reduction
 
 An implemented aggregate occurrence over a caller-ordered set of distinct normalized axes.
@@ -2025,6 +2047,9 @@ the bounded type minimum, respectively. Floating/BOOL ordinary empty and special
 fixed. Ordered multi-axis ordinary reductions and floating log-sum-exp, corrected
 variance/standard deviation, and L1/L2 norm construction are current; algorithms, gradients,
 compiler, backend, and executable behavior remain separately owned. Current
+`sumToShape` adds a distinct numeric SUM form with an exact right-aligned target Shape, retaining
+unresolved target-one-or-input-equal obligations without selecting axes or binding dimensions.
+Current
 `argMin` and `argMax` methods accept one axis of floating or integral input and create fixed INT64,
 non-differentiable results with shared `ArgExtremaAttrs`. Convenience forms request the first equal
 extremum; complete forms retain an explicit first- or last-index policy. The shared semantic order

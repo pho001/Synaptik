@@ -69,8 +69,9 @@ Its completed implementation frontier is:
   — Complete.
 - [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md)
   — Complete.
-- [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md)
-  — Complete.
+- [0017N Unfold and fold Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md)
+  — Complete; it historically included public `foldAxis`, which completed task 0018R later
+  removed.
 - [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) — Complete.
 - [0018B Scalar select Tensor expression](modules/model/tasks/0018b-scalar-select-tensor-expression.md)
   — Complete.
@@ -158,7 +159,32 @@ five-input inference. Task 0021C is Complete. The former broad loss row is now s
 [task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) for
 dense-target categorical cross-entropy with logits, and completed task 0022B for index-target
 categorical cross-entropy with logits. Task 0022A is Complete;
-established tasks 0023–0024 remain Draft without detailed specifications.
+task 0023 is Complete with its detailed specification and final matrix. Task 0023A is Complete
+with its detailed specification; task 0023B is the next Draft frontier, and five concise Draft
+follow-up rows 0023B–0023F precede
+established task 0024, which remains Draft without a detailed specification.
+
+[Task 0023](modules/model/tasks/0023-adjoint-expressibility-audit.md) is the planning-only
+adjoint-expressibility frontier after the completed post-0022B checkpoint. Its
+[final matrix](modules/model/adjoint-expressibility-audit.md) selects six reusable public
+capability gaps and no compiler-only semantic gap: 0023A binding-aware sum-to-Shape for deferred
+MATMUL/attention batch binding, 0023B Gather-compatible axis scatter-add for unresolved gathered
+extents, 0023C signed slice placement plus target-relative dynamic crop, 0023D public foldAxis plus
+redesigned dynamic/configurable 2D windows, 0023E cumulative product,
+and 0023F same-occurrence attention weights. Current Scatter Elements and Scatter-ND serve Gather
+Elements and Gather-ND exactly; typed scalar expansion supplies dynamic constants; max-pool
+selection requires no separate indices output. Positive-static-depth Gather also composes through
+one-hot selection and reduction. Dynamic 2D windows must not assume the current flattened
+`outputHeight*outputWidth` Shape can multiply two unresolved extents. The checkpoint evidence
+remains 966 root tests
+across 124 suites, model Javadoc, 188 public Tensor methods, and 657-link/176-anchor documentation
+validation. The audit implements no gradient, compiler, execution, backend/runtime, Gradle,
+dependency, or architecture change. Completed task 0023A adds the existing SUM kind's exact
+`SumToShapeAttrs` variant and one public `sumToShape(Shape)` metadata expression. Its focused
+14-suite run passed 131 tests, its replacement final model suite passed 977 tests, and the separate
+documentation pass validated model Javadoc, examples, Markdown, exact 25-path scope, the 189-method
+surface, and synchronized status. It adds no compiler adoption, binding implementation, gradient,
+execution, backend/runtime, dependency, Gradle, or architecture change.
 
 Task 0021A adds one distinct RMS-normalization kind and typed attributes, exact no-scale and
 scale-only receiver methods, uncentered mean-square semantics, and one-output provenance. Its
@@ -250,17 +276,20 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 0020, 0020A, 0020A1, 0021, and 0021A are Complete. Task
 [0021B](modules/model/tasks/0021b-batch-normalization-inference.md) is Complete. Focused
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
-Complete. Tasks 0022, 0022A, and 0022B are Complete;
-tasks 0023–0024 remain Draft without detailed
-future specifications.
+Complete. Tasks 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed
+audit specification and result artifact. Task 0023A is Complete with its detailed specification;
+task 0023B is the next Draft frontier, and tasks 0023B–0023F and task 0024 remain Draft without
+detailed specifications.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
 `flip(int... axes)`, and leaves every negative-step result layout-unresolved under the current
 non-negative-stride descriptor. It removes public `Tensor.foldAxis` without an alias while
-retaining `FOLD_AXIS` and `FoldAxisAttrs` as compiler-only model semantics whose first compiler
-construction remains owned by task 0023. Public `unfold`, `unfold2d`, and `fold2d` remain
-unchanged.
+retaining `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` as public Java semantic contracts
+without a public Tensor receiver/construction method.
+[Task 0023](modules/model/tasks/0023-adjoint-expressibility-audit.md) selected Draft task 0023D to
+restore the generally useful public overlap-add primitive and separately generalize 2D windows.
+Public `unfold`, `unfold2d`, and `fold2d` remain unchanged.
 
 The task-0018R implementation context passed the exact 78-test focused contract command and all
 715 model tests across 88 suites. Independent documentation review finalized all seven affected
@@ -550,12 +579,17 @@ and individually indexed UNSTACK-output semantics without provenance or graph ch
 concat/stack, immutable-list unstack expression construction, unresolved result layouts, and exact
 ordered or individually indexed provenance without producer grouping or cross-layer behavior.
 Task [0017M](modules/model/tasks/0017m-unfold-and-fold-semantics.md) is complete. It defines
-general-axis sliding windows and their public/compiler-facing scatter-add fold, NCHW
+general-axis sliding windows and the overlap-add fold semantics that task 0017N historically
+exposed publicly, plus NCHW
 im2col columns, and overlap-accumulating col2im through typed immutable semantic parameters.
-Task 0017N owns all four public Tensor expressions. Task 0023 will later own compiler-generated
-FOLD_AXIS use for backward graphs; neither task changes the semantic identity defined by 0017M.
-Task [0017N](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) is complete with exact
-public signatures, locally provable static/dynamic Shape rules, checked window arithmetic,
+Task 0017N completed all four then-public Tensor expressions; task 0018R later removed public
+`foldAxis` while preserving the historical completion record and retained public Java semantic
+contracts. [Task 0023](modules/model/tasks/0023-adjoint-expressibility-audit.md) has selected Draft
+task 0023D for a public generally useful overlap-add capability before compiler
+backward construction; none of these planning statements claims gradient implementation.
+Task [0017N](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) is complete with the
+exact signatures present at its historical completion, locally provable static/dynamic Shape
+rules, checked window arithmetic,
 unresolved layouts, and one-input provenance without values, gradients, compiler behavior, or
 execution. Its independent documentation review passed focused 16-test, all 629 model-test across
 74 suites, model-Javadoc, root-test, executable-example, bytecode/reflection, generated-page,
@@ -669,7 +703,7 @@ authorized Compile API status correction.
 | 64 | [0017K Tensor composition semantics](modules/model/tasks/0017k-tensor-composition-semantics.md) | Complete |
 | 65 | [0017L Tensor composition expressions](modules/model/tasks/0017l-tensor-composition-expressions.md) | Complete |
 | 66 | [0017M Unfold and fold semantics](modules/model/tasks/0017m-unfold-and-fold-semantics.md) | Complete |
-| 67 | [0017N Public unfold, foldAxis, unfold2d, and fold2d Tensor expressions](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete |
+| 67 | [0017N Unfold and fold Tensor expressions (historically including public foldAxis)](modules/model/tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete |
 | 68 | [0018A Scalar select semantics](modules/model/tasks/0018a-scalar-select-semantics.md) | Complete |
 | 69 | [0018B Scalar select Tensor expression](modules/model/tasks/0018b-scalar-select-tensor-expression.md) | Complete |
 | 70 | [0018C Axis gather semantics](modules/model/tasks/0018c-axis-gather-semantics.md) | Complete |
@@ -716,8 +750,14 @@ authorized Compile API status correction.
 | 111 | [0022 Mean-squared-error loss](modules/model/tasks/0022-mean-squared-error-loss.md) | Complete |
 | 112 | [0022A Dense-target categorical cross-entropy with logits](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) | Complete |
 | 113 | [0022B Index-target categorical cross-entropy with logits](modules/model/tasks/0022b-index-target-categorical-cross-entropy-with-logits.md) | Complete |
-| 114 | 0023 Compiler-generated semantic operations | Draft |
-| 115 | 0024 Model capability selection audit | Draft |
+| 114 | [0023 Adjoint expressibility audit](modules/model/tasks/0023-adjoint-expressibility-audit.md) | Complete |
+| 115 | [0023A Binding-aware sum-to-Shape](modules/model/tasks/0023a-binding-aware-sum-to-shape.md) | Complete |
+| 116 | 0023B Gather-compatible axis scatter-add | Draft |
+| 117 | 0023C Slice placement and dynamic crop | Draft |
+| 118 | 0023D Public foldAxis and dynamic 2D windows | Draft |
+| 119 | 0023E Cumulative-product scan | Draft |
+| 120 | 0023F Attention weights output | Draft |
+| 121 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -772,8 +812,9 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, 0021A, and 0021B are complete. Task
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
 Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Complete.
 [Task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is
-Complete. Task 0022B is Complete; established tasks 0023–0024 remain
-Draft without detailed specifications.
+Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specification and
+result artifact. Task 0023A is Complete with its detailed specification; tasks
+0023B–0023F and established task 0024 remain Draft without detailed specifications.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

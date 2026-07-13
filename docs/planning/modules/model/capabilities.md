@@ -136,7 +136,7 @@ apply them in task order; completed task 0018O has already finalized indexing.
 | `fastExp` and `fastTanh` public kinds | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) removed both kinds and methods atomically without aliases. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
 | Masked sum/mean heuristic axis mapping | Completed task [0018Q](tasks/0018q-masked-reduction-redesign.md) removed the mapper and simplified masked attributes to one normalized axis. The public overloads remain first-class two-input SUM/MEAN occurrences because current primitives cannot safely compose masked-out NaN/Inf exclusion, dynamic Shapes, selected counts, and gradients without hidden eager constants or undefined behavior. Masks must use ordinary right-aligned broadcasting to produce exactly the input Shape; callers reshape or expand explicitly. All-false sum is zero and all-false mean is NaN. |
 | `inv` | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) atomically renamed the semantic kind and public method to `RECIPROCAL` and `reciprocal`, without a compatibility bridge. |
-| `foldAxis` public method | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) removed the public method and helper path without an alias. `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` remain stable compiler-only model semantics; task 0023 owns their first compiler-generated construction. `fold2d` remains public. |
+| `foldAxis` public method | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) removed the public method and helper path without an alias. This supersedes the historical public implementation completed by tasks [0017M](tasks/0017m-unfold-and-fold-semantics.md) and [0017N](tasks/0017n-unfold-and-fold-tensor-expressions.md); it does not erase that completion evidence. `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` remain public Java semantic contracts, but no public Tensor receiver/construction method exposes them. The [task-0023 audit](adjoint-expressibility-audit.md) selects Draft task 0023D to restore that public transformation; the retained `long outputSize` is sufficient because current `unfold` requires its selected extent static. `fold2d` remains public. |
 | `fromStrictFlatPrefix` and `fromCyclicFlatPrefix` | Completed task [0018S](tasks/0018s-tensor-factory-surface-cleanup.md) removed these methods and their implementation from production without aliases. Exact-carrier strict/cyclic preparation remains only in a package-private test-source fixture helper and delegates to public flat import. |
 | Primitive-array `take` | Do not stabilize it. Canonical indexing accepts an index Tensor; any later primitive convenience must validate the axis before allocating its eager index Tensor. |
 | Positive-step-only slicing | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) selected signed non-zero steps. Normalized `SliceAttrs` stores start plus selected length rather than an exclusive-end sentinel, the general arrays remain the primitive, a step-aware `sliceAxis` overload was added, and `flip(int... axes)` is one `SLICE` convenience. Positive provable views remain resolved; every negative-step result is layout-unresolved under the current non-negative-stride descriptor. |
@@ -251,8 +251,13 @@ and [PyTorch `gather`](https://docs.pytorch.org/docs/2.12/generated/torch.gather
 aligned-indices family. Synaptik should not assign `take` a fourth meaning.
 
 The matching public scatter primitives are `SCATTER_ELEMENTS` and `SCATTER_ND`, with explicit
-reduction semantics. Specialized fixed-add gather adjoints/compositions are not current public
-model kinds. Task 0023 may later define selected compiler-generated adjoint semantics. ONNX
+reduction semantics. The [task-0023 audit](adjoint-expressibility-audit.md) confirms that they
+exactly express Gather Elements and Gather-ND adjoints with ADD duplicate accumulation. General
+rank-changing Gather has a different indices/update Shape relation. A positive static gathered
+extent can compose through current one-hot selection and reduction, but an unresolved gathered
+extent cannot because one-hot requires positive static depth. Draft task 0023B therefore owns one
+generally useful Gather-compatible axis scatter-add primitive rather than a backward-only kind.
+ONNX
 [ScatterElements](https://onnx.ai/onnx/operators/onnx__ScatterElements.html) and
 [ScatterND](https://onnx.ai/onnx/operators/onnx__ScatterND.html) provide the interoperability
 vocabulary.
@@ -748,20 +753,32 @@ policies, not backend algorithm designs.
 Model records the selected meaning. Compiler owns differentiability rules and backward graph
 construction; backends may use different algorithms only when they satisfy that meaning.
 
-## Compiler-generated semantic operations
+## Adjoint expressibility and missing public primitives
 
-The model may contain backend-independent kinds needed only after compiler transformations. They
-are not automatically public Tensor methods. The selected compiler-only set includes:
+The [task-0023 planning audit](adjoint-expressibility-audit.md) covers every current public
+semantic family and differentiable input role. It selects no operation-specific `*_BACKWARD` kind
+and no `GENUINELY_NON_EXPRESSIBLE_SEMANTIC_GAP`. Exact current compositions include typed scalar
+zero/one expanded to unresolved Shapes, Gather Elements through Scatter Elements ADD, Gather-ND
+through Scatter-ND ADD, and maximum-pool selection recomputed through first-index arg-maximum.
+Existing producer slots supply the dropout keep mask, batch-training saved statistics, and top-K
+indices.
 
-- specialized gather/scatter adjoints when a composition would lose required semantics;
-- retained compiler-only `FOLD_AXIS` semantics as the adjoint of single-axis unfold;
-- slice and window backward operations;
-- reduction-extrema, softmax, log-softmax, attention, normalization, and loss adjoints when a
-  focused compiler task demonstrates that primitive composition is insufficient; and
-- saved-statistic or auxiliary-output operations backed by the shared multi-output contract.
+The audit selected six generally useful prerequisites. Completed
+[task 0023A](tasks/0023a-binding-aware-sum-to-shape.md) now implements binding-aware sum-to-Shape
+as an exact target-Shape variant of existing `AggregateReductionKind.SUM`, with one public
+`sumToShape(Shape)` expression and no new kind. It preserves exact numeric type and eligibility,
+retains unresolved right-aligned target-one-or-equal obligations, and records one-input metadata
+without binding or execution. Draft rows 0023B–0023F retain Gather-compatible
+axis scatter-add, signed slice placement plus target-relative dynamic crop, public general-axis fold plus
+redesigned dynamic/configurable 2D window transforms, cumulative product, and same-occurrence
+attention weights. The detailed matrix owns formulas and policy-deferred boundary
+cases; this capability baseline intentionally does not duplicate them.
 
-Gradient formulas and the choice to emit any of these belong to compiler. `FUSED` is never a
-model semantic operation; fusion belongs to backend prepare.
+The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
+runtime, or execution contract. Completed task 0023A changes model semantic/expression metadata
+only. Its focused 14-suite run passed 131 tests and its replacement final model suite passed 977
+tests; model Javadoc and documentation/scope validation also passed with 189 public Tensor methods.
+Fusion and lowering remain backend-prepare concerns.
 
 ## Validation policy
 

@@ -16,12 +16,15 @@ import java.util.List;
  * Masked, axis-removing {@link #SUM} and {@link #MEAN} forms pair with
  * {@link MaskedReductionAttrs}; their ordered provenance is {@code [input, mask]}, and the mask
  * must use ordinary right-aligned broadcasting to produce exactly the input Shape.
+ * A binding-aware {@link #SUM} form pairs with {@link SumToShapeAttrs}; it names the exact result
+ * Shape while later concrete binding proves each right-aligned target extent is one or equals its
+ * input extent.
  * {@link #ARG_MIN} and {@link #ARG_MAX} pair only with {@link ArgExtremaAttrs} because choosing
- * among equal extrema is part of those operations' semantics. Family-owned signatures enforce
- * The five advanced floating kinds pair only with ordered multi-axis attributes, using
+ * among equal extrema is part of those operations' semantics. The five advanced floating kinds
+ * pair only with ordered multi-axis attributes, using
  * {@link StatisticalReductionAttrs} when correction is part of the meaning. Family-owned
- * signatures enforce one input for ordinary and advanced forms or two ordered inputs for masked
- * forms.</p>
+ * signatures enforce one input for ordinary, target-Shape, and advanced forms or two ordered
+ * inputs for masked forms.</p>
  *
  * <p>Each constant identifies requested mathematics only. The ordinary Tensor-construction
  * contract accepts floating input for all five numeric kinds and signed-integral input for
@@ -41,11 +44,15 @@ public enum AggregateReductionKind implements OperationKind {
      * {@link AxisReductionAttrs}. A masked axis-removing form pairs with
      * {@link MaskedReductionAttrs}: false broadcast mask positions exclude their input values
      * before aggregation, including NaN and infinity, and selecting no values produces floating
-     * zero. Callers express non-right-aligned intent through visible Shape transformations. Input
-     * and output types are selected by Tensor construction. For INT32 and INT64 ordinary forms,
+     * zero. A binding-aware form pairs with {@link SumToShapeAttrs}: every leading input axis is
+     * reduced, while each right-aligned target axis is reduced and retained when its bound extent
+     * is one or preserved when it equals the bound input extent. All other bound pairs are invalid
+     * before execution. Callers express other alignment intent through visible Shape
+     * transformations. Input and output types are selected by Tensor construction. For INT32 and
+     * INT64 ordinary and target-Shape forms,
      * the result retains the input type, addition is modulo {@code 2^32} or {@code 2^64},
      * reassociation is permitted, and an empty reduction domain has result zero. Floating
-     * Floating semantics use exact real addition followed by result-format rounding: NaN
+     * semantics use exact real addition followed by result-format rounding: NaN
      * propagates, opposite infinities produce NaN, a sole infinity sign is preserved, an empty
      * domain is positive zero, and exact non-empty zero is negative only when every selected value
      * is negative zero. Gradients, execution algorithms, and backend support remain outside this
@@ -192,7 +199,13 @@ public enum AggregateReductionKind implements OperationKind {
      */
     L2_NORM;
 
-    private static final List<OperationSignature> SUM_MEAN_SIGNATURES = List.of(
+    private static final List<OperationSignature> SUM_SIGNATURES = List.of(
+            OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+            OperationSignature.fixed(AxisReductionAttrs.class, 1, 1),
+            OperationSignature.fixed(MultiAxisReductionAttrs.class, 1, 1),
+            OperationSignature.fixed(MaskedReductionAttrs.class, 2, 1),
+            OperationSignature.fixed(SumToShapeAttrs.class, 1, 1));
+    private static final List<OperationSignature> MEAN_SIGNATURES = List.of(
             OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
             OperationSignature.fixed(AxisReductionAttrs.class, 1, 1),
             OperationSignature.fixed(MultiAxisReductionAttrs.class, 1, 1),
@@ -211,15 +224,17 @@ public enum AggregateReductionKind implements OperationKind {
     /**
      * Returns the exact structural variants accepted by this aggregate reduction kind.
      *
-     * @return the stable masked-capable variants for {@link #SUM} and {@link #MEAN}, the stable
-     *     arg-extrema variant for {@link #ARG_MIN} and {@link #ARG_MAX}, the appropriate advanced
-     *     multi-axis or statistical variant, or the stable ordinary full/single-/multi-axis
-     *     variants; never null or mutable
+     * @return the stable masked- and target-Shape-capable variants for {@link #SUM}, the stable
+     *     masked-capable variants for {@link #MEAN}, the stable arg-extrema variant for
+     *     {@link #ARG_MIN} and {@link #ARG_MAX}, the appropriate advanced multi-axis or
+     *     statistical variant, or the stable ordinary full/single-/multi-axis variants; never
+     *     null or mutable
      */
     @Override
     public List<OperationSignature> signatures() {
         return switch (this) {
-            case SUM, MEAN -> SUM_MEAN_SIGNATURES;
+            case SUM -> SUM_SIGNATURES;
+            case MEAN -> MEAN_SIGNATURES;
             case ARG_MIN, ARG_MAX -> ARG_EXTREMA_SIGNATURES;
             case PROD, MIN, MAX, ALL, ANY -> ORDINARY_SIGNATURES;
             case LOG_SUM_EXP, L1_NORM, L2_NORM -> ADVANCED_SIGNATURES;

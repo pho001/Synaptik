@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
@@ -133,7 +134,75 @@ class ReductionSemanticsTest {
                                 "equals(java.lang.Object):boolean",
                                 "hashCode():int",
                                 "keepDimensions():boolean",
+                                "toString():java.lang.String")),
+                () -> assertRecordShape(
+                        SumToShapeAttrs.class,
+                        List.of("targetShape"),
+                        List.of(Shape.class),
+                        List.of(
+                                "equals(java.lang.Object):boolean",
+                                "hashCode():int",
+                                "targetShape():io.github.pho001.synaptik.model.shape.Shape",
                                 "toString():java.lang.String")));
+    }
+
+    @Test
+    void validatesAndRetainsExactSumToShapeAttributes() {
+        Shape targetShape = Shape.of(3, 1);
+        SumToShapeAttrs attrs = new SumToShapeAttrs(targetShape);
+        SumToShapeAttrs equal = new SumToShapeAttrs(Shape.of(3, 1));
+        SumToShapeAttrs different = new SumToShapeAttrs(Shape.of(1, 3));
+
+        assertAll(
+                () -> assertSame(targetShape, attrs.targetShape()),
+                () -> assertEquals(attrs, equal),
+                () -> assertEquals(attrs.hashCode(), equal.hashCode()),
+                () -> assertNotEquals(attrs, different),
+                () -> assertEquals(
+                        "SumToShapeAttrs[targetShape=Shape[3, 1]]", attrs.toString()),
+                () -> assertEquals("targetShape", assertThrows(
+                        NullPointerException.class,
+                        () -> new SumToShapeAttrs(null)).getMessage()));
+    }
+
+    @Test
+    void appendsTheExactSumOnlyTargetShapeSignature() {
+        List<OperationSignature> sumSignatures = AggregateReductionKind.SUM.signatures();
+        List<OperationSignature> meanSignatures = AggregateReductionKind.MEAN.signatures();
+
+        assertAll(
+                () -> assertEquals(
+                        List.of(
+                                OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+                                OperationSignature.fixed(AxisReductionAttrs.class, 1, 1),
+                                OperationSignature.fixed(MultiAxisReductionAttrs.class, 1, 1),
+                                OperationSignature.fixed(MaskedReductionAttrs.class, 2, 1),
+                                OperationSignature.fixed(SumToShapeAttrs.class, 1, 1)),
+                        sumSignatures),
+                () -> assertEquals(
+                        List.of(
+                                OperationSignature.fixed(NoOperationAttrs.class, 1, 1),
+                                OperationSignature.fixed(AxisReductionAttrs.class, 1, 1),
+                                OperationSignature.fixed(MultiAxisReductionAttrs.class, 1, 1),
+                                OperationSignature.fixed(MaskedReductionAttrs.class, 2, 1)),
+                        meanSignatures),
+                () -> assertThrows(UnsupportedOperationException.class,
+                        () -> sumSignatures.add(OperationSignature.fixed(
+                                SumToShapeAttrs.class, 1, 1))));
+
+        SumToShapeAttrs attrs = new SumToShapeAttrs(Shape.scalar());
+        Operation operation = new Operation(AggregateReductionKind.SUM, attrs);
+        assertAll(
+                () -> assertSame(attrs, operation.attrs()),
+                () -> assertEquals(
+                        OperationSignature.fixed(SumToShapeAttrs.class, 1, 1),
+                        operation.signature()));
+
+        for (AggregateReductionKind kind : AggregateReductionKind.values()) {
+            if (kind != AggregateReductionKind.SUM) {
+                assertThrows(IllegalArgumentException.class, () -> new Operation(kind, attrs));
+            }
+        }
     }
 
     @Test

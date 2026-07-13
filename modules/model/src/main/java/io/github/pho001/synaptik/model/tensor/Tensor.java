@@ -102,7 +102,13 @@ import java.util.Optional;
  * empty-domain identities are zero, one, the input type's maximum, and the input type's minimum,
  * respectively. Full, single-axis, and ordered distinct multi-axis forms share these policies;
  * an empty multi-axis list selects a point domain rather than every axis. Construction records
- * those meanings without aggregating values. Boolean aggregate methods require exact BOOL input
+ * those meanings without aggregating values. Binding-aware sum-to-Shape is a separate SUM form:
+ * it right-aligns an exact target Shape, removes leading input axes, and retains aligned target-one
+ * axes while preserving equal axes. Construction rejects provable static incompatibility and
+ * retains unresolved target-one-or-equal obligations for later binding validation. Its fresh
+ * result keeps the input type and gradient eligibility, exact target Shape, unresolved layout,
+ * and one-input provenance without resolving axes or aggregating values. Boolean aggregate methods
+ * require exact BOOL input
  * and construct non-differentiable BOOL results with full, single-axis, or multi-axis Shape rules;
  * empty ALL is true and empty ANY is false. Masked sum and mean require a BOOL mask whose ordinary right-aligned
  * broadcast is exactly the input Shape, remove one axis, and record exact {@code [input, mask]}
@@ -3127,6 +3133,47 @@ public final class Tensor {
     public Tensor sum(int[] axes, boolean keepDimensions) {
         return TensorMultiAxisReductionExpressions.applyOrdinary(
                 this, AggregateReductionKind.SUM, axes, keepDimensions);
+    }
+
+    /**
+     * Builds a binding-aware sum whose exact result is {@code targetShape}.
+     *
+     * <p>The target is right-aligned with this Tensor's Shape and may not have greater rank. Every
+     * leading input axis is reduced and removed. For an aligned concrete pair, target extent one
+     * reduces the input axis and retains one target position, while equal extents preserve the
+     * coordinate. Every other concrete pair is invalid. Construction rejects the first statically
+     * provable mismatch and accepts any pair involving an unresolved Dimension; later binding
+     * validation must prove target-one-or-input-equal before execution.</p>
+     *
+     * <p>The input must be floating or signed-integral. The fresh result retains the exact input
+     * type and gradient eligibility, the exact caller target Shape reference, unresolved layout,
+     * and one-input output-index-zero provenance containing {@link AggregateReductionKind#SUM}
+     * with target-Shape attributes. It has no label or storage. Equal Shapes still create a fresh
+     * explicit occurrence. A scalar target reduces every input axis; a scalar input accepts only a
+     * scalar target.</p>
+     *
+     * <p>The operation inherits ordinary SUM semantics. INT32 and INT64 use fixed-width modular
+     * addition. Floating NaN, infinity, signed-zero, reassociation, and rounding behavior is
+     * unchanged. An actually reduced empty domain yields numeric positive zero; a coordinate with
+     * no reduced axis is its corresponding input value. This method reads no value, storage, or
+     * element count and does not bind dimensions, resolve an axis set, define a gradient rule,
+     * capture a graph, lower an operation, choose a backend, or execute work.</p>
+     *
+     * @param targetShape non-null exact result Shape; its rank must not exceed this Tensor's rank,
+     *     and every fully static aligned extent must be one or equal the input extent
+     * @return a non-null fresh, unlabeled, storage-free Tensor with unchanged numeric type and
+     *     gradient eligibility, exact target Shape, unresolved layout, and exact one-input
+     *     provenance
+     * @throws NullPointerException if {@code targetShape} is null, with message
+     *     {@code targetShape}; no Tensor identity is consumed
+     * @throws IllegalArgumentException if this Tensor is BOOL, target rank exceeds input rank, or
+     *     the first fully static aligned pair is neither equal nor target-one; type validation
+     *     precedes Shape compatibility and no Tensor identity is consumed
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    public Tensor sumToShape(Shape targetShape) {
+        return TensorSumToShapeExpressions.apply(this, targetShape);
     }
 
     /**

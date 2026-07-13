@@ -64,7 +64,8 @@ comparison methods, three boolean logical methods, nineteen unary elementwise me
 floating-classification methods, seven exact-typed plus seven exact-FLOAT64 scalar arithmetic
 methods, and six range/one-bound clamp
 methods, plus one static conditional-selection method and one explicit cast method, fifteen
-full/axis numeric aggregate methods, six full/axis boolean aggregate methods, fourteen ordinary
+full/axis numeric aggregate methods, one binding-aware target-Shape SUM method, six full/axis
+boolean aggregate methods, fourteen ordinary
 multi-axis methods, twelve floating advanced/statistical reduction methods, two axis-removing
 masked aggregate methods, six axis-only `argMin`/`argMax` methods, and two
 one-axis `cumSum` methods, plus one-axis `softmax`, `logSoftmax`, two trailing-Shape `layerNorm`
@@ -123,6 +124,15 @@ condition/true-branch/false-branch provenance. It constructs no selected values 
 leaves layout unresolved, and retains a true gradient request only for floating-to-floating casts.
 Every call remains a fresh explicit expression, including a same-type request, with typed target
 attributes and exact one-input provenance.
+`Tensor.sumToShape(Shape)` currently constructs one fresh numeric SUM expression whose descriptor
+and `SumToShapeAttrs` retain the exact target Shape. The target is right-aligned with the input:
+leading axes reduce, aligned target-one axes reduce and remain, and equal aligned axes preserve.
+Provable static incompatibility fails locally; any pair involving an unresolved Dimension remains
+an obligation for later binding validation. The result preserves exact input type and gradient
+eligibility, has unresolved layout, and records exact one-input/output-index-zero provenance.
+This is model metadata that a future compiler may capture; current compiler capture, constraint
+representation or proof, adjoint construction, canonicalization, lowering, backend selection, and
+execution remain unimplemented.
 `Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
 vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
 contraction dimensions fail locally; unresolved contraction equality and the accepted
@@ -515,7 +525,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   selection, cast, unary numeric including exact GELU, fixed tanh-approximation GELU, and SiLU,
   floating-classification, scalar, numeric aggregate expression
   construction for sum, mean,
-  product, minimum, and maximum, masked sum and mean construction, boolean aggregate expression
+  product, minimum, and maximum, binding-aware exact-target-Shape sum, masked sum and mean
+  construction, boolean aggregate expression
   construction for all and any, ordered multi-axis ordinary/log-sum-exp/statistical/norm
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, explicit

@@ -100,7 +100,8 @@ io.github.pho001.synaptik.model.operation.elementwise.cast
 
 io.github.pho001.synaptik.model.operation.reduction
   Typed aggregate-reduction meanings, normalized single- and ordered multi-axis parameters,
-  correction-bearing statistical parameters, and shared arg-extrema tie policy.
+  correction-bearing statistical parameters, target-Shape SUM parameters, and shared arg-extrema
+  tie policy.
 
 io.github.pho001.synaptik.model.operation.scan
   Typed shape-preserving ordered scan meanings and immutable scan parameters.
@@ -221,7 +222,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0017K | [Tensor composition semantics](tasks/0017k-tensor-composition-semantics.md) | Complete | 0002, 0005, 0006 | Define concat, stack, and unstack meanings and immutable axis parameters. |
 | 0017L | [Tensor composition expressions](tasks/0017l-tensor-composition-expressions.md) | Complete | 0001, 0002, 0013, 0017K | Build concat, stack, and multi-result unstack public expression contracts. |
 | 0017M | [Unfold and fold semantics](tasks/0017m-unfold-and-fold-semantics.md) | Complete | 0002, 0005, 0006 | Define single-axis and two-dimensional window transformation parameters. |
-| 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Build public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels. |
+| 0017N | [Unfold and fold Tensor expressions](tasks/0017n-unfold-and-fold-tensor-expressions.md) | Complete | 0001, 0002, 0013, 0017M | Historically built public shape-validated unfold, foldAxis, unfold2d, and fold2d expressions without execution or kernels; completed task 0018R later removed public foldAxis. |
 | 0018A | [Scalar select semantics](tasks/0018a-scalar-select-semantics.md) | Complete | 0002, 0005, 0006 | Define scalar-index axis-selection meaning and immutable normalized axis/index attributes. |
 | 0018B | [Scalar select Tensor expression](tasks/0018b-scalar-select-tensor-expression.md) | Complete | 0002, 0003, 0013, 0018A | Build public scalar-index selection with axis removal and locally provable view geometry. |
 | 0018C | [Axis gather semantics](tasks/0018c-axis-gather-semantics.md) | Complete | 0005, 0006 | Define distinct gather, gather-axis/take, and take-along-axis meanings and normalized axis parameters. |
@@ -241,7 +242,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0018O | [Indexing taxonomy and unstack normalization](tasks/0018o-indexing-taxonomy-and-unstack-normalization.md) | Complete | 0017K–0017L, 0018A–0018J, 0018K–0018L | Align gather/scatter primitives with selected terminology, remove misleading axis `take`, make unstack repeated select, and demote specialized adjoints. |
 | 0018P | [Elementwise semantic cleanup](tasks/0018p-elementwise-semantic-cleanup.md) | Complete | 0014C–0014F, 0018K, 0018N | Atomically rename `INV`/`inv` to `RECIPROCAL`/`reciprocal`, remove both fast variants without aliases, and preserve the typed scalar family unchanged. |
 | 0018Q | [Masked reduction redesign](tasks/0018q-masked-reduction-redesign.md) | Complete | 0015E–0015F, 0016A–0016F1, 0018M–0018N | Remove heuristic mapping, require explicit right-aligned broadcast-to-input masks, retain minimal first-class two-input SUM/MEAN, and define all-false mean as NaN. |
-| 0018R | [Slice and window public-contract cleanup](tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete | 0017G–0017N, 0018K–0018M | Normalize signed non-zero slices as start/length/step sequences, add one-SLICE flip, and remove public foldAxis while retaining compiler-only FOLD_AXIS semantics. |
+| 0018R | [Slice and window public-contract cleanup](tasks/0018r-slice-and-window-public-contract-cleanup.md) | Complete | 0017G–0017N, 0018K–0018M | Normalize signed non-zero slices as start/length/step sequences, add one-SLICE flip, and remove the public Tensor foldAxis receiver while retaining its public Java semantic contracts; task 0023D now owns public restoration. |
 | 0018S | [Tensor factory surface cleanup](tasks/0018s-tensor-factory-surface-cleanup.md) | Complete | 0012–0012I, 0013A, 0018N | Keep identity/construction/import/constants/range in TensorFactory, promote TensorRandoms as the focused public random owner, and move prefix population to test-only fixtures. |
 | 0018T | [Scalar arithmetic family normalization](tasks/0018t-scalar-arithmetic-family-normalization.md) | Complete | 0014A–0014B, 0014E–0014F, 0018K, 0018N, 0018P | Complete parallel seven-operation Tensor/binary and Tensor/scalar arithmetic, distinguish pairwise `minimum`/`maximum` from reductions, and demote one-bound clamp kinds to conveniences. |
 | 0018T1 | [Unary numeric gaps and floating diagnostics](tasks/0018t1-unary-numeric-gaps-and-floating-diagnostics.md) | Complete | 0014C–0014D, 0018K, 0018P, 0018T | Add floating-preserving `rsqrt`/`log1p`/`expm1` plus separately typed BOOL `isFinite`/`isNaN`/`isInf` classification semantics and public construction. |
@@ -268,8 +269,14 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0022 | [Mean-squared-error loss](tasks/0022-mean-squared-error-loss.md) | Complete | 0018K, 0018N, 0018V | Added the minimal dense regression loss with exact-shape targets and explicit `NONE`/`SUM`/`MEAN` reduction and empty-domain policy. |
 | 0022A | [Dense-target categorical cross-entropy with logits](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) | Complete | 0022, 0016I–0016J | Added one exact-shape floating-target logits loss with normalized class axis, stable target-weighted log-softmax, sample-count mean, and no ignore-index or broad options surface. |
 | 0022B | [Index-target categorical cross-entropy with logits](tasks/0022b-index-target-categorical-cross-entropy-with-logits.md) | Complete | 0022A, 0018O | Added INT32/INT64 class-index targets with class-axis removal, exact typed optional ignore index, non-ignored mean denominator, and deferred execution-time bounds obligations while preserving dense dispatch. |
-| 0023 | Compiler-generated semantic operations | Draft | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022B including 0020A–0020A1 and 0021A–0021C | Represent only backend-neutral backward/compiler-generated semantics, including specialized gather/scatter adjoints and construction of retained compiler-only FOLD_AXIS, without implementing autograd traversal. |
-| 0024 | Model capability selection audit | Draft | 0001–0023 | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
+| 0023 | [Adjoint expressibility audit](tasks/0023-adjoint-expressibility-audit.md) | Complete | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022B including 0020A–0020A1 and 0021A–0021C; post-0022B checkpoint | Audited the exact adjoint matrix and selected only proven generally useful public prerequisites; see the [result artifact](adjoint-expressibility-audit.md). |
+| 0023A | [Binding-aware sum-to-Shape](tasks/0023a-binding-aware-sum-to-shape.md) | Complete | 0023 | Adds one exact target-Shape variant of existing SUM plus one public transformation for deferred singleton-or-equal MATMUL/attention batch axes; no new or operation-specific unbroadcast kind. |
+| 0023B | Gather-compatible axis scatter-add | Draft | 0023 | Add the general rank-changing axis scatter-add dual of Gather for unresolved gathered extents, preserving duplicate accumulation and exact indices Shape insertion. |
+| 0023C | Slice placement and dynamic crop | Draft | 0023 | Add a cohesive general signed/multi-axis target-Shape placement/update contract and target-relative crop for unresolved extents; non-zero slice steps do not require overlap addition. |
+| 0023D | Public foldAxis and dynamic 2D windows | Draft | 0023 | Restore public general-axis overlap-add fold and design exact dynamic/configurable 2D window materialization and target-Shape fold geometry without assuming current rank-three flattening can represent two unresolved spatial factors. |
+| 0023E | Cumulative-product scan | Draft | 0023 | Add the general inclusive/exclusive, forward/reverse cumulative-product scan needed for zero-safe product adjoints. |
+| 0023F | Attention weights output | Draft | 0023 | Add a generally useful public attention result that retains same-occurrence normalized weights without weakening masked special-value semantics. |
+| 0024 | Model capability selection audit | Draft | 0001–0023F | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
 
@@ -285,8 +292,9 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Selected modern operation families: tasks 0019–0022B, including 0019A–0019A2, 0019B–0019E,
   0020A–0020A1, and 0021A–0021C;
   checkpoint after
-  0022B before compiler-generated semantic work
-- Compiler-generated model semantics and capability-selection audit: tasks 0023–0024
+  0022B before adjoint-expressibility and missing-public-primitive planning
+- Adjoint expressibility, its six evidence-selected public-capability follow-ups, and the
+  capability-selection audit: tasks 0023–0024, including 0023A–0023F before 0024
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -352,8 +360,30 @@ normalization. Focused [task 0021B](tasks/0021b-batch-normalization-inference.md
 Task [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete.
 Completed [task 0022](tasks/0022-mean-squared-error-loss.md) establishes shared loss reduction.
 [Task 0022A](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is Complete. Task
-0022B is Complete; established tasks 0023–0024 remain Draft without
-detailed specifications.
+0022B is Complete. Task 0023 is Complete with its final
+[audit matrix](adjoint-expressibility-audit.md). Task 0023A is Complete with its detailed
+specification. It adds no kind: SUM alone appends exact `SumToShapeAttrs`, and one public
+`sumToShape(Shape)` expression retains exact numeric metadata plus unresolved right-aligned
+target-one-or-equal obligations. The focused 14-suite run passed 131 tests, the replacement final
+model suite passed 977 tests, and the separate documentation pass validated model Javadoc,
+examples, Markdown, exact 25-path scope, the 189-method public surface, and synchronized status.
+Task 0023B is the next Draft frontier; tasks 0023B–0023F remain without detailed specifications,
+and task 0024 remains Draft without a detailed specification.
+
+[Task 0023](tasks/0023-adjoint-expressibility-audit.md) executed after the completed post-0022B
+capability checkpoint. Its [planning-only matrix](adjoint-expressibility-audit.md) finds no proven
+compiler-only semantic gap and selects six general public prerequisites: binding-aware
+sum-to-Shape, Gather-compatible axis scatter-add, slice placement plus dynamic crop, public
+foldAxis plus redesigned dynamic/configurable 2D windows, cumulative product, and same-occurrence attention
+weights. Current Scatter
+Elements and Scatter-ND exactly serve Gather Elements and Gather-ND adjoints. Typed scalar leaves
+expanded to a target Shape provide uncontaminated dynamic zeros and ones. Maximum-pool routing can
+be recomputed through existing first-index arg-maximum semantics once dynamic windows exist, so it
+needs no indices-output task. Task 0023A is Complete with its detailed specification; tasks
+0023B–0023F remain Draft without detailed specifications.
+Operation-specific backward kinds, compiler traversal, execution, backend/runtime behavior,
+Gradle, dependencies, and architecture changes remain absent; 0023A is the only selected public
+prerequisite implemented so far.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -436,6 +466,34 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   non-ignored denominator. Standalone probability-input cross entropy, standalone log-probability
   negative-log-likelihood, weights, masks, label smoothing, binary cross entropy, and additional
   losses are not selected for this minimal frontier.
+- Task 0023 is an audit-only adjoint-expressibility frontier, not a catalog of operation-specific
+  backward kinds. Its [completed matrix](adjoint-expressibility-audit.md) distinguishes
+  exact current composition, existing auxiliary outputs, reusable primitive gaps,
+  non-differentiable roles, and deferred derivative policy. Formula complexity, performance, and
+  fusion never justify model semantics.
+- The audit selects exactly six generally useful public-capability rows: completed task 0023A
+  binding-aware sum-to-Shape, Draft 0023B Gather-compatible axis scatter-add, Draft 0023C signed slice
+  placement plus target-relative dynamic crop, 0023D public foldAxis and dynamic/configurable 2D
+  windows, 0023E cumulative product, and 0023F same-occurrence attention weights. Each rejects
+  a narrower backward-only spelling and depends on 0023. Task 0024 depends on all six and remains
+  Draft without a detailed specification.
+- Current Scatter Elements and Scatter-ND exactly express Gather Elements and Gather-ND adjoints.
+  Positive-static-depth Gather additionally composes through one-hot selection and reduction;
+  unresolved gathered depth is the 0023B gap. Exact typed scalar leaves expanded to a target Shape
+  provide dynamic zero/one expressions.
+  Max-pool selection can be recomputed from first-index arg-maximum after 0023D. These conclusions
+  remove three speculative follow-ups.
+- Completed task 0023A adds no kind: it extends existing `AggregateReductionKind.SUM` with exact
+  `SumToShapeAttrs`, one public `sumToShape(Shape)` method, and right-aligned target-one-or-equal
+  validation. It supplies the general transformation selected for current deferred
+  singleton-or-equal batch obligations in MATMUL and attention while remaining independently
+  usable. Ordinary binary, `where`, linear, and `EXPAND` reversal uses statically known axes.
+  Task 0023D must choose additional Shape expressibility or a non-flattened dynamic window
+  contract because the current rank-three columns require a product of two unresolved extents.
+- No `GENUINELY_NON_EXPRESSIBLE_SEMANTIC_GAP` remains after the general-primitive test, so the audit
+  adds no compiler-only semantic row. Saved statistics, dropout masks, and top-K indices continue
+  to use indexed shared-producer outputs. No gradient, traversal, capture, execution, backend,
+  runtime, Gradle, dependency, architecture, or public API implementation is claimed.
 - The former broad task 0019 is split without renumbering established 0019A–0019C. Task 0019 is
   the cohesive MATMUL primitive; 0019D owns `linear`; 0019E owns scaled dot-product attention.
 - The former 0019A umbrella is split without changing 0019B–0019E. Completed task 0019A owns exact
@@ -676,7 +734,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   official-URL, exact thirteen-path, synchronized-status, terminology, and whitespace checks
   passed.
 - Public `inv` becomes `reciprocal`; completed task 0018R removes public `foldAxis` while retaining
-  `FOLD_AXIS` and `FoldAxisAttrs` as compiler-only model semantics for task 0023. It also selects
+  `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` as public Java semantic contracts without a
+  public Tensor receiver/construction method. Task 0023 selected Draft follow-up 0023D to restore
+  that public primitive and separately generalize 2D windows.
+  It also selects
   normalized start/length/signed-step slice attributes, one explicit-step `sliceAxis` overload,
   and `flip(int... axes)` as one `SLICE` occurrence without negative-stride layout. Strict and
   cyclic prefix population moves to test/data utilities.
@@ -684,7 +745,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   sequences, directional raw half-open normalization, positive-step-only resolved logical views,
   and explicit step-aware single-axis and one-producer flip conveniences. Public `foldAxis` and
   its helper path are absent; public `unfold`, `unfold2d`, and `fold2d` remain unchanged, while
-  `FOLD_AXIS` and `FoldAxisAttrs` remain compiler-only values for task 0023. The implementation
+  `FOLD_AXIS` and `FoldAxisAttrs` remain public Java semantic contracts but have no public Tensor
+  receiver/construction method pending Draft task 0023D's public restoration.
+  The implementation
   context passed 78 focused tests and all 715 model tests across 88 suites. Independent
   documentation review finalized seven Javadocs, Tensor/Compile APIs, glossary, capability/task/
   master/roadmap synchronization, the runnable Java 26 example, generated Javadoc, Markdown,
@@ -720,8 +783,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   and bounds remain outside model metadata construction.
 - Completed tasks 0018G–0018H record the distinct provisional `SCATTER_ADD`,
   `SCATTER_AXIS_ADD`, and `SCATTER_ELEMENTS` contracts. Completed task 0018O retains only public
-  `SCATTER_ELEMENTS` with explicit reduction attributes; task 0023 may later define selected
-  compiler-generated fixed-add adjoints.
+  `SCATTER_ELEMENTS` with explicit reduction attributes. Task 0023 confirms that it and public
+  `SCATTER_ND` exactly serve Gather Elements and Gather-ND adjoints, while Draft task 0023B owns
+  the missing rank-changing Gather-compatible axis scatter-add primitive.
 - Scatter reduction is one reusable typed vocabulary in exact `NONE`, `ADD`, `MUL`, `MAX`, and
   `MIN` order. `NONE` represents unambiguous replacement and rejects duplicate targets in later
   value-aware validation rather than defining traversal-order-dependent overwrite behavior.
@@ -1138,14 +1202,19 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   without grouped producers, values, storage, gradients, or cross-layer behavior.
 - Task 0017M is complete with distinct UNFOLD_AXIS, FOLD_AXIS, UNFOLD2D, and FOLD2D semantic
   identities; normalized long-valued axis/window geometry; and explicit fold target extents.
-  FOLD_AXIS is both the semantic basis for the public task-0017N Tensor expression and the later
-  compiler/autograd scatter-add adjoint owned by task 0023. Task 0017M defines NCHW im2col/col2im
+  FOLD_AXIS was the semantic basis for the historical public task-0017N Tensor expression; task
+  0018R later removed that public method while retaining the public Java semantic contracts.
+  [Task 0023](tasks/0023-adjoint-expressibility-audit.md) selected Draft task 0023D to restore the
+  generally useful public overlap-add primitive before compiler use.
+  Task 0017M defines NCHW im2col/col2im
   meaning and overlap summation without Tensor construction, Shape arithmetic, provenance,
   gradients, materialization, compiler behavior, backend behavior, or execution.
-- Task 0017N is complete with four public storage-free Tensor expressions, checked long-valued local
-  Shape derivation, conservative dynamic-dimension preservation, unresolved result layouts, and
-  exact one-input provenance. Public FOLD_AXIS remains distinct from task-0023 compiler generation;
-  neither path executes scatter-add or adds gradient behavior here.
+- Task 0017N is complete with the four public storage-free Tensor expressions that existed at its
+  historical completion, checked long-valued local Shape derivation, conservative dynamic-
+  dimension preservation, unresolved result layouts, and exact one-input provenance. Completed
+  task 0018R later removed public `foldAxis`; task 0023 selected Draft task 0023D for its public
+  return. Neither
+  historical task implements scatter-add execution or gradient behavior.
 - The independent task-0017N documentation review finalized Tensor/helper and temporal semantic
   Javadocs, Tensor API, Compile API, glossary, task evidence, master plan, and roadmap. Focused
   16-test, all 629 model-test across 74 suites, model-Javadoc, root-test, executable-example,
@@ -1517,8 +1586,9 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 [0021A](tasks/0021a-rms-normalization-semantics-and-tensor-expressions.md) is Complete. Task
 0021B is Complete. Task
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
-0022, 0022A, and 0022B are Complete; tasks
-0023–0024 remain Draft without detailed specifications.
+0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
+specification and result artifact. Task 0023A is Complete with its detailed specification;
+tasks 0023B–0023F and task 0024 remain Draft without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1592,7 +1662,8 @@ complete with public functional Scatter-ND expression construction. The capabili
 specification. Tasks 0019A, 0019A1, 0019A2, 0019B, 0019B1, 0019C, 0019C1, and 0019D are complete.
 Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Complete. Task
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
-0022, 0022A, and 0022B are Complete; tasks
-0023–0024 remain Draft without detailed specifications.
+0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
+specification and result artifact. Task 0023A is Complete with its detailed specification;
+tasks 0023B–0023F and task 0024 remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

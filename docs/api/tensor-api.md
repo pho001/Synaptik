@@ -3203,8 +3203,8 @@ execution.
 
 ### Numeric aggregate expressions
 
-The fifteen current numeric aggregate methods build sum, arithmetic-mean, product, minimum, and
-maximum expression metadata without reading or combining element values:
+The fifteen ordinary full/single-axis numeric aggregate methods build sum, arithmetic-mean,
+product, minimum, and maximum expression metadata without reading or combining element values:
 
 | Family | Full form | Axis removed | Axis optionally retained |
 |---|---|---|---|
@@ -3363,6 +3363,122 @@ capture, backend implementation, or execution.
   trigger numerical inspection at this boundary.
 - Repeated and nested calls always create fresh expression tensors; this API performs no
   canonicalization or common-subexpression elimination.
+
+### Binding-aware sum-to-Shape expressions
+
+The current target-Shape SUM surface has exactly one public form:
+
+```java
+public Tensor sumToShape(Shape targetShape)
+```
+
+The target is the exact result Shape, not an axis list. It is right-aligned with the input Shape.
+Every unmatched leading input axis is reduced and removed. For each aligned concrete pair, an
+equal target extent preserves the axis, while target extent one reduces the input axis and retains
+one position. Any other concrete pair is invalid. Target rank may not exceed input rank.
+
+For example, input `[2, 3, 4]` and target `[3, 1]` mean:
+
+```text
+input axis 0: leading 2  -> reduce and remove
+input axis 1: 3 with 3  -> preserve
+input axis 2: 4 with 1  -> reduce and retain extent one
+result                  -> [3, 1]
+```
+
+Construction rejects only incompatibility that current static Shapes prove. If either member of
+an aligned pair is unresolved, the expression retains the target-one-or-input-equal obligation for
+later binding validation. Thus `[8, 4] -> [X, 4]` is constructible: a later binding of `X` to `1`
+means reduction of the first aligned axis, binding it to `8` means preservation, and any other
+concrete value is invalid. Construction does not bind `X` or choose an axis set.
+
+The method accepts `BFLOAT16`, `FLOAT32`, `FLOAT64`, `INT32`, and `INT64`; it rejects `BOOL`.
+The fresh result preserves exact input type and gradient eligibility, retains the exact target
+`Shape` reference in both descriptor and `SumToShapeAttrs`, leaves layout unresolved, and has no
+label or storage. Provenance records one `AggregateReductionKind.SUM` occurrence, ordered inputs
+`[input]`, and output index zero. Even an equal-Shape request creates a fresh Tensor identity.
+Scalar targets reduce all input axes; a scalar input accepts only a scalar target. Zero extents
+follow ordinary SUM semantics: an actually reduced empty domain yields numeric positive zero,
+while a coordinate with no reduced axis is the corresponding input value.
+
+This operation is not arbitrary reshape: reshape changes coordinate interpretation while
+preserving element count. It is not ordinary fixed-axis `sum`, whose axes are known when the
+expression is built. It is also not broadcasting, which repeats values toward a larger compatible
+Shape. The name is comparable to PyTorch
+[`sum_to_size`](https://docs.pytorch.org/docs/stable/generated/torch.Tensor.sum_to_size.html),
+whose requested size must be broadcast-compatible with its source; Synaptik's authoritative
+contract is the exact Shape-aware and binding-aware contract above, not PyTorch implementation
+behavior or defaults.
+
+#### Complete sum-to-Shape metadata example
+
+##### Goal and inputs
+
+Build one fully static request and one request with an unresolved target dimension, then inspect
+only result and provenance metadata.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class SumToShapeExpressionExample {
+    public static void main(String[] args) {
+        Tensor staticInput = tensor(Shape.ofDimensions(
+                new StaticDimension(2),
+                new StaticDimension(3),
+                new StaticDimension(4)));
+        Shape staticTarget = Shape.ofDimensions(
+                new StaticDimension(3), new StaticDimension(1));
+        Tensor reduced = staticInput.sumToShape(staticTarget);
+        SumToShapeAttrs attrs = (SumToShapeAttrs)
+                reduced.provenance().orElseThrow().operation().attrs();
+
+        DynamicDimension x = new DynamicDimension("X");
+        Tensor dynamicInput = tensor(Shape.ofDimensions(
+                new StaticDimension(8), new StaticDimension(4)));
+        Shape dynamicTarget = Shape.ofDimensions(x, new StaticDimension(4));
+        Tensor deferred = dynamicInput.sumToShape(dynamicTarget);
+
+        System.out.println(reduced.descriptor().shape());
+        System.out.println(attrs.targetShape() == staticTarget);
+        System.out.println(reduced.provenance().orElseThrow().inputs().getFirst() == staticInput);
+        System.out.println(reduced.provenance().orElseThrow().outputIndex());
+        System.out.println(deferred.descriptor().shape());
+        System.out.println(deferred.descriptor().layout().isEmpty());
+    }
+
+    private static Tensor tensor(Shape shape) {
+        return TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, shape, Optional.empty(), true));
+    }
+}
+```
+
+##### Result and interpretation
+
+The program prints:
+
+```text
+Shape[3, 1]
+true
+true
+0
+Shape[X, 4]
+true
+```
+
+The static call records leading-axis removal and retained last-axis reduction. The dynamic call
+records an unresolved obligation without proving whether `X` reduces or preserves its aligned
+axis. Neither call reads values or storage, resolves dimensions, constructs a gradient, captures a
+graph, lowers an operation, chooses a backend, or executes a reduction. Null, BOOL, excessive-rank,
+and first provable aligned-mismatch failures occur before a Tensor identity is consumed.
 
 ### Multi-axis and statistical reduction expressions
 
@@ -7651,13 +7767,13 @@ The public enum
 
 | Kind | Requested aggregate meaning | Supported semantic forms |
 |---|---|---|
-| `SUM` | Add values in the selected reduction domain. | Ordinary full/one-axis forms or a masked, axis-removing form. |
-| `MEAN` | Compute the arithmetic mean in the selected reduction domain. | Ordinary full/one-axis forms or a masked, axis-removing form. |
-| `PROD` | Multiply values in the selected reduction domain. | Full or one normalized axis. |
-| `MIN` | Select the minimum value in the selected reduction domain. | Full or one normalized axis. |
-| `MAX` | Select the maximum value in the selected reduction domain. | Full or one normalized axis. |
-| `ALL` | Compute boolean conjunction in the selected reduction domain. | Full or one normalized axis. |
-| `ANY` | Compute boolean disjunction in the selected reduction domain. | Full or one normalized axis. |
+| `SUM` | Add values in the selected reduction domain. | Ordinary full/single-/multi-axis, masked axis-removing, or binding-aware exact-target-Shape forms. |
+| `MEAN` | Compute the arithmetic mean in the selected reduction domain. | Ordinary full/single-/multi-axis or masked axis-removing forms. |
+| `PROD` | Multiply values in the selected reduction domain. | Full or ordered normalized axes. |
+| `MIN` | Select the minimum value in the selected reduction domain. | Full or ordered normalized axes. |
+| `MAX` | Select the maximum value in the selected reduction domain. | Full or ordered normalized axes. |
+| `ALL` | Compute boolean conjunction in the selected reduction domain. | Full or ordered normalized axes. |
+| `ANY` | Compute boolean disjunction in the selected reduction domain. | Full or ordered normalized axes. |
 | `ARG_MAX` | Select a logical index of a maximum value along one axis. | One normalized axis with an explicit tie policy. |
 | `ARG_MIN` | Select a logical index of a minimum value along one axis. | One normalized axis with an explicit tie policy. |
 | `LOG_SUM_EXP` | Compute log of summed exponentials. | Ordered distinct normalized axes. |
@@ -7709,9 +7825,18 @@ Operation argMax = new Operation(
 `ArgExtremaAttrs` rejects a negative axis before checking the tie policy and rejects a null policy
 with `NullPointerException("tiePolicy")`. Both attribute records use generated record value
 semantics, while their text remains diagnostic rather than serialization or dispatch syntax.
-Family-owned signatures enforce these exact attribute variants. Ordinary forms declare one input;
-masked SUM and MEAN declare the ordered two-input occurrence `[input, mask]`; every variant has one
-output.
+Family-owned signatures enforce these exact attribute variants. Ordinary and target-Shape forms
+declare one input; masked SUM and MEAN declare the ordered two-input occurrence `[input, mask]`;
+every variant has one output.
+
+A binding-aware sum pairs `AggregateReductionKind.SUM` with
+`SumToShapeAttrs(targetShape)`. The record retains exactly one non-null, exact target `Shape`
+reference; it stores no source, resolved axes, binding, constraint, descriptor, or execution plan.
+The exact fixed one-input/one-output signature is appended after SUM's existing ordinary and
+masked variants. No other aggregate kind accepts `SumToShapeAttrs`. Public
+`Tensor.sumToShape(Shape)` owns input-aware numeric, rank, and statically provable right-aligned
+compatibility checks before constructing this operation metadata. Unresolved pairs retain an
+obligation for later binding validation rather than selecting axes during model construction.
 
 A masked sum or mean pairs its existing kind with `MaskedReductionAttrs(axis)`. The axis is
 already normalized, non-negative, and removed from the eventual result. The attributes store no
@@ -7736,12 +7861,14 @@ list means a point domain, not full reduction.
 
 The public Tensor surface now covers every current aggregate semantic kind. `Tensor.sum`, `prod`,
 reduction `min`, and reduction `max` provide floating/integral full and single-axis expression
-construction; `mean` remains floating-only. Public `Tensor.all` and `Tensor.any` provide the
-corresponding exact-BOOL forms with fixed false gradient eligibility. Public `Tensor.argMin` and
+construction; `mean` remains floating-only. `Tensor.sumToShape` adds the exact-target-Shape SUM
+form for numeric input without adding a semantic kind. Public `Tensor.all` and `Tensor.any`
+provide the corresponding exact-BOOL forms with fixed false gradient eligibility. Public `Tensor.argMin` and
 `Tensor.argMax` provide axis-only floating/integral construction with fixed INT64, false-gradient
 results and explicit tie semantics. Twenty-six multi-axis/statistical methods add ordered axes,
 optional retention, and population-default/explicit correction. Every current family derives
-Shapes locally and records exact one-input provenance. Integral ordinary reductions use exact-type modular sum/product, signed
+Shapes locally and records exact one-input provenance. Integral ordinary reductions use exact-type
+modular sum/product, signed
 minimum/maximum, and bounded empty identities. Arg extrema use shared NaN, signed-zero, infinity,
 tie, and invalid-empty-selected-axis policy. Aggregate extrema remain typed separately from equally
 named binary elementwise kinds, while aggregate ALL/ANY remain typed separately from elementwise
@@ -8968,7 +9095,7 @@ The following contracts appear in the architecture and planning documents but ar
 `CastKind`, `CastAttrs`,
 `AggregateReductionKind`, `AxisReductionAttrs`, `MultiAxisReductionAttrs`,
 `StatisticalReductionAttrs`, `ArgExtremaTiePolicy`, `ArgExtremaAttrs`,
-`MaskedReductionAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
+`MaskedReductionAttrs`, `SumToShapeAttrs`, `CumulativeSumKind`, `CumulativeSumAttrs`, `SoftmaxKind`, `SoftmaxAttrs`,
 `LayerNormKind`, `LayerNormAttrs`, `AffineLayerNormAttrs`, `RmsNormKind`, `RmsNormAttrs`,
 `BatchNormKind`, `BatchNormInferenceAttrs`, `BatchNormTrainingAttrs`,
 `BatchNormTrainingResult`,
@@ -8990,7 +9117,8 @@ elementwise, scalar elementwise, conditional selection, and cast semantics are t
 production concrete kind families with matching public Tensor expression construction. Aggregate
 reduction is also a current production semantic family; `sum`, `mean`, `prod`, reduction `min`,
 reduction `max`, boolean `all`, boolean `any`, and axis-only `argMin`/`argMax` have matching public Tensor
-expression methods, including the masked `sum(axis, mask)` and `mean(axis, mask)` forms. The graph
+expression methods, including the masked `sum(axis, mask)`, `mean(axis, mask)`, and binding-aware
+`sumToShape(Shape)` forms. The graph
 records can compose these, current cumulative-sum expressions, or test-local semantics, but they
 do not provide a compiler entry point or executable support. Softmax and log-softmax semantic
 values and their public Tensor expression construction are current. The contiguous semantic value
