@@ -135,13 +135,16 @@ records five shared outputs and exposes normalized output plus explicit next run
 saved batch mean and inverse standard deviation remain producer-described for later compiler
 work. It retains no state across calls and performs no compiler, backend, runtime, or execution
 work.
-The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class,
-one-output attention meaning, together with `ScaledDotProductAttentionAttrs` carrying optional
-exact scale and causal eligibility. Public `Tensor.scaledDotProductAttention` construction accepts
-floating query/key/value inputs and an optional exact BOOL mask, derives exact broadcast-batch and
-output metadata, and records ordered three- or four-input provenance. It exposes no attention
-weights or dropout state. Numerical evaluation, compiler capture and deferred-constraint proof,
-gradients, lowering, backend support, and execution remain planned.
+The `ScaledDotProductAttentionKind` vocabulary is implemented with one first-class attention
+meaning and an exact one-through-two-output occurrence signature, together with
+`ScaledDotProductAttentionAttrs` carrying optional exact scale and causal eligibility. The four
+public `Tensor.scaledDotProductAttention` forms preserve exact one-output construction with no
+hidden weights. The four `scaledDotProductAttentionWithWeights` forms instead return
+`ScaledDotProductAttentionResult(output, weights)` at shared producer slots zero and one. Both
+families accept floating query/key/value inputs and an optional exact BOOL mask, derive exact
+broadcast-batch, weights, and output metadata, and record ordered three- or four-input provenance.
+They expose no dropout state. Numerical evaluation, compiler capture and deferred-constraint
+proof, gradients, saved-value lifetime, lowering, backend support, and execution remain planned.
 The parameterless `ContiguousKind` vocabulary is implemented with the sole `CONTIGUOUS` identity.
 It preserves logical values, Shape, DataType, and row-major element order while requesting
 canonical dense row-major, zero-logical-offset result geometry. It is a semantic request rather
@@ -664,9 +667,12 @@ weights to combine value rows. For query `[..., L, E]`, key `[..., S, E]`, and v
 right-aligned three-way batch broadcasting. An absent scale means `1 / sqrt(E)` after positive
 embedding binding; a present scale is an exact finite positive floating `ScalarValue`.
 
-Current public Tensor construction records one output and ordered inputs `[query, key, value]` or
-`[query, key, value, mask]`. It does not expose weights, apply dropout, evaluate numbers, create
-gradients, prove deferred constraints, choose a backend, or execute.
+Current public Tensor construction records ordered inputs `[query, key, value]` or
+`[query, key, value, mask]`. The original method family records output slot zero only and creates
+no hidden weights. The explicit `WithWeights` family returns output slot zero and normalized
+[attention weights](#attention-weight) slot one from one exact shared producer. Neither form
+applies dropout, evaluates numbers, creates gradients, proves deferred constraints, chooses a
+backend, or executes.
 
 ### Attention score
 
@@ -674,6 +680,20 @@ One scaled dot product between a query row and a key row before softmax normaliz
 dot-product attention, scores have Shape `[..., L, S]`, and each query row normalizes over the
 final key-sequence axis `S`. Masked-out positions are excluded before their score or value special
 values participate.
+
+### Attention weight
+
+One normalized, post-mask coefficient produced from an eligible
+[attention score](#attention-score) along the final key-sequence axis. In scaled dot-product
+attention, weights have Shape `[..., L, S]` and the promoted query/key/value data type. Excluded
+positions, no-eligible rows, and all-eligible-negative-infinity rows have positive-zero weights;
+eligible NaN produces NaN weights; eligible positive-infinity ties divide unit weight equally;
+otherwise eligible finite weights follow stable softmax and total one ideally.
+
+`ScaledDotProductAttentionResult.weights()` exposes these exact same-occurrence coefficients at
+producer slot one. Its eligibility metadata is query OR key, unlike output slot zero's query OR
+key OR value. This output is model metadata and semantic meaning, not evidence that weights were
+evaluated, captured by a compiler, retained for gradients, materialized, or executed.
 
 ### Causal mask
 

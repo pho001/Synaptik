@@ -118,7 +118,8 @@ io.github.pho001.synaptik.model.operation.linalg
 
 io.github.pho001.synaptik.model.operation.attention
   Typed backend-independent scaled dot-product attention meaning and immutable scale/causal
-  parameters; no dropout, attention-weight output, algorithm, or backend route.
+  parameters, including exact one-output and explicit output-plus-normalized-weights occurrences;
+  no dropout, algorithm, or backend route.
 
 io.github.pho001.synaptik.model.operation.convolution
   Typed backend-independent NCHW two-dimensional convolution meaning and immutable stride,
@@ -275,7 +276,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0023C | [Slice update and target-relative crop](tasks/0023c-slice-update-and-target-relative-crop.md) | Complete | 0023, 0023B | Added functional signed/multi-axis slice replacement plus exact target/prefix-Shape crop for unresolved Pad/Concat extents, without overlap addition or binding. |
 | 0023D | [Public foldAxis and dynamic window transforms](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete | 0023, 0023C | Restored public general-axis overlap-add fold, added exact typed-padding UNFOLD2D, and retained dynamic canonical rank-three columns through a canonical symbolic Dimension product. |
 | 0023E | [Cumulative scan normalization and product](tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete | 0016G–0016H, 0018K, 0018U–0018U1, 0023, 0023D | Atomically normalized the sum-only scan types into one CUM_SUM/CUM_PROD family, preserved public cumulative sum, and added the general product scan needed for zero-safe product adjoints. |
-| 0023F | Attention weights output | Draft | 0023 | Add a generally useful public attention result that retains same-occurrence normalized weights without weakening masked special-value semantics. |
+| 0023F | [Scaled dot-product attention weights output](tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete | 0018K–0018L, 0019E, 0023, 0023E | Preserved fluent one-output attention and added an explicit two-output result whose output and normalized weights share one exact producer occurrence. |
 | 0024 | Model capability selection audit | Draft | 0001–0023F | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
 
 ## Milestones
@@ -367,9 +368,8 @@ specification. It adds no kind: SUM alone appends exact `SumToShapeAttrs`, and o
 target-one-or-equal obligations. The focused 14-suite run passed 131 tests, the replacement final
 model suite passed 977 tests, and the separate documentation pass validated model Javadoc,
 examples, Markdown, exact 25-path scope, the 189-method public surface, and synchronized status.
-Tasks 0023B, 0023C, 0023D, and 0023E are Complete with their detailed specifications. Task 0023F
-remains the next concise Draft row without a detailed specification, and task 0024 remains Draft
-without a detailed specification.
+Tasks 0023B, 0023C, 0023D, 0023E, and 0023F are Complete with their detailed specifications, and
+task 0024 remains Draft without a detailed specification.
 Task 0023B's
 focused 15-suite run passed 124 tests, its
 single final model suite passed 981 tests across 125 suites, and the separate documentation pass
@@ -407,6 +407,16 @@ the affected Javadocs, Tensor/Compile APIs, glossary and planning records, then 
 Javadoc, Java 26 API reflection, generated API pages, the 196-method public Tensor surface,
 Markdown, exact 33-path scope, status, and whitespace without repeating executable Java tests.
 
+Completed [task 0023F](tasks/0023f-scaled-dot-product-attention-weights-output.md) preserves all
+four one-output attention methods and adds four explicit output-plus-normalized-weights methods,
+one two-component public result record, and one shared two-output producer form under the existing
+attention kind. Its focused run passed 40 tests across five suites, and its single final model
+suite passed 1,016 tests across 127 suites with no failures, errors, or skips. The independent
+documentation pass finalized the four affected production Javadocs, Tensor/Compile APIs, glossary,
+and planning records, then validated model Javadoc, a runnable Java 26 metadata example, exact
+reflection and generated API pages, the 200-method public Tensor surface, Markdown, exact 27-path
+scope, synchronized Complete/Draft status, and whitespace without rerunning executable Java tests.
+
 [Task 0023](tasks/0023-adjoint-expressibility-audit.md) executed after the completed post-0022B
 capability checkpoint. Its [planning-only matrix](adjoint-expressibility-audit.md) finds no proven
 compiler-only semantic gap and selects six general public prerequisites: binding-aware
@@ -417,11 +427,12 @@ Elements and Scatter-ND exactly serve Gather Elements and Gather-ND adjoints. Ty
 expanded to a target Shape provide uncontaminated dynamic zeros and ones. Maximum-pool routing can
 be recomputed through existing first-index arg-maximum semantics once dynamic windows exist, so it
 needs no indices-output task. Tasks 0023A and 0023B are Complete with detailed specifications.
-Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, and task 0023F remains
-Draft without a detailed specification.
+Tasks 0023C, 0023D, 0023E, and
+[task 0023F](tasks/0023f-scaled-dot-product-attention-weights-output.md) are Complete with detailed
+specifications.
 Operation-specific backward kinds, compiler traversal, execution, backend/runtime behavior,
-Gradle, dependencies, and architecture changes remain absent; 0023A–0023E are the selected public
-prerequisites implemented so far.
+Gradle, dependencies, and architecture changes remain absent; 0023A–0023F are the completed
+selected public prerequisites.
 
 Task 0020 adds one `CONV2D` meaning, immutable geometry/group attributes, and two public receiver
 methods for grouped NCHW cross-correlation with optional bias. It preserves exact batch and
@@ -570,8 +581,9 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   or backend behavior is added.
 - Scaled dot-product attention remains a distinct first-class high-level semantic operation in
   task 0019E because mask, causal, scale, softmax, and all-masked-row meaning must survive compiler
-  inspection. It will use one `SCALED_DOT_PRODUCT_ATTENTION` kind, input range three to four,
-  exactly one output, ordered inputs `[query, key, value]` or `[query, key, value, mask]`, and
+  inspection. Completed task 0019E originally used one `SCALED_DOT_PRODUCT_ATTENTION` kind, input
+  range three to four, exactly one output, ordered inputs `[query, key, value]` or
+  `[query, key, value, mask]`, and
   immutable `ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)`.
   The public receiver methods are `scaledDotProductAttention(key, value)`,
   `scaledDotProductAttention(key, value, attrs)`,
@@ -586,11 +598,13 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   masks, broadcasting exactly to score Shape `[..., L, S]`; causal masking additionally retains
   key positions `j <= i`; the default scale is `1 / sqrt(E)` and explicit scale is finite and
   positive; softmax is over final key axis `S`; an all-masked row has zero weights and zero output.
-- Initial attention has one output only, exposes no attention-weight output, and has no dropout
-  parameter. It therefore needs neither shared multi-output construction beyond the existing
-  foundation nor RNG ownership and has no technical dependency on task 0019B, although table order
-  places it afterward. Task 0019B owns graph RNG state and completed task 0019B1 owns dropout; a later
-  attention-dropout extension must consume that explicit state rather than hide a generator.
+- Completed task 0023F preserves all four initial one-output methods without a hidden weights
+  descriptor and widens the same kind's sole signature to one through two outputs. Four explicit
+  `scaledDotProductAttentionWithWeights` forms return output slot zero and normalized weights slot
+  one from one exact shared producer. Attention still has no dropout parameter or RNG ownership
+  and no technical dependency on task 0019B, although table order places it afterward. Task 0019B
+  owns graph RNG state and completed task 0019B1 owns dropout; a later attention-dropout extension
+  must consume that explicit state rather than hide a generator.
 - The former broad 0019B frontier is split without changing established tasks 0019C–0019E.
   Completed task 0019B adds public opaque `GraphRngState`, zero-input/one-output
   `GraphRngKind.INITIAL_STATE`, and exact `GraphRngStateAttrs(long key, long counter)`. Both words
@@ -1635,8 +1649,8 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, while
-task 0023F and task 0024 remain Draft without detailed specifications.
+specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
+while task 0024 remains Draft without one.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1712,7 +1726,7 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Co
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Tasks 0023C, 0023D, and 0023E are Complete with detailed specifications, while
-task 0023F and task 0024 remain Draft without detailed specifications.
+specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
+while task 0024 remains Draft without one.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

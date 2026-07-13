@@ -1106,6 +1106,136 @@ public final class Tensor {
     }
 
     /**
+     * Creates unmasked attention output and normalized weights with the semantic default scale.
+     *
+     * <p>This is the two-output counterpart of
+     * {@link #scaledDotProductAttention(Tensor, Tensor)}. It uses fresh attributes with empty scale
+     * and causal false. The returned output at slot zero is shaped {@code [..., L, Ev]}, and its
+     * normalized post-eligibility weights at slot one are shaped {@code [..., L, S]}. Both exact
+     * wrappers share the producer, operation, fresh default attributes, ordered
+     * {@code [this, key, value]} inputs, and corresponding descriptor references; weights are not
+     * reconstructed by another expression.</p>
+     *
+     * <p>The weights preserve the attention operation's all-masked, infinity, NaN, signed-zero,
+     * and stable-softmax meaning. Construction creates metadata only and owns no execution,
+     * storage, compiler capture, gradient rule, backend, or saved-value lifetime.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]} and retained as input one
+     * @param value non-null floating value shaped {@code [..., S, Ev]} and retained as input two
+     * @return non-null output/weights result retaining fresh slots zero and one of one producer
+     * @throws NullPointerException if {@code key} or {@code value} is null, in declaration order
+     * @throws IllegalArgumentException if floating type, rank, contraction, batch Shape, or
+     *     default-scale requirements fail
+     * @throws IllegalStateException if Tensor identifier space is exhausted; an allocated slot-zero
+     *     ID remains consumed if exhaustion occurs at slot one
+     */
+    public ScaledDotProductAttentionResult scaledDotProductAttentionWithWeights(
+            Tensor key, Tensor value) {
+        return TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                this,
+                key,
+                value,
+                new ScaledDotProductAttentionAttrs(Optional.empty(), false));
+    }
+
+    /**
+     * Creates unmasked attention output and normalized weights with exact supplied attributes.
+     *
+     * <p>Query, key, and value are validated and promoted exactly as for the one-output attention
+     * form. Output slot zero has query/key/value gradient-request OR; weights slot one has query/key
+     * gradient-request OR. Both have unresolved layout, no label or storage, exact selected Shape
+     * Dimension references, and the same exact operation, producer, inputs, attributes reference,
+     * and corresponding output-descriptor references.</p>
+     *
+     * <p>Normalized weights use the operation's documented masking, causal, finite, NaN, infinity,
+     * signed-zero, empty-axis, and stable-softmax contract. This method constructs model metadata
+     * and does not execute attention or define compiler, gradient, backend, or lifecycle behavior.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param attrs non-null exact scale/causal attributes retained by reference; present scale must
+     *     have the promoted attention data type
+     * @return non-null result containing output slot zero and normalized weights slot one from one
+     *     exact shared producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if floating types, ranks, static contractions, exact batch
+     *     Shape, or scale validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted; earlier allocated
+     *     output IDs are not rolled back
+     */
+    public ScaledDotProductAttentionResult scaledDotProductAttentionWithWeights(
+            Tensor key, Tensor value, ScaledDotProductAttentionAttrs attrs) {
+        return TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                this, key, value, attrs);
+    }
+
+    /**
+     * Creates explicitly masked output and normalized weights with the semantic default scale.
+     *
+     * <p>The non-null BOOL mask must right-broadcast exactly to weights Shape
+     * {@code [..., L, S]}. Fresh attributes select empty scale and causal false. Output and weights
+     * occupy slots zero and one of one exact four-input producer in
+     * {@code [this, key, value, mask]} order and retain its exact operation, attributes, and
+     * corresponding descriptor references.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param mask non-null BOOL mask right-broadcastable exactly to score/weights Shape
+     * @return non-null result containing output and normalized weights from one shared occurrence
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if type, rank, contraction, batch Shape, or mask validation
+     *     fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted; earlier allocated
+     *     output IDs are not rolled back
+     */
+    public ScaledDotProductAttentionResult scaledDotProductAttentionWithWeights(
+            Tensor key, Tensor value, Tensor mask) {
+        return TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                this,
+                key,
+                value,
+                mask,
+                new ScaledDotProductAttentionAttrs(Optional.empty(), false));
+    }
+
+    /**
+     * Creates masked scaled dot-product-attention output and normalized weights together.
+     *
+     * <p>The mask and causal flag jointly select eligible positions before score or value special
+     * values participate. Excluded entries, all-masked rows, and all-eligible-negative-infinity
+     * rows have positive-zero weights; eligible NaN yields NaN weights, and eligible
+     * positive-infinity ties divide unit weight equally. Other eligible weights follow the
+     * operation's stable final-axis softmax meaning.</p>
+     *
+     * <p>The returned exact wrappers share one producer and operation occurrence with the exact
+     * supplied attributes reference and ordered inputs {@code [this, key, value, mask]}. Slot zero
+     * is output {@code [..., L, Ev]}; slot one is weights {@code [..., L, S]}; each wrapper retains
+     * its corresponding exact output-descriptor reference. Construction performs no
+     * recomputation, evaluation, storage allocation, gradient definition, compiler adoption,
+     * backend lowering, or execution.</p>
+     *
+     * @param key non-null floating key shaped {@code [..., S, E]}
+     * @param value non-null floating value shaped {@code [..., S, Ev]}
+     * @param mask non-null BOOL mask with rank no greater than weights rank and exact broadcast
+     * @param attrs non-null exact scale/causal attributes retained by reference
+     * @return non-null result containing fresh output slot zero and weights slot one with promoted
+     *     type, exact Shapes, unresolved layouts, and one shared producer
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if floating types, ranks, static contractions, exact batch
+     *     Shape, mask, or scale validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted; earlier allocated
+     *     output IDs are not rolled back
+     */
+    public ScaledDotProductAttentionResult scaledDotProductAttentionWithWeights(
+            Tensor key,
+            Tensor value,
+            Tensor mask,
+            ScaledDotProductAttentionAttrs attrs) {
+        return TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                this, key, value, mask, attrs);
+    }
+
+    /**
      * Creates a stable ascending full sort along one logical axis.
      *
      * <p>This convenience is exactly {@code sort(axis, false)}.</p>

@@ -785,14 +785,23 @@ Completed [task 0023E](tasks/0023e-cumulative-scan-normalization-and-product.md)
 normalizes the existing sum-only scan types into one `CUM_SUM`/`CUM_PROD` family and adds two
 public cumulative-product expressions. It fixes integral modular multiplication, floating product
 special values, multiplicative-positive-one exclusive boundaries, and zero-length-axis meaning
-without executing values or selecting gradient, compiler, runtime, or backend behavior. Draft task
-0023F retains same-occurrence attention weights. The
+without executing values or selecting gradient, compiler, runtime, or backend behavior. Completed
+[task 0023F](tasks/0023f-scaled-dot-product-attention-weights-output.md) preserves the four
+existing one-output attention methods and adds explicit same-occurrence output-plus-normalized-
+weights construction through one shared producer. The
 detailed matrix owns formulas and policy-deferred boundary cases; this capability baseline
 intentionally does not duplicate them.
 
 The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
 runtime, or execution contract. Completed tasks 0023A–0023C change model semantic/expression
-metadata only. Tasks 0023D and 0023E likewise change only model values and expression metadata.
+metadata only. Tasks 0023D and 0023E likewise change only model values and expression metadata;
+completed task 0023F is bounded to that same model-owned semantic/output construction layer. Its
+focused five-suite run passed 40 tests, and its single final model suite passed 1,016 tests across
+127 suites. The separate documentation pass validated model Javadoc, a runnable Java 26
+output/weights metadata example, the exact one-through-two-output signature, two-component result,
+eight attention methods, 200-method public Tensor surface, one- and two-output producer forms,
+Markdown, exact 27-path scope, synchronized Complete/Draft status, and whitespace without
+rerunning executable Java tests.
 Task 0023E's focused run passed 44 tests, and its single final model suite passed 1,008 tests across
 126 suites. Its separate documentation pass validated model Javadoc, Java 26 API shape, generated
 Javadoc, the 196-method public Tensor surface, Markdown, exact 33-path scope, and synchronized

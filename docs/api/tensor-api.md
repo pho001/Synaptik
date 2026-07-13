@@ -7109,14 +7109,24 @@ sum of value rows. An absent scale means `1 / sqrt(E)` after the positive embedd
 bound. A present `ScalarValue` scale must be finite, strictly positive, floating, and exactly the
 promoted query/key/value type.
 
-The four receiver overloads keep optional semantics explicit:
+Two parallel four-overload families keep result selection and optional semantics explicit:
 
-| Call | Explicit mask | Scale and causal mode |
-|---|---|---|
-| `query.scaledDotProductAttention(key, value)` | none | default scale, non-causal |
-| `query.scaledDotProductAttention(key, value, attrs)` | none | from `attrs` |
-| `query.scaledDotProductAttention(key, value, mask)` | exact BOOL mask | default scale, non-causal |
-| `query.scaledDotProductAttention(key, value, mask, attrs)` | exact BOOL mask | from `attrs` |
+| Call family | Result | Explicit mask | Scale and causal mode |
+|---|---|---|---|
+| `query.scaledDotProductAttention(key, value)` | output Tensor only | none | default scale, non-causal |
+| `query.scaledDotProductAttention(key, value, attrs)` | output Tensor only | none | from `attrs` |
+| `query.scaledDotProductAttention(key, value, mask)` | output Tensor only | exact BOOL mask | default scale, non-causal |
+| `query.scaledDotProductAttention(key, value, mask, attrs)` | output Tensor only | exact BOOL mask | from `attrs` |
+| `query.scaledDotProductAttentionWithWeights(key, value)` | output and weights | none | default scale, non-causal |
+| `query.scaledDotProductAttentionWithWeights(key, value, attrs)` | output and weights | none | from `attrs` |
+| `query.scaledDotProductAttentionWithWeights(key, value, mask)` | output and weights | exact BOOL mask | default scale, non-causal |
+| `query.scaledDotProductAttentionWithWeights(key, value, mask, attrs)` | output and weights | exact BOOL mask | from `attrs` |
+
+The original `scaledDotProductAttention` methods remain exact one-output occurrences. They create
+only output slot zero: there is no hidden weights descriptor, weights wrapper, or second Tensor
+identifier. The `WithWeights` methods return
+`ScaledDotProductAttentionResult(output, weights)` from one exact two-output occurrence. They do
+not reconstruct weights with a second operation.
 
 `ScaledDotProductAttentionAttrs(Optional<ScalarValue> scale, boolean causal)` is immutable
 operation-specific semantic state. It is not a general options container. Causal mode uses a
@@ -7124,6 +7134,29 @@ top-left-aligned **causal mask**: zero-based key position `j` is eligible for qu
 exactly when `j <= i`, including when `L` and `S` differ. An explicit BOOL mask uses `true` for an
 eligible position and `false` for an excluded one. It must right-broadcast exactly to score Shape
 `[..., L, S]`; scalar masks are valid. Explicit and causal eligibility combine with logical AND.
+
+#### Output slots and shared occurrence
+
+Both occurrence forms use the same sole `SCALED_DOT_PRODUCT_ATTENTION` kind and exact
+`ScaledDotProductAttentionAttrs` instance. Its single structural signature accepts three or four
+ordered inputs and one or two outputs. Producer descriptor count distinguishes the requested
+occurrence form; the operation kind and mathematical meaning do not change.
+
+| Slot | Public accessor | Shape | Data type | Gradient eligibility metadata |
+|---:|---|---|---|---|
+| 0 | one-output return or `result.output()` | `[..., L, Ev]` | promoted query/key/value type | query OR key OR value |
+| 1 | `result.weights()` | `[..., L, S]` | promoted query/key/value type | query OR key |
+
+Both two-output descriptors have unresolved layout, and both wrappers are fresh, unlabeled, and
+storage-free. They retain one exact shared `TensorProducer`, `Operation`, attributes reference,
+ordered input snapshot, and corresponding descriptor references. Their provenance output indices
+are zero and one. The BOOL mask and value Tensor do not contribute to weights gradient
+eligibility; this metadata is only an eligibility request and does not define a gradient rule.
+
+`ScaledDotProductAttentionResult` is a shallowly immutable record that retains its two exact
+Tensor references. Its constructor checks only that neither component is null. Directly
+constructing the record does not validate descriptor or producer agreement; the four
+`WithWeights` methods supply the documented same-occurrence relationship.
 
 #### Shape, type, and deferred checks
 
@@ -7150,51 +7183,88 @@ cases are allowed, so this contract gives no bitwise or cross-backend identical-
 Mask and causal exclusion happen before score or value arithmetic. NaN or infinity in an excluded
 key/value position therefore cannot contaminate a row. For each query row:
 
-- no eligible positions, including an all-masked row, produce positive-zero output components;
+- no eligible positions, including an all-masked row, produce positive-zero weights and
+  positive-zero output components;
 - an eligible NaN score makes eligible weights and non-empty output components NaN;
 - eligible positive-infinity scores split unit weight equally, while other eligible positions get
   positive-zero weight;
 - all eligible scores at negative infinity produce positive-zero weights and output; and
-- otherwise finite scores use ideal exponential ratios and eligible negative infinities get zero.
+- otherwise finite scores use ideal exponential ratios whose eligible weights total one ideally;
+  eligible negative infinities and every excluded position get positive zero.
 
 Eligible value NaN still follows ordinary floating multiply/add even when its eligible weight is
 zero; only eligibility exclusion guarantees that a value is ignored. An empty key sequence is an
 all-masked-row case for every existing query row. Empty query, value-feature, and batch axes retain
 their ordinary Shape meanings.
 
-#### Conceptual metadata example
+#### Runnable output-and-weights metadata example
 
-The following conceptual snippet uses the current API, but is intentionally not a standalone
-program: the named variables stand for already-created Tensor metadata. It demonstrates the
-operation record rather than numerical execution.
+This Java 26 program constructs only Tensor metadata, retrieves `output()` and `weights()` from
+one result, and verifies their shared occurrence. Its concrete query, key, and value Shapes are
+`[2, 4, 8]`, `[1, 6, 8]`, and `[2, 6, 10]`. Only value requests gradients, which makes the output
+eligible while leaving weights ineligible.
 
 ```java
-Tensor output = query.scaledDotProductAttention(
-        key,
-        value,
-        mask,
-        new ScaledDotProductAttentionAttrs(Optional.empty(), true));
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.ScaledDotProductAttentionResult;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.util.Optional;
+
+public final class AttentionWeightsMetadataExample {
+    public static void main(String[] args) {
+        Tensor query = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 4, 8), Optional.empty(), false));
+        Tensor key = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(1, 6, 8), Optional.empty(), false));
+        Tensor value = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32, Shape.of(2, 6, 10), Optional.empty(), true));
+        var attrs = new ScaledDotProductAttentionAttrs(Optional.empty(), false);
+
+        ScaledDotProductAttentionResult result =
+                query.scaledDotProductAttentionWithWeights(key, value, attrs);
+        Tensor output = result.output();
+        Tensor weights = result.weights();
+        TensorProvenance outputOrigin = output.provenance().orElseThrow();
+        TensorProvenance weightsOrigin = weights.provenance().orElseThrow();
+
+        System.out.println(output.descriptor().shape());
+        System.out.println(weights.descriptor().shape());
+        System.out.println(output.descriptor().dataType() + ","
+                + weights.descriptor().dataType());
+        System.out.println(output.descriptor().requiresGrad() + ","
+                + weights.descriptor().requiresGrad());
+        System.out.println(outputOrigin.producer() == weightsOrigin.producer());
+        System.out.println(outputOrigin.outputIndex() + "," + weightsOrigin.outputIndex());
+        System.out.println(outputOrigin.operation().attrs() == attrs);
+        System.out.println(outputOrigin.inputs().size());
+    }
+}
 ```
 
-Use these concrete inputs:
+It prints:
 
 ```text
-query Shape [2, 4, 8]
-key   Shape [1, 6, 8]
-value Shape [2, 6, 10]
-mask  Shape [4, 6]
+Shape[2, 4, 10]
+Shape[2, 4, 6]
+FLOAT32,FLOAT32
+true,false
+true
+0,1
+true
+3
 ```
 
-The three batch prefixes broadcast to `[2]`. The score Shape is therefore `[2, 4, 6]`, the output
-Shape is `[2, 4, 10]`, and the default scale means `1 / sqrt(8)`. The mask broadcasts across the
-batch axis, while causal mode also excludes every `j > i` position. The returned Tensor is fresh,
-unlabeled, storage-free, and layout-unresolved. Its one-output provenance has index zero, retains
-the exact attrs reference, and records ordered inputs `[query, key, value, mask]`. Gradient
-eligibility is the OR of query, key, and value only; it is not a gradient rule.
-
-This example proves locally derived metadata and provenance. Current model construction does not
-read values, expose attention weights, apply dropout, capture or decompose a compiled graph,
-construct gradients, choose an algorithm or backend, allocate storage, or execute attention.
+The batch prefixes broadcast to `[2]`, giving output Shape `[2, 4, 10]` and weights Shape
+`[2, 4, 6]`. The final four lines show one exact producer, slot order zero then one, the exact
+attributes reference, and ordered inputs `[query, key, value]`. This proves current descriptors
+and provenance only. It does not calculate attention values, capture a compiled graph, construct
+gradients, choose an algorithm or backend, allocate result storage, or execute attention. Adding a
+BOOL mask would append exact input position three and would not change the two output slots.
 
 ### Grouped NCHW Conv2d expressions
 
@@ -7895,8 +7965,9 @@ composition while the table also lists the current production families:
 | `BatchNormInferenceAttrs` | The implemented immutable normalized channel-axis and exact typed epsilon value. |
 | `BatchNormTrainingAttrs` | The implemented immutable normalized channel axis, exact typed new-batch-weight momentum, and exact typed epsilon. |
 | `BatchNormTrainingResult` | The implemented public carrier for training output, next running mean, and next running variance; saved producer outputs remain intentionally omitted. |
-| `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies one-output scaled dot-product attention. |
+| `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies scaled dot-product attention with an exact three-to-four-input and one-through-two-output occurrence signature. |
 | `ScaledDotProductAttentionAttrs` | The implemented immutable optional exact scale and top-left causal-eligibility value. |
+| `ScaledDotProductAttentionResult` | The implemented public carrier for same-occurrence output slot zero and normalized-weights slot one. |
 | `ContiguousKind` | The implemented production enum whose sole `CONTIGUOUS` value requests logically equivalent canonical dense row-major, zero-offset result geometry. |
 | `ShapeTransformKind` | The implemented production enum for ordered-element-preserving `RESHAPE` and singleton/leading-axis-repeating `EXPAND` meanings. |
 | `TargetShapeAttrs` | The implemented immutable normalized target-`Shape` value shared by reshape and expand. |
@@ -9524,6 +9595,7 @@ The following contracts appear in the architecture and planning documents but ar
 `BatchNormKind`, `BatchNormInferenceAttrs`, `BatchNormTrainingAttrs`,
 `BatchNormTrainingResult`,
 `ScaledDotProductAttentionKind`, `ScaledDotProductAttentionAttrs`,
+`ScaledDotProductAttentionResult`,
 `ContiguousKind`, `ShapeTransformKind`, `TargetShapeAttrs`, `AxisTransformKind`,
 `PermutationAttrs`, `AxisTransformAttrs`, `SliceKind`, `SliceAttrs`, `CropToShapeAttrs`,
 `PadKind`, `PadAttrs`,
@@ -9536,7 +9608,8 @@ The following contracts appear in the architecture and planning documents but ar
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API contracts.
 The producer/provenance pair represents current shared multi-output occurrences including
-dropout, top-K, and batch-normalization training. Binary arithmetic, binary comparison,
+dropout, top-K, batch-normalization training, and explicitly requested attention weights. Binary
+arithmetic, binary comparison,
 boolean logical, unary
 elementwise, scalar elementwise, conditional selection, and cast semantics are the current
 production concrete kind families with matching public Tensor expression construction. Aggregate
@@ -9562,13 +9635,17 @@ prevalidate caller-controlled failures before intermediate IDs, and leave the pr
 chain visible. The biased result is Shape-equal to its MATMUL product with exact corresponding
 Dimension references, but its outer Shape object may be distinct. Compiler capture, recognition,
 fusion, gradients, backend support, and execution remain planned.
-The four public `scaledDotProductAttention` overloads are current first-class model construction.
-They derive exact broadcast-batch, score, and output Shapes for floating query/key/value inputs;
-optionally retain an exact BOOL mask; and record default-or-explicit scale plus causal eligibility
-in `ScaledDotProductAttentionAttrs`. Construction creates one output and no attention-weight or
-random-state output. Deferred embedding, sequence, batch, and mask obligations remain for future
-compiler validation or binding. Numerical execution, compiler capture or legal decomposition,
-gradients, dropout, backend support, and runtime execution remain planned in their owning layers.
+The four public `scaledDotProductAttention` overloads and four
+`scaledDotProductAttentionWithWeights` overloads are current first-class model construction. They
+derive exact broadcast-batch, score/weights, and output Shapes for floating query/key/value
+inputs; optionally retain an exact BOOL mask; and record default-or-explicit scale plus causal
+eligibility in `ScaledDotProductAttentionAttrs`. The original family creates exactly one output
+and no hidden weights or random-state output. The explicit family returns
+`ScaledDotProductAttentionResult` with output slot zero and normalized weights slot one from one
+exact shared producer. Deferred embedding, sequence, batch, and mask obligations remain for
+future compiler validation or binding. Numerical execution, compiler capture or legal
+decomposition, gradient construction, saved-value lifetime, dropout, backend support, and runtime
+execution remain planned in their owning layers.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and

@@ -37,7 +37,8 @@ final class TensorScaledDotProductAttentionExpressions {
      * @param value non-null rank-two-or-higher floating value retained as input two
      * @param attrs non-null exact semantic attributes retained by reference
      * @return non-null fresh output with promoted type, exact derived Shape, unresolved layout,
-     *     query/key/value gradient-request OR, and output-index-zero provenance
+     *     query/key/value gradient-request OR, and output-index-zero provenance from an exact
+     *     one-output producer; no weights descriptor or hidden weights output is created
      * @throws NullPointerException if an argument is null, checked in declaration order
      * @throws IllegalArgumentException if local type, rank, Shape, or scale validation fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
@@ -51,7 +52,7 @@ final class TensorScaledDotProductAttentionExpressions {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(attrs, "attrs");
-        return build(query, key, value, List.of(query, key, value), attrs);
+        return build(query, key, value, List.of(query, key, value), attrs, false).getFirst();
     }
 
     /**
@@ -64,7 +65,8 @@ final class TensorScaledDotProductAttentionExpressions {
      * @param mask non-null BOOL mask that must broadcast exactly to the derived score Shape
      * @param attrs non-null exact semantic attributes retained by reference
      * @return non-null fresh output with promoted type, exact derived Shape, unresolved layout,
-     *     query/key/value gradient-request OR, and exact four-input provenance
+     *     query/key/value gradient-request OR, and exact four-input provenance from an exact
+     *     one-output producer; no weights descriptor or hidden weights output is created
      * @throws NullPointerException if an argument is null, checked in declaration order
      * @throws IllegalArgumentException if local type, rank, Shape, mask, or scale validation fails
      * @throws IllegalStateException if Tensor identifier space is exhausted
@@ -80,15 +82,80 @@ final class TensorScaledDotProductAttentionExpressions {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(mask, "mask");
         Objects.requireNonNull(attrs, "attrs");
-        return build(query, key, value, List.of(query, key, value, mask), attrs);
+        return build(query, key, value, List.of(query, key, value, mask), attrs, false).getFirst();
     }
 
-    private static Tensor build(
+    /**
+     * Creates unmasked attention output and normalized weights from one shared producer.
+     *
+     * @param query non-null rank-two-or-higher floating query retained as input zero
+     * @param key non-null rank-two-or-higher floating key retained as input one
+     * @param value non-null rank-two-or-higher floating value retained as input two
+     * @param attrs non-null exact semantic attributes retained by reference
+     * @return non-null result retaining output Shape {@code [..., L, Ev]} at slot zero with
+     *     query/key/value gradient-request OR and weights Shape {@code [..., L, S]} at slot one
+     *     with query/key gradient-request OR; both are fresh, storage-free, unlabeled,
+     *     promoted-type, unresolved-layout tensors sharing the exact producer, operation,
+     *     attributes, ordered inputs, and corresponding descriptor references
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if local type, rank, Shape, or scale validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted; an ID allocated for
+     *     slot zero remains consumed if exhaustion occurs at slot one
+     */
+    static ScaledDotProductAttentionResult applyWithWeights(
+            Tensor query,
+            Tensor key,
+            Tensor value,
+            ScaledDotProductAttentionAttrs attrs) {
+        Objects.requireNonNull(query, "query");
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(attrs, "attrs");
+        List<Tensor> outputs = build(
+                query, key, value, List.of(query, key, value), attrs, true);
+        return new ScaledDotProductAttentionResult(outputs.get(0), outputs.get(1));
+    }
+
+    /**
+     * Creates masked attention output and normalized weights from one shared producer.
+     *
+     * @param query non-null rank-two-or-higher floating query retained as input zero
+     * @param key non-null rank-two-or-higher floating key retained as input one
+     * @param value non-null rank-two-or-higher floating value retained as input two
+     * @param mask non-null BOOL mask retained as input three and exactly broadcastable to weights
+     * @param attrs non-null exact semantic attributes retained by reference
+     * @return non-null result retaining output Shape {@code [..., L, Ev]} at slot zero and
+     *     normalized weights Shape {@code [..., L, S]} at slot one, with promoted type, distinct
+     *     query/key/value versus query/key gradient eligibility, exact four-input provenance, and
+     *     one exact shared producer, operation, attributes, and descriptor list
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if local type, rank, Shape, mask, or scale validation fails
+     * @throws IllegalStateException if Tensor identifier space is exhausted; an ID allocated for
+     *     slot zero remains consumed if exhaustion occurs at slot one
+     */
+    static ScaledDotProductAttentionResult applyWithWeights(
+            Tensor query,
+            Tensor key,
+            Tensor value,
+            Tensor mask,
+            ScaledDotProductAttentionAttrs attrs) {
+        Objects.requireNonNull(query, "query");
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(mask, "mask");
+        Objects.requireNonNull(attrs, "attrs");
+        List<Tensor> outputs = build(
+                query, key, value, List.of(query, key, value, mask), attrs, true);
+        return new ScaledDotProductAttentionResult(outputs.get(0), outputs.get(1));
+    }
+
+    private static List<Tensor> build(
             Tensor query,
             Tensor key,
             Tensor value,
             List<Tensor> inputs,
-            ScaledDotProductAttentionAttrs attrs) {
+            ScaledDotProductAttentionAttrs attrs,
+            boolean includeWeights) {
         DataType queryType = requireFloating(query.descriptor().dataType(), "query");
         DataType keyType = requireFloating(key.descriptor().dataType(), "key");
         DataType valueType = requireFloating(value.descriptor().dataType(), "value");
@@ -161,7 +228,7 @@ final class TensorScaledDotProductAttentionExpressions {
                             + scale.orElseThrow().dataType() + ", promoted=" + resultType);
         }
 
-        TensorDescriptor descriptor = new TensorDescriptor(
+        TensorDescriptor outputDescriptor = new TensorDescriptor(
                 resultType,
                 outputShape,
                 Optional.empty(),
@@ -170,8 +237,17 @@ final class TensorScaledDotProductAttentionExpressions {
                         || value.descriptor().requiresGrad());
         Operation operation = new Operation(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION, attrs);
-        return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, inputs);
+        if (!includeWeights) {
+            return List.of(TensorFactory.createDerived(
+                    outputDescriptor, Optional.empty(), operation, inputs));
+        }
+        TensorDescriptor weightsDescriptor = new TensorDescriptor(
+                resultType,
+                scoreShape,
+                Optional.empty(),
+                query.descriptor().requiresGrad() || key.descriptor().requiresGrad());
+        return TensorFactory.createDerivedOutputs(
+                operation, inputs, List.of(outputDescriptor, weightsDescriptor));
     }
 
     private static DataType requireFloating(DataType dataType, String role) {

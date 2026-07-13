@@ -70,7 +70,7 @@ class TensorDenseCategoricalCrossEntropyWithLogitsExpressionTest {
                                 "validateClassExtent",
                                 "removeAxis"),
                         names),
-                () -> assertEquals(196, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(200, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertEquals(2, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))

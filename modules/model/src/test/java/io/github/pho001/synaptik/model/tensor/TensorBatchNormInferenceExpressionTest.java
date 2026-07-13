@@ -50,7 +50,7 @@ class TensorBatchNormInferenceExpressionTest {
                 () -> assertEquals(1, entries.size()),
                 () -> assertEquals("apply", entries.getFirst().getName()),
                 () -> assertTrue(Modifier.isStatic(entries.getFirst().getModifiers())),
-                () -> assertEquals(196, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(200, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(candidate -> Modifier.isPublic(candidate.getModifiers())).count()));
     }
 

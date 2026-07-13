@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(196, declaredPublicMethods.size());
+        assertEquals(200, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -99,7 +99,8 @@ class TensorTest {
                         "greaterOrEqual", "lessThan", "lessOrEqual", "equalTo", "notEqualTo",
                         "logicalAnd", "logicalOr", "logicalNot", "where", "cast", "sum",
                         "mean", "prod", "sumToShape", "all", "any", "argMin", "argMax", "cumSum", "cumProd", "softmax", "matmul", "linear",
-                        "scaledDotProductAttention", "conv2d", "maxPool2d", "averagePool2d",
+                        "scaledDotProductAttention", "scaledDotProductAttentionWithWeights",
+                        "conv2d", "maxPool2d", "averagePool2d",
                         "sort", "argsort", "topK",
                         "logSoftmax", "meanSquaredError", "categoricalCrossEntropyWithLogits", "layerNorm", "rmsNorm", "batchNormInference", "batchNormTraining", "logSumExp", "variance", "standardDeviation", "l1Norm",
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
@@ -173,6 +174,26 @@ class TensorTest {
                     "scaledDotProductAttention", parameters);
             assertAll(
                     () -> assertEquals(Tensor.class, attention.getReturnType()),
+                    () -> assertTrue(Modifier.isPublic(attention.getModifiers())),
+                    () -> assertFalse(Modifier.isStatic(attention.getModifiers())),
+                    () -> assertFalse(Modifier.isSynchronized(attention.getModifiers())));
+        }
+
+        for (var parameters : List.of(
+                new Class<?>[] {Tensor.class, Tensor.class},
+                new Class<?>[] {Tensor.class, Tensor.class, ScaledDotProductAttentionAttrs.class},
+                new Class<?>[] {Tensor.class, Tensor.class, Tensor.class},
+                new Class<?>[] {
+                        Tensor.class,
+                        Tensor.class,
+                        Tensor.class,
+                        ScaledDotProductAttentionAttrs.class
+                })) {
+            var attention = Tensor.class.getDeclaredMethod(
+                    "scaledDotProductAttentionWithWeights", parameters);
+            assertAll(
+                    () -> assertEquals(
+                            ScaledDotProductAttentionResult.class, attention.getReturnType()),
                     () -> assertTrue(Modifier.isPublic(attention.getModifiers())),
                     () -> assertFalse(Modifier.isStatic(attention.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(attention.getModifiers())));

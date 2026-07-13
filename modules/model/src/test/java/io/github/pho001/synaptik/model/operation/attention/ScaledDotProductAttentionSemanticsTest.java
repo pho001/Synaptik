@@ -25,8 +25,8 @@ public final class ScaledDotProductAttentionSemanticsTest {
         var components = ScaledDotProductAttentionAttrs.class.getRecordComponents();
         var attrs = new ScaledDotProductAttentionAttrs(
                 Optional.of(ScalarValue.float32(0.5f)), true);
-        OperationSignature expected = OperationSignature.inputRange(
-                ScaledDotProductAttentionAttrs.class, 3, 4, 1);
+        OperationSignature expected = new OperationSignature(
+                ScaledDotProductAttentionAttrs.class, 3, 4, 1, 2);
         Operation operation = new Operation(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION, attrs);
 
@@ -51,6 +51,28 @@ public final class ScaledDotProductAttentionSemanticsTest {
                 () -> assertEquals(List.of(OperationKind.class),
                         List.of(ScaledDotProductAttentionKind.class.getInterfaces())));
         assertSignatureEnumShape(ScaledDotProductAttentionKind.class);
+    }
+
+    @Test
+    void acceptsOnlyOneOrTwoOutputsForTheExistingInputRange() {
+        OperationSignature signature = ScaledDotProductAttentionKind
+                .SCALED_DOT_PRODUCT_ATTENTION.signatures().getFirst();
+
+        assertAll(
+                () -> assertTrue(signature.acceptsInputCount(3)),
+                () -> assertTrue(signature.acceptsInputCount(4)),
+                () -> assertFalse(signature.acceptsInputCount(2)),
+                () -> assertFalse(signature.acceptsInputCount(5)),
+                () -> assertTrue(signature.acceptsOutputCount(1)),
+                () -> assertTrue(signature.acceptsOutputCount(2)),
+                () -> assertFalse(signature.acceptsOutputCount(0)),
+                () -> assertFalse(signature.acceptsOutputCount(3)),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> signature.validateOccurrence(3, 0)),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> signature.validateOccurrence(4, 3)));
     }
 
     @Test

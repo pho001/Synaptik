@@ -160,8 +160,10 @@ five-input inference. Task 0021C is Complete. The former broad loss row is now s
 dense-target categorical cross-entropy with logits, and completed task 0022B for index-target
 categorical cross-entropy with logits. Task 0022A is Complete;
 task 0023 is Complete with its detailed specification and final matrix. Tasks 0023A–0023E are
-Complete with their detailed specifications. Task 0023F is the next concise Draft follow-up before
-established task 0024, which remains Draft without a detailed specification.
+Complete with their detailed specifications. Task
+[0023F](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md) is Complete with
+its detailed same-occurrence attention-output specification before established task 0024, which
+remains Draft without a detailed specification.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -191,6 +193,16 @@ preserves the two public `cumSum` forms, and adds two public `cumProd` forms. It
 with no failures, errors, or skips. Independent documentation review finalized the affected
 Javadocs, Tensor/Compile APIs, glossary and planning records, then validated model Javadoc, Java 26
 API reflection, generated API pages, the 196-method public Tensor surface, Markdown, exact 33-path
+scope, synchronized Complete/Draft status, and whitespace without rerunning executable Java tests.
+
+Completed [task 0023F](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md)
+preserves the four one-output attention methods and adds four explicit output-plus-normalized-
+weights methods, one two-component public result, and one shared two-output producer form under
+the existing kind. Its focused run passed 40 tests across five suites, and its single final model
+suite passed 1,016 tests across 127 suites with no failures, errors, or skips. Independent
+documentation review finalized the four affected production Javadocs, Tensor/Compile APIs,
+glossary and planning records, then validated model Javadoc, a runnable Java 26 metadata example,
+reflection/generated API shape, the 200-method public Tensor surface, Markdown, exact 27-path
 scope, synchronized Complete/Draft status, and whitespace without rerunning executable Java tests.
 
 [Task 0023](modules/model/tasks/0023-adjoint-expressibility-audit.md) is the planning-only
@@ -307,8 +319,8 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
 Complete. Tasks 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed
 audit specification and result artifact. Task 0023A is Complete with its detailed specification.
-Tasks 0023B, 0023C, 0023D, and 0023E are Complete with their detailed specifications, while task
-0023F and task 0024 remain Draft without detailed specifications.
+Tasks 0023B, 0023C, 0023D, 0023E, and 0023F are Complete with their detailed specifications,
+while task 0024 remains Draft without one.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -786,7 +798,7 @@ authorized Compile API status correction.
 | 117 | [0023C Slice update and target-relative crop](modules/model/tasks/0023c-slice-update-and-target-relative-crop.md) | Complete |
 | 118 | [0023D Public foldAxis and dynamic window transforms](modules/model/tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete |
 | 119 | [0023E Cumulative scan normalization and product](modules/model/tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete |
-| 120 | 0023F Attention weights output | Draft |
+| 120 | [0023F Scaled dot-product attention weights output](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete |
 | 121 | 0024 Model capability selection audit | Draft |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
@@ -843,8 +855,8 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, 0021A, and 0021B are complete. Task
 Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Complete.
 [Task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is
 Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specification and
-result artifact. Tasks 0023A–0023E are Complete with their detailed specifications; task 0023F and
-established task 0024 remain Draft without detailed specifications.
+result artifact. Tasks 0023A–0023F are Complete with their detailed specifications; established
+task 0024 remains Draft without one.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

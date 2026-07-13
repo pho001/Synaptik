@@ -151,14 +151,21 @@ ordered Dimension references, although the outer Shape object may differ. These 
 producer chains are inputs a future compiler may capture and canonicalize; this page does not
 claim capture, linear-pattern recognition, fusion, gradient construction, lowering, backend
 support, or execution.
-`Tensor.scaledDotProductAttention` is current first-class model construction with three ordered
-query/key/value inputs and an optional fourth BOOL mask input. It locally derives the promoted
-type and exact broadcast-batch/output Shape, retains optional exact scale and causal eligibility,
-and records one `SCALED_DOT_PRODUCT_ATTENTION` output. Unresolved embedding positivity/equality,
-key/value sequence equality, batch singleton-or-equal, and mask singleton-or-equal facts remain
-obligations for later compiler validation or concrete binding. This is compiler-visible metadata,
-not current compiler support: no capture, revalidation, constraint representation, legal
-decomposition, attention gradient, saved value, backend lowering, or execution is implemented.
+`Tensor.scaledDotProductAttention` and `Tensor.scaledDotProductAttentionWithWeights` are current
+first-class model construction with three ordered query/key/value inputs and an optional fourth
+BOOL mask input. Both locally derive the promoted type and exact broadcast-batch, weights, and
+output Shapes and retain optional exact scale and causal eligibility. The original four methods
+record an exact one-output `SCALED_DOT_PRODUCT_ATTENTION` occurrence with output slot zero and no
+hidden weights descriptor or Tensor. The four explicit methods return
+`ScaledDotProductAttentionResult(output, weights)` whose slots zero and one retain one exact
+shared producer, operation, attributes reference, ordered inputs, and output descriptors. The
+kind's sole signature accepts three to four inputs and one to two outputs; producer descriptor
+count identifies the requested occurrence form without adding another kind. Unresolved embedding
+positivity/equality, key/value sequence equality, batch singleton-or-equal, and mask
+singleton-or-equal facts remain obligations for later compiler validation or concrete binding.
+This is compiler-visible metadata, not current compiler support: no capture, revalidation,
+constraint representation, legal decomposition, attention gradient, saved-value lifetime,
+backend lowering, or execution is implemented.
 `Tensor.conv2d(weight, attrs)` and `Tensor.conv2d(weight, bias, attrs)` are current first-class
 grouped NCHW cross-correlation model construction. Each call records one `CONV2D` occurrence with
 exact ordered inputs, intrinsic stride/padding/dilation/group attributes, promoted floating
@@ -546,6 +553,12 @@ reachable producer's ordered descriptors; it does not need a public sibling-outp
 autograd pass may retain that captured forward mask for backward construction. Neither capture,
 auxiliary-value lifetime policy, nor a dropout gradient rule is implemented today.
 
+Explicit attention output-and-weights construction uses the same foundation without an auxiliary
+or hidden output. `ScaledDotProductAttentionResult.output()` and `weights()` expose the exact
+wrappers for producer slots zero and one. A future compiler could recognize their shared producer,
+but current code does not traverse either slot, capture the occurrence, preserve weights for a
+backward graph, or define attention adjoints or lifetime policy.
+
 ## Current expression input and planned compiler output
 
 Conceptually, compilation will receive a requested tensor output and declarative `CompileConfig`:
@@ -571,8 +584,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   dispatch and one exact typed ignore overload,
   plus
   first-class
-  scaled-dot-product-attention
-  construction with optional BOOL mask and scale/causal attributes, plus grouped NCHW Conv2d
+  scaled-dot-product-attention construction with optional BOOL mask and scale/causal attributes,
+  preserving the original one-output family and adding an explicit same-producer output/weights
+  family, plus grouped NCHW Conv2d
   construction with optional bias and exact geometry/group attributes, plus NCHW maximum- and
   average-pooling construction with operation-specific attributes and exact floor/ceil spatial
   expressions, plus static-resolved or

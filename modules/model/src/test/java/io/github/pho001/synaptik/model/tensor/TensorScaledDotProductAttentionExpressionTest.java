@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
@@ -37,9 +38,18 @@ public final class TensorScaledDotProductAttentionExpressionTest {
                         TensorScaledDotProductAttentionExpressions.class.getDeclaredMethods())
                 .filter(method -> method.getName().equals("apply"))
                 .toList();
+        List<Method> applyWithWeightsMethods = Arrays.stream(
+                        TensorScaledDotProductAttentionExpressions.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("applyWithWeights"))
+                .toList();
         List<Method> publicMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .filter(method -> method.getName().equals("scaledDotProductAttention"))
+                .toList();
+        List<Method> publicWithWeightsMethods = Arrays.stream(Tensor.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .filter(method -> method.getName().equals(
+                        "scaledDotProductAttentionWithWeights"))
                 .toList();
 
         assertAll(
@@ -60,12 +70,22 @@ public final class TensorScaledDotProductAttentionExpressionTest {
                         method -> Modifier.isStatic(method.getModifiers()))),
                 () -> assertTrue(applyMethods.stream().noneMatch(
                         method -> Modifier.isPublic(method.getModifiers()))),
+                () -> assertEquals(2, applyWithWeightsMethods.size()),
+                () -> assertTrue(applyWithWeightsMethods.stream().allMatch(
+                        method -> Modifier.isStatic(method.getModifiers()))),
+                () -> assertTrue(applyWithWeightsMethods.stream().noneMatch(
+                        method -> Modifier.isPublic(method.getModifiers()))),
                 () -> assertEquals(4, publicMethods.size()),
                 () -> assertTrue(publicMethods.stream().allMatch(
                         method -> method.getReturnType() == Tensor.class)),
                 () -> assertTrue(publicMethods.stream().noneMatch(
                         method -> Modifier.isStatic(method.getModifiers()))),
-                () -> assertEquals(196, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(4, publicWithWeightsMethods.size()),
+                () -> assertTrue(publicWithWeightsMethods.stream().allMatch(method ->
+                        method.getReturnType() == ScaledDotProductAttentionResult.class)),
+                () -> assertTrue(publicWithWeightsMethods.stream().noneMatch(
+                        method -> Modifier.isStatic(method.getModifiers()))),
+                () -> assertEquals(200, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()));
 
         assertMethod(Tensor.class.getDeclaredMethod(
@@ -83,6 +103,138 @@ public final class TensorScaledDotProductAttentionExpressionTest {
                 Tensor.class,
                 Tensor.class,
                 ScaledDotProductAttentionAttrs.class));
+        assertWithWeightsMethod(Tensor.class.getDeclaredMethod(
+                "scaledDotProductAttentionWithWeights", Tensor.class, Tensor.class));
+        assertWithWeightsMethod(Tensor.class.getDeclaredMethod(
+                "scaledDotProductAttentionWithWeights",
+                Tensor.class,
+                Tensor.class,
+                ScaledDotProductAttentionAttrs.class));
+        assertWithWeightsMethod(Tensor.class.getDeclaredMethod(
+                "scaledDotProductAttentionWithWeights",
+                Tensor.class,
+                Tensor.class,
+                Tensor.class));
+        assertWithWeightsMethod(Tensor.class.getDeclaredMethod(
+                "scaledDotProductAttentionWithWeights",
+                Tensor.class,
+                Tensor.class,
+                Tensor.class,
+                ScaledDotProductAttentionAttrs.class));
+    }
+
+    @Test
+    void createsExactOutputAndWeightsDescriptorsFromOneSharedProducer() {
+        Dimension batch = new StaticDimension(2);
+        Dimension queryLength = new DynamicDimension("L");
+        Dimension embedding = new StaticDimension(8);
+        Dimension keyLength = new DynamicDimension("S");
+        Dimension valueWidth = new StaticDimension(10);
+        Tensor query = tensor(DataType.BFLOAT16,
+                Shape.ofDimensions(batch, queryLength, embedding), false);
+        Tensor key = tensor(DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(1), keyLength, embedding), true);
+        Tensor value = tensor(DataType.FLOAT64,
+                Shape.ofDimensions(batch, keyLength, valueWidth), false);
+        Tensor mask = tensor(DataType.BOOL, Shape.scalar(), false);
+        var attrs = new ScaledDotProductAttentionAttrs(
+                Optional.of(ScalarValue.float64(0.25d)), true);
+
+        ScaledDotProductAttentionResult result = query.scaledDotProductAttentionWithWeights(
+                key, value, mask, attrs);
+        Tensor output = result.output();
+        Tensor weights = result.weights();
+        TensorProvenance outputProvenance = output.provenance().orElseThrow();
+        TensorProvenance weightsProvenance = weights.provenance().orElseThrow();
+
+        assertAll(
+                () -> assertEquals(
+                        Shape.ofDimensions(batch, queryLength, valueWidth),
+                        output.descriptor().shape()),
+                () -> assertEquals(
+                        Shape.ofDimensions(batch, queryLength, keyLength),
+                        weights.descriptor().shape()),
+                () -> assertSame(batch, output.descriptor().shape().dimension(0)),
+                () -> assertSame(batch, weights.descriptor().shape().dimension(0)),
+                () -> assertSame(queryLength, output.descriptor().shape().dimension(1)),
+                () -> assertSame(queryLength, weights.descriptor().shape().dimension(1)),
+                () -> assertSame(valueWidth, output.descriptor().shape().dimension(2)),
+                () -> assertSame(keyLength, weights.descriptor().shape().dimension(2)),
+                () -> assertSame(DataType.FLOAT64, output.descriptor().dataType()),
+                () -> assertSame(DataType.FLOAT64, weights.descriptor().dataType()),
+                () -> assertTrue(output.descriptor().requiresGrad()),
+                () -> assertTrue(weights.descriptor().requiresGrad()),
+                () -> assertTrue(output.descriptor().layout().isEmpty()),
+                () -> assertTrue(weights.descriptor().layout().isEmpty()),
+                () -> assertTrue(output.label().isEmpty()),
+                () -> assertTrue(weights.label().isEmpty()),
+                () -> assertTrue(output.hostStorage().isEmpty()),
+                () -> assertTrue(weights.hostStorage().isEmpty()),
+                () -> assertSame(outputProvenance.producer(), weightsProvenance.producer()),
+                () -> assertSame(outputProvenance.operation(), weightsProvenance.operation()),
+                () -> assertSame(attrs, outputProvenance.operation().attrs()),
+                () -> assertEquals(0, outputProvenance.outputIndex()),
+                () -> assertEquals(1, weightsProvenance.outputIndex()),
+                () -> assertEquals(2, outputProvenance.producer().outputCount()),
+                () -> assertSame(output.descriptor(), outputProvenance.outputDescriptor()),
+                () -> assertSame(weights.descriptor(), weightsProvenance.outputDescriptor()),
+                () -> assertEquals(4, outputProvenance.inputs().size()),
+                () -> assertSame(query, outputProvenance.inputs().get(0)),
+                () -> assertSame(key, outputProvenance.inputs().get(1)),
+                () -> assertSame(value, outputProvenance.inputs().get(2)),
+                () -> assertSame(mask, outputProvenance.inputs().get(3)));
+    }
+
+    @Test
+    void separatesOutputAndWeightsGradientEligibilityAndPreservesDefaults() {
+        Tensor query = tensor(DataType.FLOAT32, Shape.of(0, 3), false);
+        Tensor key = tensor(DataType.FLOAT32, Shape.of(4, 3), false);
+        Tensor value = tensor(DataType.FLOAT32, Shape.of(4, 0), true);
+
+        ScaledDotProductAttentionResult defaultResult =
+                query.scaledDotProductAttentionWithWeights(key, value);
+        ScaledDotProductAttentionAttrs defaultAttrs =
+                (ScaledDotProductAttentionAttrs) defaultResult.output().provenance()
+                        .orElseThrow().operation().attrs();
+
+        assertAll(
+                () -> assertEquals(Shape.of(0, 0), defaultResult.output().descriptor().shape()),
+                () -> assertEquals(Shape.of(0, 4), defaultResult.weights().descriptor().shape()),
+                () -> assertTrue(defaultResult.output().descriptor().requiresGrad()),
+                () -> assertFalse(defaultResult.weights().descriptor().requiresGrad()),
+                () -> assertTrue(defaultAttrs.scale().isEmpty()),
+                () -> assertFalse(defaultAttrs.causal()));
+    }
+
+    @Test
+    void allFourWithWeightsFormsRetainExactDefaultsAttrsAndOrderedInputs() {
+        Tensor query = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
+        Tensor key = tensor(DataType.FLOAT32, Shape.of(4, 3), false);
+        Tensor value = tensor(DataType.FLOAT32, Shape.of(4, 5), false);
+        Tensor mask = tensor(DataType.BOOL, Shape.of(2, 4), false);
+        var attrs = new ScaledDotProductAttentionAttrs(Optional.empty(), true);
+
+        List<ScaledDotProductAttentionResult> results = List.of(
+                query.scaledDotProductAttentionWithWeights(key, value),
+                query.scaledDotProductAttentionWithWeights(key, value, attrs),
+                query.scaledDotProductAttentionWithWeights(key, value, mask),
+                query.scaledDotProductAttentionWithWeights(key, value, mask, attrs));
+
+        assertAll(
+                () -> assertSame(attrs, results.get(1).output().provenance()
+                        .orElseThrow().operation().attrs()),
+                () -> assertSame(attrs, results.get(3).output().provenance()
+                        .orElseThrow().operation().attrs()),
+                () -> assertFalse(((ScaledDotProductAttentionAttrs) results.get(0).output()
+                        .provenance().orElseThrow().operation().attrs()).causal()),
+                () -> assertFalse(((ScaledDotProductAttentionAttrs) results.get(2).output()
+                        .provenance().orElseThrow().operation().attrs()).causal()),
+                () -> assertEquals(3, results.get(0).output().provenance()
+                        .orElseThrow().inputs().size()),
+                () -> assertEquals(4, results.get(2).output().provenance()
+                        .orElseThrow().inputs().size()),
+                () -> assertSame(mask, results.get(2).weights().provenance()
+                        .orElseThrow().inputs().get(3)));
     }
 
     @Test
@@ -320,6 +472,63 @@ public final class TensorScaledDotProductAttentionExpressionTest {
     }
 
     @Test
+    void createsTwoFreshIdsInSlotOrderAndDistinctOccurrences()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        Tensor query = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
+        Tensor key = tensor(DataType.FLOAT32, Shape.of(4, 3), false);
+        Tensor value = tensor(DataType.FLOAT32, Shape.of(4, 5), false);
+        long before = next.get();
+
+        ScaledDotProductAttentionResult first =
+                query.scaledDotProductAttentionWithWeights(key, value);
+        ScaledDotProductAttentionResult second =
+                query.scaledDotProductAttentionWithWeights(key, value);
+
+        assertAll(
+                () -> assertEquals(before, first.output().id().value()),
+                () -> assertEquals(before + 1, first.weights().id().value()),
+                () -> assertEquals(before + 2, second.output().id().value()),
+                () -> assertEquals(before + 3, second.weights().id().value()),
+                () -> assertEquals(before + 4, next.get()),
+                () -> assertNotSame(first.output(), second.output()),
+                () -> assertNotSame(first.weights(), second.weights()),
+                () -> assertNotSame(first.output().provenance().orElseThrow().producer(),
+                        second.output().provenance().orElseThrow().producer()),
+                () -> assertSame(first.output().provenance().orElseThrow().producer(),
+                        first.weights().provenance().orElseThrow().producer()));
+    }
+
+    @Test
+    void retainsConsumedSlotZeroIdWhenSlotOneExhaustsIdentifierSpace()
+            throws ReflectiveOperationException {
+        AtomicLong next = nextTensorIdState();
+        AtomicBoolean maximumClaimed = maximumTensorIdClaimedState();
+        long originalNext = next.get();
+        boolean originalMaximumClaimed = maximumClaimed.get();
+        Tensor query = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
+        Tensor key = tensor(DataType.FLOAT32, Shape.of(4, 3), false);
+        Tensor value = tensor(DataType.FLOAT32, Shape.of(4, 5), false);
+
+        try {
+            next.set(Long.MAX_VALUE);
+            maximumClaimed.set(false);
+
+            IllegalStateException failure = assertThrows(
+                    IllegalStateException.class,
+                    () -> query.scaledDotProductAttentionWithWeights(key, value));
+
+            assertAll(
+                    () -> assertEquals("tensor identifier space exhausted", failure.getMessage()),
+                    () -> assertEquals(Long.MAX_VALUE, next.get()),
+                    () -> assertTrue(maximumClaimed.get()));
+        } finally {
+            next.set(originalNext);
+            maximumClaimed.set(originalMaximumClaimed);
+        }
+    }
+
+    @Test
     void validatesInExactOrderAndConsumesNoIdForEveryLocalFailure()
             throws ReflectiveOperationException {
         AtomicLong next = nextTensorIdState();
@@ -347,6 +556,21 @@ public final class TensorScaledDotProductAttentionExpressionTest {
         assertEquals("attrs", assertThrows(NullPointerException.class,
                 () -> TensorScaledDotProductAttentionExpressions.apply(
                         validQuery, validKey, validValue, validMask, null)).getMessage());
+        assertEquals("query", assertThrows(NullPointerException.class,
+                () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                        null, null, null, attrs)).getMessage());
+        assertEquals("key", assertThrows(NullPointerException.class,
+                () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                        validQuery, null, null, attrs)).getMessage());
+        assertEquals("value", assertThrows(NullPointerException.class,
+                () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                        validQuery, validKey, null, attrs)).getMessage());
+        assertEquals("mask", assertThrows(NullPointerException.class,
+                () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                        validQuery, validKey, validValue, null, attrs)).getMessage());
+        assertEquals("attrs", assertThrows(NullPointerException.class,
+                () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                        validQuery, validKey, validValue, validMask, null)).getMessage());
         assertEquals("query must have a floating data type, but was BOOL",
                 assertThrows(IllegalArgumentException.class,
                         () -> TensorScaledDotProductAttentionExpressions.apply(
@@ -354,6 +578,14 @@ public final class TensorScaledDotProductAttentionExpressionTest {
         assertEquals("query rank must be at least 2: 0",
                 assertThrows(IllegalArgumentException.class,
                         () -> TensorScaledDotProductAttentionExpressions.apply(
+                                scalar, scalar, scalar, attrs)).getMessage());
+        assertEquals("query must have a floating data type, but was BOOL",
+                assertThrows(IllegalArgumentException.class,
+                        () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
+                                bool, bool, bool, attrs)).getMessage());
+        assertEquals("query rank must be at least 2: 0",
+                assertThrows(IllegalArgumentException.class,
+                        () -> TensorScaledDotProductAttentionExpressions.applyWithWeights(
                                 scalar, scalar, scalar, attrs)).getMessage());
         assertEquals(before, next.get());
     }
@@ -364,6 +596,14 @@ public final class TensorScaledDotProductAttentionExpressionTest {
                 () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                 () -> assertFalse(method.isVarArgs()),
                 () -> assertSame(Tensor.class, method.getReturnType()));
+    }
+
+    private static void assertWithWeightsMethod(Method method) {
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(method.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(method.getModifiers())),
+                () -> assertFalse(method.isVarArgs()),
+                () -> assertSame(ScaledDotProductAttentionResult.class, method.getReturnType()));
     }
 
     private static Tensor attention(Shape query, Shape key, Shape value) {
@@ -385,5 +625,12 @@ public final class TensorScaledDotProductAttentionExpressionTest {
         var field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");
         field.setAccessible(true);
         return (AtomicLong) field.get(null);
+    }
+
+    private static AtomicBoolean maximumTensorIdClaimedState()
+            throws ReflectiveOperationException {
+        var field = TensorFactory.class.getDeclaredField("MAXIMUM_TENSOR_ID_CLAIMED");
+        field.setAccessible(true);
+        return (AtomicBoolean) field.get(null);
     }
 }

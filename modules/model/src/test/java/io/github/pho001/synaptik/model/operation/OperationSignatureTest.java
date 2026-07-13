@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
+import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -249,6 +251,10 @@ public final class OperationSignatureTest {
         assertFamily(
                 List.of(OperationSignature.fixed(GraphRngStateAttrs.class, 0, 1)),
                 GraphRngKind.values());
+        assertFamily(
+                List.of(new OperationSignature(
+                        ScaledDotProductAttentionAttrs.class, 3, 4, 1, 2)),
+                ScaledDotProductAttentionKind.values());
         List<OperationSignature> maskedReduction = List.of(
                 noAttrsUnary,
                 fixed(AxisReductionAttrs.class, 1),
