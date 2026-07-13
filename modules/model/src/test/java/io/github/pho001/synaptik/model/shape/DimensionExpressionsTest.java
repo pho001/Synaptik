@@ -24,6 +24,7 @@ class DimensionExpressionsTest {
         assertEquals(
                 Set.of(
                         DimensionExpression.LinearCombination.class,
+                        DimensionExpression.Product.class,
                         DimensionExpression.FloorDivision.class,
                         DimensionExpression.CeilingDivision.class,
                         DimensionExpression.Unknown.class),
@@ -33,6 +34,7 @@ class DimensionExpressionsTest {
                         "add(Dimension,Dimension)",
                         "addConstant(Dimension,long)",
                         "multiply(Dimension,long)",
+                        "multiply(Dimension,Dimension)",
                         "floorDivide(Dimension,long)",
                         "ceilingDivide(Dimension,long)",
                         "unknown(long,Optional)"),
@@ -47,6 +49,7 @@ class DimensionExpressionsTest {
         assertPackagePrivateConstructors(
                 ExpressionDimension.class,
                 DimensionExpression.LinearCombination.class,
+                DimensionExpression.Product.class,
                 DimensionExpression.FloorDivision.class,
                 DimensionExpression.CeilingDivision.class,
                 DimensionExpression.Unknown.class);
@@ -54,6 +57,17 @@ class DimensionExpressionsTest {
                 Set.of("expression"),
                 Set.of(ExpressionDimension.class.getDeclaredFields()).stream()
                         .map(Field::getName)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(
+                Set.of("factors", "coefficient"),
+                Set.of(DimensionExpression.Product.class.getDeclaredFields()).stream()
+                        .map(Field::getName)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(
+                Set.of("factors", "coefficient", "equals", "hashCode", "toString"),
+                Set.of(DimensionExpression.Product.class.getDeclaredMethods()).stream()
+                        .filter(method -> Modifier.isPublic(method.getModifiers()))
+                        .map(Method::getName)
                         .collect(java.util.stream.Collectors.toSet()));
     }
 
@@ -135,6 +149,103 @@ class DimensionExpressionsTest {
     }
 
     @Test
+    void canonicalizesSymbolicProductsIndependentOfOrderAndNesting() {
+        Dimension h = new DynamicDimension("H");
+        Dimension w = new DynamicDimension("W");
+        Dimension left = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(h, w),
+                DimensionExpressions.multiply(w, new StaticDimension(3)));
+        Dimension right = DimensionExpressions.multiply(
+                new StaticDimension(3),
+                DimensionExpressions.multiply(w, DimensionExpressions.multiply(w, h)));
+
+        assertEquals(left, right);
+        assertEquals(left.hashCode(), right.hashCode());
+        DimensionExpression.Product product = product(left);
+        assertEquals(Map.of(h, 1L, w, 2L), product.factors());
+        assertEquals(3, product.coefficient());
+        assertThrows(UnsupportedOperationException.class, () -> product.factors().put(h, 9L));
+        assertEquals("3 * H * W^2", product.toString());
+    }
+
+    @Test
+    void foldsProductStaticValuesAndPreservesZeroAndOneReferences() {
+        Dimension h = new DynamicDimension("H");
+        Dimension product = DimensionExpressions.multiply(h, new DynamicDimension("W"));
+
+        assertEquals(
+                new StaticDimension(42),
+                DimensionExpressions.multiply(new StaticDimension(6), new StaticDimension(7)));
+        assertEquals(
+                new StaticDimension(0),
+                DimensionExpressions.multiply(new StaticDimension(0), h));
+        assertEquals(
+                new StaticDimension(0),
+                DimensionExpressions.multiply(h, new StaticDimension(0)));
+        assertSame(h, DimensionExpressions.multiply(new StaticDimension(1), h));
+        assertSame(h, DimensionExpressions.multiply(h, new StaticDimension(1)));
+
+        Dimension scaled = DimensionExpressions.multiply(product, 5);
+        assertEquals(5, product(scaled).coefficient());
+        assertEquals(product(product).factors(), product(scaled).factors());
+    }
+
+    @Test
+    void combinesRepeatedProductFactorsAndChecksExponentAndCoefficientOverflow() {
+        Dimension h = new DynamicDimension("H");
+        Dimension squared = DimensionExpressions.multiply(h, h);
+        Dimension highExponent = new ExpressionDimension(new DimensionExpression.Product(
+                Map.of(h, Long.MAX_VALUE), 1));
+        Dimension highCoefficient = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(h, new DynamicDimension("W")), Long.MAX_VALUE);
+
+        assertEquals(Map.of(h, 2L), product(squared).factors());
+        assertThrows(
+                ArithmeticException.class,
+                () -> DimensionExpressions.multiply(highExponent, h));
+        assertThrows(
+                ArithmeticException.class,
+                () -> DimensionExpressions.multiply(highCoefficient, new StaticDimension(2)));
+        assertThrows(
+                ArithmeticException.class,
+                () -> DimensionExpressions.multiply(
+                        new StaticDimension(Long.MAX_VALUE), new StaticDimension(2)));
+    }
+
+    @Test
+    void productConstructorValidatesAndSnapshotsInExactOrder() {
+        Dimension h = new DynamicDimension("H");
+        java.util.LinkedHashMap<Dimension, Long> factors = new java.util.LinkedHashMap<>();
+        factors.put(h, 2L);
+        DimensionExpression.Product product = new DimensionExpression.Product(factors, 3);
+        factors.put(new DynamicDimension("W"), 1L);
+
+        assertEquals(Map.of(h, 2L), product.factors());
+        assertEquals("factors", assertThrows(
+                NullPointerException.class,
+                () -> new DimensionExpression.Product(null, 0)).getMessage());
+        assertEquals("factors must not be empty", assertThrows(
+                IllegalArgumentException.class,
+                () -> new DimensionExpression.Product(Map.of(), 0)).getMessage());
+        java.util.HashMap<Dimension, Long> nullKey = new java.util.HashMap<>();
+        nullKey.put(null, 1L);
+        assertEquals("factors key", assertThrows(
+                NullPointerException.class,
+                () -> new DimensionExpression.Product(nullKey, 0)).getMessage());
+        java.util.HashMap<Dimension, Long> nullValue = new java.util.HashMap<>();
+        nullValue.put(h, null);
+        assertEquals("factors value", assertThrows(
+                NullPointerException.class,
+                () -> new DimensionExpression.Product(nullValue, 0)).getMessage());
+        assertEquals("exponent must be positive: 0", assertThrows(
+                IllegalArgumentException.class,
+                () -> new DimensionExpression.Product(Map.of(h, 0L), 0)).getMessage());
+        assertEquals("coefficient must be positive: 0", assertThrows(
+                IllegalArgumentException.class,
+                () -> new DimensionExpression.Product(Map.of(h, 1L), 0)).getMessage());
+    }
+
+    @Test
     void keepsDivisionNodesStructuralWithoutReassociation() {
         Dimension n = new DynamicDimension("N");
         Dimension floor = DimensionExpressions.floorDivide(
@@ -194,6 +305,18 @@ class DimensionExpressionsTest {
                 assertThrows(
                         NullPointerException.class,
                         () -> DimensionExpressions.add(new StaticDimension(1), null))
+                        .getMessage());
+        assertEquals(
+                "left",
+                assertThrows(
+                        NullPointerException.class,
+                        () -> DimensionExpressions.multiply(null, (Dimension) null))
+                        .getMessage());
+        assertEquals(
+                "right",
+                assertThrows(
+                        NullPointerException.class,
+                        () -> DimensionExpressions.multiply(new StaticDimension(1), null))
                         .getMessage());
         assertEquals(
                 "input",
@@ -280,6 +403,12 @@ class DimensionExpressionsTest {
     private static DimensionExpression.LinearCombination linearCombination(Dimension dimension) {
         return assertInstanceOf(
                 DimensionExpression.LinearCombination.class,
+                assertInstanceOf(ExpressionDimension.class, dimension).expression());
+    }
+
+    private static DimensionExpression.Product product(Dimension dimension) {
+        return assertInstanceOf(
+                DimensionExpression.Product.class,
                 assertInstanceOf(ExpressionDimension.class, dimension).expression());
     }
 

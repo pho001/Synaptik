@@ -9,8 +9,9 @@ import java.util.Optional;
  * Validated construction and canonicalization boundary for symbolic dimension arithmetic.
  *
  * <p>Every operation returns the simplest truthful {@link Dimension}: static arithmetic is folded,
- * neutral operations preserve the input reference, and linear terms are flattened and combined.
- * This class creates model values only. It does not bind or evaluate runtime dimensions.</p>
+ * neutral operations preserve the input reference, and linear terms or symbolic products are
+ * flattened and combined within their respective forms. This class creates model values only. It
+ * does not bind or evaluate runtime dimensions.</p>
  */
 public final class DimensionExpressions {
     /** Prevents instantiation of this field-free construction boundary. */
@@ -68,6 +69,10 @@ public final class DimensionExpressions {
     /**
      * Multiplies a dimension by a non-negative constant using checked arithmetic.
      *
+     * <p>A canonical {@link DimensionExpression.Product} remains a product: a positive factor
+     * scales its checked constant coefficient instead of wrapping the whole product as one linear
+     * term. All pre-product dimensions retain the existing linear or static canonicalization.</p>
+     *
      * @param input non-null input dimension
      * @param factor non-negative constant factor
      * @return non-null canonical product; a static zero for factor zero and the exact input
@@ -88,9 +93,54 @@ public final class DimensionExpressions {
             return input;
         }
 
+        DimensionExpression.Product product = productExpression(input);
+        if (product != null) {
+            return new ExpressionDimension(new DimensionExpression.Product(
+                    product.factors(), Math.multiplyExact(product.coefficient(), factor)));
+        }
+
         Map<Dimension, Long> coefficients = new LinkedHashMap<>();
         long offset = addTerms(coefficients, 0, input, factor);
         return canonicalLinearCombination(coefficients, offset);
+    }
+
+    /**
+     * Multiplies two dimensions using checked static arithmetic and canonical symbolic factors.
+     *
+     * <p>Static zero absorbs the product, static one preserves the exact opposing reference, and
+     * two static operands are multiplied directly. Other static values become the positive
+     * coefficient. Nested products are flattened and structurally equal factors have their
+     * exponents combined. Multiplication does not distribute over sums or evaluate symbols.</p>
+     *
+     * @param left non-null left dimension
+     * @param right non-null right dimension
+     * @return non-null canonical product; static when both inputs are static, the exact opposing
+     *     reference for multiplication by static one, or an expression dimension otherwise
+     * @throws NullPointerException if {@code left} or {@code right} is {@code null}
+     * @throws ArithmeticException if a static product, coefficient, or exponent overflows
+     *     {@code long}
+     */
+    public static Dimension multiply(Dimension left, Dimension right) {
+        Objects.requireNonNull(left, "left");
+        Objects.requireNonNull(right, "right");
+        if (isStaticZero(left) || isStaticZero(right)) {
+            return new StaticDimension(0);
+        }
+        if (isStaticOne(left)) {
+            return right;
+        }
+        if (isStaticOne(right)) {
+            return left;
+        }
+        if (left instanceof StaticDimension leftStatic
+                && right instanceof StaticDimension rightStatic) {
+            return new StaticDimension(Math.multiplyExact(leftStatic.size(), rightStatic.size()));
+        }
+
+        Map<Dimension, Long> factors = new LinkedHashMap<>();
+        long coefficient = addProductFactors(factors, 1L, left);
+        coefficient = addProductFactors(factors, coefficient, right);
+        return canonicalProduct(factors, coefficient);
     }
 
     /**
@@ -198,6 +248,49 @@ public final class DimensionExpressions {
                 existing == null ? coefficient : Math.addExact(existing, coefficient));
     }
 
+    private static long addProductFactors(
+            Map<Dimension, Long> factors, long coefficient, Dimension dimension) {
+        if (dimension instanceof StaticDimension staticDimension) {
+            return Math.multiplyExact(coefficient, staticDimension.size());
+        }
+        DimensionExpression.Product product = productExpression(dimension);
+        if (product != null) {
+            long combinedCoefficient = Math.multiplyExact(coefficient, product.coefficient());
+            for (Map.Entry<Dimension, Long> entry : product.factors().entrySet()) {
+                addExponent(factors, entry.getKey(), entry.getValue());
+            }
+            return combinedCoefficient;
+        }
+        addExponent(factors, dimension, 1L);
+        return coefficient;
+    }
+
+    private static void addExponent(
+            Map<Dimension, Long> factors, Dimension dimension, long exponent) {
+        Long existing = factors.get(dimension);
+        factors.put(
+                dimension,
+                existing == null ? exponent : Math.addExact(existing, exponent));
+    }
+
+    private static Dimension canonicalProduct(Map<Dimension, Long> factors, long coefficient) {
+        if (factors.size() == 1 && coefficient == 1) {
+            Map.Entry<Dimension, Long> factor = factors.entrySet().iterator().next();
+            if (factor.getValue() == 1) {
+                return factor.getKey();
+            }
+        }
+        return new ExpressionDimension(new DimensionExpression.Product(factors, coefficient));
+    }
+
+    private static DimensionExpression.Product productExpression(Dimension dimension) {
+        if (dimension instanceof ExpressionDimension expressionDimension
+                && expressionDimension.expression() instanceof DimensionExpression.Product product) {
+            return product;
+        }
+        return null;
+    }
+
     private static Dimension canonicalLinearCombination(
             Map<Dimension, Long> coefficients, long offset) {
         if (coefficients.isEmpty()) {
@@ -226,5 +319,10 @@ public final class DimensionExpressions {
     private static boolean isStaticZero(Dimension dimension) {
         return dimension instanceof StaticDimension staticDimension
                 && staticDimension.size() == 0;
+    }
+
+    private static boolean isStaticOne(Dimension dimension) {
+        return dimension instanceof StaticDimension staticDimension
+                && staticDimension.size() == 1;
     }
 }

@@ -8,13 +8,14 @@ import java.util.StringJoiner;
 /**
  * Read-only symbolic formula or constraint retained by an {@link ExpressionDimension}.
  *
- * <p>The four permitted forms describe canonical linear arithmetic, floor or ceiling division,
- * and an identity-based constrained unknown. They contain model values only: no form binds a
- * runtime size, evaluates a graph, or carries compiler, storage, or backend state.</p>
+ * <p>The permitted forms describe canonical linear arithmetic, canonical symbolic products,
+ * floor or ceiling division, and an identity-based constrained unknown. They contain model
+ * values only: no form binds a runtime size, evaluates a graph, or carries compiler, storage, or
+ * backend state.</p>
  */
 public sealed interface DimensionExpression permits DimensionExpression.LinearCombination,
-        DimensionExpression.FloorDivision, DimensionExpression.CeilingDivision,
-        DimensionExpression.Unknown {
+        DimensionExpression.Product, DimensionExpression.FloorDivision,
+        DimensionExpression.CeilingDivision, DimensionExpression.Unknown {
     /**
      * A canonical positive-coefficient sum of dimensions plus a signed constant offset.
      *
@@ -119,6 +120,118 @@ public sealed interface DimensionExpression permits DimensionExpression.LinearCo
                 return result + " - " + Long.toUnsignedString(-offset);
             }
             return result;
+        }
+    }
+
+    /**
+     * A canonical product of symbolic dimensions and one positive constant coefficient.
+     *
+     * <p>The factor map is immutable, non-empty, and independent of iteration order. Each key is
+     * one complete symbolic factor and each strictly positive value is its exponent. Public
+     * construction through {@link DimensionExpressions} folds static factors, flattens nested
+     * products, combines structurally equal factors, applies the zero and one identities, and
+     * reports coefficient or exponent overflow rather than wrapping. Equality and hashing compare
+     * the coefficient and complete factor map structurally; diagnostic text is mathematical but
+     * is not a serialization format. The expression retains only structural metadata and performs
+     * no binding or evaluation.</p>
+     */
+    final class Product implements DimensionExpression {
+        private final Map<Dimension, Long> factors;
+        private final long coefficient;
+
+        /**
+         * Creates an already canonical symbolic product.
+         *
+         * @param factors non-null, non-empty factor map with non-null dimensions, non-null
+         *     exponents, and strictly positive exponents
+         * @param coefficient strictly positive constant coefficient
+         * @throws NullPointerException if the map, a key, or a value is {@code null}
+         * @throws IllegalArgumentException if the map is empty, an exponent is not positive, or
+         *     {@code coefficient} is not positive
+         */
+        Product(Map<Dimension, Long> factors, long coefficient) {
+            Objects.requireNonNull(factors, "factors");
+            if (factors.isEmpty()) {
+                throw new IllegalArgumentException("factors must not be empty");
+            }
+            for (Map.Entry<Dimension, Long> entry : factors.entrySet()) {
+                Objects.requireNonNull(entry.getKey(), "factors key");
+                Long exponent = Objects.requireNonNull(entry.getValue(), "factors value");
+                if (exponent <= 0) {
+                    throw new IllegalArgumentException(
+                            "exponent must be positive: " + exponent);
+                }
+            }
+            if (coefficient <= 0) {
+                throw new IllegalArgumentException(
+                        "coefficient must be positive: " + coefficient);
+            }
+            this.factors = Map.copyOf(factors);
+            this.coefficient = coefficient;
+        }
+
+        /**
+         * Returns the immutable map from symbolic factors to positive exponents.
+         *
+         * @return non-null, non-empty immutable factor map whose iteration order is not semantic
+         */
+        public Map<Dimension, Long> factors() {
+            return factors;
+        }
+
+        /**
+         * Returns the positive constant coefficient.
+         *
+         * @return strictly positive constant coefficient
+         */
+        public long coefficient() {
+            return coefficient;
+        }
+
+        /**
+         * Compares the complete factor map and coefficient structurally.
+         *
+         * @param other candidate object, which may be {@code null}
+         * @return {@code true} when {@code other} has equal factors and coefficient, independently
+         *     of factor-map iteration order
+         */
+        @Override
+        public boolean equals(Object other) {
+            return this == other
+                    || (other instanceof Product product
+                    && coefficient == product.coefficient
+                    && factors.equals(product.factors));
+        }
+
+        /**
+         * Returns the structural hash of the factor map and coefficient.
+         *
+         * @return hash code consistent with {@link #equals(Object)}
+         */
+        @Override
+        public int hashCode() {
+            return 31 * factors.hashCode() + Long.hashCode(coefficient);
+        }
+
+        /**
+         * Returns a readable mathematical-style product diagnostic.
+         *
+         * @return non-null text containing the coefficient, factors, and exponents; the format is
+         *     not a serialization contract
+         */
+        @Override
+        public String toString() {
+            StringJoiner terms = new StringJoiner(" * ");
+            if (coefficient != 1) {
+                terms.add(Long.toString(coefficient));
+            }
+            factors.entrySet().stream()
+                    .sorted((left, right) -> dimensionText(left.getKey())
+                            .compareTo(dimensionText(right.getKey())))
+                    .forEach(entry -> terms.add(entry.getValue() == 1
+                            ? dimensionText(entry.getKey())
+                            : dimensionText(entry.getKey()) + "^" + entry.getValue()));
+            return terms.toString();
         }
     }
 

@@ -19,10 +19,10 @@ import io.github.pho001.synaptik.model.operation.OperationAttrs;
  * {@code [1, 6, 15, 14, 9]} under the later scatter-add meaning.</p>
  *
  * <p>The axis is already normalized in the target rank. This record has no input Shape, rank,
- * window size, or window count and therefore cannot validate bounds or compatibility. It names
- * compiler-only semantic operation retained for task 0023. No public Tensor expression currently
- * constructs it. The record itself defines no Tensor construction, operand compatibility,
- * gradient rule, compiler generation, backend route, or execution behavior.</p>
+ * window size, or window count and therefore cannot validate bounds or compatibility. Public
+ * {@code Tensor.foldAxis} construction owns that input-aware boundary before retaining this
+ * record. The record itself defines no Tensor construction, operand compatibility, gradient rule,
+ * compiler generation, backend route, or execution behavior.</p>
  *
  * @param axis the already normalized, non-negative restored target-axis position
  * @param outputSize the non-negative target extent restored at {@code axis}, in logical positions

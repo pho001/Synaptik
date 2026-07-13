@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
@@ -117,6 +118,16 @@ class WindowTransformSemanticsTest {
                         "strideHeight():long",
                         "strideWidth():long",
                         "toString():java.lang.String"));
+        assertRecordShape(
+                Unfold2dAttrs.class,
+                List.of("window", "paddingValue"),
+                List.of(Window2dAttrs.class, ScalarValue.class),
+                List.of(
+                        "equals(java.lang.Object):boolean",
+                        "hashCode():int",
+                        "paddingValue():io.github.pho001.synaptik.model.datatype.ScalarValue",
+                        "toString():java.lang.String",
+                        "window():io.github.pho001.synaptik.model.operation.layout.Window2dAttrs"));
         assertRecordShape(
                 Fold2dAttrs.class,
                 List.of("outputShape", "window"),
@@ -270,6 +281,30 @@ class WindowTransformSemanticsTest {
     }
 
     @Test
+    void unfold2dAttrsNullChecksInOrderAndRetainsExactTypedReferences() {
+        Window2dAttrs window = unitWindow();
+        List<ScalarValue> values = List.of(
+                ScalarValue.float64(Double.longBitsToDouble(0xFFF8_0000_0000_0042L)),
+                ScalarValue.float32(Float.intBitsToFloat(0x8000_0000)),
+                ScalarValue.bfloat16Bits((short) 0xFFC1),
+                ScalarValue.int32(Integer.MIN_VALUE),
+                ScalarValue.int64(Long.MIN_VALUE),
+                ScalarValue.bool(true));
+
+        assertNullFailure(() -> new Unfold2dAttrs(null, null), "window");
+        assertNullFailure(() -> new Unfold2dAttrs(window, null), "paddingValue");
+        for (ScalarValue value : values) {
+            Unfold2dAttrs attrs = new Unfold2dAttrs(window, value);
+            assertAll(
+                    () -> assertSame(window, attrs.window()),
+                    () -> assertSame(value, attrs.paddingValue()),
+                    () -> assertEquals(attrs, new Unfold2dAttrs(window, value)),
+                    () -> assertEquals(attrs.hashCode(),
+                            new Unfold2dAttrs(window, value).hashCode()));
+        }
+    }
+
+    @Test
     void usesGeneratedRecordValueSemanticsAndDiagnosticText() {
         UnfoldAxisAttrs unfold = new UnfoldAxisAttrs(1, 3, 2);
         FoldAxisAttrs fold = new FoldAxisAttrs(0, 5, 1);
@@ -299,10 +334,14 @@ class WindowTransformSemanticsTest {
         FoldAxisAttrs foldAttrs = new FoldAxisAttrs(0, 5, 1);
         Window2dAttrs windowAttrs = new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
         Fold2dAttrs fold2dAttrs = new Fold2dAttrs(Shape.of(1, 1, 3, 3), windowAttrs);
+        Unfold2dAttrs explicitUnfoldAttrs =
+                new Unfold2dAttrs(windowAttrs, ScalarValue.float32(-0.0f));
         Operation axisUnfold =
                 new Operation(WindowTransformKind.UNFOLD_AXIS, unfoldAttrs);
         Operation axisFold = new Operation(WindowTransformKind.FOLD_AXIS, foldAttrs);
         Operation imageUnfold = new Operation(WindowTransformKind.UNFOLD2D, windowAttrs);
+        Operation explicitImageUnfold =
+                new Operation(WindowTransformKind.UNFOLD2D, explicitUnfoldAttrs);
         Operation imageFold = new Operation(WindowTransformKind.FOLD2D, fold2dAttrs);
 
         assertAll(
@@ -312,6 +351,8 @@ class WindowTransformSemanticsTest {
                 () -> assertSame(foldAttrs, axisFold.attrs()),
                 () -> assertSame(WindowTransformKind.UNFOLD2D, imageUnfold.kind()),
                 () -> assertSame(windowAttrs, imageUnfold.attrs()),
+                () -> assertSame(WindowTransformKind.UNFOLD2D, explicitImageUnfold.kind()),
+                () -> assertSame(explicitUnfoldAttrs, explicitImageUnfold.attrs()),
                 () -> assertSame(WindowTransformKind.FOLD2D, imageFold.kind()),
                 () -> assertSame(fold2dAttrs, imageFold.attrs()));
     }
@@ -321,6 +362,7 @@ class WindowTransformSemanticsTest {
         List<String> unfoldTypes = componentTypeNames(UnfoldAxisAttrs.class);
         List<String> foldTypes = componentTypeNames(FoldAxisAttrs.class);
         List<String> windowTypes = componentTypeNames(Window2dAttrs.class);
+        List<String> explicitUnfoldTypes = componentTypeNames(Unfold2dAttrs.class);
         List<String> fold2dTypes = componentTypeNames(Fold2dAttrs.class);
 
         assertAll(
@@ -331,6 +373,11 @@ class WindowTransformSemanticsTest {
                                 "long", "long", "long", "long", "long", "long", "long",
                                 "long", "boolean"),
                         windowTypes),
+                () -> assertEquals(
+                        List.of(
+                                "io.github.pho001.synaptik.model.operation.layout.Window2dAttrs",
+                                "io.github.pho001.synaptik.model.datatype.ScalarValue"),
+                        explicitUnfoldTypes),
                 () -> assertEquals(
                         List.of(
                                 "io.github.pho001.synaptik.model.shape.Shape",

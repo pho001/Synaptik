@@ -508,14 +508,15 @@ over the same input; its `SelectAttrs` stores the coordinate. A zero extent retu
 ID. This is
 current model expression construction, not compiler capture, decomposition, grouping, backward
 construction, materialization, backend lowering, ONNX mapping, or execution.
-`Tensor.unfold`, `Tensor.unfold2d`, and `Tensor.fold2d` construct the current public storage-free
-window-transform expressions. Their signatures and behavior are unchanged: they use checked
-static Shape arithmetic, preserve input data type and gradient eligibility, leave layout
-unresolved, and record exact one-input provenance. No public `Tensor.foldAxis` or helper path
-constructs the retained `FOLD_AXIS`/`FoldAxisAttrs` semantic pair. Task 0023 owns its first
-compiler-generated construction and operand compatibility. None of these model contracts reads
-values or provides compiler capture, canonicalization, gradient generation, lowering, or
-execution.
+`Tensor.unfold`, `Tensor.foldAxis`, both `Tensor.unfold2d` forms, and `Tensor.fold2d` construct the
+current public storage-free window-transform expressions. General-axis fold restores an explicit
+target extent under overlap summation. The 2D forms preserve canonical rank-three im2col/col2im,
+retain exact static or symbolic channel/spatial formulas, and distinguish direct conceptual-zero
+padding from an exact typed padding scalar. `fold2d` accepts only complete structural formula
+matches rather than recording equality between unrelated unresolved symbols. Every result
+preserves input data type and gradient eligibility, leaves layout unresolved, and records exact
+one-input provenance. None of these model contracts reads values or provides compiler capture,
+canonicalization, gradient generation, lowering, or execution.
 That origin metadata gives a future compiler an expression to traverse, but no current API
 captures it into `CompiledGraphModel`, performs inference or optimization, or produces compile
 artifacts.
@@ -576,7 +577,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, plus
   unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable repeated-SELECT unstack construction,
-  plus public general-axis unfold and NCHW unfold/fold window-transform construction, plus
+  plus public general-axis unfold/fold and direct- or typed-padding NCHW unfold/fold window-
+  transform construction, plus
   explicit-state training-dropout construction with public output and next-state results and one
   non-public producer mask slot,
   are implemented;
@@ -591,7 +593,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
   shared-producer traversal and output-slot capture,
-  compiler-generated `FOLD_AXIS` construction, deferred slice-update upper-bound and crop-bound
+  compiler-generated use of public `FOLD_AXIS`, deferred slice-update upper-bound and crop-bound
   proof, their possible use in adjoint construction, deferred
   dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
   validation placement, attention, convolution, and pooling deferred-constraint proof, legal

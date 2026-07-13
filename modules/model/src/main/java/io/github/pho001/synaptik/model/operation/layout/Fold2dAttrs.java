@@ -16,9 +16,10 @@ import java.util.Objects;
  *
  * <p>Both immutable references are retained exactly. This structural layer deliberately accepts
  * every current Shape category, including scalar, non-rank-four, zero-extent, and dynamic Shapes.
- * Public Tensor expression construction proves the rank-four NCHW/static and column compatibility
- * boundary. This record does not copy or canonicalize either value or compare Shape against the
- * window geometry.</p>
+ * Public Tensor expression construction proves the rank-four NCHW and exact structural column
+ * compatibility boundary, using checked static geometry or canonical symbolic formulas. This
+ * record does not copy or canonicalize either value or compare Shape against the window
+ * geometry.</p>
  *
  * <p>The attributes define no Tensor construction, Shape calculation, sampling or accumulation,
  * DataType, layout, storage, provenance, gradient, graph/compiler, planning, prepare, runtime,

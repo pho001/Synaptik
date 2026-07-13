@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(192, declaredPublicMethods.size());
+        assertEquals(194, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -108,7 +108,7 @@ class TensorTest {
                         "gather", "embedding", "oneHot", "gatherElements", "gatherNd",
                         "scatterAdd", "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold",
-                        "unfold2d", "fold2d"),
+                        "unfold2d", "foldAxis", "fold2d"),
                 publicMethods);
         assertAll(
                 () -> assertTrue(Modifier.isSynchronized(
@@ -618,6 +618,10 @@ class TensorTest {
                         "unfold", int.class, long.class, long.class),
                 Tensor.class.getDeclaredMethod("unfold2d", Window2dAttrs.class),
                 Tensor.class.getDeclaredMethod(
+                        "unfold2d", Window2dAttrs.class, ScalarValue.class),
+                Tensor.class.getDeclaredMethod(
+                        "foldAxis", int.class, long.class, long.class),
+                Tensor.class.getDeclaredMethod(
                         "fold2d", Shape.class, Window2dAttrs.class))) {
             assertAll(
                     () -> assertEquals(Tensor.class, method.getReturnType()),
@@ -626,9 +630,6 @@ class TensorTest {
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())),
                     () -> assertFalse(method.isVarArgs()));
         }
-        assertThrows(NoSuchMethodException.class, () -> Tensor.class.getDeclaredMethod(
-                "foldAxis", int.class, long.class, long.class));
-
         for (String methodName : List.of(
                 "add", "sub", "mul", "div", "minimum", "maximum", "pow", "clampMin",
                 "clampMax")) {

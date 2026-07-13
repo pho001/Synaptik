@@ -136,7 +136,7 @@ apply them in task order; completed task 0018O has already finalized indexing.
 | `fastExp` and `fastTanh` public kinds | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) removed both kinds and methods atomically without aliases. Approximation route choice belongs to backend prepare. A future portable approximate operation would need an explicit accuracy and special-value contract. |
 | Masked sum/mean heuristic axis mapping | Completed task [0018Q](tasks/0018q-masked-reduction-redesign.md) removed the mapper and simplified masked attributes to one normalized axis. The public overloads remain first-class two-input SUM/MEAN occurrences because current primitives cannot safely compose masked-out NaN/Inf exclusion, dynamic Shapes, selected counts, and gradients without hidden eager constants or undefined behavior. Masks must use ordinary right-aligned broadcasting to produce exactly the input Shape; callers reshape or expand explicitly. All-false sum is zero and all-false mean is NaN. |
 | `inv` | Completed task [0018P](tasks/0018p-elementwise-semantic-cleanup.md) atomically renamed the semantic kind and public method to `RECIPROCAL` and `reciprocal`, without a compatibility bridge. |
-| `foldAxis` public method | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) removed the public method and helper path without an alias. This supersedes the historical public implementation completed by tasks [0017M](tasks/0017m-unfold-and-fold-semantics.md) and [0017N](tasks/0017n-unfold-and-fold-tensor-expressions.md); it does not erase that completion evidence. `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs` remain public Java semantic contracts, but no public Tensor receiver/construction method exposes them. The [task-0023 audit](adjoint-expressibility-audit.md) selects Draft task 0023D to restore that public transformation; the retained `long outputSize` is sufficient because current `unfold` requires its selected extent static. `fold2d` remains public. |
+| `foldAxis` public method | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) historically removed the public method and helper path without an alias while retaining `WindowTransformKind.FOLD_AXIS` and `FoldAxisAttrs`. Completed [task 0023D](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) now restores exactly `foldAxis(int,long,long)` as the generally useful overlap-summing public transformation. Its retained `long outputSize` is sufficient because current `unfold` requires its selected extent static. |
 | `fromStrictFlatPrefix` and `fromCyclicFlatPrefix` | Completed task [0018S](tasks/0018s-tensor-factory-surface-cleanup.md) removed these methods and their implementation from production without aliases. Exact-carrier strict/cyclic preparation remains only in a package-private test-source fixture helper and delegates to public flat import. |
 | Primitive-array `take` | Do not stabilize it. Canonical indexing accepts an index Tensor; any later primitive convenience must validate the axis before allocating its eager index Tensor. |
 | Positive-step-only slicing | Completed task [0018R](tasks/0018r-slice-and-window-public-contract-cleanup.md) selected signed non-zero steps. Normalized `SliceAttrs` stores start plus selected length rather than an exclusive-end sentinel, the general arrays remain the primitive, a step-aware `sliceAxis` overload was added, and `flip(int... axes)` is one `SLICE` convenience. Positive provable views remain resolved; every negative-step result is layout-unresolved under the current non-negative-stride descriptor. |
@@ -774,19 +774,25 @@ retains unresolved right-aligned target-one-or-equal obligations, and records on
 without binding or execution. Completed
 [task 0023B](tasks/0023b-gather-compatible-scatter-add.md) implements final Gather-compatible
 fixed-add functional scatter with one public `scatterAdd` method, exact Gather-result updates
-Shape, fixed duplicate accumulation, and storage-free metadata construction. Ready
+Shape, fixed duplicate accumulation, and storage-free metadata construction. Completed
 [task 0023C](tasks/0023c-slice-update-and-target-relative-crop.md) implements functional signed
 multi-axis `SLICE_UPDATE` plus a target-relative `SLICE` crop whose exact target and prefix Shapes
 may remain symbolic. It adds exactly `sliceUpdate` and `cropToShape`, uses replacement rather than
-overlap addition, and changes no Shape, binding, compiler, or execution contract. Draft rows
-0023D–0023F retain public general-axis fold
-plus redesigned dynamic/configurable 2D window transforms, cumulative product, and same-occurrence
-attention weights. The detailed matrix owns formulas and policy-deferred boundary cases; this
-capability baseline intentionally does not duplicate them.
+overlap addition, and changes no Shape, binding, compiler, or execution contract. Completed
+[task 0023D](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) retains canonical
+rank-three columns, adds the missing symbolic product for two unresolved spatial factors, restores
+public general-axis fold, generalizes 2D window Shapes, and adds exact typed padding metadata.
+Draft rows 0023E–0023F retain cumulative product and same-occurrence attention weights. The
+detailed matrix owns formulas and policy-deferred boundary cases; this capability baseline
+intentionally does not duplicate them.
 
 The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
 runtime, or execution contract. Completed tasks 0023A–0023C change model semantic/expression
-metadata only. Task 0023C's focused 15-suite run passed 139 tests and its single final model suite
+metadata only. Task 0023D likewise changes only model values and expression metadata. Its focused
+17-suite run passed 175 tests, and its single final model suite passed 1,008 tests across 126
+suites. The separate documentation pass validated model Javadoc, a runnable Java 26 metadata
+example, the 194-method public Tensor surface, Markdown, exact 33-path scope, and synchronized
+Complete/Draft status. Task 0023C's focused 15-suite run passed 139 tests and its single final model suite
 passed 996 tests across 126 suites. Its separate documentation pass validated model Javadoc, the
 runnable Java 26 metadata example, Markdown and official references, exact 27-path scope, the
 192-method public Tensor surface, and synchronized status. Fusion, adjoint construction, deferred

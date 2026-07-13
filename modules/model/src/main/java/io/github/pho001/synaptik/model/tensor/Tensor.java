@@ -5495,42 +5495,107 @@ public final class Tensor {
     }
 
     /**
+     * Creates a fresh expression that overlap-sums general-axis windows into a target extent.
+     *
+     * <p>The final input dimension is the positive window size. The remaining dimensions form
+     * the target rank against which {@code axis} is normalized, so a negative axis never selects
+     * the final window dimension. The selected static window-count dimension is replaced by
+     * {@code outputSize}, and the final dimension is removed. Positive output size requires
+     * {@code floor((outputSize - windowSize) / step) + 1} windows; zero output size requires zero
+     * windows.</p>
+     *
+     * <p>Contributions from overlapping windows are summed semantically. Construction accepts
+     * floating and integral input, rejects BOOL, preserves exact type, gradient eligibility, and
+     * unaffected Dimension references, and creates fresh storage-free unresolved-layout metadata
+     * with exact one-input {@link WindowTransformKind#FOLD_AXIS} provenance. It does not inspect
+     * values, perform accumulation, define gradients, capture a graph, or execute work.</p>
+     *
+     * @param axis raw target axis in {@code [-targetRank, targetRank - 1]}, where target rank is
+     *     one less than input rank
+     * @param outputSize non-negative restored target extent in logical elements
+     * @param step positive distance between consecutive window starts in logical elements
+     * @return a non-null fresh storage-free FOLD_AXIS tensor with restored Shape, unresolved
+     *     layout, preserved type and gradient eligibility, and exact one-input provenance
+     * @throws IllegalArgumentException if rank, type, attributes, required static dimensions,
+     *     positive window size, or count geometry is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is outside target rank
+     * @throws ArithmeticException if checked expected-window arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor foldAxis(int axis, long outputSize, long step) {
+        return TensorWindowExpressions.foldAxis(this, axis, outputSize, step);
+    }
+
+    /**
      * Creates canonical two-dimensional image-window columns from a rank-four NCHW tensor.
      *
-     * <p>NCHW orders dimensions as batch, channel, height, and width. The channel and spatial
-     * dimensions must be static; the exact batch Dimension may remain dynamic. The supplied
-     * immutable window defines positive kernel, stride, and dilation values, non-negative
-     * symmetric padding on both sides of each spatial dimension, and floor or ceil output-size
-     * rounding. Dilation is the spacing between kernel samples, and the effective kernel span is
-     * {@code dilation * (kernel - 1) + 1}.</p>
+     * <p>NCHW orders dimensions as batch, channel, height, and width. The exact batch Dimension is
+     * retained; channel and spatial Dimensions may be static, named dynamic, expression-based, or
+     * constrained unknowns. The supplied immutable window defines positive kernel, stride, and
+     * dilation values, non-negative symmetric padding on both sides of each spatial dimension,
+     * and floor or ceil output-size rounding. Dilation is the spacing between kernel samples, and
+     * the effective kernel span is {@code dilation * (kernel - 1) + 1}.</p>
      *
-     * <p>For height and width independently, checked arithmetic calculates
+     * <p>For height and width independently, checked or canonical symbolic arithmetic calculates
      * {@code numerator = input + 2 * padding - effectiveKernel}. The effective kernel must fit the
-     * padded dimension. Floor mode uses {@code numerator / stride + 1}; ceil mode increments the
-     * quotient when a remainder exists and then adds one. This avoids the overflow-prone
-     * {@code numerator + stride - 1} form. Result Shape is
+     * padded dimension when that failure is statically provable. Floor mode uses
+     * {@code floor(numerator / stride) + 1}; ceil mode uses
+     * {@code ceil(numerator / stride) + 1}. This avoids the overflow-prone
+     * {@code numerator + stride - 1} form. An unresolved numerator retains its later
+     * non-negativity obligation. Result Shape is
      * {@code [N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]}. For input
      * {@code [1,1,3,3]} and a 2-by-2 unit-stride, zero-padding, unit-dilation floor-mode window,
-     * the result is {@code [1,4,4]}: one batch, four channel-kernel positions, and four windows.</p>
+     * the result is {@code [1,4,4]}: one batch, four channel-kernel positions, and four windows.
+     * Products of unresolved Dimensions remain exact canonical symbolic products.</p>
      *
      * <p>This im2col expression accepts only floating input. The fresh result preserves exact
      * type and gradient eligibility, leaves layout unresolved, has no label or storage, and
      * records {@link WindowTransformKind#UNFOLD2D} with this tensor as its sole input. It does not
-     * sample padding, read values, materialize columns, define gradients, or execute work.</p>
+     * sample conceptual positive-zero padding, read values, materialize columns, define gradients,
+     * or execute work.</p>
      *
      * @param window non-null immutable symmetric two-dimensional window geometry retained by
      *     exact reference in operation attributes
      * @return a non-null fresh rank-three canonical-column tensor with unresolved layout,
      *     preserved floating type and gradient eligibility, and exact one-input provenance
      * @throws NullPointerException if {@code window} is null, with message {@code window}
-     * @throws IllegalArgumentException if input is not rank-four NCHW, is not floating, has a
-     *     dynamic channel/height/width dimension, or an effective kernel does not fit
-     * @throws ArithmeticException if checked effective-kernel, padding, channel-window, spatial,
-     *     or output-count arithmetic overflows
+     * @throws IllegalArgumentException if input is not rank-four NCHW, is not floating, or static
+     *     geometry proves that an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor unfold2d(Window2dAttrs window) {
         return TensorWindowExpressions.unfold2d(this, window);
+    }
+
+    /**
+     * Creates canonical NCHW image-window columns with an exact typed padding value.
+     *
+     * <p>This overload uses the same dynamic-capable rank-three Shape formulas and canonical
+     * column order as {@link #unfold2d(Window2dAttrs)}. Every sample outside the logical unpadded
+     * input uses {@code paddingValue}, including symmetric padding and terminal ceil-grid samples
+     * beyond the padded extent. The scalar data type must exactly match this floating tensor's
+     * type; its exact NaN, infinity, and signed-zero bits are retained without conversion.</p>
+     *
+     * <p>The result is fresh, unlabeled, storage-free, and layout-unresolved, with exact one-input
+     * {@link WindowTransformKind#UNFOLD2D} provenance. Construction does not sample values,
+     * materialize columns, select pooling or backend behavior, define gradients, or execute work.</p>
+     *
+     * @param window non-null immutable symmetric two-dimensional window geometry retained by
+     *     exact reference
+     * @param paddingValue non-null exact typed value for every out-of-domain sample, retained by
+     *     exact reference
+     * @return a non-null fresh rank-three canonical-column tensor with unresolved layout,
+     *     preserved floating type and gradient eligibility, and exact one-input provenance
+     * @throws NullPointerException if {@code window} or {@code paddingValue} is null, checked in
+     *     that order with the parameter name as message
+     * @throws IllegalArgumentException if input rank or type is invalid, the scalar type differs
+     *     from the input, or static geometry proves that an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor unfold2d(Window2dAttrs window, ScalarValue paddingValue) {
+        return TensorWindowExpressions.unfold2d(this, window, paddingValue);
     }
 
     /**
@@ -5539,9 +5604,10 @@ public final class Tensor {
      * <p>The input must be floating canonical im2col data with rank-three Shape
      * {@code [N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]}. The requested output
      * must have rank four in NCHW order, its exact batch Dimension must equal the column batch,
-     * and channel, height, width, column-channel, and column-count dimensions must be static. The
-     * same checked effective-kernel and floor/ceil formulas documented by
-     * {@link #unfold2d(Window2dAttrs)} determine compatibility.</p>
+     * and the complete channel and flattened-spatial Dimensions must equal the same static or
+     * canonical symbolic products produced by {@link #unfold2d(Window2dAttrs)}. Structurally
+     * unrelated unresolved symbols are rejected rather than retained as unnamed equality
+     * constraints.</p>
      *
      * <p>Col2im scatters each column entry to its image coordinate. Overlapping entries are added,
      * uncovered positions are conceptually zero, and no overlap averaging occurs. For compatible
@@ -5559,10 +5625,9 @@ public final class Tensor {
      *     preserved floating type and gradient eligibility, and exact one-input provenance
      * @throws NullPointerException if {@code outputShape} or {@code window} is null, checked in
      *     that order with the parameter name as message
-     * @throws IllegalArgumentException if ranks, data type, batch identity, static dimensions,
-     *     channel-window extent, window count, or effective-kernel fit are incompatible
-     * @throws ArithmeticException if checked effective-kernel, padding, channel-window, spatial,
-     *     or window-count arithmetic overflows
+     * @throws IllegalArgumentException if ranks, data type, batch identity, exact structural
+     *     channel/window dimensions, or statically provable effective-kernel fit are incompatible
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor fold2d(Shape outputShape, Window2dAttrs window) {

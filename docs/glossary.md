@@ -248,13 +248,13 @@ The `WindowTransformKind` vocabulary is implemented with distinct general-axis `
 normalized axis, positive window size, and positive step. `FoldAxisAttrs` stores one normalized
 target axis, explicit non-negative output extent, and positive step; the eventual input's final
 dimension supplies window size. `Window2dAttrs` stores positive kernel, stride, and dilation,
-non-negative symmetric padding, and a floor/ceil rounding choice. `Fold2dAttrs` retains one exact
-output Shape and one exact window-geometry reference. These values define materialized windows,
-scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction. Public
-`unfold`, `unfold2d`, and `fold2d` expressions add checked Shape arithmetic, unresolved result
-layout, preserved data type and gradient eligibility, and one-input provenance. No public
-`foldAxis` construction remains; `FOLD_AXIS` and `FoldAxisAttrs` are compiler-only model semantics,
-and task 0023 owns their first compiler-generated construction. Gradients,
+non-negative symmetric padding, and a floor/ceil rounding choice. `Unfold2dAttrs` adds one exact
+typed out-of-domain scalar while retaining that geometry by reference. `Fold2dAttrs` retains one
+exact output Shape and one exact window-geometry reference. These values define materialized
+windows, scatter-add folding, NCHW im2col, and overlap-summing col2im without Tensor construction.
+Public `unfold`, `foldAxis`, both `unfold2d` forms, and `fold2d` expressions add checked static or
+canonical symbolic Shape arithmetic, unresolved result layout, preserved data type and gradient
+eligibility, and one-input provenance. Gradients,
 materialization, compiler capture, lowering, backend/ONNX behavior, and execution remain planned.
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
@@ -1202,8 +1202,8 @@ tuple depth remains in the final indices Dimension. The current gather and scatt
 boundaries validate their public caller parameters before constructing these attributes.
 `UnfoldAxisAttrs` stores a normalized source axis, while `FoldAxisAttrs` stores a normalized
 restored target axis. Neither contains rank context. Current public `unfold` normalizes raw syntax
-against the input rank. No public fold-axis boundary exists; task 0023 owns future compiler
-construction of already normalized `FoldAxisAttrs`.
+against the input rank, while public `foldAxis` normalizes against target rank, which is one less
+than input rank.
 
 ### Node
 
@@ -1277,10 +1277,11 @@ for `GATHER_ND`; tuple depth remains the final indices Dimension rather than att
 `ScatterReduction` for `SCATTER_ELEMENTS`. `ScatterNdAttrs` holds one normalized non-negative
 shared-batch count plus an explicit non-null `ScatterReduction` for `SCATTER_ND`; tuple depth
 remains the final indices Dimension. `UnfoldAxisAttrs`
-carries normalized general-axis window size and step; compiler-only `FoldAxisAttrs` carries a
-normalized target axis, explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
-kernel/stride/padding/dilation geometry and its
-rounding flag, while `Fold2dAttrs` carries one exact output Shape plus that shared geometry. Other
+carries normalized general-axis window size and step; `FoldAxisAttrs` carries a normalized target
+axis, explicit restored extent, and step. `Window2dAttrs` carries symmetric NCHW
+kernel/stride/padding/dilation geometry and its rounding flag. `Unfold2dAttrs` carries that exact
+geometry plus one exact typed padding scalar, while `Fold2dAttrs` carries one exact output Shape
+plus the shared geometry. Other
 families may define records for another operation-specific value. Implementations use typed
 fields, defensively isolate mutable inputs, and provide structural equality and hashing; they do not use a primary
 string-keyed map or contain backend, compiler-service, mutable tensor, storage, or runtime state.
@@ -1299,9 +1300,10 @@ behavior, or a kernel route.
 
 Public exposure is separate from semantic representability. For example, `SliceKind.SLICE`
 supports public slice, flip, and target-relative crop expressions, while
-`SliceKind.SLICE_UPDATE` supports public functional replacement. In contrast,
-`WindowTransformKind.FOLD_AXIS` remains a compiler-only semantic with no public Tensor
-constructor. Every kind still supplies its exact family-owned structural signatures.
+`SliceKind.SLICE_UPDATE` supports public functional replacement. Current
+`WindowTransformKind.FOLD_AXIS` also has public `Tensor.foldAxis` construction, but future
+gradient use remains compiler-owned. Every kind still supplies its exact family-owned structural
+signatures.
 
 ### Operation signature
 
@@ -1490,7 +1492,8 @@ The twenty-third is `ScatterNdKind`, whose sole `SCATTER_ND` value pairs with `S
 and the shared reduction vocabulary, as described under [Scatter-ND](#scatter-nd). The
 twenty-fourth is `WindowTransformKind`: `UNFOLD_AXIS` pairs with
 `UnfoldAxisAttrs`, `FOLD_AXIS` with
-`FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D` with `Fold2dAttrs`, as described
+`FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs` or `Unfold2dAttrs`, and `FOLD2D` with
+`Fold2dAttrs`, as described
 under [window transform](#window-transform). The twenty-fifth is `LossKind`, whose sole
 `MEAN_SQUARED_ERROR` value pairs with `MeanSquaredErrorAttrs` and the separate `LossReduction`
 vocabulary, as described under [mean-squared error](#mean-squared-error--mse). These semantic
@@ -1693,15 +1696,20 @@ expressions](#symbolic-extent-expression).
 
 An implemented immutable model value that retains a small exact formula or a constrained unknown
 for one Shape axis. `DimensionExpressions` is the only public construction boundary. It provides
-checked addition, signed constant offset, multiplication by a non-negative constant, floor or
-ceiling division by a positive constant, and identity-based unknown construction.
+checked addition, signed constant offset, multiplication by a non-negative constant,
+Dimension-to-Dimension multiplication, floor or ceiling division by a positive constant, and
+identity-based unknown construction.
 
 Exact formulas use structural equality. Canonical linear combinations have positive dimension
 coefficients and one signed constant offset: nested sums flatten, static terms fold, repeated
-terms combine, and addition order is not semantic. Floor and ceiling division retain explicit
-dividend and divisor nodes. A constrained unknown has an inclusive non-negative minimum and an
-optional inclusive maximum Dimension. It deliberately uses object identity, so only reuse of the
-same unknown proves equality.
+terms combine, and addition order is not semantic. A **canonical symbolic product** has one
+positive constant coefficient and a non-empty immutable map from complete Dimension factors to
+positive exponents. It folds static factors, flattens nested products, combines repeated factors,
+and makes factor order non-semantic without distributing across sums. Zero and one use their
+ordinary identities, and checked coefficient or exponent overflow fails rather than wrapping.
+Floor and ceiling division retain explicit dividend and divisor nodes. A constrained unknown has
+an inclusive non-negative minimum and an optional inclusive maximum Dimension. It deliberately
+uses object identity, so only reuse of the same unknown proves equality.
 
 Expression construction performs local checked arithmetic and canonicalization only. It does not
 bind named dimensions, evaluate concrete sizes, solve graph-wide constraints, construct Tensor
@@ -2480,8 +2488,9 @@ A tensor or layout interpretation that aliases storage also used by another logi
 
 An implemented backend-independent sliding-window meaning represented by
 `WindowTransformKind`. The exact kind/attributes pairings are `UNFOLD_AXIS` with
-`UnfoldAxisAttrs`, `FOLD_AXIS` with `FoldAxisAttrs`, `UNFOLD2D` with `Window2dAttrs`, and `FOLD2D`
-with `Fold2dAttrs`. Family signatures enforce all four pairings and declare one input and one output.
+`UnfoldAxisAttrs`, `FOLD_AXIS` with `FoldAxisAttrs`, `UNFOLD2D` with direct `Window2dAttrs` or
+explicit-padding `Unfold2dAttrs`, and `FOLD2D` with `Fold2dAttrs`. Family signatures enforce all
+five pairings and declare one input and one output.
 
 General-axis unfold materializes windows along one normalized source axis without padding,
 dilation, or image assumptions. For static selected extent `D`, positive window `size`, and
@@ -2497,21 +2506,26 @@ adds overlapping contributions. Conceptual windows of Shape `[3, 3]` with values
 `[[1, 2, 3], [4, 5, 6], [7, 8, 9]]`, target axis `0`, output size `5`, and step `1` produce Shape
 `[5]` with values `[1, 6, 15, 14, 9]`. Uncovered valid positions remain zero. Output size cannot
 always be inferred because trailing source positions might have appeared in no window. No public
-Tensor expression constructs `FOLD_AXIS`; task 0023 owns its first compiler-generated
-construction for backward graphs.
+Tensor execution occurs here. Public `Tensor.foldAxis` normalizes its raw axis against target
+rank, validates numeric input and static window geometry, and records the `FOLD_AXIS` expression;
+future gradient construction remains compiler-owned.
 
 The two-dimensional forms use NCHW axis order: batch, channel, height, width. Im2col places
 sampled image windows into canonical rank-three columns; col2im scatters column entries back into
 an explicit NCHW output and sums entries targeting the same coordinate without overlap averaging.
 For conceptual NCHW Shape `[1, 1, 3, 3]`, a 2-by-2 kernel, unit stride and dilation, zero symmetric
 padding, and floor mode produce im2col Shape `[1, 4, 4]`. Folding compatible columns into explicit
-Shape `[1, 1, 3, 3]` gives four contributions to the center and one to each corner.
+Shape `[1, 1, 3, 3]` gives four contributions to the center and one to each corner. Dynamic
+channel and spatial Dimensions retain the same canonical rank-three form by using exact symbolic
+products for `C * kernelHeight * kernelWidth` and `outputHeight * outputWidth`.
 
 Stride is the positive distance between consecutive window starts. Dilation is the positive
 spacing between kernel samples. Symmetric padding is the same non-negative width on both sides of
-one spatial dimension, and unfold samples outside the source as conceptual zero. Effective kernel
-is the span after dilation. For each spatial dimension, current public expression construction
-uses checked arithmetic:
+one spatial dimension. Direct `UNFOLD2D + Window2dAttrs` samples outside the source as conceptual
+positive zero. `UNFOLD2D + Unfold2dAttrs` instead uses its exact typed scalar for every symmetric
+padding sample and terminal ceil-grid sample beyond the padded extent, preserving raw floating
+bits. Effective kernel is the span after dilation. For each spatial dimension, current public
+expression construction uses checked static or canonical symbolic arithmetic:
 
 ```text
 effectiveKernel = dilation * (kernel - 1) + 1
@@ -2521,11 +2535,13 @@ output          = ceil(numerator / stride) + 1        in ceil mode
 ```
 
 The immutable attributes validate only intrinsic component signs and nullness. They retain valid
-values and exact immutable Shape/window references without calculating geometry or proving rank,
-axis bounds, fit, column compatibility, or arithmetic representability. Current public `unfold`,
-`unfold2d`, and `fold2d` construction supplies its existing local validation, checked Shape
-arithmetic, preserved data type and gradient eligibility, unresolved layout, and exact one-input
-provenance. Compiler-generated fold-axis operand compatibility remains owned by task 0023.
+values and exact immutable scalar/Shape/window references without calculating geometry or proving
+rank, axis bounds, fit, column compatibility, or arithmetic representability. Current public
+`unfold`, `foldAxis`, both `unfold2d` forms, and `fold2d` construction supplies input-aware local
+validation, exact Shape arithmetic, preserved data type and gradient eligibility, unresolved
+layout, and exact one-input provenance. `fold2d` requires complete structural equality with the
+canonical column formulas and rejects unrelated unresolved symbols rather than registering an
+equality constraint.
 Gradient rules, compiler behavior, materialization,
 lowering, backend/ONNX behavior, and execution remain planned. See
 [Window-transform semantic kinds and
@@ -2544,8 +2560,9 @@ covered by those samples: `dilation * (kernel - 1) + 1`. **Ceil mode** rounds th
 quotient upward; current maximum and average pooling use the literal symmetric padded grid and do
 not remove a terminal window that begins entirely in trailing padding.
 
-The meaning of a padding coordinate depends on the operation. `UNFOLD2D` reads it as conceptual
-zero, Conv2d includes conceptual positive zero in multiplication, and `MAX_POOL2D` excludes it
+The meaning of a padding coordinate depends on the operation. Direct `UNFOLD2D` reads it as
+conceptual positive zero, while its explicit-padding variant reads the exact supplied typed scalar.
+Conv2d includes conceptual positive zero in multiplication, and `MAX_POOL2D` excludes padding
 from maximum selection. An all-padding maximum-pooling window therefore returns negative infinity.
 `AVERAGE_POOL2D` instead uses **count-padding**: every logical kernel position contributes one to
 the positive **divisor** `kernelHeight * kernelWidth`, while an out-of-bounds position contributes

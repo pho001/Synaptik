@@ -17,10 +17,9 @@ import java.util.List;
  * {@code [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}, axis zero, output size five, and step one produce
  * conceptual Shape {@code [5]} with values {@code [1, 6, 15, 14, 9]}; overlapping contributions
  * are summed. The explicit output size is required because window count, window size, and step do
- * not identify trailing uncovered positions. No public Tensor expression currently constructs
- * {@code FOLD_AXIS}; task 0023 owns its first compiler-generated construction for backward graphs.
- * Retaining the kind here keeps that backend-independent semantic representable without adding
- * compiler behavior to the model.</p>
+ * not identify trailing uncovered positions. Public Tensor construction validates this geometry
+ * and records the same backend-independent meaning without adding compiler behavior to the
+ * model.</p>
  *
  * <p>{@link #UNFOLD2D} and {@link #FOLD2D} use NCHW (batch, channel, height, width) image geometry.
  * Two-dimensional unfold is im2col: conceptual Shape {@code [1, 1, 3, 3]} with a 2-by-2 kernel,
@@ -30,12 +29,13 @@ import java.util.List;
  * one, with no overlap averaging.</p>
  *
  * <p>The exact kind-to-attributes pairings are UNFOLD_AXIS with {@link UnfoldAxisAttrs}, FOLD_AXIS
- * with {@link FoldAxisAttrs}, UNFOLD2D with {@link Window2dAttrs}, and FOLD2D with
- * {@link Fold2dAttrs}. Family-owned signatures enforce each exact pairing and declare one input
- * and one output. This enum performs no Tensor construction, Shape calculation, sampling,
+ * with {@link FoldAxisAttrs}, UNFOLD2D with either {@link Window2dAttrs} for conceptual
+ * positive-zero padding or {@link Unfold2dAttrs} for one exact typed padding value, and FOLD2D
+ * with {@link Fold2dAttrs}. Family-owned signatures enforce each exact pairing and declare one
+ * input and one output. This enum performs no Tensor construction, Shape calculation, sampling,
  * accumulation, layout or storage selection, gradient construction, graph/compiler work,
- * lowering, backend dispatch, or execution. Public Tensor construction currently exists for
- * {@code UNFOLD_AXIS}, {@code UNFOLD2D}, and {@code FOLD2D} only.</p>
+ * lowering, backend dispatch, or execution. Public Tensor construction currently exists for all
+ * four meanings.</p>
  */
 public enum WindowTransformKind implements OperationKind {
     /**
@@ -49,14 +49,15 @@ public enum WindowTransformKind implements OperationKind {
      * Scatter-adds the final input window dimension along the normalized target axis in
      * {@link FoldAxisAttrs}, restoring its explicit output extent and summing overlaps.
      *
-     * <p>This is a compiler-only model semantic. No public Tensor expression constructs it;
-     * task 0023 owns compiler generation.</p>
+     * <p>Public {@code Tensor.foldAxis} construction records this semantic after validating the
+     * rank, numeric type, static window geometry, and requested output extent. Gradient
+     * construction remains compiler-owned and is not implied by this kind.</p>
      */
     FOLD_AXIS,
 
     /**
      * Materializes a rank-four NCHW input as canonical rank-three im2col columns parameterized by
-     * {@link Window2dAttrs}.
+     * direct conceptual-zero {@link Window2dAttrs} or explicit-padding {@link Unfold2dAttrs}.
      */
     UNFOLD2D,
 
@@ -70,8 +71,9 @@ public enum WindowTransformKind implements OperationKind {
             List.of(OperationSignature.fixed(UnfoldAxisAttrs.class, 1, 1));
     private static final List<OperationSignature> FOLD_AXIS_SIGNATURES =
             List.of(OperationSignature.fixed(FoldAxisAttrs.class, 1, 1));
-    private static final List<OperationSignature> UNFOLD_2D_SIGNATURES =
-            List.of(OperationSignature.fixed(Window2dAttrs.class, 1, 1));
+    private static final List<OperationSignature> UNFOLD_2D_SIGNATURES = List.of(
+            OperationSignature.fixed(Window2dAttrs.class, 1, 1),
+            OperationSignature.fixed(Unfold2dAttrs.class, 1, 1));
     private static final List<OperationSignature> FOLD_2D_SIGNATURES =
             List.of(OperationSignature.fixed(Fold2dAttrs.class, 1, 1));
 

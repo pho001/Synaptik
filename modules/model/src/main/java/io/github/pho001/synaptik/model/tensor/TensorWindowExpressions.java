@@ -1,12 +1,16 @@
 package io.github.pho001.synaptik.model.tensor;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
 import java.util.List;
@@ -14,19 +18,19 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Constructs the locally validated public unfold, unfold2d, and fold2d Tensor expressions.
+ * Constructs the locally validated public general-axis and NCHW window Tensor expressions.
  *
  * <p>General-axis unfold replaces one static extent with the count of positive-step windows and
- * appends window size. Two-dimensional unfold maps rank-four NCHW (batch, channel, height, width)
- * geometry to canonical im2col columns; two-dimensional fold maps compatible columns back through
- * overlap-accumulating col2im. The retained compiler-only
- * {@link WindowTransformKind#FOLD_AXIS} semantic has no public construction path in this helper;
- * task 0023 owns its first compiler-generated construction.</p>
+ * appends window size. General-axis fold removes that final dimension and restores an explicit
+ * target extent under overlap summation. Two-dimensional unfold maps rank-four NCHW (batch,
+ * channel, height, width) geometry to canonical im2col columns; two-dimensional fold maps
+ * compatible columns back through overlap-accumulating col2im.</p>
  *
- * <p>All Shape arithmetic is local and checked. Floor and ceil window counts use quotient and
- * remainder arithmetic, avoiding {@code numerator + stride - 1}. Results always leave layout
- * unresolved and carry exact one-input provenance. This helper owns no state and never reads
- * values or storage, materializes windows, defines gradients, captures graphs, or executes work.</p>
+ * <p>All Shape arithmetic is local and checked. Static floor and ceil window counts use quotient
+ * and remainder arithmetic, avoiding {@code numerator + stride - 1}; unresolved 2D extents use
+ * canonical linear, division, and product expressions. Results always leave layout unresolved
+ * and carry exact one-input provenance. This helper owns no state and never reads values or
+ * storage, materializes windows, defines gradients, captures graphs, or executes work.</p>
  */
 final class TensorWindowExpressions {
     /** Prevents instantiation because window-expression construction owns no state. */
@@ -67,6 +71,63 @@ final class TensorWindowExpressions {
     }
 
     /**
+     * Validates and creates one general-axis overlap-summing fold expression.
+     *
+     * @param input non-null rank-two-or-greater window Tensor whose final dimension is window size
+     * @param axis raw positive or negative target axis, excluding the final input dimension
+     * @param outputSize non-negative restored target extent in logical elements
+     * @param step positive distance between window starts in logical elements
+     * @return a non-null fresh FOLD_AXIS Tensor with checked Shape and unresolved layout
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IllegalArgumentException if rank, attributes, type, staticity, final-window extent,
+     *     or count geometry is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is outside target rank
+     * @throws ArithmeticException if checked expected-window arithmetic overflows
+     */
+    static Tensor foldAxis(Tensor input, int axis, long outputSize, long step) {
+        Objects.requireNonNull(input, "input");
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() < 2) {
+            throw new IllegalArgumentException("foldAxis requires rank at least 2");
+        }
+        int targetRank = inputShape.rank() - 1;
+        int normalizedAxis = normalizeAxis(axis, targetRank);
+        FoldAxisAttrs attrs = new FoldAxisAttrs(normalizedAxis, outputSize, step);
+        validateNumeric(input.descriptor().dataType(), "foldAxis");
+        long actualWindows = requireStaticSize(
+                inputShape, normalizedAxis, "foldAxis", "window-count");
+        Dimension finalDimension = inputShape.dimensions().get(inputShape.rank() - 1);
+        if (!(finalDimension instanceof StaticDimension staticWindow) || staticWindow.size() <= 0) {
+            throw new IllegalArgumentException(
+                    "foldAxis requires a positive static final window dimension");
+        }
+        long windowSize = staticWindow.size();
+        if (outputSize == 0) {
+            if (actualWindows != 0) {
+                throw new IllegalArgumentException(
+                        "foldAxis window count " + actualWindows
+                                + " does not match output size and window geometry: expected=0");
+            }
+        } else {
+            if (windowSize > outputSize) {
+                throw new IllegalArgumentException(
+                        "foldAxis window size " + windowSize
+                                + " exceeds output size " + outputSize);
+            }
+            long expectedWindows = Math.addExact((outputSize - windowSize) / step, 1L);
+            if (actualWindows != expectedWindows) {
+                throw new IllegalArgumentException(
+                        "foldAxis window count " + actualWindows
+                                + " does not match output size and window geometry: expected="
+                                + expectedWindows);
+            }
+        }
+        Shape resultShape = foldAxisShape(inputShape, attrs);
+        Operation operation = new Operation(WindowTransformKind.FOLD_AXIS, attrs);
+        return create(input, resultShape, operation);
+    }
+
+    /**
      * Validates rank-four NCHW geometry and creates canonical rank-three im2col metadata.
      *
      * @param input non-null rank-four floating NCHW Tensor retained as sole provenance input
@@ -74,8 +135,9 @@ final class TensorWindowExpressions {
      * @return a non-null fresh UNFOLD2D Tensor with Shape
      *     {@code [N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]}
      * @throws NullPointerException if {@code input} or {@code window} is null, in that order
-     * @throws IllegalArgumentException if rank, type, required staticity, or kernel fit is invalid
-     * @throws ArithmeticException if checked geometry arithmetic overflows
+     * @throws IllegalArgumentException if rank or type is invalid or static geometry proves that
+     *     an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor unfold2d(Tensor input, Window2dAttrs window) {
         Objects.requireNonNull(input, "input");
@@ -91,6 +153,40 @@ final class TensorWindowExpressions {
     }
 
     /**
+     * Validates rank-four NCHW geometry and creates canonical columns with exact typed padding.
+     *
+     * @param input non-null rank-four floating NCHW Tensor retained as sole provenance input
+     * @param window non-null exact symmetric kernel/stride/padding/dilation geometry
+     * @param paddingValue non-null scalar whose exact type and bits supply out-of-domain samples
+     * @return a non-null fresh UNFOLD2D Tensor with canonical rank-three Shape
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if rank, input type, scalar type, or statically provable
+     *     geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold2d(
+            Tensor input, Window2dAttrs window, ScalarValue paddingValue) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Objects.requireNonNull(paddingValue, "paddingValue");
+        Shape inputShape = input.descriptor().shape();
+        if (inputShape.rank() != 4) {
+            throw new IllegalArgumentException("unfold2d requires rank-4 NCHW input");
+        }
+        DataType inputDataType = input.descriptor().dataType();
+        validateFloating(inputDataType, "unfold2d");
+        if (paddingValue.dataType() != inputDataType) {
+            throw new IllegalArgumentException(
+                    "unfold2d paddingValue data type must match input data type: paddingValue="
+                            + paddingValue.dataType() + ", input=" + inputDataType);
+        }
+        Shape resultShape = unfold2dShape(inputShape, window);
+        Unfold2dAttrs attrs = new Unfold2dAttrs(window, paddingValue);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD2D, attrs);
+        return create(input, resultShape, operation);
+    }
+
+    /**
      * Validates canonical columns against explicit NCHW geometry and creates fold metadata.
      *
      * @param input non-null rank-three floating canonical-column Tensor
@@ -99,9 +195,9 @@ final class TensorWindowExpressions {
      *     exactly
      * @return a non-null fresh FOLD2D Tensor with the exact output Shape and unresolved layout
      * @throws NullPointerException if a reference is null, checked in parameter order
-     * @throws IllegalArgumentException if rank, type, batch, staticity, kernel fit, channel-window,
-     *     or window-count compatibility is invalid
-     * @throws ArithmeticException if checked geometry arithmetic overflows
+     * @throws IllegalArgumentException if rank, type, batch, effective-kernel fit, or exact
+     *     structural channel/window compatibility is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor fold2d(Tensor input, Shape outputShape, Window2dAttrs window) {
         Objects.requireNonNull(input, "input");
@@ -123,6 +219,20 @@ final class TensorWindowExpressions {
         Fold2dAttrs attrs = new Fold2dAttrs(outputShape, window);
         Operation operation = new Operation(WindowTransformKind.FOLD2D, attrs);
         return create(input, outputShape, operation);
+    }
+
+    /**
+     * Requires a floating or integral input type for overlap-summing folding.
+     *
+     * @param dataType non-null exact input data type
+     * @param operation non-null constant operation name used in failures
+     * @throws IllegalArgumentException if {@code dataType} is BOOL
+     */
+    private static void validateNumeric(DataType dataType, String operation) {
+        if (!dataType.isFloating() && !dataType.isIntegral()) {
+            throw new IllegalArgumentException(
+                    operation + " requires floating or integral input: " + dataType);
+        }
     }
 
     /**
@@ -203,22 +313,40 @@ final class TensorWindowExpressions {
     }
 
     /**
+     * Derives axis-fold Shape by removing the final window dimension and restoring target extent.
+     *
+     * @param inputShape non-null validated rank-two-or-greater window Shape
+     * @param attrs non-null normalized fold attributes compatible with the input geometry
+     * @return non-null rank-one-smaller Shape preserving exact unaffected Dimension references
+     */
+    private static Shape foldAxisShape(Shape inputShape, FoldAxisAttrs attrs) {
+        Dimension[] dimensions = new Dimension[inputShape.rank() - 1];
+        for (int index = 0; index < dimensions.length; index++) {
+            dimensions[index] = index == attrs.axis()
+                    ? new StaticDimension(attrs.outputSize())
+                    : inputShape.dimensions().get(index);
+        }
+        return Shape.ofDimensions(dimensions);
+    }
+
+    /**
      * Calculates checked canonical im2col Shape while retaining the exact batch Dimension.
      *
      * @param inputShape non-null rank-four NCHW Shape
      * @param window non-null validated intrinsic window geometry
      * @return non-null rank-three canonical-column Shape
-     * @throws IllegalArgumentException if channel, height, or width is dynamic or a kernel does
-     *     not fit its padded spatial dimension
-     * @throws ArithmeticException if checked geometry arithmetic overflows
+     * @throws IllegalArgumentException if static geometry proves that a kernel does not fit its
+     *     padded spatial dimension
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     private static Shape unfold2dShape(Shape inputShape, Window2dAttrs window) {
-        long channels = requireStaticSize(inputShape, 1, "unfold2d", "channel");
-        long height = requireStaticSize(inputShape, 2, "unfold2d", "height");
-        long width = requireStaticSize(inputShape, 3, "unfold2d", "width");
-        long channelWindows = Math.multiplyExact(
-                Math.multiplyExact(channels, window.kernelHeight()), window.kernelWidth());
-        long outputHeight = windowOutputSize(
+        Dimension channels = inputShape.dimensions().get(1);
+        Dimension height = inputShape.dimensions().get(2);
+        Dimension width = inputShape.dimensions().get(3);
+        Dimension channelWindows = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(channels, window.kernelHeight()),
+                window.kernelWidth());
+        Dimension outputHeight = windowOutputDimension(
                 height,
                 window.kernelHeight(),
                 window.paddingHeight(),
@@ -227,7 +355,7 @@ final class TensorWindowExpressions {
                 window.ceilMode(),
                 "unfold2d",
                 "height");
-        long outputWidth = windowOutputSize(
+        Dimension outputWidth = windowOutputDimension(
                 width,
                 window.kernelWidth(),
                 window.paddingWidth(),
@@ -236,44 +364,42 @@ final class TensorWindowExpressions {
                 window.ceilMode(),
                 "unfold2d",
                 "width");
-        long windowCount = Math.multiplyExact(outputHeight, outputWidth);
+        Dimension windowCount = DimensionExpressions.multiply(outputHeight, outputWidth);
         return Shape.ofDimensions(
                 inputShape.dimensions().get(0),
-                new StaticDimension(channelWindows),
-                new StaticDimension(windowCount));
+                channelWindows,
+                windowCount);
     }
 
     /**
-     * Validates canonical columns against static output NCHW channel and spatial geometry.
+     * Validates canonical columns against static or symbolic output NCHW geometry.
      *
      * @param inputShape non-null rank-three columns with batch already matched
      * @param outputShape non-null rank-four NCHW target Shape
      * @param window non-null intrinsic window geometry
-     * @throws IllegalArgumentException if required dimensions are dynamic, effective kernel does
-     *     not fit, or channel/window counts differ from checked expected values
-     * @throws ArithmeticException if checked expected-geometry arithmetic overflows
+     * @throws IllegalArgumentException if static effective-kernel fit fails or the complete
+     *     channel/window Dimensions differ structurally from the canonical expected values
+     * @throws ArithmeticException if checked expected geometry or symbolic canonicalization
+     *     overflows
      */
     private static void validateFold2dShape(
             Shape inputShape, Shape outputShape, Window2dAttrs window) {
-        long actualChannelWindows = requireStaticSize(
-                inputShape, 1, "fold2d", "column-channel");
-        long actualWindowCount = requireStaticSize(
-                inputShape, 2, "fold2d", "column-count");
-        long outputChannels = requireStaticSize(
-                outputShape, 1, "fold2d", "output channel");
-        long outputHeightSize = requireStaticSize(
-                outputShape, 2, "fold2d", "output height");
-        long outputWidthSize = requireStaticSize(
-                outputShape, 3, "fold2d", "output width");
-        long expectedChannelWindows = Math.multiplyExact(
-                Math.multiplyExact(outputChannels, window.kernelHeight()), window.kernelWidth());
-        if (actualChannelWindows != expectedChannelWindows) {
+        Dimension actualChannelWindows = inputShape.dimensions().get(1);
+        Dimension actualWindowCount = inputShape.dimensions().get(2);
+        Dimension outputChannels = outputShape.dimensions().get(1);
+        Dimension outputHeightSize = outputShape.dimensions().get(2);
+        Dimension outputWidthSize = outputShape.dimensions().get(3);
+        Dimension expectedChannelWindows = DimensionExpressions.multiply(
+                DimensionExpressions.multiply(outputChannels, window.kernelHeight()),
+                window.kernelWidth());
+        if (!actualChannelWindows.equals(expectedChannelWindows)) {
             throw new IllegalArgumentException(
-                    "fold2d column-channel dimension " + actualChannelWindows
+                    "fold2d column-channel dimension "
+                            + dimensionDiagnostic(actualChannelWindows)
                             + " does not match output channels and kernel geometry: expected="
-                            + expectedChannelWindows);
+                            + dimensionDiagnostic(expectedChannelWindows));
         }
-        long outputHeight = windowOutputSize(
+        Dimension outputHeight = windowOutputDimension(
                 outputHeightSize,
                 window.kernelHeight(),
                 window.paddingHeight(),
@@ -282,7 +408,7 @@ final class TensorWindowExpressions {
                 window.ceilMode(),
                 "fold2d",
                 "height");
-        long outputWidth = windowOutputSize(
+        Dimension outputWidth = windowOutputDimension(
                 outputWidthSize,
                 window.kernelWidth(),
                 window.paddingWidth(),
@@ -291,13 +417,59 @@ final class TensorWindowExpressions {
                 window.ceilMode(),
                 "fold2d",
                 "width");
-        long expectedWindowCount = Math.multiplyExact(outputHeight, outputWidth);
-        if (actualWindowCount != expectedWindowCount) {
+        Dimension expectedWindowCount = DimensionExpressions.multiply(outputHeight, outputWidth);
+        if (!actualWindowCount.equals(expectedWindowCount)) {
             throw new IllegalArgumentException(
-                    "fold2d column count " + actualWindowCount
+                    "fold2d column count " + dimensionDiagnostic(actualWindowCount)
                             + " does not match output shape and window geometry: expected="
-                            + expectedWindowCount);
+                            + dimensionDiagnostic(expectedWindowCount));
         }
+    }
+
+    /**
+     * Calculates one static or symbolic floor- or ceil-mode spatial window count.
+     *
+     * @param inputSize non-null static or symbolic input spatial extent
+     * @param kernel positive count of kernel samples
+     * @param padding non-negative symmetric padding on each side
+     * @param stride positive distance between window starts
+     * @param dilation positive spacing between kernel samples
+     * @param ceilMode true for ceil quotient rounding, false for floor rounding
+     * @param operation non-null constant operation name for failures
+     * @param dimension non-null spatial dimension name for failures
+     * @return non-null exact static or symbolic window-position count
+     * @throws IllegalArgumentException if static geometry proves the effective kernel does not fit
+     * @throws ArithmeticException if checked geometry arithmetic overflows
+     */
+    private static Dimension windowOutputDimension(
+            Dimension inputSize,
+            long kernel,
+            long padding,
+            long stride,
+            long dilation,
+            boolean ceilMode,
+            String operation,
+            String dimension) {
+        if (inputSize instanceof StaticDimension staticDimension) {
+            return new StaticDimension(windowOutputSize(
+                    staticDimension.size(), kernel, padding, stride, dilation, ceilMode,
+                    operation, dimension));
+        }
+        long effectiveKernel = Math.addExact(
+                Math.multiplyExact(dilation, Math.subtractExact(kernel, 1L)), 1L);
+        long offset = Math.subtractExact(Math.multiplyExact(2L, padding), effectiveKernel);
+        Dimension numerator = DimensionExpressions.addConstant(inputSize, offset);
+        Dimension quotient = ceilMode
+                ? DimensionExpressions.ceilingDivide(numerator, stride)
+                : DimensionExpressions.floorDivide(numerator, stride);
+        return DimensionExpressions.addConstant(quotient, 1L);
+    }
+
+    private static String dimensionDiagnostic(Dimension dimension) {
+        if (dimension instanceof StaticDimension staticDimension) {
+            return Long.toString(staticDimension.size());
+        }
+        return dimension.toString();
     }
 
     /**

@@ -75,9 +75,10 @@ its retained `double` overload is an exact-FLOAT64 convenience. `tile(long...)` 
 complete input pattern along every axis. Static `concat` joins an
 ordered non-empty input sequence along an existing axis, static `stack` inserts a count axis for
 same-shaped inputs, and instance `unstack` returns an immutable ordered list of independent scalar
-select expressions. `unfold` adds general-axis window materialization, while `unfold2d` and
-`fold2d` add NCHW im2col and overlap-summing col2im Shape construction. General-axis `FOLD_AXIS`
-remains representable as compiler-only model semantics but has no public Tensor method.
+select expressions. `unfold` adds general-axis window materialization and `foldAxis` restores its
+overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col with conceptual
+positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
+or symbolic compatibility.
 Typed access, other expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
 remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
@@ -198,11 +199,10 @@ detection, gradients, compiler behavior, backend behavior, and execution remain 
 separately owned.
 
 `WindowTransformKind.UNFOLD_AXIS`, `FOLD_AXIS`, `UNFOLD2D`, and `FOLD2D` are current semantic
-identities with normalized immutable window attributes. Public `Tensor.unfold`, `unfold2d`, and
-`fold2d` own their existing static Shape and compatibility checks, checked window arithmetic,
-unresolved result layout, and exact one-input provenance. `FOLD_AXIS` and `FoldAxisAttrs` remain
-compiler-only semantic values with no public Tensor construction path; task 0023 owns their first
-compiler-generated use. These contracts describe materialized windows or overlap-summing
+identities with normalized immutable window attributes. Public `Tensor.unfold`, `foldAxis`, both
+`unfold2d` variants, and `fold2d` own their input-aware Shape and compatibility checks, checked
+static or canonical symbolic arithmetic, unresolved result layout, and exact one-input provenance.
+These contracts describe materialized windows or overlap-summing
 scatter-add without reading values, attaching storage, capturing a graph, generating gradients,
 or executing.
 
@@ -260,7 +260,8 @@ Tensor + coordinate-tuple indices + GATHER_ND    = fresh indices-prefix-plus-dat
 Tensor + same-rank indices/updates + SCATTER_ELEMENTS = fresh data-Shape replacement/reduction Tensor
 Tensor + coordinate-tuple indices/updates + SCATTER_ND = fresh data-Shape replacement/reduction Tensor
 Tensor + axis/size/step + UNFOLD_AXIS              = fresh general-axis window Tensor
-rank-four NCHW Tensor + window geometry + UNFOLD2D = fresh canonical column Tensor
+window Tensor + axis/output/step + FOLD_AXIS       = fresh overlap-summed target Tensor
+rank-four NCHW Tensor + window/[padding] + UNFOLD2D = fresh canonical column Tensor
 rank-three columns + NCHW Shape/window + FOLD2D    = fresh NCHW fold Tensor
 TensorId / NodeId / ValueId                                  = distinct identity domains
 Operation                                                     = OperationKind + OperationAttrs
@@ -662,13 +663,15 @@ and expose immutable dimension lists.
 ### Symbolic extent expressions
 
 `DimensionExpressions` is the field-free public construction boundary for derived extents. Its
-six methods create checked addition, signed constant offset, multiplication by a non-negative
-constant, floor or ceiling division by a positive constant, and a distinct constrained unknown:
+seven methods create checked addition, signed constant offset, multiplication by a non-negative
+constant, multiplication of two Dimensions, floor or ceiling division by a positive constant,
+and a distinct constrained unknown:
 
 ```java
 add(left, right)
 addConstant(input, offset)
 multiply(input, factor)
+multiply(left, right)
 floorDivide(input, divisor)
 ceilingDivide(input, divisor)
 unknown(minimum, maximum)
@@ -679,13 +682,18 @@ Construction returns the simplest truthful `Dimension`. Fully static arithmetic 
 reference; multiplying by zero returns static zero. Linear sums flatten nested sums, fold static
 terms into a checked signed offset, combine repeated dimensions, and ignore operand order for
 equality. Thus `N + N` equals `2 * N`, and independently constructed `N + M` and `M + N` are
-equal. Floor and ceiling division remain explicit structural nodes and are not reassociated with
-addition or multiplication.
+equal. Dimension-to-Dimension multiplication folds static factors, applies the zero and one
+identities, flattens nested products, and combines repeated structurally equal factors as positive
+exponents. Product factor order is not semantic. Multiplication does not distribute over linear
+sums. Floor and ceiling division remain explicit structural nodes and are not reassociated with
+addition or multiplication. All coefficient, exponent, and static arithmetic is checked.
 
-An `ExpressionDimension` exposes its read-only `DimensionExpression`. The four public forms are:
+An `ExpressionDimension` exposes its read-only `DimensionExpression`. The five public forms are:
 
 - `LinearCombination`, an immutable non-empty map of dimensions to positive `long`
   coefficients plus a signed `long` offset;
+- `Product`, an immutable non-empty map of complete Dimension factors to positive `long`
+  exponents plus one positive constant coefficient;
 - `FloorDivision` and `CeilingDivision`, each with one dividend and a positive constant divisor;
   and
 - `Unknown`, with an inclusive non-negative minimum and an optional inclusive maximum dimension.
@@ -6696,11 +6704,13 @@ inspection. Unstack rejects an invalid axis, dynamic selected extent, or count a
 without consuming an identifier.
 ### Window-transform expressions
 
-The current public API constructs three storage-free sliding-window expressions:
+The current public API constructs five storage-free sliding-window expressions:
 
 ```java
 tensor.unfold(int axis, long size, long step)
+tensor.foldAxis(int axis, long outputSize, long step)
 tensor.unfold2d(Window2dAttrs window)
+tensor.unfold2d(Window2dAttrs window, ScalarValue paddingValue)
 tensor.fold2d(Shape outputShape, Window2dAttrs window)
 ```
 
@@ -6711,11 +6721,21 @@ For selected extent `D`, it replaces that extent with
 `size` as the final axis. It accepts every current data type. Thus input Shape `[2, 5, 3]`, axis
 `1`, size `3`, and step `1` produces `[2, 3, 3, 3]`.
 
-`unfold2d` requires rank-four NCHW input and a floating data type. Batch may be dynamic and is
-retained exactly; channel, height, and width must be static. `fold2d` requires floating rank-three
-canonical columns and an explicit rank-four NCHW output Shape. Column and output batch Dimensions
-must be structurally equal, and output channel, height, and width must be static. For each spatial
-dimension, both forms use checked `long` arithmetic:
+`foldAxis` reverses that rank change under overlap summation. Its final input Dimension is a
+positive static window size; its remaining Dimensions define the target rank used to normalize
+the raw axis. The selected static window-count Dimension is replaced by non-negative
+`outputSize`, and the final Dimension is removed. Positive output size requires
+`floor((outputSize - windowSize) / step) + 1` windows; zero output size requires zero windows.
+Floating and signed-integral inputs are accepted, while BOOL is rejected. For conceptual windows
+`[[1,2,3], [4,5,6], [7,8,9]]`, axis `0`, output size `5`, and step `1`, overlap summation gives
+conceptual result `[1,6,15,14,9]`.
+
+Both `unfold2d` overloads require rank-four NCHW input and a floating data type. Batch, channel,
+height, and width may be static or unresolved; the exact batch Dimension is retained. `fold2d`
+requires floating rank-three canonical columns and an explicit rank-four NCHW output Shape.
+Column and output batch Dimensions must be structurally equal. For each spatial dimension, all
+three 2D construction paths use checked static arithmetic or retain the corresponding canonical
+symbolic expression:
 
 ```text
 effectiveKernel = dilation * (kernel - 1) + 1
@@ -6724,15 +6744,32 @@ positions       = floor(numerator / stride) + 1       in floor mode
 positions       = ceil(numerator / stride) + 1        in ceil mode
 ```
 
-The effective kernel must fit the padded input. Ceil mode uses quotient and remainder rather than
+The effective kernel must fit the padded input when static geometry can prove otherwise. An
+unresolved numerator retains its non-negativity obligation for later binding. Ceil mode avoids
 the overflow-prone `numerator + stride - 1` identity. `unfold2d` produces canonical Shape
-`[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`; `fold2d` requires its column
-dimensions to match that same checked geometry and retains the exact supplied output Shape.
+`[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`; products of unresolved
+Dimensions use the exact canonical symbolic-product form. `fold2d` requires complete structural
+equality with those channel and window-count formulas and retains the exact supplied output Shape.
+An unrelated unresolved symbol is rejected because model construction does not create an unnamed
+equality constraint.
+
+For dynamic input `[N,C,H,W]`, a 3-by-3 kernel, stride two, padding one, unit dilation, and floor
+mode produces channel Dimension `9 * C` and flattened window Dimension
+`(floor((H - 1) / 2) + 1) * (floor((W - 1) / 2) + 1)`. Ceil mode retains the same formula with
+ceiling division. This metadata is exact structurally; it does not bind `N`, `C`, `H`, or `W`.
+
+The one-argument `unfold2d` pairs `UNFOLD2D` directly with the supplied `Window2dAttrs`; every
+out-of-domain sample is conceptual positive zero. The two-argument overload instead pairs
+`UNFOLD2D` with `Unfold2dAttrs(window, paddingValue)`. The scalar must exactly match the floating
+input data type and is retained by reference with its raw NaN, infinity, or signed-zero bits. It
+supplies symmetric padding positions and terminal ceil-grid positions beyond the padded extent.
+This is extraction semantics, not maximum-pooling padding or a backend fill policy.
+
 Conceptual `[1, 1, 3, 3]` input with a 2-by-2 kernel, unit stride and dilation, zero symmetric
 padding, and floor mode unfolds to `[1, 4, 4]`. Folding compatible columns to `[1, 1, 3, 3]`
 scatter-adds four contributions at the center and one at each corner, without overlap averaging.
 
-All three results preserve the exact input data type and gradient-eligibility flag, use unresolved
+All results preserve the exact input data type and gradient-eligibility flag, use unresolved
 layout, record the matching normalized attributes and exact `[input]` provenance, and receive a
 fresh unlabeled identity. They do not inspect input layout, label, provenance, storage, or values;
 attach or allocate storage; materialize windows; accumulate overlaps; create a gradient rule;
@@ -6740,11 +6777,16 @@ capture a graph; lower to a backend; or execute.
 
 #### Complete window-transform expression example
 
-This runnable example observes only Shape, operation, provenance, and storage metadata:
+This runnable Java 26 example observes only Shape, operation, provenance, and storage metadata:
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -6759,17 +6801,34 @@ public final class TensorWindowExpressionExample {
 
     public static void main(String[] args) {
         Tensor unfolded = tensor(Shape.of(2, 5, 3)).unfold(1, 3, 1);
+        Tensor folded = tensor(Shape.of(3, 3)).foldAxis(0, 5, 1);
         Window2dAttrs window = new Window2dAttrs(
                 2, 2, 1, 1, 0, 0, 1, 1, false);
         Tensor columns = tensor(Shape.of(1, 1, 3, 3)).unfold2d(window);
         Tensor image = columns.fold2d(Shape.of(1, 1, 3, 3), window);
+        ScalarValue padding = ScalarValue.float32(-0.0f);
+        Tensor paddedColumns = tensor(Shape.of(1, 1, 3, 3)).unfold2d(window, padding);
+
+        Dimension n = new DynamicDimension("N");
+        Dimension c = new DynamicDimension("C");
+        Dimension h = new DynamicDimension("H");
+        Dimension w = new DynamicDimension("W");
+        Shape dynamicImageShape = Shape.ofDimensions(n, c, h, w);
+        Window2dAttrs dynamicWindow = new Window2dAttrs(
+                3, 3, 2, 2, 1, 1, 1, 1, false);
+        Tensor dynamicColumns = tensor(dynamicImageShape).unfold2d(dynamicWindow);
+        Tensor dynamicImage = dynamicColumns.fold2d(dynamicImageShape, dynamicWindow);
+        Unfold2dAttrs paddingAttrs = (Unfold2dAttrs) paddedColumns.provenance()
+                .orElseThrow().operation().attrs();
 
         System.out.println(unfolded.descriptor().shape());
+        System.out.println(folded.descriptor().shape());
         System.out.println(columns.descriptor().shape());
         System.out.println(image.descriptor().shape());
-        System.out.println(unfolded.provenance().orElseThrow().operation().kind());
-        System.out.println(image.provenance().orElseThrow().operation().kind());
-        System.out.println(image.descriptor().requiresGrad());
+        System.out.println(paddingAttrs.paddingValue() == padding);
+        System.out.println(dynamicColumns.descriptor().shape().dimensions().get(1)
+                .equals(DimensionExpressions.multiply(c, 9)));
+        System.out.println(dynamicImage.descriptor().shape() == dynamicImageShape);
         System.out.println(image.descriptor().layout().isEmpty()
                 && image.hostStorage().isEmpty());
     }
@@ -6780,16 +6839,18 @@ It prints:
 
 ```text
 Shape[2, 3, 3, 3]
+Shape[5]
 Shape[1, 4, 4]
 Shape[1, 1, 3, 3]
-UNFOLD_AXIS
-FOLD2D
+true
+true
 true
 true
 ```
 
 Invalid rank, axis, intrinsic sign, required staticity, window fit, type, or column compatibility
-fails before identity allocation. Checked geometry overflow propagates as `ArithmeticException`.
+fails before identity allocation. Structural `fold2d` compatibility rejects unrelated unresolved
+Dimensions. Checked geometry or canonicalization overflow propagates as `ArithmeticException`.
 Null references are rejected in parameter order. Identifier exhaustion remains possible only at
 final derived-Tensor construction after all local immutable metadata has been prepared.
 
@@ -8893,8 +8954,8 @@ they do not construct Tensors, calculate result Shapes, or execute values.
 | Kind | Semantic meaning | Required attributes |
 |---|---|---|
 | `UNFOLD_AXIS` | Materialize no-padding, no-dilation windows along one normalized general axis; replace that extent with window positions and append window size as the final axis. | `UnfoldAxisAttrs` |
-| `FOLD_AXIS` | Compiler-only semantic: interpret the eventual input's final dimension as window size, remove it, and scatter-add windows along one normalized target axis with an explicit restored extent. | `FoldAxisAttrs` |
-| `UNFOLD2D` | Convert one conceptual rank-four NCHW image tensor to canonical rank-three im2col columns. | `Window2dAttrs` |
+| `FOLD_AXIS` | Interpret the eventual input's final dimension as window size, remove it, and scatter-add windows along one normalized target axis with an explicit restored extent. | `FoldAxisAttrs` |
+| `UNFOLD2D` | Convert one conceptual rank-four NCHW image tensor to canonical rank-three im2col columns, using direct positive-zero or explicit exact typed padding. | `Window2dAttrs` or `Unfold2dAttrs` |
 | `FOLD2D` | Accumulate canonical rank-three columns through col2im into one explicit rank-four NCHW result Shape. | `Fold2dAttrs` |
 
 NCHW orders axes as batch, channel, height, and width. Im2col places sampled image windows into
@@ -8946,16 +9007,16 @@ zero. `outputSize` is explicit because window count, final-dimension window size
 identify trailing positions that the windows did not cover.
 
 The input's final dimension supplies `FOLD_AXIS` window size; `FoldAxisAttrs` deliberately does
-not duplicate it. No public Tensor expression constructs this semantic. Task 0023 owns its first
-compiler-generated construction for backward graphs, including operand compatibility and gradient
-use. Retaining the model value now does not implement autograd.
+not duplicate it. Public `Tensor.foldAxis` normalizes the caller axis against target rank, checks
+numeric type and static geometry, and creates one fresh expression. This public transformation
+does not implement autograd or compiler-generated use.
 
 ##### Validation and ownership
 
 Both records store an already normalized non-negative `axis`. Public `Tensor.unfold` accepts a
-negative axis while it has the source rank available to normalize and bounds-check the request.
-No corresponding public fold-axis normalization boundary exists. `UnfoldAxisAttrs` requires
-positive `size` and `step`. `FoldAxisAttrs` accepts non-negative
+negative axis while it has the source rank available to normalize and bounds-check the request;
+public `Tensor.foldAxis` does the same against the target rank, which is input rank minus one.
+`UnfoldAxisAttrs` requires positive `size` and `step`. `FoldAxisAttrs` accepts non-negative
 `outputSize`, including zero, and requires positive `step`. Both check components in declaration
 order and retain every valid primitive unchanged, including their maximum values. They contain no
 rank or Shape, so construction cannot prove axis bounds, size fit, input-window compatibility, or
@@ -8965,9 +9026,9 @@ arithmetic representability.
 
 ##### Goal and inputs
 
-Describe `UNFOLD2D` for conceptual NCHW Shape `[1, 1, 3, 3]` with a 2-by-2 kernel, unit stride,
-zero symmetric padding, unit dilation, and floor mode, then pair the same window geometry with an
-explicit fold output Shape.
+Describe both `UNFOLD2D` attribute variants for conceptual NCHW Shape `[1, 1, 3, 3]` with a
+2-by-2 kernel, unit stride, zero symmetric padding, unit dilation, and floor mode, then pair the
+same window geometry with an explicit fold output Shape.
 
 ```java
 Window2dAttrs window = new Window2dAttrs(
@@ -8976,11 +9037,16 @@ Window2dAttrs window = new Window2dAttrs(
         0, 0,
         1, 1,
         false);
+Unfold2dAttrs negativeInfinity = new Unfold2dAttrs(
+        window, ScalarValue.float32(Float.NEGATIVE_INFINITY));
 Fold2dAttrs fold = new Fold2dAttrs(Shape.of(1, 1, 3, 3), window);
 
 Operation imageUnfold = new Operation(
         WindowTransformKind.UNFOLD2D,
         window);
+Operation paddedImageUnfold = new Operation(
+        WindowTransformKind.UNFOLD2D,
+        negativeInfinity);
 Operation imageFold = new Operation(
         WindowTransformKind.FOLD2D,
         fold);
@@ -8990,9 +9056,11 @@ Operation imageFold = new Operation(
 
 Stride is the positive distance between consecutive window starts. Dilation is the positive
 spacing between adjacent kernel samples. Symmetric padding adds the same non-negative logical
-width on both sides of a spatial dimension; `UNFOLD2D` treats sampled positions outside the
-source as conceptual zeros. Effective kernel is the spatial span covered after dilation. For
-height and width independently, current public static-Shape construction uses:
+width on both sides of a spatial dimension. Direct `UNFOLD2D + Window2dAttrs` treats sampled
+positions outside the source as conceptual positive zeros. `UNFOLD2D + Unfold2dAttrs` instead uses
+its exact typed scalar for symmetric padding and terminal ceil-grid samples beyond the padded
+extent. Effective kernel is the spatial span covered after dilation. For
+height and width independently, current public static-or-symbolic Shape construction uses:
 
 ```text
 effectiveKernel = dilation * (kernel - 1) + 1
@@ -9002,9 +9070,10 @@ output          = ceil(numerator / stride) + 1        when ceilMode is true
 ```
 
 Floor mode rounds the quotient down; ceil mode rounds it up. Current public expression
-construction performs these calculations with checked `long` arithmetic and requires the
-effective kernel to fit the padded dimension. `Window2dAttrs` stores the exact geometry and
-rounding flag but evaluates no formula.
+construction folds static calculations with checked `long` arithmetic and requires the effective
+kernel to fit when statically provable. Dynamic spatial Dimensions retain canonical linear and
+division expressions; multiplying height and width position counts uses a canonical symbolic
+product. `Window2dAttrs` stores the exact geometry and rounding flag but evaluates no formula.
 
 The example has output height and width `2`. Canonical im2col Shape is
 `[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`, so the conceptual result is
@@ -9016,13 +9085,17 @@ divide by overlap count, and uncovered output positions remain zero.
 
 `Window2dAttrs` requires positive kernel, stride, and dilation dimensions and non-negative
 padding dimensions, validating them in component order. It retains valid `long` values and
-`ceilMode` unchanged without arithmetic. `Fold2dAttrs` null-checks `outputShape` before `window`
-and retains both exact immutable references. The structural record accepts every current Shape
+`ceilMode` unchanged without arithmetic. `Unfold2dAttrs` null-checks `window` before
+`paddingValue`, retains both exact references and scalar bits, and performs no input-aware type or
+geometry validation. `Fold2dAttrs` null-checks `outputShape` before `window` and retains both exact
+immutable references. The structural record accepts every current Shape
 category, including scalar, non-rank-four, zero-extent, and dynamic Shapes, because it has no input
-columns to compare. Current public `fold2d` construction establishes the rank-four NCHW/static
-compatibility boundary before constructing a fold expression.
+columns to compare. Current public `fold2d` construction establishes rank-four NCHW and exact
+static-or-symbolic structural compatibility before constructing a fold expression. Unrelated
+symbols are rejected rather than registered as equality constraints.
 
-Family signatures enforce all four exact attributes pairings and declare one input and one output.
+Family signatures enforce the five exact attributes pairings and declare one input and one output;
+`UNFOLD2D` lists direct `Window2dAttrs` first and `Unfold2dAttrs` second.
 The semantic values themselves define no Tensor construction,
 result-data-type rules, resolved layout, storage, provenance, gradients, graph/compiler behavior,
 planning, prepare, runtime, backend or ONNX behavior, materialization, or execution. The current
@@ -9424,7 +9497,7 @@ The following contracts appear in the architecture and planning documents but ar
 `GatherNdKind`, `GatherNdAttrs`, `AxisScatterKind`, `ScatterReduction`, `ScatterElementsAttrs`,
 `ScatterNdKind`, `ScatterNdAttrs`,
 `WindowTransformKind`, `UnfoldAxisAttrs`, `FoldAxisAttrs`,
-`Window2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
+`Window2dAttrs`, `Unfold2dAttrs`, `Fold2dAttrs`, `GraphValue`, `CompiledNode`,
 `GraphPhase`, `CompiledGraphModel`, and
 `PublicationBinding`, plus `TensorProducer` and `TensorProvenance`, are current Java API contracts.
 The producer/provenance pair represents current shared multi-output occurrences including
@@ -9521,11 +9594,10 @@ data/update eligibility OR, and exact ordered provenance. Index values and bound
 detection, value writes or reductions, gradients, compiler behavior, lowering, backend behavior,
 and execution remain planned or separately owned.
 Window-transform semantic kinds and immutable normalized attributes are current. Public `unfold`,
-`unfold2d`, and `fold2d` expression construction remains current and unchanged, with the same
-type/static-Shape compatibility, checked Shape calculation, unresolved result layout, preserved
-eligibility, exact attributes, and one-input provenance. No public `foldAxis` method or helper
-construction path remains. `FOLD_AXIS` and `FoldAxisAttrs` are compiler-only model semantics;
-task 0023 owns their first compiler-generated construction. Gradient construction, compiler
+`foldAxis`, direct and exact-typed-padding `unfold2d`, and `fold2d` expression construction is
+current. General-axis fold validates static window geometry; the 2D forms retain exact dynamic
+channel/spatial formulas and require structural fold compatibility. Every result has unresolved
+layout, preserved eligibility, exact attributes, and one-input provenance. Gradient construction, compiler
 capture and canonicalization, materialization, lowering, backend/ONNX behavior, and execution
 remain planned.
 
@@ -9629,15 +9701,18 @@ remain planned.
 - `Tensor.unfold` requires rank at least one, a static selected extent, positive size and step,
   and a fitting window. It normalizes the raw source axis against input rank, derives a checked
   window count, appends size as the final dimension, and accepts every current data type.
-- `Tensor.unfold2d` requires floating rank-four NCHW input with static channel/height/width, while
-  `Tensor.fold2d` requires floating rank-three canonical columns compatible with an explicit
-  rank-four NCHW output whose channel/height/width are static and whose batch Dimension matches.
-  Both use checked effective-kernel, padded-input, floor/ceil position, channel-window, and total-
-  window arithmetic. Every window-transform result preserves type and eligibility, leaves layout
-  unresolved, records exact `[input]` provenance, and remains fresh, unlabeled, and storage-free.
-- `FOLD_AXIS` and `FoldAxisAttrs` retain their one-input/one-output compiler-only semantic
-  contract, but no public Tensor or helper method constructs them. Task 0023 owns first compiler
-  generation and operand compatibility.
+- `Tensor.foldAxis` requires input rank at least two, normalizes the raw axis against target rank,
+  accepts floating or signed-integral input, and requires positive static final window size plus
+  a static matching window count. It supports explicit zero output only with zero windows, removes
+  the final Dimension, restores `outputSize`, and sums overlaps semantically.
+- Both `Tensor.unfold2d` overloads require floating rank-four NCHW input but accept static or
+  unresolved channel/height/width Dimensions. Direct attributes mean conceptual positive-zero
+  padding; the second overload requires an exact matching typed scalar and retains its reference
+  and raw bits for all out-of-domain positions. `Tensor.fold2d` requires floating rank-three
+  canonical columns structurally equal to formulas derived from an explicit rank-four NCHW target,
+  including an equal batch Dimension. Unrelated unresolved symbols fail locally. Every window-
+  transform result preserves type and eligibility, leaves layout unresolved, records exact
+  `[input]` provenance, and remains fresh, unlabeled, and storage-free.
 - Current value objects are immutable and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name and a stable immutable
   non-empty signature list. Operation-attribute implementations must preserve immutable value
