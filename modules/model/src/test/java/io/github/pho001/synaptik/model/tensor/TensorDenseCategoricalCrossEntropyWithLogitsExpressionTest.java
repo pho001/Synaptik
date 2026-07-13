@@ -32,7 +32,7 @@ class TensorDenseCategoricalCrossEntropyWithLogitsExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(140_000);
 
     @Test
-    void exposesExactlyOneReceiverAndOnePackageEntryWithinTheLossHelper() throws Exception {
+    void exposesDenseReceiverWithinTheDispatchedLossHelper() throws Exception {
         Method receiver = Tensor.class.getDeclaredMethod(
                 "categoricalCrossEntropyWithLogits",
                 Tensor.class,
@@ -62,14 +62,17 @@ class TensorDenseCategoricalCrossEntropyWithLogitsExpressionTest {
                 () -> assertEquals(Set.of(
                                 "meanSquaredError",
                                 "categoricalCrossEntropyWithLogits",
+                                "denseCategoricalCrossEntropyWithLogits",
+                                "indexCategoricalCrossEntropyWithLogits",
                                 "requireFloating",
                                 "validateExactShape",
+                                "validateIndexTargetShape",
                                 "validateClassExtent",
                                 "removeAxis"),
                         names),
-                () -> assertEquals(187, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(188, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
-                () -> assertEquals(1, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(2, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .filter(method -> method.getName().equals(
                                 "categoricalCrossEntropyWithLogits"))
@@ -224,7 +227,6 @@ class TensorDenseCategoricalCrossEntropyWithLogitsExpressionTest {
     @Test
     void validatesNullTypeAxisShapeAndClassExtentBeforeIdentityAllocation() throws Exception {
         Tensor floating = tensor(DataType.FLOAT32, Shape.of(2, 3), false);
-        Tensor integral = tensor(DataType.INT64, Shape.of(1), false);
         AtomicLong next = nextTensorIdState();
         long before = next.get();
 
@@ -239,25 +241,20 @@ class TensorDenseCategoricalCrossEntropyWithLogitsExpressionTest {
                         floating, floating, 0, null)).getMessage());
         for (DataType invalid : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
             Tensor invalidLogits = tensor(invalid, Shape.of(2, 3), false);
-            Tensor invalidTarget = tensor(invalid, Shape.of(2, 3), false);
             assertEquals(
                     "categoricalCrossEntropyWithLogits logits must have a floating data type, "
                             + "but was " + invalid,
                     assertThrows(IllegalArgumentException.class,
                             () -> invalidLogits.categoricalCrossEntropyWithLogits(
                                     floating, 0, LossReduction.NONE)).getMessage());
-            assertEquals(
-                    "categoricalCrossEntropyWithLogits target must have a floating data type, "
-                            + "but was " + invalid,
-                    assertThrows(IllegalArgumentException.class,
-                            () -> floating.categoricalCrossEntropyWithLogits(
-                                    invalidTarget, 0, LossReduction.NONE)).getMessage());
         }
         assertEquals("categoricalCrossEntropyWithLogits target must have a floating data type, "
-                        + "but was INT64",
+                        + "but was BOOL",
                 assertThrows(IllegalArgumentException.class,
                         () -> floating.categoricalCrossEntropyWithLogits(
-                                integral, 7, LossReduction.NONE)).getMessage());
+                                tensor(DataType.BOOL, Shape.of(1), false),
+                                7,
+                                LossReduction.NONE)).getMessage());
         assertEquals("Axis 2 is outside shape rank 2",
                 assertThrows(IndexOutOfBoundsException.class,
                         () -> floating.categoricalCrossEntropyWithLogits(

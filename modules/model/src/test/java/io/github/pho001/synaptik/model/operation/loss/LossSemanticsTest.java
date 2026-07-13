@@ -11,7 +11,9 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class LossSemanticsTest {
@@ -21,7 +23,8 @@ class LossSemanticsTest {
                 () -> assertEquals(
                         List.of(
                                 LossKind.MEAN_SQUARED_ERROR,
-                                LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS),
+                                LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS),
                         List.of(LossKind.values())),
                 () -> assertEquals(
                         List.of(LossReduction.NONE, LossReduction.SUM, LossReduction.MEAN),
@@ -33,7 +36,11 @@ class LossSemanticsTest {
                 () -> assertEquals(
                         List.of(OperationSignature.fixed(
                                 DenseCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)),
-                        LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS.signatures()));
+                        LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS.signatures()),
+                () -> assertEquals(
+                        List.of(OperationSignature.fixed(
+                                IndexCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)),
+                        LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS.signatures()));
     }
 
     @Test
@@ -110,6 +117,85 @@ class LossSemanticsTest {
                                 Integer.MAX_VALUE, LossReduction.MEAN),
                         new DenseCategoricalCrossEntropyWithLogitsAttrs(
                                 Integer.MAX_VALUE, LossReduction.MEAN)));
+    }
+
+    @Test
+    void retainsExactIndexCategoricalAttributesAndValidatesInComponentOrder() {
+        ScalarValue ignore = ScalarValue.int64(-1);
+        Optional<ScalarValue> optional = Optional.of(ignore);
+        IndexCategoricalCrossEntropyWithLogitsAttrs attrs =
+                new IndexCategoricalCrossEntropyWithLogitsAttrs(
+                        2, LossReduction.MEAN, optional);
+        Operation operation = new Operation(
+                LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS, attrs);
+
+        IllegalArgumentException negative = assertThrows(
+                IllegalArgumentException.class,
+                () -> new IndexCategoricalCrossEntropyWithLogitsAttrs(-1, null, null));
+        NullPointerException nullReduction = assertThrows(
+                NullPointerException.class,
+                () -> new IndexCategoricalCrossEntropyWithLogitsAttrs(0, null, null));
+        NullPointerException nullIgnore = assertThrows(
+                NullPointerException.class,
+                () -> new IndexCategoricalCrossEntropyWithLogitsAttrs(
+                        0, LossReduction.NONE, null));
+        IllegalArgumentException floatingIgnore = assertThrows(
+                IllegalArgumentException.class,
+                () -> new IndexCategoricalCrossEntropyWithLogitsAttrs(
+                        0, LossReduction.NONE, Optional.of(ScalarValue.float32(1.0f))));
+
+        assertAll(
+                () -> assertEquals(2, attrs.axis()),
+                () -> assertSame(LossReduction.MEAN, attrs.reduction()),
+                () -> assertSame(optional, attrs.ignoreIndex()),
+                () -> assertSame(ignore, attrs.ignoreIndex().orElseThrow()),
+                () -> assertEquals(attrs,
+                        new IndexCategoricalCrossEntropyWithLogitsAttrs(
+                                2, LossReduction.MEAN, Optional.of(ignore))),
+                () -> assertSame(attrs, operation.attrs()),
+                () -> assertSame(
+                        LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                        operation.kind()),
+                () -> operation.signature().validateOccurrence(2, 1),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> operation.signature().validateOccurrence(1, 1)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> new Operation(
+                                LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                                new MeanSquaredErrorAttrs(LossReduction.NONE))),
+                () -> assertEquals("axis must be non-negative: -1", negative.getMessage()),
+                () -> assertEquals("reduction", nullReduction.getMessage()),
+                () -> assertEquals("ignoreIndex", nullIgnore.getMessage()),
+                () -> assertEquals(
+                        "ignoreIndex must have data type INT32 or INT64, but was FLOAT32",
+                        floatingIgnore.getMessage()));
+    }
+
+    @Test
+    void locksIndexCategoricalFormulaIgnoreAndNonIgnoredMeanWithoutTensorExecution() {
+        double maximum = 3.0;
+        double logSumExp = maximum + Math.log(
+                Math.exp(1.0 - maximum)
+                        + Math.exp(2.0 - maximum)
+                        + Math.exp(3.0 - maximum));
+        double targetTwo = logSumExp - 3.0;
+        double targetZero = logSumExp - 1.0;
+        double ignored = 0.0d;
+
+        assertAll(
+                () -> assertEquals(3.407605964, logSumExp, 1.0e-9),
+                () -> assertEquals(0.407605964, targetTwo, 1.0e-9),
+                () -> assertEquals(2.407605964, targetZero, 1.0e-9),
+                () -> assertEquals(0L, Double.doubleToRawLongBits(ignored)),
+                () -> assertEquals((targetTwo + targetZero) / 2.0,
+                        (targetTwo + ignored + targetZero) / 2.0, 0.0),
+                () -> assertTrue(Double.isNaN(0.0d / 0.0d)),
+                () -> assertTrue(Double.isNaN(
+                        Double.POSITIVE_INFINITY - Double.POSITIVE_INFINITY)),
+                () -> assertTrue(Double.isNaN(
+                        Double.NEGATIVE_INFINITY - Double.NEGATIVE_INFINITY)),
+                () -> assertEquals(Double.POSITIVE_INFINITY,
+                        logSumExp - Double.NEGATIVE_INFINITY));
     }
 
     @Test

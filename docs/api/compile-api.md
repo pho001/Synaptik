@@ -340,16 +340,24 @@ of deferred equality, gradient or adjoint construction, legal decomposition, opt
 lowering, backend support, runtime execution, and training coordination remain planned in their
 owning layers.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
-model metadata with ordered inputs `[logits, target]`. It records a normalized class axis,
-explicit loss reduction, promoted floating result type, exact-or-deferred positional Shape
-compatibility, and target-weighted stable log-softmax meaning. `NONE` removes the class axis;
-`SUM` and `MEAN` are scalar, and mean divides by the class-axis-removed sample count. Dense target
-values remain a finite, non-negative, class-normalized caller obligation that model construction
-does not inspect or enforce. A non-empty sample domain also requires positive class extent, with
-unresolved cases deferred. This metadata does not imply compiler support: capture, operand
-revalidation, proof of deferred equality and class-extent obligations, target-obligation policy,
-gradient or adjoint construction, legal decomposition and optimization, backend lowering,
-runtime execution, and training coordination remain planned in their owning layers.
+model metadata with ordered inputs `[logits, target]`. Exact floating target type dispatches to the
+unchanged dense target-weighted stable-log-softmax meaning, including floating promotion,
+combined gradient eligibility, exact logits/target Shape compatibility, and sample-count mean.
+Exact INT32 or INT64 target type dispatches to selected-class negative log-softmax: the target
+Shape is constrained to logits Shape without the normalized class axis, result type and gradient
+eligibility come only from logits, `NONE` retains exact target Shape, and `MEAN` divides by target
+count. The four-argument overload adds one exact target-typed INT32/INT64 `ScalarValue` ignore
+index. Matching ignore precedes bounds and logits evaluation, contributes positive zero, and is
+excluded from the mean denominator; it is attributes metadata, so provenance remains exactly
+`[logits, target]`.
+
+Construction reads no values. Dense target normalization, unresolved mapped Shape equality,
+non-ignored index bounds, and class-extent alternatives therefore remain obligations. Empty or
+all-ignored index means are NaN and sums are positive zero; with ignore, a zero class extent may
+remain valid when every target is ignored. This is compiler-visible requested meaning only. It
+does not implement capture, revalidation, constant analysis, proof, bounds checks, gradients or
+adjoints, decomposition, optimization, lowering, preparation, execution, publication, or training
+coordination; those remain planned in their owning lifecycle layers.
 `Tensor.contiguous()` accepts every current data type and preserves the exact Shape, data type, and
 gradient eligibility. It creates new canonical dense row-major, zero-offset layout geometry for a
 fully static Shape and leaves a dynamic Shape unresolved. Every call is fresh, unlabeled, and
@@ -512,7 +520,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   construction, axis-only arg-min/arg-max construction, and shape-preserving cumulative-
   sum, softmax/log-softmax, trailing-Shape layer- and RMS-normalization construction, explicit
   five-input batch-normalization inference and five-output training/statistic-transition
-  construction, and exact-shape mean-squared-error construction with explicit loss reduction,
+  construction, exact-shape mean-squared-error construction with explicit loss reduction, and
+  dense- or index-target categorical-cross-entropy-with-logits construction with exact target-type
+  dispatch and one exact typed ignore overload,
   plus
   first-class
   scaled-dot-product-attention

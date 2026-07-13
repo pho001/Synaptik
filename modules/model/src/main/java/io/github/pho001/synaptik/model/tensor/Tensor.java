@@ -769,7 +769,7 @@ public final class Tensor {
     }
 
     /**
-     * Builds dense-target categorical cross-entropy directly from these logits.
+     * Builds dense-target or index-target categorical cross-entropy directly from these logits.
      *
      * <p>The target must have the exact logits rank and positionally compatible dimensions; no
      * broadcasting or implicit cast is inserted. {@code classAxis} accepts the Shape range
@@ -782,6 +782,20 @@ public final class Tensor {
      * finite, non-negative, and normalized along the class axis; construction reads no values and
      * neither diagnoses nor renormalizes them. Obligation-violating targets have no portable
      * categorical-result guarantee.</p>
+     *
+     * <p>An exact INT32 or INT64 target instead selects one class per non-class logits coordinate.
+     * Its rank is one less than logits, and its Dimensions must map positionally to the logits
+     * Shape with {@code classAxis} removed. No-ignore index loss is
+     * {@code lse[g] - logits[g,target[g]]}; every target value must eventually be in
+     * {@code [0, classExtent)}. Construction reads no values, so bounds and dynamic Shape equality
+     * remain later obligations. Index results retain exact logits type and use only logits
+     * gradient eligibility.</p>
+
+     * <p>Index selection uses stable negative log-softmax. BFLOAT16 and FLOAT32 logits use at
+     * least FLOAT32 computation and FLOAT64 logits use FLOAT64; the result retains logits type.
+     * Non-ignored NaN or positive-infinity slices and all-negative-infinity slices produce NaN.
+     * With at least one finite value, selecting negative infinity produces positive infinity.
+     * Exact finite zero is positive zero.</p>
      *
      * <p>{@link LossReduction#NONE} removes the class axis. Sum and mean return scalar Shape, with
      * mean dividing by the number of non-class groups. An empty group domain produces empty none,
@@ -803,25 +817,70 @@ public final class Tensor {
      * {@code [logits, target]} provenance at output index zero. This method defines no gradient,
      * compiler, backend, runtime, execution, or training behavior.</p>
      *
-     * @param target non-null BFLOAT16, FLOAT32, or FLOAT64 dense target with exact compatible
-     *     logits Shape and the stated probability-distribution value obligation
+     * @param target non-null BFLOAT16, FLOAT32, or FLOAT64 dense target with exact logits Shape,
+     *     or exact INT32/INT64 index target with the class-axis-removed Shape
      * @param classAxis positive or negative class axis in the logits Shape
      * @param reduction non-null explicit none, sum, or sample-domain mean reduction
-     * @return fresh unlabeled, storage-free loss tensor with promoted type, selected Shape,
-     *     combined gradient eligibility, unresolved layout, and output-index-zero provenance
+     * @return fresh unlabeled, storage-free dense or index loss tensor with selected type, Shape,
+     *     gradient eligibility, unresolved layout, and output-index-zero provenance
      * @throws NullPointerException if {@code target} or {@code reduction} is null, checked in that
      *     order
      * @throws IndexOutOfBoundsException if {@code classAxis} is outside the logits rank, including
      *     every axis for scalar logits
-     * @throws IllegalArgumentException if logits or target is not floating, target rank or static
-     *     dimensions mismatch, or class extent is statically zero for a definitely non-empty
-     *     sample domain
+     * @throws IllegalArgumentException if logits is not floating; target is neither floating nor
+     *     exact INT32/INT64; the selected target Shape rule fails; or class extent is statically
+     *     zero for a definitely non-empty no-ignore sample domain
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     public Tensor categoricalCrossEntropyWithLogits(
             Tensor target, int classAxis, LossReduction reduction) {
         return TensorLossExpressions.categoricalCrossEntropyWithLogits(
                 this, target, classAxis, reduction);
+    }
+
+    /**
+     * Creates index-target categorical cross-entropy directly from this floating logits tensor,
+     * ignoring one exact integral class-index value before bounds checking or logits evaluation.
+     *
+     * <p>The target must have INT32 or INT64 type and the exact corresponding Shape obtained by
+     * removing {@code classAxis} from the logits Shape; a present ignore value must have the exact
+     * target type. None returns the exact target Shape, while sum and mean return scalar Shape.
+     * Mean divides by the number of non-ignored targets, so an empty or all-ignored domain has NaN
+     * mean and positive-zero sum. A target equal to {@code ignoreIndex} contributes positive zero
+     * before bounds checking and does not evaluate its logits slice. Every other target must be in
+     * {@code [0, classExtent)} and selects stable {@code lse - selectedLogit}. A zero class extent
+     * therefore requires an empty target domain or that every target be ignored. Construction
+     * reads no values and leaves that alternative, dynamic Shape equality, bounds proof,
+     * evaluation, gradients, compilation, lowering, and execution to later lifecycle owners.</p>
+
+     * <p>BFLOAT16 and FLOAT32 logits use at least FLOAT32 computation; FLOAT64 logits use
+     * FLOAT64, and the final result retains logits type. Ignored positions remain positive zero
+     * even when their logits contain NaN or infinity. For non-ignored positions, NaN or positive
+     * infinity and an all-negative-infinity slice produce NaN; selecting negative infinity from
+     * a slice containing a finite value produces positive infinity.</p>
+     *
+     * @param target non-null exact INT32 or INT64 class-index tensor with one coordinate per
+     *     non-class logits coordinate
+     * @param classAxis positive or negative class axis in the logits Shape
+     * @param reduction non-null explicit none, sum, or non-ignored-count mean reduction
+     * @param ignoreIndex non-null exact INT32 or INT64 scalar matching {@code target}'s type
+     * @return fresh unlabeled, storage-free loss tensor with exact logits type, selected Shape,
+     *     logits-only gradient eligibility, unresolved layout, and output-index-zero provenance
+     * @throws NullPointerException if {@code target}, {@code reduction}, or {@code ignoreIndex} is
+     *     null, checked in that order
+     * @throws IndexOutOfBoundsException if {@code classAxis} is outside the logits rank
+     * @throws IllegalArgumentException if logits is not floating; target is not INT32 or INT64;
+     *     ignore value is not integral or does not exactly match target type; or target rank or a
+     *     statically known mapped dimension mismatches logits
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    public Tensor categoricalCrossEntropyWithLogits(
+            Tensor target,
+            int classAxis,
+            LossReduction reduction,
+            ScalarValue ignoreIndex) {
+        return TensorLossExpressions.categoricalCrossEntropyWithLogits(
+                this, target, classAxis, reduction, ignoreIndex);
     }
 
     /**

@@ -468,11 +468,11 @@ preserving established task IDs 0023–0024. Completed
 explicit loss reductions through one exact-shape
 mean-squared-error operation. Completed
 [task 0022A](tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) adds dense
-floating categorical cross-entropy directly from logits with an explicit class axis. Draft task
-0022B will add INT32/INT64 index-target
-categorical cross-entropy from logits, class-axis removal, optional ignore index, and a `MEAN`
-denominator equal to the non-ignored target count. Task 0022B remains Draft without a detailed
-specification.
+floating categorical cross-entropy directly from logits with an explicit class axis. Completed
+[task 0022B](tasks/0022b-index-target-categorical-cross-entropy-with-logits.md) adds INT32/INT64
+index-target categorical cross-entropy from logits, class-axis removal, an optional exact typed
+ignore index, and a `MEAN` denominator equal to the non-ignored target count while preserving the
+completed floating-target dispatch.
 
 Mean-squared error is the intentionally small regression baseline. Prediction and target Shapes
 must match positionally; the operation does not broadcast targets. `NONE` preserves the exact
@@ -484,26 +484,28 @@ but Synaptik deliberately omits defaults, weighting, and broadcast behavior from
 model contract.
 
 The categorical baseline consumes logits rather than probabilities so that stable log-softmax
-semantics remain one inspectable operation request. Dense targets will have the exact logits Shape
-and no ignore index. Index targets will have the logits Shape with exactly the class axis removed;
-ignored positions will contribute positive zero to `NONE`/`SUM` and will not enter the `MEAN`
-denominator. Both families will accept rank-at-least-one floating logits and an explicit arbitrary
-class axis. Dense targets will be floating and promoted with logits; index targets will be exact
-INT32 or INT64. `NONE` will produce the logits Shape with the class axis removed, while `SUM` and
-`MEAN` will be scalar. Dense `MEAN` will divide by the number of class-axis-removed groups, not by
+semantics remain one inspectable operation request. Dense targets have the exact logits Shape and
+no ignore index. Index targets have the logits Shape with exactly the class axis removed; ignored
+positions contribute positive zero to `NONE`/`SUM` and do not enter the `MEAN` denominator. Both
+families accept rank-at-least-one floating logits and an explicit arbitrary class axis. Dense
+targets are floating and promoted with logits; index targets are exact INT32 or INT64. Dense
+`NONE` produces the logits Shape with the class axis removed; index `NONE` retains the exact target
+Shape constrained to that non-class domain. `SUM` and `MEAN` are scalar. Dense `MEAN` divides by
+the number of class-axis-removed groups, not by
 the class count or target-value sum. Dense target values carry a finite, non-negative,
 class-normalized caller obligation, but model construction will read no values, reject none, and
-will not renormalize supplied weights. Its one first-class loss will use target-weighted stable
+does not renormalize supplied weights. Its one first-class loss uses target-weighted stable
 log-softmax directly from logits, including a positive-zero contribution for an exact zero target
-weight. Index `MEAN` will divide by the non-ignored group count; an all-ignored or otherwise empty
-mean will be NaN, while the matching sum will be positive zero. A non-empty group domain will
-require a positive class extent; zero class extent is valid only for an empty group domain, with
-unresolved cases deferred. Non-ignore index bounds remain an execution-time obligation because
-model construction reads no target values. These target
+weight. Index `MEAN` divides by the non-ignored group count; an all-ignored or otherwise empty
+mean will be NaN, while the matching sum will be positive zero. Without ignore, a non-empty group
+domain requires a positive class extent. With ignore, zero class extent is also valid for a
+non-empty all-ignored domain; every non-matching target remains invalid because no class index is
+in range. Value-dependent and unresolved cases are deferred because model construction reads no
+target values. These target
 alternatives and reductions are comparable to official
 [PyTorch cross entropy](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.cross_entropy)
 and [ONNX SoftmaxCrossEntropyLoss](https://onnx.ai/onnx/operators/onnx__SoftmaxCrossEntropyLoss.html),
-while Synaptik deliberately plans an explicit arbitrary class axis and separate typed operation
+while Synaptik deliberately uses an explicit arbitrary class axis and separate typed operation
 families. Standalone probability-input cross entropy, standalone negative-log-likelihood over
 caller-supplied log probabilities, class/sample weights, masks, label smoothing, binary cross
 entropy, margin/ranking losses, Kullback–Leibler divergence, connectionist temporal classification,

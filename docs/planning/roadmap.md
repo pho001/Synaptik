@@ -155,9 +155,9 @@ RMS normalization. Focused
 five-input inference. Task 0021C is Complete. The former broad loss row is now split into completed
 [task 0022](modules/model/tasks/0022-mean-squared-error-loss.md), completed
 [task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) for
-dense-target categorical cross-entropy with logits, and Draft task 0022B for index-target
+dense-target categorical cross-entropy with logits, and completed task 0022B for index-target
 categorical cross-entropy with logits. Task 0022A is Complete;
-established tasks 0022B–0024 remain Draft without detailed specifications.
+established tasks 0023–0024 remain Draft without detailed specifications.
 
 Task 0021A adds one distinct RMS-normalization kind and typed attributes, exact no-scale and
 scale-only receiver methods, uncentered mean-square semantics, and one-output provenance. Its
@@ -249,8 +249,9 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 0020, 0020A, 0020A1, 0021, and 0021A are Complete. Task
 [0021B](modules/model/tasks/0021b-batch-normalization-inference.md) is Complete. Focused
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
-Complete. Tasks 0022 and 0022A are Complete;
-tasks 0022B–0024 remain Draft without detailed future specifications.
+Complete. Tasks 0022, 0022A, and 0022B are Complete;
+tasks 0023–0024 remain Draft without detailed
+future specifications.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -713,7 +714,7 @@ authorized Compile API status correction.
 | 110 | [0021C Batch-normalization training and statistic transition](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) | Complete |
 | 111 | [0022 Mean-squared-error loss](modules/model/tasks/0022-mean-squared-error-loss.md) | Complete |
 | 112 | [0022A Dense-target categorical cross-entropy with logits](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) | Complete |
-| 113 | 0022B Index-target categorical cross-entropy with logits | Draft |
+| 113 | [0022B Index-target categorical cross-entropy with logits](modules/model/tasks/0022b-index-target-categorical-cross-entropy-with-logits.md) | Complete |
 | 114 | 0023 Compiler-generated semantic operations | Draft |
 | 115 | 0024 Model capability selection audit | Draft |
 
@@ -770,8 +771,8 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, 0021A, and 0021B are complete. Task
 [0021C](modules/model/tasks/0021c-batch-normalization-training-and-statistic-transition.md) is
 Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Complete.
 [Task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is
-Complete. Task 0022B and established tasks 0023–0024
-remain Draft without detailed specifications.
+Complete. Task 0022B is Complete; established tasks 0023–0024 remain
+Draft without detailed specifications.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

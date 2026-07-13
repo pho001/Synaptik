@@ -116,12 +116,12 @@ without storing a Tensor or Shape. Public `Tensor.softmax` and `Tensor.logSoftma
 fresh floating expressions with Shape-aware axis normalization, exact Shape/type/eligibility
 retention, unresolved layout, and one-input provenance. Numerical evaluation, gradients, compiler
 behavior, backend behavior, and execution remain planned.
-The `LossKind` vocabulary is implemented with the sole `MEAN_SQUARED_ERROR` meaning, together with
-the shared loss-only `LossReduction` values `NONE`, `SUM`, and `MEAN` and immutable
-`MeanSquaredErrorAttrs`. Public `Tensor.meanSquaredError` constructs one fresh exact-shape
-two-input expression with ordered prediction and target provenance. It performs no broadcasting,
-value evaluation, gradient construction, compiler work, backend work, runtime execution, or
-training coordination.
+The `LossKind` vocabulary is implemented with mean-squared error plus dense-target and index-target
+categorical cross entropy directly from logits. The shared loss-only `LossReduction` values are
+`NONE`, `SUM`, and `MEAN`; exact attributes retain each meaning's reduction and, for categorical
+losses, normalized class axis and optional exact typed ignore metadata. Public Tensor loss methods
+construct fresh two-input expressions with ordered provenance and perform no value evaluation,
+gradient construction, compiler work, backend work, runtime execution, or training coordination.
 The `BatchNormKind` vocabulary is implemented with distinct stateless `BATCH_NORM_INFERENCE` and
 pure `BATCH_NORM_TRAINING` meanings. Both have fixed ordered inputs
 `[input, scale, bias, runningMean, runningVariance]`. `BatchNormInferenceAttrs` retains one
@@ -629,6 +629,20 @@ current attention semantics are top-left aligned: zero-based key position `j` is
 query position `i` exactly when `j <= i`, including rectangular query/key sequence lengths. A
 separate explicit BOOL mask combines with causal eligibility by logical AND.
 
+### Categorical cross entropy
+
+A loss meaning that compares a logits slice with either a dense target distribution or one index
+target. Synaptik represents both directly from logits with a stable negative-log-softmax meaning;
+it does not first create a probability Tensor. The current model meaning includes an explicit
+class axis and loss reduction, while gradients, lowering, bounds enforcement, and numerical
+execution remain owned by later lifecycle layers.
+
+### Class axis
+
+The logits axis whose positions represent alternative classes in a categorical loss. Removing it
+leaves the [sample domain](#sample-domain). Callers may supply a positive or negative axis; current
+Tensor construction normalizes it once to a non-negative attributes value.
+
 ### All-masked row
 
 One attention query row with no eligible key positions after explicit and causal masking. The
@@ -806,8 +820,24 @@ A value whose purpose is to carry structured data across a boundary without owni
 A dense target supplies one floating weight for every class in a categorical-loss slice. For
 current dense categorical cross entropy, its Shape matches logits exactly and each class-axis
 slice carries a caller obligation to be finite, non-negative, and normalized to one. It differs
-from a class-index target, which would identify one class with an integer and is not implemented
-by the current dense-target method.
+from an [index target](#index-target), which identifies one class with an exact integer. The
+three-argument categorical-loss method dispatches between these meanings by target data type.
+
+### Index target
+
+An INT32 or INT64 Tensor containing one exact class index for each coordinate in a categorical
+loss's [sample domain](#sample-domain). Its Shape equals the logits Shape with the class axis
+removed. An index target is not promoted, cast, broadcast, wrapped, clamped, or converted to one
+hot. Every non-ignored value must eventually be in the half-open class range; model construction
+does not read values or prove bounds.
+
+### Ignore index
+
+One exact INT32 or INT64 `ScalarValue` whose type matches an index target. A matching target is
+ignored before bounds checking or logits evaluation, contributes positive zero, and is excluded
+from the categorical-loss `MEAN` denominator. The value is operation attributes metadata rather
+than a Tensor producer input; the public API uses one required scalar overload rather than a
+public `Optional`.
 
 ### Dimension
 
@@ -975,7 +1005,7 @@ A backend-independent computation meaning that compares model predictions with t
 produces one or more error values. A **prediction** is the model-produced operand being assessed;
 a **target** is the caller-supplied reference operand it is compared with. The current implemented
 loss family contains [mean-squared error](#mean-squared-error--mse) and dense-target categorical
-cross entropy directly from logits. A loss operation is model
+plus index-target categorical cross entropy directly from logits. A loss operation is model
 metadata, not a gradient rule, optimizer, training session, compiler pass, backend kernel, or
 executed value.
 
@@ -990,9 +1020,9 @@ because a loss first combines ordered prediction and target roles.
 
 ### Logit
 
-An unnormalized score for one class. Dense categorical cross entropy consumes logits directly so
-its negative log-softmax meaning remains one stable semantic operation rather than first
-materializing probabilities.
+An unnormalized score for one class. Dense and index categorical cross entropy consume logits
+directly so their negative-log-softmax meanings remain stable semantic operations rather than
+first materializing probabilities.
 
 ### Materialization
 
@@ -1562,8 +1592,9 @@ Mutable state for one invocation of prepared execution, including input bindings
 
 For a class-axis loss, the sample domain is the coordinate space remaining after the class axis is
 removed. Its logical element count is the denominator for current dense categorical-cross-entropy
-`MEAN`; it is not the class count, logits element count, positive-target count, or target-weight
-sum.
+`MEAN`. For index categorical cross entropy, the exact target Shape represents this domain and
+`MEAN` divides by its non-ignored target count. Neither denominator is the class count or logits
+element count; the dense denominator is also not positive-target count or target-weight sum.
 
 ### Shape
 

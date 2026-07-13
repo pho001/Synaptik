@@ -4376,25 +4376,38 @@ capture, deferred equality proof, decomposition, backend support, numerical exec
 behavior, or training-session coordination. The compiler, backend prepare, runtime, and training
 extension retain those separate planned responsibilities.
 
-### Dense-target categorical-cross-entropy-with-logits expressions
+### Categorical-cross-entropy-with-logits expressions
 
-Dense-target categorical cross entropy compares one logits slice with a full probability target
-slice. A *logit* is an unnormalized class score; a *dense target* supplies one floating weight for
-every class rather than one class index. The receiver is logits and the class axis is explicit:
+Categorical cross entropy compares each logits slice with either a full floating target slice or
+one integral class index. A *logit* is an unnormalized class score. The existing three-argument
+receiver dispatches by the target's exact data type, and one four-argument form adds an exact typed
+ignore index for integral targets:
 
 ```java
 public Tensor categoricalCrossEntropyWithLogits(
         Tensor target, int classAxis, LossReduction reduction)
+
+public Tensor categoricalCrossEntropyWithLogits(
+        Tensor target,
+        int classAxis,
+        LossReduction reduction,
+        ScalarValue ignoreIndex)
 ```
 
-Logits and target occupy producer input positions zero and one. Each must be BFLOAT16, FLOAT32,
-or FLOAT64, and floating promotion selects the result type without inserting a cast Tensor. They
-must have equal rank and positionally compatible Dimensions; broadcasting is not supported.
-Unequal static Dimensions fail locally, while a non-equal pair involving an unresolved Dimension
-records an equality obligation for later compiler binding. The class axis accepts
-`[-rank, rank - 1]` and is stored once as a normalized non-negative logits axis.
+| Form and target type | Meaning | Ignore value |
+|---|---|---|
+| Three arguments, BFLOAT16/FLOAT32/FLOAT64 | Existing dense target-weighted loss | None |
+| Three arguments, INT32/INT64 | Index-target selected-class loss | None |
+| Four arguments, INT32/INT64 | Index-target selected-class loss | Required `ScalarValue` with the exact target type |
 
-For every coordinate group `g` outside the class axis, stable target-weighted log-softmax means:
+BOOL is unsupported. The four-argument form does not accept a floating target, and no public form
+accepts `Optional`, a nullable ignore value, or an implicit cast. Both meanings record ordered
+producer inputs `[logits, target]`; the ignore value is immutable operation attributes metadata,
+not a third Tensor input.
+
+The dense branch is unchanged: logits and target have equal rank and positionally compatible
+Dimensions, both are floating, floating promotion selects the result type and combined gradient
+eligibility, and broadcasting is forbidden. For group `g` outside the normalized class axis:
 
 ```text
 m[g]    = max_c(logits[g,c])
@@ -4402,54 +4415,80 @@ lse[g]  = m[g] + log(sum_c(exp(logits[g,c] - m[g])))
 loss[g] = sum_c(target[g,c] * (lse[g] - logits[g,c]))
 ```
 
-An exact zero target weight contributes positive zero even when its selected log probability is
-negative infinity. Each target slice carries a caller obligation to contain finite, non-negative
-weights normalized to one along the class axis. Construction reads no target values, does not
-diagnose that obligation, and neither clips nor renormalizes weights.
+Dense target slices remain caller-obligated to be finite, non-negative, and normalized to one.
+Construction reads no values and neither diagnoses nor renormalizes them. An exact zero target
+weight contributes positive zero even when its log probability is negative infinity.
+BFLOAT16/FLOAT32 dense results use FLOAT32 computation after floating promotion and FLOAT64
+results use FLOAT64. A NaN or positive infinity in a participating logits slice and an
+all-negative-infinity slice produce NaN. With at least one finite logit, positive target weight on
+negative infinity contributes positive infinity, while exact zero weight still contributes
+positive zero.
 
-For logits `[1, 2, 3]`, `lse` is approximately `3.407605964`. A one-hot dense target `[0, 0, 1]`
-therefore gives loss `0.407605964`. A target `[0.2, 0.3, 0.5]` gives
-`0.2 * 2.407605964 + 0.3 * 1.407605964 + 0.5 * 0.407605964 = 1.107605964`.
-These are mathematical illustrations; constructing a Tensor expression does not evaluate them.
-The formulation is comparable to official
+An index target has exact type INT32 or INT64 and Shape equal to the logits Shape with the class
+axis removed. Target axis `t` maps to logits axis `t` before the class axis and `t + 1` after it.
+Unequal static mapped Dimensions fail; an unequal pair involving an unresolved Dimension leaves a
+later equality obligation. No broadcasting, target promotion, one-hot conversion, negative-index
+wrapping, or clamping occurs. `NONE` retains the exact target Shape object, including scalar Shape
+for rank-one logits. Index results retain exact logits type and use only logits
+`requiresGrad` metadata.
+
+For index target `y[g]` and optional ignore value `I`, the requested mathematical meaning is:
+
+```text
+if I is present and y[g] == I:
+    loss[g] = +0
+else:
+    require 0 <= y[g] < classExtent
+    loss[g] = lse[g] - logits[g,y[g]]
+```
+
+Exact ignore comparison occurs before bounds checking or logits evaluation, so the ignore value
+may itself be out of range. Every non-matching target must eventually be in range. Model
+construction reads no target or logits values—even from eager tensors—so bounds proof and safe
+indexed access remain later compiler, preparation, or execution obligations.
+
+For logits `[1, 2, 3]`, `lse` is approximately `3.407605964`: index target `2` gives
+`0.407605964`, index target `0` gives `2.407605964`, and INT32 target `-1` with exact
+`ScalarValue.int32(-1)` gives positive zero without evaluating the logits slice. The same logits
+with dense target `[0, 0, 1]` give `0.407605964`. These are mathematical examples, not values
+computed while constructing a Tensor expression. The meanings are comparable to official
 [PyTorch cross entropy](https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html)
-and [JAX log-softmax](https://docs.jax.dev/en/latest/_autosummary/jax.nn.log_softmax.html), while
-Synaptik deliberately provides no default axis, class-index target, ignore index, weight, or label
-smoothing in this method.
+and [ONNX SoftmaxCrossEntropyLoss](https://onnx.ai/onnx/operators/onnx__SoftmaxCrossEntropyLoss.html).
 
-Let `S` be the number of coordinate groups after removing the class axis:
+Let `S` be the target/sample-domain size and `N` the non-ignored target count (`N = S` when no
+ignore value is present):
 
-| Reduction | Result | Result Shape |
-|---|---|---|
-| `LossReduction.NONE` | One `loss[g]` per non-class group | Logits Shape with the class axis removed |
-| `LossReduction.SUM` | `sum_g(loss[g])` | Shared `Shape.scalar()` |
-| `LossReduction.MEAN` | `sum_g(loss[g]) / S` | Shared `Shape.scalar()` |
+| Reduction | Dense result | Index result | Result Shape |
+|---|---|---|---|
+| `LossReduction.NONE` | One weighted loss per group | One selected loss per target; ignored positions are `+0` | Class-axis-removed Shape; the index branch retains the exact target Shape |
+| `LossReduction.SUM` | Sum over all groups | Sum over non-ignored targets | Shared `Shape.scalar()` |
+| `LossReduction.MEAN` | Sum divided by `S` | Sum divided by `N` | Shared `Shape.scalar()` |
 
-The mean denominator is sample count `S`, not class count, logits element count, positive-target
-count, or target-weight sum. Rank-one logits have `S = 1`. If a non-class extent is zero,
-`S = 0`: `NONE` is empty, `SUM` is positive zero, and `MEAN` is NaN. A non-empty sample domain
-requires positive class extent. A statically zero class extent with a known non-empty sample
-domain fails locally; unresolved cases retain the obligation `S == 0 || classExtent > 0`.
+An empty domain produces empty `NONE`, positive-zero `SUM`, and NaN `MEAN`. An all-ignored,
+non-empty index domain produces positive zeros for `NONE`, positive-zero `SUM`, and NaN `MEAN`.
+Without ignore, a non-empty domain requires positive class extent. With ignore, zero class extent
+is also valid when every target is ignored; because construction reads no values, it retains the
+deferred alternative `S == 0 || classExtent > 0 || all targets equal ignoreIndex`. Every
+non-ignored target is invalid when class extent is zero.
 
-BFLOAT16 and FLOAT32 results use FLOAT32 computation; FLOAT64 results use FLOAT64. NaN or positive
-infinity in a logits slice makes its loss NaN. An all-negative-infinity slice is also NaN. With
-at least one finite logit, a positive target weight on a negative-infinity class contributes
-positive infinity, whereas a zero weight contributes positive zero. Finite logits use stable
-log-sum-exp, although later weighting or accumulation may still overflow. Exact-zero finite
-losses are positive zero. Invalid target values violate the caller obligation and have no portable
-categorical-result guarantee.
+BFLOAT16 and FLOAT32 index computation uses FLOAT32 max, exponential, summation, logarithm,
+subtraction, loss accumulation, and division; FLOAT64 uses FLOAT64. Final values round to logits
+type. Equal-or-wider intermediates, compensation, vectorization, fusion, and reassociation remain
+allowed. No narrower arithmetic, fixed traversal, bitwise identity, NaN payload/sign, or identical
+finite rounding across backends is promised. For a non-ignored slice, any NaN or positive infinity
+and an all-negative-infinity slice produce NaN. With at least one finite logit, selecting negative
+infinity produces positive infinity; selecting a finite class gives its finite stable loss.
+Ignored positions stay positive zero without propagating special values. Participating NaN
+propagates through reductions; otherwise participating positive infinity produces positive
+infinity.
 
-Each successful call creates one fresh unlabeled, storage-free Tensor with unresolved layout, one
-producer, one ID, and output-index-zero provenance over exact ordered inputs `[logits, target]`.
-`requiresGrad` is metadata equal to the logical OR of input eligibility; it does not define a
-gradient rule. Construction adds no softmax, log-softmax, log-sum-exp, arithmetic, or reduction
-sub-producers and mutates neither input.
-
-These are current model-expression facts only. Compiler capture must later revalidate operands
-and prove deferred Shape and class-extent obligations. Gradient construction and legal
-decomposition belong to the compiler; stable lowering and tolerance satisfaction belong to
-backend preparation; runtime executes prepared work; training sessions may later consume the
-loss Tensor. None of those lifecycle stages is implemented by this method.
+Every successful request creates one fresh unlabeled, storage-free Tensor with unresolved layout,
+one producer, one ID, and output-index-zero provenance over `[logits, target]`. It creates no
+softmax, gather, select, cast, arithmetic, reduction, or one-hot sub-producer and mutates no input.
+These are current model-expression facts only. Compiler capture, deferred proof, constant
+analysis, bounds enforcement, gradients, decomposition, optimization, backend lowering,
+preparation, numerical execution, runtime publication, and training coordination remain planned
+in their owning lifecycle layers.
 
 ### Contiguous expressions
 
@@ -7805,25 +7844,40 @@ fresh one-input provenance without changing that semantic boundary.
 
 ### Loss semantic kind, reduction, and attributes
 
-The public `LossKind` enum currently contains exactly `MEAN_SQUARED_ERROR`. Its sole signature is
-fixed to exact `MeanSquaredErrorAttrs`, two ordered inputs, and one output:
+The public `LossKind` enum currently contains three meanings in this order:
+
+```text
+MEAN_SQUARED_ERROR
+DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+```
+
+Each kind has exactly one fixed two-input, one-output signature with its exact attributes type:
 
 ```java
 OperationSignature.fixed(MeanSquaredErrorAttrs.class, 2, 1)
+OperationSignature.fixed(DenseCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)
+OperationSignature.fixed(IndexCategoricalCrossEntropyWithLogitsAttrs.class, 2, 1)
 ```
 
-The ordered roles are `[prediction, target]`; the output role is the selected loss. The public
+The ordered roles are `[prediction, target]` for MSE and `[logits, target]` for both categorical
+meanings; the output role is the selected loss. The public
 `LossReduction` enum contains exactly `NONE`, `SUM`, and `MEAN`. It is typed configuration rather
 than `OperationAttrs`: it stores no axis, denominator, default, parser, mask, Tensor, or executable
 behavior. `MeanSquaredErrorAttrs(reduction)` retains one exact non-null reduction and contains no
 input, Shape, element count, data type, algorithm, gradient, graph, compiler, backend, or runtime
-state.
+state. `DenseCategoricalCrossEntropyWithLogitsAttrs(axis, reduction)` retains the normalized class
+axis and reduction. `IndexCategoricalCrossEntropyWithLogitsAttrs(axis, reduction, ignoreIndex)`
+also retains a non-null optional exact INT32/INT64 `ScalarValue`; the optional is internal metadata,
+not a public Tensor-method parameter or producer input.
 
 The semantic contract is elementwise `(prediction - target)^2`, optionally summed over the
 complete logical domain or divided by its complete element count. It fixes scalar and empty-domain
 meaning plus the NaN, infinity, signed-zero, overflow, reassociation, and determinism boundaries
 documented in [Mean-squared-error loss expressions](#mean-squared-error-loss-expressions). The
-kind and attributes alone do not validate operand descriptors, derive a result, construct a
+categorical contracts are documented in
+[Categorical-cross-entropy-with-logits expressions](#categorical-cross-entropy-with-logits-expressions).
+The kinds and attributes alone do not validate operand descriptors, derive a result, construct a
 Tensor, read values, or add compiler, backend, runtime, gradient, or training behavior.
 
 ### Contiguous semantic kind

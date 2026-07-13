@@ -55,12 +55,15 @@ class TensorMeanSquaredErrorExpressionTest {
                 () -> assertEquals(Set.of(
                                 "meanSquaredError",
                                 "categoricalCrossEntropyWithLogits",
+                                "denseCategoricalCrossEntropyWithLogits",
+                                "indexCategoricalCrossEntropyWithLogits",
                                 "requireFloating",
                                 "validateExactShape",
+                                "validateIndexTargetShape",
                                 "validateClassExtent",
                                 "removeAxis"),
                         methodNames),
-                () -> assertEquals(187, Arrays.stream(Tensor.class.getDeclaredMethods())
+                () -> assertEquals(188, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers())).count()),
                 () -> assertEquals(1, Arrays.stream(Tensor.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
