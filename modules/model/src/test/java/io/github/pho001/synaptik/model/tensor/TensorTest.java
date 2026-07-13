@@ -87,7 +87,7 @@ class TensorTest {
         Set<String> publicMethods = declaredPublicMethods.stream()
                 .map(method -> method.getName())
                 .collect(Collectors.toSet());
-        assertEquals(189, declaredPublicMethods.size());
+        assertEquals(190, declaredPublicMethods.size());
         assertEquals(
                 Set.of("id", "descriptor", "label", "hostStorage", "replaceHostStorage",
                         "clearHostStorage", "provenance", "toString", "add", "sub", "mul",
@@ -105,7 +105,7 @@ class TensorTest {
                         "l2Norm", "contiguous", "reshape", "expand", "permute",
                         "transpose", "expandDims", "squeeze", "slice", "sliceAxis", "flip", "select",
                         "gather", "embedding", "oneHot", "gatherElements", "gatherNd",
-                        "scatterElements", "scatterNd", "pad",
+                        "scatterAdd", "scatterElements", "scatterNd", "pad",
                         "tile", "concat", "stack", "unstack", "unfold",
                         "unfold2d", "fold2d"),
                 publicMethods);
@@ -361,6 +361,18 @@ class TensorTest {
                     () -> assertFalse(Modifier.isStatic(method.getModifiers())),
                     () -> assertFalse(Modifier.isSynchronized(method.getModifiers())));
         }
+
+        var scatterAdd = Tensor.class.getDeclaredMethod(
+                "scatterAdd", Tensor.class, Tensor.class, int.class);
+        assertAll(
+                () -> assertEquals(Tensor.class, scatterAdd.getReturnType()),
+                () -> assertEquals(
+                        List.of(Tensor.class, Tensor.class, int.class),
+                        Arrays.asList(scatterAdd.getParameterTypes())),
+                () -> assertFalse(scatterAdd.isVarArgs()),
+                () -> assertTrue(Modifier.isPublic(scatterAdd.getModifiers())),
+                () -> assertFalse(Modifier.isStatic(scatterAdd.getModifiers())),
+                () -> assertFalse(Modifier.isSynchronized(scatterAdd.getModifiers())));
 
         for (Class<?>[] parameters : List.of(
                 new Class<?>[] {Shape.class, ScalarValue.class},

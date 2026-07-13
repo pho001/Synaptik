@@ -74,8 +74,8 @@ methods, plus explicit-axis five-input `batchNormInference` and `batchNormTraini
 scalar `select`, two
 tensor-index axis-gather methods, the `embedding` convenience over axis-zero Gather, one
 trailing-axis `oneHot` index-encoding method, and two Gather-ND methods, plus two functional
-Scatter Elements
-methods and three functional Scatter-ND methods, plus one matrix-multiplication method, construct
+Scatter Elements methods, one Gather-compatible functional Scatter Add method, and three
+functional Scatter-ND methods, plus one matrix-multiplication method, construct
 storage-free expressions with immutable producer-and-output-index provenance. Four full-ordering
 methods add ascending or explicitly directed `sort` and `argsort` requests. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
@@ -460,9 +460,18 @@ eligibility OR, unresolved layout, and exact three-input provenance. Constructio
 checks no index bound or duplicate target, mutates no input, and performs no write or reduction.
 It adds no gradient rule, graph capture, compiler transformation, materialization, lowering,
 backend behavior, or execution behavior.
-Specialized fixed-add gather adjoints are not current public model kinds or Tensor methods. A
-future compiler task may define selected backend-independent generated semantics when ordinary
-composition is insufficient; this page does not predefine those operations.
+`Tensor.scatterAdd(indices, updates, axis)` is now the current Gather-compatible fixed-add model
+primitive. It records `SCATTER_ADD` with normalized `IndexAxisAttrs` and ordered
+`[data, indices, updates]` inputs. Updates must have the exact Shape that `data.gather(indices,
+axis)` would produce, while the functional result retains the exact data Shape and accumulates
+duplicate targets. Construction validates metadata only and leaves layout unresolved. It does not
+capture a graph, construct a Gather/embedding adjoint, inspect or bounds-check indices, lower the
+operation, or execute addition.
+
+A later compiler/autograd owner may use this general public primitive when constructing Gather or
+embedding data adjoints. That owner must preserve the same occurrence, Shape, numeric, duplicate-
+accumulation, and eventual index-bounds obligations; this documentation does not claim that such
+adjoint construction or compiler support exists today.
 The three `Tensor.scatterNd` overloads consume exact ordered `[data, indices, updates]` inputs with
 `INT32` or `INT64` indices and exact matching data/update types. Their defaults select
 `ScatterReduction.NONE` and zero shared batch Dimensions; complete construction retains the exact
@@ -547,7 +556,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   signed-step slice plus one-occurrence flip construction, plus conditional-view scalar-select construction and
   unresolved-layout Gather/Gather Elements and trailing-axis one-hot construction, plus
   unresolved-layout Gather-ND,
-  functional Scatter Elements, and functional Scatter-ND
+  functional Scatter Elements, Gather-compatible Scatter Add, and functional Scatter-ND
   construction, plus
   unresolved constant-pad and complete-pattern tile
   construction, plus ordered concat/stack and immutable repeated-SELECT unstack construction,

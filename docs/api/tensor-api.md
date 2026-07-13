@@ -63,6 +63,9 @@ inspect index values.
 The two `scatterElements` overloads construct functional same-rank axis-scatter expressions from
 ordered `[data, indices, updates]` inputs. They preserve the exact data Shape and type, combine
 data/update gradient eligibility, and never inspect values or mutate the data input.
+`scatterAdd(Tensor, Tensor, int)` constructs the distinct Gather-compatible fixed-add scatter:
+the complete indices Shape replaces one data axis in the required updates Shape, while the fresh
+functional result retains the exact data Shape and accumulates duplicate targets.
 The three `scatterNd` overloads construct functional tuple-index scatter expressions with
 replacement or an explicit reduction and with zero or an explicit shared-batch count. They apply
 the Gather-ND result-Shape formula to `updates`, preserve exact data metadata in a fresh unresolved
@@ -5956,6 +5959,114 @@ backend lowering, or execution.
 - Checked result-rank overflow propagates as `ArithmeticException`; identifier exhaustion can
   occur only during final derived Tensor construction.
 
+### Gather-compatible Scatter Add expressions
+
+`data.scatterAdd(indices, updates, axis)` constructs one functional fixed-add expression with
+ordered logical inputs `[data, indices, updates]`. It requires exact `INT32` or `INT64` indices,
+exact matching data/update types, and floating or signed-integral data. BOOL is rejected. The raw
+axis is normalized once against the data Shape. If normalized axis `a` selects data Shape
+`[d0, ..., da, ..., dR-1]`, the exact updates Shape is:
+
+```text
+[d0, ..., d(a-1)] + indices.shape + [d(a+1), ..., d(R-1)]
+```
+
+This is exactly the Shape produced by `data.gather(indices, axis)`, including every static,
+dynamic, or expression Dimension reference. There is no broadcast, symbolic binding, or selected-
+extent compatibility rule. Scalar indices insert no Dimensions; an indices Shape containing a
+zero extent produces a zero-element updates domain and remains structurally valid.
+
+For an updates coordinate `[before..., i..., after...]`, where `i...` spans the complete indices
+coordinate, the target is `[before..., indices[i...], after...]`. The conceptual target value
+starts with the corresponding data value and adds every addressed update. Duplicate indices
+therefore accumulate. Signed-integral addition is fixed-width modular; floating addition may be
+reassociated and has no bitwise-order guarantee.
+
+Every success returns a fresh, unlabeled, storage-free Tensor with the exact data Shape/type,
+data/update gradient-eligibility OR, unresolved layout, `AxisScatterKind.SCATTER_ADD`, normalized
+`IndexAxisAttrs`, exact provenance `[data, indices, updates]`, and output index zero. Construction
+does not read index or update values, check index bounds, add values, mutate inputs, construct a
+gradient, capture a graph, lower to a backend, or execute work. Failed local validation consumes
+no Tensor identity; identifier exhaustion remains possible only during final derived creation.
+
+#### Complete Scatter Add metadata example
+
+The following program exercises static rank-changing, symbolic, scalar-index, and empty-index
+Shapes. All tensors are storage-free descriptor metadata.
+
+```java
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.util.Optional;
+
+public final class ScatterAddExpressionExample {
+    private static Tensor tensor(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(
+                new TensorDescriptor(type, shape, Optional.empty(), requiresGrad));
+    }
+
+    public static void main(String[] args) {
+        Tensor data = tensor(DataType.FLOAT32, Shape.of(2, 3, 4), true);
+        Tensor indices = tensor(DataType.INT64, Shape.of(5, 6), false);
+        Tensor updates = tensor(DataType.FLOAT32, Shape.of(2, 5, 6, 4), false);
+        Tensor fixed = data.scatterAdd(indices, updates, -2);
+
+        DynamicDimension batch = new DynamicDimension("batch");
+        DynamicDimension features = new DynamicDimension("features");
+        DynamicDimension queries = new DynamicDimension("queries");
+        Tensor symbolicData = tensor(DataType.INT32,
+                Shape.ofDimensions(batch, new StaticDimension(3), features), false);
+        Tensor symbolicIndices = tensor(
+                DataType.INT32, Shape.ofDimensions(queries), false);
+        Tensor symbolicUpdates = tensor(DataType.INT32,
+                Shape.ofDimensions(batch, queries, features), false);
+
+        Tensor scalarIndices = tensor(DataType.INT32, Shape.scalar(), false);
+        Tensor scalarUpdates = tensor(DataType.FLOAT32, Shape.of(2, 4), false);
+        Tensor emptyIndices = tensor(DataType.INT32, Shape.of(0, 6), false);
+        Tensor emptyUpdates = tensor(DataType.FLOAT32, Shape.of(2, 0, 6, 4), false);
+
+        System.out.println(fixed.descriptor().shape());
+        System.out.println(fixed.provenance().orElseThrow().operation());
+        System.out.println(symbolicData.scatterAdd(
+                symbolicIndices, symbolicUpdates, 1).descriptor().shape());
+        System.out.println(data.scatterAdd(
+                scalarIndices, scalarUpdates, 1).descriptor().shape());
+        System.out.println(data.scatterAdd(
+                emptyIndices, emptyUpdates, 1).descriptor().shape());
+        System.out.println(fixed.descriptor().requiresGrad());
+        System.out.println(fixed.provenance().orElseThrow().inputs().get(0) == data);
+        System.out.println(fixed.provenance().orElseThrow().inputs().get(1) == indices);
+        System.out.println(fixed.provenance().orElseThrow().inputs().get(2) == updates);
+    }
+}
+```
+
+The first result Shape is `[2, 3, 4]`, while its operation is
+`SCATTER_ADD` with `IndexAxisAttrs[axis=1]`. The symbolic call retains exact
+`[batch, 3, features]` result Shape after requiring updates `[batch, queries, features]`.
+The scalar and empty calls both retain result `[2, 3, 4]`; their required updates Shapes are
+`[2, 4]` and `[2, 0, 6, 4]`. The final four lines are `true`, confirming data-derived gradient
+eligibility and exact ordered provenance.
+
+Null indices and updates fail in that order. Index type then fails before update type, numeric
+data type, axis normalization, and exact updates-Shape equality. A Shape mismatch reports the
+complete expected and actual Shapes. Bounds are value-aware: negative and out-of-range stored
+indices are not normalized, wrapped, or clamped by model construction and remain obligations for
+later compilation/preparation or execution.
+
+The Shape replacement follows the terminology of official
+[ONNX Gather](https://onnx.ai/onnx/operators/onnx__Gather.html). It intentionally differs from the
+same-rank aligned contracts of [ONNX Scatter Elements](https://onnx.ai/onnx/operators/onnx__ScatterElements.html)
+and [PyTorch `scatter_add`](https://docs.pytorch.org/docs/stable/generated/torch.scatter_add.html).
+[JAX `lax.scatter_add`](https://docs.jax.dev/en/latest/_autosummary/jax.lax.scatter_add.html)
+exposes general dimension-number mappings; this focused API does not adopt that broader language.
+
 ### Scatter Elements expressions
 
 The two public `scatterElements` overloads construct a functional same-rank update from ordered
@@ -7547,10 +7658,10 @@ composition while the table also lists the current production families:
 | `SelectKind` | The implemented production enum whose sole `SELECT` value fixes one scalar coordinate on one source axis and removes that axis. |
 | `SelectAttrs` | The implemented immutable normalized non-negative source axis and scalar coordinate for `SELECT`. |
 | `AxisGatherKind` | The implemented production enum for canonical Gather and aligned same-rank Gather Elements meanings. |
-| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by Gather and Gather Elements. |
+| `IndexAxisAttrs` | The implemented immutable normalized non-negative data-axis value shared by Gather, Gather Elements, and Gather-compatible Scatter Add. |
 | `OneHotKind` | The implemented production enum whose sole `ONE_HOT` value identifies dense trailing-axis BOOL index encoding. |
 | `OneHotAttrs` | The implemented immutable positive static depth of one-hot's appended class axis. |
-| `AxisScatterKind` | The implemented production enum whose sole `SCATTER_ELEMENTS` value identifies configurable same-rank functional scatter. |
+| `AxisScatterKind` | The implemented production enum for configurable same-rank Scatter Elements and fixed-add Gather-compatible Scatter Add. |
 | `ScatterReduction` | The implemented reusable replacement, addition, multiplication, maximum, or minimum meaning for configurable functional scatter. |
 | `ScatterElementsAttrs` | The implemented immutable normalized axis and explicit non-null reduction for `SCATTER_ELEMENTS`. |
 | `UnaryElementwiseKind` | The implemented production enum for nineteen parameterless unary numeric and activation meanings. |
@@ -8481,11 +8592,12 @@ coordinate; axis gather, which indexes one selected axis; and scatter-ND, which 
 updates. Neither semantic values nor current expression construction define index-value bounds,
 a numerical algorithm, gradients, compiler behavior, backend behavior, or execution.
 
-### Scatter Elements semantic kind, reduction, and attributes
+### Axis-scatter semantic kinds, reduction, and attributes
 
-`AxisScatterKind` implements `OperationKind` with exactly `SCATTER_ELEMENTS`. It consumes
-ordered logical inputs `[data, indices, updates]`, pairs with
-`ScatterElementsAttrs(axis, reduction)`, and declares exactly three inputs and one output.
+`AxisScatterKind` implements `OperationKind` with exactly `SCATTER_ELEMENTS`, then `SCATTER_ADD`.
+Both consume ordered logical inputs `[data, indices, updates]` and declare exactly three inputs
+and one output. `SCATTER_ELEMENTS` pairs only with `ScatterElementsAttrs(axis, reduction)`;
+`SCATTER_ADD` pairs only with `IndexAxisAttrs(axis)`. Cross-family attributes are invalid.
 
 Indices and updates have equal rank and Shape and match data away from the selected axis. The
 functional result has the exact data Shape and does not mutate data. For data `[2, 3, 4]`, axis
@@ -8497,13 +8609,18 @@ target `[0, index, 2]`.
 and all updates for a target. The vocabulary does not define traversal order, numerical edge
 behavior, determinism, atomicity, or a backend algorithm.
 
+`SCATTER_ADD` instead requires updates with the exact Shape that ordinary Gather would produce:
+data prefix, complete indices Shape, then data suffix. It has intrinsic addition rather than a
+stored reduction. Its data-shaped functional result includes the base and all updates for every
+target, so duplicate indices accumulate. `IndexAxisAttrs` is shared with axis Gather because the
+same normalized data axis defines both Shape relationships.
+
 `ScatterElementsAttrs` validates the normalized non-negative axis before requiring a non-null
 reduction. Public `Tensor.scatterElements` owns caller-axis, type, reduction-eligibility, rank,
 Shape, descriptor, and provenance validation. Index bounds and duplicate targets require values
-and remain outside model metadata construction. The semantic values define no gradients,
-compiler-generated adjoints, materialization, lowering, backend behavior, or execution. Fixed-add
-adjoints are not current public operation kinds; task 0023 may later define selected
-compiler-generated semantics without restoring public aliases.
+and remain outside model metadata construction. Public `Tensor.scatterAdd` owns the corresponding
+numeric and exact Gather-compatible Shape checks. The semantic values define no gradients,
+compiler-generated adjoints, materialization, lowering, backend behavior, or execution.
 
 ### Scatter-ND semantic kind and attributes
 

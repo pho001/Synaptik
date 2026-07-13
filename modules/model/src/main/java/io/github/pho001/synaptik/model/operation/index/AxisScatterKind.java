@@ -25,14 +25,17 @@ import java.util.List;
  *       indices and updates shapes {@code [2, 5, 4]}, the conceptual result shape is
  *       {@code [2, 3, 4]}. At update coordinate {@code [0, 4, 2]}, the corresponding index selects
  *       the middle coordinate of target {@code [0, index, 2]}.</li>
+ *   <li>{@link #SCATTER_ADD} requires updates to have the Shape that {@link AxisGatherKind#GATHER}
+ *       would produce from data and indices. It adds every update to its addressed base value,
+ *       including accumulation of duplicate indices.</li>
  * </ul>
  *
  * <p>These relationships explain semantics only. This enum does not inspect operands, validate
  * ranks, shapes, data types, index values, bounds, or duplicate targets, and does not construct or
  * execute a result. {@code SCATTER_ELEMENTS} pairs with {@link ScatterElementsAttrs}, which
- * carries its selected reduction. Family-owned
- * signatures enforce those exact pairings and declare the ordered three-input, one-output
- * occurrence.</p>
+ * carries its selected reduction, while {@code SCATTER_ADD} pairs with {@link IndexAxisAttrs} and
+ * has intrinsic addition. Family-owned signatures enforce those exact pairings and declare the
+ * ordered three-input, one-output occurrence.</p>
  *
  * <p>Axis scatter differs from {@link AxisGatherKind axis gather} and
  * {@link GatherNdKind#GATHER_ND Gather-ND}, which read selected data; scatter-ND, which uses
@@ -50,18 +53,32 @@ public enum AxisScatterKind implements OperationKind {
      * equal shapes, match data away from the selected axis, and reduce into the exact data shape.
      * {@link ScatterElementsAttrs} supplies the selected reduction.</p>
      */
-    SCATTER_ELEMENTS;
+    SCATTER_ELEMENTS,
+
+    /**
+     * Adds Gather-compatible updates into the exact data Shape.
+     *
+     * <p>The ordered logical inputs are {@code [data, indices, updates]}. The complete indices
+     * Shape replaces the selected data axis in the required updates Shape. Each update is added
+     * to the base value addressed by its index, and duplicate targets accumulate.</p>
+     */
+    SCATTER_ADD;
 
     private static final List<OperationSignature> ELEMENTS_SIGNATURES =
             List.of(OperationSignature.fixed(ScatterElementsAttrs.class, 3, 1));
+    private static final List<OperationSignature> ADD_SIGNATURES =
+            List.of(OperationSignature.fixed(IndexAxisAttrs.class, 3, 1));
 
     /**
      * Returns the exact three-input, one-output attributes variant accepted by this scatter kind.
      *
-     * @return the stable scatter-elements signature
+     * @return the stable signature for this exact scatter kind
      */
     @Override
     public List<OperationSignature> signatures() {
-        return ELEMENTS_SIGNATURES;
+        return switch (this) {
+            case SCATTER_ELEMENTS -> ELEMENTS_SIGNATURES;
+            case SCATTER_ADD -> ADD_SIGNATURES;
+        };
     }
 }

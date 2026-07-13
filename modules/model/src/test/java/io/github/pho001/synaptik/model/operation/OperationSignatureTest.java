@@ -28,6 +28,7 @@ import io.github.pho001.synaptik.model.operation.index.OneHotKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
+import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
@@ -191,8 +192,12 @@ public final class OperationSignatureTest {
         assertFamily(List.of(noAttrsUnary), FloatingClassificationKind.values());
 
         assertFamily(List.of(fixed(IndexAxisAttrs.class, 2)), AxisGatherKind.values());
-        assertFamily(
-                List.of(fixed(ScatterElementsAttrs.class, 3)), AxisScatterKind.values());
+        assertKinds(
+                List.of(fixed(ScatterElementsAttrs.class, 3)),
+                AxisScatterKind.SCATTER_ELEMENTS);
+        assertKinds(
+                List.of(fixed(IndexAxisAttrs.class, 3)),
+                AxisScatterKind.SCATTER_ADD);
         assertFamily(List.of(fixed(GatherNdAttrs.class, 2)), GatherNdKind.values());
         assertFamily(List.of(fixed(ScatterNdAttrs.class, 3)), ScatterNdKind.values());
         assertFamily(List.of(fixed(SelectAttrs.class, 1)), SelectKind.values());
@@ -307,6 +312,15 @@ public final class OperationSignatureTest {
                         IllegalArgumentException.class,
                         () -> new Operation(
                                 AxisGatherKind.GATHER, NoOperationAttrs.INSTANCE)),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
+                                AxisScatterKind.SCATTER_ELEMENTS, new IndexAxisAttrs(0))),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
+                                AxisScatterKind.SCATTER_ADD,
+                                new ScatterElementsAttrs(0, ScatterReduction.ADD))),
                 () -> assertThrows(
                         IllegalArgumentException.class,
                         () -> new Operation(

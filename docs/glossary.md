@@ -221,16 +221,17 @@ supplies tuple depth rather than duplicating that occurrence-specific fact in at
 prefix, static positive tuple depth, and result Shape; it records fresh ordered provenance while
 preserving data metadata with unresolved layout. Index-value bounds, gradients, compiler behavior,
 backend behavior, and execution remain planned or separately owned.
-The `AxisScatterKind` vocabulary is implemented with the sole functional `SCATTER_ELEMENTS`
-meaning. It uses ordered logical inputs
+The `AxisScatterKind` vocabulary is implemented with functional `SCATTER_ELEMENTS`, then
+Gather-compatible fixed-add `SCATTER_ADD`. Both use ordered logical inputs
 `[data, indices, updates]` and conceptually produce a new result with the exact data Shape without
-mutating the base data. It uses `ScatterElementsAttrs` and the reusable `ScatterReduction` choices
-`NONE`, `ADD`, `MUL`, `MAX`, and `MIN`. `NONE` duplicate targets are invalid, with value-aware
-detection deferred. Public Tensor construction now validates exact integral index type, matching
-data/update type, reduction eligibility, raw axis, and the same-rank Shape rule. It
-retains exact data Shape/type, combines data/update gradient eligibility, leaves layout unresolved,
-and records ordered provenance. Index bounds, duplicate detection, value writes/reductions,
-gradients, compiler behavior, backend behavior, and execution remain planned or separately owned.
+mutating the base data. Scatter Elements uses `ScatterElementsAttrs` and the reusable
+`ScatterReduction` choices `NONE`, `ADD`, `MUL`, `MAX`, and `MIN`; `NONE` duplicate targets are
+invalid, with value-aware detection deferred. Scatter Add instead reuses `IndexAxisAttrs`,
+requires the exact ordinary-Gather result Shape for updates, and intrinsically accumulates every
+update including duplicates. Public Tensor construction validates each contract's exact type,
+axis, and Shape rules, combines data/update gradient eligibility, leaves layout unresolved, and
+records ordered provenance. Index bounds, value writes/reductions, gradients, compiler behavior,
+backend behavior, and execution remain planned or separately owned.
 The `ScatterNdKind` vocabulary is implemented with the sole functional tuple-index `SCATTER_ND`
 meaning, together with `ScatterNdAttrs` carrying a normalized non-negative shared-batch count and
 an explicit `ScatterReduction`. Its ordered logical inputs are `[data, indices, updates]`; tuple
@@ -464,6 +465,34 @@ increasing-axis alignment checks before constructing fresh unresolved-layout exa
 `[data, indices]` provenance. It reads no index value and defines no bound, gradient, compiler,
 backend, or execution behavior.
 
+### Scatter Add
+
+An implemented Gather-compatible functional fixed-add meaning represented by
+`AxisScatterKind.SCATTER_ADD` and `IndexAxisAttrs(axis)`. Its ordered inputs are
+`[data, indices, updates]`. For normalized axis `a`, updates must have the exact Shape produced by
+ordinary [Gather](#gather):
+
+```text
+updates.shape = data.shape[:a] + indices.shape + data.shape[a + 1:]
+```
+
+The fresh functional result retains the exact data Shape and type. An updates coordinate
+`[before..., i..., after...]` addresses result coordinate
+`[before..., indices[i...], after...]`. Each target starts with its base data value and adds all
+addressed updates; duplicate indices therefore accumulate. Signed-integral addition is fixed-
+width modular, while floating addition may be reassociated and has no bitwise-order guarantee.
+
+Public `Tensor.scatterAdd(indices, updates, axis)` accepts exact INT32/INT64 indices, exact matching
+numeric data/update types, normalizes the axis, and validates the formula without broadcasting or
+binding. Scalar indices insert no Dimensions; zero, dynamic, and expression Dimensions are
+preserved structurally. Every success has data/update gradient-eligibility OR, unresolved layout,
+no label or storage, output index zero, a fresh Tensor identity, and exact ordered provenance.
+Construction reads no values, checks no bounds, performs no addition, mutates no input, and defines
+no gradient, compiler, backend, runtime, or execution behavior. This differs from
+[Scatter Elements](#scatter-elements), whose indices and updates are aligned and same-rank with
+data, and [Scatter-ND](#scatter-nd), whose indices contain multi-axis coordinate tuples. See
+[Gather-compatible Scatter Add expressions](api/tensor-api.md#gather-compatible-scatter-add-expressions).
+
 ### Scatter Elements
 
 An implemented functional same-rank scatter meaning represented by
@@ -478,8 +507,8 @@ eligibility, axis, rank, and Shape, preserves exact data Shape/type with unresol
 combines data/update gradient eligibility, and records ordered provenance. It reads no values,
 checks no bounds or duplicate targets, and performs no write or reduction. See
 [Scatter Elements expressions](api/tensor-api.md#scatter-elements-expressions) and
-[Scatter Elements semantic kind, reduction, and
-attributes](api/tensor-api.md#scatter-elements-semantic-kind-reduction-and-attributes).
+[axis-scatter semantic kinds, reduction, and
+attributes](api/tensor-api.md#axis-scatter-semantic-kinds-reduction-and-attributes).
 
 ### Gather-ND
 
@@ -1163,7 +1192,8 @@ and flip boundaries normalize caller-facing negative axes before constructing th
 duplicates fail after normalization in caller order.
 `CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
 axis, with the paired kind supplying the interpretation. It contains no rank context.
-`IndexAxisAttrs` stores the normalized data axis for Gather and Gather Elements.
+`IndexAxisAttrs` stores the normalized data axis for Gather, Gather Elements, and
+Gather-compatible Scatter Add.
 `ScatterElementsAttrs` stores the corresponding axis plus an explicit
 reduction for scatter-elements. `ScatterNdAttrs` instead stores a shared batch count and reduction;
 tuple depth remains in the final indices Dimension. The current gather and scatter expression
@@ -1234,7 +1264,7 @@ ordered before/after widths and one exact typed scalar constant, while `TileAttr
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
 shared by concat and stack. `SelectAttrs` holds one normalized source axis and one normalized
 scalar coordinate for axis-removing scalar select and repeated-select unstack. `IndexAxisAttrs`
-holds one normalized data axis shared by `GATHER` and `GATHER_ELEMENTS`.
+holds one normalized data axis shared by `GATHER`, `GATHER_ELEMENTS`, and `SCATTER_ADD`.
 `OneHotAttrs` holds one positive static `long` depth for the trailing class axis of `ONE_HOT` and
 contains no input value, Shape, axis, on/off value, output type, or execution policy.
 `GatherNdAttrs` holds the normalized count of shared leading batch Dimensions
@@ -1445,9 +1475,10 @@ The nineteenth is `AxisGatherKind`, whose `GATHER` and `GATHER_ELEMENTS` values 
 The twentieth is `OneHotKind`, whose sole `ONE_HOT` value pairs with `OneHotAttrs` as described
 under [one-hot encoding](#one-hot-encoding). The twenty-first is `GatherNdKind`, whose sole
 `GATHER_ND` value pairs with `GatherNdAttrs` as described under [Gather-ND](#gather-nd). The
-twenty-second is `AxisScatterKind`, whose sole `SCATTER_ELEMENTS`
-value pairs with `ScatterElementsAttrs` and one `ScatterReduction`, as described under
-[Scatter Elements](#scatter-elements).
+twenty-second is `AxisScatterKind`, whose `SCATTER_ELEMENTS` value pairs with
+`ScatterElementsAttrs` and one `ScatterReduction`, while `SCATTER_ADD` pairs with
+`IndexAxisAttrs`, as described under [Scatter Elements](#scatter-elements) and
+[Scatter Add](#scatter-add).
 The twenty-third is `ScatterNdKind`, whose sole `SCATTER_ND` value pairs with `ScatterNdAttrs`
 and the shared reduction vocabulary, as described under [Scatter-ND](#scatter-nd). The
 twenty-fourth is `WindowTransformKind`: `UNFOLD_AXIS` pairs with

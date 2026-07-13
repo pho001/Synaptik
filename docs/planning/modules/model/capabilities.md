@@ -255,8 +255,11 @@ reduction semantics. The [task-0023 audit](adjoint-expressibility-audit.md) conf
 exactly express Gather Elements and Gather-ND adjoints with ADD duplicate accumulation. General
 rank-changing Gather has a different indices/update Shape relation. A positive static gathered
 extent can compose through current one-hot selection and reduction, but an unresolved gathered
-extent cannot because one-hot requires positive static depth. Draft task 0023B therefore owns one
-generally useful Gather-compatible axis scatter-add primitive rather than a backward-only kind.
+extent cannot because one-hot requires positive static depth. Completed
+[task 0023B](tasks/0023b-gather-compatible-scatter-add.md) therefore implements final
+`SCATTER_ADD` plus one public `scatterAdd(indices, updates, axis)` expression with exact Gather
+result-Shape updates and fixed duplicate accumulation, rather than a backward-only kind or a
+general scatter dimension-number language.
 ONNX
 [ScatterElements](https://onnx.ai/onnx/operators/onnx__ScatterElements.html) and
 [ScatterND](https://onnx.ai/onnx/operators/onnx__ScatterND.html) provide the interoperability
@@ -768,17 +771,22 @@ The audit selected six generally useful prerequisites. Completed
 as an exact target-Shape variant of existing `AggregateReductionKind.SUM`, with one public
 `sumToShape(Shape)` expression and no new kind. It preserves exact numeric type and eligibility,
 retains unresolved right-aligned target-one-or-equal obligations, and records one-input metadata
-without binding or execution. Draft rows 0023B–0023F retain Gather-compatible
-axis scatter-add, signed slice placement plus target-relative dynamic crop, public general-axis fold plus
-redesigned dynamic/configurable 2D window transforms, cumulative product, and same-occurrence
-attention weights. The detailed matrix owns formulas and policy-deferred boundary
+without binding or execution. Completed
+[task 0023B](tasks/0023b-gather-compatible-scatter-add.md) implements final Gather-compatible
+fixed-add functional scatter with one public `scatterAdd` method, exact Gather-result updates
+Shape, fixed duplicate accumulation, and storage-free metadata construction. Draft rows
+0023C–0023F retain signed slice placement plus target-
+relative dynamic crop, public general-axis fold plus redesigned dynamic/configurable 2D window
+transforms, cumulative product, and same-occurrence attention weights. The detailed matrix owns
+formulas and policy-deferred boundary
 cases; this capability baseline intentionally does not duplicate them.
 
 The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
-runtime, or execution contract. Completed task 0023A changes model semantic/expression metadata
-only. Its focused 14-suite run passed 131 tests and its replacement final model suite passed 977
-tests; model Javadoc and documentation/scope validation also passed with 189 public Tensor methods.
-Fusion and lowering remain backend-prepare concerns.
+runtime, or execution contract. Completed tasks 0023A and 0023B change model semantic/expression
+metadata only. Task 0023B's focused 15-suite run passed 124 tests and its final model suite passed
+981 tests across 125 suites; model Javadoc and documentation/scope validation passed with 190
+public Tensor methods. Fusion, adjoint construction, bounds enforcement, lowering, and execution
+remain later owning concerns.
 
 ## Validation policy
 

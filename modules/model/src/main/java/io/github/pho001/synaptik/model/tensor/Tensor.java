@@ -5087,6 +5087,41 @@ public final class Tensor {
     }
 
     /**
+     * Creates a fresh Gather-compatible functional scatter that adds updates into this tensor.
+     *
+     * <p>If this Shape is {@code dataBefore + selectedExtent + dataAfter}, the exact required
+     * updates Shape is {@code dataBefore + indices.shape + dataAfter}. Every update is added to
+     * the base value selected along {@code axis}; duplicate indices accumulate. The result retains
+     * this tensor's exact Shape and type. INT32 and INT64 use fixed-width modular addition;
+     * floating addition may be reassociated and has no bitwise-order guarantee.</p>
+     *
+     * <p>An updates coordinate {@code [dBefore..., i..., dAfter...]} addresses result coordinate
+     * {@code [dBefore..., indices[i...], dAfter...]}. Construction validates only descriptors:
+     * index-value bounds remain a later value-aware obligation.</p>
+     *
+     * <p>The result is fresh, unlabeled, storage-free, has unresolved layout, combines data and
+     * update gradient eligibility, and records ordered {@code [this, indices, updates]}
+     * provenance. This method reads no values, checks no index bounds, mutates no input, defines
+     * no gradient, and performs no compiler, backend, runtime, or execution work. Every successful
+     * call allocates one fresh Tensor identity after local validation; a failed local validation
+     * consumes none.</p>
+     *
+     * @param indices non-null INT32 or INT64 tensor whose complete Shape replaces the selected axis
+     * @param updates non-null numeric tensor with this exact type and the Gather-compatible Shape
+     * @param axis data axis in {@code [-rank, rank - 1]}; negative values count from the final axis
+     * @return a non-null fresh SCATTER_ADD tensor with exact data Shape/type, data/update gradient
+     *     eligibility OR, unresolved layout, no label or storage, and ordered provenance at output
+     *     index zero
+     * @throws NullPointerException if {@code indices} or {@code updates} is null, checked in order
+     * @throws IllegalArgumentException if index type, update type, numeric type, or Shape is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data rank
+     * @throws IllegalStateException if tensor identifier space is exhausted after local validation
+     */
+    public Tensor scatterAdd(Tensor indices, Tensor updates, int axis) {
+        return TensorAxisScatterExpressions.scatterAdd(this, indices, updates, axis);
+    }
+
+    /**
      * Creates a fresh same-rank scatter-elements expression with an explicit reduction.
      *
      * <p>The ordered inputs are {@code [this, indices, updates]}. Indices must be exact INT32 or
