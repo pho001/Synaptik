@@ -180,10 +180,16 @@ import java.util.Optional;
  * attaches storage or guarantees an executable alias. Expand-dimensions inserts one static
  * singleton at a normalized result position; squeeze removes one selected dimension only when
  * its singleton extent is statically proven. Resolved rank edits insert or remove one stride in
- * new same-offset view metadata, while unresolved geometry stays unresolved. Slice accepts
- * parallel half-open bounds, distinct axes, and positive steps. It preserves rank, normalizes and
- * clamps against selected static dimensions, and derives checked resolved view geometry only for
- * non-empty results with resolved input layout. Empty and unresolved results remain unresolved.
+ * new same-offset view metadata, while unresolved geometry stays unresolved. Slice extraction
+ * accepts parallel half-open bounds, distinct axes, and signed non-zero steps. It preserves rank,
+ * normalizes and clamps against selected static dimensions, and derives checked resolved view
+ * geometry only for non-empty positive-step results with resolved input layout. Empty,
+ * unresolved, and negative-step results remain unresolved. Slice update functionally replaces
+ * one signed multi-axis region without mutating either input; selected update extents supply its
+ * finite lengths, and the result retains the exact base Shape. Target-relative crop instead
+ * extracts an exact target Shape after a per-axis prefix Shape, proving fully static bounds while
+ * leaving unresolved inequalities for later binding or execution. Both placement results leave
+ * layout unresolved and record exact storage-free provenance without reading values.
  * Constant padding and per-axis tiling require complete rank-aligned long arrays and derive
  * canonical checked static or symbolic extents; neutral transformations preserve exact Dimension
  * references. Both accept every current data type, leave layout unresolved, and retain the raw
@@ -4696,6 +4702,81 @@ public final class Tensor {
      */
     public Tensor flip(int... axes) {
         return TensorSliceExpressions.flip(this, axes);
+    }
+
+    /**
+     * Functionally replaces one signed, strided, multi-axis slice of this base with {@code update}.
+     *
+     * <p>The three arrays are parallel. Entry {@code i} maps update coordinate {@code k} on the
+     * normalized {@code axes[i]} to base coordinate
+     * {@code normalizedStart[i] + k * steps[i]}. The selected update Dimension supplies the finite
+     * length and must be static. Unselected update Dimensions must exactly equal this tensor's
+     * Dimensions, and update rank and data type must match this tensor exactly. Empty arrays mean
+     * explicit full-Shape replacement; a selected zero extent maps no coordinates.</p>
+     *
+     * <p>A negative start adds one static base extent exactly once. Static base axes require the
+     * first and final mapped coordinates to be in bounds. An unresolved base axis accepts only a
+     * non-negative start and defers its upper-bound proof to later binding or execution. Nothing
+     * is clamped, wrapped, shifted, truncated, added, or reduced.</p>
+     *
+     * <p>The fresh result retains this tensor's exact Shape and data type, combines base/update
+     * gradient eligibility by logical OR, leaves layout unresolved, and records one
+     * {@link SliceKind#SLICE_UPDATE} producer with ordered inputs {@code [this, update]} and output
+     * index zero. This operation is functional metadata: neither input is mutated, no storage or
+     * values are accessed, and no view, copy, gradient, compiler, backend, or execution behavior
+     * is promised.</p>
+     *
+     * @param update the non-null same-type, same-rank update Tensor; selected Dimensions must be
+     *     static and the complete Shape must match the base with those axes replaced
+     * @param starts the non-null caller-owned raw inclusive starts; cloned and never retained
+     * @param axes the non-null caller-owned positive or negative base axes; cloned and never retained
+     * @param steps the non-null caller-owned signed non-zero increments; cloned and never retained
+     * @return a non-null fresh unlabeled, storage-free SLICE_UPDATE Tensor with exact base Shape,
+     *     unresolved layout, combined eligibility, and exact two-input provenance
+     * @throws NullPointerException if {@code update}, {@code starts}, {@code axes}, or
+     *     {@code steps} is null, checked in that order
+     * @throws IllegalArgumentException if array lengths, types, ranks, axes, steps, selected update
+     *     extents, coordinates, or the complete update Shape violate the contract
+     * @throws ArithmeticException if checked coordinate arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local validation
+     */
+    public Tensor sliceUpdate(
+            Tensor update, long[] starts, int[] axes, long[] steps) {
+        return TensorSlicePlacementExpressions.update(
+                this, update, starts, axes, steps);
+    }
+
+    /**
+     * Extracts an exact target Shape after a non-negative per-axis prefix Shape.
+     *
+     * <p>Input, target, and prefix ranks must match. Axis {@code i} selects the logical half-open
+     * region {@code [prefixShape[i], prefixShape[i] + targetShape[i])}. When all three extents on
+     * an axis are static, checked arithmetic proves the region fits this tensor. If any is
+     * unresolved, the same inequality remains a later binding/execution obligation rather than
+     * being proved, clamped, or evaluated here.</p>
+     *
+     * <p>The fresh result retains the exact supplied {@code targetShape} reference, this tensor's
+     * data type and gradient eligibility, and unresolved layout. It records one
+     * {@link SliceKind#SLICE} occurrence with target/prefix attributes, exact input {@code [this]},
+     * and output index zero. The prefix Shape is logical metadata, not coordinates in a Tensor or
+     * storage geometry. Construction reads no values, mutates no state, and promises no view,
+     * copy, compiler adoption, lowering, or execution.</p>
+     *
+     * @param targetShape the non-null exact result Shape; rank must equal this tensor's rank
+     * @param prefixShape the non-null exact per-axis prefix-extent Shape; rank must equal this
+     *     tensor's rank
+     * @return a non-null fresh unlabeled, storage-free SLICE Tensor with the exact target Shape,
+     *     input type/eligibility, unresolved layout, and exact one-input provenance
+     * @throws NullPointerException if {@code targetShape} or {@code prefixShape} is null, checked
+     *     in that order
+     * @throws IllegalArgumentException if a rank differs or a fully static crop region is out of
+     *     bounds
+     * @throws ArithmeticException if checked static prefix-plus-target arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted after local validation
+     */
+    public Tensor cropToShape(Shape targetShape, Shape prefixShape) {
+        return TensorSlicePlacementExpressions.cropToShape(
+                this, targetShape, prefixShape);
     }
 
     /**

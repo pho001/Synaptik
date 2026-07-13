@@ -14,6 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,16 +24,28 @@ import org.junit.jupiter.api.Test;
 
 class SliceSemanticsTest {
     @Test
-    void declaresExactlyTheSingleSliceKind() {
+    void declaresExactlyExtractionThenFunctionalUpdateKinds() {
         OperationKind slice = SliceKind.SLICE;
+        OperationKind update = SliceKind.SLICE_UPDATE;
 
         assertAll(
-                () -> assertArrayEquals(new SliceKind[] {SliceKind.SLICE}, SliceKind.values()),
+                () -> assertArrayEquals(
+                        new SliceKind[] {SliceKind.SLICE, SliceKind.SLICE_UPDATE},
+                        SliceKind.values()),
                 () -> assertEquals("SLICE", slice.name()),
+                () -> assertEquals("SLICE_UPDATE", update.name()),
                 () -> assertSame(SliceKind.SLICE, SliceKind.valueOf("SLICE")),
+                () -> assertSame(
+                        SliceKind.SLICE_UPDATE, SliceKind.valueOf("SLICE_UPDATE")),
                 () -> assertInstanceOf(OperationKind.class, slice),
+                () -> assertInstanceOf(OperationKind.class, update),
                 () -> assertThrows(
-                        IllegalArgumentException.class, () -> SliceKind.valueOf("FLIP")));
+                        IllegalArgumentException.class, () -> SliceKind.valueOf("FLIP")),
+                () -> assertThrows(
+                        IllegalArgumentException.class, () -> SliceKind.valueOf("CROP")),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> SliceKind.valueOf("SLICE_BACKWARD")));
     }
 
     @Test
@@ -76,6 +90,82 @@ class SliceSemanticsTest {
                                 .sorted()
                                 .toList()),
                 () -> assertEquals(0, SliceAttrs.class.getDeclaredClasses().length));
+    }
+
+    @Test
+    void cropAttributesExposeOnlyExactTwoShapeComponentsAndExplicitAccessors() {
+        var components = CropToShapeAttrs.class.getRecordComponents();
+        var constructors = CropToShapeAttrs.class.getDeclaredConstructors();
+        var fields = CropToShapeAttrs.class.getDeclaredFields();
+
+        assertAll(
+                () -> assertTrue(Modifier.isPublic(CropToShapeAttrs.class.getModifiers())),
+                () -> assertTrue(Modifier.isFinal(CropToShapeAttrs.class.getModifiers())),
+                () -> assertTrue(CropToShapeAttrs.class.isRecord()),
+                () -> assertEquals(
+                        List.of(OperationAttrs.class),
+                        Arrays.asList(CropToShapeAttrs.class.getInterfaces())),
+                () -> assertEquals(
+                        List.of("targetShape", "prefixShape"),
+                        Arrays.stream(components).map(component -> component.getName()).toList()),
+                () -> assertEquals(
+                        List.of(Shape.class, Shape.class),
+                        Arrays.stream(components).map(component -> component.getType()).toList()),
+                () -> assertEquals(1, constructors.length),
+                () -> assertEquals(
+                        List.of(Shape.class, Shape.class),
+                        Arrays.asList(constructors[0].getParameterTypes())),
+                () -> assertTrue(Modifier.isPublic(constructors[0].getModifiers())),
+                () -> assertEquals(
+                        List.of("targetShape", "prefixShape"),
+                        Arrays.stream(fields).map(field -> field.getName()).toList()),
+                () -> assertTrue(Arrays.stream(fields).allMatch(field ->
+                        Modifier.isPrivate(field.getModifiers())
+                                && Modifier.isFinal(field.getModifiers())
+                                && !Modifier.isStatic(field.getModifiers()))),
+                () -> assertEquals(
+                        List.of(
+                                "equals(java.lang.Object):boolean",
+                                "hashCode():int",
+                                "prefixShape():io.github.pho001.synaptik.model.shape.Shape",
+                                "targetShape():io.github.pho001.synaptik.model.shape.Shape",
+                                "toString():java.lang.String"),
+                        Arrays.stream(CropToShapeAttrs.class.getDeclaredMethods())
+                                .map(SliceSemanticsTest::methodSignature)
+                                .sorted()
+                                .toList()),
+                () -> assertEquals(0, CropToShapeAttrs.class.getDeclaredClasses().length));
+    }
+
+    @Test
+    void cropAttributesValidateNullsRetainExactShapesAndUseRecordValueSemantics() {
+        Shape target = Shape.ofDimensions(new DynamicDimension("N"));
+        Shape prefix = Shape.of(1);
+        CropToShapeAttrs attrs = new CropToShapeAttrs(target, prefix);
+        CropToShapeAttrs equal = new CropToShapeAttrs(target, prefix);
+        CropToShapeAttrs different = new CropToShapeAttrs(target, Shape.of(0));
+
+        assertAll(
+                () -> assertEquals(
+                        "targetShape",
+                        assertThrows(
+                                        NullPointerException.class,
+                                        () -> new CropToShapeAttrs(null, null))
+                                .getMessage()),
+                () -> assertEquals(
+                        "prefixShape",
+                        assertThrows(
+                                        NullPointerException.class,
+                                        () -> new CropToShapeAttrs(target, null))
+                                .getMessage()),
+                () -> assertSame(target, attrs.targetShape()),
+                () -> assertSame(prefix, attrs.prefixShape()),
+                () -> assertEquals(attrs, equal),
+                () -> assertEquals(attrs.hashCode(), equal.hashCode()),
+                () -> assertNotEquals(attrs, different),
+                () -> assertEquals(
+                        "CropToShapeAttrs[targetShape=Shape[N], prefixShape=Shape[1]]",
+                        attrs.toString()));
     }
 
     @Test

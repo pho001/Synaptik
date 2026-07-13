@@ -272,7 +272,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0023 | [Adjoint expressibility audit](tasks/0023-adjoint-expressibility-audit.md) | Complete | 0006, 0014A–0014F, 0015A–0015H, 0016A–0016J, 0017A–0017N including 0017D1 and 0017F1, 0018A–0019E including 0018D1, 0019A1, and 0019A2, 0020–0022B including 0020A–0020A1 and 0021A–0021C; post-0022B checkpoint | Audited the exact adjoint matrix and selected only proven generally useful public prerequisites; see the [result artifact](adjoint-expressibility-audit.md). |
 | 0023A | [Binding-aware sum-to-Shape](tasks/0023a-binding-aware-sum-to-shape.md) | Complete | 0023 | Adds one exact target-Shape variant of existing SUM plus one public transformation for deferred singleton-or-equal MATMUL/attention batch axes; no new or operation-specific unbroadcast kind. |
 | 0023B | [Gather-compatible scatter-add](tasks/0023b-gather-compatible-scatter-add.md) | Complete | 0023, 0023A | Added final `SCATTER_ADD` and one public fixed-add expression whose updates have the exact current Gather result Shape, preserving unresolved gathered extents and duplicate accumulation. |
-| 0023C | Slice placement and dynamic crop | Draft | 0023 | Add a cohesive general signed/multi-axis target-Shape placement/update contract and target-relative crop for unresolved extents; non-zero slice steps do not require overlap addition. |
+| 0023C | [Slice update and target-relative crop](tasks/0023c-slice-update-and-target-relative-crop.md) | Complete | 0023, 0023B | Added functional signed/multi-axis slice replacement plus exact target/prefix-Shape crop for unresolved Pad/Concat extents, without overlap addition or binding. |
 | 0023D | Public foldAxis and dynamic 2D windows | Draft | 0023 | Restore public general-axis overlap-add fold and design exact dynamic/configurable 2D window materialization and target-Shape fold geometry without assuming current rank-three flattening can represent two unresolved spatial factors. |
 | 0023E | Cumulative-product scan | Draft | 0023 | Add the general inclusive/exclusive, forward/reverse cumulative-product scan needed for zero-safe product adjoints. |
 | 0023F | Attention weights output | Draft | 0023 | Add a generally useful public attention result that retains same-occurrence normalized weights without weakening masked special-value semantics. |
@@ -367,12 +367,19 @@ specification. It adds no kind: SUM alone appends exact `SumToShapeAttrs`, and o
 target-one-or-equal obligations. The focused 14-suite run passed 131 tests, the replacement final
 model suite passed 977 tests, and the separate documentation pass validated model Javadoc,
 examples, Markdown, exact 25-path scope, the 189-method public surface, and synchronized status.
-Task 0023B is Complete with its detailed specification. Task 0023C is the next Draft frontier;
-tasks 0023C–0023F remain concise Draft rows without detailed specifications, and task 0024 remains
-Draft without a detailed specification. Task 0023B's focused 15-suite run passed 124 tests, its
+Tasks 0023B and 0023C are Complete with their detailed specifications. Task 0023D is the next
+Draft frontier; tasks 0023D–0023F remain concise Draft rows without detailed specifications, and
+task 0024 remains Draft without a detailed specification. Task 0023B's
+focused 15-suite run passed 124 tests, its
 single final model suite passed 981 tests across 125 suites, and the separate documentation pass
 validated model Javadoc, the executable example, Markdown, exact 26-path scope, the 190-method
 public Tensor surface, and synchronized status.
+Task 0023C adds exact `SLICE_UPDATE`/`SliceAttrs` functional replacement and
+`SLICE`/`CropToShapeAttrs` target-relative extraction plus exactly two public Tensor methods. Its
+focused 15-suite run passed 139 tests and its single final model suite passed 996 tests across 126
+suites. The separate documentation pass validated model Javadoc, a runnable Java 26 update/crop
+metadata example, Markdown and official references, exact 27-path scope, the 192-method public
+Tensor surface, and synchronized Complete/Draft status.
 
 [Task 0023](tasks/0023-adjoint-expressibility-audit.md) executed after the completed post-0022B
 capability checkpoint. Its [planning-only matrix](adjoint-expressibility-audit.md) finds no proven
@@ -384,8 +391,8 @@ Elements and Scatter-ND exactly serve Gather Elements and Gather-ND adjoints. Ty
 expanded to a target Shape provide uncontaminated dynamic zeros and ones. Maximum-pool routing can
 be recomputed through existing first-index arg-maximum semantics once dynamic windows exist, so it
 needs no indices-output task. Tasks 0023A and 0023B are Complete with detailed specifications.
-Task 0023C is the next Draft frontier; tasks 0023C–0023F remain Draft without detailed
-specifications.
+Task 0023C is Complete with its detailed specification; tasks 0023D–0023F remain Draft without
+detailed specifications.
 Operation-specific backward kinds, compiler traversal, execution, backend/runtime behavior,
 Gradle, dependencies, and architecture changes remain absent; 0023A and 0023B are the selected
 public prerequisites implemented so far.
@@ -477,11 +484,16 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   non-differentiable roles, and deferred derivative policy. Formula complexity, performance, and
   fusion never justify model semantics.
 - The audit selects exactly six generally useful public-capability rows: completed task 0023A
-  binding-aware sum-to-Shape, completed task 0023B final Gather-compatible `SCATTER_ADD`, Draft 0023C signed slice
-  placement plus target-relative dynamic crop, 0023D public foldAxis and dynamic/configurable 2D
-  windows, 0023E cumulative product, and 0023F same-occurrence attention weights. Each rejects
+  binding-aware sum-to-Shape, completed task 0023B final Gather-compatible `SCATTER_ADD`, completed
+  task 0023C functional signed slice update plus target-relative symbolic crop, 0023D public
+  foldAxis and dynamic/configurable 2D windows, 0023E cumulative product, and 0023F same-occurrence
+  attention weights. Each rejects
   a narrower backward-only spelling and depends on 0023. Task 0024 depends on all six and remains
-  Draft without a detailed specification.
+  Draft without a detailed specification. Completed task 0023C selects one appended `SLICE_UPDATE`
+  identity paired with existing normalized `SliceAttrs`, one target/prefix-Shape attributes
+  variant of `SLICE`, and exactly two public transformations. It uses functional replacement,
+  preserves all existing extraction behavior, and retains unresolved crop-bound obligations
+  without changing Shape or compiler ownership.
 - Current Scatter Elements and Scatter-ND exactly express Gather Elements and Gather-ND adjoints.
   Positive-static-depth Gather additionally composes through one-hot selection and reduction;
   unresolved gathered depth is the 0023B gap. Exact typed scalar leaves expanded to a target Shape
@@ -1598,8 +1610,8 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Task 0023C is the next Draft frontier; tasks 0023C–0023F and task 0024 remain
-Draft without detailed specifications.
+specifications. Task 0023C is Complete with its detailed specification; tasks 0023D–0023F and task
+0024 remain Draft without detailed specifications.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1675,7 +1687,7 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Co
 [0021C](tasks/0021c-batch-normalization-training-and-statistic-transition.md) is Complete. Task
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
-specifications. Task 0023C is the next Draft frontier; tasks 0023C–0023F and task 0024 remain
-Draft without detailed specifications.
+specifications. Task 0023C is Complete with its detailed specification; tasks 0023D–0023F and task
+0024 remain Draft without detailed specifications.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

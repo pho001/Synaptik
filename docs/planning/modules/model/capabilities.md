@@ -774,19 +774,23 @@ retains unresolved right-aligned target-one-or-equal obligations, and records on
 without binding or execution. Completed
 [task 0023B](tasks/0023b-gather-compatible-scatter-add.md) implements final Gather-compatible
 fixed-add functional scatter with one public `scatterAdd` method, exact Gather-result updates
-Shape, fixed duplicate accumulation, and storage-free metadata construction. Draft rows
-0023C–0023F retain signed slice placement plus target-
-relative dynamic crop, public general-axis fold plus redesigned dynamic/configurable 2D window
-transforms, cumulative product, and same-occurrence attention weights. The detailed matrix owns
-formulas and policy-deferred boundary
-cases; this capability baseline intentionally does not duplicate them.
+Shape, fixed duplicate accumulation, and storage-free metadata construction. Ready
+[task 0023C](tasks/0023c-slice-update-and-target-relative-crop.md) implements functional signed
+multi-axis `SLICE_UPDATE` plus a target-relative `SLICE` crop whose exact target and prefix Shapes
+may remain symbolic. It adds exactly `sliceUpdate` and `cropToShape`, uses replacement rather than
+overlap addition, and changes no Shape, binding, compiler, or execution contract. Draft rows
+0023D–0023F retain public general-axis fold
+plus redesigned dynamic/configurable 2D window transforms, cumulative product, and same-occurrence
+attention weights. The detailed matrix owns formulas and policy-deferred boundary cases; this
+capability baseline intentionally does not duplicate them.
 
 The audit itself changed no Java, API, glossary, architecture, Gradle, dependency, backend,
-runtime, or execution contract. Completed tasks 0023A and 0023B change model semantic/expression
-metadata only. Task 0023B's focused 15-suite run passed 124 tests and its final model suite passed
-981 tests across 125 suites; model Javadoc and documentation/scope validation passed with 190
-public Tensor methods. Fusion, adjoint construction, bounds enforcement, lowering, and execution
-remain later owning concerns.
+runtime, or execution contract. Completed tasks 0023A–0023C change model semantic/expression
+metadata only. Task 0023C's focused 15-suite run passed 139 tests and its single final model suite
+passed 996 tests across 126 suites. Its separate documentation pass validated model Javadoc, the
+runnable Java 26 metadata example, Markdown and official references, exact 27-path scope, the
+192-method public Tensor surface, and synchronized status. Fusion, adjoint construction, deferred
+bounds enforcement, lowering, and execution remain later owning concerns.
 
 ## Validation policy
 

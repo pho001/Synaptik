@@ -167,13 +167,15 @@ with input-rank validation, Shape/layout derivation, and one-input provenance. P
 distinct normalization domains, static singleton proof for removal, conditional same-offset view
 geometry, and one-input provenance. Gradients, compiler behavior, materialization, backend
 behavior, and execution remain planned.
-The `SliceKind` vocabulary is implemented with the sole `SLICE` meaning, together with
-`SliceAttrs` carrying immutable parallel lists of normalized starts, selected lengths, distinct
-axes, and signed non-zero steps. These semantic values describe exact finite coordinate sequences
-without a Tensor, Shape, raw bound, or end sentinel. Public `Tensor.slice`, both `sliceAxis`
-overloads, and `flip` add directional raw-bound normalization against selected static dimensions,
-same-rank Shape derivation, positive-only resolved view geometry, and exact one-input provenance.
-Every negative-step result remains layout-unresolved. Gradients, compiler
+The `SliceKind` vocabulary is implemented with `SLICE` extraction and `SLICE_UPDATE` functional
+replacement. `SliceAttrs` carries immutable parallel lists of normalized starts, selected lengths,
+distinct axes, and signed non-zero steps for both meanings. `CropToShapeAttrs` carries exact target
+and prefix Shapes for a target-relative `SLICE` region whose extents may remain symbolic. Public
+`Tensor.slice`, both `sliceAxis` overloads, and `flip` add directional raw-bound normalization
+against selected static dimensions, same-rank Shape derivation, positive-only resolved view
+geometry, and exact one-input provenance. Public `sliceUpdate` retains exact base Shape with
+ordered `[base, update]` provenance; public `cropToShape` retains the exact target/prefix Shape
+references. Both new results leave layout unresolved. Gradients, compiler
 capture/canonicalization, materialization, backend behavior, ONNX mapping, and execution remain
 planned in later owning layers.
 The `PadKind` and `TileKind` vocabularies are implemented with the sole `PAD` and `TILE` meanings,
@@ -1187,9 +1189,9 @@ public boundary interprets it according to the operation kind: current `expandDi
 insertion position normalized against rank plus one, while current `squeeze` uses an input removal
 position normalized against the existing Shape and validates the selected static singleton.
 `SliceAttrs` stores an ordered list of distinct normalized non-negative input axes. It has no Shape
-or rank, so it cannot prove that an axis exists for a future input. The current public slice
-and flip boundaries normalize caller-facing negative axes before constructing these attributes;
-duplicates fail after normalization in caller order.
+or rank, so it cannot prove that an axis exists for a future input. The current public slice,
+flip, and slice-update boundaries normalize caller-facing negative axes before constructing these
+attributes; duplicates fail after normalization in caller order.
 `CompositionAxisAttrs` stores the normalized existing CONCAT input axis or inserted STACK result
 axis, with the paired kind supplying the interpretation. It contains no rank context.
 `IndexAxisAttrs` stores the normalized data axis for Gather, Gather Elements, and
@@ -1259,6 +1261,8 @@ output-to-input axis mapping, while `AxisTransformAttrs` holds one normalized no
 insertion or removal position. `SliceAttrs` holds immutable ordered parallel lists of normalized
 inclusive starts, selected lengths, distinct axes, and signed non-zero steps. Each slice entry is
 an exact finite coordinate sequence rather than a stored raw or normalized exclusive end.
+`CropToShapeAttrs` holds exact target and per-axis prefix Shapes for target-relative `SLICE`
+extraction; the Shapes may contain unresolved Dimensions and are retained without binding.
 `PadAttrs` holds immutable
 ordered before/after widths and one exact typed scalar constant, while `TileAttrs` holds immutable
 ordered positive complete-pattern repeat counts. `CompositionAxisAttrs` holds one normalized axis
@@ -1294,9 +1298,10 @@ describes attributes and occurrence counts, not backend support, cost, fusion, s
 behavior, or a kernel route.
 
 Public exposure is separate from semantic representability. For example, `SliceKind.SLICE`
-supports public slice and flip expressions, while `WindowTransformKind.FOLD_AXIS` remains a
-compiler-only semantic with no public Tensor constructor; both still provide exact family-owned
-one-input/one-output signatures.
+supports public slice, flip, and target-relative crop expressions, while
+`SliceKind.SLICE_UPDATE` supports public functional replacement. In contrast,
+`WindowTransformKind.FOLD_AXIS` remains a compiler-only semantic with no public Tensor
+constructor. Every kind still supplies its exact family-owned structural signatures.
 
 ### Operation signature
 
@@ -1463,8 +1468,10 @@ parameterless request for canonical dense row-major, zero-offset result geometry
 `ShapeTransformKind`, whose `RESHAPE` and `EXPAND` values pair with `TargetShapeAttrs`. The
 thirteenth is `AxisTransformKind`, whose `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` values pair with
 `PermutationAttrs` or `AxisTransformAttrs` as described under [axis transform](#axis-transform).
-The fourteenth is `SliceKind`, whose sole `SLICE` value pairs with `SliceAttrs` as described under
-[slice](#slice). The fifteenth and sixteenth are `PadKind` and `TileKind`, whose sole `PAD` and
+The fourteenth is `SliceKind`: `SLICE` pairs with `SliceAttrs` or `CropToShapeAttrs`, while
+`SLICE_UPDATE` pairs with `SliceAttrs`, as described under [slice](#slice), [Slice
+Update](#slice-update), and [Target-relative crop](#target-relative-crop). The fifteenth and
+sixteenth are `PadKind` and `TileKind`, whose sole `PAD` and
 `TILE` values pair with `PadAttrs` and `TileAttrs` as described under [padding](#padding) and
 [tiling](#tiling). The seventeenth is `TensorCompositionKind`, whose `CONCAT` and `STACK` values
 pair with `CompositionAxisAttrs`, as described under [tensor composition](#tensor-composition).
@@ -1628,6 +1635,11 @@ exactly the receiver as their sole input. Each success has one identity-distinct
 output descriptor, and provenance output index zero, including identity and multi-axis flip.
 Conditional resolved positive-step view geometry and unresolved negative-step geometry imply
 neither attached or physically aliased storage, copying, materialization, nor execution.
+`Tensor.sliceUpdate` instead uses `SliceKind.SLICE_UPDATE` with ordered inputs `[base, update]` and
+retains the exact base Shape in one unresolved descriptor. `Tensor.cropToShape` uses
+`SliceKind.SLICE` with `CropToShapeAttrs` and exact input `[input]`; its descriptor retains the
+exact target Shape. Both create one fresh producer at output index zero without mutating inputs or
+attaching storage.
 Static `Tensor.concat` and `Tensor.stack` retain immutable ordered snapshots of their exact input
 Tensor references in provenance with matching `TensorCompositionKind` and normalized
 `CompositionAxisAttrs`. Each `Tensor.unstack` output instead carries its own `SELECT` operation,
@@ -1667,7 +1679,15 @@ element count; the dense denominator is also not positive-target count or target
 
 ### Shape
 
-An immutable ordered collection of [dimensions](#dimension) describing the logical size of a tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a scalar. A shape describes extents only: it does not define strides, storage, layout, backend support, or runtime allocation. Its total element count is known only when every dimension is static. See [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+An immutable ordered collection of [dimensions](#dimension) describing the logical size of a
+tensor along each axis. The number of dimensions is the shape's rank; a rank-0 shape represents a
+scalar. A shape describes extents only: it does not define strides, storage, layout, backend
+support, or runtime allocation. Its total element count is known only when every dimension is
+static. A prefix Shape used by [target-relative crop](#target-relative-crop) applies that same
+extent model to the number of logical positions preceding a region on each axis; it is not an
+index Tensor or a storage offset. See [Shapes and
+dimensions](api/tensor-api.md#shapes-and-dimensions) and [symbolic extent
+expressions](#symbolic-extent-expression).
 
 ### Symbolic extent expression
 
@@ -1732,7 +1752,7 @@ executing the function or defining compiler decomposition, gradients, or backend
 
 ### Slice
 
-An implemented backend-independent logical selection represented by `SliceKind.SLICE` and
+An implemented backend-independent logical selection represented by `SliceKind.SLICE` with
 `SliceAttrs`. The attributes use four equal-size parallel lists. Entry `i` selects the half-open
 coordinate sequence on normalized input axis `axes[i]`: coordinate `k` is
 `starts[i] + k * steps[i]` for `0 <= k < lengths[i]`. Steps are signed and non-zero. Unlisted axes
@@ -1770,6 +1790,44 @@ read values, define gradients, capture or canonicalize a graph, materialize stor
 backend or ONNX operation, or execute selection. See [Slice expressions](api/tensor-api.md#slice-expressions)
 and [Slice semantic kind and normalized
 attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
+
+### Slice Update
+
+An implemented backend-independent functional replacement represented by
+`SliceKind.SLICE_UPDATE` with `SliceAttrs` and ordered inputs `[base, update]`. Entry `i` maps
+update coordinate `k` to base coordinate `normalizedStart[i] + k * steps[i]` on one distinct
+normalized axis. The selected update Dimension must be static and supplies `lengths[i]`;
+unselected update Dimensions must exactly equal the base Dimensions. The result retains the exact
+base Shape and values outside the mapped Cartesian region.
+
+A negative start adds one static base extent once. Static first/final coordinates must fit; an
+unresolved base axis accepts only a non-negative start and defers its upper-bound proof. Empty
+arrays mean explicit full-Shape replacement, while a selected zero update extent maps no
+coordinates. The mapping is functional replacement, not mutation, addition, reduction, or an
+operation-specific backward kind.
+
+Public `Tensor.sliceUpdate` accepts all current data types with exact base/update type equality,
+combines their gradient eligibility, leaves result layout unresolved, and creates one fresh,
+unlabeled, storage-free result at provenance index zero. It reads no values and defines no
+gradient, compiler, lowering, backend, or execution behavior. See [Slice update and
+target-relative crop expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
+
+### Target-relative crop
+
+An implemented exact-Shape extraction represented by `SliceKind.SLICE` with
+`CropToShapeAttrs(targetShape, prefixShape)`. The target Shape is the exact result Shape. The
+prefix Shape gives the non-negative number of logical positions preceding the region on each
+axis, so axis `i` selects `[prefix[i], prefix[i] + target[i])`. Both exact immutable Shape
+references are retained and may contain [symbolic extent
+expressions](#symbolic-extent-expression).
+
+Public `Tensor.cropToShape` requires input, target, and prefix ranks to match. A fully static
+prefix-plus-target bound is checked locally with exact arithmetic; an inequality involving any
+unresolved Dimension remains a later binding/execution obligation. The operation does not infer,
+bind, clamp, shift, truncate, pad, or reverse a region. Its fresh result retains input type and
+gradient eligibility, leaves layout unresolved, and records exact `[input]` provenance without a
+view or copy promise. See [Slice update and target-relative crop
+expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
 
 ### Softmax / log-softmax
 
@@ -2564,7 +2622,7 @@ without storing derived indexes.
 | Concept | Meaning | Current status |
 |---|---|---|
 | `OperationKind` | Which backend-independent computation is meant | Interface plus binary arithmetic, binary comparison, boolean logical, conditional selection, unary elementwise, floating-classification, scalar elementwise, cast, aggregate reduction, cumulative-sum scan, softmax, layer normalization, RMS normalization, contiguous-request, reshape/expand, axis-transform, slice, pad, tile, tensor-composition, scalar-select, axis-gather, gather-ND, axis-scatter, scatter-ND, and window-transform families implemented; other families planned |
-| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, RMS-normalization, target-shape, permutation, single-axis-transform, slice, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
+| `OperationAttrs` | Immutable typed parameters that refine that meaning | Marker plus scalar-value, clamp-range, cast-target, ordinary single-/multi-axis and statistical-reduction, shared arg-extrema, masked-reduction, cumulative-sum, softmax, layer-normalization, RMS-normalization, target-shape, permutation, single-axis-transform, normalized slice and crop-to-Shape, pad, tile, composition-axis, scalar-select, gather-axis, gather-ND, scatter-elements, scatter-ND, and window-transform values implemented; other family-specific values planned |
 | `NoOperationAttrs.INSTANCE` | Explicit parameter value for a kind with no parameters | Implemented canonical singleton |
 | `OperationSignature` | Exact accepted attributes class plus inclusive occurrence input/output bounds | Implemented family-owned structural contract |
 | `Operation` | Immutable validated pairing of one kind with one caller-supplied `OperationAttrs` value | Implemented descriptor with derived signature |
@@ -2587,9 +2645,10 @@ also
 implemented. Reshape and expand semantics plus target-shape attributes are implemented; public
 reshape and expand Tensor construction is current. Axis-transform semantics, complete permutation
 attributes, and single-axis insertion/removal attributes are implemented; public permute and
-transpose, expand-dimensions, and squeeze Tensor construction is current. Slice semantics and
-normalized parallel attributes plus public general and single-axis slice Tensor construction are
-current. Pad and tile semantics, normalized immutable attributes, and public Tensor construction
+transpose, expand-dimensions, and squeeze Tensor construction is current. Slice extraction and
+functional-update semantics, normalized parallel and exact crop-Shape attributes, plus public
+general/single-axis slice, slice-update, and target-relative crop Tensor construction are current.
+Pad and tile semantics, normalized immutable attributes, and public Tensor construction
 are current. Tensor-composition semantics, normalized axis/index attributes, and public concat,
 stack, and immutable-list unstack Tensor construction are current. Scalar-select semantics and
 normalized axis/index attributes plus public scalar-select Tensor construction are current.

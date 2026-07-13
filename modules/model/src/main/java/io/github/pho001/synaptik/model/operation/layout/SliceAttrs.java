@@ -6,7 +6,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Carries normalized finite coordinate sequences for a logical slice as four parallel lists.
+ * Carries normalized finite coordinate sequences for slice extraction or functional replacement
+ * as four parallel lists.
  *
  * <p>Entry {@code i} selects {@code lengths[i]} coordinates on normalized input axis
  * {@code axes[i]}. Coordinate {@code k} is {@code starts[i] + k * steps[i]} for
@@ -28,7 +29,9 @@ import java.util.Objects;
  * record equality and hashing. A {@link Long#MIN_VALUE} step is valid when the declared finite
  * sequence has a representable non-negative final coordinate, such as a one-coordinate sequence.</p>
  *
- * <p>These attributes describe logical semantics only. They calculate no result Shape or layout,
+ * <p>The exact pairings are {@link SliceKind#SLICE} for extraction and
+ * {@link SliceKind#SLICE_UPDATE} for functional replacement. These attributes describe logical
+ * semantics only. They calculate no result Shape or layout,
  * attach no Tensor or storage, create no provenance, and define no gradient, compiler, backend,
  * materialization, serialization, or execution behavior.</p>
  *

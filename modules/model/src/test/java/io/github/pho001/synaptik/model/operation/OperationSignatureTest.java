@@ -35,6 +35,7 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
@@ -212,7 +213,14 @@ public final class OperationSignatureTest {
         assertFamily(List.of(noAttrsUnary), ContiguousKind.values());
         assertFamily(List.of(fixed(PadAttrs.class, 1)), PadKind.values());
         assertFamily(List.of(fixed(TargetShapeAttrs.class, 1)), ShapeTransformKind.values());
-        assertFamily(List.of(fixed(SliceAttrs.class, 1)), SliceKind.values());
+        assertKinds(
+                List.of(
+                        fixed(SliceAttrs.class, 1),
+                        fixed(CropToShapeAttrs.class, 1)),
+                SliceKind.SLICE);
+        assertKinds(
+                List.of(fixed(SliceAttrs.class, 2)),
+                SliceKind.SLICE_UPDATE);
         assertKinds(
                 List.of(OperationSignature.inputRange(
                         CompositionAxisAttrs.class, 1, Integer.MAX_VALUE, 1)),
@@ -321,6 +329,18 @@ public final class OperationSignatureTest {
                         () -> new Operation(
                                 AxisScatterKind.SCATTER_ADD,
                                 new ScatterElementsAttrs(0, ScatterReduction.ADD))),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
+                                SliceKind.SLICE_UPDATE,
+                                new CropToShapeAttrs(
+                                        io.github.pho001.synaptik.model.shape.Shape.scalar(),
+                                        io.github.pho001.synaptik.model.shape.Shape.scalar()))),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> new Operation(
+                                SliceKind.SLICE,
+                                NoOperationAttrs.INSTANCE)),
                 () -> assertThrows(
                         IllegalArgumentException.class,
                         () -> new Operation(

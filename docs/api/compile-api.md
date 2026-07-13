@@ -425,6 +425,21 @@ producer with exact `[input]`, one output descriptor, and provenance index zero,
 unlabeled, and storage-free. This is current model expression construction, not graph capture,
 slice-chain or flip canonicalization, physical aliasing or copying, gradient-scatter construction,
 materialization, backend/ONNX lowering, or execution.
+`Tensor.sliceUpdate(update, starts, axes, steps)` is now current model construction for functional
+signed multi-axis replacement. It derives normalized finite `SliceAttrs` lengths from selected
+static update Dimensions, requires exact base/update type and same-rank Shape compatibility,
+retains the exact base Shape, combines eligibility, leaves layout unresolved, and records one
+`SLICE_UPDATE` occurrence with ordered `[base, update]` provenance. Static first/final coordinate
+bounds fail locally. A non-negative start on an unresolved base axis retains its upper-bound
+obligation for later binding or execution; no start is clamped or shifted to fit.
+`Tensor.cropToShape(targetShape, prefixShape)` is also current model construction. It records one
+`SLICE` occurrence with exact `CropToShapeAttrs`, retains the supplied target Shape as the result,
+and interprets the prefix Shape as per-axis logical extents preceding the region. Fully static
+`prefix + target <= input` bounds are checked locally; inequalities involving any unresolved
+Dimension remain deferred. Neither primitive captures a graph, represents a constraint, constructs
+an adjoint, mutates values, chooses materialization, lowers, or executes work. A later compiler may
+compose these public primitives for Slice, Select, Pad, or Concat adjoints, but no such traversal,
+binding proof, saved-value policy, accumulation, or canonicalization is implemented today.
 `Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
 selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
 `SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
@@ -553,7 +568,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   dynamic-unresolved contiguous
   request construction plus conditional-view reshape, expand, permutation, and rank-two transpose
   construction, conditional-view expand-dimensions/squeeze construction, and general/single-axis
-  signed-step slice plus one-occurrence flip construction, plus conditional-view scalar-select construction and
+  signed-step slice plus one-occurrence flip construction, functional signed slice update, exact
+  target/prefix-Shape crop construction, plus conditional-view scalar-select construction and
   unresolved-layout Gather/Gather Elements and trailing-axis one-hot construction, plus
   unresolved-layout Gather-ND,
   functional Scatter Elements, Gather-compatible Scatter Add, and functional Scatter-ND
@@ -570,11 +586,13 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
-  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit/slice-chain/select/
+  redundant-cast, redundant-contiguous, reshape/expand/permutation/rank-edit, slice chains, slice
+  updates, crops, selects,
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
   shared-producer traversal and output-slot capture,
-  compiler-generated `FOLD_AXIS` construction, deferred
+  compiler-generated `FOLD_AXIS` construction, deferred slice-update upper-bound and crop-bound
+  proof, their possible use in adjoint construction, deferred
   dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
   validation placement, attention, convolution, and pooling deferred-constraint proof, legal
   convolution/pooling decomposition and gradient construction, maximum-pooling saved-index

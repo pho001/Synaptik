@@ -5,20 +5,21 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import java.util.List;
 
 /**
- * Identifies the backend-independent, one-input meaning of a signed-step logical slice.
+ * Identifies backend-independent signed slice extraction and functional replacement meanings.
  *
- * <p>The kind composes explicitly with normalized {@link SliceAttrs}:</p>
+ * <p>The family composes explicitly with normalized {@link SliceAttrs}:</p>
  *
  * <pre>{@code
  * SliceAttrs attrs = new SliceAttrs(starts, lengths, axes, steps);
  * Operation operation = new Operation(SliceKind.SLICE, attrs);
  * }</pre>
  *
- * <p>For entry {@code i}, the same-rank result selects input coordinates beginning at
+ * <p>For entry {@code i}, the coordinate sequence begins at
  * {@code starts[i]}, advancing by signed non-zero {@code steps[i]}, for exactly
- * {@code lengths[i]} coordinates along normalized input axis {@code axes[i]}. Axes without an
- * entry retain their full logical coordinate range. The family-owned signature enforces this
- * exact attributes pairing and declares one input and one output.</p>
+ * {@code lengths[i]} coordinates along normalized input axis {@code axes[i]}. Extraction selects
+ * those positions from one input. Functional replacement maps a same-rank update into those
+ * positions of a base while retaining values outside the region. {@link CropToShapeAttrs}
+ * separately represents an exact target-relative extraction whose extents may remain symbolic.</p>
  *
  * <p>General slice, both single-axis conveniences, and multi-axis flip use this same kind; flip is
  * represented by negative-step entries rather than another semantic kind. This enum calculates no
@@ -29,24 +30,36 @@ import java.util.List;
  */
 public enum SliceKind implements OperationKind {
     /**
-     * Selects the parallel finite coordinate sequences described by {@link SliceAttrs} while
-     * leaving unlisted axes unrestricted.
+     * Extracts either the finite coordinate sequences described by {@link SliceAttrs} or the
+     * target-relative region described by {@link CropToShapeAttrs} from one input.
      *
      * <p>The kind describes logical meaning only. It does not normalize raw coordinates, inspect
      * input rank or dimensions, derive a result Shape, or decide layout and materialization.</p>
      */
-    SLICE;
-
-    private static final List<OperationSignature> SIGNATURES =
-            List.of(OperationSignature.fixed(SliceAttrs.class, 1, 1));
+    SLICE,
 
     /**
-     * Returns the slice-attributes one-input, one-output structural signature.
+     * Functionally replaces the finite base-coordinate sequences described by {@link SliceAttrs}
+     * with values from a same-rank update input.
      *
-     * @return the stable immutable singleton signature list
+     * <p>The ordered inputs are base then update and the sole result has the base Shape. This is
+     * logical replacement, not mutation, addition, storage writing, or a backward-only kind.</p>
+     */
+    SLICE_UPDATE;
+
+    private static final List<OperationSignature> SLICE_SIGNATURES = List.of(
+            OperationSignature.fixed(SliceAttrs.class, 1, 1),
+            OperationSignature.fixed(CropToShapeAttrs.class, 1, 1));
+    private static final List<OperationSignature> SLICE_UPDATE_SIGNATURES =
+            List.of(OperationSignature.fixed(SliceAttrs.class, 2, 1));
+
+    /**
+     * Returns the immutable structural variants accepted by this exact slice-family kind.
+     *
+     * @return the stable immutable extraction or functional-replacement signature list
      */
     @Override
     public List<OperationSignature> signatures() {
-        return SIGNATURES;
+        return this == SLICE ? SLICE_SIGNATURES : SLICE_UPDATE_SIGNATURES;
     }
 }
