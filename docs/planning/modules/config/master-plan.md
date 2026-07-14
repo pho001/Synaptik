@@ -88,13 +88,15 @@ In progress after the terminology and ownership reset. Tasks 0001–0003 remain 
 unimplemented Config 0004 fixed-plus-linear platform/backend/tuning profile specification was
 retired because it conflated planning cost with backend tuning and averaged unrelated workloads.
 Config 0004 is again a Draft row without a detailed specification. It follows a stable planning
-cost consumer and backend-neutral cost classification. Tasks 0005–0008 remain Draft. No config
-or global task is Ready.
+cost consumer and backend-neutral cost classification. Planning task 0003 is Complete, and its
+exact baseline intentionally consumes no cost value or classification. Tasks 0005–0008 remain
+Draft, and no config or global task is Ready pending a separate frontier reassessment.
 
 ## Open questions
 
-- The stable backend-neutral cost classification and exact Planning 0003 cost consumer remain
-  prerequisites for Config 0004.
+- Planning 0003 has stabilized the cost-free baseline ownership consumer. The first later concrete
+  cost-bearing planning consumer must still establish the exact backend-neutral classification
+  and units before Config 0004 can become Ready.
 - Model-autotuning request inputs wait for stable prepare and tuning consumers. Workload and plan
   cache schemas, measurement evidence, and persistence remain with their lifecycle/tooling owners.
 - Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
@@ -135,6 +137,9 @@ or global task is Ready.
   threads, chunks, tiles, and kernels belong to backend-owned candidate configurations.
 - No stable shared production `OperationFamily` or workload-bucket contract exists. Config does
   not invent one, and it owns no runner, search algorithm, live discovery, or mutable evidence.
+- Complete Planning task 0003 consumes `PartitionScoringConfig` internally after hard eligibility.
+  Its preferred-class-first/provider-order baseline needs no candidate record, numeric score,
+  cost input, or new config type, so Config 0004 remains Draft.
 
 ## Risks
 
@@ -189,5 +194,7 @@ intent intersection. Config 0004 remains Draft without a detailed specification.
 0002, Config 0004 profile contracts are the likely next area before Planning 0003 scoring, but
 that selection requires a separate reassessment. Planning task 0002 is now Complete. A subsequent
 reassessment drafted Config 0004, but the terminology/ownership reset rejected that unimplemented
-  design and removed its detailed specification. Planning 0003 and Config 0004 are both Draft; the
-  former must stabilize the cost consumer and cost classification before the latter is planned.
+design and removed its detailed specification. Planning 0003 is now Complete with a cost-free
+baseline selector. Config 0004 remains Draft because no concrete cost-bearing consumer has
+stabilized its classification or units, and no next task becomes Ready without a separate
+frontier reassessment.

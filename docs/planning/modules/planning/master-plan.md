@@ -47,9 +47,10 @@ Make backend-neutral compile-time ownership, partitioning, capability, and logic
 
 ```text
 io.github.pho001.synaptik.planning/
-  capability/  public operation capability query/provider contracts and the task-0002 internal
-               per-query hard-eligibility value
-  ownership/   later backend-neutral candidates, scoring, and ownership decisions
+  capability/  public operation capability query/provider contracts, internal per-query hard
+               eligibility, and task-0003 internal baseline owner selection
+  ownership/   later public/cross-package ownership, candidate, and scoring contracts when a
+               concrete compiler or partition consumer justifies them
   partition/   later maximal same-owner partition contracts
   memory/      later logical materialization and memory requirements
 ```
@@ -57,8 +58,9 @@ io.github.pho001.synaptik.planning/
 The module root is not a catch-all facade. Task 0001 opens only `capability` with the immutable
 operation-occurrence question and inward-facing provider collaboration. Complete task 0002 keeps its
 per-query eligibility result and evaluation package-private because no external planner consumer
-yet justifies a public matrix/evaluator or a public config signature. It adds no candidate,
-scoring, partition, memory, registry, or provider implementation.
+yet justifies a public matrix/evaluator or a public config signature. Complete task 0003 keeps its
+smallest consumer colocated with that internal value, uses the eligible identity list directly as
+the candidate set, and adds no public ownership package or facade.
 
 ## Task list
 
@@ -66,7 +68,7 @@ scoring, partition, memory, registry, or provider implementation.
 |---|---|---|---|---|
 | 0001 | [Operation capability-query foundation](tasks/0001-operation-capability-query-foundation.md) | Complete | Completed model milestone, backend-contract 0001–0004, config 0001–0002, and trace foundation | Added one immutable operation-occurrence query and one backend capability-provider contract without a matrix, eligibility evaluation, diagnostics result, device query, or provider implementation. |
 | 0002 | [Per-query backend hard eligibility](tasks/0002-per-query-backend-hard-eligibility.md) | Complete | 0001, config hard intent, and backend-contract supplied availability | Combined validated provider/snapshot associations, backend-level support, current availability, and exact hard intent into an internal ordered `BackendId` list without a public matrix, scoring, device selection, or ownership choice. |
-| 0003 | Ownership candidates and baseline scoring | Draft | 0002, config partition-scoring configuration | Define complete valid ownership alternatives, the public/internal candidate handoff, backend-neutral cost classification, baseline comparison, ties/failures, and `BackendId` ownership without requiring a cost profile or interpreting implementation routes. Later model tuning may measure bounded complete alternatives without changing their semantics. |
+| 0003 | [Ownership candidates and baseline scoring](tasks/0003-ownership-candidates-and-baseline-scoring.md) | Complete | 0002, config partition-scoring configuration | Consumes the internal hard-eligible list directly as the candidate set and selects one exact `BackendId` through preferred-class-first, provider-order-stable baseline comparison, without a candidate record, cost classification, cost profile, or implementation-route interpretation. |
 | 0004 | Maximal same-owner partitioning | Draft | 0003 | Group adjacent work with the same selected backend owner without backend lowering or executable construction. |
 | 0005 | Logical materialization and memory requirements | Draft | 0004 | Describe backend-neutral logical requirements without physical allocation, runtime residency, or prepared memory. |
 | 0006 | Planning contract closure | Draft | 0001–0005 | Audit capability, ownership, partition, logical-memory, documentation, and dependency boundaries before compiler planning orchestration. |
@@ -80,24 +82,20 @@ scoring, partition, memory, registry, or provider implementation.
 ## Current status
 
 In progress after completing
-[task 0002](tasks/0002-per-query-backend-hard-eligibility.md). Task 0001 is Complete with its typed
-operation-capability query/provider boundary, focused and repository test evidence, and
-independent documentation pass. Task 0002 adds one package-private per-query result/evaluation that
-validates the supplied provider/snapshot identity sets and returns ordered hard-eligible
-`BackendId` values. Tasks 0003–0006 remain ordered Draft work without detailed specifications.
-Config task 0003 is Complete with one optional coarse device-class preference as later soft
-scoring input. The terminology/ownership reset rejected the unimplemented Config 0004 global
-fixed-plus-linear profile design. Planning 0003–0006 remain Draft without detailed specifications.
-Planning 0003 is the prerequisite for any later Config 0004 cost-profile schema, but its public
-handoff, cost classification, baseline score semantics, ties, and failures are not yet stable
-enough for a Ready specification. No global task is Ready.
+[task 0003](tasks/0003-ownership-candidates-and-baseline-scoring.md). Tasks 0001–0002 remain
+Complete with the public query/provider boundary and package-private provider-ordered hard-
+eligibility result. Task 0003 adds the smallest internal consumer: the eligible `BackendId` list
+is the candidate set, matching availability snapshots supply only the optional preferred-class
+fact, preferred matches precede nonmatches, provider order resolves ties and fallback, and an
+empty list fails terminally before selection. No public facade, candidate record, numeric score,
+workload/cost classification, or cost profile was required. Tasks 0004–0006 remain Draft without
+detailed specifications. Config task 0004 also remains Draft pending a later concrete backend-
+neutral cost need. No task is Ready pending a separate frontier reassessment.
 
 ## Open questions
 
-- What smallest backend-neutral cost classification does baseline ownership scoring require,
-  without inventing a shared `OperationFamily` contract prematurely?
-- Which public or package-private orchestration boundary consumes current hard eligibility and
-  exposes ownership failures and ties?
+- The exact classification and units for a future planning cost profile remain deferred until a
+  concrete cost-bearing consumer exists; they did not block the completed cost-free baseline.
 
 ## Decisions made
 
@@ -129,10 +127,23 @@ enough for a Ready specification. No global task is Ready.
 - Planning owns the semantics and generation of complete valid ownership/partition candidates.
   Future tuning orchestration may measure a bounded set opaquely but does not construct or
   reinterpret those candidates.
-- Planning 0003 must first define the cost consumer and cost classification. Config 0004 may
-  later store only the immutable backend-neutral inputs that consumer actually requires.
+- Completed Planning 0003 establishes the cost-free baseline consumer without defining a cost
+  classification. Config 0004 may later store only the immutable backend-neutral inputs that a
+  later concrete cost-bearing consumer actually requires.
 - No stable shared production `OperationFamily` or workload-bucket contract exists. Planning 0003
   must not invent one merely to keep the implementation queue moving.
+- Task 0003 uses the existing package-private `BackendEligibility` directly through one
+  package-private stateless selector in `planning.capability`. Widening eligibility or opening a
+  public ownership facade waits for a concrete compiler consumer.
+- The task-0002 eligible `BackendId` list is the complete task-0003 candidate set. No production
+  candidate record or score map is required.
+- Baseline comparison is lexicographic rather than numeric: the first eligible backend with the
+  configured preferred class wins; when no preference or match exists, the first eligible backend
+  wins; provider order resolves every tie.
+- Empty hard eligibility fails internally before scoring with the exact task-0003 failure. Later
+  public compiler orchestration may translate it but may not weaken the hard requirement.
+- The current baseline consumes no cost quantity and therefore needs no production operation-
+  family, workload-bucket, or cost-profile classification. Config 0004 remains Draft.
 
 ## Risks
 
@@ -164,5 +175,16 @@ Planning 0003 scoring, subject to another reassessment. Planning task 0002 is no
 its focused implementation, final planning suite, independent documentation pass, and focused
 documentation validation. A following reassessment drafted Config task 0004, but the terminology/
 ownership reset retired that unimplemented design. Planning 0003 is now the prerequisite for a
-future Config 0004 cost profile, yet it remains Draft because its exact consumer, classification,
-baseline comparison, tie, and failure contracts require a separate focused planning step.
+future Config 0004 cost profile. Planning 0003 is now Complete with an exact cost-free consumer,
+deterministic comparison, tie, and failure contract; Config 0004 remains Draft until a later
+concrete cost-bearing consumer establishes classification and units. No next task becomes Ready
+without a separate frontier reassessment.
+
+Planning task 0003 completed in implementation context `/root/implement_planning_0003` and clean
+documentation context `/root/implement_planning_0003/docs_planning_0003`. Its focused selector
+suite passed 13 tests and the final planning suite passed 38 tests across three suites, all with
+zero failures, errors, or skips. Planning Javadoc passed, generated public pages preserve the
+public/internal boundary and omit the package-private selector from public indexes, Markdown
+validation passed for 227 files, 4,014 links, 246 anchors, and 2,844 fence markers, and final
+scope, status, source-surface, newline, trailing-whitespace, and `git diff --check` checks passed.
+The completed change is exactly its authorized fourteen paths.

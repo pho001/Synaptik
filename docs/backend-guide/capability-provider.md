@@ -6,12 +6,14 @@ This guide explains the current backend-neutral contract through which a concret
 report whether it can semantically own one operation occurrence. `OperationCapabilityQuery` and
 `BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
 supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
-also current. The repository does not yet ship a provider implementation or a compiler/planning
-consumer. Planning now contains one internal per-query hard-eligibility consumer, but it is not a
-public integration API: it combines explicitly supplied providers, matching availability
-snapshots, and `BackendIntent` into backend identities only. Reusable/public capability matrices,
-public planning orchestration, ownership, concrete backend preparation, registration, and
-execution remain planned.
+also current. The repository does not yet ship a provider implementation, compiler consumer, or
+public planning consumer. Planning now contains one internal per-query hard-eligibility consumer,
+but it is not a public integration API: it combines explicitly supplied providers, matching
+availability snapshots, and `BackendIntent` into backend identities only. One further internal
+step selects an owner from those identities by optional preferred-class match and provider order.
+Reusable/public
+capability matrices, public planning orchestration or owner selection, cost scoring, concrete
+backend preparation, registration, and execution remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
@@ -97,7 +99,7 @@ BackendIntent requireCuda = BackendIntent.requiring(exactBackend);
 
 `unconstrained` contains no hard target; it does not promise discovery, fallback, availability,
 capability, or successful ownership. `requireCuda` retains `exactBackend` by exact reference for
-later planning. Neither value queries `availability` or a provider. Later planning owns the
+planning. Neither value queries `availability` or a provider. Current internal planning owns the
 intersection of the optional hard target, supplied availability, and reported capability.
 
 ## Lifecycle position
@@ -110,8 +112,10 @@ operation + data type + shape + layout
 optional hard target + supplied availability + current boolean answers
   -> current internal per-query hard eligibility
   -> immutable provider-ordered BackendId list
-  -> valid ownership candidates
-  -> backend-neutral scoring
+optional preferred DeviceClass + that complete candidate list + associated snapshots
+  -> current internal preferred-class/provider-order baseline
+  -> one BackendId owner
+  -> planned public orchestration, partitioning, and cost scoring
 ```
 
 A concrete backend may implement the current provider interface. Current internal planning first
@@ -123,9 +127,17 @@ reference. Snapshot list order does not reorder calls or results.
 An exact-device or device-class target consults a snapshot only to prove that a matching device is
 currently reported. The provider answer remains backend-level: this step does not claim support
 for a particular device, choose one, or retain one. A valid no-match produces an immutable empty
-list. Later public orchestration must fail before scoring that list instead of weakening the hard
-target; its exception details are not yet defined. Compile-time plans will retain selected
-`BackendId` values, never provider objects.
+list.
+
+The current package-private selector consumes that list directly. It validates the complete
+snapshot input, associates equal backend IDs, permits extra unique snapshots, and treats an empty
+matching snapshot as a preference nonmatch. With no preference it returns the first eligible
+identity. With a preference it returns the first provider-order match, or falls back to the first
+eligible identity when none matches. An empty eligible list fails internally before snapshot
+elements are read, and the exact eligibility identity reference is returned. The selector never
+re-evaluates capability or hard eligibility and selects no device, route, or kernel. Later public
+orchestration may translate the internal failure but must not weaken the hard target. Compile-time
+plans will retain `BackendId` values, never provider objects.
 
 ## Illustrative current provider
 
@@ -190,8 +202,9 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 - Complete provider/snapshot composition errors fail before any `supports` call.
 - Empty availability or an exact hard-target mismatch skips the provider before capability is
   queried.
-- When the compiler consumer exists, no capable eligible candidate must fail compilation rather
-  than defer discovery to runtime.
+- Empty internal hard eligibility fails before baseline selection can choose a fallback; when a
+  compiler consumer exists, it must translate that condition rather than defer discovery to
+  runtime.
 - Capability evaluation must be deterministic for the supplied immutable compile-time facts.
 - A null query must fail with `NullPointerException("query")`; a provider must not reinterpret it
   as unsupported work.
@@ -201,8 +214,9 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 Provider implementations require unit tests for supported and rejected combinations and
 architecture tests for dependency direction once concrete implementations exist. Backend-
 conformance tests comparing declared support with actual preparation remain necessary once
-concrete preparation exists. The current internal eligibility step changes no concrete backend
-behavior and therefore adds no backend-conformance or integration test requirement.
+concrete preparation exists. The current internal eligibility and baseline-selection steps change
+no concrete backend behavior and therefore add no backend-conformance or integration test
+requirement.
 
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide

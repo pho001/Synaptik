@@ -9,8 +9,10 @@ configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
 immutable `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider`
 collaboration. It also contains one package-private per-query hard-eligibility step, but it does
-not provide a reusable/public capability matrix, public planner orchestration, ownership planner,
-or compiler integration.
+not expose that step publicly. A second package-private step now selects one `BackendId` owner by
+optional preferred-class match and provider order. The module still provides no reusable/public
+capability matrix, public planner orchestration or owner selector, general cost scoring,
+partitioning, or compiler integration.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -590,10 +592,11 @@ absence of a hard target.
 
 The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
-Preference evaluation, score calculation, planning cost profiles, `CompileConfig`, compiler
-consumption, and no-match failure remain planned in their owning tasks. The separate current
-`PartitionScoringConfig` value described below supplies only soft preference input; it does not
-change these hard-intent semantics.
+Current internal planning evaluates the hard target before its cost-free baseline owner selection.
+General score calculation, planning cost profiles, `CompileConfig`, compiler consumption, and a
+public no-match failure remain planned. The separate current `PartitionScoringConfig` value
+described below supplies only soft preference input; it does not change these hard-intent
+semantics.
 
 `io.github.pho001.synaptik.config.compile.CompileMode` is also current. It contains exactly three
 requested graph scopes in declaration order:
@@ -647,7 +650,7 @@ PartitionScoringConfig preferAccelerator =
 The first value contains an empty optional and means only that no explicit coarse device-class
 preference was supplied. It selects no aggregate default or fallback and promises neither equal
 candidate scores nor successful ownership selection. The second contains the exact supplied enum
-reference as a soft preference that later planning may apply only after hard eligibility. It does
+reference as a soft preference that planning may apply only after hard eligibility. It does
 not remove another eligible candidate, weaken a hard `BackendRequirement`, or guarantee that an
 accelerator candidate wins.
 
@@ -656,8 +659,10 @@ with `NullPointerException("preferredDeviceClass")`. `preferring(null)` rejects 
 `NullPointerException("deviceClass")`; both factories return fresh records. The value performs no
 candidate enumeration or evaluation, score calculation or comparison, profile lookup, ownership
 or device selection, route or kernel selection, compilation, preparation, runtime work, or
-execution. No current planner or compiler consumes it; the backend-neutral cost
-classification, planning cost inputs, scoring evaluation, and aggregate remain planned.
+execution. Current package-private planning consumes only its optional class preference: the first
+eligible class match wins, or the first eligible backend wins when no preference or match exists.
+The backend-neutral cost classification, planning cost inputs, public scoring evaluation,
+compiler consumer, and aggregate remain planned.
 
 ## Current operation-capability contracts
 
@@ -695,10 +700,18 @@ list is a valid internal no-match result. Exact-device and device-class requirem
 matching snapshot only for availability. They do not make the boolean answer device-level, select
 a device, or retain one.
 
-Reusable or public capability matrices, a public eligibility result/evaluator, public planning
-orchestration, scoring and profiles, ownership, partitions, compiler integration, device-level
-capability or selection, preparation, runtime, execution, and typed rejection diagnostics remain
-planned.
+Current package-private baseline selection treats that list as the complete candidate set. It
+validates the full snapshot input for nulls and duplicate equal identities, requires one equal-ID
+snapshot for each eligible backend, and permits extra unique snapshots. Empty eligibility fails
+before snapshot-element reads. A neutral configuration returns the first eligible identity; a
+present preference returns the first provider-order class match or falls back to the first
+eligible identity. Empty snapshots are preference nonmatches, and the exact eligibility identity
+reference is returned. No provider is called again and no device, route, or kernel is selected.
+
+Reusable or public capability matrices, a public eligibility result/evaluator or owner selector,
+public planning orchestration, numeric or cost scoring and profiles, partitions, compiler
+integration, device-level capability or selection, preparation, runtime, execution, and typed
+rejection diagnostics remain planned.
 
 ## Current expression input and planned compiler output
 

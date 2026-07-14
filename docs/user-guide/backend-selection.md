@@ -8,19 +8,21 @@ place it in `BackendIntent`, or construct an unconstrained intent with no hard t
 planning module also has a current immutable operation-capability query and explicitly supplied
 provider interface. Current `PartitionScoringConfig` can separately record an optional soft
 `DeviceClass` preference. Planning has one internal per-query hard-eligibility evaluator, but no
-user-callable entry point. The later `CompileConfig` aggregate, reusable/public capability matrix,
-public planning orchestration, preference interpretation, score calculation, and ownership planner
-are not implemented, so these values cannot yet be attached to a compile request.
+user-callable entry point. It now also has an internal cost-free selector that applies the
+preference to the hard-eligible identities and returns one backend owner. The later `CompileConfig`
+aggregate, reusable/public capability matrix, public planning orchestration or owner selector,
+cost scoring, and partitioning are not implemented, so users still cannot attach these values to a
+compile request.
 
 ## Mental model
 
 ```text
 optional hard requirement + current provider capability answers + availability
   -> current internal provider-ordered eligible BackendId values
-  -> planned public ownership candidates
-optional coarse class preference + valid candidates + graph estimates
-  -> backend-neutral score
-  -> owner identity for each node or segment
+optional coarse class preference + that complete candidate list + associated snapshots
+  -> current internal first preferred match, otherwise first eligible
+  -> one BackendId owner
+  -> planned public orchestration, cost scoring, and same-owner partitioning
 ```
 
 A hard requirement removes candidates that do not meet its target; it is not a preference or a
@@ -65,10 +67,10 @@ query capability, or select ownership. The family has no `AUTO`, `ANY`, or `NONE
 absence belongs to `BackendIntent.hardRequirement()`. `unconstrained` therefore records only an
 empty hard target; it does not promise a default backend, automatic discovery, or fallback.
 `requireMetal` retains the exact `exactBackend` reference inside its optional. The requirement
-family and intent have no preference, fallback, combination, matcher, or score. Later planning
-will combine a supplied hard target with
-availability and capability facts and fail rather than silently relax the target when no eligible
-candidate remains; the failure type and message are not yet specified.
+family and intent have no preference, fallback, combination, matcher, or score. Current internal
+planning combines a supplied hard target with availability and capability facts. Its baseline
+selector fails rather than silently relaxing the target when no eligible candidate remains; that
+internal failure is not yet a public compile failure contract.
 
 ## Current soft-preference value
 
@@ -84,16 +86,19 @@ PartitionScoringConfig preferAccelerator =
         PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
 ```
 
-`neutralRanking.preferredDeviceClass()` is empty. That absence does not select CPU, accelerator,
-automatic discovery, fallback, equal scores, or a successful owner. `preferAccelerator` retains
-the exact `DeviceClass.ACCELERATOR` reference. Later planning may use it only after hard
-eligibility, so it does not make an eligible CPU candidate invalid, weaken `requireMetal`, or
-guarantee that an accelerator candidate is selected.
+`neutralRanking.preferredDeviceClass()` is empty. The current internal baseline then uses the first
+hard-eligible backend in provider order; the config value itself still selects no CPU,
+accelerator, discovery behavior, or successful owner. `preferAccelerator` retains the exact
+`DeviceClass.ACCELERATOR` reference. Internal planning uses it only after hard eligibility: the
+first eligible backend with a reported accelerator-class device wins, or the first eligible
+backend wins when none matches. It does not make an eligible CPU candidate invalid, weaken
+`requireMetal`, or guarantee that an accelerator candidate exists.
 
 Construction records metadata only. It does not inspect the hard requirement, availability, or
 capability; enumerate candidates; calculate or compare scores; select a backend or device; or
-prepare or execute work. The later aggregate will decide which scoring configuration is its
-default; `neutral()` does not decide that policy today.
+prepare or execute work. The package-private selector, not the config value, performs the current
+baseline comparison. The later aggregate will decide which scoring configuration is its default;
+`neutral()` does not decide that policy today.
 
 ## Current capability boundary
 
@@ -111,12 +116,20 @@ for one query. A no-match list is empty and a hard requirement is never relaxed.
 device-class matching proves only reported availability; it does not establish device-level
 support or choose a device.
 
-The internal result and evaluator are package-private, so users cannot invoke them or complete
-backend selection with the current API. A provider's `true` means only that its named backend can
-semantically own the occurrence. A `false` carries no diagnostic reason and does not by itself say
-whether the backend is registered or available. The runnable inputs above are useful for preparing
-configuration, while compile aggregation, public planning orchestration, scoring, ownership,
-preparation, runtime, and execution remain planned workflows.
+The internal result, evaluator, and selector are package-private, so users cannot invoke them or
+complete backend selection with the current API. The selector consumes the provider-ordered list
+directly, validates equal-ID snapshot associations, allows extra unique snapshots, and returns the
+first preferred-class match or the first eligible backend. Provider order resolves ties. An empty
+matching snapshot is a preference nonmatch, and an empty eligible list fails before snapshot
+elements are read with the internal message
+`no hard-eligible backend is available for ownership selection`. It returns the exact eligibility
+identity reference and never selects a device.
+
+A provider's `true` still means only that its named backend can semantically own the occurrence.
+A `false` carries no diagnostic reason and does not by itself say whether the backend is registered
+or available. The runnable inputs above are useful for preparing configuration, while compile
+aggregation, public planning orchestration, cost scoring, partitioning, preparation, runtime, and
+execution remain planned workflows.
 
 ## Scenario
 
@@ -133,16 +146,16 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 | Current device residency changes compile scoring | Mutable run state leaked into planning. | Use compile-time estimates and immutable profiles only. |
 | An accelerator-class requirement is treated as a Metal preference | Hard eligibility was confused with ranking. | Keep the class as a candidate filter; later scoring configuration owns preference. |
 | A preferred accelerator is treated as a required accelerator | A soft ranking input was confused with hard eligibility. | Use `DeviceClassRequirement` for a hard target; a scoring preference never filters candidates. |
-| `BackendIntent.unconstrained()` is treated as guaranteed automatic fallback | Absence of a hard target was confused with selection behavior. | Treat it only as no hard eligibility constraint; later planning may still have no valid candidate. |
-| A capability-provider `false` is treated as proof that the backend is unavailable | Semantic support was confused with supplied availability. | Evaluate capability and availability as separate facts in later planning. |
+| `BackendIntent.unconstrained()` is treated as guaranteed automatic fallback | Absence of a hard target was confused with selection behavior. | Treat it only as no hard eligibility constraint; internal planning may still have no valid candidate. |
+| A capability-provider `false` is treated as proof that the backend is unavailable | Semantic support was confused with supplied availability. | Evaluate capability and availability as separate facts in planning. |
 
 ## Limitations
 
 `BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, the operation
-query/provider contracts, and one internal per-query hard-eligibility step are current. Provider
-implementations, device-level capability or selection, reusable/public capability matrices,
-public planning orchestration, preference interpretation, score calculation, profiles, compile
-aggregation, ownership, compiler integration, preparation, runtime, execution, and no-match
-diagnostics remain to be specified by focused tasks. See [Public API
+query/provider contracts, internal per-query hard eligibility, and internal baseline owner
+selection are current. Provider implementations, device-level capability or selection,
+reusable/public capability matrices, public planning orchestration or owner selection, cost
+scoring, profiles, compile aggregation, partitioning, compiler integration, preparation, runtime,
+execution, and public no-match diagnostics remain to be specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

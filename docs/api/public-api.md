@@ -8,17 +8,19 @@ Synaptik has no published compatibility guarantee yet. The current implementatio
 selected public model foundation, tensor-expression metadata surface, common trace-event envelope
 plus model-correlation identifiers, and the first backend-neutral planning capability contracts.
 It also contains backend and backend-scoped device identity values plus a coarse
-CPU-versus-accelerator device classification. Planning also contains an internal per-query
-hard-eligibility evaluation, but it adds no public type or callable external planning workflow.
-Compiler orchestration, reusable or public capability matrices, ownership planning, partitioning,
-prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
+CPU-versus-accelerator device classification. Planning also contains internal per-query hard-
+eligibility evaluation and cost-free baseline owner selection, but they add no public type or
+callable external planning workflow. Compiler orchestration, reusable or public capability
+matrices, public ownership planning, partitioning, prepare, runtime, concrete backend integration,
+and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
 permission for optional semantics-preserving compiler optimization, and one optional soft coarse
-device-class preference. No current compile aggregate, compiler, public capability-matrix or
-eligibility surface, scoring evaluator, or ownership planner consumes those values. APIs may
-change through the ordered planning process.
+device-class preference. The internal baseline consumes that preference after hard eligibility;
+no current compile aggregate, compiler, public capability-matrix or eligibility surface, scoring
+evaluator, or ownership planner is callable by users. APIs may change through the ordered
+planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -142,15 +144,16 @@ message is that component's name and returns the exact supplied reference from i
 
 These values neither inspect `availability` nor prove that a target is registered, available,
 capable, or preparable. They contain no sentinel for absence, preference, fallback, combination,
-matcher, or score. Later configuration owns whether a requirement is present and how intent is
-expressed; later planning owns evaluation with availability and capability facts and failure when
-no eligible target remains. The no-match exception type and message are not yet defined.
-Capability reporting, concrete backends, registration, planning, preparation, and execution
-remain planned.
+matcher, or score. Configuration owns whether a requirement is present. Current internal planning
+evaluates it with availability and capability facts; an empty hard-eligible result then fails in
+the internal selector with
+`IllegalStateException("no hard-eligible backend is available for ownership selection")`.
+That failure is not a public compile contract. Capability-provider implementations, concrete
+backends, registration, public planning, preparation, and execution remain planned.
 
 The implemented `modules:config` surface contains four standalone compile-configuration values:
 
-- `BackendIntent` records whether later planning has one hard backend eligibility target;
+- `BackendIntent` records whether planning has one hard backend eligibility target;
 - `CompileMode` records the requested compile-time graph scope;
 - `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work; and
 - `PartitionScoringConfig` records an optional soft `DeviceClass` preference for later ranking of
@@ -179,7 +182,7 @@ PartitionScoringConfig preferAccelerator =
 ```
 
 `unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
-target constrains later planning; it does not select a default backend or promise discovery,
+target constrains planning; it does not select a default backend or promise discovery,
 fallback, availability, capability, or successful ownership. `requireCuda.hardRequirement()`
 contains the exact requirement reference supplied to `requiring`. Direct construction with an
 `Optional<BackendRequirement>` retains that exact optional reference.
@@ -210,10 +213,12 @@ ownership. Direct construction retains the exact non-null `Optional<DeviceClass>
 rejects null with message `preferredDeviceClass`; `preferring(null)` rejects null with message
 `deviceClass`. Both factories return fresh values.
 
-`PartitionScoringConfig` does not enumerate or evaluate candidates, calculate or compare scores,
-contain profile measurements, choose ownership or a device, select a route or kernel, or perform
-compiler, prepare, runtime, or execution work. `CompileConfig`, immutable profiles, planning
-interpretation, compiler consumption, and every lifecycle consumer remain planned.
+`PartitionScoringConfig` itself does not enumerate or evaluate candidates, calculate or compare
+scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
+perform compiler, prepare, runtime, or execution work. Current package-private planning interprets
+only its optional class preference through a cost-free provider-order baseline. `CompileConfig`,
+immutable cost profiles, public planning orchestration, compiler consumption, and every public
+lifecycle consumer remain planned.
 
 The public `modules:planning` surface contains two backend-neutral compile-time contracts:
 
@@ -275,16 +280,19 @@ route, prepare work, or execute values. The repository supplies no production pr
 implementation and no current compiler or public planning consumer.
 
 Provider implementations must reject a null query with `NullPointerException("query")`. A false
-answer carries no diagnostic reason. Inside the same package, current implementation code can
-validate complete provider/snapshot associations and combine backend-level support, non-empty
+answer carries no diagnostic reason. Inside the same package, current implementation code
+validates complete provider/snapshot associations and combines backend-level support, non-empty
 availability, and an optional exact hard requirement into an immutable provider-ordered
-`BackendId` list. This per-query value and its factory are package-private; a valid no-match is an
-empty list. Exact-device and device-class requirements prove only matching availability, not
-device-level support or device selection.
+`BackendId` list. A second package-private step validates equal-ID snapshot associations and uses
+that list directly as the complete candidate set. It returns the first preferred-class match, or
+the first eligible identity when no preference or match exists; provider order resolves ties. It
+returns the exact eligibility reference, allows extra unique snapshots, treats an empty matching
+snapshot as a preference nonmatch, and selects no device. Empty eligibility fails internally
+before snapshot elements are read.
 
-Reusable or public capability matrices, public eligibility evaluation or planner orchestration,
-device-level queries, ownership scoring, profiles, partitions, compiler integration, preparation,
-runtime, execution, and diagnostics remain planned.
+These internal contracts are not public APIs. Reusable or public capability matrices, public
+eligibility evaluation or planner orchestration, numeric or cost scoring, profiles, partitions,
+compiler integration, preparation, runtime, execution, and diagnostics remain planned.
 
 ## Planned public lifecycle
 

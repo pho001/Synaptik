@@ -3,14 +3,14 @@
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
 The operation-capability question and provider collaboration used before scoring are implemented.
-Planning now also has one internal per-query hard-eligibility step: it validates the complete
+Planning also has two internal per-query steps. Hard eligibility validates the complete
 provider/snapshot association, applies current availability and one exact hard requirement, and
-retains supported backend identities in provider order. Configuration can separately record one
-optional soft `DeviceClass` preference for later ranking after hard eligibility. Reusable or
-public capability matrices, public planning orchestration, preference interpretation, score
-calculation, ownership decisions, partitioning, and logical memory planning remain planned. This
-page explains the accepted boundary and permitted inputs; it does not define a current scoring
-formula, weights, or callable public scoring API.
+retains supported backend identities in provider order. Baseline owner selection treats that list
+as the complete candidate set and applies the current optional soft `DeviceClass` preference.
+Reusable or public capability matrices, public planning orchestration or owner selection, numeric
+or cost scoring, partitioning, and logical memory planning remain planned. This page explains the
+accepted boundary and current internal baseline; it does not define a public scoring API, weights,
+or a general cost formula.
 
 ## Purpose and pipeline position
 
@@ -28,12 +28,12 @@ backend intent
   -> current OperationCapabilityQuery
   -> current BackendCapabilityProvider boolean answer
   -> current internal per-query hard eligibility
-  -> planned reusable/public capability matrix and orchestration
   -> current PartitionScoringConfig preference input
-  -> backend-neutral partition scoring
-  -> ownership decision
-  -> maximal same-owner partitioning
-  -> logical memory/materialization requirements
+  -> current internal preferred-class/provider-order baseline
+  -> current BackendId owner for that occurrence
+  -> planned reusable/public planning orchestration
+  -> planned cost scoring and maximal same-owner partitioning
+  -> planned logical memory/materialization requirements
 ```
 
 The current public capability contract asks whether one named backend can semantically own one
@@ -50,12 +50,19 @@ immutable provider-ordered `BackendId` list, which may be empty. Exact-device an
 requirements prove only matching availability in the associated snapshot: capability remains
 backend-level, and the step neither selects nor retains a device.
 
-Later public planning orchestration may build ownership candidates from that internal fact and
-must treat an empty list as terminal before scoring rather than weakening a hard requirement.
-Current `PartitionScoringConfig` may supply one preferred coarse device class, but it neither
-filters eligible backends nor guarantees that a backend of that class wins. Later scoring will
-interpret that soft input together with other compile-time information, and the partitioner will
-then group adjacent work with the same selected owner.
+The current package-private selector uses the eligible identity list directly as its complete
+candidate set. It validates every supplied snapshot for null and duplicate equal identities,
+requires one equal-identity snapshot for every eligible backend, and permits extra unique
+snapshots. An empty eligible list fails internally before any snapshot element is read. With no
+preference, the first eligible identity wins. With a preference, the first eligible identity whose
+snapshot reports that class wins; if none matches, the first eligible identity still wins. An
+empty matching snapshot is only a preference nonmatch, and provider order resolves ties and
+fallback. The selector returns the exact identity reference from hard eligibility and never
+selects or retains a device.
+
+This is one cost-free internal ownership baseline, not the public planning workflow or a general
+numeric scoring model. Later cost-bearing scoring may use additional compile-time facts, and the
+partitioner will then group adjacent work with the same selected owner.
 
 ## Information scoring may use
 
@@ -97,10 +104,11 @@ Concrete kernel or runtime scoring belongs to backend prepare, not planning.
 The scoring model may account for these backend-neutral factors:
 
 - **Backend intent** supplies an optional hard eligibility target.
-- **Device-class preference** is a current optional soft input that later scoring may apply only
-  after hard eligibility; an absent preference promises no default, fallback, or equal scores.
-- **Capability** will remove unsupported ownership candidates using the current query/provider
-  contract plus later matrix and eligibility work.
+- **Device-class preference** is a current optional soft input that the internal baseline applies
+  only after hard eligibility; an absent preference supplies no class match and the baseline uses
+  provider order.
+- **Capability** removes unsupported ownership candidates through the current query/provider and
+  internal hard-eligibility contracts.
 - **Transfer penalty** estimates the cost of moving values across backend ownership boundaries.
 - **Materialization penalty** estimates logical layout or contiguity work needed by an ownership choice.
 - **Boundary penalty** discourages plans fragmented into costly backend transitions.
@@ -137,7 +145,10 @@ fused backend executable
 
 Those choices depend on backend-specific lowering, specialization, fusion, prepare configuration, and workspace constraints. They are made by the owning concrete backend during prepare.
 
-The result of scoring is therefore an ownership decision used to build `PlannedPartition` values. It is part of the immutable compile recipe, not an executable implementation or physical schedule.
+The current internal baseline returns one `BackendId` owner for one eligible occurrence. Building
+`PlannedPartition` values and the complete immutable compile recipe remain planned. Neither the
+current owner identity nor a future partition is an executable implementation or physical
+schedule.
 
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the

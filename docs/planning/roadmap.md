@@ -38,15 +38,22 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-There is no Ready implementation task. The terminology and ownership reset retired the
-unimplemented Config 0004 fixed-plus-linear platform/backend/tuning profile specification because
-it conflated planning cost with backend tuning and averaged materially different workloads.
+The latest completed implementation frontier is
+[Planning 0003 Ownership candidates and baseline scoring](modules/planning/tasks/0003-ownership-candidates-and-baseline-scoring.md).
+Its implementation and independent documentation pass resolve the reset without resurrecting the
+retired Config 0004 fixed-plus-linear platform/backend/tuning profile design.
 
-Planning 0003 is the likely prerequisite frontier, but it remains Draft: its public/internal
-candidate handoff, backend-neutral cost classification, baseline comparison, ties, and
-failure contract are not stable. Config 0004 is also Draft and now follows that consumer as a
-narrow planning cost-profile contract. No stable shared production `OperationFamily` or workload-
-bucket contract exists, so this reset does not invent one or force a code task.
+Planning 0003 consumes the package-private hard-eligibility result through one colocated
+package-private stateless selector. The provider-ordered eligible `BackendId` list is already the
+complete candidate set. Current baseline comparison uses only the existing optional preferred
+`DeviceClass`: the first matching eligible backend wins, otherwise the first eligible backend
+wins, and provider order resolves ties. Empty eligibility fails terminally before scoring. No
+public facade, candidate record, numeric score, shared production `OperationFamily`, workload
+bucket, or cost-profile classification is needed.
+
+Config 0004 remains Draft without a detailed specification. This cost-free baseline does not
+justify profile data; the first later concrete cost-bearing planning consumer must establish the
+exact backend-neutral classification and units before Config 0004 can become Ready.
 
 The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
 own complete valid graph and ownership candidates; shared prepare owns a future opaque
@@ -54,9 +61,10 @@ orchestration and artifact-lifecycle boundary; CPU, Metal, and CUDA own typed ro
 generators; and `tools/tuning` owns the single two-phase model-autotuning workflow. A
 representative model corpus may pre-seed the same workload cache, but no separate platform-
 calibration workflow or profile remains planned. These later rows do not change the current
-frontier, and zero master-plan task rows are Ready.
+frontier. Planning 0004, Config 0004, and every other unfinished row remain Draft; no task is Ready
+pending a separate frontier reassessment.
 
-The latest completed frontier remains
+The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
 It validates complete provider/snapshot associations by equal `BackendId`, queries every
 provider that survives availability and exact hard intent once, and combines its backend-level
@@ -70,9 +78,10 @@ preparation, runtime state, or execution.
 remain Complete. Config task 0003 is also Complete; Config 0004–0008 remain ordered Draft work
 without detailed specifications. Planning task 0001 remains Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
-Planning task 0002 is Complete; Planning tasks 0003–0006 remain Draft without detailed
-specifications. Planning 0003 must stabilize the cost consumer and cost classification before
-Config 0004 can be specified. Zero global tasks are Ready.
+Planning task 0002 is Complete; Planning task 0003 is Complete with its detailed specification;
+Planning tasks 0004–0006 remain Draft without detailed specifications. Config 0004 remains Draft
+because task 0003's exact baseline consumes no cost classification or profile. No global task is
+Ready pending a separate frontier reassessment.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

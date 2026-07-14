@@ -87,7 +87,9 @@ structured rejection reason, public matrix, score, ownership event, or compiler 
 0003 and later rows remain Draft without detailed specifications until the broader config,
 planning, compiler, prepare, and runtime producer facts are stable. Runtime profiling will be
 passive producer observation translated into typed trace DTOs; it will not select
-model-autotuning settings. Trace 0003+ remain Draft, and no global task is Ready.
+model-autotuning settings. Planning task 0003 is Complete with internal baseline owner selection.
+It adds no trace schema or structured diagnostic; Trace 0003+ remain Draft, and no global task is
+Ready pending a separate frontier reassessment.
 
 ## Open questions
 
@@ -128,6 +130,9 @@ model-autotuning settings. Trace 0003+ remain Draft, and no global task is Ready
 - Planning task 0002 remains intentionally boolean/filtering-only at the diagnostic boundary: its
   result retains eligible backend identities and no rejection reason. It therefore does not
   stabilize typed capability-rejection or no-match trace payloads.
+- Complete Planning task 0003 defines one internal terminal no-eligible exception and deterministic
+  preferred-class/provider-order selection without emitting a trace or defining a rejection,
+  score, ownership-event, or compiler payload. It therefore does not advance Trace 0003.
 - Benchmark reports, workload tuning caches, model-plan results, planning cost profiles, and
   runtime profiling are distinct. Only passive observations from stable producers can become
   trace payloads; trace never runs searches or changes production settings.
@@ -182,5 +187,6 @@ validation and an independent documentation pass; it creates no trace producer s
 0002 alone for internal hard eligibility; its no-reason result still creates no trace schema.
 Config 0004 was the likely next area after that task, subject to another reassessment, while every
 trace task remained Draft. Planning task 0002 is Complete. The later terminology/ownership reset
-retired the unimplemented Config 0004 detailed specification; no trace or global task is Ready and
-no detailed trace task-0003 specification exists.
+retired the unimplemented Config 0004 detailed specification. Planning task 0003 is now Complete;
+its internal baseline selection creates no trace schema. No trace or global task is Ready, and no
+detailed trace task-0003 specification exists.

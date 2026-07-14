@@ -10,12 +10,12 @@ The current public planning foundation consists of `OperationCapabilityQuery` an
 `BackendCapabilityProvider`: one immutable operation-occurrence question and one explicitly
 supplied boolean provider collaboration. Planning also has one package-private per-query hard-
 eligibility result and evaluator that combine backend-level support, supplied availability, and
-an optional exact hard requirement into provider-ordered `BackendId` values. Reusable or public
-capability matrices, public planning orchestration, scoring, ownership, partitioning, logical
-memory, provider implementations, compiler consumers, device-level capability, and device
-selection remain planned. Current config separately retains one optional soft coarse device-class
-preference as input for later ranking after hard eligibility; interpreting that preference and
-calculating scores remain planned.
+an optional exact hard requirement into provider-ordered `BackendId` values. A second
+package-private step uses those identities directly as the candidate set and selects one exact
+`BackendId` owner through optional preferred-class match and provider order. Reusable or public
+capability matrices, public planning orchestration or owner selection, numeric or cost scoring,
+partitioning, logical memory, provider implementations, compiler consumers, device-level
+capability, and device selection remain planned.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -770,11 +770,22 @@ trace-local backend correlation; that trace translation remains planned.
 
 ### Backend ownership
 
-The planned compile-time decision that assigns a node or segment to a
+The compile-time decision that assigns work to a
 [`BackendId`](#backend-identity--backendid), such as an identity whose value is `"cpu"`, `"metal"`,
-or `"cuda"`. Ownership answers “where should this work run?” It does not answer “which kernel
-should run it?” The owning concrete backend makes that implementation choice during
-[prepare](#prepare).
+or `"cuda"`. The current package-private baseline selects one owner for one operation occurrence
+from the complete provider-ordered [hard-eligible](#backend-hard-eligibility) identity list. With
+no preferred [`DeviceClass`](#device-class--deviceclass), the first eligible identity wins. With a
+preference, the first eligible identity whose equal-ID availability snapshot reports that class
+wins; when none matches, the first eligible identity still wins. Provider order resolves ties, an
+empty matching snapshot is a preference nonmatch, and the exact identity reference from hard
+eligibility is returned. Empty hard eligibility fails internally before snapshot elements are
+read.
+
+This internal baseline is not a public planner API, numeric or cost-scoring model, device choice,
+or same-owner partition. The broader planned ownership workflow may assign nodes or segments and
+use additional backend-neutral costs. Ownership always answers “where should this work run?” It
+does not answer “which kernel should run it?” The owning concrete backend makes that implementation
+choice during [prepare](#prepare).
 
 ### Backend intent / `BackendIntent`
 
@@ -791,9 +802,9 @@ preference, contain planning-cost or model-autotuning data, select ownership, lo
 perform compile, prepare, run, publication, or execution behavior. The current separate
 [`PartitionScoringConfig`](#partition-scoring-configuration--partitionscoringconfig) may retain a
 soft coarse class preference, while planning-cost and model-autotuning inputs remain planned.
-Current internal planning owns the per-query hard-eligibility intersection; later public planning
-orchestration owns preference
-interpretation, scoring, ownership, and no-match failure.
+Current internal planning owns the per-query hard-eligibility intersection and its cost-free
+preferred-class/provider-order owner selection. Later public planning orchestration and cost
+scoring remain planned, including the public no-match failure contract.
 
 ### Backend requirement / `BackendRequirement`
 
@@ -807,9 +818,9 @@ particular backend nor a particular device.
 A backend requirement is requested data, not a capability claim, availability fact, preference,
 fallback, score, or evaluator. The family has no absence sentinel and does not combine or match
 targets. Current [`BackendIntent`](#backend-intent--backendintent) owns whether a requirement is
-present. Later planning owns evaluation with availability and capability facts and failure when no
-eligible target remains. Current internal evaluation represents no match with an empty immutable
-backend-identity list; the later public no-match exception type and message are not yet defined.
+present. Current internal planning evaluates it with availability and capability facts, represents
+no match with an empty immutable backend-identity list, and fails before baseline selection can
+choose an owner. The later public no-match exception type and message are not yet defined.
 
 ### Backend-owned lowering
 
