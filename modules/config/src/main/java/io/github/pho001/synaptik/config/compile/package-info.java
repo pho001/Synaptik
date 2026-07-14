@@ -1,18 +1,21 @@
 /**
  * Defines immutable declarative configuration values for graph compilation.
  *
- * <p>The current package contains three standalone values:
+ * <p>The current package contains four standalone values:
  * {@link io.github.pho001.synaptik.config.compile.BackendIntent} records optionality for one hard
  * backend requirement, {@link io.github.pho001.synaptik.config.compile.CompileMode} records the
- * requested compile-time graph scope, and
+ * requested compile-time graph scope,
  * {@link io.github.pho001.synaptik.config.compile.GraphOptimizationConfig} records permission for
- * optional semantics-preserving compiler optimization. These values describe requests only; no
- * current aggregate or compiler entry point consumes them.</p>
+ * optional semantics-preserving compiler optimization, and
+ * {@link io.github.pho001.synaptik.config.compile.PartitionScoringConfig} records an optional soft
+ * device-class preference for later ranking after hard eligibility. These values describe
+ * requests only; no current aggregate or compiler entry point consumes them.</p>
  *
- * <p>Later configuration work owns backend-neutral scoring policy, immutable profile inputs, and
- * the aggregate compile configuration. Later planning evaluates requirements and chooses
- * ownership; compiler, prepare, runtime, engine, training, and concrete backend layers own their
- * respective lifecycle behavior. This package contains no compiler pass API, live service,
- * runtime state, or concrete backend implementation.</p>
+ * <p>Later configuration work owns immutable profile inputs and the aggregate compile
+ * configuration. Later planning evaluates hard eligibility, candidates, and scoring and chooses
+ * ownership; compiler orchestration, preparation, runtime, engine composition, and concrete
+ * backend implementation remain outside this package. This package contains no compiler pass
+ * API, profile data, scoring evaluator, live service, runtime state, or concrete backend
+ * implementation.</p>
  */
 package io.github.pho001.synaptik.config.compile;

@@ -80,9 +80,10 @@ candidate, scoring, partition, memory, registry, or provider implementation.
 In progress after completing the explicit narrow interleave before config task 0003. Task 0001 is
 Complete with its typed operation-capability query/provider boundary, focused and repository test
 evidence, and independent documentation pass. No planning task is Ready. Tasks 0002–0006 remain
-ordered Draft work without detailed specifications. The likely frontier returns to config task
-0003, which remains Draft without a detailed specification, before planning capability matrices
-and scoring proceed.
+ordered Draft work without detailed specifications. Config task 0003 is Complete with one
+optional coarse device-class preference as soft scoring input; it adds no planning evaluator,
+candidate, score, owner, or profile contract. No global task is Ready until a separate frontier
+reassessment.
 
 ## Open questions
 
@@ -98,8 +99,10 @@ and scoring proceed.
 - Concrete backends may later implement the planning-owned inward-facing provider contract;
   planning does not depend on them and task 0001 added no implementation.
 - Planning task 0001 intentionally interleaves before config task 0003 so the typed question is
-  stable before scoring weights and policies are exposed. The likely frontier then returns to
-  config 0003.
+  stable before a scoring preference is exposed. The frontier then returns to config 0003.
+- Complete config task 0003 keeps hard eligibility separate from soft ranking through one
+  `Optional<DeviceClass>` preference. Planning will later own interpretation after its candidate
+  and profile prerequisites are stable.
 
 ## Risks
 
@@ -117,5 +120,12 @@ explanatory/planning documentation. Its implementation context passed 13 tests a
 with no failures, errors, or skips. The independent documentation context reused that evidence,
 changed no executable behavior, and finalized the affected Javadocs, examples, terminology,
 current-versus-planned boundaries, glossary entries, and planning records. The single final root
-suite passed 1,079 tests across 141 suites with no skips, failures, or errors. No config 0003 or
-planning 0002 detailed specification exists.
+suite passed 1,079 tests across 141 suites with no skips, failures, or errors. A separate planning
+step then made config task 0003 Ready; it is now Complete. Planning task 0002 remains Draft without
+a detailed specification. Reassess the global frontier rather than assuming planning task 0002 or
+0003 can advance while profile data and other prerequisites remain Draft.
+
+Config task 0003 is now Complete after its focused config validation and independent
+documentation pass. It changed no planning Java, provider contract, module dependency, or scoring
+behavior. Planning tasks 0002–0006 remain Draft without detailed specifications, and the next
+global frontier is intentionally deferred to a separate reassessment.

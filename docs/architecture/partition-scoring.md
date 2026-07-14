@@ -3,9 +3,11 @@
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
 The operation-capability question and provider collaboration used before scoring are implemented.
-Capability matrices, hard-eligibility evaluation, scoring, ownership decisions, partitioning, and
-logical memory planning remain planned. This page explains the accepted boundary and permitted
-inputs; it does not define a current scoring formula, weights, or callable scoring API.
+Configuration can also record one optional soft `DeviceClass` preference for later ranking after
+hard eligibility. Capability matrices, hard-eligibility evaluation, preference interpretation,
+score calculation, ownership decisions, partitioning, and logical memory planning remain planned.
+This page explains the accepted boundary and permitted inputs; it does not define a current
+scoring formula, weights, or callable scoring API.
 
 ## Purpose and pipeline position
 
@@ -23,6 +25,7 @@ backend intent
   -> current OperationCapabilityQuery
   -> current BackendCapabilityProvider boolean answer
   -> planned capability matrix and hard eligibility
+  -> current PartitionScoringConfig preference input
   -> backend-neutral partition scoring
   -> ownership decision
   -> maximal same-owner partitioning
@@ -36,7 +39,9 @@ boolean answer for its stable `BackendId`. It does not discover a backend, inspe
 evaluate a hard requirement, select a device or route, or explain a rejection.
 
 Later capability-matrix and hard-eligibility work will turn those narrow answers into valid
-ownership candidates. Scoring will compare the candidates using compile-time information, and the
+ownership candidates. Current `PartitionScoringConfig` may supply one preferred coarse device
+class, but it neither filters those candidates nor guarantees that a candidate of that class wins.
+Later scoring will interpret that soft input together with other compile-time information, and the
 partitioner will then group adjacent work with the same selected owner.
 
 ## Information scoring may use
@@ -74,7 +79,9 @@ Concrete kernel or runtime scoring belongs to backend prepare, not planning.
 
 The scoring model may account for these backend-neutral factors:
 
-- **Backend intent** reflects explicit compile configuration and preferences.
+- **Backend intent** supplies an optional hard eligibility target.
+- **Device-class preference** is a current optional soft input that later scoring may apply only
+  after hard eligibility; an absent preference promises no default, fallback, or equal scores.
 - **Capability** will remove unsupported ownership candidates using the current query/provider
   contract plus later matrix and eligibility work.
 - **Transfer penalty** estimates the cost of moving values across backend ownership boundaries.

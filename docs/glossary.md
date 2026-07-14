@@ -10,7 +10,9 @@ The current planning foundation consists only of `OperationCapabilityQuery` and
 `BackendCapabilityProvider`: one immutable operation-occurrence question and one explicitly
 supplied boolean provider collaboration. Capability matrices, hard eligibility, scoring,
 ownership, partitioning, logical memory, provider implementations, compiler consumers, and
-device-level capability remain planned.
+device-level capability remain planned. Current config separately retains one optional soft
+coarse device-class preference as input for later ranking after hard eligibility; interpreting
+that preference and calculating scores remain planned.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -280,10 +282,12 @@ availability association. It also contains the sealed, method-free `BackendRequi
 with exact-backend, exact-device, and device-class hard targets. Configuration placement,
 requirement evaluation, capability providers, discovery and refresh, registration, concrete
 backend integration, and trace-local backend/device correlations remain planned. The implemented
-config foundation contains `BackendIntent`, which records an optional hard requirement without
-preference, evaluation, or lifecycle behavior. Compile aggregation and all other config contracts
-remain planned. A definition explains intended meaning; it is not by itself evidence that a Java
-type exists.
+config foundation contains `BackendIntent`, `CompileMode`, `GraphOptimizationConfig`, and
+`PartitionScoringConfig`. They record hard-requirement optionality, graph scope,
+optional-optimization permission, and one optional soft coarse class preference, respectively,
+without planning evaluation or lifecycle behavior. Compile aggregation, profiles, and all other
+config contracts remain planned. A definition explains intended meaning; it is not by itself
+evidence that a Java type exists.
 
 ## Terms
 
@@ -734,8 +738,10 @@ An unconstrained intent means only that no hard target filters later candidates.
 that a default backend exists, discovery occurs, fallback will succeed, or any backend is
 available or capable. Backend intent does not evaluate the target, rank candidates, express
 preference, contain calibrated profile data, select ownership, locate services, or perform
-compile, prepare, run, publication, or execution behavior. Preference and profiles remain
-separate later configuration; planning later owns eligibility evaluation and no-match failure.
+compile, prepare, run, publication, or execution behavior. The current separate
+[`PartitionScoringConfig`](#partition-scoring-configuration--partitionscoringconfig) may retain a
+soft coarse class preference, while profiles remain planned; planning later owns eligibility
+evaluation, preference interpretation, scoring, ownership, and no-match failure.
 
 ### Backend requirement / `BackendRequirement`
 
@@ -1046,7 +1052,9 @@ from [`BackendId`](#backend-identity--backendid), which names an ownership domai
 domain. A current
 [`BackendAvailabilitySnapshot`](#backend-availability-snapshot--backendavailabilitysnapshot)
 associates those two facts without storing the class in the identity. The declaration order
-conveys no preference, score, priority, capability, or fallback policy.
+conveys no preference, score, priority, capability, or fallback policy. Only an explicitly present
+[`PartitionScoringConfig`](#partition-scoring-configuration--partitionscoringconfig) value records
+a soft class preference; it does not change the category itself.
 
 ### Dense target
 
@@ -1759,6 +1767,28 @@ and attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 ### Partition
 
 A planned graph region whose nodes share one backend owner. Planning forms maximal same-owner partitions after ownership decisions so each backend can prepare a coherent region. A partition is still compile-time planning data, not a selected kernel or prepared executable.
+
+### Partition scoring configuration / `PartitionScoringConfig`
+
+The implemented immutable config record that retains one non-null
+`Optional<DeviceClass>` named `preferredDeviceClass`. An empty optional means only that no
+explicit coarse device-class preference was supplied; it promises no default, fallback, equal
+candidate scores, discovery, or successful ownership selection. A present optional records a soft
+preference for the exact retained CPU or accelerator enum value after hard eligibility has
+established the candidate set. It neither filters another eligible candidate, weakens a hard
+[`BackendRequirement`](#backend-requirement--backendrequirement), nor guarantees that a candidate
+of the preferred class wins.
+
+Direct construction retains the exact optional reference and exact contained enum reference and
+rejects a null optional with `NullPointerException("preferredDeviceClass")`. `neutral()` returns a
+fresh empty value but does not select the later aggregate's default. `preferring(deviceClass)`
+returns a fresh present value and rejects null with `NullPointerException("deviceClass")`.
+
+This record is ranking input, not a scoring policy implementation. It does not evaluate
+eligibility or candidates, calculate or compare scores, contain profile measurements, choose an
+owner or device, select a backend route or kernel, compile or prepare a graph, inspect runtime
+state, or execute work. Planning interpretation, calibrated profiles, `CompileConfig`, compiler
+consumption, ownership, partitioning, and execution remain planned.
 
 ### Planning
 

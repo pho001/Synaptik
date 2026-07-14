@@ -4,11 +4,12 @@
 
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The repository does not yet provide a runnable graph compiler.
-The current config module provides three immutable standalone input values that a later compile
+The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
-`GraphOptimizationConfig`. The current planning module provides the immutable
-`OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider` collaboration;
-it does not yet provide a capability matrix, ownership planner, or compiler integration.
+`GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
+immutable `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider`
+collaboration; it does not yet provide a capability matrix, ownership planner, or compiler
+integration.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -588,8 +589,10 @@ absence of a hard target.
 
 The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
-Preference and scoring, immutable profiles, `CompileConfig`, compiler consumption, and no-match
-failure remain planned in their owning tasks.
+Preference evaluation and score calculation, immutable profiles, `CompileConfig`, compiler
+consumption, and no-match failure remain planned in their owning tasks. The separate current
+`PartitionScoringConfig` value described below supplies only soft preference input; it does not
+change these hard-intent semantics.
 
 `io.github.pho001.synaptik.config.compile.CompileMode` is also current. It contains exactly three
 requested graph scopes in declaration order:
@@ -608,7 +611,7 @@ compile-time graph work. `TRAINING_STEP` records the architecture's future train
 it does not itself introduce an optimizer, optimizer-update graph, session, schedule, or execution
 behavior. No current compiler interprets any of the three values.
 
-`io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is the third current value:
+`io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 
 ```java
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
@@ -627,6 +630,33 @@ a pass list, pass order, internal graph shape, or implementation strategy. It pe
 approximate mathematics, changed numerical semantics, backend-specific fusion, preparation, or
 execution behavior. Direct construction retains either primitive boolean value, and both factories
 return fresh values. No current compiler consumes the permission.
+
+`io.github.pho001.synaptik.config.compile.PartitionScoringConfig` is the fourth current value. It
+holds exactly one `Optional<DeviceClass>` named `preferredDeviceClass`:
+
+```java
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+
+PartitionScoringConfig neutralRanking = PartitionScoringConfig.neutral();
+PartitionScoringConfig preferAccelerator =
+        PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
+```
+
+The first value contains an empty optional and means only that no explicit coarse device-class
+preference was supplied. It selects no aggregate default or fallback and promises neither equal
+candidate scores nor successful ownership selection. The second contains the exact supplied enum
+reference as a soft preference that later planning may apply only after hard eligibility. It does
+not remove another eligible candidate, weaken a hard `BackendRequirement`, or guarantee that an
+accelerator candidate wins.
+
+Direct construction retains the exact non-null `Optional<DeviceClass>` reference and rejects null
+with `NullPointerException("preferredDeviceClass")`. `preferring(null)` rejects null with
+`NullPointerException("deviceClass")`; both factories return fresh records. The value performs no
+candidate enumeration or evaluation, score calculation or comparison, profile lookup, ownership
+or device selection, route or kernel selection, compilation, preparation, runtime work, or
+execution. No current planner or compiler consumes it; profile data, scoring evaluation, and the
+aggregate remain planned.
 
 ## Current operation-capability contracts
 
@@ -726,9 +756,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Capturing, serializing, preserving or deliberately
   transforming that state edge remains compiler work; current compilation exposes no such API.
-- `CompileConfig` will aggregate the current compile mode, `BackendIntent`, and graph-optimization
-  values with later scoring and selected profile inputs as data. It will not contain live backend
-  services. Its exact surface and defaults remain planned.
+- `CompileConfig` will aggregate the current compile mode, `BackendIntent`, graph-optimization,
+  and `PartitionScoringConfig` values with later selected profile inputs as data. It will not
+  contain live backend services. Its exact surface and defaults remain planned.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
   is separate from the current model graph.
 - `CompileArtifacts` will combine a `CompiledGraphModel`, planned partitions, a logical memory

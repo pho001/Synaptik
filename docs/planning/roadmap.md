@@ -38,23 +38,21 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The completed interleaved frontier is
-[Planning 0001 Operation capability-query foundation](modules/planning/tasks/0001-operation-capability-query-foundation.md),
-an explicit narrow interleave before config task 0003. It is Complete after adding the immutable
-typed question planning asks a named backend about one operation occurrence and the inward-facing
-provider collaboration. Its focused suites, independent documentation pass, and single final
-1,079-test repository suite passed. It adds no provider implementation, capability matrix, hard-
-eligibility evaluation, score, ownership, partition, compiler behavior, preparation, runtime
-behavior, trace schema, or execution.
+The completed frontier is
+[Config 0003 Partition scoring configuration](modules/config/tasks/0003-partition-scoring-configuration.md).
+It adds one optional coarse `DeviceClass` preference as soft input after hard eligibility, with
+focused config validation and an independent documentation pass complete. It adds no candidate
+enumeration or evaluation, score calculation, numeric weights, calibrated profile data, ownership
+decision, policy type, service, route, kernel, preparation, runtime state, or execution.
 
 [Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) and
 [Config 0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
-remain Complete. Config tasks 0003–0008 remain ordered Draft work without detailed
-specifications. The likely frontier returns to config task 0003 for partition-scoring
-configuration before planning capability matrices and scoring proceed. Config task 0003 remains
-Draft and has no detailed specification or Ready status; advancing it requires a separate planning
-step.
-Planning tasks 0002–0006 remain Draft without detailed specifications.
+remain Complete. Config task 0003 is also Complete; config tasks 0004–0008 remain ordered Draft
+work without detailed specifications. Planning task 0001 remains Complete after its focused
+suites, independent documentation pass, and single final 1,079-test repository suite passed.
+Planning tasks 0002–0006 remain Draft without detailed specifications. No global task is Ready.
+The next frontier must be reassessed separately rather than assumed: profile data notably remains
+Draft, and planning scoring must not advance until its actual prerequisites are stable.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

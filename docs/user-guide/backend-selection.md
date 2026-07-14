@@ -6,16 +6,17 @@ This guide explains how users will express backend intent and how compile-time p
 it into ownership. The current Java API can construct one hard backend eligibility target and
 place it in `BackendIntent`, or construct an unconstrained intent with no hard target. The later
 planning module also has a current immutable operation-capability query and explicitly supplied
-provider interface. The later `CompileConfig` aggregate, capability matrix, eligibility evaluator,
-scoring, and ownership planner are not implemented, so an intent cannot yet be attached to a
-compile request and exact preference options and defaults are not available.
+provider interface. Current `PartitionScoringConfig` can separately record an optional soft
+`DeviceClass` preference. The later `CompileConfig` aggregate, capability matrix, eligibility
+evaluator, preference interpretation, score calculation, and ownership planner are not
+implemented, so these values cannot yet be attached to a compile request.
 
 ## Mental model
 
 ```text
 optional hard requirement + current provider capability answers + availability
   -> valid ownership candidates
-user preference + valid candidates + graph estimates
+optional coarse class preference + valid candidates + graph estimates
   -> backend-neutral score
   -> owner identity for each node or segment
 ```
@@ -67,6 +68,31 @@ will combine a supplied hard target with
 availability and capability facts and fail rather than silently relax the target when no eligible
 candidate remains; the failure type and message are not yet specified.
 
+## Current soft-preference value
+
+Use `PartitionScoringConfig` to record either no explicit coarse class preference or one soft CPU
+or accelerator preference:
+
+```java
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+
+PartitionScoringConfig neutralRanking = PartitionScoringConfig.neutral();
+PartitionScoringConfig preferAccelerator =
+        PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
+```
+
+`neutralRanking.preferredDeviceClass()` is empty. That absence does not select CPU, accelerator,
+automatic discovery, fallback, equal scores, or a successful owner. `preferAccelerator` retains
+the exact `DeviceClass.ACCELERATOR` reference. Later planning may use it only after hard
+eligibility, so it does not make an eligible CPU candidate invalid, weaken `requireMetal`, or
+guarantee that an accelerator candidate is selected.
+
+Construction records metadata only. It does not inspect the hard requirement, availability, or
+capability; enumerate candidates; calculate or compare scores; select a backend or device; or
+prepare or execute work. The later aggregate will decide which scoring configuration is its
+default; `neutral()` does not decide that policy today.
+
 ## Current capability boundary
 
 `OperationCapabilityQuery` currently snapshots one backend-independent `Operation` plus its
@@ -96,14 +122,16 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 | CPU scalar and OpenBLAS appear as separate backends | Routes were confused with ownership. | Treat both as CPU-internal prepare choices. |
 | Current device residency changes compile scoring | Mutable run state leaked into planning. | Use compile-time estimates and immutable profiles only. |
 | An accelerator-class requirement is treated as a Metal preference | Hard eligibility was confused with ranking. | Keep the class as a candidate filter; later scoring configuration owns preference. |
+| A preferred accelerator is treated as a required accelerator | A soft ranking input was confused with hard eligibility. | Use `DeviceClassRequirement` for a hard target; a scoring preference never filters candidates. |
 | `BackendIntent.unconstrained()` is treated as guaranteed automatic fallback | Absence of a hard target was confused with selection behavior. | Treat it only as no hard eligibility constraint; later planning may still have no valid candidate. |
 | A capability-provider `false` is treated as proof that the backend is unavailable | Semantic support was confused with supplied availability. | Evaluate capability and availability as separate facts in later planning. |
 
 ## Limitations
 
-`BackendIntent` placement and hard-target optionality plus the operation query/provider contracts
-are current. Provider implementations, device-level capability, capability matrices, preference
-types, scoring policy, compile aggregation, requirement evaluation, ownership, and no-match
-diagnostics remain to be specified by focused tasks. See [Public API
+`BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, and the operation
+query/provider contracts are current. Provider implementations, device-level capability,
+capability matrices, preference interpretation, score calculation, profiles, compile aggregation,
+requirement evaluation, ownership, and no-match diagnostics remain to be specified by focused
+tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

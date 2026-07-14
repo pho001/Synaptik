@@ -13,10 +13,11 @@ ownership planning, partitioning, prepare, runtime, concrete backend integration
 remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
-The current config module can record that hard-target optionality, requested graph scope, and
-permission for optional semantics-preserving compiler optimization. No current compile aggregate,
-compiler, capability matrix, or ownership planner consumes those values. APIs may change through
-the ordered planning process.
+The current config module can record that hard-target optionality, requested graph scope,
+permission for optional semantics-preserving compiler optimization, and one optional soft coarse
+device-class preference. No current compile aggregate, compiler, capability matrix, scoring
+evaluator, or ownership planner consumes those values. APIs may change through the ordered
+planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -146,20 +147,24 @@ no eligible target remains. The no-match exception type and message are not yet 
 Capability reporting, concrete backends, registration, planning, preparation, and execution
 remain planned.
 
-The implemented `modules:config` surface contains three standalone compile-configuration values:
+The implemented `modules:config` surface contains four standalone compile-configuration values:
 
 - `BackendIntent` records whether later planning has one hard backend eligibility target;
-- `CompileMode` records the requested compile-time graph scope; and
-- `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work.
+- `CompileMode` records the requested compile-time graph scope;
+- `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work; and
+- `PartitionScoringConfig` records an optional soft `DeviceClass` preference for later ranking of
+  already eligible ownership candidates.
 
 They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 
 BackendId cuda = new BackendId("cuda");
 BackendIntent unconstrained = BackendIntent.unconstrained();
@@ -167,6 +172,9 @@ BackendIntent requireCuda =
         BackendIntent.requiring(new BackendIdRequirement(cuda));
 CompileMode graphScope = CompileMode.FORWARD_AND_BACKWARD;
 GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
+PartitionScoringConfig neutralRanking = PartitionScoringConfig.neutral();
+PartitionScoringConfig preferAccelerator =
+        PartitionScoringConfig.preferring(DeviceClass.ACCELERATOR);
 ```
 
 `unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
@@ -192,8 +200,19 @@ ordering, inference, validation, mandatory canonical representation, mode-requir
 publication binding, planning, preparation, or execution. Neither value exposes a pass list,
 pass order, numerical relaxation, backend fusion switch, or execution policy.
 
-`CompileConfig`, scoring and profile inputs, compiler and planning interpretation, and every
-lifecycle consumer remain planned.
+`neutralRanking.preferredDeviceClass()` is empty. That means only that this value supplies no
+explicit coarse device-class preference; it does not choose a default, promise fallback, or imply
+equal candidate scores. `preferAccelerator` contains the exact `DeviceClass.ACCELERATOR` reference.
+The preference is soft and applies only after hard eligibility, so it neither makes an eligible
+CPU candidate ineligible nor weakens a conflicting hard requirement or guarantees accelerator
+ownership. Direct construction retains the exact non-null `Optional<DeviceClass>` reference and
+rejects null with message `preferredDeviceClass`; `preferring(null)` rejects null with message
+`deviceClass`. Both factories return fresh values.
+
+`PartitionScoringConfig` does not enumerate or evaluate candidates, calculate or compare scores,
+contain profile measurements, choose ownership or a device, select a route or kernel, or perform
+compiler, prepare, runtime, or execution work. `CompileConfig`, immutable profiles, planning
+interpretation, compiler consumption, and every lifecycle consumer remain planned.
 
 The implemented `modules:planning` surface contains two backend-neutral compile-time contracts:
 

@@ -61,7 +61,7 @@ intent, and later rows may refine their package contents before becoming Ready.
 |---|---|---|---|---|
 | 0001 | [Backend intent foundation](tasks/0001-backend-intent-foundation.md) | Complete | Completed backend-contract 0001–0004 and trace foundation | Replaced the placeholder with one immutable owner for an optional hard backend requirement, added the public backend-contract dependency, and preserved preference, scoring, profile, and evaluation work for later tasks. |
 | 0002 | [Compile modes and graph optimization configuration](tasks/0002-compile-modes-and-graph-optimization-configuration.md) | Complete | 0001 | Added the exact three architecture-defined graph-scope modes and one stable optional-optimization permission without exposing graph passes or compiler behavior. |
-| 0003 | Partition scoring configuration | Draft | 0001–0002, planning 0001 | Define backend-neutral ranking preference and scoring policy data after the typed operation-capability question is stable, without evaluating candidates or choosing ownership. |
+| 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added one optional coarse `DeviceClass` preference as soft input for later comparison of already eligible ownership candidates, without evaluating candidates or choosing ownership. |
 | 0004 | Immutable platform, backend, and tuning profiles | Draft | 0001 | Define versioned, validated profile data consumed by later scoring and preparation; later tuning tooling produces it from repeatable benchmark evidence. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and selected immutable profile inputs without compiler orchestration. |
 | 0006 | Prepare configuration | Draft | 0005 | Define backend-neutral plus CPU/accelerator-class prepare data without concrete backend implementation behavior. |
@@ -77,19 +77,15 @@ intent, and later rows may refine their package contents before becoming Ready.
 
 ## Current status
 
-In progress, with an explicit narrow planning interleave before task 0003. Task 0001 is Complete
-with the standalone hard-requirement optionality contract, its public backend-contract dependency,
-focused validation, independent documentation review, and repository dependency checkpoint. Task
-0002 is Complete with standalone graph-scope and optional-optimization values, focused validation,
-and independent documentation review. No config task is Ready; tasks 0003–0008 remain ordered
-Draft work without detailed specifications. Planning task 0001 is Complete after stabilizing the
-typed operation-capability query/provider boundary and passing its final repository suite. The
-likely frontier returns here for config task 0003, which remains Draft without a detailed
-specification; no config task is marked Ready by that reassessment.
+In progress after completing
+[task 0003](tasks/0003-partition-scoring-configuration.md). Tasks 0001–0003 are Complete. Task 0003
+adds only the optional soft coarse `DeviceClass` preference and no candidate evaluation, scoring
+formula, owner selection, profile data, or separate policy type. Tasks 0004–0008 remain ordered
+Draft work without detailed specifications. No config task or global task is Ready until a
+separate frontier reassessment.
 
 ## Open questions
 
-- Exact ranking-preference vocabulary and scoring-policy defaults remain for task 0003.
 - Profile identity, units, versioning, portability, measurement provenance, and persistence remain
   for task 0004; task 0001 adds no calibration field.
 - Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
@@ -113,6 +109,12 @@ specification; no config task is marked Ready by that reassessment.
 - Planning task 0001 intentionally interleaves before config task 0003. Capability answers the
   hard semantic question first; scoring configuration later describes how eligible ownership
   choices are compared and must not redefine capability.
+- Task 0003 uses one `Optional<DeviceClass>` preference with `neutral()` and
+  `preferring(DeviceClass)` factories. It is soft input after hard eligibility; it neither filters
+  candidates nor guarantees selection.
+- Task 0003 adds no `PartitionScoringPolicy`, numeric weights, preferred backend list, callback,
+  candidate model, scoring evaluation, or profile data because no stable consumer or formula
+  justifies those surfaces yet.
 
 ## Risks
 
@@ -148,7 +150,16 @@ checkpoint or continuous integration.
 
 The next-frontier reassessment selected only planning task 0001 before config task 0003. This is an
 ordering interleave, not a new config Gradle/module dependency or architecture change: config
-tasks 0001–0002 remain Complete, tasks 0003–0008 remain Draft without detailed specifications,
-and planning 0001 changed no config Java or build file. Planning 0001 is now Complete after its
-single final root suite passed. Config 0003 is the likely next frontier but remains Draft without a
-detailed specification; advancing it to Ready requires a separate planning step.
+tasks 0001–0002 remain Complete, and planning 0001 changed no config Java or build file. Planning
+0001 is now Complete after its single final root suite passed. The following planning step made
+only config task 0003 Ready with one detailed specification; that task is now Complete. Config
+tasks 0004–0008 remain Draft without detailed specifications. Reassess the frontier rather than
+assuming planning scoring can proceed while profile data remains undefined or assuming config
+task 0004 is automatically next.
+
+Task 0003 passed its final 17-test/four-suite config module run with no failures, errors, or skips.
+Its separate documentation pass finalized the new type and package Javadocs, current-status
+architecture/API/user-guide text, glossary terminology, and planning records. Config Javadoc,
+repository Markdown, exact fourteen-path, status, later-spec, dependency, generated-page, and
+whitespace validation passed without changing executable Java or rerunning the successful Java
+suite. The next frontier remains intentionally unselected.
