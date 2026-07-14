@@ -78,10 +78,10 @@ In progress but deliberately interleaved after the stable foundation. Tasks 0001
 Complete and supply the common event envelope plus three model-correlation domains. No trace task
 is Ready. Backend-contract tasks 0001–0003 now provide identity, class, and supplied availability
 facts, and task 0004 completes its hard-requirement vocabulary. The backend-contract project area
-and capability checkpoint are Complete. The latest explicit interleave, config task 0001, is
-Complete with hard-requirement optionality and no trace DTO change. Trace task 0003 and later rows
-remain Draft until the broader config, planning, compiler, prepare, and runtime producer facts are
-stable.
+and capability checkpoint are Complete. The latest explicit interleave has config tasks 0001 and
+0002 Complete, with no config task Ready. Task 0002 added graph-scope and optional-optimization
+configuration values without trace DTOs or compiler events. Trace task 0003 and later rows remain
+Draft until the broader config, planning, compiler, prepare, and runtime producer facts are stable.
 
 ## Open questions
 
@@ -151,4 +151,6 @@ specification exists.
 The following reassessment selected config task 0001 rather than prematurely resuming trace. Its
 single optional hard-intent contract is now current, but it does not stabilize scoring, compiler,
 prepare, runtime, or backend payload schemas. Config task 0001's repository checkpoint passed.
-No trace task 0003 specification has been created.
+Config task 0002 is now Complete, but its declarative mode and optimization values still create no
+compiler or trace producer schema. No config task is Ready, and no trace task 0003 specification
+has been created.

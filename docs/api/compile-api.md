@@ -4,8 +4,9 @@
 
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The repository does not yet provide a runnable graph compiler.
-The current config module does provide `BackendIntent`, one immutable input value that a later
-compile configuration aggregate can contain.
+The current config module provides three immutable standalone input values that a later compile
+configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
+`GraphOptimizationConfig`.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -561,7 +562,7 @@ wrappers for producer slots zero and one. A future compiler could recognize thei
 but current code does not traverse either slot, capture the occurrence, preserve weights for a
 backward graph, or define attention adjoints or lifetime policy.
 
-## Current backend-intent input
+## Current compile-configuration inputs
 
 `io.github.pho001.synaptik.config.compile.BackendIntent` is current declarative compile
 configuration. It holds exactly one `Optional<BackendRequirement>` named `hardRequirement`:
@@ -587,6 +588,43 @@ The canonical constructor rejects a null optional with `NullPointerException("ha
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
 Preference and scoring, immutable profiles, `CompileConfig`, compiler consumption, and no-match
 failure remain planned in their owning tasks.
+
+`io.github.pho001.synaptik.config.compile.CompileMode` is also current. It contains exactly three
+requested graph scopes in declaration order:
+
+```java
+import io.github.pho001.synaptik.config.compile.CompileMode;
+
+CompileMode inferenceScope = CompileMode.FORWARD_ONLY;
+CompileMode gradientScope = CompileMode.FORWARD_AND_BACKWARD;
+CompileMode trainingStepDirection = CompileMode.TRAINING_STEP;
+```
+
+`FORWARD_ONLY` requests forward graph construction and requested forward publications.
+`FORWARD_AND_BACKWARD` requests later compiler autograd expansion plus combined forward/backward
+compile-time graph work. `TRAINING_STEP` records the architecture's future training-step direction;
+it does not itself introduce an optimizer, optimizer-update graph, session, schedule, or execution
+behavior. No current compiler interprets any of the three values.
+
+`io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is the third current value:
+
+```java
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+
+GraphOptimizationConfig noOptionalOptimization =
+        GraphOptimizationConfig.disabled();
+GraphOptimizationConfig standardOptimization =
+        GraphOptimizationConfig.standard();
+```
+
+The first value requests that a later compiler skip optional semantics-preserving optimization.
+It cannot disable graph capture, ordering, inference, validation, mandatory canonical
+representation, mode-required autograd, publication binding, planning, preparation, or execution.
+The second permits the compiler's standard optional semantics-preserving pipeline without freezing
+a pass list, pass order, internal graph shape, or implementation strategy. It permits no
+approximate mathematics, changed numerical semantics, backend-specific fusion, preparation, or
+execution behavior. Direct construction retains either primitive boolean value, and both factories
+return fresh values. No current compiler consumes the permission.
 
 ## Current expression input and planned compiler output
 
@@ -657,9 +695,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Capturing, serializing, preserving or deliberately
   transforming that state edge remains compiler work; current compilation exposes no such API.
-- `CompileConfig` will aggregate compile mode, the current `BackendIntent`, optimization, scoring,
-  and selected profile inputs as data. It will not contain live backend services. Its exact
-  surface and defaults remain planned.
+- `CompileConfig` will aggregate the current compile mode, `BackendIntent`, and graph-optimization
+  values with later scoring and selected profile inputs as data. It will not contain live backend
+  services. Its exact surface and defaults remain planned.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
   is separate from the current model graph.
 - `CompileArtifacts` will combine a `CompiledGraphModel`, planned partitions, a logical memory

@@ -3,32 +3,44 @@
 ## Outcome
 
 This guide explains what graph compilation will produce and how to interpret it. Public `Tensor`
-expression construction and the standalone `BackendIntent` configuration value are current. The
+expression construction and three standalone compile-configuration values are current. The
 compiler, planning, `CompileConfig`, and engine APIs remain planned, so no runnable compile command
 exists yet.
 
-The current intent value can record no hard target or retain one current `BackendRequirement`:
+The current values can record a backend target, graph scope, and optional-optimization permission:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 
 BackendIntent unconstrained = BackendIntent.unconstrained();
 BackendIntent requireCpu =
         BackendIntent.requiring(
                 new BackendIdRequirement(new BackendId("cpu")));
+CompileMode graphScope = CompileMode.FORWARD_AND_BACKWARD;
+GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
 ```
 
 These values are runnable metadata construction, but no current compile entry point accepts them.
 `unconstrained` promises neither default selection nor fallback, and `requireCpu` does not verify
-that CPU is available or capable.
+that CPU is available or capable. `graphScope` requests future compiler-owned autograd and a
+combined forward/backward graph; it does not perform either action. `optimization` permits a later
+standard semantics-preserving pipeline without selecting or exposing its passes.
+
+Use `GraphOptimizationConfig.disabled()` to request skipping only optional compiler optimization.
+That setting cannot suppress inference, validation, mandatory canonical representation,
+mode-required autograd, publication binding, planning, preparation, or execution. Neither setting
+permits approximate mathematics, changed numerical semantics, or backend-specific fusion.
 
 ## Planned steps
 
 1. Build a public tensor expression. Provenance on public tensor state will let graph capture discover producers and inputs without turning `Tensor` into an intermediate-representation node.
-2. Choose declarative compile configuration, including the current backend intent and later
-   compile mode, optimization, scoring, and profile values.
+2. Choose declarative compile configuration. Backend intent, compile mode, and graph-optimization
+   permission are current standalone values; scoring, profiles, and their `CompileConfig`
+   aggregate remain planned.
 3. Compile the requested output. The compiler will capture, infer, validate, optimize, optionally expand automatic differentiation, and coordinate backend-neutral planning.
 4. Inspect immutable compile artifacts and typed diagnostics.
 
@@ -48,7 +60,7 @@ For example, a partition may record `owner = CPU`. That means CPU preparation is
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | The conceptual classes cannot be imported | The compile lifecycle is planned. | Follow the [roadmap](../planning/roadmap.md) and do not create substitute APIs in another module. |
-| A current `BackendIntent` cannot be passed to `CompileConfig` | The aggregate and compiler consumer remain planned. | Keep the intent as declarative metadata until the config and compiler tasks provide that path. |
+| A current standalone config value cannot be passed to `CompileConfig` | The aggregate and compiler consumer remain planned. | Keep the value as declarative metadata until the config and compiler tasks provide that path. |
 | A design puts buffers in compile artifacts | Compile-time and prepared state were mixed. | Keep allocation in prepare/backend/runtime layers. |
 | A planner chooses a kernel | Ownership and implementation selection were mixed. | Let planning choose a backend identity and backend prepare choose the route. |
 

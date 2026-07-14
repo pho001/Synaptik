@@ -44,9 +44,14 @@ post-backend-contract checkpoint reassessment selected
 the first config task. It is Complete with only immutable optionality for one completed hard
 backend requirement plus the architecture-approved public config-to-backend-contract dependency.
 Its affected suites, independent documentation review, and repository dependency checkpoint
-passed. No task is Ready. Ranking
-preference, scoring, compile aggregation, calibrated profiles, planning evaluation, and lifecycle
-behavior remain ordered Draft work. The selected model milestone and trace tasks
+passed. Config task
+[0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
+is Complete. It adds only the architecture-defined graph-scope modes and a stable boolean
+permission for optional semantics-preserving compiler optimization; its module tests, independent
+documentation review, and documentation validation passed. No task is Ready. Ranking preference,
+scoring, compile aggregation, calibrated profiles, planning evaluation, and lifecycle behavior
+remain ordered Draft work without detailed task specifications. The selected model milestone and
+trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
 [0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md)
 are Complete.

@@ -60,7 +60,7 @@ intent, and later rows may refine their package contents before becoming Ready.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Backend intent foundation](tasks/0001-backend-intent-foundation.md) | Complete | Completed backend-contract 0001–0004 and trace foundation | Replaced the placeholder with one immutable owner for an optional hard backend requirement, added the public backend-contract dependency, and preserved preference, scoring, profile, and evaluation work for later tasks. |
-| 0002 | Compile modes and graph optimization configuration | Draft | 0001 | Define compile-mode and graph-optimization data without implementing graph passes or compiler behavior. |
+| 0002 | [Compile modes and graph optimization configuration](tasks/0002-compile-modes-and-graph-optimization-configuration.md) | Complete | 0001 | Added the exact three architecture-defined graph-scope modes and one stable optional-optimization permission without exposing graph passes or compiler behavior. |
 | 0003 | Partition scoring configuration | Draft | 0001 | Define backend-neutral ranking preference and scoring policy data without evaluating candidates or choosing ownership. |
 | 0004 | Immutable platform, backend, and tuning profiles | Draft | 0001 | Define versioned, validated profile data consumed by later scoring and preparation; later tuning tooling produces it from repeatable benchmark evidence. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and selected immutable profile inputs without compiler orchestration. |
@@ -79,8 +79,9 @@ intent, and later rows may refine their package contents before becoming Ready.
 
 In progress. Task 0001 is Complete with the standalone hard-requirement optionality contract, its
 public backend-contract dependency, focused validation, independent documentation review, and
-repository dependency checkpoint. No task is Ready; tasks 0002–0008 remain ordered Draft work
-without detailed specifications.
+repository dependency checkpoint. Task 0002 is Complete with standalone graph-scope and optional-
+optimization values, focused validation, and independent documentation review. No task is Ready;
+tasks 0003–0008 remain ordered Draft work without detailed specifications.
 
 ## Open questions
 
@@ -100,6 +101,11 @@ without detailed specifications.
   selected evidence into validated immutable profile values owned by config.
 - A public config signature exposing a backend-contract type uses a public Gradle `api` edge and a
   focused architecture test.
+- Compile mode uses exactly the architecture-defined `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and
+  `TRAINING_STEP` vocabulary without putting autograd or optimizer behavior in config.
+- Graph optimization configuration exposes only whether optional semantics-preserving compiler
+  work is enabled. It does not expose compiler pass identities or order, and mandatory correctness
+  work remains outside that switch.
 
 ## Risks
 
@@ -120,3 +126,15 @@ passed seven tests across three suites with no failures, errors, or skips. Its i
 documentation pass finalized the affected Javadocs and explanatory/status documentation without
 changing executable Java or repeating those tests. The single repository dependency checkpoint
 passed 1,061 tests across 137 suites with no failures, errors, or skips.
+
+Task 0002 deliberately keeps public optimization policy coarser than the compiler's internal pass
+pipeline. `disabled` suppresses only optional optimization; `standard` permits a compiler-owned
+semantics-preserving pipeline. The later `CompileConfig` aggregate, not these leaves, chooses
+defaults.
+
+Task 0002 passed its final 12-test/three-suite config module run with no failures, errors, or
+skips. Its separate documentation pass finalized the two new type Javadocs, package Javadoc,
+current-status explanations, glossary, and planning status; config Javadoc, repository Markdown,
+exact fifteen-path, and whitespace validation passed without rerunning Java tests or changing
+executable behavior. Repository-wide validation remains deferred to the config capability
+checkpoint or continuous integration.

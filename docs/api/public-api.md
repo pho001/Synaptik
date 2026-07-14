@@ -10,10 +10,11 @@ envelope plus model-correlation identifiers. It also contains backend and backen
 identity values plus a coarse CPU-versus-accelerator device classification. Compiler, planning,
 prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
-discovery or liveness API. A sealed requirement family can now name one hard eligibility target,
-and the current `BackendIntent` configuration record can hold that target or explicitly omit it.
-No current compile aggregate or planning API consumes the intent. APIs may change through the
-ordered planning process.
+discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
+The current config module can record that hard-target optionality, requested graph scope, and
+permission for optional semantics-preserving compiler optimization. No current compile aggregate,
+compiler, or planning API consumes those values. APIs may change through the ordered planning
+process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -143,18 +144,27 @@ no eligible target remains. The no-match exception type and message are not yet 
 Capability reporting, concrete backends, registration, planning, preparation, and execution
 remain planned.
 
-The implemented `modules:config` surface currently contains only `BackendIntent`. It separates
-the presence of one hard requirement from later preference and scoring policy:
+The implemented `modules:config` surface contains three standalone compile-configuration values:
+
+- `BackendIntent` records whether later planning has one hard backend eligibility target;
+- `CompileMode` records the requested compile-time graph scope; and
+- `GraphOptimizationConfig` permits or suppresses optional semantics-preserving compiler work.
+
+They are immutable requests, not a runnable compiler configuration aggregate. For example:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 
 BackendId cuda = new BackendId("cuda");
 BackendIntent unconstrained = BackendIntent.unconstrained();
 BackendIntent requireCuda =
         BackendIntent.requiring(new BackendIdRequirement(cuda));
+CompileMode graphScope = CompileMode.FORWARD_AND_BACKWARD;
+GraphOptimizationConfig optimization = GraphOptimizationConfig.standard();
 ```
 
 `unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
@@ -166,8 +176,22 @@ contains the exact requirement reference supplied to `requiring`. Direct constru
 The canonical constructor rejects a null optional with message `hardRequirement`, and
 `requiring(null)` rejects null with message `requirement`. Each factory returns a fresh record.
 The record evaluates no requirement and contains no preference, scoring, profile, service,
-compile-mode, preparation, run, publication, or execution behavior. `CompileConfig`, planning
-evaluation, and every lifecycle consumer remain planned.
+preparation, run, publication, or execution behavior.
+
+`graphScope` requests later compiler autograd expansion and combined forward/backward compile-time
+graph work. The other exact values are `FORWARD_ONLY` and `TRAINING_STEP`. The latter records the
+architecture's training-step direction but does not add an optimizer, optimizer-update graph,
+training session, schedule, or execution behavior.
+
+`optimization.optionalOptimizationsEnabled()` is `true`, so a later compiler may apply its
+standard optional semantics-preserving pipeline. `GraphOptimizationConfig.disabled()` returns a
+fresh false value that requests skipping only optional optimization. It cannot disable capture,
+ordering, inference, validation, mandatory canonical representation, mode-required autograd,
+publication binding, planning, preparation, or execution. Neither value exposes a pass list,
+pass order, numerical relaxation, backend fusion switch, or execution policy.
+
+`CompileConfig`, scoring and profile inputs, compiler and planning interpretation, and every
+lifecycle consumer remain planned.
 
 ## Planned public lifecycle
 

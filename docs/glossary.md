@@ -854,6 +854,20 @@ compile diagnostics. `CompileArtifacts` is not implemented. It will be a recipe 
 executable state, and will contain no physical buffers, concrete kernel routes, runtime residency,
 or mutable run state.
 
+### Compile mode / `CompileMode`
+
+The implemented standalone config enum that records requested compile-time graph scope. Its exact
+values, in declaration order, are `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and `TRAINING_STEP`.
+Forward-only requests forward graph construction and requested forward publications. Forward-and-
+backward requests later compiler autograd expansion plus combined forward/backward compile-time
+graph work. Training-step records the architecture's future direction without adding an optimizer,
+optimizer-update graph, training session, schedule, or execution behavior.
+
+A compile mode is a request, not compiler behavior. No current aggregate or compiler entry point
+consumes it, and constructing a value does not capture or transform a graph, construct gradients,
+bind publications, prepare an executable, or run a computation. It differs from
+[`GraphPhase`](#graph-phase), which classifies a compiled node's forward or backward origin.
+
 ### Contiguous request
 
 The implemented parameterless `ContiguousKind.CONTIGUOUS` operation meaning. It describes one
@@ -1115,6 +1129,21 @@ The implemented `GraphPhase` enum classifies compiled nodes as exactly `FORWARD`
 compile-time work. It helps later compiler, publication, planning, and diagnostic work distinguish
 the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
 serialization, or optimizer-update phase.
+
+### Graph optimization configuration / `GraphOptimizationConfig`
+
+The implemented standalone config record whose sole boolean component,
+`optionalOptimizationsEnabled`, permits or suppresses optional semantics-preserving compiler
+optimization. `disabled()` creates a fresh false value that requests skipping optional work;
+`standard()` creates a fresh true value that permits a later compiler's standard optional pipeline.
+Direct construction retains either primitive value.
+
+False cannot disable graph capture, ordering, inference, validation, mandatory canonical
+representation, mode-required autograd, publication binding, backend-neutral planning,
+preparation, or execution. True does not freeze a pass list, pass order, internal graph shape, or
+implementation strategy and permits no approximate mathematics, changed numerical semantics,
+backend-specific fusion, preparation, or execution behavior. No current `CompileConfig` or
+compiler consumes this value.
 
 ### Graph RNG state / `GraphRngState`
 

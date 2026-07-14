@@ -2,7 +2,10 @@
 
 This document explains the training graph model established by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The root contract remains authoritative.
 
-Training, autograd, and compile modes are not implemented. This page explains the intended graph boundary rather than a runnable training API.
+The three compile modes are implemented as standalone declarative configuration values. No
+current compile aggregate or compiler entry point consumes them, and autograd, training, and
+gradient publication remain planned. This page explains the intended graph boundary rather than
+a runnable training API.
 
 ## Compile modes
 
