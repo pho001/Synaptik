@@ -18,7 +18,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
-| 5 | [`modules/planning`](modules/planning/master-plan.md) | In progress (interleaved) | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, and logical memory planning are complete. |
+| 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Draft | Model, config, planning, backend-contract, and trace contracts are ready. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Draft | Compiler, planning, runtime, config, backend-contract, and trace contracts are ready. | Shared prepare contracts and validation are complete. |
@@ -39,10 +39,24 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation frontier is
-[Planning 0004 Maximal same-owner partitioning](modules/planning/tasks/0004-maximal-same-owner-partitioning.md).
-Its implementation and independent documentation pass add the public immutable
-`PlannedPartition(owner, nodeIds)` recipe plus internal complete-map consecutive grouping without
-resurrecting the retired Config 0004 fixed-plus-linear platform/backend/tuning profile design.
+[Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
+Its implementation and independent documentation pass add one immutable requirement for every
+graph value plus the ordered `LogicalMemoryPlan` aggregate. Derivation consumes
+`CompiledGraphModel` and ordered complete `PlannedPartition` recipes, validates exact graph-order
+coverage and maximal owner runs, then retains the exact `ValueId`, `TensorDescriptor`, optional
+producing partition, distinct consuming partitions, and graph-output obligation. These facts
+express partition inputs/outputs, same-owner and cross-owner boundaries, graph-output
+preservation, and partition-internal values without physical memory or transfer decisions.
+
+Planning 0005 adds no public orchestration, `PublicationBinding` input, cost quantity, physical
+size, lifetime, slot, allocation, transfer, copy, device, route, schedule, or runtime state.
+[Planning 0006](modules/planning/tasks/0006-planning-contract-closure-audit.md) is now Complete.
+Its clean documentation-focused
+[planning contract closure audit](modules/planning/planning-contract-closure-audit.md) records a
+`CLOSED` verdict: the five public declarations are sufficient and minimal, and the four current
+evaluator/generator operations may remain package-private until a concrete compiler-owned
+orchestrator establishes one narrow collaboration. The audit changed no Java or executable
+behavior.
 
 Planning 0003 consumes the package-private hard-eligibility result through one colocated
 package-private stateless selector. The provider-ordered eligible `BackendId` list is already the
@@ -65,10 +79,20 @@ orchestration.
 For this bounded frontier, adjacency means consecutive positions in the stored topological node
 list. Equal owners form one maximal run; an owner transition splits it; nonconsecutive equal owners
 remain separate. Graph inputs/outputs are values, and a multi-output producer remains one
-indivisible node. Boundary values, transfers, materialization, and logical memory remain Planning
-0005 work. The generator is package-private, while the immutable recipe is public for later
-cross-package lifecycle consumers. No ownership row, phase split, graph-edge component search,
-cost/workload classification, device/route/kernel choice, lowering, or executable state is added.
+indivisible node. Planning 0005 now completes the next derived boundary, materialization, and
+logical-memory step. Both generators remain package-private, while the immutable partition and
+logical-memory recipes are public for later cross-package lifecycle consumers. No ownership row,
+phase split, graph-edge component search, cost/workload classification, device/route/kernel
+choice, lowering, or executable state is added.
+
+Planning 0005 uses only the closed graph and ordered partition recipes. It validates exact
+graph-order coverage and maximal owner runs before deriving values. It keeps dynamic and
+expression Shapes representable by retaining `TensorDescriptor`; it adds no eager element or
+byte count, lifetime, slot, allocation, transfer, copy, device, route, schedule, or residency.
+`PublicationBinding` is not an input because it remains standalone model data for a future
+compiler-owned `PublicationPlan`; `graph.outputs()` supplies only logical preservation at this
+frontier. Planning 0006 is Complete with the selected planning milestone; compiler orchestration
+remains Draft.
 
 The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
 own complete valid graph and ownership candidates; shared prepare owns a future opaque
@@ -76,8 +100,8 @@ orchestration and artifact-lifecycle boundary; CPU, Metal, and CUDA own typed ro
 generators; and `tools/tuning` owns the single two-phase model-autotuning workflow. A
 representative model corpus may pre-seed the same workload cache, but no separate platform-
 calibration workflow or profile remains planned. These later rows do not change the current
-frontier. Config 0004 and every task after Planning 0004 remain Draft without another detailed
-specification; no global task is Ready.
+frontier. Config 0004 and every task after Planning 0006 remain Draft without another detailed
+specification. No global task is Ready pending a separate frontier reassessment.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -94,10 +118,11 @@ remain Complete. Config task 0003 is also Complete; Config 0004–0008 remain or
 without detailed specifications. Planning task 0001 remains Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
 Planning task 0002 is Complete; Planning task 0003 is Complete with its detailed specification;
-Planning task 0004 is Complete with its detailed specification, and Planning tasks 0005–0006
-remain Draft without detailed specifications. Config 0004 remains Draft because the current
-baseline and same-owner grouping consume no cost classification or profile. No global task is
-Ready.
+Planning task 0004 is Complete with its detailed specification; Planning task 0005 is Complete
+with its detailed specification; and Planning task 0006 is Complete with its detailed
+documentation-only closure audit and `CLOSED` verdict. Config 0004 remains Draft because the current
+baseline, same-owner grouping, and descriptor-retaining logical requirements consume no cost
+classification or profile. No global task is Ready pending a separate frontier reassessment.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

@@ -92,7 +92,11 @@ It adds no trace schema or structured diagnostic. Planning task 0004 is now Comp
 immutable owner-plus-node-ID partition recipe and internal maximal consecutive grouping. That
 bounded contract still adds no event emission, trace identifier,
 payload schema, rejection taxonomy, or compiler producer. Trace 0003+ remain Draft, and no trace
-task is Ready.
+task is Ready. Planning task 0005 is Complete with immutable logical value requirements. Its
+current facts may later inform the compile payload family, but it adds no trace identity, event,
+emission owner, payload schema, rejection taxonomy, or serialization. Planning 0006 is Complete
+with a `CLOSED` documentation-only audit verdict; no trace task is Ready, no trace payload schema
+becomes current, and no global task is Ready pending a separate frontier reassessment.
 
 ## Open questions
 
@@ -195,5 +199,7 @@ Config 0004 was the likely next area after that task, subject to another reasses
 trace task remained Draft. Planning task 0002 is Complete. The later terminology/ownership reset
 retired the unimplemented Config 0004 detailed specification. Planning task 0003 is now Complete;
 its internal baseline selection creates no trace schema. Planning task 0004 is now Complete; its
-partition recipe and internal grouping likewise create no trace schema. No
-trace task is Ready, and no detailed trace task-0003 specification exists.
+partition recipe and internal grouping likewise create no trace schema. A separate reassessment
+made Planning task 0005 Ready without selecting a trace payload or producer contract. Planning
+0005 is now Complete and still introduces no trace schema. No trace task is Ready, and no detailed
+trace task-0003 specification exists.

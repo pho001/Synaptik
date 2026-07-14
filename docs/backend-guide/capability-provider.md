@@ -115,7 +115,10 @@ optional hard target + supplied availability + current boolean answers
 optional preferred DeviceClass + that complete candidate list + associated snapshots
   -> current internal preferred-class/provider-order baseline
   -> one BackendId owner
-  -> planned public orchestration, partitioning, and cost scoring
+complete per-occurrence owners + closed graph
+  -> current internal maximal same-owner partitioning
+  -> current immutable partition and logical-memory recipes
+  -> planned public orchestration and cost-bearing scoring
 ```
 
 A concrete backend may implement the current provider interface. Current internal planning first

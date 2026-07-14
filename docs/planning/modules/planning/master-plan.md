@@ -53,7 +53,8 @@ io.github.pho001.synaptik.planning/
                concrete compiler or partition consumer justifies them
   partition/   task-0004 public immutable partition recipe and internal deterministic maximal
                consecutive same-owner generation
-  memory/      later logical materialization and memory requirements
+  memory/      task-0005 public logical value requirements and plan plus internal derivation from
+               the closed graph and ordered complete partitions
 ```
 
 The module root is not a catch-all facade. Task 0001 opens only `capability` with the immutable
@@ -73,8 +74,8 @@ per-node ownership; it does not widen the current capability selector or add orc
 | 0002 | [Per-query backend hard eligibility](tasks/0002-per-query-backend-hard-eligibility.md) | Complete | 0001, config hard intent, and backend-contract supplied availability | Combined validated provider/snapshot associations, backend-level support, current availability, and exact hard intent into an internal ordered `BackendId` list without a public matrix, scoring, device selection, or ownership choice. |
 | 0003 | [Ownership candidates and baseline scoring](tasks/0003-ownership-candidates-and-baseline-scoring.md) | Complete | 0002, config partition-scoring configuration | Consumes the internal hard-eligible list directly as the candidate set and selects one exact `BackendId` through preferred-class-first, provider-order-stable baseline comparison, without a candidate record, cost classification, cost profile, or implementation-route interpretation. |
 | 0004 | [Maximal same-owner partitioning](tasks/0004-maximal-same-owner-partitioning.md) | Complete | 0003 | Groups maximal consecutive runs in validated topological node order by equal selected `BackendId`, producing owner-plus-node-ID recipes without compiler orchestration, graph-boundary duplication, lowering, or executable construction. |
-| 0005 | Logical materialization and memory requirements | Draft | 0004 | Describe backend-neutral logical requirements without physical allocation, runtime residency, or prepared memory. |
-| 0006 | Planning contract closure | Draft | 0001–0005 | Audit capability, ownership, partition, logical-memory, documentation, and dependency boundaries before compiler planning orchestration. |
+| 0005 | [Logical materialization and memory requirements](tasks/0005-logical-materialization-and-memory-requirements.md) | Complete | 0004 | Added immutable per-value producer/consumer/output requirements and an architecture-named logical memory plan derived internally from the closed graph and ordered partitions, without physical sizing, allocation, transfers, publication binding, or runtime residency. |
+| 0006 | [Planning contract closure audit](tasks/0006-planning-contract-closure-audit.md) | Complete | 0001–0005 | Audited capability, ownership, partition, logical-memory, public/internal surfaces, documentation, dependencies, and the compiler/prepare handoff; the durable audit records a `CLOSED` verdict without executable changes. |
 
 ## Milestones
 
@@ -84,9 +85,10 @@ per-node ownership; it does not widen the current capability selector or add orc
 
 ## Current status
 
-In progress after completing
-[task 0004](tasks/0004-maximal-same-owner-partitioning.md). Tasks 0001–0002 remain Complete with
-the public query/provider boundary and package-private provider-ordered hard-eligibility result.
+Complete after the `CLOSED` verdict in the
+[planning contract closure audit](planning-contract-closure-audit.md). Tasks 0001–0002 remain
+Complete with the public query/provider boundary and package-private provider-ordered hard-
+eligibility result.
 Task 0003 adds the smallest internal owner-selection consumer: the eligible `BackendId` list is
 the candidate set, preferred matches precede nonmatches, provider order resolves ties and
 fallback, and an empty list fails terminally before selection.
@@ -96,9 +98,26 @@ maximal consecutive-run generation over a complete `Map<NodeId, BackendId>`. It 
 topological order, equality-based ownership, exact graph-node and first-owner references, and
 immutable results, including the empty result for a zero-node graph. It adds no ownership row,
 public orchestration facade, graph traversal or reordering, graph-boundary DTO, phase split, cost
-profile, lowering, or executable construction. Tasks 0005–0006 remain Draft without detailed
-specifications; no planning task is Ready. Config task 0004 remains Draft pending a concrete
-cost-bearing consumer.
+profile, lowering, or executable construction.
+
+[Task 0005](tasks/0005-logical-materialization-and-memory-requirements.md) is Complete. It adds the
+public `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes plus package-private derivation
+from `CompiledGraphModel` and ordered complete partitions. The generator validates complete graph-
+order coverage and maximal owner runs before retaining exact `ValueId`, `TensorDescriptor`,
+producer partition, distinct consumer partitions, and graph-output facts in graph-value order.
+It adds no eager byte count, lifetime, transfer/copy, physical slot/allocation,
+`PublicationBinding`, public orchestration, prepare/runtime/backend behavior, or cost
+classification.
+
+[Task 0006](tasks/0006-planning-contract-closure-audit.md) is Complete. Its clean documentation-
+focused audit confirms that the five public declarations are sufficient and minimal and that the
+four evaluator/generator operations may remain internal until compiler orchestration has a
+concrete consumer. One provider-guide lifecycle phrase was corrected; no Java, test, Gradle,
+architecture, compiler, prepare, runtime, backend, cost-profile, or public-orchestration behavior
+changed.
+
+Config task 0004 remains Draft pending a concrete cost-bearing consumer. No task is Ready, no
+later detailed specification exists, and a separate reassessment must select the next frontier.
 
 ## Open questions
 
@@ -163,11 +182,24 @@ cost-bearing consumer.
   reference while comparing identities by equality.
 - Graph inputs and outputs remain values, a multi-output producer remains one indivisible node,
   and fan-out, merge, publication, or phase changes do not split an equal-owner consecutive run.
-  Boundary values, transfers, materialization, and logical memory remain task 0005 work derived
-  from the graph plus partition node IDs.
+  Completed task 0005 derives boundary and logical-materialization facts from the graph plus
+  partition node IDs; transfers and physical materialization remain with later lifecycle owners.
 - Only the partition recipe is public for later cross-package and lifecycle consumption.
   Generation remains package-private until planning closure or a concrete compiler consumer
   justifies a narrow orchestration surface.
+- Planning task 0005 consumes only `CompiledGraphModel` plus an ordered `List<PlannedPartition>`.
+  It validates complete graph-order coverage and adjacent-owner maximality before deriving any
+  value requirement because the public partition DTO can also be constructed directly.
+- Task 0005 represents logical materialization through each value's exact producing partition,
+  distinct consuming partitions, and graph-output flag. These primitive facts express partition
+  inputs/outputs, cross-owner boundaries, publication preservation, and partition-internal values
+  without a closed role enum or duplicated boundary lists on `PlannedPartition`.
+- `TensorDescriptor` remains the logical size carrier. Task 0005 does not calculate element or
+  byte counts because dynamic/expression dimensions can remain unresolved and physical backend
+  representation, alignment, and padding belong after compile-time planning.
+- `PublicationBinding` remains outside task 0005. It is standalone model data for a future
+  compiler-owned `PublicationPlan`; `CompiledGraphModel.outputs()` supplies only the logical
+  preservation obligation at this frontier.
 
 ## Risks
 
@@ -220,5 +252,23 @@ errors, or skips. The documentation pass changed no executable behavior and reus
 It finalized the partition Javadocs, public/internal status explanations, glossary, task, master
 plans, and roadmap; planning Javadoc, repository Markdown, generated-page, exact fifteen-path,
 status, later-spec, dependency, forbidden-surface, newline, whitespace, and `git diff --check`
-validation passed. Planning 0005–0006, Config 0004+, Trace 0003+, and Compiler work remain Draft,
-and no other detailed future specification was created.
+validation passed. A separate frontier reassessment then made only Planning 0005 Ready with its
+detailed logical materialization/memory specification. Planning 0006, Config 0004+, Trace 0003+,
+and Compiler work remain Draft, and no other detailed future specification was created.
+
+Planning task 0005 completed in implementation context `/root/implement_planning_0005` and clean
+documentation context `/root/implement_planning_0005/planning_0005_docs`. Its three focused suites
+passed 14 tests and the final planning suite passed 63 tests across eight suites, all with zero
+failures, errors, or skips. The documentation pass changed no executable behavior and reused that
+evidence. It finalized the logical-memory Javadocs, architecture/API/guide/glossary explanations,
+current-versus-planned boundaries, task evidence, master plans, and roadmap. Planning Javadoc,
+repository Markdown, generated public/internal page, exact eighteen-path, status, later-spec,
+dependency, forbidden-surface, newline, whitespace, and `git diff --check` validation passed.
+Planning 0006, Config 0004+, Trace 0003+, and Compiler work remain Draft without another detailed
+specification, and no global task is Ready pending a separate frontier reassessment.
+
+A separate frontier reassessment in planning context `/root/plan_planning_0006` found no missing
+planning semantic or architecture prerequisite after task 0005. It created only the detailed
+documentation-only Planning 0006 closure-audit specification and made that row Ready. The audit
+must verify the public/internal boundary and future compiler/prepare handoff before the selected
+planning milestone can become Complete; every later task remains Draft without a detailed spec.

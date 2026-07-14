@@ -92,8 +92,12 @@ cost consumer and backend-neutral cost classification. Planning task 0003 is Com
 exact baseline intentionally consumes no cost value or classification. Tasks 0005–0008 remain
 Draft. Planning task 0004 is Complete with maximal consecutive same-owner grouping over completed
 per-occurrence `BackendId` ownership and the current immutable model graph. It creates no cost-
-bearing consumer, so Config 0004 remains Draft without a detailed specification and no config
-task is Ready.
+bearing consumer. Planning task 0005 is Complete with logical materialization and memory
+requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
+therefore remains Draft without a detailed specification and no config task is Ready. Planning
+0006 is Complete with a `CLOSED` documentation-only audit verdict. That closure does not define
+the cost-bearing consumer or make Config 0004 Ready; no global task is Ready pending a separate
+frontier reassessment.
 
 ## Open questions
 
@@ -200,4 +204,7 @@ reassessment drafted Config 0004, but the terminology/ownership reset rejected t
 design and removed its detailed specification. Planning 0003 is now Complete with a cost-free
 baseline selector. Config 0004 remains Draft because no concrete cost-bearing consumer has
 stabilized its classification or units. Planning 0004 is now Complete for owner-transition
-grouping; it consumes no cost input and therefore does not advance Config 0004.
+grouping; it consumes no cost input and therefore does not advance Config 0004. A separate
+reassessment made Planning 0005 Ready with a descriptor- and relationship-retaining logical plan.
+That task is now Complete and likewise adds no cost quantity or configuration input, so Config
+0004 remains Draft. No next task was made Ready as part of its implementation.
