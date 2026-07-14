@@ -9,6 +9,7 @@ Define immutable, declarative configuration for compile, prepare, run, publicati
 - [Architecture contract](../../../../ARCHITECTURE.md)
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
+- [Partition scoring](../../../architecture/partition-scoring.md)
 
 ## Scope
 
@@ -33,16 +34,39 @@ Define immutable, declarative configuration for compile, prepare, run, publicati
 ## Allowed dependencies
 
 - JDK standard library and explicitly justified declarative contract types.
+- `modules/backend-contract` for public backend requirement and identity values exposed by config.
 
 ## Forbidden dependencies
 
 - concrete backend implementations
 - runtime executable units and mutable runtime state
 
+## Package structure
+
+```text
+io.github.pho001.synaptik.config/
+  compile/  public compile mode, backend intent, optimization, and scoring configuration
+  prepare/  later public backend-neutral and backend-class prepare configuration
+  run/      later public invocation and publication configuration
+  profile/  later immutable platform, backend, and tuning profile data
+```
+
+The module root is not a catch-all facade. Each package owns immutable declarative values for one
+lifecycle concern. This map is progressive: task 0001 opens only `compile` with hard-requirement
+intent, and later rows may refine their package contents before becoming Ready.
+
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
+| 0001 | [Backend intent foundation](tasks/0001-backend-intent-foundation.md) | Complete | Completed backend-contract 0001–0004 and trace foundation | Replaced the placeholder with one immutable owner for an optional hard backend requirement, added the public backend-contract dependency, and preserved preference, scoring, profile, and evaluation work for later tasks. |
+| 0002 | Compile modes and graph optimization configuration | Draft | 0001 | Define compile-mode and graph-optimization data without implementing graph passes or compiler behavior. |
+| 0003 | Partition scoring configuration | Draft | 0001 | Define backend-neutral ranking preference and scoring policy data without evaluating candidates or choosing ownership. |
+| 0004 | Immutable platform, backend, and tuning profiles | Draft | 0001 | Define versioned, validated profile data consumed by later scoring and preparation; later tuning tooling produces it from repeatable benchmark evidence. |
+| 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and selected immutable profile inputs without compiler orchestration. |
+| 0006 | Prepare configuration | Draft | 0005 | Define backend-neutral plus CPU/accelerator-class prepare data without concrete backend implementation behavior. |
+| 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
+| 0008 | Configuration contract closure | Draft | 0001–0007 | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
 
 ## Milestones
@@ -53,23 +77,46 @@ Define immutable, declarative configuration for compile, prepare, run, publicati
 
 ## Current status
 
-Draft.
-
-This module is not yet planned in detail. Detailed task specifications will be created when it becomes the current or next implementation frontier.
+In progress. Task 0001 is Complete with the standalone hard-requirement optionality contract, its
+public backend-contract dependency, focused validation, independent documentation review, and
+repository dependency checkpoint. No task is Ready; tasks 0002–0008 remain ordered Draft work
+without detailed specifications.
 
 ## Open questions
 
-- No open questions recorded.
+- Exact ranking-preference vocabulary and scoring-policy defaults remain for task 0003.
+- Profile identity, units, versioning, portability, measurement provenance, and persistence remain
+  for task 0004; task 0001 adds no calibration field.
+- Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
+  their owning tasks.
 
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- Backend intent owns optionality for one hard `BackendRequirement`; planning later evaluates it.
+- Hard eligibility, ranking preference, and calibrated profile data are separate concepts.
+- `tools/benchmarks` later produces repeatable measurements and reports; `tools/tuning` later turns
+  selected evidence into validated immutable profile values owned by config.
+- A public config signature exposing a backend-contract type uses a public Gradle `api` edge and a
+  focused architecture test.
 
 ## Risks
 
 - Embedding service objects or concrete implementation choices in configuration.
+- Treating absence of a hard requirement as a fallback promise or a sentinel requirement.
+- Mixing hard eligibility, preference, scoring, and calibrated measurements into one broad intent
+  object.
+- Letting profile contracts own benchmarking, tuning algorithms, live platform discovery, or
+  mutable measurement state.
 
 ## Notes
 
 Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+
+Task 0001 added only `BackendIntent`, compile-package documentation, the public backend-contract
+edge, and focused config/architecture-test coverage. The final combined affected-suite command
+passed seven tests across three suites with no failures, errors, or skips. Its independent
+documentation pass finalized the affected Javadocs and explanatory/status documentation without
+changing executable Java or repeating those tests. The single repository dependency checkpoint
+passed 1,061 tests across 137 suites with no failures, errors, or skips.

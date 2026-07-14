@@ -6,9 +6,10 @@ This guide explains how a future concrete backend will report which planned grap
 accept. The shared `BackendId` and `BackendDeviceId` identity values and the coarse `DeviceClass`
 category are current. `BackendAvailabilitySnapshot` is also current as an immutable,
 caller-supplied point-in-time fact. The sealed `BackendRequirement` family is current as hard
-eligibility target vocabulary. Capability providers, device discovery and refresh, requirement
-evaluation, planning, prepare, registration, and concrete backend contracts remain planned, so
-the capability sample is conceptual.
+eligibility target vocabulary, and current `BackendIntent` records whether one such target is
+present. Capability providers, device discovery and refresh, requirement evaluation, planning,
+prepare, registration, and concrete backend contracts remain planned, so the capability sample
+is conceptual.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
@@ -70,8 +71,19 @@ The three inputs respectively target later ownership by an equal `BackendId`, an
 class. The records retain their exact non-null component references. They do not query
 `availability`, ask a capability provider, or prove that a target can own particular graph work.
 There is no absence sentinel, preference, fallback, combination, evaluator, or score in the
-family. A later configuration contract owns optionality and user intent; later planning owns the
-intersection of the hard target, supplied availability, and reported capability.
+family. Current `BackendIntent` owns optionality without adding any of those meanings:
+
+```java
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+
+BackendIntent unconstrained = BackendIntent.unconstrained();
+BackendIntent requireCuda = BackendIntent.requiring(exactBackend);
+```
+
+`unconstrained` contains no hard target; it does not promise discovery, fallback, availability,
+capability, or successful ownership. `requireCuda` retains `exactBackend` by exact reference for
+later planning. Neither value queries `availability` or a provider. Later planning owns the
+intersection of the optional hard target, supplied availability, and reported capability.
 
 ## Lifecycle position
 
@@ -79,7 +91,7 @@ intersection of the hard target, supplied availability, and reported capability.
 operation + data type + shape + layout
   -> capability provider
   -> capable ownership candidates
-hard target + supplied availability + capable candidates
+optional hard target + supplied availability + capable candidates
   -> later planning eligibility
   -> valid ownership candidates
   -> backend-neutral scoring

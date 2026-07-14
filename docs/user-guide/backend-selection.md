@@ -3,9 +3,10 @@
 ## Outcome
 
 This guide explains how users will express backend intent and how compile-time planning will turn
-it into ownership. The current Java API can construct one hard backend eligibility target.
-Configuration and planning APIs are not implemented, so a requirement cannot yet be attached to
-a compile request and exact preference options and defaults are not available.
+it into ownership. The current Java API can construct one hard backend eligibility target and
+place it in `BackendIntent`, or construct an unconstrained intent with no hard target. The later
+`CompileConfig` aggregate and planning APIs are not implemented, so an intent cannot yet be
+attached to a compile request and exact preference options and defaults are not available.
 
 ## Mental model
 
@@ -22,7 +23,7 @@ capability claim. Preference influences how planning compares the remaining cand
 capability says that a backend can accept particular work. None of these concepts chooses a
 concrete kernel; that remains a backend prepare decision.
 
-## Current hard-target values
+## Current hard-target and intent values
 
 These constructors are current and runnable with `modules:backend-contract`:
 
@@ -34,6 +35,7 @@ import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.backend.contract.BackendRequirement;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.backend.contract.DeviceClassRequirement;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
 
 BackendId metal = new BackendId("metal");
 BackendDeviceId metalZero = new BackendDeviceId(metal, "0");
@@ -42,6 +44,9 @@ BackendRequirement exactBackend = new BackendIdRequirement(metal);
 BackendRequirement exactDevice = new BackendDeviceIdRequirement(metalZero);
 BackendRequirement acceleratorClass =
         new DeviceClassRequirement(DeviceClass.ACCELERATOR);
+
+BackendIntent unconstrained = BackendIntent.unconstrained();
+BackendIntent requireMetal = BackendIntent.requiring(exactBackend);
 ```
 
 `exactBackend` means that later eligible ownership must use a `BackendId` equal to `metal`.
@@ -52,8 +57,11 @@ non-null reference supplied to it.
 
 Constructing these values does not discover or register Metal, inspect an availability snapshot,
 query capability, or select ownership. The family has no `AUTO`, `ANY`, or `NONE` value because
-absence belongs to the later configuration field. It also has no preference, fallback,
-combination, matcher, or score. Later planning will combine a supplied hard target with
+absence belongs to `BackendIntent.hardRequirement()`. `unconstrained` therefore records only an
+empty hard target; it does not promise a default backend, automatic discovery, or fallback.
+`requireMetal` retains the exact `exactBackend` reference inside its optional. The requirement
+family and intent have no preference, fallback, combination, matcher, or score. Later planning
+will combine a supplied hard target with
 availability and capability facts and fail rather than silently relax the target when no eligible
 candidate remains; the failure type and message are not yet specified.
 
@@ -70,11 +78,13 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 | Runtime changes backend after a failure | Selection was deferred too late. | Resolve support during compile and preparation; runtime follows the prepared schedule. |
 | CPU scalar and OpenBLAS appear as separate backends | Routes were confused with ownership. | Treat both as CPU-internal prepare choices. |
 | Current device residency changes compile scoring | Mutable run state leaked into planning. | Use compile-time estimates and immutable profiles only. |
-| An accelerator-class requirement is treated as a Metal preference | Hard eligibility was confused with ranking. | Keep the class as a candidate filter and express preference in the later config-owned intent contract. |
+| An accelerator-class requirement is treated as a Metal preference | Hard eligibility was confused with ranking. | Keep the class as a candidate filter; later scoring configuration owns preference. |
+| `BackendIntent.unconstrained()` is treated as guaranteed automatic fallback | Absence of a hard target was confused with selection behavior. | Treat it only as no hard eligibility constraint; later planning may still have no valid candidate. |
 
 ## Limitations
 
-Exact configuration placement, preference types, scoring policy, requirement evaluation, and
-no-match diagnostics remain to be specified by focused tasks. See [Public API
+`BackendIntent` placement and hard-target optionality are current. Preference types, scoring
+policy, compile aggregation, requirement evaluation, and no-match diagnostics remain to be
+specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

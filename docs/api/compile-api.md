@@ -4,6 +4,8 @@
 
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The repository does not yet provide a runnable graph compiler.
+The current config module does provide `BackendIntent`, one immutable input value that a later
+compile configuration aggregate can contain.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -559,6 +561,33 @@ wrappers for producer slots zero and one. A future compiler could recognize thei
 but current code does not traverse either slot, capture the occurrence, preserve weights for a
 backward graph, or define attention adjoints or lifetime policy.
 
+## Current backend-intent input
+
+`io.github.pho001.synaptik.config.compile.BackendIntent` is current declarative compile
+configuration. It holds exactly one `Optional<BackendRequirement>` named `hardRequirement`:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+
+BackendIntent unconstrained = BackendIntent.unconstrained();
+BackendIntent requireCuda =
+        BackendIntent.requiring(
+                new BackendIdRequirement(new BackendId("cuda")));
+```
+
+The first value has no hard eligibility target. The second retains the exact supplied requirement
+reference for later planning. Neither construction evaluates availability or capability, ranks
+candidates, chooses ownership, discovers a service, or invokes a compiler. In particular,
+`unconstrained()` does not mean “automatic backend selection succeeded”; it records only the
+absence of a hard target.
+
+The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
+The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
+Preference and scoring, immutable profiles, `CompileConfig`, compiler consumption, and no-match
+failure remain planned in their owning tasks.
+
 ## Current expression input and planned compiler output
 
 Conceptually, compilation will receive a requested tensor output and declarative `CompileConfig`:
@@ -628,8 +657,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Capturing, serializing, preserving or deliberately
   transforming that state edge remains compiler work; current compilation exposes no such API.
-- `CompileConfig` will describe compile mode, backend intent, optimization, scoring, and
-  publication policy as data. It will not contain live backend services.
+- `CompileConfig` will aggregate compile mode, the current `BackendIntent`, optimization, scoring,
+  and selected profile inputs as data. It will not contain live backend services. Its exact
+  surface and defaults remain planned.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
   is separate from the current model graph.
 - `CompileArtifacts` will combine a `CompiledGraphModel`, planned partitions, a logical memory

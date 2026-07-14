@@ -273,8 +273,11 @@ correlation values. The implemented backend-contract foundation consists of `Bac
 availability association. It also contains the sealed, method-free `BackendRequirement` family
 with exact-backend, exact-device, and device-class hard targets. Configuration placement,
 requirement evaluation, capability providers, discovery and refresh, registration, concrete
-backend integration, and trace-local backend/device correlations remain planned. A definition
-explains intended meaning; it is not by itself evidence that a Java type exists.
+backend integration, and trace-local backend/device correlations remain planned. The implemented
+config foundation contains `BackendIntent`, which records an optional hard requirement without
+preference, evaluation, or lifecycle behavior. Compile aggregation and all other config contracts
+remain planned. A definition explains intended meaning; it is not by itself evidence that a Java
+type exists.
 
 ## Terms
 
@@ -691,6 +694,21 @@ or `"cuda"`. Ownership answers “where should this work run?” It does not ans
 should run it?” The owning concrete backend makes that implementation choice during
 [prepare](#prepare).
 
+### Backend intent / `BackendIntent`
+
+The implemented immutable config value that records whether later backend planning has one
+[`BackendRequirement`](#backend-requirement--backendrequirement) as a hard eligibility target.
+`BackendIntent.unconstrained()` contains an empty optional, while
+`BackendIntent.requiring(requirement)` contains the exact supplied requirement reference. Direct
+construction retains the exact non-null `Optional<BackendRequirement>` reference.
+
+An unconstrained intent means only that no hard target filters later candidates. It does not mean
+that a default backend exists, discovery occurs, fallback will succeed, or any backend is
+available or capable. Backend intent does not evaluate the target, rank candidates, express
+preference, contain calibrated profile data, select ownership, locate services, or perform
+compile, prepare, run, publication, or execution behavior. Preference and profiles remain
+separate later configuration; planning later owns eligibility evaluation and no-match failure.
+
 ### Backend requirement / `BackendRequirement`
 
 The implemented sealed, method-free family for one hard backend eligibility target.
@@ -702,9 +720,9 @@ particular backend nor a particular device.
 
 A backend requirement is requested data, not a capability claim, availability fact, preference,
 fallback, score, or evaluator. The family has no absence sentinel and does not combine or match
-targets. Later configuration owns whether a requirement is present and how user intent is
-expressed. Later planning owns evaluation with availability and capability facts and failure when
-no eligible target remains; the no-match exception type and message are not yet defined.
+targets. Current [`BackendIntent`](#backend-intent--backendintent) owns whether a requirement is
+present. Later planning owns evaluation with availability and capability facts and failure when no
+eligible target remains; the no-match exception type and message are not yet defined.
 
 ### Backend-owned lowering
 

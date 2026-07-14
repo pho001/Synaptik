@@ -17,7 +17,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
-| 4 | [`modules/config`](modules/config/master-plan.md) | Draft | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
+| 4 | [`modules/config`](modules/config/master-plan.md) | In progress | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Draft | Model, trace, backend-contract, and config contracts are ready. | Ownership, partitioning, scoring, and logical memory planning are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Draft | Model, config, planning, backend-contract, and trace contracts are ready. | Compile artifacts, graph transformations, and autograd compilation are complete. |
@@ -38,11 +38,15 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The most recently completed project area is
-[`modules/backend-contract`](modules/backend-contract/master-plan.md), delivered through an
-explicit interleave after the stable trace foundation. No later project-area frontier is active;
-the next selection remains a separate roadmap reassessment. The selected model milestone and
-trace tasks
+The active project area is [`modules/config`](modules/config/master-plan.md). The
+post-backend-contract checkpoint reassessment selected
+[Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) as
+the first config task. It is Complete with only immutable optionality for one completed hard
+backend requirement plus the architecture-approved public config-to-backend-contract dependency.
+Its affected suites, independent documentation review, and repository dependency checkpoint
+passed. No task is Ready. Ranking
+preference, scoring, compile aggregation, calibrated profiles, planning evaluation, and lifecycle
+behavior remain ordered Draft work. The selected model milestone and trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
 [0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md)
 are Complete.
@@ -60,9 +64,9 @@ reported device identities to their classes.
 is Complete. Its sealed exact-backend, exact-device, and device-class hard eligibility targets,
 final backend-contract module suite, independent documentation stabilization, and single final
 repository capability checkpoint all passed. The selected backend-contract milestone and project
-area are closed. No later task is Ready. Registration, discovery, refresh, capability providers,
-config/planning interpretation, preparation, execution, and concrete backend behavior remain
-planned.
+area are closed. Config task 0001 consumes but does not modify its requirement vocabulary.
+Registration, discovery, refresh, capability providers, planning interpretation, preparation,
+execution, and concrete backend behavior remain planned.
 
 Trace remains In progress rather than Complete. Its tasks 0003–0008 remain ordered Draft work
 without detailed specifications. The completed backend identities make only the first

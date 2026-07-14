@@ -11,8 +11,9 @@ identity values plus a coarse CPU-versus-accelerator device classification. Comp
 prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target,
-but no current configuration or planning API consumes it. APIs may change through the ordered
-planning process.
+and the current `BackendIntent` configuration record can hold that target or explicitly omit it.
+No current compile aggregate or planning API consumes the intent. APIs may change through the
+ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -141,6 +142,32 @@ expressed; later planning owns evaluation with availability and capability facts
 no eligible target remains. The no-match exception type and message are not yet defined.
 Capability reporting, concrete backends, registration, planning, preparation, and execution
 remain planned.
+
+The implemented `modules:config` surface currently contains only `BackendIntent`. It separates
+the presence of one hard requirement from later preference and scoring policy:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+
+BackendId cuda = new BackendId("cuda");
+BackendIntent unconstrained = BackendIntent.unconstrained();
+BackendIntent requireCuda =
+        BackendIntent.requiring(new BackendIdRequirement(cuda));
+```
+
+`unconstrained.hardRequirement()` is empty. That absence means only that no hard eligibility
+target constrains later planning; it does not select a default backend or promise discovery,
+fallback, availability, capability, or successful ownership. `requireCuda.hardRequirement()`
+contains the exact requirement reference supplied to `requiring`. Direct construction with an
+`Optional<BackendRequirement>` retains that exact optional reference.
+
+The canonical constructor rejects a null optional with message `hardRequirement`, and
+`requiring(null)` rejects null with message `requirement`. Each factory returns a fresh record.
+The record evaluates no requirement and contains no preference, scoring, profile, service,
+compile-mode, preparation, run, publication, or execution behavior. `CompileConfig`, planning
+evaluation, and every lifecycle consumer remain planned.
 
 ## Planned public lifecycle
 

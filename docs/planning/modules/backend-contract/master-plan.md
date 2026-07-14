@@ -71,8 +71,8 @@ repository capability checkpoint passed. No later backend-contract task is speci
 
 ## Open questions
 
-- The project-area frontier after the task-0004 capability checkpoint remains intentionally open
-  for a separate reassessment.
+- No open questions remain for the completed selected milestone. Later requirement consumers own
+  their own still-open policy and evaluation decisions.
 
 ## Decisions made
 
@@ -144,3 +144,8 @@ Task 0004 is limited to a sealed hard-eligibility vocabulary. Its implementation
 22-test/four-suite module run, and independent documentation stabilization succeeded. The single
 final repository capability checkpoint then passed 1,055 tests across 135 suites with no
 failures, errors, or skips, closing the selected backend-contract milestone.
+
+The post-checkpoint reassessment selected config task 0001 as the next implementation frontier.
+Its current `BackendIntent` now consumes `BackendRequirement` through an immutable optional hard-
+intent value without reopening or changing this completed module. Config task 0001 and its
+repository dependency checkpoint are Complete.
