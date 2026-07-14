@@ -3,31 +3,38 @@
 ## Outcome and status
 
 This guide explains how a future concrete backend will report which planned graph work it can
-accept. The shared `BackendId` and `BackendDeviceId` identity values are current. Capability,
-availability, planning, prepare, registration, and concrete backend contracts remain planned, so
-the capability sample is conceptual.
+accept. The shared `BackendId` and `BackendDeviceId` identity values and the coarse `DeviceClass`
+category are current. Capability, availability, planning, prepare, registration, and concrete
+backend contracts remain planned, so the capability sample is conceptual.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
 
-## Current shared identities
+## Current shared identity and classification vocabulary
 
-The current Java API can name an ownership domain and a device within that domain:
+The current Java API can name an ownership domain, name a device within that domain, and express
+the independent CPU-versus-accelerator category vocabulary:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
 
 BackendId cuda = new BackendId("cuda");
 BackendDeviceId cudaZero = new BackendDeviceId(cuda, "0");
 BackendDeviceId metalZero = new BackendDeviceId(new BackendId("metal"), "0");
+DeviceClass accelerator = DeviceClass.ACCELERATOR;
 ```
 
 The concrete inputs are backend names `"cuda"` and `"metal"` plus the opaque device token
 `"0"`. The two device identities are unequal because the backend component scopes the token.
 Both types retain their exact caller-supplied component references. String case and surrounding
 whitespace remain significant, and no predefined backend vocabulary or device-number
-interpretation exists. These values do not show that either backend or device is registered,
+interpretation exists. `accelerator` is only a coarse category value; it is not stored in either
+device identity and does not distinguish a graphics processing unit from another non-CPU compute
+device. A later availability fact may associate `cudaZero` or `metalZero` with that category, but
+no such association type is current. The enum order does not express preference, score,
+capability, or fallback. These values do not show that either backend or device is registered,
 present, available, capable, or accessible.
 
 ## Lifecycle position

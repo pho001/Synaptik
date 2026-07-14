@@ -267,10 +267,12 @@ identity and the current node/value/Tensor domains, trace serialization/emission
 remain architecture or planning contracts. The implemented trace foundation consists of
 `TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload` marker, the generic
 `TraceEvent` envelope, and the trace-local `TraceNodeId`, `TraceValueId`, and `TraceTensorId`
-correlation values. The implemented backend-contract foundation consists only of `BackendId` and
-`BackendDeviceId`; availability, requirements, capabilities, registration, concrete backend
-integration, and trace-local backend/device correlations remain planned. A definition explains
-intended meaning; it is not by itself evidence that a Java type exists.
+correlation values. The implemented backend-contract foundation consists of `BackendId`,
+`BackendDeviceId`, and the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`. No current
+type associates a device identity with its class. Availability, requirements, capabilities,
+registration, concrete backend integration, and trace-local backend/device correlations remain
+planned. A definition explains intended meaning; it is not by itself evidence that a Java type
+exists.
 
 ## Terms
 
@@ -940,6 +942,17 @@ A value whose purpose is to carry structured data across a boundary without owni
 that produced it. Synaptik's implemented trace-event foundation uses typed DTO contracts so later
 diagnostic producers and consumers can exchange explicit fields without importing compiler,
 runtime, or backend business objects. Concrete lifecycle payload DTOs remain planned.
+
+### Device class / `DeviceClass`
+
+The implemented coarse declarative category of a device. `CPU` means a device that executes
+through a general-purpose central processing unit; `ACCELERATOR` means a non-CPU compute device
+intended for offloaded computation. The category does not distinguish graphics processing units,
+neural processing units, vendors, memory topologies, or backend-internal routes. It is separate
+from [`BackendId`](#backend-identity--backendid), which names an ownership domain, and
+[`BackendDeviceId`](#backend-device-identity--backenddeviceid), which names one device inside that
+domain. No current type associates an identity with a class; a later availability fact may do so.
+The declaration order conveys no preference, score, priority, capability, or fallback policy.
 
 ### Dense target
 

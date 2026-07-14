@@ -7,8 +7,9 @@ This page identifies which public contracts a caller can use today and which nam
 Synaptik has no published compatibility guarantee yet. The current implementation contains the
 selected public model foundation, tensor-expression metadata surface, and common trace-event
 envelope plus model-correlation identifiers. It also contains backend and backend-scoped device
-identity values. Compiler, planning, prepare, runtime, concrete backend integration, and engine
-APIs remain planned. APIs may change through the ordered planning process.
+identity values plus a coarse CPU-versus-accelerator device classification. Compiler, planning,
+prepare, runtime, concrete backend integration, and engine APIs remain planned. APIs may change
+through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -54,16 +55,29 @@ The implemented `modules:backend-contract` surface contains:
 
 - `BackendId`, an immutable open-string identity for a backend ownership domain; and
 - `BackendDeviceId`, an immutable composite identity for one opaque device token scoped by its
-  owning `BackendId`.
+  owning `BackendId`; and
+- `DeviceClass`, a coarse declarative category with exactly `CPU` and `ACCELERATOR`, in that
+  declaration order.
+
+The three concepts have separate roles:
+
+```text
+BackendId       = backend ownership domain
+BackendDeviceId = one exact device identity inside that domain
+DeviceClass     = coarse CPU or accelerator category
+```
 
 Both records reject null components and blank string values. Every other component is retained by
 the exact caller-supplied reference, and string content keeps its case and surrounding whitespace;
 the records do not trim, normalize, intern, or resolve aliases. Ordinary record equality
 therefore compares the exact stored content, and the backend component prevents equal device
 tokens from different backends from colliding.
-Identity alone does not register, discover, or prove the availability or capability of a backend
-or device. Availability snapshots, requirements, capability reporting, concrete backends,
-registration, preparation, and execution remain planned.
+`DeviceClass` is not stored in `BackendDeviceId`. A later availability fact may associate a
+device identity with a class. The enum declaration order supports stable identity and diagnostics,
+not preference, score, priority, capability, or fallback policy. None of the current contracts
+registers, discovers, or proves the availability or capability of a backend or device.
+Availability snapshots, requirements, capability reporting, concrete backends, registration,
+preparation, and execution remain planned.
 
 ## Planned public lifecycle
 

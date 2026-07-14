@@ -52,7 +52,7 @@ live service, discovery, registration, preparation, or execution behavior.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Backend and device identifiers](tasks/0001-backend-and-device-identifiers.md) | Complete | Completed model milestone; trace 0001–0002 roadmap foundation | Replaced the placeholder with open backend identity and backend-scoped device identity values without registration, discovery, availability, or live services. |
-| 0002 | Device classification | Draft | 0001 | Define the minimal declarative device classes needed by availability and requirements without enumerating concrete devices or routes. |
+| 0002 | [Device classification](tasks/0002-device-classification.md) | Complete | 0001 | Added the minimal CPU-versus-accelerator device category needed by later availability and requirements without enumerating concrete devices or routes. |
 | 0003 | Backend availability snapshot | Draft | 0001–0002 | Define immutable caller-supplied backend and device availability facts without discovery or live backend objects. |
 | 0004 | Declarative backend requirements | Draft | 0001–0003 | Define backend-neutral requirement values used by later config and planning without operation support logic or kernel selection. |
 
@@ -65,13 +65,12 @@ live service, discovery, registration, preparation, or execution behavior.
 ## Current status
 
 In progress through an explicit roadmap interleave after the completed trace envelope and stable
-model-correlation foundation. Task 0001 is Complete. No backend-contract task is Ready; tasks
-0002–0004 remain Draft without detailed specifications.
+model-correlation foundation. Tasks 0001 and 0002 are Complete. Task 0003 is the next ordered
+frontier but remains Draft without a detailed specification; task 0004 also remains Draft.
 
 ## Open questions
 
-- Exact device classes remain open until task 0002 planning identifies the smallest vocabulary
-  required by availability and declarative requirements.
+- Availability snapshot cardinality and exact fact shape remain open until task 0003 planning.
 
 ## Decisions made
 
@@ -81,6 +80,11 @@ model-correlation foundation. Task 0001 is Complete. No backend-contract task is
   enum.
 - Device identity is scoped by its owning backend identity plus an opaque nonblank backend-defined
   token. It does not prove discovery, availability, or resource access.
+- Device classification uses exactly `CPU` and `ACCELERATOR`. Current configuration and scoring
+  language needs that distinction but provides no concrete need for GPU, NPU, FPGA, memory, or
+  location subcategories.
+- A class describes a reported device; it is not stored inside `BackendDeviceId`, does not classify
+  execution routes, and carries no scoring order or availability guarantee.
 - The trace project area is deliberately interleaved after its stable foundation because later
   trace payload and attribute schemas require concrete producer-owned contracts.
 
@@ -88,7 +92,9 @@ model-correlation foundation. Task 0001 is Complete. No backend-contract task is
 
 - Growing the module into a backend service or execution abstraction.
 - Treating identity as evidence that a backend or device is registered, available, or supported.
-- Prematurely freezing device classes or requirement language before their consumers are concrete.
+- Growing the coarse device class into speculative hardware taxonomy or treating enum order as a
+  planning preference.
+- Prematurely freezing availability or requirement language before their consumers are concrete.
 
 ## Notes
 
@@ -100,3 +106,11 @@ identity Javadocs and explanations and passed backend-contract Javadoc, reposito
 exact twelve-path, status, and whitespace validation without rerunning Java tests. It added no
 dependency, availability query, registry, service, discovery, capability, planning, prepare,
 runtime, or concrete backend behavior.
+
+Task 0002 added only the two-value declarative classification, one focused exact-shape test, and
+the associated Javadoc/status documentation. Its focused three-test development runs and final
+nine-test/two-suite module run passed. The separate documentation pass finalized the enum and
+package Javadocs plus the public API, capability-provider guide, glossary, task, master plan, and
+roadmap, then passed backend-contract Javadoc, repository Markdown, exact nine-path, status, and
+whitespace validation without rerunning Java tests. Availability association, requirements,
+configuration policy, scoring, and execution remain in their later owning tasks.
