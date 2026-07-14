@@ -48,6 +48,11 @@ Shared prepare code does not implement concrete CPU, Metal, or CUDA lowering and
 
 Runtime does not optimize the graph, construct autograd, choose backend ownership, discover backends, lower partitions, or select kernels. Its hot path does not operate on `Operation` or `CompiledNode`.
 
+Runtime profiling is passive observation of this execution. Runtime may translate observed facts
+into typed trace payloads, but neither profiling nor tracing selects or mutates execution
+settings. Runtime performs no model-autotuning search, cache lookup or mutation, or hot-path graph
+inspection.
+
 ## What a concrete backend does
 
 Each concrete backend owns preparation and execution details for the partitions assigned to it. This includes:
@@ -61,6 +66,23 @@ Each concrete backend owns preparation and execution details for the partitions 
 - backend trace contributions.
 
 Planning chooses an owner such as CPU, Metal, or CUDA. The owning backend then chooses scalar, Vector API, OpenBLAS, MPSGraph, a custom Metal kernel, a CUDA kernel, or another backend-internal route during prepare.
+
+Each backend also owns typed, version-controlled, tested candidate generators beside the routes
+they configure. A generator uses target capabilities, canonical workload facts, and the tuning
+budget to return complete valid configurations. The operation family selects the generator; it is
+not a cache key for one universal family-wide setting. Hardware and supported JDK Vector API
+species constrain CPU vector candidates, so no candidate can promise an arbitrary physical lane
+count.
+
+A future narrow prepare/tuning boundary exposes complete backend candidates opaquely to shared
+orchestration. Shared code does not interpret route, vector, thread, tile, kernel, or other private
+fields. During ordinary preparation, the backend may reuse a compatible entry from an explicit
+workload cache or apply safe heuristics. Model autotuning remains optional for correctness.
+
+The model-specific tuning result is an explicit prepared plan or artifact, not hidden global
+state. Its persistent plan record and the reusable workload cache are loaded and updated outside
+runtime; incompatible or corrupt entries fall back safely. Physical cache formats and prepared-
+executable serialization remain deferred.
 
 ## Why there is no shared `backend.lowering` module
 
@@ -81,3 +103,5 @@ Classpath scanning, annotation scanning, reflection, or `ServiceLoader` as the d
 An optional convenience layer for plugin discovery would require the architecture update specified by the contract. It must not become a runtime hot-path mechanism.
 
 See [Lifecycle](lifecycle.md) for the complete stage flow, [Module Boundaries](module-boundaries.md) for ownership, and [Dependency Rules](dependency-rules.md) for prohibited dependency edges.
+See [Performance Evidence and Tuning](performance-evidence-and-tuning.md) for the optimization
+workflow boundaries that feed prepare without entering runtime.

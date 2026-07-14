@@ -590,7 +590,7 @@ absence of a hard target.
 
 The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
-Preference evaluation and score calculation, immutable profiles, `CompileConfig`, compiler
+Preference evaluation, score calculation, planning cost profiles, `CompileConfig`, compiler
 consumption, and no-match failure remain planned in their owning tasks. The separate current
 `PartitionScoringConfig` value described below supplies only soft preference input; it does not
 change these hard-intent semantics.
@@ -656,8 +656,8 @@ with `NullPointerException("preferredDeviceClass")`. `preferring(null)` rejects 
 `NullPointerException("deviceClass")`; both factories return fresh records. The value performs no
 candidate enumeration or evaluation, score calculation or comparison, profile lookup, ownership
 or device selection, route or kernel selection, compilation, preparation, runtime work, or
-execution. No current planner or compiler consumes it; profile data, scoring evaluation, and the
-aggregate remain planned.
+execution. No current planner or compiler consumes it; the backend-neutral cost
+classification, planning cost inputs, scoring evaluation, and aggregate remain planned.
 
 ## Current operation-capability contracts
 
@@ -770,7 +770,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   producer output two as the next state. Capturing, serializing, preserving or deliberately
   transforming that state edge remains compiler work; current compilation exposes no such API.
 - `CompileConfig` will aggregate the current compile mode, `BackendIntent`, graph-optimization,
-  and `PartitionScoringConfig` values with later selected profile inputs as data. It will not
+  and `PartitionScoringConfig` values with any later justified planning-cost inputs as data. It will not
   contain live backend services. Its exact surface and defaults remain planned.
 - `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
   is separate from the current model graph.

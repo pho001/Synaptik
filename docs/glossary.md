@@ -647,6 +647,27 @@ The normative rules that define Synaptik's module responsibilities, dependency d
 
 Automatic differentiation: a compiler transformation that derives gradient computations from the forward computation when the compile mode requires them. In Synaptik, the compiler performs global autograd and constructs the backward graph. A concrete backend does not perform global autograd; it prepares and executes only its assigned regions. See [Training graph](architecture/training-graph.md).
 
+### Autotuning / model autotuning
+
+One explicit optional workflow for a model and target. Its first phase extracts actual tunable
+workloads, reuses compatible canonical signatures from an explicit workload tuning cache, and
+measures only misses. Its second phase measures a bounded set of complete valid graph and plan
+candidates end to end and selects an explicit model plan or prepared artifact without repeating
+local route-parameter search.
+
+The caller supplies representative input or shape profiles, objective, budget, constraints, and
+explicit cache locations. Tuning is optional for correctness and never runs in the runtime hot
+path. Running the same workflow over a representative model corpus may pre-seed the same workload
+cache; this is not a separate platform-calibration subsystem. The workflow and artifact contracts
+remain planned.
+
+A **workload tuning cache** is the explicit file-backed reusable artifact keyed by canonical
+workload and target compatibility. A **model plan cache** or **prepared-plan record** is the
+model-specific artifact for the selected complete plan. Compatible hits are reused; misses may be
+tuned and atomically persisted. Both roles require explicit schema and backend candidate-schema
+versions, fingerprints, objective and constraints, and a compact measurement summary. They are
+not hidden global state, Java object serialization, or assumed executable payloads.
+
 ### Auxiliary mask
 
 A non-public BOOL result of a multi-output operation that records which logical positions were
@@ -766,11 +787,12 @@ construction retains the exact non-null `Optional<BackendRequirement>` reference
 An unconstrained intent means only that no hard target filters later candidates. It does not mean
 that a default backend exists, discovery occurs, fallback will succeed, or any backend is
 available or capable. Backend intent does not evaluate the target, rank candidates, express
-preference, contain calibrated profile data, select ownership, locate services, or perform
-compile, prepare, run, publication, or execution behavior. The current separate
+preference, contain planning-cost or model-autotuning data, select ownership, locate services, or
+perform compile, prepare, run, publication, or execution behavior. The current separate
 [`PartitionScoringConfig`](#partition-scoring-configuration--partitionscoringconfig) may retain a
-soft coarse class preference, while profiles remain planned. Current internal planning owns the
-per-query hard-eligibility intersection; later public planning orchestration owns preference
+soft coarse class preference, while planning-cost and model-autotuning inputs remain planned.
+Current internal planning owns the per-query hard-eligibility intersection; later public planning
+orchestration owns preference
 interpretation, scoring, ownership, and no-match failure.
 
 ### Backend requirement / `BackendRequirement`
@@ -796,6 +818,15 @@ The rule that each concrete backend translates its assigned planned partitions i
 ### Backend route
 
 A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API routine, OpenBLAS call, MPSGraph executable, custom Metal kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the backend owner. Routes are not separate backend identities.
+
+### Benchmark report / benchmarking
+
+**Benchmarking** is observational execution of fixed reproducible operation, operation-family,
+model, or end-to-end workloads to compare commits, models, or environments. A **benchmark report**
+is the rich immutable evidence from one recorded run: workload and environment identity, supplied
+configuration, lifecycle boundary, samples or distributions, and summary statistics. Benchmarking
+never selects or mutates production settings and never substitutes for correctness tests. The
+report contract and harness remain planned in `tools/benchmarks`.
 
 ### Backward graph
 
@@ -906,6 +937,23 @@ floating. That descriptor fact is not a gradient rule or backend differentiabili
 Numerical conversion, redundant-cast and cast-chain canonicalization, autograd expansion, backend
 support, and execution belong to later owning layers. A cast expression is therefore not converted
 storage, a compiler graph node, or proof that a requested conversion can execute.
+
+### Canonical workload signature
+
+The compatibility key for one local tunable workload. It includes operation semantics and
+attributes, input and output data types, shapes, layouts, relevant policies, and target
+compatibility. Identical signatures can reuse one workload tuning result across occurrences and
+models. Operation family only selects the candidate generator and is not itself a universal cache
+key. The contract remains planned.
+
+### Candidate generator
+
+A typed, version-controlled, tested backend or lifecycle-owner component that derives and prunes
+complete valid tuning candidates from target capabilities, workload facts, and a tuning budget.
+Concrete backend generators are colocated with their routes and own private configuration
+vocabulary. Shared tuning and prepare orchestration sees candidates opaquely; it does not use a
+generic parameter map, string dispatch, reflective annotations, or a central knob registry. The
+contract remains planned.
 
 ### Compile
 
@@ -1818,8 +1866,20 @@ returns a fresh present value and rejects null with `NullPointerException("devic
 This record is ranking input, not a scoring policy implementation. It does not evaluate
 eligibility or candidates, calculate or compare scores, contain profile measurements, choose an
 owner or device, select a backend route or kernel, compile or prepare a graph, inspect runtime
-state, or execute work. Planning interpretation, calibrated profiles, `CompileConfig`, compiler
+state, or execute work. Planning interpretation, planning-cost profiles, `CompileConfig`, compiler
 consumption, ownership, partitioning, and execution remain planned.
+
+### Planning cost model / planning cost profile
+
+A **planning cost model** is backend-neutral compile-time estimation used to compare eligible
+`BackendId` owners. A **planning cost profile** is a possible compact immutable input to that
+model. Planning may interpret graph, operation, data-type, shape/size, transfer, materialization,
+and boundary estimates, but it never interprets backend route, vector, thread, tile, chunk,
+kernel, workload-cache, or other model-autotuning values.
+
+This concept is separate from workload tuning caches and model-plan results. No stable cost
+consumer or shared backend-neutral cost classification exists yet, so the planning cost-profile
+contract remains Draft rather than defining a global backend average prematurely.
 
 ### Planning
 
@@ -1941,6 +2001,13 @@ Runtime knowledge of where a value's current physical representation exists, suc
 ### Run / runtime
 
 **Run** is one invocation of a `PreparedExecution`: it binds inputs, creates or reuses `RunState`, follows the prepared schedule, executes prepared units, manages scheduled transfers or materialization, and publishes results. **Runtime** is the module and machinery that performs this work. Run does not optimize graphs, discover backends, lower partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lifecycle).
+
+### Runtime profiling
+
+Passive observation of actual prepared execution. `modules/runtime` owns the execution facts and
+later translates selected observations into typed `modules/trace` data-transfer objects. Runtime
+profiling does not compare tuning candidates, select or mutate settings, or feed hidden state back
+into the current run. Concrete runtime-profile payloads and emitters remain planned.
 
 ### Run state / `RunState`
 

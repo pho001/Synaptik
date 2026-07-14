@@ -12,12 +12,23 @@ Scalar code should provide a readable reference path for selected capabilities. 
 
 ## Decision factors
 
-Prepare-time route selection may use operation and layout facts, data type, sizes, alignment, fusion opportunity, workspace requirements, native availability, and immutable tuning profiles. For `[64, 128] × [128, 32]`, 262,144 multiply contributions provide a concrete size fact, but no route threshold is established yet.
+Prepare-time route selection may use operation and layout facts, data type, sizes, alignment,
+fusion opportunity, workspace requirements, native availability, a compatible workload-cache
+entry, and an explicit selected model plan. CPU route owners later provide typed,
+version-controlled candidate generators that derive complete valid configurations from target
+capabilities, workload facts, and the tuning budget. Matrix-multiplication candidates may include
+supported JDK Vector API species/strategy, unroll, tile, parallelism, and OpenBLAS thread
+configurations. Scalar, vector, and OpenBLAS choices remain distinct typed configurations rather
+than flags in a parameter map. Physical vector lanes are constrained by hardware and supported
+species, so no candidate promises arbitrary lanes. For `[64, 128] × [128, 32]`, 262,144 multiply
+contributions provide a concrete size fact, but no route threshold is established yet.
 
 ## Risks and validation
 
 - Splitting routes into separate backends would confuse ownership with implementation.
 - Choosing in runtime would add graph inspection and branching to the hot path.
+- A family-wide cache key would reuse one configuration across incompatible shapes and layouts.
+- A generic parameter map would move CPU vocabulary into shared orchestration.
 - Accepting an optimized route without reference comparisons could hide numerical differences.
 - Using benchmarks without fixed environment and inputs would produce weak evidence.
 

@@ -69,7 +69,8 @@ Scoring may use immutable or estimated compile-time facts, including:
 - candidate ownership of producers and consumers;
 - logical materialization requirements and estimates;
 - transfer and partition-boundary estimates; and
-- immutable platform, backend, or tuning profiles supplied as configuration.
+- immutable backend-neutral planning cost profiles supplied as configuration after their
+  consumer and cost classification are stable.
 
 These inputs describe the graph and likely ownership costs. They do not require live runtime resources.
 
@@ -84,7 +85,10 @@ Planning scoring must not inspect or select runtime and implementation details, 
 - concrete OpenBLAS routes;
 - concrete MPSGraph executables or routes;
 - concrete CUDA kernels; or
-- backend-specific executable DAGs.
+- backend-specific executable DAGs;
+- backend route names, vector species or lanes, unroll factors, thread counts, chunks, or tiles;
+  or
+- backend-local workload-cache entries, route configurations, or other model-autotuning values.
 
 Concrete kernel or runtime scoring belongs to backend prepare, not planning.
 
@@ -102,9 +106,15 @@ The scoring model may account for these backend-neutral factors:
 - **Boundary penalty** discourages plans fragmented into costly backend transitions.
 - **Accelerator bonus** favors accelerator ownership when the region is large and suitable enough to benefit.
 - **Small-region penalty** avoids offloading regions too small to justify accelerator and transfer overhead.
-- **Platform profile** supplies immutable tuning or profiling hints without exposing live runtime state.
+- **Planning cost profile** may supply compact backend-neutral estimates for the ownership
+  comparison. It is separate from measurement evidence and from backend-local model-autotuning
+  values.
 
 The factors can support node-level or, after an explicit architecture evolution, more advanced segment-level and profile-guided policies. They do not change the meaning of the output.
+
+No stable production operation-family or workload-bucket contract exists yet. Planning must not
+invent one merely to accept profile data. A future cost-profile schema follows the stable cost
+consumer and backend-neutral cost classification rather than preceding them.
 
 ## Ownership is not implementation selection
 
@@ -130,3 +140,5 @@ Those choices depend on backend-specific lowering, specialization, fusion, prepa
 The result of scoring is therefore an ownership decision used to build `PlannedPartition` values. It is part of the immutable compile recipe, not an executable implementation or physical schedule.
 
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
+See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the
+separate benchmarking, model-autotuning, runtime-profiling, and planning-cost boundaries.

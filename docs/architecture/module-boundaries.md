@@ -26,13 +26,21 @@ The model does not know backend support, device residency, kernel selection, bac
 
 ### `modules/config`
 
-Owns declarative compile, prepare, run, publication, and profile configuration. It may describe backend intent and scoring policy, but it contains no live services, concrete backend classes, executable units, runtime state, or kernel class references. A concrete backend interprets its prepare configuration inside that backend.
+Owns immutable declarative compile, prepare, run, publication, planning-cost, and model-autotuning
+inputs after their consumers are stable. It may describe backend intent and scoring
+policy, but it contains no benchmark runner, search algorithm, live discovery, mutable evidence,
+live service, concrete backend class, executable unit, runtime state, or kernel class reference.
+A concrete backend interprets its backend-specific prepare inputs inside that backend.
 
 ### `modules/planning`
 
 Owns backend-neutral compile-time planning: intent propagation, capability query contracts and matrices, ownership scoring, node or segment ownership, maximal same-owner partitions, and logical memory/materialization requirements.
 
 Planning answers where work should run. It does not implement fusion or specialization, select a concrete kernel or backend route, allocate physical memory, construct backend DAGs, or create prepared schedules and runtime units.
+
+Planning may interpret a backend-neutral cost model to choose `BackendId` ownership. It never
+interprets route names, vector species or lanes, unroll factors, thread counts, chunks, tiles, or
+other backend parameter vocabulary.
 
 See [Partition Scoring](partition-scoring.md).
 
@@ -46,7 +54,11 @@ Its output is immutable compile-time state. It does not create physical buffers,
 
 Owns prepared execution contracts and dynamic execution state, including `PreparedExecution`, `PreparedUnit`, `PreparedExecutable`, `PreparedSchedule`, `PreparedMemoryPlan`, slots, `RunState`, resources, transfers, residency, publication, and the prepared execution runner.
 
-Runtime executes already-prepared schedules. It does not optimize graphs, construct autograd, discover backends, look up backend services, lower partitions, or select kernels. The hot path does not use `Operation` or `CompiledNode`.
+Runtime executes already-prepared schedules. It does not optimize graphs, construct autograd,
+discover backends, look up backend services, lower partitions, select kernels, autotune, inspect
+the graph for tuning, or access or mutate tuning caches. Runtime profiling is passive observation
+translated into typed trace data; it cannot change settings. The hot path does not use
+`Operation` or `CompiledNode`.
 
 ### `modules/prepare`
 
@@ -69,6 +81,11 @@ Concrete backend logic belongs in the backend that implements it:
 - CPU scalar, Vector API, ASM, and OpenBLAS are routes inside `backends/cpu`, not separate backends.
 - MPSGraph and custom Metal kernels, Metal storage, and native bridges belong to `backends/metal`.
 - CUDA lowering, kernels, storage, and native integration belong to `backends/cuda`.
+
+Concrete backends also own typed, version-controlled, tested candidate generators beside their
+routes, compatible workload-cache lookup during preparation, and safe heuristic fallback. Shared
+prepare and tuning orchestration sees candidates opaquely; backend-specific parameter vocabulary
+does not leak into planning or shared parameter bags.
 
 Backends may consume model, config, planning, runtime, prepare, backend-contract, and trace contracts. They must not own public tensor APIs or global compiler logic, and must not depend on engine.
 
@@ -103,6 +120,22 @@ Graph](training-graph.md).
 ### `extensions/onnx`
 
 Owns ONNX import, export, and mapping to and from the model. It remains outside the runtime hot path and does not own backend lowering, kernel selection, execution, or residency.
+
+## Tooling
+
+`tools/benchmarks` owns fixed reproducible workloads and observational `BenchmarkReport`
+evidence. It compares commits, models, and environments without selecting or mutating production
+settings.
+
+`tools/tuning` coordinates one explicit model-autotuning workflow. It reuses or measures canonical
+local workload signatures, then measures a bounded set of complete valid graph and plan
+candidates end to end. Compiler, planning, prepare, and concrete backends generate candidates for
+their own decisions. Tuning owns measurement, explicit cache coordination, and selection, not
+semantics, ownership policy, lowering, or route vocabulary.
+
+Future results use an explicit file-backed reusable workload cache plus a model-specific plan
+cache or prepared-plan record. A representative model corpus may pre-seed the same workload cache;
+there is no separate platform-calibration subsystem or profile.
 
 ## Boundary summary
 

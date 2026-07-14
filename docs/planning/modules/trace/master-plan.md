@@ -85,7 +85,9 @@ Planning 0001 defines the operation-capability query/provider boundary, and Plan
 Complete with internal per-query hard eligibility. It adds no trace DTO,
 structured rejection reason, public matrix, score, ownership event, or compiler event. Trace task
 0003 and later rows remain Draft without detailed specifications until the broader config,
-planning, compiler, prepare, and runtime producer facts are stable.
+planning, compiler, prepare, and runtime producer facts are stable. Runtime profiling will be
+passive producer observation translated into typed trace DTOs; it will not select
+model-autotuning settings. Trace 0003+ remain Draft, and no global task is Ready.
 
 ## Open questions
 
@@ -126,6 +128,9 @@ planning, compiler, prepare, and runtime producer facts are stable.
 - Planning task 0002 remains intentionally boolean/filtering-only at the diagnostic boundary: its
   result retains eligible backend identities and no rejection reason. It therefore does not
   stabilize typed capability-rejection or no-match trace payloads.
+- Benchmark reports, workload tuning caches, model-plan results, planning cost profiles, and
+  runtime profiling are distinct. Only passive observations from stable producers can become
+  trace payloads; trace never runs searches or changes production settings.
 
 ## Risks
 
@@ -175,5 +180,7 @@ frontier returned to config 0003 rather than trace. Config task 0003 is now Comp
 validation and an independent documentation pass; it creates no trace producer schema. Trace task
 0003 remains Draft without a detailed specification. A later reassessment selected Planning task
 0002 alone for internal hard eligibility; its no-reason result still creates no trace schema.
-Config 0004 is the likely next area after that task, subject to another reassessment, while every
-trace task remains Draft. Planning task 0002 is now Complete and no trace or global task is Ready.
+Config 0004 was the likely next area after that task, subject to another reassessment, while every
+trace task remained Draft. Planning task 0002 is Complete. The later terminology/ownership reset
+retired the unimplemented Config 0004 detailed specification; no trace or global task is Ready and
+no detailed trace task-0003 specification exists.

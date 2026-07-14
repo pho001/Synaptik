@@ -25,6 +25,10 @@ The producer owns the fact, identity assignment, clock, and eventual emission. T
 owns only typed data-transfer objects (DTOs), so it does not traverse graphs, execute work, import
 producer-layer domain types, or control a lifecycle stage.
 
+Runtime profiling is one possible producer activity: it passively observes actual execution and
+translates selected facts into trace-owned DTOs. Trace remains observational. It does not compare
+tuning candidates, select parameters, or mutate prepared or runtime state.
+
 ## Current event foundation
 
 The implemented public foundation consists of:

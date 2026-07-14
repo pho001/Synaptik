@@ -15,6 +15,7 @@ Focused architecture documentation:
 - [Module boundaries](module-boundaries.md)
 - [Dependency rules](dependency-rules.md)
 - [Partition scoring](partition-scoring.md)
+- [Performance evidence and model autotuning](performance-evidence-and-tuning.md)
 - [Training graph](training-graph.md)
 - [ADR 0007: Neural-network module and training boundary](../design/decisions/0007-neural-network-module-and-training-boundary.md)
 - [Tracing](tracing.md)

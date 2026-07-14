@@ -16,6 +16,7 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 - prepared schedules, slots, and memory plans
 - run state and runtime resources
 - residency, transfer, materialization, publication, and execution runner
+- passive runtime profiling translated through typed trace contracts
 
 ## Out of scope
 
@@ -23,12 +24,15 @@ Execute prepared schedules and own dynamic per-run state, residency, transfers, 
 - autograd construction
 - backend discovery
 - kernel selection and backend lowering
+- model-autotuning search, tuning-cache lookup or mutation, hot-path graph inspection, and
+  production-setting selection
 
 ## Module invariants
 
 - Runtime executes already-prepared work.
 - The hot path does not use `Operation` or `CompiledNode`.
 - Runtime does not depend on concrete backend implementations.
+- Runtime profiling observes execution but never mutates settings.
 
 ## Allowed dependencies
 
@@ -72,6 +76,7 @@ This module is not yet planned in detail. Detailed task specifications will be c
 ## Risks
 
 - Moving backend discovery or implementation selection into the hot path.
+- Letting runtime profiling become hidden online tuning.
 
 ## Notes
 

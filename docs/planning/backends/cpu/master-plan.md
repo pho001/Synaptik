@@ -16,6 +16,8 @@ Implement CPU capability reporting, backend-owned preparation, kernel routes, st
 - partition lowering, specialization, and fusion
 - scalar, Vector API, ASM, OpenBLAS, and specialized routes
 - CPU executables, storage, workspace, scheduling, and tracing
+- typed, version-controlled, tested route candidate generators and compatible workload-cache
+  lookup during prepare
 
 ## Out of scope
 
@@ -29,6 +31,10 @@ Implement CPU capability reporting, backend-owned preparation, kernel routes, st
 - Planning selects CPU ownership; CPU prepare selects the route.
 - All CPU routes remain inside one concrete backend.
 - CPU backend never depends on engine.
+- CPU candidate generators return complete valid route-specific configurations; shared tuning
+  sees them opaquely.
+- Safe CPU heuristics remain correct when tuning is disabled or a compatible cache entry is
+  absent.
 
 ## Allowed dependencies
 
@@ -49,6 +55,9 @@ Implement CPU capability reporting, backend-owned preparation, kernel routes, st
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
+| 0001 | CPU capability and scalar correctness baseline | Draft | Stable planning, runtime, prepare, backend-contract, and trace contracts | Establish truthful capability and safe scalar preparation before optimized route search. |
+| 0002 | CPU prepared execution, storage, and optimized routes | Draft | 0001, OpenBLAS provider where required | Add CPU execution/storage contracts and validated Vector API, OpenBLAS, specialized, and fused routes without splitting backend ownership. |
+| 0003 | Typed CPU route candidate generators and cache compatibility | Draft | 0002, opaque prepare/tuning boundary and artifact versioning | Add colocated typed generators for complete valid route configurations, canonical workload compatibility, and safe heuristic/cache-hit selection without generic knob maps. |
 
 
 ## Milestones
@@ -65,16 +74,25 @@ This backend is not yet planned in detail. Detailed task specifications will be 
 
 ## Open questions
 
-- No open questions recorded.
+- Exact route-specific configuration records, target fingerprints, and candidate-schema versions
+  wait for implemented CPU routes and the shared opaque orchestration consumer.
 
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- Matrix-multiplication candidates may include supported JDK Vector API species and strategy,
+  unroll, tile, parallelism, and OpenBLAS thread configurations derived and pruned from target
+  capabilities, workload facts, and budget.
+- Scalar, vector, and OpenBLAS are typed route configurations, not booleans in
+  `Map<String,Object>`. Operation family selects a generator but does not key one universal
+  configuration.
 
 ## Risks
 
 - Leaking route selection into planning or splitting CPU routes into false backends.
+- Exposing private CPU knobs through string dispatch, reflection annotations, a central registry,
+  or a generic configuration language.
 
 ## Notes
 

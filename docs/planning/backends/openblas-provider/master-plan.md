@@ -64,6 +64,9 @@ This backend is not yet planned in detail. Detailed task specifications will be 
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- CPU owns OpenBLAS route configuration and candidate generation, including thread choices. This
+  provider exposes only low-level calls and thread control; it owns no tuning cache, workload
+  signature, objective, budget, or candidate policy.
 
 ## Risks
 

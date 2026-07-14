@@ -2,7 +2,8 @@
 
 ## Goal
 
-Provide repeatable benchmarks for compiler, prepare, kernels, scoring, and end-to-end execution.
+Provide fixed reproducible workloads and observational performance reports for comparisons among
+commits, models, and environments.
 
 ## Architecture references
 
@@ -16,17 +17,20 @@ Provide repeatable benchmarks for compiler, prepare, kernels, scoring, and end-t
 - repeatable workload definitions
 - result reporting
 - performance regression evidence
+- operation, operation-family, model, and end-to-end workload suites
 
 ## Out of scope
 
 - production runtime logic
 - architecture policy
 - correctness substitutes for conformance tests
+- model-autotuning, candidate selection, or mutation of production settings and caches
 
 ## Module invariants
 
 - Benchmarks consume public or test contracts.
 - Benchmark-only shortcuts never enter production modules.
+- A benchmark report is evidence only and has no production-setting side effects.
 
 ## Allowed dependencies
 
@@ -40,6 +44,9 @@ Provide repeatable benchmarks for compiler, prepare, kernels, scoring, and end-t
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
+| 0001 | Benchmark report and reproducible harness | Draft | Operational lifecycle and stable workload contracts | Define fixed workload identity, environment/sample evidence, lifecycle isolation, and reporting without model-autotuning or setting mutation. |
+| 0002 | Operation and operation-family suites | Draft | 0001, stable workload classification | Add fixed representative workloads without inventing a production `OperationFamily` contract. |
+| 0003 | Model and end-to-end suites | Draft | 0001, operational engine paths | Compare complete model and lifecycle behavior with the same report-only boundary. |
 
 
 ## Milestones
@@ -56,12 +63,15 @@ This tool is not yet planned in detail. Detailed task specifications will be cre
 
 ## Open questions
 
-- No open questions recorded.
+- Exact workload identity and report schema wait for the operational paths and stable
+  classification they measure.
 
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- Benchmarking never selects or mutates production settings. The separate explicit
+  model-autotuning workflow belongs to `tools/tuning`.
 
 ## Risks
 

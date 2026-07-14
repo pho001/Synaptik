@@ -159,7 +159,11 @@ The following invariants must remain true:
 - Compiler must not allocate physical buffers.
 - Planning must not select concrete kernels.
 - Planning scoring selects backend ownership, not implementation routes.
+- Planning may consume backend-neutral cost estimates, but it must not interpret backend route,
+  vector, thread, tile, kernel, or other implementation parameters.
 - Backend prepare owns backend-specific lowering and kernel selection.
+- Model autotuning, when requested, must complete before runtime hot-path execution.
+- Runtime profiling is passive observation and must not select or mutate execution settings.
 - Runtime executes prepared schedules only.
 - Engine is the composition root.
 - Concrete backends must not depend on engine.
@@ -285,9 +289,8 @@ Allowed:
 - `AcceleratorPrepareConfig`
 - `RunOptions`
 - `PublicationPolicy`
-- `PlatformProfile`
-- `BackendProfile`
-- `TuningProfile`
+- immutable declarative planning-cost inputs, after their planning consumer is stable
+- immutable declarative model-autotuning inputs, after their owning contracts are stable
 
 Forbidden:
 
@@ -297,6 +300,8 @@ Forbidden:
 - runtime state
 - executable units
 - backend-specific implementation logic
+- benchmark runners, model-autotuning search, cache mutation, or measurement algorithms
+- live platform discovery or mutable measurement evidence
 
 Backend-specific interpretation of config belongs to backend prepare.
 
@@ -315,6 +320,7 @@ Allowed:
 - maximal same-owner partitioning
 - logical materialization requirements
 - logical memory requirements
+- backend-neutral planning cost estimates and profiles
 
 Forbidden:
 
@@ -333,6 +339,8 @@ Forbidden:
 - backend-specific lowering
 - runtime execution units
 - concrete kernel/runtime scoring
+- backend route names or route-selection parameters
+- vector species, lane counts, unroll factors, thread counts, chunk sizes, or tile sizes
 
 Planning answers:
 
@@ -367,7 +375,7 @@ Partition scoring may use compile-time information only, such as:
 - boundary penalties
 - accelerator bonuses
 - small-region penalties
-- platform profiles
+- backend-neutral planning cost profiles
 
 Partition scoring must not use:
 
@@ -380,12 +388,17 @@ Partition scoring must not use:
 - current `RunState`
 - physical buffer addresses
 - prepared executables
+- backend-local workload-cache entries, route configurations, or other model-autotuning values
 
 Partition scoring decides backend ownership at node or segment level before maximal same-owner partitioning.
 
 The output of scoring is ownership, not executable implementation.
 
 Backend-specific lowering and kernel selection belong to backend prepare.
+
+A planning cost model is not a model-autotuning parameter set. It may estimate ownership
+cost from backend-neutral graph and transfer facts, but it must not interpret vector, thread,
+tile, route, kernel, or other backend implementation vocabulary.
 
 ### `modules/compiler`
 
@@ -492,6 +505,7 @@ Allowed:
 - publication execution
 - runtime resources
 - prepared execution runner
+- passive runtime profiling and observation through typed trace contracts
 
 Forbidden:
 
@@ -505,6 +519,8 @@ Forbidden:
 - backend-specific lowering
 - `Operation` in hot path
 - `CompiledNode` in hot path
+- model-autotuning search, tuning-cache lookup or mutation, graph inspection for tuning, or
+  selection of execution settings in the hot path
 
 Runtime executes prepared schedules.
 
@@ -526,6 +542,8 @@ Allowed:
 - partition coverage validation
 - prepared memory validation
 - prepared schedule validation
+- a future narrow orchestration boundary that exposes complete valid preparation candidates
+  opaquely to model-autotuning tooling
 
 Forbidden:
 
@@ -535,6 +553,7 @@ Forbidden:
 - concrete kernel selection
 - backend-specific executable implementation
 - backend-specific storage implementation
+- interpretation of private backend candidate parameters
 
 Prepare is the bridge between compile artifacts and runtime.
 
@@ -564,6 +583,10 @@ Allowed:
 - backend workspace
 - backend trace contribution
 - native bridge integration
+- typed, version-controlled, tested candidate generators colocated with the routes they configure
+- compatible workload-cache lookup during preparation
+- safe heuristic selection when model autotuning is disabled or compatible cache entries are
+  absent
 
 Forbidden:
 
@@ -585,6 +608,65 @@ Concrete backend modules may depend on:
 - trace
 
 Concrete backend modules must not depend on engine.
+
+Each concrete backend owns the complete typed configuration vocabulary and candidate generator
+for each route it implements. A generator derives and prunes complete valid configurations from
+target capabilities, canonical workload facts, and the tuning budget. CPU matrix-multiplication
+candidates may, for example, include supported Vector API species and strategy, unroll, tile,
+parallelism, or OpenBLAS thread configurations. Vector, scalar, and OpenBLAS choices are distinct
+route-specific typed configurations, not booleans or entries in a generic parameter bag.
+
+Operation family selects the appropriate backend candidate generator; it is not a cache key for
+one universal family-wide configuration. Local tuning measurements use a canonical workload
+signature that includes semantics and attributes, data types, shapes, layouts, relevant policies,
+and target compatibility. Identical signatures can reuse one result across occurrences and
+models. Physical vector lanes remain constrained by hardware and supported JDK Vector API
+species; candidate generation must not promise arbitrary lane counts.
+
+Backend candidate discovery must not use `Map<String,Object>`, string dispatch, reflective
+annotations, a central knob registry, or a generic configuration language. Shared preparation and
+tuning orchestration sees candidates opaquely and does not interpret private backend fields.
+
+## Performance evidence and optimization tooling
+
+`tools/benchmarks` owns observational, report-oriented benchmarking. It runs fixed reproducible
+operation, operation-family, model, and end-to-end workloads to compare commits, models, or
+environments. A benchmark produces measurement evidence and reports only. It must not select or
+mutate production settings.
+
+`tools/tuning` owns one explicit model-autotuning workflow with two coordinated phases. First, it
+extracts actual tunable workloads and routes from the model, forms canonical workload signatures,
+deduplicates identical signatures while retaining occurrence weight and context, reuses compatible
+entries from an explicit persistent workload cache, and measures only cache misses. Second, it
+measures a bounded set of complete valid graph, fusion, ownership/partition, layout,
+materialization, route, and configuration candidates end to end and selects an explicit prepared
+plan or artifact. This second phase does not repeat local route-parameter search.
+
+Compiler, planning, prepare, and concrete backends generate the candidates for decisions they
+own. Tuning tooling coordinates measurement and selection without taking over graph semantics,
+transformations, ownership rules, lowering, route logic, or private backend vocabulary. The model
+author supplies the model, representative input or shape profiles, objective, budget, constraints,
+and explicit cache locations; backend authors define backend candidates. Running this same
+workflow over a representative model corpus may pre-seed the same workload cache for a target,
+but there is no separate platform-calibration subsystem, workflow, or profile.
+
+`modules/config` may store immutable declarative inputs to this workflow after consumers are
+stable, but it does not own runners, search algorithms, live discovery, caches, or mutable
+evidence. Model autotuning is optional for correctness. Cache-only or heuristic preparation must
+remain safe when it is not requested.
+
+Future tuning artifacts are explicit persistent files: a reusable workload tuning cache and a
+model-specific plan cache or prepared-plan record. A load reuses only compatible hits; a miss may
+be tuned and atomically persisted. Entries carry explicit schema and backend candidate-schema
+versions, target and workload or model fingerprints, objective and constraints, and a measurement
+summary. Implementations invalidate incompatible entries and safely reject corrupt data. They do
+not use hidden global caches, Java object serialization, or executable payload assumptions. Rich
+measurement evidence remains separate from compact caches. Physical file formats and prepared
+executable serialization remain deferred to their backend and lifecycle owners.
+
+Runtime profiling is passive observation of actual execution. `modules/runtime` owns the observed
+execution context and `modules/trace` owns typed diagnostic DTOs; neither profiling nor tracing
+selects settings.
 
 ## CPU backend routes
 
@@ -837,6 +919,7 @@ docs/
     module-boundaries.md
     dependency-rules.md
     partition-scoring.md
+    performance-evidence-and-tuning.md
     training-graph.md
     tracing.md
     runtime-prepare-backend-boundary.md
@@ -850,6 +933,7 @@ docs/
       0005-training-combined-forward-backward-graph.md
       0006-no-runtime-service-locator.md
       0007-neural-network-module-and-training-boundary.md
+      0008-performance-evidence-and-tuning-boundaries.md
     notes/
 
   user-guide/
@@ -1076,6 +1160,9 @@ Do not add these unless this document is updated first:
 - `MetalOptimizerBridge` in training
 - `Map<String,String>` as the primary trace model
 - backend-specific kernel/runtime scoring in planning
+- benchmark-driven production-setting mutation
+- model autotuning or tuning-cache mutation in the runtime hot path
+- planning interpretation of backend routes, vector parameters, threads, chunks, or tiles
 
 ## Future extensions allowed only with architecture update
 
@@ -1089,7 +1176,6 @@ The following may be added later, but only with an explicit update to this docum
 - external plugin ecosystem
 - `ServiceLoader` as an optional engine-level convenience layer
 - more advanced segment-level partition scoring
-- profile-guided partition scoring
 
 ## Testing requirements
 

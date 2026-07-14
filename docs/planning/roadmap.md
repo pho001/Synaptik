@@ -17,7 +17,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
-| 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
+| 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | In progress (interleaved) | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, and logical memory planning are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Draft | Model, config, planning, backend-contract, and trace contracts are ready. | Compile artifacts, graph transformations, and autograd compilation are complete. |
@@ -30,15 +30,33 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 14 | [`extensions/onnx`](extensions/onnx/master-plan.md) | Draft | The model representation and public tensor semantics are stable. | Selected import/export mappings and compatibility validation are complete. |
 | 15 | [`extensions/nn`](extensions/nn/master-plan.md) | Draft | Model semantics, compiler capture, and execution foundations are stable. | Module, parameter, buffer, train/eval, and selected layer contracts are complete. |
 | 16 | [`extensions/training`](extensions/training/master-plan.md) | Draft | NN parameter contracts, config, compiler autograd, and runtime publication contracts are stable. | Backend-independent optimizer and training-session capabilities are complete. |
-| 17 | [`tools/tuning`](tools/tuning/master-plan.md) | Draft | Config and planning profiles are stable. | Tuning produces validated immutable profiles. |
-| 18 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Repeatable benchmark suites and reporting are complete. |
+| 17 | [`tools/benchmarks`](tools/benchmarks/master-plan.md) | Draft | Engine and selected execution paths are operational. | Fixed reproducible workload suites and observational reporting are complete. |
+| 18 | [`tools/tuning`](tools/tuning/master-plan.md) | Draft | Compiler/planning/prepare candidate boundaries, concrete backend route generators, operational engine paths, and artifact consumers are stable. | One model-autotuning workflow reuses compatible local workload results, selects a bounded complete plan, and writes explicit validated caches or prepared-plan records before runtime. |
 | 19 | [`tools/cli`](tools/cli/master-plan.md) | Draft | Engine and diagnostic contracts are stable. | Selected diagnostic and execution commands are complete. |
 
 The order above is the default delivery sequence, not a new dependency rule. Allowed and forbidden dependencies remain defined only by `ARCHITECTURE.md`.
 
 ## Current frontier
 
-The completed frontier is
+There is no Ready implementation task. The terminology and ownership reset retired the
+unimplemented Config 0004 fixed-plus-linear platform/backend/tuning profile specification because
+it conflated planning cost with backend tuning and averaged materially different workloads.
+
+Planning 0003 is the likely prerequisite frontier, but it remains Draft: its public/internal
+candidate handoff, backend-neutral cost classification, baseline comparison, ties, and
+failure contract are not stable. Config 0004 is also Draft and now follows that consumer as a
+narrow planning cost-profile contract. No stable shared production `OperationFamily` or workload-
+bucket contract exists, so this reset does not invent one or force a code task.
+
+The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
+own complete valid graph and ownership candidates; shared prepare owns a future opaque
+orchestration and artifact-lifecycle boundary; CPU, Metal, and CUDA own typed route candidate
+generators; and `tools/tuning` owns the single two-phase model-autotuning workflow. A
+representative model corpus may pre-seed the same workload cache, but no separate platform-
+calibration workflow or profile remains planned. These later rows do not change the current
+frontier, and zero master-plan task rows are Ready.
+
+The latest completed frontier remains
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
 It validates complete provider/snapshot associations by equal `BackendId`, queries every
 provider that survives availability and exact hard intent once, and combines its backend-level
@@ -49,12 +67,12 @@ preparation, runtime state, or execution.
 
 [Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) and
 [Config 0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
-remain Complete. Config task 0003 is also Complete; config tasks 0004–0008 remain ordered Draft
-work without detailed specifications. Planning task 0001 remains Complete after its focused
+remain Complete. Config task 0003 is also Complete; Config 0004–0008 remain ordered Draft work
+without detailed specifications. Planning task 0001 remains Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
 Planning task 0002 is Complete; Planning tasks 0003–0006 remain Draft without detailed
-specifications. Config 0004 immutable profile contracts are the likely next area before Planning
-0003 scoring, but a separate reassessment must confirm that frontier. No global task is Ready.
+specifications. Planning 0003 must stabilize the cost consumer and cost classification before
+Config 0004 can be specified. Zero global tasks are Ready.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

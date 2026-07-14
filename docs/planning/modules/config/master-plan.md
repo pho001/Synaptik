@@ -2,7 +2,8 @@
 
 ## Goal
 
-Define immutable, declarative configuration for compile, prepare, run, publication, platforms, and tuning.
+Define immutable, declarative configuration for compile, prepare, run, publication, planning
+costs, and model-autotuning inputs.
 
 ## Architecture references
 
@@ -16,7 +17,9 @@ Define immutable, declarative configuration for compile, prepare, run, publicati
 - compile modes and optimization configuration
 - backend intent and partition scoring configuration
 - prepare and run configuration
-- platform, backend, and tuning profiles
+- planning cost profiles after their consumer and cost classification are stable
+- model-autotuning objective, budget, constraint, and explicit-cache inputs after their consumers
+  are stable
 
 ## Out of scope
 
@@ -24,6 +27,8 @@ Define immutable, declarative configuration for compile, prepare, run, publicati
 - kernel types
 - runtime state
 - backend implementation logic
+- benchmark runners, model-autotuning search, cache mutation, live discovery, and mutable
+  measurement evidence
 
 ## Module invariants
 
@@ -48,12 +53,14 @@ io.github.pho001.synaptik.config/
   compile/  public compile mode, backend intent, optimization, and scoring configuration
   prepare/  later public backend-neutral and backend-class prepare configuration
   run/      later public invocation and publication configuration
-  profile/  later immutable platform, backend, and tuning profile data
+  profile/  later immutable planning-cost inputs with a stable consumer
 ```
 
 The module root is not a catch-all facade. Each package owns immutable declarative values for one
 lifecycle concern. This map is progressive: task 0001 opens only `compile` with hard-requirement
-intent, and later rows may refine their package contents before becoming Ready.
+intent, and later rows may refine their package contents before becoming Ready. Package placement
+for model-autotuning request inputs waits for the stable prepare/tuning consumer rather than
+inventing a public surface now.
 
 ## Task list
 
@@ -62,9 +69,9 @@ intent, and later rows may refine their package contents before becoming Ready.
 | 0001 | [Backend intent foundation](tasks/0001-backend-intent-foundation.md) | Complete | Completed backend-contract 0001–0004 and trace foundation | Replaced the placeholder with one immutable owner for an optional hard backend requirement, added the public backend-contract dependency, and preserved preference, scoring, profile, and evaluation work for later tasks. |
 | 0002 | [Compile modes and graph optimization configuration](tasks/0002-compile-modes-and-graph-optimization-configuration.md) | Complete | 0001 | Added the exact three architecture-defined graph-scope modes and one stable optional-optimization permission without exposing graph passes or compiler behavior. |
 | 0003 | [Partition scoring configuration](tasks/0003-partition-scoring-configuration.md) | Complete | 0001–0002, planning 0001 | Added one optional coarse `DeviceClass` preference as soft input for later comparison of already eligible ownership candidates, without evaluating candidates or choosing ownership. |
-| 0004 | Immutable platform, backend, and tuning profiles | Draft | 0001 | Define versioned, validated profile data consumed by later scoring and preparation; later tuning tooling produces it from repeatable benchmark evidence. |
-| 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and selected immutable profile inputs without compiler orchestration. |
-| 0006 | Prepare configuration | Draft | 0005 | Define backend-neutral plus CPU/accelerator-class prepare data without concrete backend implementation behavior. |
+| 0004 | Planning cost-profile contract | Draft | 0001–0003, planning 0001–0003, stable backend-neutral cost classification | Define only immutable backend-neutral estimates required by the concrete ownership-scoring consumer; do not encode backend route or model-autotuning values. |
+| 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and any justified planning-cost inputs without compiler orchestration. |
+| 0006 | Prepare and model-autotuning request configuration | Draft | 0005, stable prepare/tuning consumers | Define only the immutable objective, budget, constraints, representative profiles, fallback policy, and explicit-cache inputs required by stable consumers; do not expose backend candidate fields or own search/persistence. |
 | 0007 | Run and publication configuration | Draft | 0005 | Define immutable invocation and publication options without runtime state or execution. |
 | 0008 | Configuration contract closure | Draft | 0001–0007 | Audit validation, package/API cohesion, documentation, and dependency boundaries before planning begins. |
 
@@ -77,18 +84,19 @@ intent, and later rows may refine their package contents before becoming Ready.
 
 ## Current status
 
-In progress after completing
-[task 0003](tasks/0003-partition-scoring-configuration.md). Tasks 0001–0003 are Complete. Task 0003
-adds only the optional soft coarse `DeviceClass` preference and no candidate evaluation, scoring
-formula, owner selection, profile data, or separate policy type. Tasks 0004–0008 remain ordered
-Draft work without detailed specifications. Planning task 0002 is Complete; its internal
-consumption of hard intent changed no config Java or dependency surface. No config or global task
-is Ready until a separate frontier reassessment.
+In progress after the terminology and ownership reset. Tasks 0001–0003 remain Complete. The
+unimplemented Config 0004 fixed-plus-linear platform/backend/tuning profile specification was
+retired because it conflated planning cost with backend tuning and averaged unrelated workloads.
+Config 0004 is again a Draft row without a detailed specification. It follows a stable planning
+cost consumer and backend-neutral cost classification. Tasks 0005–0008 remain Draft. No config
+or global task is Ready.
 
 ## Open questions
 
-- Profile identity, units, versioning, portability, measurement provenance, and persistence remain
-  for task 0004; task 0001 adds no calibration field.
+- The stable backend-neutral cost classification and exact Planning 0003 cost consumer remain
+  prerequisites for Config 0004.
+- Model-autotuning request inputs wait for stable prepare and tuning consumers. Workload and plan
+  cache schemas, measurement evidence, and persistence remain with their lifecycle/tooling owners.
 - Exact composition and defaults for compile, prepare, run, and publication aggregates remain for
   their owning tasks.
 
@@ -97,9 +105,12 @@ is Ready until a separate frontier reassessment.
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
 - Backend intent owns optionality for one hard `BackendRequirement`; planning later evaluates it.
-- Hard eligibility, ranking preference, and calibrated profile data are separate concepts.
-- `tools/benchmarks` later produces repeatable measurements and reports; `tools/tuning` later turns
-  selected evidence into validated immutable profile values owned by config.
+- Hard eligibility, ranking preference, planning cost, model autotuning, benchmarking, and runtime
+  profiling are separate concepts.
+- `tools/benchmarks` later produces observational reports from fixed workloads and never selects
+  production settings. `tools/tuning` later coordinates one explicit model-autotuning workflow.
+  Config stores only immutable request inputs after their consumers exist; it owns no cache or
+  backend candidate vocabulary.
 - A public config signature exposing a backend-contract type uses a public Gradle `api` edge and a
   focused architecture test.
 - Compile mode uses exactly the architecture-defined `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and
@@ -119,15 +130,22 @@ is Ready until a separate frontier reassessment.
 - Planning task 0002 evaluates this module's existing `BackendIntent` only through a package-
   private Planning entry point. It does not modify config, interpret the task-0003 soft
   preference, expose config in a public Planning signature, or make profile/scoring work current.
+- The discarded Config 0004 records are not an implementation contract. A future planning cost
+  profile contains only backend-neutral facts required by Planning; concrete routes, vectors,
+  threads, chunks, tiles, and kernels belong to backend-owned candidate configurations.
+- No stable shared production `OperationFamily` or workload-bucket contract exists. Config does
+  not invent one, and it owns no runner, search algorithm, live discovery, or mutable evidence.
 
 ## Risks
 
 - Embedding service objects or concrete implementation choices in configuration.
 - Treating absence of a hard requirement as a fallback promise or a sentinel requirement.
-- Mixing hard eligibility, preference, scoring, and calibrated measurements into one broad intent
+- Mixing hard eligibility, preference, scoring, and tuning measurements into one broad intent
   object.
 - Letting profile contracts own benchmarking, tuning algorithms, live platform discovery, or
   mutable measurement state.
+- Treating one backend-wide fixed-plus-linear average as both a planning cost model and a tuning
+  profile.
 
 ## Notes
 
@@ -169,5 +187,7 @@ whitespace validation passed without changing executable Java or rerunning the s
 suite. A later reassessment made only Planning task 0002 Ready for capability/availability/hard-
 intent intersection. Config 0004 remains Draft without a detailed specification. After Planning
 0002, Config 0004 profile contracts are the likely next area before Planning 0003 scoring, but
-that selection requires a separate reassessment. Planning task 0002 is now Complete, and that
-reassessment has not made Config 0004 or another task Ready.
+that selection requires a separate reassessment. Planning task 0002 is now Complete. A subsequent
+reassessment drafted Config 0004, but the terminology/ownership reset rejected that unimplemented
+  design and removed its detailed specification. Planning 0003 and Config 0004 are both Draft; the
+  former must stabilize the cost consumer and cost classification before the latter is planned.

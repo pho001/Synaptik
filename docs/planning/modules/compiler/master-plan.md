@@ -15,6 +15,8 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 - graph capture and indexing
 - shape and data type inference and validation
 - canonicalization and graph optimization
+- complete valid backend-neutral graph-transformation candidate generation for later bounded
+  model tuning
 - autograd and backward graph construction
 - publication, planning, logical memory orchestration, and diagnostics
 
@@ -30,6 +32,8 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 - Compiler output is immutable compile-time state.
 - Compiler never constructs runtime execution units.
 - Compiler has no concrete backend dependency.
+- Compiler owns the semantics and validity of graph candidates; tuning tooling may measure a
+  bounded set but does not construct or reinterpret them.
 
 ## Allowed dependencies
 
@@ -63,12 +67,15 @@ This module is not yet planned in detail. Detailed task specifications will be c
 
 ## Open questions
 
-- No open questions recorded.
+- The candidate boundary remains Draft until graph transformations, compile artifacts, and the
+  prepare/tuning orchestration consumer are stable. No public Java declaration is selected here.
 
 ## Decisions made
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- Model autotuning does not move backend-neutral graph-transformation ownership out of the
+  compiler or backend-specific fusion ownership out of concrete backends.
 
 ## Risks
 

@@ -66,7 +66,7 @@ scoring, partition, memory, registry, or provider implementation.
 |---|---|---|---|---|
 | 0001 | [Operation capability-query foundation](tasks/0001-operation-capability-query-foundation.md) | Complete | Completed model milestone, backend-contract 0001–0004, config 0001–0002, and trace foundation | Added one immutable operation-occurrence query and one backend capability-provider contract without a matrix, eligibility evaluation, diagnostics result, device query, or provider implementation. |
 | 0002 | [Per-query backend hard eligibility](tasks/0002-per-query-backend-hard-eligibility.md) | Complete | 0001, config hard intent, and backend-contract supplied availability | Combined validated provider/snapshot associations, backend-level support, current availability, and exact hard intent into an internal ordered `BackendId` list without a public matrix, scoring, device selection, or ownership choice. |
-| 0003 | Ownership candidates and scoring | Draft | 0002, config partition-scoring configuration and profiles | Define backend-neutral candidates, compare eligible ownership choices, and produce ownership rather than implementation routes. |
+| 0003 | Ownership candidates and baseline scoring | Draft | 0002, config partition-scoring configuration | Define complete valid ownership alternatives, the public/internal candidate handoff, backend-neutral cost classification, baseline comparison, ties/failures, and `BackendId` ownership without requiring a cost profile or interpreting implementation routes. Later model tuning may measure bounded complete alternatives without changing their semantics. |
 | 0004 | Maximal same-owner partitioning | Draft | 0003 | Group adjacent work with the same selected backend owner without backend lowering or executable construction. |
 | 0005 | Logical materialization and memory requirements | Draft | 0004 | Describe backend-neutral logical requirements without physical allocation, runtime residency, or prepared memory. |
 | 0006 | Planning contract closure | Draft | 0001–0005 | Audit capability, ownership, partition, logical-memory, documentation, and dependency boundaries before compiler planning orchestration. |
@@ -86,11 +86,18 @@ independent documentation pass. Task 0002 adds one package-private per-query res
 validates the supplied provider/snapshot identity sets and returns ordered hard-eligible
 `BackendId` values. Tasks 0003–0006 remain ordered Draft work without detailed specifications.
 Config task 0003 is Complete with one optional coarse device-class preference as later soft
-scoring input. No planning or global task is Ready until a separate frontier reassessment.
+scoring input. The terminology/ownership reset rejected the unimplemented Config 0004 global
+fixed-plus-linear profile design. Planning 0003–0006 remain Draft without detailed specifications.
+Planning 0003 is the prerequisite for any later Config 0004 cost-profile schema, but its public
+handoff, cost classification, baseline score semantics, ties, and failures are not yet stable
+enough for a Ready specification. No global task is Ready.
 
 ## Open questions
 
-- No open questions recorded.
+- What smallest backend-neutral cost classification does baseline ownership scoring require,
+  without inventing a shared `OperationFamily` contract prematurely?
+- Which public or package-private orchestration boundary consumes current hard eligibility and
+  exposes ownership failures and ties?
 
 ## Decisions made
 
@@ -105,7 +112,7 @@ scoring input. No planning or global task is Ready until a separate frontier rea
   stable before a scoring preference is exposed. The frontier then returns to config 0003.
 - Complete config task 0003 keeps hard eligibility separate from soft ranking through one
   `Optional<DeviceClass>` preference. Planning will later own interpretation after its candidate
-  and profile prerequisites are stable.
+  and baseline scoring contracts are stable.
 - Task 0002 uses provider encounter order as the deterministic backend order and associates
   provider/snapshot inputs by equal `BackendId`, never by parallel list position. Duplicate or
   missing identities are invalid supplied composition and fail before any capability call.
@@ -116,10 +123,22 @@ scoring input. No planning or global task is Ready until a separate frontier rea
 - A valid no-match task-0002 result is an empty immutable list. Later planning orchestration must
   stop before scoring it and may not weaken a hard requirement; the public compile failure
   contract remains with that later consumer.
+- Planning cost is separate from model autotuning. Planning may consume only backend-
+  neutral estimates; it must not interpret routes, vector species/lanes, unroll, threads, chunks,
+  tiles, kernels, workload-cache values, or other backend parameter vocabulary.
+- Planning owns the semantics and generation of complete valid ownership/partition candidates.
+  Future tuning orchestration may measure a bounded set opaquely but does not construct or
+  reinterpret those candidates.
+- Planning 0003 must first define the cost consumer and cost classification. Config 0004 may
+  later store only the immutable backend-neutral inputs that consumer actually requires.
+- No stable shared production `OperationFamily` or workload-bucket contract exists. Planning 0003
+  must not invent one merely to keep the implementation queue moving.
 
 ## Risks
 
 - Leaking backend route selection or runtime residency into compile-time scoring.
+- Reintroducing a backend-wide average that hides materially different operation families, data
+  types, shapes, and sizes.
 - Growing eligibility into a public matrix, graph identity, scoring, device selection, or
   rejection diagnostics before those consumers are concrete.
 
@@ -139,8 +158,11 @@ step then made config task 0003 Ready; it is now Complete.
 Config task 0003 is now Complete after its focused config validation and independent
 documentation pass. It changed no planning Java, provider contract, module dependency, or scoring
 behavior. A separate reassessment selected only Planning task 0002 as Ready because hard
-eligibility needs no calibrated profile or scoring formula. Planning task 0003 and Config task
-0004 remain Draft; after 0002, Config 0004 profile contracts are the likely next area before
+eligibility needs no performance profile or scoring formula. Planning task 0003 and Config task
+0004 remained Draft; after 0002, Config 0004 profile contracts were the likely next area before
 Planning 0003 scoring, subject to another reassessment. Planning task 0002 is now Complete after
 its focused implementation, final planning suite, independent documentation pass, and focused
-documentation validation. No next task was made Ready.
+documentation validation. A following reassessment drafted Config task 0004, but the terminology/
+ownership reset retired that unimplemented design. Planning 0003 is now the prerequisite for a
+future Config 0004 cost profile, yet it remains Draft because its exact consumer, classification,
+baseline comparison, tie, and failure contracts require a separate focused planning step.

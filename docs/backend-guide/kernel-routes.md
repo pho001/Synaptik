@@ -16,7 +16,18 @@ CPU routes are not separate backends. The same rule applies to MPSGraph versus c
 
 ## Decision inputs
 
-A backend may consider operation semantics, data type, resolved shape and layout, alignment, prepare configuration, fusion opportunities, workspace needs, native availability, and immutable tuning profiles. It must not wait for runtime to inspect the graph and choose a route.
+A backend may consider operation semantics, data type, resolved shape and layout, alignment,
+prepare configuration, fusion opportunities, workspace needs, native availability, immutable
+compatible workload-cache entries, and an explicit selected model plan. Those inputs use backend-
+owned vocabulary and must not leak into planning. Safe backend heuristics remain the correctness
+fallback when tuning is disabled or no compatible cache entry exists. The backend must not wait
+for runtime to inspect the graph and choose or tune a route.
+
+Each route owns a typed, version-controlled, tested candidate generator that returns complete
+valid configurations. Shared prepare and tuning orchestration handles those candidates opaquely;
+it does not use a generic parameter map or interpret private route fields. Operation family only
+selects the appropriate generator. Reuse is keyed by a canonical workload signature containing
+the exact semantic, data, layout, policy, and target-compatibility facts.
 
 For a matrix multiplication `[64, 128] × [128, 32]`, the output has `64 × 32 = 2,048` values and performs `64 × 128 × 32 = 262,144` multiply contributions. Such size facts may help CPU prepare compare routes. No threshold or performance promise is currently defined.
 
@@ -26,6 +37,8 @@ If no route can realize a capability that the backend declared, preparation fail
 
 ## Validation expectations
 
-Test route predicates at boundaries, compare each optimized route with a reference implementation, benchmark performance separately from correctness, and verify resource cleanup for native routes.
+Test route predicates and candidate validity at boundaries, compare each optimized route with a
+reference implementation, benchmark performance separately from correctness, and verify resource
+cleanup for native routes.
 
 See [CPU backend](cpu-backend.md), [Partition preparer](partition-preparer.md), and [Partition scoring](../architecture/partition-scoring.md).
