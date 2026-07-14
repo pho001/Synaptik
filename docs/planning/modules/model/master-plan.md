@@ -277,7 +277,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0023D | [Public foldAxis and dynamic window transforms](tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete | 0023, 0023C | Restored public general-axis overlap-add fold, added exact typed-padding UNFOLD2D, and retained dynamic canonical rank-three columns through a canonical symbolic Dimension product. |
 | 0023E | [Cumulative scan normalization and product](tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete | 0016G–0016H, 0018K, 0018U–0018U1, 0023, 0023D | Atomically normalized the sum-only scan types into one CUM_SUM/CUM_PROD family, preserved public cumulative sum, and added the general product scan needed for zero-safe product adjoints. |
 | 0023F | [Scaled dot-product attention weights output](tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete | 0018K–0018L, 0019E, 0023, 0023E | Preserved fluent one-output attention and added an explicit two-output result whose output and normalized weights share one exact producer occurrence. |
-| 0024 | Model capability selection audit | Draft | 0001–0023F | Verify model representation and public expression construction against the intentional selected baseline and confirm rejected legacy quirks are absent. |
+| 0024 | [Model capability and contract closure audit](tasks/0024-model-capability-and-contract-closure-audit.md) | Complete | 0001–0023F | Audited the exact model surface and checkpoint with a `BLOCKING_GAP` verdict: behavior is coherent, but one `GraphValue` Javadoc sentence incorrectly calls the current public Tensor planned. |
+| 0024A | [GraphValue Tensor-status Javadoc correction](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete | 0024 | Corrected the one stale `GraphValue` Javadoc status sentence, preserved every declaration and behavior, recorded historical audit closure, and passed focused Javadoc/documentation validation. |
 
 ## Milestones
 
@@ -294,8 +295,9 @@ Operation-family subpackages are introduced only when a focused operation task d
   0020A–0020A1, and 0021A–0021C;
   checkpoint after
   0022B before adjoint-expressibility and missing-public-primitive planning
-- Adjoint expressibility, its six evidence-selected public-capability follow-ups, and the
-  capability-selection audit: tasks 0023–0024, including 0023A–0023F before 0024
+- Adjoint expressibility, its six evidence-selected public-capability follow-ups, the model
+  capability-and-contract closure audit, and its bounded Javadoc gap: tasks 0023–0024A, including
+  0023A–0023F before 0024 and completed 0024A after the audit
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -369,7 +371,13 @@ target-one-or-equal obligations. The focused 14-suite run passed 131 tests, the 
 model suite passed 977 tests, and the separate documentation pass validated model Javadoc,
 examples, Markdown, exact 25-path scope, the 189-method public surface, and synchronized status.
 Tasks 0023B, 0023C, 0023D, 0023E, and 0023F are Complete with their detailed specifications, and
-task 0024 remains Draft without a detailed specification.
+[task 0024](tasks/0024-model-capability-and-contract-closure-audit.md) is Complete with a
+`BLOCKING_GAP` verdict. The exact model behavior and semantic representation are coherent, but
+that historical audit found `GraphValue` Javadoc incorrectly called the current public mutable
+Tensor API planned. Focused
+[task 0024A](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) is Complete: the wording
+now says current, every declaration and behavior remains unchanged, and the selected model
+capability milestone is closed.
 Task 0023B's
 focused 15-suite run passed 124 tests, its
 single final model suite passed 981 tests across 125 suites, and the separate documentation pass
@@ -525,8 +533,12 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   task 0023C functional signed slice update plus target-relative symbolic crop, 0023D public
   foldAxis and dynamic/configurable 2D windows, 0023E cumulative product, and 0023F same-occurrence
   attention weights. Each rejects
-  a narrower backward-only spelling and depends on 0023. Task 0024 depends on all six and remains
-  Draft without a detailed specification. Completed task 0023C selects one appended `SLICE_UPDATE`
+  a narrower backward-only spelling and depends on 0023. Task 0024 depends on all six and is
+  Complete with its detailed audit and `BLOCKING_GAP` verdict. It is the planning-only model exit gate, not another
+  capability redesign: it inventories the completed public and semantic contracts, checks them
+  against the intentional baseline and exclusions, runs the repository/architecture/documentation
+  checkpoint, and reports any bounded follow-up without implementing it. Completed task 0023C
+  selects one appended `SLICE_UPDATE`
   identity paired with existing normalized `SliceAttrs`, one target/prefix-Shape attributes
   variant of `SLICE`, and exactly two public transformations. It uses functional replacement,
   preserves all existing extraction behavior, and retains unresolved crop-bound obligations
@@ -547,7 +559,8 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 - No `GENUINELY_NON_EXPRESSIBLE_SEMANTIC_GAP` remains after the general-primitive test, so the audit
   adds no compiler-only semantic row. Saved statistics, dropout masks, and top-K indices continue
   to use indexed shared-producer outputs. No gradient, traversal, capture, execution, backend,
-  runtime, Gradle, dependency, architecture, or public API implementation is claimed.
+  runtime, Gradle, dependency, architecture, or public API implementation is claimed. Completed
+  task 0024A was limited to the audit's one stale `GraphValue` Javadoc status sentence.
 - The former broad task 0019 is split without renumbering established 0019A–0019C. Task 0019 is
   the cohesive MATMUL primitive; 0019D owns `linear`; 0019E owns scaled dot-product attention.
 - The former 0019A umbrella is split without changing 0019B–0019E. Completed task 0019A owns exact
@@ -1650,7 +1663,8 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
 specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
-while task 0024 remains Draft without one.
+while task 0024 is Complete with its closure artifact and task 0024A is Complete. The selected
+model capability milestone is closed; no later detailed task specification is created here.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1727,6 +1741,7 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Co
 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed audit
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
 specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
-while task 0024 remains Draft without one.
+while task 0024 is Complete with its closure artifact and task 0024A is Complete. The selected
+model capability milestone is closed; no later detailed task specification is created here.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

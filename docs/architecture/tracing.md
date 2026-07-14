@@ -1,18 +1,37 @@
 # Tracing
 
-This document explains the typed trace model required by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
+This document explains the typed trace model required by
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-The trace module is not implemented. The Java records on this page are conceptual schema shapes, not current signatures.
+The current `modules/trace` implementation provides the common event envelope only. Concrete
+compile, prepare, run, and backend payload families, trace-local correlation identifiers beyond
+the event ID, typed backend attributes, serialization, and event emission remain planned.
 
-## Typed diagnostic DTOs
+## Mental model
 
-`modules/trace` contains diagnostic data-transfer objects only. A trace producer in the compiler, prepare layer, runtime, or a backend maps its local state into trace DTOs; the trace module does not traverse graphs, execute work, or import producer-layer domain types.
+```text
+producer-owned fact
+  -> producer translates it into a trace-owned TracePayload
+  -> TraceEvent adds event ID, lifecycle phase, level, and monotonic time
+  -> a later diagnostic consumer inspects the typed DTO
+```
 
-Typed DTOs make event schemas explicit, keep consumers independent of producer internals, and allow diagnostic data to be serialized and evolved deliberately.
+The producer owns the fact, identity assignment, clock, and eventual emission. The trace module
+owns only typed data-transfer objects (DTOs), so it does not traverse graphs, execute work, import
+producer-layer domain types, or control a lifecycle stage.
 
-## Event envelope
+## Current event foundation
 
-Every event has a common envelope around a typed payload. The following code is conceptual:
+The implemented public foundation consists of:
+
+- `TraceEventId`, a non-negative producer-assigned identity whose uniqueness domain is defined by
+  the producer;
+- `TracePhase`, with exactly `COMPILE`, `PREPARE`, and `RUN`;
+- `TraceLevel`, with `TRACE`, `DEBUG`, `INFO`, `WARN`, and `ERROR` classification values;
+- `TracePayload`, an open method-free marker for immutable typed diagnostic DTOs; and
+- `TraceEvent<T extends TracePayload>`, the immutable generic envelope.
+
+The current envelope has this exact component shape:
 
 ```java
 public record TraceEvent<T extends TracePayload>(
@@ -24,49 +43,87 @@ public record TraceEvent<T extends TracePayload>(
 ) {}
 ```
 
-The envelope provides event identity, phase, severity, and ordering time. The payload carries the phase-specific facts.
+The producer supplies every component. `monotonicNanos` is a monotonic-clock reading in
+nanoseconds, not a wall-clock or epoch timestamp. Every `long` bit pattern is retained, and only
+differences interpreted within the producer's documented clock domain are meaningful. The
+envelope does not allocate IDs, read a clock, normalize timestamps, or establish ordering between
+different clock domains.
 
-## Payload families
+The record retains its component references without copying them. Its state is shallowly
+immutable; because `TracePayload` is open, payload implementations must honor the documented
+immutability contract themselves. The foundation defines no serialization, filtering, storage,
+sink, logging, or emission behavior.
 
-The primary payload families are:
+## Lifecycle phase and backend diagnostics
 
-- **Compile payloads** for graph capture, optimization passes and rewrites, ownership scoring, partition creation, logical memory, and publication planning.
-- **Prepare payloads** for backend preparation, prepared partitions and units, selected backend routes, prepared memory, and prepared schedules.
-- **Run payloads** for execution and step boundaries, transfers, materialization, and publication.
-- **Backend payloads** for backend availability, capability, routes, kernels, and storage details.
+`TracePhase` answers when a fact occurred:
 
-The families distinguish lifecycle phases without forcing trace consumers to interpret arbitrary strings.
-
-## Trace-local identifiers
-
-Trace events use trace-local identifiers such as `TraceEventId`, `TraceNodeId`, `TraceValueId`, `TraceTensorId`, `TracePartitionId`, `TraceBackendId`, and `TraceUnitId`.
-
-These identifiers let events correlate related facts without importing IDs or object references from model, planning, runtime, or backend modules. Producers translate their own identifiers into the trace representation.
-
-## Backend-specific attributes
-
-Some backend diagnostics cannot be predicted by the shared schema. Typed `TraceAttributes` provides a constrained escape hatch for those details:
-
-```java
-public record TraceAttributes(
-        Map<String, TraceAttributeValue> values
-) {}
+```text
+COMPILE  -> capture, validation, transformation, ownership, and logical planning
+PREPARE  -> backend preparation, route selection, and executable-state construction
+RUN      -> invocation, execution, transfer, materialization, and publication
 ```
 
-`TraceAttributeValue` is typed, with variants such as strings, numbers, booleans, and string lists. This escape hatch complements the typed payload model; it does not replace it.
+Backend is not a fourth phase. A backend may produce facts while preparing a partition and while
+executing it, so a backend event uses `PREPARE` or `RUN` according to when that fact occurred.
+Keeping lifecycle stage separate from producer role preserves the decision boundary that the
+event describes.
+
+`TraceLevel` classifies detail or severity only. Its order does not define a filtering threshold,
+sink policy, logging integration, failure response, or process-exit behavior.
+
+## Planned payload families
+
+The following payload families remain conceptual; no concrete payload record is implemented yet:
+
+- **Compile payloads** for graph capture, transformations, ownership scoring, partition creation,
+  logical memory, and publication planning.
+- **Prepare payloads** for backend preparation, selected routes, prepared partitions and units,
+  prepared memory, and prepared schedules.
+- **Run payloads** for invocation, execution, transfers, materialization, step boundaries, and
+  publication.
+- **Backend payloads** for availability, capability, routes, kernels, storage, and other
+  backend-owned diagnostic facts during the applicable lifecycle phase.
+
+These families will use trace-owned DTOs rather than expose producer objects. Their exact fields
+must follow the later producer-layer contracts and are deliberately not selected by the current
+envelope task.
+
+## Planned correlation and attributes
+
+`TraceEventId` is current. Additional trace-local IDs for nodes, values, tensors, partitions,
+backends, devices, and prepared units remain planned. Their purpose is to let later events
+correlate related facts without importing identities or object references from model, planning,
+runtime, or backend modules. Producers will translate their identities into those trace-owned
+forms.
+
+Typed backend-specific attributes also remain planned. They will be a constrained escape hatch
+for facts that a shared payload cannot predict, not the primary event model.
 
 ## Why not `Map<String,String>`
 
-An unstructured string map as the primary trace model would hide required fields, discard numeric and boolean types, push parsing into every consumer, and make schema changes difficult to validate. Typed payloads preserve meaning and let code handle compile, prepare, run, and backend events explicitly.
+An unstructured string map as the primary trace model would hide required fields, discard numeric
+and boolean types, push parsing into every consumer, and make schema changes difficult to
+validate. Typed payloads preserve meaning and let consumers handle known diagnostic categories
+explicitly. A later typed attribute escape hatch will complement those payloads without replacing
+them.
 
-Maps are therefore limited to backend-specific `TraceAttributes`, whose values remain typed.
+## Conceptual diagnostic scenario
 
-## Diagnostic scenario
-
-If a node receives CPU ownership, a compile payload can record the trace-local node identity, candidate backends, and selected owner. A later CPU prepare payload can record the chosen CPU route, and a run payload can record execution of the prepared unit. This sequence preserves which lifecycle stage made each decision. A single string such as `"cpu fallback"` would lose those typed facts and incorrectly imply that runtime changed ownership.
+The following sequence is conceptual because its concrete payload records and emission APIs are
+not implemented. A compile payload could record that a trace-local node was assigned to CPU. A
+later CPU prepare payload could record the selected route with phase `PREPARE`, and a run payload
+could record execution of the prepared unit with phase `RUN`. This sequence preserves which
+lifecycle stage made each decision. A single string such as `"cpu fallback"` would lose those
+typed facts and could incorrectly suggest that runtime changed compile-time ownership.
 
 ## Why trace stays a dependency leaf
 
-Trace producers exist throughout the architecture. If the trace module depended on model, planning, compiler, prepare, runtime, engine, or concrete backends, using trace types could introduce reverse dependencies or cycles.
+Trace producers exist throughout the architecture. If `modules/trace` depended on model,
+planning, compiler, prepare, runtime, engine, or concrete backends, using trace types could
+introduce reverse dependencies or cycles.
 
-Keeping `modules/trace` as a DTO-only leaf means all layers can emit common diagnostics while ownership and business logic remain in the producing layer. Architecture tests should enforce this leaf boundary; see [Dependency Rules](dependency-rules.md).
+Keeping `modules/trace` as a DTO-only leaf lets later layers share diagnostic contracts while
+ownership and business logic remain in the producing layer. Architecture tests should enforce
+this leaf boundary; see [Dependency Rules](dependency-rules.md) and
+[ADR 0003: Typed trace DTOs](../design/decisions/0003-typed-trace-dtos.md).

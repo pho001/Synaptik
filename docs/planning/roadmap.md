@@ -14,8 +14,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Draft | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
-| 2 | [`modules/trace`](modules/trace/master-plan.md) | Draft | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
+| 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Draft | Foundational value-model conventions are stable. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | Draft | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Draft | Model, trace, backend-contract, and config contracts are ready. | Ownership, partitioning, scoring, and logical memory planning are complete. |
@@ -38,9 +38,18 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The current project area is [`modules/model`](modules/model/master-plan.md).
+The current project area is [`modules/trace`](modules/trace/master-plan.md). The selected model
+milestone is Complete, satisfying the trace entry condition.
 
-Its completed implementation frontier is:
+The completed trace frontier is
+[0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md). It adds
+only the common typed event foundation and is Complete after 12 focused tests across two suites,
+final trace Javadoc generation, Markdown validation, and exact fifteen-path scope validation.
+Task 0002, trace-local correlation identifiers, is the next ordered frontier but remains Draft
+without a detailed specification. Typed attributes, concrete lifecycle payloads, and serialization
+also remain Draft.
+
+The completed model frontier is recorded below:
 
 - [0017A Contiguous semantic kind](modules/model/tasks/0017a-contiguous-semantic-kind.md) — Complete.
 - [0017B Contiguous Tensor expression](modules/model/tasks/0017b-contiguous-tensor-expression.md)
@@ -162,8 +171,11 @@ categorical cross-entropy with logits. Task 0022A is Complete;
 task 0023 is Complete with its detailed specification and final matrix. Tasks 0023A–0023E are
 Complete with their detailed specifications. Task
 [0023F](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md) is Complete with
-its detailed same-occurrence attention-output specification before established task 0024, which
-remains Draft without a detailed specification.
+its detailed same-occurrence attention-output specification before established task 0024. The
+model capability and contract closure audit is Complete with a `BLOCKING_GAP` verdict; focused
+[task 0024A](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md), the
+bounded `GraphValue` Tensor-status Javadoc correction, is Complete. It resolved the audit's sole
+blocker without changing Java behavior and closed the selected model capability milestone.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -320,7 +332,9 @@ Complete. Tasks 0019A2, 0019B, 0019B1, 0019C, 0019C1, 0019D, and 0019E are also 
 Complete. Tasks 0022, 0022A, and 0022B are Complete. Task 0023 is Complete with its detailed
 audit specification and result artifact. Task 0023A is Complete with its detailed specification.
 Tasks 0023B, 0023C, 0023D, 0023E, and 0023F are Complete with their detailed specifications,
-while task 0024 remains Draft without one.
+while task 0024 is Complete with its closure artifact. Task 0024A is Complete after correcting the
+sole stale `GraphValue` current-versus-planned Javadoc sentence. The selected model capability
+milestone is closed.
 
 Task 0018R selects normalized start/length/signed-step slice attributes rather than a negative-end
 sentinel, retains the general array primitive, adds explicit-step `sliceAxis` and one-occurrence
@@ -799,7 +813,8 @@ authorized Compile API status correction.
 | 118 | [0023D Public foldAxis and dynamic window transforms](modules/model/tasks/0023d-public-fold-axis-and-dynamic-window-transforms.md) | Complete |
 | 119 | [0023E Cumulative scan normalization and product](modules/model/tasks/0023e-cumulative-scan-normalization-and-product.md) | Complete |
 | 120 | [0023F Scaled dot-product attention weights output](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete |
-| 121 | 0024 Model capability selection audit | Draft |
+| 121 | [0024 Model capability and contract closure audit](modules/model/tasks/0024-model-capability-and-contract-closure-audit.md) | Complete |
+| 122 | [0024A GraphValue Tensor-status Javadoc correction](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -856,7 +871,8 @@ Complete. [Task 0022](modules/model/tasks/0022-mean-squared-error-loss.md) is Co
 [Task 0022A](modules/model/tasks/0022a-dense-target-categorical-cross-entropy-with-logits.md) is
 Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specification and
 result artifact. Tasks 0023A–0023F are Complete with their detailed specifications; established
-task 0024 remains Draft without one.
+task 0024 is Complete with its historical `BLOCKING_GAP` result artifact. Task 0024A is Complete,
+its sole Javadoc blocker is resolved, and the selected model capability milestone is closed.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

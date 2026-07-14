@@ -34,8 +34,8 @@ execution, and conformance tests remain separate completion layers.
 
 ## Foundation hardening before new operation families
 
-The existing model can express many legacy operations, but four representation limits must be
-resolved before task 0019 expands the inventory.
+The capability reset identified four representation limits before task 0019. Completed tasks
+0018K–0018N resolved them; the subsections below retain the selected contracts and rationale.
 
 ### Valid operations and occurrence signatures
 
@@ -58,22 +58,23 @@ graph-wide and operand-dependent validation.
 
 ### Multi-output provenance
 
-`CompiledNode` already permits multiple outputs, but public Tensor provenance cannot say that two
-result tensors came from the same producer. Current unstack works around that by making every
-result an independent `UNSTACK` operation with an output index.
+`CompiledNode` permits multiple outputs, and completed task 0018L now lets public Tensor
+provenance say that two result tensors came from the same producer. Public unstack deliberately
+creates independent `SELECT` operations at output index zero instead of pretending those results
+share one producer.
 
-True shared producer provenance is required before top-K values/indices, auxiliary normalization
-statistics, graph random operations returning updated random-number-generator (RNG) state, and
-other genuine multi-output compiler operations. The selected design is one immutable identity-
+Top-K values/indices, auxiliary normalization statistics, graph random operations returning
+updated random-number-generator (RNG) state, and attention weights now use true shared producer
+provenance. The selected design is one immutable identity-
 bearing producer with an exact operation, ordered input Tensors, and ordered output descriptors.
 Each result Tensor carries the exact producer reference plus its zero-based output position.
 Output count is derived from the descriptor list; the producer never retains output Tensor
 objects. The same representation covers single-output expressions at output position zero. It
 must remain provenance, not graph IR, and must not give Tensor a graph-local `NodeId`.
 
-Unstack does not justify a true multi-output primitive. It will become a public convenience that
-constructs independent scalar `select` expressions. Genuine multi-output operations will use the
-shared producer contract.
+Unstack does not justify a true multi-output primitive. It is a public convenience that constructs
+independent scalar `select` expressions. Genuine multi-output operations use the shared producer
+contract.
 
 ### Dynamic shape expressions
 
@@ -802,6 +803,20 @@ output/weights metadata example, the exact one-through-two-output signature, two
 eight attention methods, 200-method public Tensor surface, one- and two-output producer forms,
 Markdown, exact 27-path scope, synchronized Complete/Draft status, and whitespace without
 rerunning executable Java tests.
+
+[Task 0024](tasks/0024-model-capability-and-contract-closure-audit.md) completed the final
+planning-only model capability and contract audit with a `BLOCKING_GAP` verdict. Its
+[result artifact](model-capability-contract-closure-audit.md) inventories the exact 200-method
+public Tensor surface, all 107 operation-kind constants and 127 signatures, 47 accepted
+attributes classes, foundations, shared outputs, selected baseline, numerical policies, cleanup,
+adjoint prerequisites, documentation, and repository checkpoint. Its historical verdict records
+that model behavior and semantic representation were coherent while `GraphValue` Javadoc still
+called the already-implemented public mutable Tensor API planned. Completed
+[task 0024A](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) corrected that sole
+documentation blocker to current-status wording, preserved the Java declaration and behavior,
+recorded the audit closure, and passed final model-Javadoc and documentation validation. The
+selected model capability milestone is now Complete.
+
 Task 0023E's focused run passed 44 tests, and its single final model suite passed 1,008 tests across
 126 suites. Its separate documentation pass validated model Javadoc, Java 26 API shape, generated
 Javadoc, the 196-method public Tensor surface, Markdown, exact 33-path scope, and synchronized

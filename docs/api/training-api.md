@@ -8,7 +8,8 @@ Training will own backend-independent optimizer algorithms and session concepts.
 
 ## Planned concepts
 
-- `Parameter` and `ParameterGroup` will describe trainable public tensor state and group-level optimizer settings.
+- `extensions/nn` will own `Parameter` and `Buffer` declarations as module state. Training will
+  consume those parameters, while `ParameterGroup` will describe optimizer-group settings.
 - `Optimizer` implementations such as SGD, Adam, and AdamW will define mathematical updates without importing CPU, Metal, or CUDA modules.
 - `TrainingSession` and `TrainingStep` will coordinate forward/backward execution, gradient publication, and optimizer updates through shared lifecycle contracts.
 

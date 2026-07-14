@@ -262,8 +262,11 @@ materialization, compiler capture, lowering, backend/ONNX behavior, and executio
 Other concrete kind families and expression families, their family attributes, random Operations,
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
-runtime, concrete backends, traces, and training remain architecture or planning contracts. A
-definition explains intended meaning; it is not by itself evidence that a Java type exists.
+runtime, concrete backends, concrete trace payload families, trace correlation beyond event
+identity, trace serialization/emission, and training remain architecture or planning contracts.
+The implemented trace foundation consists only of `TraceEventId`, `TracePhase`, `TraceLevel`, the
+open `TracePayload` marker, and the generic `TraceEvent` envelope. A definition explains intended
+meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -896,7 +899,10 @@ scalar values](api/tensor-api.md#exact-typed-scalar-values).
 
 ### Data-transfer object / DTO
 
-A value whose purpose is to carry structured data across a boundary without owning the behavior that produced it. Synaptik's planned trace module uses typed DTOs so diagnostic consumers receive explicit fields without importing compiler, runtime, or backend business objects.
+A value whose purpose is to carry structured data across a boundary without owning the behavior
+that produced it. Synaptik's implemented trace-event foundation uses typed DTO contracts so later
+diagnostic producers and consumers can exchange explicit fields without importing compiler,
+runtime, or backend business objects. Concrete lifecycle payload DTOs remain planned.
 
 ### Dense target
 
@@ -2499,7 +2505,51 @@ normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normali
 
 ### Trace
 
-Structured diagnostic information emitted by compile, prepare, run, and backend activity. A trace helps people and tools understand what happened without becoming business logic or execution state. The trace module is a dependency leaf and uses trace-local identifiers rather than importing producer-layer domain objects. See [Tracing](architecture/tracing.md).
+Structured diagnostic information about compile, prepare, run, and backend activity. A trace
+helps people and tools understand what happened without becoming business logic or execution
+state. The implemented module currently defines only the common event envelope and event identity;
+it does not emit, store, filter, or serialize events. The trace module is a dependency leaf and
+later correlation identifiers remain trace-local rather than importing producer-layer domain
+objects. See [Tracing](architecture/tracing.md).
+
+### Trace event envelope
+
+The implemented generic `TraceEvent<T extends TracePayload>` record that carries one non-null
+producer-assigned [`TraceEventId`](#trace-event-identity--traceeventid), one non-null lifecycle
+[`TracePhase`](#trace-phase--tracephase), one non-null [`TraceLevel`](#trace-level--tracelevel), a
+producer-supplied monotonic-clock reading in nanoseconds, and one non-null typed payload. The
+record retains all components unchanged and has ordinary component-based record value semantics.
+Its timestamp accepts every `long` value, is not wall-clock or epoch time, and is meaningful for
+differences only within the producer's documented clock domain. The envelope allocates no ID,
+reads no clock, and provides no serialization, filtering, storage, sink, or emission behavior.
+
+### Trace event identity / `TraceEventId`
+
+The implemented non-negative `long` identity for one diagnostic event within a
+producer-defined trace stream. The producer assigns the value and defines its uniqueness domain;
+zero is valid, no sentinel is reserved, and the trace module provides no allocator or global
+uniqueness guarantee.
+
+### Trace level / `TraceLevel`
+
+The implemented diagnostic classification with the exact detail-to-severity order `TRACE`,
+`DEBUG`, `INFO`, `WARN`, and `ERROR`. A level classifies an event but defines no filtering
+threshold, sink behavior, logging integration, failure response, or process-exit policy.
+
+### Trace payload / `TracePayload`
+
+The implemented open method-free marker for a typed diagnostic DTO carried by a
+[`TraceEvent`](#trace-event-envelope). Implementations are required to be immutable and to
+describe producer facts in trace-owned terms, but the open marker cannot enforce those properties
+at runtime. Concrete compile, prepare, run, and backend payload records remain planned.
+
+### Trace phase / `TracePhase`
+
+The implemented lifecycle classification with exactly `COMPILE`, `PREPARE`, and `RUN`.
+`COMPILE` covers capture through logical planning, `PREPARE` covers backend preparation and
+executable-state construction, and `RUN` covers invocation and execution activity. Backend is a
+producer role and planned payload family, not a fourth phase; a backend fact uses the phase in
+which it occurs.
 
 ### Training graph
 
@@ -2507,7 +2557,11 @@ The compile-time computation used for a training-capable mode. It contains the f
 
 ### Typed trace DTO
 
-A typed data-transfer object used to carry one defined category of diagnostic facts, such as compile, prepare, run, or backend payloads. Typed fields preserve meaning and machine-readable types. They are preferred over a primary `Map<String,String>` model, while typed trace attributes provide a limited escape hatch for backend-specific details. See [Tracing](architecture/tracing.md#typed-diagnostic-dtos).
+A typed data-transfer object used to carry one defined category of diagnostic facts. The current
+foundation implements the event envelope and an open payload marker; concrete compile, prepare,
+run, and backend payload DTOs remain planned. Typed fields preserve meaning and machine-readable
+types. They are preferred over a primary `Map<String,String>` model, while a typed backend
+attribute escape hatch also remains planned. See [Tracing](architecture/tracing.md#current-event-foundation).
 
 ### `ValueId`
 

@@ -8,7 +8,7 @@ import java.util.Objects;
  *
  * <p>A graph value is data that may be a graph input, an intermediate result, or a graph output.
  * It is distinct from a {@link CompiledNode}, which represents a computation occurrence, and from
- * the planned public mutable {@code Tensor} API object used to build expressions. It also does not
+ * the current public mutable {@code Tensor} API object used to build expressions. It also does not
  * represent physical storage, a prepared memory slot, a device buffer, or runtime residency.</p>
  *
  * <p>Producer and consumer relationships are deliberately absent. A graph input has no producer,

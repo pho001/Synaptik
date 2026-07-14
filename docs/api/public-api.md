@@ -4,19 +4,45 @@
 
 This page identifies which public contracts a caller can use today and which names are architecture-level plans. It prevents conceptual lifecycle examples from being mistaken for released Java APIs.
 
-Synaptik has no published compatibility guarantee yet. The current implementation is an early model foundation, and APIs may change through the ordered planning process. [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary compatibility.
+Synaptik has no published compatibility guarantee yet. The current implementation contains the
+selected public model foundation, tensor-expression metadata surface, and common trace-event
+envelope. Compiler, prepare, runtime, backend, and engine APIs remain planned. APIs may change
+through the ordered planning process. [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module
+boundaries, not source or binary compatibility.
 
 ## Current public contracts
 
 The implemented `modules:model` surface contains:
 
-- data type metadata and floating-point promotion;
+- data type metadata, typed scalar values, and numeric promotion;
 - BFLOAT16 scalar bit conversion;
-- static and symbolic dimensions, immutable shapes, and local broadcasting;
-- resolved static layout geometry; and
-- distinct tensor, graph-node, and graph-value identifiers.
+- static, named dynamic, and expression dimensions, immutable Shapes, and local broadcasting;
+- resolved static layout geometry and host-storage contracts;
+- public mutable `Tensor`, eager leaf factories, explicit-source random construction, and
+  backend-independent expression metadata;
+- typed operation attributes and occurrence signatures, shared multi-output producer provenance,
+  and operation-specific result carriers; and
+- immutable graph values, nodes, compiled graph-model data, publication bindings, and distinct
+  tensor/node/value identifiers.
 
-The [Tensor API reference](tensor-api.md) documents these contracts, inputs, results, failures, and examples. Despite that page's name, a public mutable `Tensor` class is not implemented yet.
+The [Tensor API reference](tensor-api.md) documents these current contracts, inputs, results,
+failures, and examples. The current model surface records meaning and metadata; it does not imply
+compiler capture, backend support, kernels, prepared execution, runtime residency, or numerical
+execution.
+
+The implemented `modules:trace` surface contains:
+
+- producer-assigned non-negative `TraceEventId` values;
+- `TracePhase` lifecycle classification for `COMPILE`, `PREPARE`, and `RUN`;
+- `TraceLevel` detail and severity classification;
+- the open method-free `TracePayload` marker; and
+- the generic `TraceEvent<T extends TracePayload>` envelope with a producer-supplied monotonic
+  nanosecond reading.
+
+The [tracing explanation](../architecture/tracing.md) documents the envelope semantics and
+ownership boundaries. Concrete payload families, trace-local correlation IDs beyond the event
+ID, typed backend attributes, serialization, sinks, and emission remain planned. Backend is a
+payload family and producer role, not another lifecycle phase.
 
 ## Planned public lifecycle
 
