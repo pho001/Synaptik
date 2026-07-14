@@ -2,7 +2,10 @@
 
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-Partition scoring is not implemented. This page explains the accepted boundary and permitted inputs; it does not define a current formula, weights, or callable API.
+The operation-capability question and provider collaboration used before scoring are implemented.
+Capability matrices, hard-eligibility evaluation, scoring, ownership decisions, partitioning, and
+logical memory planning remain planned. This page explains the accepted boundary and permitted
+inputs; it does not define a current scoring formula, weights, or callable scoring API.
 
 ## Purpose and pipeline position
 
@@ -17,14 +20,24 @@ It runs after intent propagation and capability analysis and before maximal same
 
 ```text
 backend intent
-  -> capability analysis
+  -> current OperationCapabilityQuery
+  -> current BackendCapabilityProvider boolean answer
+  -> planned capability matrix and hard eligibility
   -> backend-neutral partition scoring
   -> ownership decision
   -> maximal same-owner partitioning
   -> logical memory/materialization requirements
 ```
 
-Capability determines whether a backend can own work. Scoring compares the valid ownership candidates using compile-time information. The partitioner then groups adjacent work with the same selected owner.
+The current capability contract asks whether one named backend can semantically own one immutable
+operation occurrence. The query contains an `Operation` plus ordered input and output
+`TensorDescriptor` snapshots; the explicitly supplied provider returns only a deterministic
+boolean answer for its stable `BackendId`. It does not discover a backend, inspect availability,
+evaluate a hard requirement, select a device or route, or explain a rejection.
+
+Later capability-matrix and hard-eligibility work will turn those narrow answers into valid
+ownership candidates. Scoring will compare the candidates using compile-time information, and the
+partitioner will then group adjacent work with the same selected owner.
 
 ## Information scoring may use
 
@@ -62,7 +75,8 @@ Concrete kernel or runtime scoring belongs to backend prepare, not planning.
 The scoring model may account for these backend-neutral factors:
 
 - **Backend intent** reflects explicit compile configuration and preferences.
-- **Capability** removes unsupported ownership candidates and describes suitability known through planning contracts.
+- **Capability** will remove unsupported ownership candidates using the current query/provider
+  contract plus later matrix and eligibility work.
 - **Transfer penalty** estimates the cost of moving values across backend ownership boundaries.
 - **Materialization penalty** estimates logical layout or contiguity work needed by an ownership choice.
 - **Boundary penalty** discourages plans fragmented into costly backend transitions.

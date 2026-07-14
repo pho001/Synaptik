@@ -17,8 +17,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
-| 4 | [`modules/config`](modules/config/master-plan.md) | In progress | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
-| 5 | [`modules/planning`](modules/planning/master-plan.md) | Draft | Model, trace, backend-contract, and config contracts are ready. | Ownership, partitioning, scoring, and logical memory planning are complete. |
+| 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
+| 5 | [`modules/planning`](modules/planning/master-plan.md) | In progress (interleaved) | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, and logical memory planning are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
 | 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Draft | Model, config, planning, backend-contract, and trace contracts are ready. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Draft | Compiler, planning, runtime, config, backend-contract, and trace contracts are ready. | Shared prepare contracts and validation are complete. |
@@ -38,23 +38,30 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The active project area is [`modules/config`](modules/config/master-plan.md). The
-post-backend-contract checkpoint reassessment selected
-[Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) as
-the first config task. It is Complete with only immutable optionality for one completed hard
-backend requirement plus the architecture-approved public config-to-backend-contract dependency.
-Its affected suites, independent documentation review, and repository dependency checkpoint
-passed. Config task
-[0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
-is Complete. It adds only the architecture-defined graph-scope modes and a stable boolean
-permission for optional semantics-preserving compiler optimization; its module tests, independent
-documentation review, and documentation validation passed. No task is Ready. Ranking preference,
-scoring, compile aggregation, calibrated profiles, planning evaluation, and lifecycle behavior
-remain ordered Draft work without detailed task specifications. The selected model milestone and
-trace tasks
+The completed interleaved frontier is
+[Planning 0001 Operation capability-query foundation](modules/planning/tasks/0001-operation-capability-query-foundation.md),
+an explicit narrow interleave before config task 0003. It is Complete after adding the immutable
+typed question planning asks a named backend about one operation occurrence and the inward-facing
+provider collaboration. Its focused suites, independent documentation pass, and single final
+1,079-test repository suite passed. It adds no provider implementation, capability matrix, hard-
+eligibility evaluation, score, ownership, partition, compiler behavior, preparation, runtime
+behavior, trace schema, or execution.
+
+[Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) and
+[Config 0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
+remain Complete. Config tasks 0003–0008 remain ordered Draft work without detailed
+specifications. The likely frontier returns to config task 0003 for partition-scoring
+configuration before planning capability matrices and scoring proceed. Config task 0003 remains
+Draft and has no detailed specification or Ready status; advancing it requires a separate planning
+step.
+Planning tasks 0002–0006 remain Draft without detailed specifications.
+
+Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
 [0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md)
-are Complete.
+remain Complete. Trace tasks 0003–0008 remain Draft without detailed specifications; the boolean
+capability foundation does not yet stabilize structured rejection diagnostics or trace payload
+schemas.
 
 [Backend-contract 0001 Backend and device identifiers](modules/backend-contract/tasks/0001-backend-and-device-identifiers.md)
 is Complete. It replaces only the backend-contract placeholder with open backend identity and

@@ -5,13 +5,15 @@
 This guide explains how users will express backend intent and how compile-time planning will turn
 it into ownership. The current Java API can construct one hard backend eligibility target and
 place it in `BackendIntent`, or construct an unconstrained intent with no hard target. The later
-`CompileConfig` aggregate and planning APIs are not implemented, so an intent cannot yet be
-attached to a compile request and exact preference options and defaults are not available.
+planning module also has a current immutable operation-capability query and explicitly supplied
+provider interface. The later `CompileConfig` aggregate, capability matrix, eligibility evaluator,
+scoring, and ownership planner are not implemented, so an intent cannot yet be attached to a
+compile request and exact preference options and defaults are not available.
 
 ## Mental model
 
 ```text
-optional hard requirement + backend capabilities + availability
+optional hard requirement + current provider capability answers + availability
   -> valid ownership candidates
 user preference + valid candidates + graph estimates
   -> backend-neutral score
@@ -25,7 +27,7 @@ concrete kernel; that remains a backend prepare decision.
 
 ## Current hard-target and intent values
 
-These constructors are current and runnable with `modules:backend-contract`:
+These constructors are current and runnable with `modules:backend-contract` and `modules:config`:
 
 ```java
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
@@ -65,6 +67,21 @@ will combine a supplied hard target with
 availability and capability facts and fail rather than silently relax the target when no eligible
 candidate remains; the failure type and message are not yet specified.
 
+## Current capability boundary
+
+`OperationCapabilityQuery` currently snapshots one backend-independent `Operation` plus its
+ordered input and output `TensorDescriptor` references. An explicitly supplied
+`BackendCapabilityProvider` names one stable `BackendId` and returns a deterministic boolean
+answer for that immutable occurrence. This is a library integration boundary rather than a user
+selection setting: constructing a query does not attach `BackendIntent`, discover a backend,
+inspect `BackendAvailabilitySnapshot`, evaluate a requirement, or select ownership.
+
+No production provider implementation or planning consumer exists yet. A `true` answer means only
+that the named backend can semantically own the occurrence. A `false` answer carries no diagnostic
+reason and does not by itself say whether the backend is registered or available. Users therefore
+cannot complete backend selection with the current API; the runnable inputs above are useful for
+preparing configuration, while compilation remains a planned workflow.
+
 ## Scenario
 
 Assume a region can run on CPU or Metal. Moving its input to Metal has an estimated cost of 20 units, Metal execution saves 50 units, and an extra ownership boundary costs 10 units. A simple interpreted comparison is a net Metal benefit of `50 - 20 - 10 = 20` units, so Metal may win. These numbers illustrate the factors only; no implemented scoring formula or unit is promised.
@@ -80,11 +97,13 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 | Current device residency changes compile scoring | Mutable run state leaked into planning. | Use compile-time estimates and immutable profiles only. |
 | An accelerator-class requirement is treated as a Metal preference | Hard eligibility was confused with ranking. | Keep the class as a candidate filter; later scoring configuration owns preference. |
 | `BackendIntent.unconstrained()` is treated as guaranteed automatic fallback | Absence of a hard target was confused with selection behavior. | Treat it only as no hard eligibility constraint; later planning may still have no valid candidate. |
+| A capability-provider `false` is treated as proof that the backend is unavailable | Semantic support was confused with supplied availability. | Evaluate capability and availability as separate facts in later planning. |
 
 ## Limitations
 
-`BackendIntent` placement and hard-target optionality are current. Preference types, scoring
-policy, compile aggregation, requirement evaluation, and no-match diagnostics remain to be
-specified by focused tasks. See [Public API
+`BackendIntent` placement and hard-target optionality plus the operation query/provider contracts
+are current. Provider implementations, device-level capability, capability matrices, preference
+types, scoring policy, compile aggregation, requirement evaluation, ownership, and no-match
+diagnostics remain to be specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

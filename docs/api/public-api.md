@@ -5,16 +5,18 @@
 This page identifies which public contracts a caller can use today and which names are architecture-level plans. It prevents conceptual lifecycle examples from being mistaken for released Java APIs.
 
 Synaptik has no published compatibility guarantee yet. The current implementation contains the
-selected public model foundation, tensor-expression metadata surface, and common trace-event
-envelope plus model-correlation identifiers. It also contains backend and backend-scoped device
-identity values plus a coarse CPU-versus-accelerator device classification. Compiler, planning,
-prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
+selected public model foundation, tensor-expression metadata surface, common trace-event envelope
+plus model-correlation identifiers, and the first backend-neutral planning capability contracts.
+It also contains backend and backend-scoped device identity values plus a coarse
+CPU-versus-accelerator device classification. Compiler orchestration, capability matrices,
+ownership planning, partitioning, prepare, runtime, concrete backend integration, and engine APIs
+remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope, and
 permission for optional semantics-preserving compiler optimization. No current compile aggregate,
-compiler, or planning API consumes those values. APIs may change through the ordered planning
-process.
+compiler, capability matrix, or ownership planner consumes those values. APIs may change through
+the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -192,6 +194,70 @@ pass order, numerical relaxation, backend fusion switch, or execution policy.
 
 `CompileConfig`, scoring and profile inputs, compiler and planning interpretation, and every
 lifecycle consumer remain planned.
+
+The implemented `modules:planning` surface contains two backend-neutral compile-time contracts:
+
+- `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
+  backend-independent `Operation` reference plus ordered immutable membership snapshots of input
+  and output `TensorDescriptor` references; and
+- `BackendCapabilityProvider`, an explicitly supplied collaboration with a stable non-null
+  `BackendId` and a deterministic boolean capability answer.
+
+The query validates only non-null references and the input/output occurrence counts declared by
+the operation signature. It does not validate operand data types, Shapes, layouts, graph closure,
+availability, hard requirements, scoring, or execution. Mutable source lists cannot change a
+constructed query, while the exact operation and descriptor element references are retained.
+
+This current example asks an illustrative local provider about one unary `ABS` occurrence:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+TensorDescriptor vector =
+        new TensorDescriptor(DataType.FLOAT32, Shape.of(4), Optional.empty(), false);
+Operation abs = new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE);
+OperationCapabilityQuery query =
+        new OperationCapabilityQuery(abs, List.of(vector), List.of(vector));
+
+BackendId cpu = new BackendId("cpu");
+BackendCapabilityProvider illustrativeCpu = new BackendCapabilityProvider() {
+    @Override
+    public BackendId backendId() {
+        return cpu;
+    }
+
+    @Override
+    public boolean supports(OperationCapabilityQuery candidate) {
+        Objects.requireNonNull(candidate, "query");
+        return candidate.operation().kind() == UnaryElementwiseKind.ABS;
+    }
+};
+
+boolean semanticOwnershipSupported = illustrativeCpu.supports(query);
+```
+
+The concrete inputs are one FLOAT32 descriptor with Shape `[4]`, the `ABS` operation, and the
+backend identity `"cpu"`. The result is `true` because this illustrative provider recognizes that
+operation kind. It proves only semantic ownership support for this immutable occurrence; it does
+not prove CPU registration or availability, evaluate `BackendIntent`, choose a device or CPU
+route, prepare work, or execute values. The repository supplies no production provider
+implementation and no current compiler or planning consumer.
+
+Provider implementations must reject a null query with `NullPointerException("query")`. A false
+answer carries no diagnostic reason. Capability matrices, hard-eligibility evaluation,
+device-level queries, provider composition, ownership scoring, partitions, and diagnostics remain
+planned.
 
 ## Planned public lifecycle
 

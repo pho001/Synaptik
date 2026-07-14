@@ -1,18 +1,30 @@
-# Report backend capabilities (planned contract)
+# Report backend capabilities
 
 ## Outcome and status
 
-This guide explains how a future concrete backend will report which planned graph work it can
-accept. The shared `BackendId` and `BackendDeviceId` identity values and the coarse `DeviceClass`
-category are current. `BackendAvailabilitySnapshot` is also current as an immutable,
-caller-supplied point-in-time fact. The sealed `BackendRequirement` family is current as hard
-eligibility target vocabulary, and current `BackendIntent` records whether one such target is
-present. Capability providers, device discovery and refresh, requirement evaluation, planning,
-prepare, registration, and concrete backend contracts remain planned, so the capability sample
-is conceptual.
+This guide explains the current backend-neutral contract through which a concrete backend can
+report whether it can semantically own one operation occurrence. `OperationCapabilityQuery` and
+`BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
+supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
+also current. The repository does not yet ship a provider implementation or a compiler/planning
+consumer. Capability matrices, requirement evaluation, ownership, concrete backend preparation,
+registration, and execution remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
+
+## Prerequisites and current contracts
+
+A provider implementation depends inward on the current planning, model, and backend-contract
+APIs. It needs no runtime, prepare, engine, registry, or discovery service. Its two obligations are:
+
+- `backendId()` always returns one stable non-null backend ownership identity; and
+- `supports(query)` rejects null with `NullPointerException("query")` and returns a deterministic
+  boolean for an immutable query and unchanged immutable provider configuration.
+
+The query snapshots ordered input and output list membership while retaining the exact immutable
+`Operation` and `TensorDescriptor` references. It validates occurrence counts, not descriptor
+compatibility or eventual executability.
 
 ## Current shared identity, availability, and requirement vocabulary
 
@@ -89,43 +101,95 @@ intersection of the optional hard target, supplied availability, and reported ca
 
 ```text
 operation + data type + shape + layout
-  -> capability provider
-  -> capable ownership candidates
+  -> current immutable operation-capability query
+  -> current explicitly supplied provider
+  -> current boolean semantic-capability answer
+  -> planned capability matrix
 optional hard target + supplied availability + capable candidates
   -> later planning eligibility
   -> valid ownership candidates
   -> backend-neutral scoring
 ```
 
-A concrete backend will implement capability evaluation. Planning will call the shared contract
-for work-specific support, then later planning will combine capable candidates with supplied
-availability and any hard target. If no eligible candidate remains, the later owning layer fails
-instead of weakening the target; its exception details are not yet defined. Compile-time plans
-will retain the selected current `BackendId` value, never the provider object.
+A concrete backend may implement the current provider interface. Later planning will call
+explicitly supplied instances for work-specific support, then combine capable candidates with
+supplied availability and any hard target. If no eligible candidate remains, the later owning
+layer will fail instead of weakening the target; its exception details are not yet defined.
+Compile-time plans will retain the selected current `BackendId` value, never the provider object.
 
-## Conceptual example
+## Illustrative current provider
 
-Conceptual example: assume a CPU capability provider receives a `FLOAT32` matrix multiplication
-with shapes `[2, 3]` and `[3, 4]`. The output shape is `[2, 4]`, containing `2 × 4 = 8` values.
-The provider may report CPU ownership as supported based on semantic facts. It must not select
-OpenBLAS or a scalar loop; CPU prepare makes that route decision later.
+The repository does not ship this class; it is an illustrative implementation of the current
+interfaces. It reports support for one FLOAT32 binary-ADD occurrence without selecting a CPU
+route:
 
-A rejection should carry typed or structured diagnostic evidence explaining the unsupported fact,
-such as data type or layout. Exact data-transfer objects (DTOs) remain to be defined.
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
+import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+final class IllustrativeCpuCapabilities implements BackendCapabilityProvider {
+    private final BackendId backendId = new BackendId("cpu");
+
+    @Override
+    public BackendId backendId() {
+        return backendId;
+    }
+
+    @Override
+    public boolean supports(OperationCapabilityQuery query) {
+        Objects.requireNonNull(query, "query");
+        return query.operation().kind() == BinaryArithmeticKind.ADD
+                && query.inputs().stream()
+                        .allMatch(input -> input.dataType() == DataType.FLOAT32)
+                && query.outputs().stream()
+                        .allMatch(output -> output.dataType() == DataType.FLOAT32);
+    }
+}
+
+TensorDescriptor matrix =
+        new TensorDescriptor(DataType.FLOAT32, Shape.of(2, 3), Optional.empty(), false);
+Operation add = new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
+OperationCapabilityQuery query =
+        new OperationCapabilityQuery(add, List.of(matrix, matrix), List.of(matrix));
+
+boolean supported = new IllustrativeCpuCapabilities().supports(query);
+```
+
+The two exact input descriptors and one output descriptor all describe FLOAT32 Shape `[2, 3]`, so
+`supported` is `true`. The result means only that the illustrative provider accepts semantic CPU
+ownership of this occurrence. It does not prove CPU availability, evaluate a hard requirement,
+select scalar, Vector API, or OpenBLAS execution, prepare the occurrence, or calculate matrix
+values. CPU prepare will own any route decision after ownership planning exists.
+
+A current `false` answer carries no rejection reason. A later separate result or trace contract may
+provide typed evidence only after its consumers and diagnostic vocabulary are defined.
 
 ## Failures and diagnostics
 
 - Invalid graph semantics belong to compiler validation, not capability fallback.
 - Backend unavailability should remove or reject that ownership candidate before prepare.
-- If no candidate supports required work, compilation must fail rather than defer discovery to
-  runtime.
+- When the compiler consumer exists, no capable eligible candidate must fail compilation rather
+  than defer discovery to runtime.
 - Capability evaluation must be deterministic for the supplied immutable compile-time facts.
+- A null query must fail with `NullPointerException("query")`; a provider must not reinterpret it
+  as unsupported work.
 
 ## Validation expectations
 
-Future implementations require unit tests for supported and rejected combinations, architecture
-tests for dependency direction, and backend-conformance tests comparing declared support with
-actual preparation.
+Current provider implementations require unit tests for supported and rejected combinations and
+architecture tests for dependency direction. Backend-conformance tests comparing declared support
+with actual preparation remain necessary once concrete preparation exists; task 0001 adds no
+concrete backend behavior to test.
 
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide

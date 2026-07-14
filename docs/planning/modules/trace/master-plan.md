@@ -79,9 +79,11 @@ Complete and supply the common event envelope plus three model-correlation domai
 is Ready. Backend-contract tasks 0001–0003 now provide identity, class, and supplied availability
 facts, and task 0004 completes its hard-requirement vocabulary. The backend-contract project area
 and capability checkpoint are Complete. The latest explicit interleave has config tasks 0001 and
-0002 Complete, with no config task Ready. Task 0002 added graph-scope and optional-optimization
-configuration values without trace DTOs or compiler events. Trace task 0003 and later rows remain
-Draft until the broader config, planning, compiler, prepare, and runtime producer facts are stable.
+0002 Complete and planning task 0001 Complete before config scoring work resumes. Planning 0001
+defines only an operation-capability query/provider boundary; it adds no
+trace DTO, provider implementation, candidate matrix, score, or compiler event. Trace task 0003
+and later rows remain Draft without detailed specifications until the broader config, planning,
+compiler, prepare, and runtime producer facts are stable.
 
 ## Open questions
 
@@ -114,6 +116,9 @@ Draft until the broader config, planning, compiler, prepare, and runtime produce
 - Backend-contract classification, supplied availability, and declarative requirement work do not
   make trace consume those producer types. Later producers will translate selected facts into
   trace-owned identities and payloads after their complete schemas are concrete.
+- The next interleave opened only planning task 0001 before config scoring configuration. A boolean
+  capability answer does not stabilize trace rejection diagnostics or backend payload schemas, so
+  trace task 0003 and later rows remain Draft and trace keeps no planning dependency.
 
 ## Risks
 
@@ -154,3 +159,10 @@ prepare, runtime, or backend payload schemas. Config task 0001's repository chec
 Config task 0002 is now Complete, but its declarative mode and optimization values still create no
 compiler or trace producer schema. No config task is Ready, and no trace task 0003 specification
 has been created.
+
+The following reassessment selected planning task 0001 before config 0003. That task is now
+Complete after stabilizing the typed capability question and passing its single final repository
+suite. It deliberately defers structured rejection diagnostics and device-level capability,
+creates no trace producer schema, and does not justify a trace task 0003 specification. The likely
+frontier returns to Draft config 0003 rather than trace; neither task has a detailed specification
+or Ready status yet.

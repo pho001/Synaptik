@@ -6,7 +6,9 @@ This reference separates the compile-time model values implemented today from th
 engine APIs that remain planned. The repository does not yet provide a runnable graph compiler.
 The current config module provides three immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
-`GraphOptimizationConfig`.
+`GraphOptimizationConfig`. The current planning module provides the immutable
+`OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider` collaboration;
+it does not yet provide a capability matrix, ownership planner, or compiler integration.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -625,6 +627,35 @@ a pass list, pass order, internal graph shape, or implementation strategy. It pe
 approximate mathematics, changed numerical semantics, backend-specific fusion, preparation, or
 execution behavior. Direct construction retains either primitive boolean value, and both factories
 return fresh values. No current compiler consumes the permission.
+
+## Current operation-capability contracts
+
+`io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery` describes one immutable
+operation occurrence for a compile-time capability question. Its exact ordered components are an
+`Operation`, a `List<TensorDescriptor>` of inputs, and a `List<TensorDescriptor>` of outputs. The
+canonical constructor checks the three top-level references, scans inputs in encounter order,
+snapshots input membership, scans outputs in encounter order, snapshots output membership, and
+then validates only the two counts against `operation.signature()`.
+
+The snapshots retain the exact descriptor element references and are immutable. Empty or repeated
+inputs are valid when the signature permits them, and repeated output descriptor references and
+valid multi-output occurrences are representable. Null failures identify the top-level component
+or first encountered element, such as `inputs[1]`; signature count failures retain the existing
+`OperationSignature` behavior. The query performs no operand compatibility, graph, availability,
+requirement, scoring, device, route, prepare, runtime, or execution validation.
+
+`BackendCapabilityProvider` names one stable non-null `BackendId` through `backendId()` and answers
+`supports(query)` for that same backend. For an immutable query and unchanged immutable provider
+configuration, the boolean answer is deterministic. Implementations reject a null query with
+`NullPointerException("query")`. `true` means only that the backend can semantically own the
+described occurrence; `false` carries no reason.
+
+The provider is supplied explicitly to later compile-time planning. The current contract performs
+no registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
+evaluation, scoring, route or kernel selection, preparation, or execution. The repository supplies
+no production provider implementation and no compiler consumer. Compile-time plans will retain a
+`BackendId`, not a provider object. Capability matrices, eligibility, ownership, partitions,
+device-level capability, and typed rejection diagnostics remain planned.
 
 ## Current expression input and planned compiler output
 

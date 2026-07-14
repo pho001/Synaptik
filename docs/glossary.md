@@ -6,6 +6,12 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
+The current planning foundation consists only of `OperationCapabilityQuery` and
+`BackendCapabilityProvider`: one immutable operation-occurrence question and one explicitly
+supplied boolean provider collaboration. Capability matrices, hard eligibility, scoring,
+ownership, partitioning, logical memory, provider implementations, compiler consumers, and
+device-level capability remain planned.
+
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
 span, view, `TensorDescriptor`, typed
@@ -664,7 +670,29 @@ execution, or trace translation and carries no timestamp, status, or absence rea
 
 ### Backend capability
 
-A declarative statement about computation a backend can accept, based on facts such as operation kind, data type, shape, layout, or device availability. Planning queries capabilities when choosing ownership. A capability is not a kernel, a live executable service, or a promise that one fixed implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
+A backend's declarative answer about computation it can semantically own. The current planning
+contract asks about one immutable [`OperationCapabilityQuery`](#operation-capability-query--operationcapabilityquery)
+through one explicitly supplied
+[`BackendCapabilityProvider`](#backend-capability-provider--backendcapabilityprovider). The answer
+is backend-level and boolean; it is separate from registration, availability, hard eligibility,
+device selection, scoring, route selection, preparation, and execution. A capability is not a
+kernel, a live executable service, a rejection diagnostic, or a promise that one fixed
+implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
+
+### Backend capability provider / `BackendCapabilityProvider`
+
+The implemented planning-owned interface through which one named backend answers
+[backend-capability](#backend-capability) questions. `backendId()` returns one stable non-null
+[`BackendId`](#backend-identity--backendid). `supports(query)` deterministically reports semantic
+ownership support for an immutable query and unchanged immutable provider configuration, rejects
+null with `NullPointerException("query")`, and returns no rejection reason.
+
+The provider is an explicitly supplied compile-time collaboration, not a registry, discovery
+mechanism, `ServiceLoader` lookup, service locator, availability source, requirement evaluator,
+scoring policy, route selector, preparer, or execution service. A concrete backend may later
+implement it through the architecture-approved inward dependency on planning, but the repository
+currently supplies no production implementation or consumer. Compile-time plans retain
+`BackendId`, not a provider object.
 
 ### Backend device identity / `BackendDeviceId`
 
@@ -1391,6 +1419,21 @@ nodes](api/tensor-api.md#graph-values-and-compiled-nodes).
 ### `NodeId`
 
 A validated non-negative identifier for a node occurrence within one owning graph. It identifies where operation semantics occur, not the operation kind itself. Its numeric value may be reused in another graph, so it has meaning only with its graph context. See [Identifiers](api/tensor-api.md#typed-identifiers).
+
+### Operation capability query / `OperationCapabilityQuery`
+
+The implemented immutable planning question for one structurally valid operation occurrence. It
+retains the exact backend-independent [`Operation`](#operation) reference and immutable ordered
+membership snapshots of the exact input and output
+[`TensorDescriptor`](#tensor-descriptor) references. Construction rejects null top-level or
+element references, snapshots inputs before outputs, and then validates only the final input and
+output counts through the operation's [`OperationSignature`](#operation-signature).
+
+The query has no graph, node, value, phase, backend, device, availability, requirement, score,
+route, kernel, prepare, runtime, or execution state. It does not validate descriptor data-type,
+Shape, layout, gradient, operand-role, or graph compatibility. A
+[`BackendCapabilityProvider`](#backend-capability-provider--backendcapabilityprovider) answers the
+query for its own stable backend identity.
 
 ### Operation
 

@@ -1,6 +1,6 @@
 dependencies {
-    implementation(project(":modules:model"))
+    api(project(":modules:model"))
     implementation(project(":modules:config"))
-    implementation(project(":modules:backend-contract"))
+    api(project(":modules:backend-contract"))
     implementation(project(":modules:trace"))
 }

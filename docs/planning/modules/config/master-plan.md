@@ -61,7 +61,7 @@ intent, and later rows may refine their package contents before becoming Ready.
 |---|---|---|---|---|
 | 0001 | [Backend intent foundation](tasks/0001-backend-intent-foundation.md) | Complete | Completed backend-contract 0001–0004 and trace foundation | Replaced the placeholder with one immutable owner for an optional hard backend requirement, added the public backend-contract dependency, and preserved preference, scoring, profile, and evaluation work for later tasks. |
 | 0002 | [Compile modes and graph optimization configuration](tasks/0002-compile-modes-and-graph-optimization-configuration.md) | Complete | 0001 | Added the exact three architecture-defined graph-scope modes and one stable optional-optimization permission without exposing graph passes or compiler behavior. |
-| 0003 | Partition scoring configuration | Draft | 0001 | Define backend-neutral ranking preference and scoring policy data without evaluating candidates or choosing ownership. |
+| 0003 | Partition scoring configuration | Draft | 0001–0002, planning 0001 | Define backend-neutral ranking preference and scoring policy data after the typed operation-capability question is stable, without evaluating candidates or choosing ownership. |
 | 0004 | Immutable platform, backend, and tuning profiles | Draft | 0001 | Define versioned, validated profile data consumed by later scoring and preparation; later tuning tooling produces it from repeatable benchmark evidence. |
 | 0005 | Compile configuration aggregate | Draft | 0001–0004 | Compose compile mode, backend intent, optimization, scoring, and selected immutable profile inputs without compiler orchestration. |
 | 0006 | Prepare configuration | Draft | 0005 | Define backend-neutral plus CPU/accelerator-class prepare data without concrete backend implementation behavior. |
@@ -77,11 +77,15 @@ intent, and later rows may refine their package contents before becoming Ready.
 
 ## Current status
 
-In progress. Task 0001 is Complete with the standalone hard-requirement optionality contract, its
-public backend-contract dependency, focused validation, independent documentation review, and
-repository dependency checkpoint. Task 0002 is Complete with standalone graph-scope and optional-
-optimization values, focused validation, and independent documentation review. No task is Ready;
-tasks 0003–0008 remain ordered Draft work without detailed specifications.
+In progress, with an explicit narrow planning interleave before task 0003. Task 0001 is Complete
+with the standalone hard-requirement optionality contract, its public backend-contract dependency,
+focused validation, independent documentation review, and repository dependency checkpoint. Task
+0002 is Complete with standalone graph-scope and optional-optimization values, focused validation,
+and independent documentation review. No config task is Ready; tasks 0003–0008 remain ordered
+Draft work without detailed specifications. Planning task 0001 is Complete after stabilizing the
+typed operation-capability query/provider boundary and passing its final repository suite. The
+likely frontier returns here for config task 0003, which remains Draft without a detailed
+specification; no config task is marked Ready by that reassessment.
 
 ## Open questions
 
@@ -106,6 +110,9 @@ tasks 0003–0008 remain ordered Draft work without detailed specifications.
 - Graph optimization configuration exposes only whether optional semantics-preserving compiler
   work is enabled. It does not expose compiler pass identities or order, and mandatory correctness
   work remains outside that switch.
+- Planning task 0001 intentionally interleaves before config task 0003. Capability answers the
+  hard semantic question first; scoring configuration later describes how eligible ownership
+  choices are compared and must not redefine capability.
 
 ## Risks
 
@@ -138,3 +145,10 @@ current-status explanations, glossary, and planning status; config Javadoc, repo
 exact fifteen-path, and whitespace validation passed without rerunning Java tests or changing
 executable behavior. Repository-wide validation remains deferred to the config capability
 checkpoint or continuous integration.
+
+The next-frontier reassessment selected only planning task 0001 before config task 0003. This is an
+ordering interleave, not a new config Gradle/module dependency or architecture change: config
+tasks 0001–0002 remain Complete, tasks 0003–0008 remain Draft without detailed specifications,
+and planning 0001 changed no config Java or build file. Planning 0001 is now Complete after its
+single final root suite passed. Config 0003 is the likely next frontier but remains Draft without a
+detailed specification; advancing it to Ready requires a separate planning step.
