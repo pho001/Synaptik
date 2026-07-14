@@ -10,10 +10,11 @@ package io.github.pho001.synaptik.backend.contract;
  * or another accelerator without promising a subtype, capability, performance characteristic,
  * memory topology, vendor, or execution route.</p>
  *
- * <p>This type supplies category vocabulary only. A later availability fact may associate a
- * category with a {@link BackendDeviceId}; no current contract stores that association. A category
- * does not identify a backend or device, establish availability or capability, express
- * configuration preference, or select backend ownership or an implementation route.</p>
+ * <p>This type supplies category vocabulary only. A {@link BackendAvailabilitySnapshot} may
+ * associate a category with a {@link BackendDeviceId}; the category is not stored in the device
+ * identity itself. A category does not identify a backend or device, establish availability or
+ * capability, express configuration preference, or select backend ownership or an implementation
+ * route.</p>
  *
  * <p>The declaration order is stable for enum identity and diagnostics. Its ordinal order does
  * not express preference, score, priority, capability, or fallback order.</p>

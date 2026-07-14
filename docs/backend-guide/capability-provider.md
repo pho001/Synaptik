@@ -4,26 +4,33 @@
 
 This guide explains how a future concrete backend will report which planned graph work it can
 accept. The shared `BackendId` and `BackendDeviceId` identity values and the coarse `DeviceClass`
-category are current. Capability, availability, planning, prepare, registration, and concrete
-backend contracts remain planned, so the capability sample is conceptual.
+category are current. `BackendAvailabilitySnapshot` is also current as an immutable,
+caller-supplied point-in-time fact. Capability providers, device discovery and refresh, planning,
+prepare, registration, and concrete backend contracts remain planned, so the capability sample is
+conceptual.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
 
-## Current shared identity and classification vocabulary
+## Current shared identity, classification, and availability vocabulary
 
 The current Java API can name an ownership domain, name a device within that domain, and express
-the independent CPU-versus-accelerator category vocabulary:
+the independent CPU-versus-accelerator category vocabulary. It can also associate one backend's
+currently reported available devices with those categories:
 
 ```java
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import java.util.Map;
 
 BackendId cuda = new BackendId("cuda");
 BackendDeviceId cudaZero = new BackendDeviceId(cuda, "0");
 BackendDeviceId metalZero = new BackendDeviceId(new BackendId("metal"), "0");
 DeviceClass accelerator = DeviceClass.ACCELERATOR;
+BackendAvailabilitySnapshot availability =
+        new BackendAvailabilitySnapshot(cuda, Map.of(cudaZero, accelerator));
 ```
 
 The concrete inputs are backend names `"cuda"` and `"metal"` plus the opaque device token
@@ -32,15 +39,21 @@ Both types retain their exact caller-supplied component references. String case 
 whitespace remain significant, and no predefined backend vocabulary or device-number
 interpretation exists. `accelerator` is only a coarse category value; it is not stored in either
 device identity and does not distinguish a graphics processing unit from another non-CPU compute
-device. A later availability fact may associate `cudaZero` or `metalZero` with that category, but
-no such association type is current. The enum order does not express preference, score,
-capability, or fallback. These values do not show that either backend or device is registered,
-present, available, capable, or accessible.
+device. `availability` reports `cudaZero` as a currently available accelerator for `cuda`. It
+cannot contain `metalZero` because every device key must have a backend identity equal to the
+snapshot's backend identity. The constructor makes an immutable structural copy of its map while
+retaining the exact backend, device, and class references; the copied map has no specified
+iteration order. An empty map reports no currently available device for the named backend.
+
+The enum order does not express preference, score, capability, or fallback. The snapshot contains
+only supplied facts: it neither discovers devices nor proves registration, liveness, capability,
+resource access, preparation success, or executability. A producer decides when to create or
+replace a snapshot; the snapshot has no refresh, timestamp, status, or reason field.
 
 ## Lifecycle position
 
 ```text
-operation + data type + shape + layout + availability
+operation + data type + shape + layout + supplied availability
   -> capability provider
   -> valid ownership candidates
   -> backend-neutral scoring

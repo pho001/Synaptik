@@ -53,7 +53,7 @@ live service, discovery, registration, preparation, or execution behavior.
 |---|---|---|---|---|
 | 0001 | [Backend and device identifiers](tasks/0001-backend-and-device-identifiers.md) | Complete | Completed model milestone; trace 0001–0002 roadmap foundation | Replaced the placeholder with open backend identity and backend-scoped device identity values without registration, discovery, availability, or live services. |
 | 0002 | [Device classification](tasks/0002-device-classification.md) | Complete | 0001 | Added the minimal CPU-versus-accelerator device category needed by later availability and requirements without enumerating concrete devices or routes. |
-| 0003 | Backend availability snapshot | Draft | 0001–0002 | Define immutable caller-supplied backend and device availability facts without discovery or live backend objects. |
+| 0003 | [Backend availability snapshot](tasks/0003-backend-availability-snapshot.md) | Complete | 0001–0002 | Added an immutable caller-supplied map of one backend's currently available device identities to coarse classes, without discovery or live backend objects. |
 | 0004 | Declarative backend requirements | Draft | 0001–0003 | Define backend-neutral requirement values used by later config and planning without operation support logic or kernel selection. |
 
 ## Milestones
@@ -65,12 +65,12 @@ live service, discovery, registration, preparation, or execution behavior.
 ## Current status
 
 In progress through an explicit roadmap interleave after the completed trace envelope and stable
-model-correlation foundation. Tasks 0001 and 0002 are Complete. Task 0003 is the next ordered
-frontier but remains Draft without a detailed specification; task 0004 also remains Draft.
+model-correlation foundation. Tasks 0001–0003 are Complete. Task 0004 is the next ordered frontier
+but remains Draft without a detailed specification.
 
 ## Open questions
 
-- Availability snapshot cardinality and exact fact shape remain open until task 0003 planning.
+- Exact declarative requirement variants remain open until task 0004 planning.
 
 ## Decisions made
 
@@ -85,6 +85,9 @@ frontier but remains Draft without a detailed specification; task 0004 also rema
   location subcategories.
 - A class describes a reported device; it is not stored inside `BackendDeviceId`, does not classify
   execution routes, and carries no scoring order or availability guarantee.
+- Availability is represented by one immutable snapshot per backend: an explicit backend identity
+  plus a structurally immutable map from same-backend device identities to their classes. An empty
+  map reports no currently available device and no ordering or separate status flag is implied.
 - The trace project area is deliberately interleaved after its stable foundation because later
   trace payload and attribute schemas require concrete producer-owned contracts.
 
@@ -94,7 +97,9 @@ frontier but remains Draft without a detailed specification; task 0004 also rema
 - Treating identity as evidence that a backend or device is registered, available, or supported.
 - Growing the coarse device class into speculative hardware taxonomy or treating enum order as a
   planning preference.
-- Prematurely freezing availability or requirement language before their consumers are concrete.
+- Treating a supplied availability snapshot as discovery, liveness monitoring, engine
+  registration, capability support, or a device-selection policy.
+- Prematurely freezing requirement language before its consumers are concrete.
 
 ## Notes
 
@@ -114,3 +119,17 @@ package Javadocs plus the public API, capability-provider guide, glossary, task,
 roadmap, then passed backend-contract Javadoc, repository Markdown, exact nine-path, status, and
 whitespace validation without rerunning Java tests. Availability association, requirements,
 configuration policy, scoring, and execution remain in their later owning tasks.
+
+Task 0003 is limited to the caller-supplied immutable availability fact. Discovery, refresh,
+capabilities, requirements, ownership selection, preparation, and execution remain outside the
+snapshot and in their later owning layers.
+
+Task 0003 added only the single-backend immutable availability snapshot, one focused exact-
+contract test, and the associated Javadoc/status documentation. Its two focused seven-test runs
+and final 16-test/three-suite module run passed. The separate documentation pass finalized the
+snapshot, package, and `DeviceClass` Javadocs plus the public API, capability-provider guide,
+glossary, task, master plan, and roadmap, then passed backend-contract Javadoc, repository
+Markdown, exact ten-path,
+status, and whitespace validation without rerunning Java tests. Discovery, registration,
+refresh/liveness, requirements, capability evaluation, ownership selection, preparation,
+execution, and trace translation remain in their later owning tasks.

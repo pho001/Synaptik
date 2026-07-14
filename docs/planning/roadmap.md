@@ -50,10 +50,12 @@ is Complete. It replaces only the backend-contract placeholder with open backend
 backend-scoped device identity values.
 [Backend-contract 0002 Device classification](modules/backend-contract/tasks/0002-device-classification.md)
 is Complete. It adds only the coarse `CPU`/`ACCELERATOR` category needed by later availability and
-requirements. Task 0003 is the next ordered backend-contract frontier but remains Draft without a
-detailed specification; task 0004 also remains Draft.
-Registration, discovery, availability, capabilities, requirements, preparation, execution, and
-concrete backend behavior remain planned.
+requirements.
+[Backend-contract 0003 Backend availability snapshot](modules/backend-contract/tasks/0003-backend-availability-snapshot.md)
+is Complete. It adds only a caller-supplied immutable association from one backend's currently
+reported device identities to their classes. Task 0004 is the next ordered backend-contract
+frontier but remains Draft without a detailed specification. Registration, discovery, refresh,
+capabilities, requirements, preparation, execution, and concrete backend behavior remain planned.
 
 Trace remains In progress rather than Complete. Its tasks 0003–0008 remain ordered Draft work
 without detailed specifications. The completed backend identities make only the first

@@ -268,8 +268,9 @@ remain architecture or planning contracts. The implemented trace foundation cons
 `TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload` marker, the generic
 `TraceEvent` envelope, and the trace-local `TraceNodeId`, `TraceValueId`, and `TraceTensorId`
 correlation values. The implemented backend-contract foundation consists of `BackendId`,
-`BackendDeviceId`, and the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`. No current
-type associates a device identity with its class. Availability, requirements, capabilities,
+`BackendDeviceId`, the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`, and
+`BackendAvailabilitySnapshot` for one backend's caller-supplied point-in-time device-to-class
+availability association. Requirements, capability providers, discovery and refresh,
 registration, concrete backend integration, and trace-local backend/device correlations remain
 planned. A definition explains intended meaning; it is not by itself evidence that a Java type
 exists.
@@ -642,6 +643,21 @@ architecture discussions use “backend” for this role; a [concrete backend](#
 the module that implements it. The current [`BackendId`](#backend-identity--backendid) value names
 this ownership domain but does not implement the backend role.
 
+### Backend availability snapshot / `BackendAvailabilitySnapshot`
+
+The implemented immutable point-in-time fact for one backend's currently reported available
+devices. It stores an explicit [`BackendId`](#backend-identity--backendid) and an immutable
+structural copy of a map from same-backend
+[`BackendDeviceId`](#backend-device-identity--backenddeviceid) values to
+[`DeviceClass`](#device-class--deviceclass) values. The exact backend, device-key, and class-value
+references are retained, but later structural changes to a mutable source map cannot affect the
+snapshot and the copied map's iteration order is unspecified. An empty map means that the
+supplying context reports no currently available device for the named backend.
+
+The snapshot is supplied data, not a provider or service. It performs no discovery, registration,
+refresh, liveness monitoring, capability evaluation, ownership selection, planning, preparation,
+execution, or trace translation and carries no timestamp, status, or absence reason.
+
 ### Backend capability
 
 A declarative statement about computation a backend can accept, based on facts such as operation kind, data type, shape, layout, or device availability. Planning queries capabilities when choosing ownership. A capability is not a kernel, a live executable service, or a promise that one fixed implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
@@ -951,8 +967,10 @@ intended for offloaded computation. The category does not distinguish graphics p
 neural processing units, vendors, memory topologies, or backend-internal routes. It is separate
 from [`BackendId`](#backend-identity--backendid), which names an ownership domain, and
 [`BackendDeviceId`](#backend-device-identity--backenddeviceid), which names one device inside that
-domain. No current type associates an identity with a class; a later availability fact may do so.
-The declaration order conveys no preference, score, priority, capability, or fallback policy.
+domain. A current
+[`BackendAvailabilitySnapshot`](#backend-availability-snapshot--backendavailabilitysnapshot)
+associates those two facts without storing the class in the identity. The declaration order
+conveys no preference, score, priority, capability, or fallback policy.
 
 ### Dense target
 

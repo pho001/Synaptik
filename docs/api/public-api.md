@@ -8,8 +8,9 @@ Synaptik has no published compatibility guarantee yet. The current implementatio
 selected public model foundation, tensor-expression metadata surface, and common trace-event
 envelope plus model-correlation identifiers. It also contains backend and backend-scoped device
 identity values plus a coarse CPU-versus-accelerator device classification. Compiler, planning,
-prepare, runtime, concrete backend integration, and engine APIs remain planned. APIs may change
-through the ordered planning process.
+prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
+contract also contains an immutable caller-supplied availability snapshot; it is data, not a
+discovery or liveness API. APIs may change through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -57,27 +58,56 @@ The implemented `modules:backend-contract` surface contains:
 - `BackendDeviceId`, an immutable composite identity for one opaque device token scoped by its
   owning `BackendId`; and
 - `DeviceClass`, a coarse declarative category with exactly `CPU` and `ACCELERATOR`, in that
-  declaration order.
+  declaration order; and
+- `BackendAvailabilitySnapshot`, an immutable point-in-time association from one backend's
+  currently reported available device identities to their classes.
 
-The three concepts have separate roles:
+The four concepts have separate roles:
 
 ```text
 BackendId       = backend ownership domain
 BackendDeviceId = one exact device identity inside that domain
 DeviceClass     = coarse CPU or accelerator category
+BackendAvailabilitySnapshot
+                = one backend's supplied device-to-class availability fact
 ```
 
-Both records reject null components and blank string values. Every other component is retained by
-the exact caller-supplied reference, and string content keeps its case and surrounding whitespace;
-the records do not trim, normalize, intern, or resolve aliases. Ordinary record equality
-therefore compares the exact stored content, and the backend component prevents equal device
-tokens from different backends from colliding.
-`DeviceClass` is not stored in `BackendDeviceId`. A later availability fact may associate a
-device identity with a class. The enum declaration order supports stable identity and diagnostics,
-not preference, score, priority, capability, or fallback policy. None of the current contracts
-registers, discovers, or proves the availability or capability of a backend or device.
-Availability snapshots, requirements, capability reporting, concrete backends, registration,
-preparation, and execution remain planned.
+The two identity records reject null components and blank string values. Every other identity
+component is retained by the exact caller-supplied reference, and string content keeps its case
+and surrounding whitespace; the records do not trim, normalize, intern, or resolve aliases.
+Ordinary record equality therefore compares the exact stored content, and the backend component
+prevents equal device tokens from different backends from colliding.
+`DeviceClass` is not stored in `BackendDeviceId`; the snapshot supplies the association without
+changing either identity or category. The enum declaration order supports stable identity and
+diagnostics, not preference, score, priority, capability, or fallback policy.
+
+For example, the following inputs report one accelerator device for the `"cuda"` backend:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import java.util.Map;
+
+BackendId cuda = new BackendId("cuda");
+BackendDeviceId cudaZero = new BackendDeviceId(cuda, "0");
+BackendAvailabilitySnapshot availability =
+        new BackendAvailabilitySnapshot(
+                cuda,
+                Map.of(cudaZero, DeviceClass.ACCELERATOR));
+```
+
+The snapshot requires every device identity to have a `BackendId` equal to `cuda`. It retains the
+exact backend, device, and class references and uses an immutable structural copy of the map, so
+later changes to a mutable source map cannot change the snapshot. Map iteration order is
+unspecified. An empty map means that the supplying context reports no currently available device
+for that backend; the backend identity remains part of the snapshot.
+
+The snapshot does not discover devices, register a backend, monitor liveness, refresh itself,
+evaluate capability, choose ownership, or guarantee preparation or execution. Requirements,
+capability reporting, concrete backends, registration, planning, preparation, and execution remain
+planned.
 
 ## Planned public lifecycle
 
