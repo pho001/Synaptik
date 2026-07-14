@@ -90,7 +90,10 @@ retired because it conflated planning cost with backend tuning and averaged unre
 Config 0004 is again a Draft row without a detailed specification. It follows a stable planning
 cost consumer and backend-neutral cost classification. Planning task 0003 is Complete, and its
 exact baseline intentionally consumes no cost value or classification. Tasks 0005–0008 remain
-Draft, and no config or global task is Ready pending a separate frontier reassessment.
+Draft. Planning task 0004 is Complete with maximal consecutive same-owner grouping over completed
+per-occurrence `BackendId` ownership and the current immutable model graph. It creates no cost-
+bearing consumer, so Config 0004 remains Draft without a detailed specification and no config
+task is Ready.
 
 ## Open questions
 
@@ -196,5 +199,5 @@ that selection requires a separate reassessment. Planning task 0002 is now Compl
 reassessment drafted Config 0004, but the terminology/ownership reset rejected that unimplemented
 design and removed its detailed specification. Planning 0003 is now Complete with a cost-free
 baseline selector. Config 0004 remains Draft because no concrete cost-bearing consumer has
-stabilized its classification or units, and no next task becomes Ready without a separate
-frontier reassessment.
+stabilized its classification or units. Planning 0004 is now Complete for owner-transition
+grouping; it consumes no cost input and therefore does not advance Config 0004.

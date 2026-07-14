@@ -7,10 +7,11 @@ Planning also has two internal per-query steps. Hard eligibility validates the c
 provider/snapshot association, applies current availability and one exact hard requirement, and
 retains supported backend identities in provider order. Baseline owner selection treats that list
 as the complete candidate set and applies the current optional soft `DeviceClass` preference.
-Reusable or public capability matrices, public planning orchestration or owner selection, numeric
-or cost scoring, partitioning, and logical memory planning remain planned. This page explains the
-accepted boundary and current internal baseline; it does not define a public scoring API, weights,
-or a general cost formula.
+Planning now also exposes the immutable `PlannedPartition(owner, nodeIds)` recipe and contains an
+internal generator for maximal consecutive same-owner runs. Reusable or public capability
+matrices, public planning orchestration or owner selection, numeric or cost scoring, and logical
+memory planning remain planned. This page explains the accepted boundary and current internal
+baseline; it does not define a public scoring API, weights, or a general cost formula.
 
 ## Purpose and pipeline position
 
@@ -31,8 +32,9 @@ backend intent
   -> current PartitionScoringConfig preference input
   -> current internal preferred-class/provider-order baseline
   -> current BackendId owner for that occurrence
-  -> planned reusable/public planning orchestration
-  -> planned cost scoring and maximal same-owner partitioning
+  -> later orchestration assembles a complete Map<NodeId, BackendId>
+  -> current internal maximal consecutive same-owner partitioning
+  -> current immutable PlannedPartition(owner, nodeIds) recipes
   -> planned logical memory/materialization requirements
 ```
 
@@ -61,8 +63,18 @@ fallback. The selector returns the exact identity reference from hard eligibilit
 selects or retains a device.
 
 This is one cost-free internal ownership baseline, not the public planning workflow or a general
-numeric scoring model. Later cost-bearing scoring may use additional compile-time facts, and the
-partitioner will then group adjacent work with the same selected owner.
+numeric scoring model. Later cost-bearing scoring may use additional compile-time facts. Once a
+complete owner map exists, the current package-private partitioner scans
+`CompiledGraphModel.nodes()` in its stored validated topological order and starts a partition only
+at the first node or an owner transition. Equality is `BackendId` value equality; graph edges,
+phase changes, fan-out, merges, repeated inputs, graph boundaries, and multi-output values do not
+redefine adjacency or split an equal-owner run.
+
+The resulting public recipe retains only the first node's exact owner reference and the exact
+graph `NodeId` references in order. Its outer and inner lists are immutable. A valid zero-node
+pass-through graph yields no partitions because inputs and outputs are values, not synthetic
+nodes. The generator remains internal, so there is still no public workflow that assembles the
+owner map or invokes partitioning.
 
 ## Information scoring may use
 
@@ -145,10 +157,11 @@ fused backend executable
 
 Those choices depend on backend-specific lowering, specialization, fusion, prepare configuration, and workspace constraints. They are made by the owning concrete backend during prepare.
 
-The current internal baseline returns one `BackendId` owner for one eligible occurrence. Building
-`PlannedPartition` values and the complete immutable compile recipe remain planned. Neither the
-current owner identity nor a future partition is an executable implementation or physical
-schedule.
+The current internal baseline returns one `BackendId` owner for one eligible occurrence. The
+current internal generator can turn a complete per-node owner map into public immutable
+`PlannedPartition` values. Building that map through public planning orchestration and assembling
+the complete immutable compile recipe remain planned. Neither an owner identity nor a current
+partition recipe is an executable implementation or physical schedule.
 
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the

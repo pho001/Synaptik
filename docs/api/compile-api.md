@@ -12,7 +12,9 @@ collaboration. It also contains one package-private per-query hard-eligibility s
 not expose that step publicly. A second package-private step now selects one `BackendId` owner by
 optional preferred-class match and provider order. The module still provides no reusable/public
 capability matrix, public planner orchestration or owner selector, general cost scoring,
-partitioning, or compiler integration.
+owner-map assembly, logical memory planning, or compiler integration. It now provides the public
+immutable `PlannedPartition(owner, nodeIds)` recipe and a package-private generator that groups a
+complete node-to-owner assignment into maximal consecutive same-owner runs.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -709,9 +711,52 @@ eligible identity. Empty snapshots are preference nonmatches, and the exact elig
 reference is returned. No provider is called again and no device, route, or kernel is selected.
 
 Reusable or public capability matrices, a public eligibility result/evaluator or owner selector,
-public planning orchestration, numeric or cost scoring and profiles, partitions, compiler
+public planning orchestration, numeric or cost scoring and profiles, owner-map assembly, compiler
 integration, device-level capability or selection, preparation, runtime, execution, and typed
 rejection diagnostics remain planned.
+
+## Current planned-partition recipe
+
+`io.github.pho001.synaptik.planning.partition.PlannedPartition` is current public compile-time
+data with exactly two ordered components:
+
+```java
+BackendId owner
+List<NodeId> nodeIds
+```
+
+The owner is one non-null backend ownership identity. The node list is non-null, non-empty,
+contains no null or duplicate identity by equality, and is copied into an immutable ordered
+snapshot. The record retains the exact owner and element references, uses ordinary record
+equality and hashing, and carries no graph values, partition ID, boundary edges, transfer or
+memory facts, selected device, route, kernel, executable, or runtime state.
+
+The package-private generator accepts one immutable `CompiledGraphModel` and one complete
+`Map<NodeId, BackendId>`. Equal map keys associate with graph nodes, but output membership always
+uses the exact `NodeId` references from `graph.nodes()`. It validates all keys, graph coverage, and
+owners before constructing a result. For each maximal run it retains the exact owner reference
+mapped to the first node and compares later owners with `BackendId.equals`.
+
+For graph order `[n0, n1, n2, n3, n4]` and owner values
+`[cpu, cpu, metal, metal, cpu]`, the current result meaning is:
+
+```text
+PlannedPartition(cpu,   [n0, n1])
+PlannedPartition(metal, [n2, n3])
+PlannedPartition(cpu,   [n4])
+```
+
+The final CPU node stays separate because only consecutive positions in the stored validated
+topological order are adjacent. Conversely, consecutive independent nodes with equal owners join.
+Graph edges, phase changes, fan-out, merges, repeated input positions, graph input/output values,
+and multiple output values from one producer do not independently create boundaries. A valid
+zero-node pass-through graph produces an immutable empty list.
+
+The generator itself is intentionally not public. No current API assembles the complete owner map
+from capability and selection results or invokes partitioning for callers. Logical boundary,
+materialization, and memory requirements remain later planning work; compiler orchestration and
+`CompileArtifacts` also remain planned. A partition is an immutable ownership recipe, not a
+promise of one fused kernel, one executable, or any prepare/runtime behavior.
 
 ## Current expression input and planned compiler output
 

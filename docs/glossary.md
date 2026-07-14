@@ -12,10 +12,11 @@ supplied boolean provider collaboration. Planning also has one package-private p
 eligibility result and evaluator that combine backend-level support, supplied availability, and
 an optional exact hard requirement into provider-ordered `BackendId` values. A second
 package-private step uses those identities directly as the candidate set and selects one exact
-`BackendId` owner through optional preferred-class match and provider order. Reusable or public
-capability matrices, public planning orchestration or owner selection, numeric or cost scoring,
-partitioning, logical memory, provider implementations, compiler consumers, device-level
-capability, and device selection remain planned.
+`BackendId` owner through optional preferred-class match and provider order. The public immutable
+`PlannedPartition` recipe and a package-private maximal consecutive same-owner generator are also
+implemented. Reusable or public capability matrices, public planning orchestration or owner
+selection, numeric or cost scoring, owner-map assembly, logical memory, provider implementations,
+compiler consumers, device-level capability, and device selection remain planned.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -291,8 +292,10 @@ config foundation contains `BackendIntent`, `CompileMode`, `GraphOptimizationCon
 `PartitionScoringConfig`. They record hard-requirement optionality, graph scope,
 optional-optimization permission, and one optional soft coarse class preference, respectively,
 without planning evaluation or lifecycle behavior. Compile aggregation, profiles, and all other
-config contracts remain planned. A definition explains intended meaning; it is not by itself
-evidence that a Java type exists.
+config contracts remain planned. The planning foundation also contains the public
+`PlannedPartition` recipe plus internal complete-map grouping; this adds no public orchestration,
+logical boundary, memory, prepare, or execution behavior. A definition explains intended meaning;
+it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -1856,7 +1859,27 @@ and attributes](api/tensor-api.md#axis-transform-semantic-kinds-and-attributes).
 
 ### Partition
 
-A planned graph region whose nodes share one backend owner. Planning forms maximal same-owner partitions after ownership decisions so each backend can prepare a coherent region. A partition is still compile-time planning data, not a selected kernel or prepared executable.
+An implemented immutable compile-time recipe for one non-empty consecutive region of an owning
+compiled graph. The public `PlannedPartition(owner, nodeIds)` record stores one non-null
+[`BackendId`](#backend-identity--backendid) and one immutable, non-empty, ordered snapshot of
+unique non-null [`NodeId`](#nodeid) values. It retains the exact owner and node-ID references and
+uses ordinary record value equality. It stores no graph values, partition ID, boundary edges,
+transfer or memory facts, device, route, kernel, executable, or runtime state.
+
+Current package-private generation consumes a `CompiledGraphModel` plus a complete
+`Map<NodeId, BackendId>`. It validates all keys, graph coverage, and owner values before creating
+output, then scans `graph.nodes()` in stored validated topological order. Consecutive nodes join
+while their owners are equal by `BackendId.equals`; an owner transition starts a new partition.
+The recipe retains the graph's exact node-ID references and the first node's exact owner reference.
+The outer result and every membership list are immutable.
+
+Adjacency here means consecutive stored node positions, not a graph edge. Equal-owner independent
+nodes join when consecutive, while equal-owner graph-connected nodes remain separate when another
+owner lies between them. Graph phase, fan-out, merges, repeated inputs, graph input/output values,
+and multiple outputs from one producer do not independently split a run. A zero-node pass-through
+graph has no partition. The generator is not public, and no current orchestration assembles its
+complete owner map. Logical boundaries, materialization and memory, compiler artifacts, prepare,
+and execution remain separately owned or planned.
 
 ### Partition scoring configuration / `PartitionScoringConfig`
 
@@ -1878,7 +1901,8 @@ This record is ranking input, not a scoring policy implementation. It does not e
 eligibility or candidates, calculate or compare scores, contain profile measurements, choose an
 owner or device, select a backend route or kernel, compile or prepare a graph, inspect runtime
 state, or execute work. Planning interpretation, planning-cost profiles, `CompileConfig`, compiler
-consumption, ownership, partitioning, and execution remain planned.
+consumption, owner-map assembly, logical memory, and execution remain planned. The current
+partition recipe and internal grouping do not make this config value perform partitioning.
 
 ### Planning cost model / planning cost profile
 

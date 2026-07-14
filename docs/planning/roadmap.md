@@ -39,9 +39,10 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation frontier is
-[Planning 0003 Ownership candidates and baseline scoring](modules/planning/tasks/0003-ownership-candidates-and-baseline-scoring.md).
-Its implementation and independent documentation pass resolve the reset without resurrecting the
-retired Config 0004 fixed-plus-linear platform/backend/tuning profile design.
+[Planning 0004 Maximal same-owner partitioning](modules/planning/tasks/0004-maximal-same-owner-partitioning.md).
+Its implementation and independent documentation pass add the public immutable
+`PlannedPartition(owner, nodeIds)` recipe plus internal complete-map consecutive grouping without
+resurrecting the retired Config 0004 fixed-plus-linear platform/backend/tuning profile design.
 
 Planning 0003 consumes the package-private hard-eligibility result through one colocated
 package-private stateless selector. The provider-ordered eligible `BackendId` list is already the
@@ -55,14 +56,28 @@ Config 0004 remains Draft without a detailed specification. This cost-free basel
 justify profile data; the first later concrete cost-bearing planning consumer must establish the
 exact backend-neutral classification and units before Config 0004 can become Ready.
 
+Planning 0004 consumes one complete `Map<NodeId, BackendId>` assembled from per-occurrence owner
+results and groups `CompiledGraphModel.nodes()` by consecutive equal owners. The current graph
+already provides immutable validated topological node order, structural closure, graph boundaries,
+phase classification, and multi-output nodes, so the task adds no compiler capture or
+orchestration.
+
+For this bounded frontier, adjacency means consecutive positions in the stored topological node
+list. Equal owners form one maximal run; an owner transition splits it; nonconsecutive equal owners
+remain separate. Graph inputs/outputs are values, and a multi-output producer remains one
+indivisible node. Boundary values, transfers, materialization, and logical memory remain Planning
+0005 work. The generator is package-private, while the immutable recipe is public for later
+cross-package lifecycle consumers. No ownership row, phase split, graph-edge component search,
+cost/workload classification, device/route/kernel choice, lowering, or executable state is added.
+
 The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
 own complete valid graph and ownership candidates; shared prepare owns a future opaque
 orchestration and artifact-lifecycle boundary; CPU, Metal, and CUDA own typed route candidate
 generators; and `tools/tuning` owns the single two-phase model-autotuning workflow. A
 representative model corpus may pre-seed the same workload cache, but no separate platform-
 calibration workflow or profile remains planned. These later rows do not change the current
-frontier. Planning 0004, Config 0004, and every other unfinished row remain Draft; no task is Ready
-pending a separate frontier reassessment.
+frontier. Config 0004 and every task after Planning 0004 remain Draft without another detailed
+specification; no global task is Ready.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -79,9 +94,10 @@ remain Complete. Config task 0003 is also Complete; Config 0004–0008 remain or
 without detailed specifications. Planning task 0001 remains Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
 Planning task 0002 is Complete; Planning task 0003 is Complete with its detailed specification;
-Planning tasks 0004–0006 remain Draft without detailed specifications. Config 0004 remains Draft
-because task 0003's exact baseline consumes no cost classification or profile. No global task is
-Ready pending a separate frontier reassessment.
+Planning task 0004 is Complete with its detailed specification, and Planning tasks 0005–0006
+remain Draft without detailed specifications. Config 0004 remains Draft because the current
+baseline and same-owner grouping consume no cost classification or profile. No global task is
+Ready.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

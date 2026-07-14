@@ -51,7 +51,8 @@ io.github.pho001.synaptik.planning/
                eligibility, and task-0003 internal baseline owner selection
   ownership/   later public/cross-package ownership, candidate, and scoring contracts when a
                concrete compiler or partition consumer justifies them
-  partition/   later maximal same-owner partition contracts
+  partition/   task-0004 public immutable partition recipe and internal deterministic maximal
+               consecutive same-owner generation
   memory/      later logical materialization and memory requirements
 ```
 
@@ -60,7 +61,9 @@ operation-occurrence question and inward-facing provider collaboration. Complete
 per-query eligibility result and evaluation package-private because no external planner consumer
 yet justifies a public matrix/evaluator or a public config signature. Complete task 0003 keeps its
 smallest consumer colocated with that internal value, uses the eligible identity list directly as
-the candidate set, and adds no public ownership package or facade.
+the candidate set, and adds no public ownership package or facade. Complete task 0004 opens
+`partition` with the architecture-named immutable recipe plus an internal generator over complete
+per-node ownership; it does not widen the current capability selector or add orchestration.
 
 ## Task list
 
@@ -69,7 +72,7 @@ the candidate set, and adds no public ownership package or facade.
 | 0001 | [Operation capability-query foundation](tasks/0001-operation-capability-query-foundation.md) | Complete | Completed model milestone, backend-contract 0001–0004, config 0001–0002, and trace foundation | Added one immutable operation-occurrence query and one backend capability-provider contract without a matrix, eligibility evaluation, diagnostics result, device query, or provider implementation. |
 | 0002 | [Per-query backend hard eligibility](tasks/0002-per-query-backend-hard-eligibility.md) | Complete | 0001, config hard intent, and backend-contract supplied availability | Combined validated provider/snapshot associations, backend-level support, current availability, and exact hard intent into an internal ordered `BackendId` list without a public matrix, scoring, device selection, or ownership choice. |
 | 0003 | [Ownership candidates and baseline scoring](tasks/0003-ownership-candidates-and-baseline-scoring.md) | Complete | 0002, config partition-scoring configuration | Consumes the internal hard-eligible list directly as the candidate set and selects one exact `BackendId` through preferred-class-first, provider-order-stable baseline comparison, without a candidate record, cost classification, cost profile, or implementation-route interpretation. |
-| 0004 | Maximal same-owner partitioning | Draft | 0003 | Group adjacent work with the same selected backend owner without backend lowering or executable construction. |
+| 0004 | [Maximal same-owner partitioning](tasks/0004-maximal-same-owner-partitioning.md) | Complete | 0003 | Groups maximal consecutive runs in validated topological node order by equal selected `BackendId`, producing owner-plus-node-ID recipes without compiler orchestration, graph-boundary duplication, lowering, or executable construction. |
 | 0005 | Logical materialization and memory requirements | Draft | 0004 | Describe backend-neutral logical requirements without physical allocation, runtime residency, or prepared memory. |
 | 0006 | Planning contract closure | Draft | 0001–0005 | Audit capability, ownership, partition, logical-memory, documentation, and dependency boundaries before compiler planning orchestration. |
 
@@ -82,15 +85,20 @@ the candidate set, and adds no public ownership package or facade.
 ## Current status
 
 In progress after completing
-[task 0003](tasks/0003-ownership-candidates-and-baseline-scoring.md). Tasks 0001–0002 remain
-Complete with the public query/provider boundary and package-private provider-ordered hard-
-eligibility result. Task 0003 adds the smallest internal consumer: the eligible `BackendId` list
-is the candidate set, matching availability snapshots supply only the optional preferred-class
-fact, preferred matches precede nonmatches, provider order resolves ties and fallback, and an
-empty list fails terminally before selection. No public facade, candidate record, numeric score,
-workload/cost classification, or cost profile was required. Tasks 0004–0006 remain Draft without
-detailed specifications. Config task 0004 also remains Draft pending a later concrete backend-
-neutral cost need. No task is Ready pending a separate frontier reassessment.
+[task 0004](tasks/0004-maximal-same-owner-partitioning.md). Tasks 0001–0002 remain Complete with
+the public query/provider boundary and package-private provider-ordered hard-eligibility result.
+Task 0003 adds the smallest internal owner-selection consumer: the eligible `BackendId` list is
+the candidate set, preferred matches precede nonmatches, provider order resolves ties and
+fallback, and an empty list fails terminally before selection.
+
+Task 0004 now provides one public `PlannedPartition(owner, nodeIds)` recipe and package-private
+maximal consecutive-run generation over a complete `Map<NodeId, BackendId>`. It preserves stored
+topological order, equality-based ownership, exact graph-node and first-owner references, and
+immutable results, including the empty result for a zero-node graph. It adds no ownership row,
+public orchestration facade, graph traversal or reordering, graph-boundary DTO, phase split, cost
+profile, lowering, or executable construction. Tasks 0005–0006 remain Draft without detailed
+specifications; no planning task is Ready. Config task 0004 remains Draft pending a concrete
+cost-bearing consumer.
 
 ## Open questions
 
@@ -144,6 +152,22 @@ neutral cost need. No task is Ready pending a separate frontier reassessment.
   public compiler orchestration may translate it but may not weaken the hard requirement.
 - The current baseline consumes no cost quantity and therefore needs no production operation-
   family, workload-bucket, or cost-profile classification. Config 0004 remains Draft.
+- Planning task 0004 uses `CompiledGraphModel.nodes()` as its exact deterministic adjacency and
+  order contract. “Adjacent” means consecutive positions in that validated topological list, not
+  graph-edge connectivity, numeric node-ID order, map order, graph phase, or operation family.
+- The complete per-node ownership handoff is `Map<NodeId, BackendId>`. It associates by typed
+  equality without introducing a production ownership-row type or relying on parallel list
+  position. Task 0004 does not invoke or widen the package-private task-0003 selector.
+- `PlannedPartition` contains only one exact `BackendId` owner reference and an immutable ordered
+  non-empty `NodeId` list. The generator retains graph node references and the first node's owner
+  reference while comparing identities by equality.
+- Graph inputs and outputs remain values, a multi-output producer remains one indivisible node,
+  and fan-out, merge, publication, or phase changes do not split an equal-owner consecutive run.
+  Boundary values, transfers, materialization, and logical memory remain task 0005 work derived
+  from the graph plus partition node IDs.
+- Only the partition recipe is public for later cross-package and lifecycle consumption.
+  Generation remains package-private until planning closure or a concrete compiler consumer
+  justifies a narrow orchestration surface.
 
 ## Risks
 
@@ -188,3 +212,13 @@ public/internal boundary and omit the package-private selector from public index
 validation passed for 227 files, 4,014 links, 246 anchors, and 2,844 fence markers, and final
 scope, status, source-surface, newline, trailing-whitespace, and `git diff --check` checks passed.
 The completed change is exactly its authorized fourteen paths.
+
+Planning task 0004 completed in implementation context `/root/implement_planning_0004` and clean
+documentation context `/root/implement_planning_0004/docs_planning_0004`. Its two focused suites
+passed 11 tests, and the final planning suite passed 49 tests across five suites with no failures,
+errors, or skips. The documentation pass changed no executable behavior and reused that evidence.
+It finalized the partition Javadocs, public/internal status explanations, glossary, task, master
+plans, and roadmap; planning Javadoc, repository Markdown, generated-page, exact fifteen-path,
+status, later-spec, dependency, forbidden-surface, newline, whitespace, and `git diff --check`
+validation passed. Planning 0005–0006, Config 0004+, Trace 0003+, and Compiler work remain Draft,
+and no other detailed future specification was created.

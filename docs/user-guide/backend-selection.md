@@ -11,8 +11,9 @@ provider interface. Current `PartitionScoringConfig` can separately record an op
 user-callable entry point. It now also has an internal cost-free selector that applies the
 preference to the hard-eligible identities and returns one backend owner. The later `CompileConfig`
 aggregate, reusable/public capability matrix, public planning orchestration or owner selector,
-cost scoring, and partitioning are not implemented, so users still cannot attach these values to a
-compile request.
+cost scoring, and owner-map assembly are not implemented, so users still cannot attach these
+values to a compile request. The public immutable `PlannedPartition` recipe and internal maximal
+same-owner generator are current, but the generator is not user-callable.
 
 ## Mental model
 
@@ -22,7 +23,9 @@ optional hard requirement + current provider capability answers + availability
 optional coarse class preference + that complete candidate list + associated snapshots
   -> current internal first preferred match, otherwise first eligible
   -> one BackendId owner
-  -> planned public orchestration, cost scoring, and same-owner partitioning
+later orchestration assembles one owner for every graph NodeId
+  -> current internal consecutive same-owner grouping
+  -> current immutable PlannedPartition recipes
 ```
 
 A hard requirement removes candidates that do not meet its target; it is not a preference or a
@@ -128,8 +131,37 @@ identity reference and never selects a device.
 A provider's `true` still means only that its named backend can semantically own the occurrence.
 A `false` carries no diagnostic reason and does not by itself say whether the backend is registered
 or available. The runnable inputs above are useful for preparing configuration, while compile
-aggregation, public planning orchestration, cost scoring, partitioning, preparation, runtime, and
-execution remain planned workflows.
+aggregation, public planning orchestration, owner-map assembly, cost scoring, preparation,
+runtime, and execution remain planned workflows.
+
+## Current partition recipe and internal grouping
+
+`PlannedPartition` is a current public immutable record containing one `BackendId owner` and one
+non-empty ordered `List<NodeId> nodeIds`. Users can construct and inspect that data type directly,
+but doing so does not validate graph membership or run planning. Its constructor snapshots list
+membership, rejects null or duplicate node identities, and retains the exact owner and node-ID
+references.
+
+Planning's current generator is package-private. It requires a complete owner map for an existing
+`CompiledGraphModel`, validates it before producing output, and groups maximal runs over the
+stored topological node sequence. For graph order `[n0, n1, n2, n3]` with owner values
+`[cpu, cpu, metal, cpu]`, the conceptual result is:
+
+```text
+owner cpu:   [n0, n1]
+owner metal: [n2]
+owner cpu:   [n3]
+```
+
+The last CPU node does not join the first CPU partition because the Metal-owned node separates
+them. Graph connectivity does not replace this sequence rule: two consecutive independent nodes
+with equal owners do join. A phase change, fan-out, merge, repeated input, graph output, or
+multi-output producer does not split an otherwise equal-owner run. Graph inputs and outputs are
+values, so a zero-node pass-through graph produces no partition.
+
+This is current internal planning behavior, not a runnable user workflow. No public API currently
+builds the complete owner map or calls the generator. The recipe also contains no boundary value,
+transfer, materialization, memory, selected device, route, kernel, executable, or runtime state.
 
 ## Scenario
 
@@ -153,9 +185,11 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 
 `BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, the operation
 query/provider contracts, internal per-query hard eligibility, and internal baseline owner
-selection are current. Provider implementations, device-level capability or selection,
-reusable/public capability matrices, public planning orchestration or owner selection, cost
-scoring, profiles, compile aggregation, partitioning, compiler integration, preparation, runtime,
-execution, and public no-match diagnostics remain to be specified by focused tasks. See [Public API
+selection are current. The public partition recipe and internal consecutive same-owner generator
+are also current. Provider implementations, device-level capability or selection, reusable/public
+capability matrices, public planning orchestration or owner selection, cost scoring, profiles,
+compile aggregation, owner-map assembly, logical boundary and memory planning, compiler
+integration, preparation, runtime, execution, and public no-match diagnostics remain to be
+specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

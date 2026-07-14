@@ -9,10 +9,11 @@ selected public model foundation, tensor-expression metadata surface, common tra
 plus model-correlation identifiers, and the first backend-neutral planning capability contracts.
 It also contains backend and backend-scoped device identity values plus a coarse
 CPU-versus-accelerator device classification. Planning also contains internal per-query hard-
-eligibility evaluation and cost-free baseline owner selection, but they add no public type or
-callable external planning workflow. Compiler orchestration, reusable or public capability
-matrices, public ownership planning, partitioning, prepare, runtime, concrete backend integration,
-and engine APIs remain planned. The backend
+eligibility evaluation, cost-free baseline owner selection, and maximal consecutive same-owner
+generation. The first two steps are internal; partition generation adds the public immutable
+`PlannedPartition` recipe but no callable external planning workflow. Compiler orchestration,
+reusable or public capability matrices, public ownership planning, logical memory, prepare,
+runtime, concrete backend integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -220,13 +221,15 @@ only its optional class preference through a cost-free provider-order baseline. 
 immutable cost profiles, public planning orchestration, compiler consumption, and every public
 lifecycle consumer remain planned.
 
-The public `modules:planning` surface contains two backend-neutral compile-time contracts:
+The public `modules:planning` surface contains three backend-neutral compile-time contracts:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
   backend-independent `Operation` reference plus ordered immutable membership snapshots of input
   and output `TensorDescriptor` references; and
 - `BackendCapabilityProvider`, an explicitly supplied collaboration with a stable non-null
-  `BackendId` and a deterministic boolean capability answer.
+  `BackendId` and a deterministic boolean capability answer; and
+- `PlannedPartition`, an immutable owner-plus-node-ID recipe for one non-empty consecutive region
+  of an owning compiled graph.
 
 The query validates only non-null references and the input/output occurrence counts declared by
 the operation signature. It does not validate operand data types, Shapes, layouts, graph closure,
@@ -290,8 +293,42 @@ returns the exact eligibility reference, allows extra unique snapshots, treats a
 snapshot as a preference nonmatch, and selects no device. Empty eligibility fails internally
 before snapshot elements are read.
 
-These internal contracts are not public APIs. Reusable or public capability matrices, public
-eligibility evaluation or planner orchestration, numeric or cost scoring, profiles, partitions,
+These eligibility and selection contracts are not public APIs. Planning also contains a separate
+package-private generator that consumes one `CompiledGraphModel` and a complete
+`Map<NodeId, BackendId>`. It validates exact owner-map coverage, then groups consecutive nodes in
+the graph's stored topological order while equal `BackendId` values continue. The public result
+type is current, but callers cannot invoke this internal generator.
+
+The following current code constructs the public recipe directly:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.model.graph.NodeId;
+import io.github.pho001.synaptik.planning.partition.PlannedPartition;
+import java.util.List;
+
+BackendId cpu = new BackendId("cpu");
+NodeId first = new NodeId(10);
+NodeId second = new NodeId(11);
+PlannedPartition partition =
+        new PlannedPartition(cpu, List.of(first, second));
+```
+
+`partition.owner()` returns the exact `cpu` reference. `partition.nodeIds()` is an immutable,
+non-empty ordered snapshot that contains the exact `first` and `second` references. Construction
+rejects a null owner or list, an empty list, the first null element, and the first later duplicate.
+This direct example proves only the DTO contract; it does not prove that those node IDs belong to
+one graph or share an owner. The internal generator establishes those graph-relative facts.
+
+The generator defines adjacency only by consecutive positions in `CompiledGraphModel.nodes()`.
+Graph edges, phases, fan-out, merges, repeated inputs, graph input/output values, and multiple
+outputs from one producer do not independently split an equal-owner run. A zero-node graph yields
+no partitions. Each generated partition retains the exact graph `NodeId` references and the exact
+owner reference associated with its first node, and both the result list and membership lists are
+immutable.
+
+Reusable or public capability matrices, public eligibility evaluation or planner orchestration,
+numeric or cost scoring, profiles, owner-map assembly, logical boundary and memory plans,
 compiler integration, preparation, runtime, execution, and diagnostics remain planned.
 
 ## Planned public lifecycle
