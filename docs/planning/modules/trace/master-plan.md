@@ -74,10 +74,11 @@ or import producer-domain types.
 
 ## Current status
 
-In progress. Tasks 0001 and 0002 are Complete and supply the common event foundation plus the
-three model-correlation domains whose source concepts are stable. Task 0003 and later rows remain
-Draft until a separate planning step confirms that their producer-layer facts are stable enough
-to select exact schemas.
+In progress but deliberately interleaved after the stable foundation. Tasks 0001 and 0002 are
+Complete and supply the common event envelope plus three model-correlation domains. No trace task
+is Ready. Backend-contract task 0001 has now established the first producer-owned backend and
+device vocabulary, while task 0003 and later trace rows remain Draft until their complete
+producer facts are stable.
 
 ## Open questions
 
@@ -101,6 +102,12 @@ to select exact schemas.
   can validate their actual producer domains.
 - Trace-local correlation values are assigned within a producer-defined trace stream. They are not
   direct references to, or required numeric copies of, producer-owned identifiers.
+- After task 0002, roadmap execution interleaves `modules/backend-contract` rather than designing
+  typed backend attributes or payloads without a concrete producer vocabulary. This pauses no
+  completed contract and adds no trace dependency on backend-contract.
+- Backend-contract task 0001 supplies `BackendId` and `BackendDeviceId`, but trace-local backend
+  and device correlations remain deferred to the later payload work that can define their actual
+  producer domains. Trace continues to import no backend-contract type.
 
 ## Risks
 
@@ -127,3 +134,8 @@ tests.
 After task 0002, reassess the frontier rather than forcing speculative lifecycle payload schemas.
 If producer contracts are still absent, the roadmap may explicitly interleave their owning
 project areas before returning to the corresponding trace payload rows.
+
+That reassessment selected the backend-contract interleave. Backend-contract task 0001 is now
+Complete with identity-only producer vocabulary. Trace tasks 0003–0008 remain ordered Draft work
+and return to planning only when their directly relevant producer facts are stable; no detailed
+task-0003 specification exists.

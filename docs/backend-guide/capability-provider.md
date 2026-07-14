@@ -2,9 +2,33 @@
 
 ## Outcome and status
 
-This guide explains how a concrete backend will report which planned graph work it can accept. Planning, backend-contract, prepare, and backend modules are not implemented, so the sample is conceptual.
+This guide explains how a future concrete backend will report which planned graph work it can
+accept. The shared `BackendId` and `BackendDeviceId` identity values are current. Capability,
+availability, planning, prepare, registration, and concrete backend contracts remain planned, so
+the capability sample is conceptual.
 
-A capability is a declarative answer to “can this backend own this work?” It is not a live executable, a kernel registry, or a route selection.
+A capability is a declarative answer to “can this backend own this work?” It is not a live
+executable, a kernel registry, or a route selection.
+
+## Current shared identities
+
+The current Java API can name an ownership domain and a device within that domain:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
+import io.github.pho001.synaptik.backend.contract.BackendId;
+
+BackendId cuda = new BackendId("cuda");
+BackendDeviceId cudaZero = new BackendDeviceId(cuda, "0");
+BackendDeviceId metalZero = new BackendDeviceId(new BackendId("metal"), "0");
+```
+
+The concrete inputs are backend names `"cuda"` and `"metal"` plus the opaque device token
+`"0"`. The two device identities are unequal because the backend component scopes the token.
+Both types retain their exact caller-supplied component references. String case and surrounding
+whitespace remain significant, and no predefined backend vocabulary or device-number
+interpretation exists. These values do not show that either backend or device is registered,
+present, available, capable, or accessible.
 
 ## Lifecycle position
 
@@ -15,23 +39,34 @@ operation + data type + shape + layout + availability
   -> backend-neutral scoring
 ```
 
-The backend implements capability evaluation. Planning calls the shared contract and compares supported backend identities. Compile-time plans retain `BackendId`, never the provider object.
+A concrete backend will implement capability evaluation. Planning will call the shared contract
+and compare supported backend identities. Compile-time plans will retain the current `BackendId`
+value, never the provider object.
 
 ## Conceptual example
 
-Assume a CPU capability provider receives a `FLOAT32` matrix multiplication with shapes `[2, 3]` and `[3, 4]`. The output shape is `[2, 4]`, containing `2 × 4 = 8` values. The provider may report CPU ownership as supported based on semantic facts. It must not select OpenBLAS or a scalar loop; CPU prepare makes that route decision later.
+Conceptual example: assume a CPU capability provider receives a `FLOAT32` matrix multiplication
+with shapes `[2, 3]` and `[3, 4]`. The output shape is `[2, 4]`, containing `2 × 4 = 8` values.
+The provider may report CPU ownership as supported based on semantic facts. It must not select
+OpenBLAS or a scalar loop; CPU prepare makes that route decision later.
 
-A rejection should carry typed or structured diagnostic evidence explaining the unsupported fact, such as data type or layout. Exact DTOs remain to be defined.
+A rejection should carry typed or structured diagnostic evidence explaining the unsupported fact,
+such as data type or layout. Exact data-transfer objects (DTOs) remain to be defined.
 
 ## Failures and diagnostics
 
 - Invalid graph semantics belong to compiler validation, not capability fallback.
 - Backend unavailability should remove or reject that ownership candidate before prepare.
-- If no candidate supports required work, compilation must fail rather than defer discovery to runtime.
+- If no candidate supports required work, compilation must fail rather than defer discovery to
+  runtime.
 - Capability evaluation must be deterministic for the supplied immutable compile-time facts.
 
 ## Validation expectations
 
-Future implementations require unit tests for supported and rejected combinations, architecture tests for dependency direction, and backend-conformance tests comparing declared support with actual preparation.
+Future implementations require unit tests for supported and rejected combinations, architecture
+tests for dependency direction, and backend-conformance tests comparing declared support with
+actual preparation.
 
-See [Partition scoring](../architecture/partition-scoring.md), [backend selection](../user-guide/backend-selection.md), and the [backend guide style](../developer-guide/documentation/backend-guide-style.md).
+See [Partition scoring](../architecture/partition-scoring.md), [backend
+selection](../user-guide/backend-selection.md), and the [backend guide
+style](../developer-guide/documentation/backend-guide-style.md).

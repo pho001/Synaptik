@@ -6,8 +6,9 @@ This page identifies which public contracts a caller can use today and which nam
 
 Synaptik has no published compatibility guarantee yet. The current implementation contains the
 selected public model foundation, tensor-expression metadata surface, and common trace-event
-envelope plus model-correlation identifiers. Compiler, prepare, runtime, backend, and engine APIs
-remain planned. APIs may change through the ordered planning process.
+envelope plus model-correlation identifiers. It also contains backend and backend-scoped device
+identity values. Compiler, planning, prepare, runtime, concrete backend integration, and engine
+APIs remain planned. APIs may change through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -48,6 +49,21 @@ mapping; a trace-local numeric value need not equal the corresponding model ID. 
 families, partition/backend/device/unit/run and other later correlation domains, typed backend
 attributes, serialization, sinks, and emission remain planned. Backend is a payload family and
 producer role, not another lifecycle phase.
+
+The implemented `modules:backend-contract` surface contains:
+
+- `BackendId`, an immutable open-string identity for a backend ownership domain; and
+- `BackendDeviceId`, an immutable composite identity for one opaque device token scoped by its
+  owning `BackendId`.
+
+Both records reject null components and blank string values. Every other component is retained by
+the exact caller-supplied reference, and string content keeps its case and surrounding whitespace;
+the records do not trim, normalize, intern, or resolve aliases. Ordinary record equality
+therefore compares the exact stored content, and the backend component prevents equal device
+tokens from different backends from colliding.
+Identity alone does not register, discover, or prove the availability or capability of a backend
+or device. Availability snapshots, requirements, capability reporting, concrete backends,
+registration, preparation, and execution remain planned.
 
 ## Planned public lifecycle
 

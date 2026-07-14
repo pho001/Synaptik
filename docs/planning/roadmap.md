@@ -15,8 +15,8 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
 | 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
-| 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
-| 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Draft | Foundational value-model conventions are stable. | Backend identity and declarative requirement contracts are complete. |
+| 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
+| 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | In progress | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | Draft | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, and profile configuration contracts are complete. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Draft | Model, trace, backend-contract, and config contracts are ready. | Ownership, partitioning, scoring, and logical memory planning are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
@@ -38,24 +38,26 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The current project area is [`modules/trace`](modules/trace/master-plan.md). The selected model
-milestone is Complete, satisfying the trace entry condition.
+The current project area is
+[`modules/backend-contract`](modules/backend-contract/master-plan.md) through an explicit
+interleave after the stable trace foundation. The selected model milestone and trace tasks
+[0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
+[0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md)
+are Complete.
 
-The completed trace frontier is
-[0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md). It adds
-only the common typed event foundation and is Complete after 12 focused tests across two suites,
-final trace Javadoc generation, Markdown validation, and exact fifteen-path scope validation.
-[0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md) is
-Complete. It adds only trace-local node, value, and tensor IDs whose source concepts are stable
-after the model milestone; its final trace suite passed 16 tests across three suites, and its
-independent documentation pass validated Javadoc, Markdown, exact eleven-path scope, status, and
-whitespace. Partition, backend, device, prepared-unit, and other later IDs remain with future
-payload tasks; typed attributes, concrete lifecycle payloads, and serialization also remain Draft.
+[Backend-contract 0001 Backend and device identifiers](modules/backend-contract/tasks/0001-backend-and-device-identifiers.md)
+is Complete. It replaces only the backend-contract placeholder with open backend identity and
+backend-scoped device identity values. No backend-contract task is Ready; tasks 0002–0004 remain
+Draft without detailed specifications. Registration, discovery, availability, capabilities,
+requirements, preparation, execution, and concrete backend behavior remain planned.
 
-No next trace task is Ready. A separate planning step must reassess whether task 0003 or another
-trace foundation is sufficiently concrete. If lifecycle payload schemas still depend on
-unimplemented producer contracts, record an explicit project-area interleave instead of inventing
-those schemas prematurely.
+Trace remains In progress rather than Complete. Its tasks 0003–0008 remain ordered Draft work
+without detailed specifications. The completed backend identities make only the first
+producer-owned vocabulary concrete; typed backend attributes, trace-local backend/device
+correlations, and lifecycle payload schemas still wait for their complete backend, config,
+planning, runtime, compiler, and prepare producer contracts. Returning to those trace rows will
+not make trace depend on the producer modules; producers will still translate their facts into
+the trace-owned DTO leaf.
 
 The completed model frontier is recorded below:
 

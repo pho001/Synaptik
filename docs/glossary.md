@@ -267,8 +267,10 @@ identity and the current node/value/Tensor domains, trace serialization/emission
 remain architecture or planning contracts. The implemented trace foundation consists of
 `TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload` marker, the generic
 `TraceEvent` envelope, and the trace-local `TraceNodeId`, `TraceValueId`, and `TraceTensorId`
-correlation values. A definition explains intended meaning; it is not by itself evidence that a
-Java type exists.
+correlation values. The implemented backend-contract foundation consists only of `BackendId` and
+`BackendDeviceId`; availability, requirements, capabilities, registration, concrete backend
+integration, and trace-local backend/device correlations remain planned. A definition explains
+intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -632,15 +634,43 @@ retain the mask for backward construction; no current compiler or gradient rule 
 
 ### Backend
 
-An execution target identified at planning time, such as CPU, Metal, or CUDA. A backend is responsible for reporting capabilities and preparing the partitions assigned to it. Generic architecture discussions use “backend” for this role; a [concrete backend](#concrete-backend) is the module that implements it.
+An execution target identified at planning time, such as CPU, Metal, or CUDA. A backend is
+responsible for reporting capabilities and preparing the partitions assigned to it. Generic
+architecture discussions use “backend” for this role; a [concrete backend](#concrete-backend) is
+the module that implements it. The current [`BackendId`](#backend-identity--backendid) value names
+this ownership domain but does not implement the backend role.
 
 ### Backend capability
 
 A declarative statement about computation a backend can accept, based on facts such as operation kind, data type, shape, layout, or device availability. Planning queries capabilities when choosing ownership. A capability is not a kernel, a live executable service, or a promise that one fixed implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
 
+### Backend device identity / `BackendDeviceId`
+
+The implemented immutable identity for one opaque device token inside a
+[`BackendId`](#backend-identity--backendid) namespace. It retains the exact caller-supplied backend
+identity and nonblank backend-defined string references. Equal tokens under different backends are
+unequal device identities; equal component values have ordinary composite record equality. The
+record performs no normalization and proves no discovery, presence, availability, capability,
+resource access, or device-handle ownership. It is a producer-domain identity, not a trace-local
+device correlation; that trace translation remains planned.
+
+### Backend identity / `BackendId`
+
+The implemented immutable identity for a backend ownership domain. It retains the exact
+caller-supplied nonblank string reference without trimming, case folding, Unicode normalization,
+syntax validation, interning, or alias resolution, so examples such as `"cpu"`, `"metal"`, and
+`"cuda"` do not form a closed vocabulary. Ordinary record equality compares the stored string
+content. The value can name a compile-time owner but does not register, discover, locate, or prove
+the availability or capability of a [concrete backend](#concrete-backend). It is not a
+trace-local backend correlation; that trace translation remains planned.
+
 ### Backend ownership
 
-The compile-time decision that assigns a node or segment to a backend identity such as CPU, Metal, or CUDA. Ownership answers “where should this work run?” It does not answer “which kernel should run it?” The owning concrete backend makes that implementation choice during [prepare](#prepare).
+The planned compile-time decision that assigns a node or segment to a
+[`BackendId`](#backend-identity--backendid), such as an identity whose value is `"cpu"`, `"metal"`,
+or `"cuda"`. Ownership answers “where should this work run?” It does not answer “which kernel
+should run it?” The owning concrete backend makes that implementation choice during
+[prepare](#prepare).
 
 ### Backend-owned lowering
 
@@ -805,7 +835,12 @@ model. See the [Compile API](api/compile-api.md#current-model-contracts).
 
 ### Concrete backend
 
-A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`. It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization, kernel selection, executable units, storage, workspaces, and native integration. Concrete backends do not own public tensor semantics or global graph compilation. See [Module boundaries](architecture/module-boundaries.md).
+A module that implements a backend, such as `backends/cpu`, `backends/metal`, or `backends/cuda`.
+It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
+kernel selection, executable units, storage, workspaces, and native integration. Concrete
+backends do not own public tensor semantics or global graph compilation. None is implemented yet;
+the current backend identity records contain no concrete backend behavior. See [Module
+boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
 
