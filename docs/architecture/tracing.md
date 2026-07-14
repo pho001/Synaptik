@@ -3,9 +3,10 @@
 This document explains the typed trace model required by
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
-The current `modules/trace` implementation provides the common event envelope only. Concrete
-compile, prepare, run, and backend payload families, trace-local correlation identifiers beyond
-the event ID, typed backend attributes, serialization, and event emission remain planned.
+The current `modules/trace` implementation provides the common event envelope and trace-local
+node, logical-value, and public-Tensor correlation identifiers. Concrete compile, prepare, run,
+and backend payload families, other correlation domains, typed backend attributes, serialization,
+and event emission remain planned.
 
 ## Mental model
 
@@ -14,6 +15,10 @@ producer-owned fact
   -> producer translates it into a trace-owned TracePayload
   -> TraceEvent adds event ID, lifecycle phase, level, and monotonic time
   -> a later diagnostic consumer inspects the typed DTO
+
+producer-owned node / value / Tensor identity
+  -> producer assigns the corresponding trace-local correlation value
+  -> later typed payloads can carry that value without importing model types
 ```
 
 The producer owns the fact, identity assignment, clock, and eventual emission. The trace module
@@ -54,6 +59,30 @@ immutable; because `TracePayload` is open, payload implementations must honor th
 immutability contract themselves. The foundation defines no serialization, filtering, storage,
 sink, logging, or emission behavior.
 
+## Current model-correlation identifiers
+
+The `io.github.pho001.synaptik.trace.id` package contains three immutable correlation values:
+
+| Trace-owned type | Correlates | Deliberately does not identify |
+|---|---|---|
+| `TraceNodeId` | one computation occurrence | operation semantics, an output value, or a runtime unit |
+| `TraceValueId` | logical graph data | a node, public Tensor, storage location, buffer, or runtime slot |
+| `TraceTensorId` | public Tensor state | a graph node/value, storage address, device allocation, or runtime residency |
+
+The table separates three identity domains that may share the same numeric value but must not be
+substituted for one another. Each type is a one-component record containing a non-negative
+`long`; zero through `Long.MAX_VALUE` are valid, and ordinary record equality applies only within
+the same nominal type.
+
+These identifiers are trace-local. The producer defines the trace stream or correlation domain
+in which a value is meaningful and owns allocation, uniqueness, lifetime, and translation from
+its own identity. Translation may preserve a producer ID's numeric value or choose a different
+one; numeric equality is not part of the contract. The trace module provides no allocator,
+translator, registry, mapping table, or producer-object reference.
+
+The records are correlation vocabulary for later typed payloads. They do not themselves carry a
+diagnostic fact, implement `TracePayload`, emit an event, or define serialization.
+
 ## Lifecycle phase and backend diagnostics
 
 `TracePhase` answers when a fact occurred:
@@ -91,11 +120,11 @@ envelope task.
 
 ## Planned correlation and attributes
 
-`TraceEventId` is current. Additional trace-local IDs for nodes, values, tensors, partitions,
-backends, devices, and prepared units remain planned. Their purpose is to let later events
-correlate related facts without importing identities or object references from model, planning,
-runtime, or backend modules. Producers will translate their identities into those trace-owned
-forms.
+`TraceEventId`, `TraceNodeId`, `TraceValueId`, and `TraceTensorId` are current. Trace-local
+identifiers for partitions, backends, devices, prepared units, schedules, runs, and any other
+later domain remain planned until their producer contracts are stable. Like the current model
+correlations, later IDs must avoid importing identities or object references from planning,
+runtime, backend-contract, or backend modules.
 
 Typed backend-specific attributes also remain planned. They will be a constrained escape hatch
 for facts that a shared payload cannot predict, not the primary event model.

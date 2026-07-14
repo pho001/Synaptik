@@ -263,10 +263,12 @@ Other concrete kind families and expression families, their family attributes, r
 typed access and export, native/runtime/backend allocation,
 gradient and publication behavior, compiler entry points and artifacts, planning, prepare,
 runtime, concrete backends, concrete trace payload families, trace correlation beyond event
-identity, trace serialization/emission, and training remain architecture or planning contracts.
-The implemented trace foundation consists only of `TraceEventId`, `TracePhase`, `TraceLevel`, the
-open `TracePayload` marker, and the generic `TraceEvent` envelope. A definition explains intended
-meaning; it is not by itself evidence that a Java type exists.
+identity and the current node/value/Tensor domains, trace serialization/emission, and training
+remain architecture or planning contracts. The implemented trace foundation consists of
+`TraceEventId`, `TracePhase`, `TraceLevel`, the open `TracePayload` marker, the generic
+`TraceEvent` envelope, and the trace-local `TraceNodeId`, `TraceValueId`, and `TraceTensorId`
+correlation values. A definition explains intended meaning; it is not by itself evidence that a
+Java type exists.
 
 ## Terms
 
@@ -2507,10 +2509,10 @@ normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normali
 
 Structured diagnostic information about compile, prepare, run, and backend activity. A trace
 helps people and tools understand what happened without becoming business logic or execution
-state. The implemented module currently defines only the common event envelope and event identity;
-it does not emit, store, filter, or serialize events. The trace module is a dependency leaf and
-later correlation identifiers remain trace-local rather than importing producer-layer domain
-objects. See [Tracing](architecture/tracing.md).
+state. The implemented module currently defines the common event envelope and trace-local event,
+node, logical-value, and public-Tensor identities; it does not emit, store, filter, or serialize
+events. The trace module is a dependency leaf, so producers translate their identities rather than
+make trace import producer-layer domain objects. See [Tracing](architecture/tracing.md).
 
 ### Trace event envelope
 
@@ -2542,6 +2544,38 @@ The implemented open method-free marker for a typed diagnostic DTO carried by a
 [`TraceEvent`](#trace-event-envelope). Implementations are required to be immutable and to
 describe producer facts in trace-owned terms, but the open marker cannot enforce those properties
 at runtime. Concrete compile, prepare, run, and backend payload records remain planned.
+
+### Trace-local correlation identifier
+
+An immutable trace-owned value used to relate diagnostic facts without storing or importing a
+producer-domain identity. The producer defines the trace stream or correlation domain, assigns
+the value, and owns allocation, uniqueness, lifetime, and any mapping from its own identity. A
+trace-local numeric value is not required to equal the producer ID's numeric value and has no
+process-wide or cross-stream guarantee. The implemented model-correlation domains are
+[`TraceNodeId`](#trace-node-correlation-identity--tracenodeid),
+[`TraceValueId`](#trace-value-correlation-identity--tracevalueid), and
+[`TraceTensorId`](#trace-tensor-correlation-identity--tracetensorid).
+
+### Trace node correlation identity / `TraceNodeId`
+
+The implemented non-negative one-`long` trace-local identity for one computation occurrence. It
+does not identify operation semantics, an output value, a producer object, or a runtime unit.
+Zero is valid, no sentinel is reserved, and ordinary record equality applies only to another
+`TraceNodeId` with the same value.
+
+### Trace value correlation identity / `TraceValueId`
+
+The implemented non-negative one-`long` trace-local identity for logical graph data. It is
+nominally distinct from node and public-Tensor correlations and does not identify storage, a
+buffer, or a runtime slot. Zero is valid, no sentinel is reserved, and ordinary record equality
+applies only within the `TraceValueId` domain.
+
+### Trace Tensor correlation identity / `TraceTensorId`
+
+The implemented non-negative one-`long` trace-local identity for public Tensor state. It is
+nominally distinct from graph node and logical-value correlations and does not identify a storage
+address, device allocation, or runtime residency. Zero is valid, no sentinel is reserved, and
+ordinary record equality applies only within the `TraceTensorId` domain.
 
 ### Trace phase / `TracePhase`
 

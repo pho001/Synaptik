@@ -43,7 +43,7 @@ Define typed, serializable diagnostic DTOs shared by compile, prepare, run, and 
 ```text
 io.github.pho001.synaptik.trace/
   <root>       shared public event envelope, event identity, lifecycle phase, level, and payload marker
-  id/          later trace-local correlation identifiers translated from producer-owned identities
+  id/          current model-correlation identifiers and later trace-local identity domains
   payload/     later typed compile, prepare, run, and backend diagnostic DTO families
   attribute/   later typed backend-specific attribute escape hatch
 ```
@@ -57,7 +57,7 @@ or import producer-domain types.
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Core trace event envelope](tasks/0001-core-trace-event-envelope.md) | Complete | Model milestone complete | Replaced the placeholder with the caller-supplied event identity, lifecycle phase, diagnostic level, open typed-payload marker, and immutable generic event envelope. |
-| 0002 | Trace-local correlation identifiers | Draft | 0001 | Add backend-neutral trace identities for node, value, tensor, partition, backend, and prepared-unit correlation without importing producer IDs. |
+| 0002 | [Model correlation identifiers](tasks/0002-model-correlation-identifiers.md) | Complete | 0001, completed model milestone | Added trace-local node, value, and tensor identities for stable model correlations without importing or duplicating producer objects. |
 | 0003 | Typed trace attributes | Draft | 0001 | Add the constrained typed backend-specific attribute escape hatch without making a string map the primary model. |
 | 0004 | Compile payload family | Draft | 0001–0002 | Define typed capture, transformation, ownership, partition, logical-memory, and publication diagnostic payloads after compiler/planning facts stabilize. |
 | 0005 | Prepare payload family | Draft | 0001–0003 | Define typed preparation, route, prepared-memory, partition, unit, and schedule diagnostics after prepare contracts stabilize. |
@@ -74,9 +74,10 @@ or import producer-domain types.
 
 ## Current status
 
-In progress. Task 0001 is Complete and supplies the common event foundation. Task 0002 is the next
-ordered frontier but remains Draft without a detailed specification. It and later rows remain
-Draft until their producer-layer facts are stable enough to select exact schemas.
+In progress. Tasks 0001 and 0002 are Complete and supply the common event foundation plus the
+three model-correlation domains whose source concepts are stable. Task 0003 and later rows remain
+Draft until a separate planning step confirms that their producer-layer facts are stable enough
+to select exact schemas.
 
 ## Open questions
 
@@ -95,6 +96,11 @@ Draft until their producer-layer facts are stable enough to select exact schemas
   a clock.
 - The event record is shallowly immutable. Its open payload bound documents an immutable DTO
   obligation but cannot enforce payload implementation immutability at runtime.
+- Task 0002 introduces only node, value, and tensor correlation IDs because their source concepts
+  are stable. Partition, backend, and prepared-unit IDs remain with the later payload tasks that
+  can validate their actual producer domains.
+- Trace-local correlation values are assigned within a producer-defined trace stream. They are not
+  direct references to, or required numeric copies of, producer-owned identifiers.
 
 ## Risks
 
@@ -102,6 +108,8 @@ Draft until their producer-layer facts are stable enough to select exact schemas
 - Treating caller-supplied monotonic timestamps as wall-clock instants or globally comparable
   values.
 - Selecting a serialization mechanism before the shared payload schemas exist.
+- Defining partition, backend, or prepared-unit identity before their owning module contracts are
+  concrete.
 
 ## Notes
 
@@ -110,3 +118,12 @@ Keep this master plan concise. Put executable work in small task specifications 
 Task 0001 passed 12 focused tests across two suites, final trace Javadoc generation, repository
 Markdown validation, and exact fifteen-path scope validation. The implementation introduced no
 dependency, architecture, build, backend, or cross-module behavior change.
+
+Task 0002 passed 4 focused tests and one final 16-test/three-suite trace module run. Its separate
+documentation pass finalized the correlation Javadocs and explanations and passed trace Javadoc,
+repository Markdown, exact eleven-path, status, and whitespace validation without rerunning Java
+tests.
+
+After task 0002, reassess the frontier rather than forcing speculative lifecycle payload schemas.
+If producer contracts are still absent, the roadmap may explicitly interleave their owning
+project areas before returning to the corresponding trace payload rows.

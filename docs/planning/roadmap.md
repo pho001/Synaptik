@@ -45,9 +45,17 @@ The completed trace frontier is
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md). It adds
 only the common typed event foundation and is Complete after 12 focused tests across two suites,
 final trace Javadoc generation, Markdown validation, and exact fifteen-path scope validation.
-Task 0002, trace-local correlation identifiers, is the next ordered frontier but remains Draft
-without a detailed specification. Typed attributes, concrete lifecycle payloads, and serialization
-also remain Draft.
+[0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md) is
+Complete. It adds only trace-local node, value, and tensor IDs whose source concepts are stable
+after the model milestone; its final trace suite passed 16 tests across three suites, and its
+independent documentation pass validated Javadoc, Markdown, exact eleven-path scope, status, and
+whitespace. Partition, backend, device, prepared-unit, and other later IDs remain with future
+payload tasks; typed attributes, concrete lifecycle payloads, and serialization also remain Draft.
+
+No next trace task is Ready. A separate planning step must reassess whether task 0003 or another
+trace foundation is sufficiently concrete. If lifecycle payload schemas still depend on
+unimplemented producer contracts, record an explicit project-area interleave instead of inventing
+those schemas prematurely.
 
 The completed model frontier is recorded below:
 

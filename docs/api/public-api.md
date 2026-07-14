@@ -6,9 +6,10 @@ This page identifies which public contracts a caller can use today and which nam
 
 Synaptik has no published compatibility guarantee yet. The current implementation contains the
 selected public model foundation, tensor-expression metadata surface, and common trace-event
-envelope. Compiler, prepare, runtime, backend, and engine APIs remain planned. APIs may change
-through the ordered planning process. [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module
-boundaries, not source or binary compatibility.
+envelope plus model-correlation identifiers. Compiler, prepare, runtime, backend, and engine APIs
+remain planned. APIs may change through the ordered planning process.
+[`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
+compatibility.
 
 ## Current public contracts
 
@@ -37,12 +38,16 @@ The implemented `modules:trace` surface contains:
 - `TraceLevel` detail and severity classification;
 - the open method-free `TracePayload` marker; and
 - the generic `TraceEvent<T extends TracePayload>` envelope with a producer-supplied monotonic
-  nanosecond reading.
+  nanosecond reading; and
+- the nominal `TraceNodeId`, `TraceValueId`, and `TraceTensorId` records for trace-local
+  correlation with producer-owned model identities.
 
-The [tracing explanation](../architecture/tracing.md) documents the envelope semantics and
-ownership boundaries. Concrete payload families, trace-local correlation IDs beyond the event
-ID, typed backend attributes, serialization, sinks, and emission remain planned. Backend is a
-payload family and producer role, not another lifecycle phase.
+The [tracing explanation](../architecture/tracing.md) documents the envelope, correlation, and
+ownership boundaries. The producer owns correlation-value allocation, uniqueness, lifetime, and
+mapping; a trace-local numeric value need not equal the corresponding model ID. Concrete payload
+families, partition/backend/device/unit/run and other later correlation domains, typed backend
+attributes, serialization, sinks, and emission remain planned. Backend is a payload family and
+producer role, not another lifecycle phase.
 
 ## Planned public lifecycle
 
