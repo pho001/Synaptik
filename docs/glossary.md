@@ -6,13 +6,16 @@ Some entries describe contracts planned by the architecture but not yet implemen
 
 ## Implementation-status convention
 
-The current planning foundation consists only of `OperationCapabilityQuery` and
+The current public planning foundation consists of `OperationCapabilityQuery` and
 `BackendCapabilityProvider`: one immutable operation-occurrence question and one explicitly
-supplied boolean provider collaboration. Capability matrices, hard eligibility, scoring,
-ownership, partitioning, logical memory, provider implementations, compiler consumers, and
-device-level capability remain planned. Current config separately retains one optional soft
-coarse device-class preference as input for later ranking after hard eligibility; interpreting
-that preference and calculating scores remain planned.
+supplied boolean provider collaboration. Planning also has one package-private per-query hard-
+eligibility result and evaluator that combine backend-level support, supplied availability, and
+an optional exact hard requirement into provider-ordered `BackendId` values. Reusable or public
+capability matrices, public planning orchestration, scoring, ownership, partitioning, logical
+memory, provider implementations, compiler consumers, device-level capability, and device
+selection remain planned. Current config separately retains one optional soft coarse device-class
+preference as input for later ranking after hard eligibility; interpreting that preference and
+calculating scores remain planned.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -279,9 +282,11 @@ correlation values. The implemented backend-contract foundation consists of `Bac
 `BackendDeviceId`, the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`, and
 `BackendAvailabilitySnapshot` for one backend's caller-supplied point-in-time device-to-class
 availability association. It also contains the sealed, method-free `BackendRequirement` family
-with exact-backend, exact-device, and device-class hard targets. Configuration placement,
-requirement evaluation, capability providers, discovery and refresh, registration, concrete
-backend integration, and trace-local backend/device correlations remain planned. The implemented
+with exact-backend, exact-device, and device-class hard targets. Planning currently evaluates one
+query against explicitly supplied providers, snapshots, and intent through a package-private
+result/factory. Discovery and refresh, registration, concrete provider implementations, public
+planning orchestration, concrete backend integration, and trace-local backend/device correlations
+remain planned. The implemented
 config foundation contains `BackendIntent`, `CompileMode`, `GraphOptimizationConfig`, and
 `PartitionScoringConfig`. They record hard-requirement optionality, graph scope,
 optional-optimization permission, and one optional soft coarse class preference, respectively,
@@ -678,8 +683,9 @@ A backend's declarative answer about computation it can semantically own. The cu
 contract asks about one immutable [`OperationCapabilityQuery`](#operation-capability-query--operationcapabilityquery)
 through one explicitly supplied
 [`BackendCapabilityProvider`](#backend-capability-provider--backendcapabilityprovider). The answer
-is backend-level and boolean; it is separate from registration, availability, hard eligibility,
-device selection, scoring, route selection, preparation, and execution. A capability is not a
+is backend-level and boolean; it is separate from registration, availability, device selection,
+scoring, route selection, preparation, and execution. Current internal hard eligibility combines
+that answer with separate availability and intent facts without changing its level. A capability is not a
 kernel, a live executable service, a rejection diagnostic, or a promise that one fixed
 implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
 
@@ -695,8 +701,31 @@ The provider is an explicitly supplied compile-time collaboration, not a registr
 mechanism, `ServiceLoader` lookup, service locator, availability source, requirement evaluator,
 scoring policy, route selector, preparer, or execution service. A concrete backend may later
 implement it through the architecture-approved inward dependency on planning, but the repository
-currently supplies no production implementation or consumer. Compile-time plans retain
-`BackendId`, not a provider object.
+currently supplies no production implementation or public consumer. The package-private
+hard-eligibility step is the first internal consumer. Compile-time plans retain `BackendId`, not a
+provider object.
+
+### Backend hard eligibility
+
+The implemented internal planning step that determines which backend identities may still own one
+[`OperationCapabilityQuery`](#operation-capability-query--operationcapabilityquery) before
+scoring. It validates a complete one-to-one association between explicitly supplied
+[`BackendCapabilityProvider`](#backend-capability-provider--backendcapabilityprovider) values and
+[`BackendAvailabilitySnapshot`](#backend-availability-snapshot--backendavailabilitysnapshot)
+values by equal [`BackendId`](#backend-identity--backendid). Only after all duplicates and missing
+counterparts have been rejected does it evaluate providers in provider encounter order.
+
+An empty snapshot or exact [`BackendRequirement`](#backend-requirement--backendrequirement)
+mismatch skips a provider before its capability call. Every remaining provider receives the exact
+query once; a true answer retains that provider's exact backend-identity reference. The result is
+an immutable provider-ordered list and may be empty. A later public planning consumer must treat
+emptiness as terminal before scoring and must not relax the hard requirement.
+
+Exact-device and device-class requirements use the matching snapshot only to prove current
+matching availability. Capability remains backend-level, and hard eligibility neither selects nor
+retains a device. The result and evaluator are package-private, so this current behavior creates no
+public matrix, public planner workflow, score, ownership decision, diagnostic taxonomy, compiler
+integration, preparation, runtime, or execution contract.
 
 ### Backend device identity / `BackendDeviceId`
 
@@ -740,8 +769,9 @@ available or capable. Backend intent does not evaluate the target, rank candidat
 preference, contain calibrated profile data, select ownership, locate services, or perform
 compile, prepare, run, publication, or execution behavior. The current separate
 [`PartitionScoringConfig`](#partition-scoring-configuration--partitionscoringconfig) may retain a
-soft coarse class preference, while profiles remain planned; planning later owns eligibility
-evaluation, preference interpretation, scoring, ownership, and no-match failure.
+soft coarse class preference, while profiles remain planned. Current internal planning owns the
+per-query hard-eligibility intersection; later public planning orchestration owns preference
+interpretation, scoring, ownership, and no-match failure.
 
 ### Backend requirement / `BackendRequirement`
 
@@ -756,7 +786,8 @@ A backend requirement is requested data, not a capability claim, availability fa
 fallback, score, or evaluator. The family has no absence sentinel and does not combine or match
 targets. Current [`BackendIntent`](#backend-intent--backendintent) owns whether a requirement is
 present. Later planning owns evaluation with availability and capability facts and failure when no
-eligible target remains; the no-match exception type and message are not yet defined.
+eligible target remains. Current internal evaluation represents no match with an empty immutable
+backend-identity list; the later public no-match exception type and message are not yet defined.
 
 ### Backend-owned lowering
 

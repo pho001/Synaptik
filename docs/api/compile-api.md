@@ -8,8 +8,9 @@ The current config module provides four immutable standalone input values that a
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
 immutable `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider`
-collaboration; it does not yet provide a capability matrix, ownership planner, or compiler
-integration.
+collaboration. It also contains one package-private per-query hard-eligibility step, but it does
+not provide a reusable/public capability matrix, public planner orchestration, ownership planner,
+or compiler integration.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -680,12 +681,24 @@ configuration, the boolean answer is deterministic. Implementations reject a nul
 `NullPointerException("query")`. `true` means only that the backend can semantically own the
 described occurrence; `false` carries no reason.
 
-The provider is supplied explicitly to later compile-time planning. The current contract performs
+The provider is supplied explicitly to compile-time planning. The public contract performs
 no registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
 evaluation, scoring, route or kernel selection, preparation, or execution. The repository supplies
 no production provider implementation and no compiler consumer. Compile-time plans will retain a
-`BackendId`, not a provider object. Capability matrices, eligibility, ownership, partitions,
-device-level capability, and typed rejection diagnostics remain planned.
+`BackendId`, not a provider object.
+
+Current package-private planning implementation validates a complete association between ordered
+providers and caller-supplied availability snapshots by equal `BackendId`, then applies non-empty
+availability and the optional exact hard target before invoking each still-possible provider once.
+It returns only an immutable provider-ordered list of eligible `BackendId` references; an empty
+list is a valid internal no-match result. Exact-device and device-class requirements consult the
+matching snapshot only for availability. They do not make the boolean answer device-level, select
+a device, or retain one.
+
+Reusable or public capability matrices, a public eligibility result/evaluator, public planning
+orchestration, scoring and profiles, ownership, partitions, compiler integration, device-level
+capability or selection, preparation, runtime, execution, and typed rejection diagnostics remain
+planned.
 
 ## Current expression input and planned compiler output
 

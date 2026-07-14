@@ -7,8 +7,11 @@ report whether it can semantically own one operation occurrence. `OperationCapab
 `BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
 supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
 also current. The repository does not yet ship a provider implementation or a compiler/planning
-consumer. Capability matrices, requirement evaluation, ownership, concrete backend preparation,
-registration, and execution remain planned.
+consumer. Planning now contains one internal per-query hard-eligibility consumer, but it is not a
+public integration API: it combines explicitly supplied providers, matching availability
+snapshots, and `BackendIntent` into backend identities only. Reusable/public capability matrices,
+public planning orchestration, ownership, concrete backend preparation, registration, and
+execution remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
@@ -104,18 +107,25 @@ operation + data type + shape + layout
   -> current immutable operation-capability query
   -> current explicitly supplied provider
   -> current boolean semantic-capability answer
-  -> planned capability matrix
-optional hard target + supplied availability + capable candidates
-  -> later planning eligibility
+optional hard target + supplied availability + current boolean answers
+  -> current internal per-query hard eligibility
+  -> immutable provider-ordered BackendId list
   -> valid ownership candidates
   -> backend-neutral scoring
 ```
 
-A concrete backend may implement the current provider interface. Later planning will call
-explicitly supplied instances for work-specific support, then combine capable candidates with
-supplied availability and any hard target. If no eligible candidate remains, the later owning
-layer will fail instead of weakening the target; its exception details are not yet defined.
-Compile-time plans will retain the selected current `BackendId` value, never the provider object.
+A concrete backend may implement the current provider interface. Current internal planning first
+validates that every supplied provider has exactly one equal-`BackendId` snapshot and vice versa.
+It then skips empty snapshots and exact hard-target mismatches before calling each remaining
+provider once in provider order. A true answer retains that provider's exact `BackendId`
+reference. Snapshot list order does not reorder calls or results.
+
+An exact-device or device-class target consults a snapshot only to prove that a matching device is
+currently reported. The provider answer remains backend-level: this step does not claim support
+for a particular device, choose one, or retain one. A valid no-match produces an immutable empty
+list. Later public orchestration must fail before scoring that list instead of weakening the hard
+target; its exception details are not yet defined. Compile-time plans will retain selected
+`BackendId` values, never provider objects.
 
 ## Illustrative current provider
 
@@ -177,7 +187,9 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 ## Failures and diagnostics
 
 - Invalid graph semantics belong to compiler validation, not capability fallback.
-- Backend unavailability should remove or reject that ownership candidate before prepare.
+- Complete provider/snapshot composition errors fail before any `supports` call.
+- Empty availability or an exact hard-target mismatch skips the provider before capability is
+  queried.
 - When the compiler consumer exists, no capable eligible candidate must fail compilation rather
   than defer discovery to runtime.
 - Capability evaluation must be deterministic for the supplied immutable compile-time facts.
@@ -186,10 +198,11 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 
 ## Validation expectations
 
-Current provider implementations require unit tests for supported and rejected combinations and
-architecture tests for dependency direction. Backend-conformance tests comparing declared support
-with actual preparation remain necessary once concrete preparation exists; task 0001 adds no
-concrete backend behavior to test.
+Provider implementations require unit tests for supported and rejected combinations and
+architecture tests for dependency direction once concrete implementations exist. Backend-
+conformance tests comparing declared support with actual preparation remain necessary once
+concrete preparation exists. The current internal eligibility step changes no concrete backend
+behavior and therefore adds no backend-conformance or integration test requirement.
 
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide

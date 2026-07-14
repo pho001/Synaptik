@@ -39,27 +39,29 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The completed frontier is
-[Config 0003 Partition scoring configuration](modules/config/tasks/0003-partition-scoring-configuration.md).
-It adds one optional coarse `DeviceClass` preference as soft input after hard eligibility, with
-focused config validation and an independent documentation pass complete. It adds no candidate
-enumeration or evaluation, score calculation, numeric weights, calibrated profile data, ownership
-decision, policy type, service, route, kernel, preparation, runtime state, or execution.
+[Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
+It validates complete provider/snapshot associations by equal `BackendId`, queries every
+provider that survives availability and exact hard intent once, and combines its backend-level
+support into one internal provider-ordered immutable `BackendId` list. Its focused and final
+planning tests plus independent documentation pass are complete. It adds no public matrix,
+score, profile, ownership choice, selected device, device-level capability, route, kernel,
+preparation, runtime state, or execution.
 
 [Config 0001 Backend intent foundation](modules/config/tasks/0001-backend-intent-foundation.md) and
 [Config 0002 Compile modes and graph optimization configuration](modules/config/tasks/0002-compile-modes-and-graph-optimization-configuration.md)
 remain Complete. Config task 0003 is also Complete; config tasks 0004–0008 remain ordered Draft
 work without detailed specifications. Planning task 0001 remains Complete after its focused
 suites, independent documentation pass, and single final 1,079-test repository suite passed.
-Planning tasks 0002–0006 remain Draft without detailed specifications. No global task is Ready.
-The next frontier must be reassessed separately rather than assumed: profile data notably remains
-Draft, and planning scoring must not advance until its actual prerequisites are stable.
+Planning task 0002 is Complete; Planning tasks 0003–0006 remain Draft without detailed
+specifications. Config 0004 immutable profile contracts are the likely next area before Planning
+0003 scoring, but a separate reassessment must confirm that frontier. No global task is Ready.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
 [0002 Model correlation identifiers](modules/trace/tasks/0002-model-correlation-identifiers.md)
 remain Complete. Trace tasks 0003–0008 remain Draft without detailed specifications; the boolean
-capability foundation does not yet stabilize structured rejection diagnostics or trace payload
-schemas.
+capability and hard-eligibility work does not stabilize structured rejection diagnostics or trace
+payload schemas.
 
 [Backend-contract 0001 Backend and device identifiers](modules/backend-contract/tasks/0001-backend-and-device-identifiers.md)
 is Complete. It replaces only the backend-contract placeholder with open backend identity and

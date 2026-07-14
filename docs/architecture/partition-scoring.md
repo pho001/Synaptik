@@ -3,11 +3,14 @@
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
 The operation-capability question and provider collaboration used before scoring are implemented.
-Configuration can also record one optional soft `DeviceClass` preference for later ranking after
-hard eligibility. Capability matrices, hard-eligibility evaluation, preference interpretation,
-score calculation, ownership decisions, partitioning, and logical memory planning remain planned.
-This page explains the accepted boundary and permitted inputs; it does not define a current
-scoring formula, weights, or callable scoring API.
+Planning now also has one internal per-query hard-eligibility step: it validates the complete
+provider/snapshot association, applies current availability and one exact hard requirement, and
+retains supported backend identities in provider order. Configuration can separately record one
+optional soft `DeviceClass` preference for later ranking after hard eligibility. Reusable or
+public capability matrices, public planning orchestration, preference interpretation, score
+calculation, ownership decisions, partitioning, and logical memory planning remain planned. This
+page explains the accepted boundary and permitted inputs; it does not define a current scoring
+formula, weights, or callable public scoring API.
 
 ## Purpose and pipeline position
 
@@ -24,7 +27,8 @@ It runs after intent propagation and capability analysis and before maximal same
 backend intent
   -> current OperationCapabilityQuery
   -> current BackendCapabilityProvider boolean answer
-  -> planned capability matrix and hard eligibility
+  -> current internal per-query hard eligibility
+  -> planned reusable/public capability matrix and orchestration
   -> current PartitionScoringConfig preference input
   -> backend-neutral partition scoring
   -> ownership decision
@@ -32,17 +36,26 @@ backend intent
   -> logical memory/materialization requirements
 ```
 
-The current capability contract asks whether one named backend can semantically own one immutable
-operation occurrence. The query contains an `Operation` plus ordered input and output
+The current public capability contract asks whether one named backend can semantically own one
+immutable operation occurrence. The query contains an `Operation` plus ordered input and output
 `TensorDescriptor` snapshots; the explicitly supplied provider returns only a deterministic
 boolean answer for its stable `BackendId`. It does not discover a backend, inspect availability,
 evaluate a hard requirement, select a device or route, or explain a rejection.
 
-Later capability-matrix and hard-eligibility work will turn those narrow answers into valid
-ownership candidates. Current `PartitionScoringConfig` may supply one preferred coarse device
-class, but it neither filters those candidates nor guarantees that a candidate of that class wins.
-Later scoring will interpret that soft input together with other compile-time information, and the
-partitioner will then group adjacent work with the same selected owner.
+The current package-private eligibility step combines those answers with caller-supplied
+`BackendAvailabilitySnapshot` values and `BackendIntent`. It first validates a complete
+one-provider/one-snapshot association by equal `BackendId`. It then skips empty snapshots and
+exact hard-requirement mismatches before querying each remaining provider once. The result is an
+immutable provider-ordered `BackendId` list, which may be empty. Exact-device and device-class
+requirements prove only matching availability in the associated snapshot: capability remains
+backend-level, and the step neither selects nor retains a device.
+
+Later public planning orchestration may build ownership candidates from that internal fact and
+must treat an empty list as terminal before scoring rather than weakening a hard requirement.
+Current `PartitionScoringConfig` may supply one preferred coarse device class, but it neither
+filters eligible backends nor guarantees that a backend of that class wins. Later scoring will
+interpret that soft input together with other compile-time information, and the partitioner will
+then group adjacent work with the same selected owner.
 
 ## Information scoring may use
 

@@ -81,8 +81,9 @@ In progress after completing
 [task 0003](tasks/0003-partition-scoring-configuration.md). Tasks 0001–0003 are Complete. Task 0003
 adds only the optional soft coarse `DeviceClass` preference and no candidate evaluation, scoring
 formula, owner selection, profile data, or separate policy type. Tasks 0004–0008 remain ordered
-Draft work without detailed specifications. No config task or global task is Ready until a
-separate frontier reassessment.
+Draft work without detailed specifications. Planning task 0002 is Complete; its internal
+consumption of hard intent changed no config Java or dependency surface. No config or global task
+is Ready until a separate frontier reassessment.
 
 ## Open questions
 
@@ -115,6 +116,9 @@ separate frontier reassessment.
 - Task 0003 adds no `PartitionScoringPolicy`, numeric weights, preferred backend list, callback,
   candidate model, scoring evaluation, or profile data because no stable consumer or formula
   justifies those surfaces yet.
+- Planning task 0002 evaluates this module's existing `BackendIntent` only through a package-
+  private Planning entry point. It does not modify config, interpret the task-0003 soft
+  preference, expose config in a public Planning signature, or make profile/scoring work current.
 
 ## Risks
 
@@ -162,4 +166,8 @@ Its separate documentation pass finalized the new type and package Javadocs, cur
 architecture/API/user-guide text, glossary terminology, and planning records. Config Javadoc,
 repository Markdown, exact fourteen-path, status, later-spec, dependency, generated-page, and
 whitespace validation passed without changing executable Java or rerunning the successful Java
-suite. The next frontier remains intentionally unselected.
+suite. A later reassessment made only Planning task 0002 Ready for capability/availability/hard-
+intent intersection. Config 0004 remains Draft without a detailed specification. After Planning
+0002, Config 0004 profile contracts are the likely next area before Planning 0003 scoring, but
+that selection requires a separate reassessment. Planning task 0002 is now Complete, and that
+reassessment has not made Config 0004 or another task Ready.

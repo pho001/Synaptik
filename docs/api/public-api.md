@@ -8,16 +8,17 @@ Synaptik has no published compatibility guarantee yet. The current implementatio
 selected public model foundation, tensor-expression metadata surface, common trace-event envelope
 plus model-correlation identifiers, and the first backend-neutral planning capability contracts.
 It also contains backend and backend-scoped device identity values plus a coarse
-CPU-versus-accelerator device classification. Compiler orchestration, capability matrices,
-ownership planning, partitioning, prepare, runtime, concrete backend integration, and engine APIs
-remain planned. The backend
+CPU-versus-accelerator device classification. Planning also contains an internal per-query
+hard-eligibility evaluation, but it adds no public type or callable external planning workflow.
+Compiler orchestration, reusable or public capability matrices, ownership planning, partitioning,
+prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
 permission for optional semantics-preserving compiler optimization, and one optional soft coarse
-device-class preference. No current compile aggregate, compiler, capability matrix, scoring
-evaluator, or ownership planner consumes those values. APIs may change through the ordered
-planning process.
+device-class preference. No current compile aggregate, compiler, public capability-matrix or
+eligibility surface, scoring evaluator, or ownership planner consumes those values. APIs may
+change through the ordered planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -214,7 +215,7 @@ contain profile measurements, choose ownership or a device, select a route or ke
 compiler, prepare, runtime, or execution work. `CompileConfig`, immutable profiles, planning
 interpretation, compiler consumption, and every lifecycle consumer remain planned.
 
-The implemented `modules:planning` surface contains two backend-neutral compile-time contracts:
+The public `modules:planning` surface contains two backend-neutral compile-time contracts:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
   backend-independent `Operation` reference plus ordered immutable membership snapshots of input
@@ -271,12 +272,19 @@ backend identity `"cpu"`. The result is `true` because this illustrative provide
 operation kind. It proves only semantic ownership support for this immutable occurrence; it does
 not prove CPU registration or availability, evaluate `BackendIntent`, choose a device or CPU
 route, prepare work, or execute values. The repository supplies no production provider
-implementation and no current compiler or planning consumer.
+implementation and no current compiler or public planning consumer.
 
 Provider implementations must reject a null query with `NullPointerException("query")`. A false
-answer carries no diagnostic reason. Capability matrices, hard-eligibility evaluation,
-device-level queries, provider composition, ownership scoring, partitions, and diagnostics remain
-planned.
+answer carries no diagnostic reason. Inside the same package, current implementation code can
+validate complete provider/snapshot associations and combine backend-level support, non-empty
+availability, and an optional exact hard requirement into an immutable provider-ordered
+`BackendId` list. This per-query value and its factory are package-private; a valid no-match is an
+empty list. Exact-device and device-class requirements prove only matching availability, not
+device-level support or device selection.
+
+Reusable or public capability matrices, public eligibility evaluation or planner orchestration,
+device-level queries, ownership scoring, profiles, partitions, compiler integration, preparation,
+runtime, execution, and diagnostics remain planned.
 
 ## Planned public lifecycle
 

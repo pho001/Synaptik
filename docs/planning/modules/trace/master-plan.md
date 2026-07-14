@@ -81,10 +81,11 @@ facts, and task 0004 completes its hard-requirement vocabulary. The backend-cont
 and capability checkpoint are Complete. The latest explicit interleave has config tasks 0001 and
 0002 Complete and planning task 0001 Complete before config scoring work resumes. Config task
 0003 is now Complete with one optional soft coarse device-class preference.
-Planning 0001 defines only an operation-capability query/provider boundary; neither task adds a
-trace DTO, provider implementation, candidate matrix, score, or compiler event. Trace task 0003
-and later rows remain Draft without detailed specifications until the broader config, planning,
-compiler, prepare, and runtime producer facts are stable.
+Planning 0001 defines the operation-capability query/provider boundary, and Planning 0002 is now
+Complete with internal per-query hard eligibility. It adds no trace DTO,
+structured rejection reason, public matrix, score, ownership event, or compiler event. Trace task
+0003 and later rows remain Draft without detailed specifications until the broader config,
+planning, compiler, prepare, and runtime producer facts are stable.
 
 ## Open questions
 
@@ -122,6 +123,9 @@ compiler, prepare, and runtime producer facts are stable.
   trace task 0003 and later rows remain Draft and trace keeps no planning dependency.
 - Config task 0003 is Complete after that interleave. Its declarative class preference
   creates no trace producer schema, score, rejection diagnostic, or ownership event.
+- Planning task 0002 remains intentionally boolean/filtering-only at the diagnostic boundary: its
+  result retains eligible backend identities and no rejection reason. It therefore does not
+  stabilize typed capability-rejection or no-match trace payloads.
 
 ## Risks
 
@@ -169,5 +173,7 @@ suite. It deliberately defers structured rejection diagnostics and device-level 
 creates no trace producer schema, and does not justify a trace task 0003 specification. The likely
 frontier returned to config 0003 rather than trace. Config task 0003 is now Complete after focused
 validation and an independent documentation pass; it creates no trace producer schema. Trace task
-0003 remains Draft without a detailed specification. Reassess the frontier separately rather than
-assuming trace or planning work is ready while its producer and profile facts remain incomplete.
+0003 remains Draft without a detailed specification. A later reassessment selected Planning task
+0002 alone for internal hard eligibility; its no-reason result still creates no trace schema.
+Config 0004 is the likely next area after that task, subject to another reassessment, while every
+trace task remains Draft. Planning task 0002 is now Complete and no trace or global task is Ready.

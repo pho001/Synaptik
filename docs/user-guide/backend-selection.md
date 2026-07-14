@@ -7,15 +7,17 @@ it into ownership. The current Java API can construct one hard backend eligibili
 place it in `BackendIntent`, or construct an unconstrained intent with no hard target. The later
 planning module also has a current immutable operation-capability query and explicitly supplied
 provider interface. Current `PartitionScoringConfig` can separately record an optional soft
-`DeviceClass` preference. The later `CompileConfig` aggregate, capability matrix, eligibility
-evaluator, preference interpretation, score calculation, and ownership planner are not
-implemented, so these values cannot yet be attached to a compile request.
+`DeviceClass` preference. Planning has one internal per-query hard-eligibility evaluator, but no
+user-callable entry point. The later `CompileConfig` aggregate, reusable/public capability matrix,
+public planning orchestration, preference interpretation, score calculation, and ownership planner
+are not implemented, so these values cannot yet be attached to a compile request.
 
 ## Mental model
 
 ```text
 optional hard requirement + current provider capability answers + availability
-  -> valid ownership candidates
+  -> current internal provider-ordered eligible BackendId values
+  -> planned public ownership candidates
 optional coarse class preference + valid candidates + graph estimates
   -> backend-neutral score
   -> owner identity for each node or segment
@@ -102,11 +104,19 @@ answer for that immutable occurrence. This is a library integration boundary rat
 selection setting: constructing a query does not attach `BackendIntent`, discover a backend,
 inspect `BackendAvailabilitySnapshot`, evaluate a requirement, or select ownership.
 
-No production provider implementation or planning consumer exists yet. A `true` answer means only
-that the named backend can semantically own the occurrence. A `false` answer carries no diagnostic
-reason and does not by itself say whether the backend is registered or available. Users therefore
-cannot complete backend selection with the current API; the runnable inputs above are useful for
-preparing configuration, while compilation remains a planned workflow.
+No production provider implementation or public planning consumer exists yet. Internal planning
+can now validate one complete provider/snapshot set and combine non-empty availability, an exact
+hard requirement, and backend-level support into an immutable provider-ordered `BackendId` list
+for one query. A no-match list is empty and a hard requirement is never relaxed. Exact-device and
+device-class matching proves only reported availability; it does not establish device-level
+support or choose a device.
+
+The internal result and evaluator are package-private, so users cannot invoke them or complete
+backend selection with the current API. A provider's `true` means only that its named backend can
+semantically own the occurrence. A `false` carries no diagnostic reason and does not by itself say
+whether the backend is registered or available. The runnable inputs above are useful for preparing
+configuration, while compile aggregation, public planning orchestration, scoring, ownership,
+preparation, runtime, and execution remain planned workflows.
 
 ## Scenario
 
@@ -128,10 +138,11 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 
 ## Limitations
 
-`BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, and the operation
-query/provider contracts are current. Provider implementations, device-level capability,
-capability matrices, preference interpretation, score calculation, profiles, compile aggregation,
-requirement evaluation, ownership, and no-match diagnostics remain to be specified by focused
-tasks. See [Public API
+`BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, the operation
+query/provider contracts, and one internal per-query hard-eligibility step are current. Provider
+implementations, device-level capability or selection, reusable/public capability matrices,
+public planning orchestration, preference interpretation, score calculation, profiles, compile
+aggregation, ownership, compiler integration, preparation, runtime, execution, and no-match
+diagnostics remain to be specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).
