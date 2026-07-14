@@ -76,9 +76,10 @@ or import producer-domain types.
 
 In progress but deliberately interleaved after the stable foundation. Tasks 0001 and 0002 are
 Complete and supply the common event envelope plus three model-correlation domains. No trace task
-is Ready. Backend-contract task 0001 has now established the first producer-owned backend and
-device vocabulary, while task 0003 and later trace rows remain Draft until their complete
-producer facts are stable.
+is Ready. Backend-contract tasks 0001–0003 now provide identity, class, and supplied availability
+facts, and task 0004 completes its hard-requirement vocabulary. The backend-contract project area
+and capability checkpoint are Complete. Trace task 0003 and later rows remain Draft until the
+broader config, planning, compiler, prepare, and runtime producer facts are stable.
 
 ## Open questions
 
@@ -108,6 +109,9 @@ producer facts are stable.
 - Backend-contract task 0001 supplies `BackendId` and `BackendDeviceId`, but trace-local backend
   and device correlations remain deferred to the later payload work that can define their actual
   producer domains. Trace continues to import no backend-contract type.
+- Backend-contract classification, supplied availability, and declarative requirement work do not
+  make trace consume those producer types. Later producers will translate selected facts into
+  trace-owned identities and payloads after their complete schemas are concrete.
 
 ## Risks
 
@@ -136,6 +140,8 @@ If producer contracts are still absent, the roadmap may explicitly interleave th
 project areas before returning to the corresponding trace payload rows.
 
 That reassessment selected the backend-contract interleave. Backend-contract task 0001 is now
-Complete with identity-only producer vocabulary. Trace tasks 0003–0008 remain ordered Draft work
-and return to planning only when their directly relevant producer facts are stable; no detailed
-task-0003 specification exists.
+Complete with identity-only producer vocabulary, tasks 0002–0003 add class and supplied
+availability facts, and task 0004 completes the hard-requirement closure vocabulary and selected
+backend-contract checkpoint. Trace tasks 0003–0008 remain ordered Draft work and return to
+planning only when their directly relevant producer facts are stable; no detailed task-0003
+specification exists.

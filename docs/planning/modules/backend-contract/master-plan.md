@@ -54,7 +54,7 @@ live service, discovery, registration, preparation, or execution behavior.
 | 0001 | [Backend and device identifiers](tasks/0001-backend-and-device-identifiers.md) | Complete | Completed model milestone; trace 0001–0002 roadmap foundation | Replaced the placeholder with open backend identity and backend-scoped device identity values without registration, discovery, availability, or live services. |
 | 0002 | [Device classification](tasks/0002-device-classification.md) | Complete | 0001 | Added the minimal CPU-versus-accelerator device category needed by later availability and requirements without enumerating concrete devices or routes. |
 | 0003 | [Backend availability snapshot](tasks/0003-backend-availability-snapshot.md) | Complete | 0001–0002 | Added an immutable caller-supplied map of one backend's currently available device identities to coarse classes, without discovery or live backend objects. |
-| 0004 | Declarative backend requirements | Draft | 0001–0003 | Define backend-neutral requirement values used by later config and planning without operation support logic or kernel selection. |
+| 0004 | [Declarative backend requirements](tasks/0004-declarative-backend-requirements.md) | Complete | 0001–0003 | Added the minimal sealed exact-backend, exact-device, and device-class hard-eligibility vocabulary without evaluation, preference, or kernel selection. |
 
 ## Milestones
 
@@ -64,13 +64,15 @@ live service, discovery, registration, preparation, or execution behavior.
 
 ## Current status
 
-In progress through an explicit roadmap interleave after the completed trace envelope and stable
-model-correlation foundation. Tasks 0001–0003 are Complete. Task 0004 is the next ordered frontier
-but remains Draft without a detailed specification.
+Complete. The explicit roadmap interleave after the stable trace foundation delivered tasks
+0001–0004 in order: identities, coarse classification, caller-supplied availability, and the
+sealed hard-requirement vocabulary. Module validation, independent documentation review, and the
+repository capability checkpoint passed. No later backend-contract task is specified or Ready.
 
 ## Open questions
 
-- Exact declarative requirement variants remain open until task 0004 planning.
+- The project-area frontier after the task-0004 capability checkpoint remains intentionally open
+  for a separate reassessment.
 
 ## Decisions made
 
@@ -88,6 +90,9 @@ but remains Draft without a detailed specification.
 - Availability is represented by one immutable snapshot per backend: an explicit backend identity
   plus a structurally immutable map from same-backend device identities to their classes. An empty
   map reports no currently available device and no ordering or separate status flag is implied.
+- Requirements form one sealed, method-free family with exact-backend, exact-device, and
+  device-class record variants. They are hard eligibility targets only; config owns optionality
+  and intent, while planning later owns evaluation and no-match failure.
 - The trace project area is deliberately interleaved after its stable foundation because later
   trace payload and attribute schemas require concrete producer-owned contracts.
 
@@ -99,7 +104,8 @@ but remains Draft without a detailed specification.
   planning preference.
 - Treating a supplied availability snapshot as discovery, liveness monitoring, engine
   registration, capability support, or a device-selection policy.
-- Prematurely freezing requirement language before its consumers are concrete.
+- Expanding requirements into preferences, composition, predicates, capability language,
+  scoring, or consumer-layer behavior.
 
 ## Notes
 
@@ -133,3 +139,8 @@ Markdown, exact ten-path,
 status, and whitespace validation without rerunning Java tests. Discovery, registration,
 refresh/liveness, requirements, capability evaluation, ownership selection, preparation,
 execution, and trace translation remain in their later owning tasks.
+
+Task 0004 is limited to a sealed hard-eligibility vocabulary. Its implementation, final
+22-test/four-suite module run, and independent documentation stabilization succeeded. The single
+final repository capability checkpoint then passed 1,055 tests across 135 suites with no
+failures, errors, or skips, closing the selected backend-contract milestone.

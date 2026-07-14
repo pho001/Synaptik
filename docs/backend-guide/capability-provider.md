@@ -5,14 +5,15 @@
 This guide explains how a future concrete backend will report which planned graph work it can
 accept. The shared `BackendId` and `BackendDeviceId` identity values and the coarse `DeviceClass`
 category are current. `BackendAvailabilitySnapshot` is also current as an immutable,
-caller-supplied point-in-time fact. Capability providers, device discovery and refresh, planning,
-prepare, registration, and concrete backend contracts remain planned, so the capability sample is
-conceptual.
+caller-supplied point-in-time fact. The sealed `BackendRequirement` family is current as hard
+eligibility target vocabulary. Capability providers, device discovery and refresh, requirement
+evaluation, planning, prepare, registration, and concrete backend contracts remain planned, so
+the capability sample is conceptual.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
 
-## Current shared identity, classification, and availability vocabulary
+## Current shared identity, availability, and requirement vocabulary
 
 The current Java API can name an ownership domain, name a device within that domain, and express
 the independent CPU-versus-accelerator category vocabulary. It can also associate one backend's
@@ -50,18 +51,45 @@ only supplied facts: it neither discovers devices nor proves registration, liven
 resource access, preparation success, or executability. A producer decides when to create or
 replace a snapshot; the snapshot has no refresh, timestamp, status, or reason field.
 
+The current hard-target vocabulary is separate from both availability and capability:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendDeviceIdRequirement;
+import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
+import io.github.pho001.synaptik.backend.contract.BackendRequirement;
+import io.github.pho001.synaptik.backend.contract.DeviceClassRequirement;
+
+BackendRequirement exactBackend = new BackendIdRequirement(cuda);
+BackendRequirement exactDevice = new BackendDeviceIdRequirement(cudaZero);
+BackendRequirement acceleratorClass =
+        new DeviceClassRequirement(DeviceClass.ACCELERATOR);
+```
+
+The three inputs respectively target later ownership by an equal `BackendId`, an equal
+`BackendDeviceId` and therefore its owning backend, or any later eligible device in the requested
+class. The records retain their exact non-null component references. They do not query
+`availability`, ask a capability provider, or prove that a target can own particular graph work.
+There is no absence sentinel, preference, fallback, combination, evaluator, or score in the
+family. A later configuration contract owns optionality and user intent; later planning owns the
+intersection of the hard target, supplied availability, and reported capability.
+
 ## Lifecycle position
 
 ```text
-operation + data type + shape + layout + supplied availability
+operation + data type + shape + layout
   -> capability provider
+  -> capable ownership candidates
+hard target + supplied availability + capable candidates
+  -> later planning eligibility
   -> valid ownership candidates
   -> backend-neutral scoring
 ```
 
 A concrete backend will implement capability evaluation. Planning will call the shared contract
-and compare supported backend identities. Compile-time plans will retain the current `BackendId`
-value, never the provider object.
+for work-specific support, then later planning will combine capable candidates with supplied
+availability and any hard target. If no eligible candidate remains, the later owning layer fails
+instead of weakening the target; its exception details are not yet defined. Compile-time plans
+will retain the selected current `BackendId` value, never the provider object.
 
 ## Conceptual example
 

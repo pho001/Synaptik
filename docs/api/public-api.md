@@ -10,7 +10,9 @@ envelope plus model-correlation identifiers. It also contains backend and backen
 identity values plus a coarse CPU-versus-accelerator device classification. Compiler, planning,
 prepare, runtime, concrete backend integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
-discovery or liveness API. APIs may change through the ordered planning process.
+discovery or liveness API. A sealed requirement family can now name one hard eligibility target,
+but no current configuration or planning API consumes it. APIs may change through the ordered
+planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
 
@@ -60,9 +62,11 @@ The implemented `modules:backend-contract` surface contains:
 - `DeviceClass`, a coarse declarative category with exactly `CPU` and `ACCELERATOR`, in that
   declaration order; and
 - `BackendAvailabilitySnapshot`, an immutable point-in-time association from one backend's
-  currently reported available device identities to their classes.
+  currently reported available device identities to their classes; and
+- the sealed, method-free `BackendRequirement` family, with one-component
+  `BackendIdRequirement`, `BackendDeviceIdRequirement`, and `DeviceClassRequirement` records.
 
-The four concepts have separate roles:
+The current concepts have separate roles:
 
 ```text
 BackendId       = backend ownership domain
@@ -70,6 +74,8 @@ BackendDeviceId = one exact device identity inside that domain
 DeviceClass     = coarse CPU or accelerator category
 BackendAvailabilitySnapshot
                 = one backend's supplied device-to-class availability fact
+BackendRequirement
+                = one hard target; no matching or preference behavior
 ```
 
 The two identity records reject null components and blank string values. Every other identity
@@ -105,9 +111,36 @@ unspecified. An empty map means that the supplying context reports no currently 
 for that backend; the backend identity remains part of the snapshot.
 
 The snapshot does not discover devices, register a backend, monitor liveness, refresh itself,
-evaluate capability, choose ownership, or guarantee preparation or execution. Requirements,
-capability reporting, concrete backends, registration, planning, preparation, and execution remain
-planned.
+evaluate capability, choose ownership, or guarantee preparation or execution.
+
+The requirement family records exactly one hard target. These inputs construct all three current
+variants:
+
+```java
+import io.github.pho001.synaptik.backend.contract.BackendDeviceIdRequirement;
+import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
+import io.github.pho001.synaptik.backend.contract.BackendRequirement;
+import io.github.pho001.synaptik.backend.contract.DeviceClassRequirement;
+
+BackendRequirement exactBackend = new BackendIdRequirement(cuda);
+BackendRequirement exactDevice = new BackendDeviceIdRequirement(cudaZero);
+BackendRequirement acceleratorClass =
+        new DeviceClassRequirement(DeviceClass.ACCELERATOR);
+```
+
+`exactBackend` targets later ownership by a `BackendId` equal to `cuda`. `exactDevice` targets a
+`BackendDeviceId` equal to `cudaZero`, which also fixes the owning backend. `acceleratorClass`
+allows any later eligible device whose class is `ACCELERATOR`; it does not identify a particular
+backend or device. Each record rejects a null component with a `NullPointerException` whose
+message is that component's name and returns the exact supplied reference from its accessor.
+
+These values neither inspect `availability` nor prove that a target is registered, available,
+capable, or preparable. They contain no sentinel for absence, preference, fallback, combination,
+matcher, or score. Later configuration owns whether a requirement is present and how intent is
+expressed; later planning owns evaluation with availability and capability facts and failure when
+no eligible target remains. The no-match exception type and message are not yet defined.
+Capability reporting, concrete backends, registration, planning, preparation, and execution
+remain planned.
 
 ## Planned public lifecycle
 

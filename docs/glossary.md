@@ -270,10 +270,11 @@ remain architecture or planning contracts. The implemented trace foundation cons
 correlation values. The implemented backend-contract foundation consists of `BackendId`,
 `BackendDeviceId`, the coarse `DeviceClass` categories `CPU` and `ACCELERATOR`, and
 `BackendAvailabilitySnapshot` for one backend's caller-supplied point-in-time device-to-class
-availability association. Requirements, capability providers, discovery and refresh,
-registration, concrete backend integration, and trace-local backend/device correlations remain
-planned. A definition explains intended meaning; it is not by itself evidence that a Java type
-exists.
+availability association. It also contains the sealed, method-free `BackendRequirement` family
+with exact-backend, exact-device, and device-class hard targets. Configuration placement,
+requirement evaluation, capability providers, discovery and refresh, registration, concrete
+backend integration, and trace-local backend/device correlations remain planned. A definition
+explains intended meaning; it is not by itself evidence that a Java type exists.
 
 ## Terms
 
@@ -689,6 +690,21 @@ The planned compile-time decision that assigns a node or segment to a
 or `"cuda"`. Ownership answers “where should this work run?” It does not answer “which kernel
 should run it?” The owning concrete backend makes that implementation choice during
 [prepare](#prepare).
+
+### Backend requirement / `BackendRequirement`
+
+The implemented sealed, method-free family for one hard backend eligibility target.
+`BackendIdRequirement` targets later ownership by a `BackendId` equal to its retained component.
+`BackendDeviceIdRequirement` targets a `BackendDeviceId` equal to its retained component and
+therefore also that device identity's owning backend. `DeviceClassRequirement` accepts any later
+eligible device whose `DeviceClass` equals its retained component; it identifies neither a
+particular backend nor a particular device.
+
+A backend requirement is requested data, not a capability claim, availability fact, preference,
+fallback, score, or evaluator. The family has no absence sentinel and does not combine or match
+targets. Later configuration owns whether a requirement is present and how user intent is
+expressed. Later planning owns evaluation with availability and capability facts and failure when
+no eligible target remains; the no-match exception type and message are not yet defined.
 
 ### Backend-owned lowering
 
