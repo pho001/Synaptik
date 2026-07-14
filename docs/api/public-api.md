@@ -11,9 +11,11 @@ It also contains backend and backend-scoped device identity values plus a coarse
 CPU-versus-accelerator device classification. Planning also contains internal per-query hard-
 eligibility evaluation, cost-free baseline owner selection, and maximal consecutive same-owner
 generation. The first two steps are internal; partition generation adds the public immutable
-`PlannedPartition` recipe but no callable external planning workflow. Compiler orchestration,
-reusable or public capability matrices, public ownership planning, logical memory, prepare,
-runtime, concrete backend integration, and engine APIs remain planned. The backend
+`PlannedPartition` recipe but no callable external planning workflow. A following internal step
+derives the current public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes
+from the graph and ordered partitions. Compiler orchestration, reusable or public capability
+matrices, public ownership planning, physical memory, prepare, runtime, concrete backend
+integration, and engine APIs remain planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
@@ -221,7 +223,7 @@ only its optional class preference through a cost-free provider-order baseline. 
 immutable cost profiles, public planning orchestration, compiler consumption, and every public
 lifecycle consumer remain planned.
 
-The public `modules:planning` surface contains three backend-neutral compile-time contracts:
+The public `modules:planning` surface contains five backend-neutral compile-time contracts:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
   backend-independent `Operation` reference plus ordered immutable membership snapshots of input
@@ -229,7 +231,10 @@ The public `modules:planning` surface contains three backend-neutral compile-tim
 - `BackendCapabilityProvider`, an explicitly supplied collaboration with a stable non-null
   `BackendId` and a deterministic boolean capability answer; and
 - `PlannedPartition`, an immutable owner-plus-node-ID recipe for one non-empty consecutive region
-  of an owning compiled graph.
+  of an owning compiled graph;
+- `LogicalMemoryRequirement`, one immutable graph-value recipe retaining logical descriptor,
+  optional producer partition, distinct consumer partitions, and graph-output obligation; and
+- `LogicalMemoryPlan`, an immutable ordered snapshot of distinct per-value requirements.
 
 The query validates only non-null references and the input/output occurrence counts declared by
 the operation signature. It does not validate operand data types, Shapes, layouts, graph closure,
@@ -327,9 +332,28 @@ no partitions. Each generated partition retains the exact graph `NodeId` referen
 owner reference associated with its first node, and both the result list and membership lists are
 immutable.
 
+Planning's next package-private step accepts the closed graph and ordered complete partition
+recipes. It validates partition nulls, membership, exact graph-order coverage, and adjacent-owner
+maximality before deriving one requirement per graph value in `CompiledGraphModel.values()`
+order. Generated producer and consumer entries retain exact supplied partition references;
+consumers are distinct and follow partition order. `graph.outputs()` alone supplies the generated
+graph-output flag.
+
+The two logical-memory records are public data and can also be constructed directly. A standalone
+`LogicalMemoryPlan` may be empty and validates only that its requirements are non-null and have
+distinct `ValueId` values. A standalone requirement validates and snapshots its components but
+has no owning graph against which to prove producer, consumer, or output relationships. The
+package-private generator establishes those graph-relative facts.
+
+These records retain `TensorDescriptor` rather than calculating element or byte counts, so
+dynamic and expression dimensions remain representable. They carry no `PublicationBinding`,
+`TensorId`, lifetime, slot, allocation, transfer, selected device, route, kernel, executable,
+prepared schedule, or runtime residency. `graphOutput` is a logical preservation obligation, not
+a publication target or policy.
+
 Reusable or public capability matrices, public eligibility evaluation or planner orchestration,
-numeric or cost scoring, profiles, owner-map assembly, logical boundary and memory plans,
-compiler integration, preparation, runtime, execution, and diagnostics remain planned.
+numeric or cost scoring, profiles, owner-map assembly, compiler integration, physical memory,
+preparation, runtime, execution, and diagnostics remain planned.
 
 ## Planned public lifecycle
 

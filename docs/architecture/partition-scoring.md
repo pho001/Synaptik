@@ -8,9 +8,11 @@ provider/snapshot association, applies current availability and one exact hard r
 retains supported backend identities in provider order. Baseline owner selection treats that list
 as the complete candidate set and applies the current optional soft `DeviceClass` preference.
 Planning now also exposes the immutable `PlannedPartition(owner, nodeIds)` recipe and contains an
-internal generator for maximal consecutive same-owner runs. Reusable or public capability
-matrices, public planning orchestration or owner selection, numeric or cost scoring, and logical
-memory planning remain planned. This page explains the accepted boundary and current internal
+internal generator for maximal consecutive same-owner runs. It also exposes immutable per-value
+`LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes and contains an internal derivation
+step over a closed graph plus ordered complete partitions. Reusable or public capability matrices,
+public planning orchestration or owner selection, numeric or cost scoring, and compiler
+integration remain planned. This page explains the accepted boundary and current internal
 baseline; it does not define a public scoring API, weights, or a general cost formula.
 
 ## Purpose and pipeline position
@@ -35,7 +37,8 @@ backend intent
   -> later orchestration assembles a complete Map<NodeId, BackendId>
   -> current internal maximal consecutive same-owner partitioning
   -> current immutable PlannedPartition(owner, nodeIds) recipes
-  -> planned logical memory/materialization requirements
+  -> current internal logical-memory derivation
+  -> current immutable LogicalMemoryPlan
 ```
 
 The current public capability contract asks whether one named backend can semantically own one
@@ -75,6 +78,20 @@ graph `NodeId` references in order. Its outer and inner lists are immutable. A v
 pass-through graph yields no partitions because inputs and outputs are values, not synthetic
 nodes. The generator remains internal, so there is still no public workflow that assembles the
 owner map or invokes partitioning.
+
+The current package-private logical-memory step accepts that closed `CompiledGraphModel` and the
+ordered partition recipes. Because `PlannedPartition` is publicly constructible, it first checks
+that the recipes contain no null, unknown, duplicate, missing, or out-of-order node and that
+adjacent owners differ. It then emits one requirement for every graph value in graph-value order.
+Each requirement retains the exact `ValueId` and `TensorDescriptor`, its optional producing
+partition, each distinct consuming partition in partition order, and a graph-output flag.
+
+These facts describe graph inputs, partition inputs and outputs, same-owner and cross-owner
+boundaries, partition-internal values, and graph-output preservation without storing a closed role
+enum. Retaining the descriptor keeps dynamic and expression dimensions representable. The plan
+does not calculate element or byte counts, accept `PublicationBinding`, choose a transfer or copy,
+allocate physical storage, resolve a device or route, or create prepared/runtime state. Its
+generator remains internal and is not the missing public end-to-end planning workflow.
 
 ## Information scoring may use
 
@@ -159,9 +176,11 @@ Those choices depend on backend-specific lowering, specialization, fusion, prepa
 
 The current internal baseline returns one `BackendId` owner for one eligible occurrence. The
 current internal generator can turn a complete per-node owner map into public immutable
-`PlannedPartition` values. Building that map through public planning orchestration and assembling
-the complete immutable compile recipe remain planned. Neither an owner identity nor a current
-partition recipe is an executable implementation or physical schedule.
+`PlannedPartition` values, and the following internal step can derive a public immutable
+`LogicalMemoryPlan` from those partitions and the graph. Building the owner map through public
+planning orchestration and assembling the complete immutable compile recipe remain planned.
+Neither an owner identity, a partition recipe, nor a logical requirement is an executable
+implementation or physical schedule.
 
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the

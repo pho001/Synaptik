@@ -13,7 +13,9 @@ preference to the hard-eligible identities and returns one backend owner. The la
 aggregate, reusable/public capability matrix, public planning orchestration or owner selector,
 cost scoring, and owner-map assembly are not implemented, so users still cannot attach these
 values to a compile request. The public immutable `PlannedPartition` recipe and internal maximal
-same-owner generator are current, but the generator is not user-callable.
+same-owner generator are current, but the generator is not user-callable. Public immutable
+`LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes plus internal derivation from the graph
+and ordered partitions are also current; that derivation is likewise not user-callable.
 
 ## Mental model
 
@@ -26,6 +28,8 @@ optional coarse class preference + that complete candidate list + associated sna
 later orchestration assembles one owner for every graph NodeId
   -> current internal consecutive same-owner grouping
   -> current immutable PlannedPartition recipes
+  -> current internal producer/consumer/output derivation
+  -> current immutable LogicalMemoryPlan
 ```
 
 A hard requirement removes candidates that do not meet its target; it is not a preference or a
@@ -163,6 +167,37 @@ This is current internal planning behavior, not a runnable user workflow. No pub
 builds the complete owner map or calls the generator. The recipe also contains no boundary value,
 transfer, materialization, memory, selected device, route, kernel, executable, or runtime state.
 
+## Current logical-memory recipe and internal derivation
+
+After partitioning, current package-private planning can validate an ordered complete partition
+list against `CompiledGraphModel` and derive one `LogicalMemoryRequirement` per graph value. Each
+generated requirement retains the value's exact `ValueId` and `TensorDescriptor`, an optional
+producing partition, distinct consuming partitions in partition order, and whether the graph
+declares the value as an output. `LogicalMemoryPlan` preserves those requirements in graph-value
+order.
+
+For a value produced in CPU partition `p0`, consumed in Metal partition `p1`, and declared as a
+graph output, the logical facts are:
+
+```text
+producerPartition = p0
+consumerPartitions = [p1]
+graphOutput = true
+```
+
+This means the value is a partition output, a partition input of `p1`, a cross-owner boundary,
+and a graph-output preservation obligation. It does not select a CPU-to-Metal transfer, physical
+buffer, publication target, Metal representation, or execution step. A value produced and
+consumed only inside one partition, with no graph-output obligation, remains partition-internal.
+A graph input has no producing partition; a zero-node pass-through graph has no partitions but
+still has a logical requirement for its declared input/output value.
+
+The records are current public DTOs, but direct construction does not validate graph-relative
+facts. The internal derivation performs complete membership, coverage, graph-order, and
+adjacent-owner checks first. It accepts no `PublicationBinding` and calculates no element or byte
+count, lifetime, slot, allocation, transfer, device, route, or kernel. No public API currently
+connects capability, owner selection, partitioning, and logical-memory derivation end to end.
+
 ## Scenario
 
 Assume a region can run on CPU or Metal. Moving its input to Metal has an estimated cost of 20 units, Metal execution saves 50 units, and an extra ownership boundary costs 10 units. A simple interpreted comparison is a net Metal benefit of `50 - 20 - 10 = 20` units, so Metal may win. These numbers illustrate the factors only; no implemented scoring formula or unit is promised.
@@ -186,10 +221,10 @@ The selected plan records `owner = Metal`. MPSGraph versus a custom Metal kernel
 `BackendIntent` placement and hard-target optionality, `PartitionScoringConfig`, the operation
 query/provider contracts, internal per-query hard eligibility, and internal baseline owner
 selection are current. The public partition recipe and internal consecutive same-owner generator
-are also current. Provider implementations, device-level capability or selection, reusable/public
-capability matrices, public planning orchestration or owner selection, cost scoring, profiles,
-compile aggregation, owner-map assembly, logical boundary and memory planning, compiler
-integration, preparation, runtime, execution, and public no-match diagnostics remain to be
-specified by focused tasks. See [Public API
+are also current, as are the public logical-memory recipes and their internal derivation. Provider
+implementations, device-level capability or selection, reusable/public capability matrices,
+public planning orchestration or owner selection, cost scoring, profiles, compile aggregation,
+owner-map assembly, compiler integration, physical memory, preparation, runtime, execution, and
+public no-match diagnostics remain to be specified by focused tasks. See [Public API
 status](../api/public-api.md), [Partition scoring](../architecture/partition-scoring.md), and the
 [planning master plan](../planning/modules/planning/master-plan.md).

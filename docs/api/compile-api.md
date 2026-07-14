@@ -12,9 +12,11 @@ collaboration. It also contains one package-private per-query hard-eligibility s
 not expose that step publicly. A second package-private step now selects one `BackendId` owner by
 optional preferred-class match and provider order. The module still provides no reusable/public
 capability matrix, public planner orchestration or owner selector, general cost scoring,
-owner-map assembly, logical memory planning, or compiler integration. It now provides the public
+owner-map assembly, or compiler integration. It now provides the public
 immutable `PlannedPartition(owner, nodeIds)` recipe and a package-private generator that groups a
-complete node-to-owner assignment into maximal consecutive same-owner runs.
+complete node-to-owner assignment into maximal consecutive same-owner runs. A following
+package-private step derives public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan`
+recipes from a closed graph and ordered complete partitions.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -753,10 +755,56 @@ and multiple output values from one producer do not independently create boundar
 zero-node pass-through graph produces an immutable empty list.
 
 The generator itself is intentionally not public. No current API assembles the complete owner map
-from capability and selection results or invokes partitioning for callers. Logical boundary,
-materialization, and memory requirements remain later planning work; compiler orchestration and
-`CompileArtifacts` also remain planned. A partition is an immutable ownership recipe, not a
-promise of one fused kernel, one executable, or any prepare/runtime behavior.
+from capability and selection results or invokes partitioning for callers. The following internal
+logical-memory step is current, but compiler orchestration and `CompileArtifacts` remain planned.
+A partition is an immutable ownership recipe, not a promise of one fused kernel, one executable,
+or any prepare/runtime behavior.
+
+## Current logical-memory recipes
+
+`io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement` is current public
+compile-time data with exactly these ordered components:
+
+```java
+ValueId valueId
+TensorDescriptor descriptor
+Optional<PlannedPartition> producerPartition
+List<PlannedPartition> consumerPartitions
+boolean graphOutput
+```
+
+`producerPartition` is empty for a graph input in a generated plan. Each generated consumer list
+contains a supplied partition at most once and follows supplied partition order, regardless of
+repeated input positions or multiple consuming nodes inside one partition. `graphOutput` is true
+exactly when an equal value identity occurs in `CompiledGraphModel.outputs()`. The generated
+requirement retains the exact graph value identity and descriptor references plus exact supplied
+partition-element references.
+
+`LogicalMemoryPlan` contains one immutable ordered `List<LogicalMemoryRequirement>`. Its public
+constructor permits an empty standalone plan, rejects null elements and duplicate equal
+`ValueId` values, snapshots list membership, and retains exact requirement references. The public
+requirement constructor likewise snapshots consumer membership and rejects null or equal
+duplicate partitions. Directly constructed DTOs have no owning graph and therefore do not prove
+that caller-supplied producer, consumer, or output facts are graph-valid.
+
+The package-private derivation accepts one `CompiledGraphModel` and one ordered
+`List<PlannedPartition>`. It completes all partition null, graph-membership, coverage, graph-order,
+and adjacent-owner maximality checks before constructing a requirement. It then emits exactly one
+requirement for every `graph.values()` entry in that encounter order. Producer facts come from
+node outputs; consumer facts come from node inputs. Repeated inputs, fan-out, merges, unused graph
+inputs, unused produced values, multi-output nodes, forward/backward uses, and zero-node
+pass-through graphs require no synthetic node or role.
+
+The primitive facts describe overlapping logical roles: graph input, partition input, partition
+output, same-owner or cross-owner boundary, graph-output preservation, and partition-internal
+value. The records do not store another role enum. They retain `TensorDescriptor` so static,
+dynamic, and expression Shapes remain representable without calculating an element or byte
+count.
+
+This is logical planning only. The derivation accepts no `PublicationBinding` or `TensorId` and
+creates no `PublicationPlan`. It selects no alias, copy, transfer, lifetime, physical slot,
+allocation, device, route, kernel, schedule, executable, or runtime residency. The derivation is
+not public, and no current compiler invokes it end to end.
 
 ## Current expression input and planned compiler output
 

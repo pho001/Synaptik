@@ -14,9 +14,11 @@ an optional exact hard requirement into provider-ordered `BackendId` values. A s
 package-private step uses those identities directly as the candidate set and selects one exact
 `BackendId` owner through optional preferred-class match and provider order. The public immutable
 `PlannedPartition` recipe and a package-private maximal consecutive same-owner generator are also
-implemented. Reusable or public capability matrices, public planning orchestration or owner
-selection, numeric or cost scoring, owner-map assembly, logical memory, provider implementations,
-compiler consumers, device-level capability, and device selection remain planned.
+implemented. The public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes and
+a package-private derivation from the closed graph plus ordered complete partitions are current as
+well. Reusable or public capability matrices, public planning orchestration or owner selection,
+numeric or cost scoring, owner-map assembly, compiler consumers, physical memory, provider
+implementations, device-level capability, and device selection remain planned.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -1354,7 +1356,27 @@ The logical mapping from a tensor's multidimensional indices to positions in sto
 
 ### Logical memory plan
 
-Compile-time requirements derived from graph values and lifetimes, such as logical storage or materialization needs. It does not allocate buffers or assign physical addresses. Prepare turns these requirements into a prepared physical memory plan and slots.
+The implemented public `LogicalMemoryPlan` is an immutable ordered snapshot of distinct
+per-value `LogicalMemoryRequirement` records. A current generated requirement retains one graph
+value's exact [`ValueId`](#valueid) and [`TensorDescriptor`](#tensor-descriptor), its optional
+producing [`PlannedPartition`](#partition), every distinct consuming partition in partition order,
+and whether the graph declares it as an output. Generated plan order is
+`CompiledGraphModel.values()` order.
+
+Current package-private derivation first validates that the supplied partition recipes cover
+every graph node exactly once in graph order and contain maximal adjacent owner runs. It then
+derives producers from node outputs, consumers from node inputs, and the output flag from
+`CompiledGraphModel.outputs()`. These primitive facts express graph inputs, partition inputs and
+outputs, same-owner and cross-owner boundaries, graph-output preservation, and
+partition-internal values without a separate role enum. A standalone public plan may be empty;
+direct construction validates DTO state but cannot prove graph-relative facts without an owning
+graph.
+
+A logical memory plan is not a physical memory plan. It contains no `PublicationBinding`, public
+Tensor identity, element or byte count, lifetime, transfer, copy, device, address, buffer, slot,
+arena, allocation, route, kernel, schedule, or runtime residency. Retaining `TensorDescriptor`
+keeps static, dynamic, and expression Shapes representable. Prepare and concrete backends later
+turn logical obligations into physical representations and schedules.
 
 ### Lifecycle
 
@@ -1878,8 +1900,10 @@ nodes join when consecutive, while equal-owner graph-connected nodes remain sepa
 owner lies between them. Graph phase, fan-out, merges, repeated inputs, graph input/output values,
 and multiple outputs from one producer do not independently split a run. A zero-node pass-through
 graph has no partition. The generator is not public, and no current orchestration assembles its
-complete owner map. Logical boundaries, materialization and memory, compiler artifacts, prepare,
-and execution remain separately owned or planned.
+complete owner map. Current package-private logical-memory derivation consumes the graph plus an
+ordered complete partition list and produces public immutable per-value requirements, but public
+orchestration, compiler artifacts, physical memory, prepare, and execution remain separately owned
+or planned.
 
 ### Partition scoring configuration / `PartitionScoringConfig`
 
@@ -1901,8 +1925,8 @@ This record is ranking input, not a scoring policy implementation. It does not e
 eligibility or candidates, calculate or compare scores, contain profile measurements, choose an
 owner or device, select a backend route or kernel, compile or prepare a graph, inspect runtime
 state, or execute work. Planning interpretation, planning-cost profiles, `CompileConfig`, compiler
-consumption, owner-map assembly, logical memory, and execution remain planned. The current
-partition recipe and internal grouping do not make this config value perform partitioning.
+consumption, owner-map assembly, and execution remain planned. The current partition and logical-
+memory recipes and their internal generators do not make this config value perform planning.
 
 ### Planning cost model / planning cost profile
 
@@ -1918,7 +1942,14 @@ contract remains Draft rather than defining a global backend average prematurely
 
 ### Planning
 
-The backend-neutral compile-time work that decides backend ownership, forms same-owner partitions, and derives logical memory or materialization requirements from graph facts, configuration, and declarative backend capabilities. Planning answers where a node or segment should run. It does not choose concrete kernels, perform backend-specific lowering, allocate physical buffers, or inspect runtime residency. See [Partition scoring](architecture/partition-scoring.md).
+The backend-neutral compile-time work that decides backend ownership, forms same-owner partitions,
+and derives logical memory or materialization requirements from graph facts, configuration, and
+declarative backend capabilities. Current public recipes cover capability questions, partitions,
+and logical per-value memory relationships, while their end-to-end orchestration remains internal
+or planned. Planning answers where a node or segment should run and which logical values its
+regions consume or produce. It does not choose concrete kernels, perform backend-specific
+lowering, allocate physical buffers, or inspect runtime residency. See [Partition
+scoring](architecture/partition-scoring.md).
 
 ### Prepare
 
