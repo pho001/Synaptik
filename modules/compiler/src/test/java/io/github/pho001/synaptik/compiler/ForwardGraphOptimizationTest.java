@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
@@ -19,6 +20,8 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
@@ -157,6 +160,86 @@ final class ForwardGraphOptimizationTest {
     }
 
     @Test
+    void disabledSkipsExactRewritingWhileStandardAppliesItBeforeCleanup() {
+        TensorDescriptor descriptor = descriptor(Shape.of(2), false);
+        Operation identity = new Operation(
+                ScalarElementwiseKind.MUL,
+                new ScalarValueAttrs(ScalarValue.float32(1.0f)));
+        Operation output = operation(UnaryElementwiseKind.NEG);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(new ValueId(0), descriptor),
+                        new GraphValue(new ValueId(1), descriptor),
+                        new GraphValue(new ValueId(2), descriptor)),
+                List.of(
+                        new CompiledNode(new NodeId(0), identity,
+                                List.of(new ValueId(0)), List.of(new ValueId(1))),
+                        new CompiledNode(new NodeId(1), output,
+                                List.of(new ValueId(1)), List.of(new ValueId(2)))),
+                List.of(new ValueId(0)),
+                List.of(new ValueId(2)),
+                Map.of(
+                        new NodeId(0), GraphPhase.FORWARD,
+                        new NodeId(1), GraphPhase.FORWARD));
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+
+        ValidatedGraph disabled = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.disabled());
+        ValidatedGraph standard = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.standard());
+
+        assertAll(
+                () -> assertEquals(2, disabled.graph().nodes().size()),
+                () -> assertSame(identity, disabled.graph().nodes().get(0).operation()),
+                () -> assertEquals(1, standard.graph().nodes().size()),
+                () -> assertSame(output, standard.graph().nodes().getFirst().operation()),
+                () -> assertEquals(List.of(new ValueId(0)),
+                        standard.graph().nodes().getFirst().inputs()));
+    }
+
+    @Test
+    void changedRewriteCandidateIsValidatedAndRegeneratesRetainedConstraints() {
+        DynamicDimension inputExtent = new DynamicDimension("N");
+        DynamicDimension outputExtent = new DynamicDimension("M");
+        TensorDescriptor input = descriptor(Shape.ofDimensions(inputExtent), false);
+        TensorDescriptor output = descriptor(Shape.ofDimensions(outputExtent), false);
+        Operation identity = new Operation(
+                ScalarElementwiseKind.MUL,
+                new ScalarValueAttrs(ScalarValue.float32(1.0f)));
+        Operation reshape = new Operation(
+                ShapeTransformKind.RESHAPE, new TargetShapeAttrs(output.shape()));
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(new ValueId(4), input),
+                        new GraphValue(new ValueId(8), input),
+                        new GraphValue(new ValueId(12), output)),
+                List.of(
+                        new CompiledNode(new NodeId(30), identity,
+                                List.of(new ValueId(4)), List.of(new ValueId(8))),
+                        new CompiledNode(new NodeId(40), reshape,
+                                List.of(new ValueId(8)), List.of(new ValueId(12)))),
+                List.of(new ValueId(4)),
+                List.of(new ValueId(12)),
+                Map.of(
+                        new NodeId(30), GraphPhase.FORWARD,
+                        new NodeId(40), GraphPhase.FORWARD));
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(graph);
+
+        ValidatedGraph result = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.standard());
+
+        assertAll(
+                () -> assertEquals(List.of(new NodeId(40)), incoming.constraints().stream()
+                        .map(DeferredGraphConstraint::nodeId).toList()),
+                () -> assertEquals(1, result.graph().nodes().size()),
+                () -> assertSame(reshape, result.graph().nodes().getFirst().operation()),
+                () -> assertEquals(List.of(new ValueId(0)),
+                        result.graph().nodes().getFirst().inputs()),
+                () -> assertEquals(List.of(new NodeId(0)), result.constraints().stream()
+                        .map(DeferredGraphConstraint::nodeId).toList()));
+    }
+
+    @Test
     void dceRunsBeforeCseSoADeadEarlierDuplicateCannotBecomeRepresentative() {
         TensorDescriptor descriptor = descriptor(Shape.of(2), true);
         Operation deadEarlier = operation(UnaryElementwiseKind.ABS);
@@ -282,9 +365,10 @@ final class ForwardGraphOptimizationTest {
     }
 
     @Test
-    void sourceLocksOneShotCanonicalizeValidateDceCseDceOrder() throws IOException {
+    void sourceLocksOneShotCanonicalizeValidateRewriteDceCseDceOrder() throws IOException {
         String source = Files.readString(findOptimizationSource());
         int canonicalize = source.indexOf("GraphCanonicalization.canonicalize(");
+        int rewrite = source.indexOf("ForwardExactArithmeticRewriting.rewrite(");
         int firstDce = source.indexOf("ForwardDeadCodeElimination.eliminate(");
         int cse = source.indexOf("ForwardCommonSubexpressionElimination.eliminate(");
         int secondDce = source.indexOf(
@@ -292,13 +376,16 @@ final class ForwardGraphOptimizationTest {
 
         assertAll(
                 () -> assertTrue(canonicalize >= 0),
-                () -> assertTrue(firstDce > canonicalize),
+                () -> assertTrue(rewrite > canonicalize),
+                () -> assertTrue(firstDce > rewrite),
                 () -> assertTrue(cse > firstDce),
                 () -> assertTrue(secondDce > cse),
                 () -> assertEquals(-1, source.indexOf(
                         "ForwardDeadCodeElimination.eliminate(", secondDce + 1)),
                 () -> assertEquals(-1, source.indexOf(
                         "ForwardCommonSubexpressionElimination.eliminate(", cse + 1)),
+                () -> assertEquals(-1, source.indexOf(
+                        "ForwardExactArithmeticRewriting.rewrite(", rewrite + 1)),
                 () -> assertFalse(source.contains("while (")),
                 () -> assertFalse(source.contains("for (")),
                 () -> assertTrue(source.contains("if (candidate == current.graph())")),

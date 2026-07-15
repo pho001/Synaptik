@@ -52,19 +52,21 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 ```text
 io.github.pho001.synaptik.compiler/
   <root>  package-private graph capture, captured-graph verification inference, typed deferred
-          constraints, deterministic graph canonicalization, and the bounded forward DCE/CSE/DCE
-          pipeline; later narrow public or cross-package collaborations only when a concrete
-          consumer justifies them
+          constraints, deterministic graph canonicalization, guarded exact arithmetic rewriting,
+          and the bounded forward DCE/CSE/DCE pipeline; later narrow public or
+          cross-package collaborations only when a concrete consumer justifies them
 ```
 
 The root package remains one cohesive internal front-end and forward-transformation boundary
-through task 0003. Capture produces the structurally closed graph; verification inference
+through task 0003A. Capture produces the structurally closed graph; verification inference
 revalidates semantics and retains unresolved constraints; canonicalization normalizes graph-local
-IDs; and one narrow orchestrator applies exact internal forward DCE/CSE/DCE under the existing
-config permission. No pass registry, generic rewrite framework, public optimizer, or candidate
-model is planned. The package must not become a catch-all for artifacts, diagnostics, planning
-adapters, and public facades. Task 0005 must justify any narrow cross-package/public orchestration
-boundary from its concrete consumer.
+IDs; one guarded topological helper applies a closed seven-rule set comprising duplicate binary
+MIN/MAX, exact typed scalar positive-one identities, and exact typed integral scalar-zero
+identities; and one narrow orchestrator applies that helper before the existing forward
+DCE/CSE/DCE sequence under the existing config permission. No pass registry,
+generic rewrite framework, public optimizer, or candidate model is planned. The package must not
+become a catch-all for artifacts, diagnostics, planning adapters, and public facades. Task 0005
+must justify any narrow cross-package/public orchestration boundary from its concrete consumer.
 
 ## Task list
 
@@ -73,7 +75,7 @@ boundary from its concrete consumer.
 | 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replaced the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
 | 0002 | [Captured-graph inference and validation](tasks/0002-captured-graph-inference-and-validation.md) | Complete | 0001 | Independently derives and verifies every current operation occurrence descriptor, rejects operand/domain contradictions, and retains only genuinely unresolved typed Shape constraints without transformation, binding, or backend decisions. |
 | 0003 | [Canonicalization and forward optimization](tasks/0003-canonicalization-and-forward-optimization.md) | Complete | 0002 | Added mandatory deterministic graph-local reindexing plus one config-controlled forward DCE/CSE/DCE sequence, revalidating every changed immutable graph candidate through task 0002. |
-| 0003A | Exact arithmetic rewriting | Draft | 0003 | Add operation-aware and data-type-aware rewrites proved exact under current strict semantics, revalidate changed candidates through Compiler 0002, and perform deterministic bounded cleanup; exclude relaxed or fast-math transformations until a future numerical-permission contract exists. |
+| 0003A | [Exact arithmetic rewriting](tasks/0003a-exact-arithmetic-rewriting.md) | Complete | 0003 | Added a closed seven-rule set: guarded non-gradient internal forward binary `MIN(x, x)`/`MAX(x, x)`, exact typed scalar MUL-by-one for every current numeric domain, DIV/POW-by-one for floating domains, and ADD/SUB-zero for integral domains; it runs after canonical validation and before unchanged one-shot DCE/CSE/DCE, revalidates changes through Compiler 0002, distinguishes immutable scalar attributes from 0003B Tensor constants, and excludes broader algebra and relaxed/fast math. |
 | 0003B | Compile-time constants and constant folding | Draft | 0003A | Define a compiler-owned immutable constant fact/ingress representation and exact deterministic folding, never treating mutable public Tensor host storage as authoritative compile-time data; revalidate every changed candidate through Compiler 0002 and exclude runtime/backend execution, physical allocation, broad partial evaluation, relaxed/fast-math, and architecture changes. |
 | 0004 | Autograd and backward graph construction | Draft | 0002, 0003, 0003A, and 0003B | Expand selected compile modes into valid combined forward/backward graph state after exact forward rewriting and constant folding, then support post-autograd optimization. |
 | 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004 including 0003A–0003B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
@@ -98,24 +100,33 @@ Task 0003 is Complete. It adds only mandatory deterministic graph-local reindexi
 the smallest optional standard forward pipeline: dead-code elimination, exact common-subexpression
 elimination, then one dead-code cleanup. Each newly constructed graph candidate is revalidated
 through task 0002. The bounded sequence runs once and does not iterate to a fixed point.
-Task 0003A records the next strict-semantics capability without a detailed specification: exact
-operation-aware and data-type-aware arithmetic rewrites, task-0002 revalidation, and deterministic
-bounded cleanup. Draft task 0003B then defines the compiler-owned immutable fact/ingress boundary
-for compile-time constants and exact deterministic folding without reading mutable public Tensor
-host storage as authoritative compile-time data. It revalidates changed candidates through task
-0002 and excludes runtime/backend execution, physical allocation, broad partial evaluation,
+Task 0003A is Complete. Its implementation provides a closed seven-rule set:
+internal forward binary `MIN(x, x)`/`MAX(x, x)` plus exact typed scalar MUL-by-positive-one in all
+numeric domains, DIV/POW-by-positive-one in floating domains, and ADD/SUB-zero in integral
+domains. Every bypass requires complete descriptor equality, `requiresGrad == false`, a one-output
+occurrence, and a non-graph-output result; scalar rows additionally require the exact immutable
+`ScalarValueAttrs` carrier, type, and typed value. One scan runs after canonical validation and
+before task 0003's unchanged one-shot DCE/CSE/DCE sequence; a changed candidate is revalidated
+through task 0002. Scalar attributes are graph-visible semantic facts, not Tensor constants;
+Tensor zero/one recognition and new result constants remain 0003B. Gradient-eligible occurrences
+remain until task 0004 defines their operation, tie, and operand-multiplicity semantics. Draft
+task 0003B then defines the compiler-owned immutable fact/ingress boundary for compile-time
+constants and exact
+deterministic folding without reading mutable public Tensor host storage as authoritative
+compile-time data. It revalidates changed candidates through task 0002
+and excludes runtime/backend execution, physical allocation, broad partial evaluation,
 relaxed/fast-math, and architecture changes. Tasks 0003A and 0003B precede autograd so these
 separately proved forward-only rewrite boundaries are stable before task 0004 introduces backward
-occurrences and post-autograd optimization. Tasks 0003A, 0003B, 0004, and 0005 remain Draft rows
-without detailed specifications. No compiler task is Ready; selecting and specifying 0003A is a
-separate planning step.
+occurrences and post-autograd optimization. Tasks 0003B, 0004, and 0005 remain Draft rows without
+detailed specifications; no compiler task is Ready.
 
 This interleave does not claim that the compiler project's full roadmap entry condition is met.
-Tasks 0001–0003 depend only on completed model contracts and the completed config optimization
+Tasks 0001–0003A depend only on completed model contracts and the completed config optimization
 permission. They use none of the still-Draft config cost, trace payload, runtime, prepare,
 planning-orchestration, publication, or compile-artifact surfaces. Task 0003 consumes only a
 successful task-0002 result and the standalone `GraphOptimizationConfig`; it creates no compile
-aggregate or public artifact.
+aggregate or public artifact. Task 0003A consumes the same internal graph/config boundary and adds
+no new module or public dependency.
 
 ## Open questions
 
@@ -158,10 +169,19 @@ aggregate or public artifact.
 - Constant value execution, cast/arithmetic/algebraic/view rewrites, decomposition, fusion, a pass
   registry, graph-candidate collection, cost/tuning behavior, and backend-specific work are not
   justified by this first pipeline and remain absent.
-- Task 0003 hands arithmetic and algebraic rewriting to Draft task 0003A. That follow-up may select
-  only rules proved exact for the current operation kind, attributes, data type, and strict
-  numerical semantics; relaxed reassociation, exceptional-value assumptions, and other fast-math
-  transformations require a future explicit numerical-permission contract and remain excluded.
+- Complete task 0003A selects exactly seven non-gradient internal forward rules: duplicate binary
+  MIN/MAX, exact typed scalar MUL-by-one in every current numeric domain, DIV/POW-by-one in current
+  floating domains, and ADD/SUB-zero in current integral domains. Complete input/output descriptor
+  equality, one output, and graph-output exclusion are common guards; a changed candidate is
+  revalidated before task 0003's unchanged one-shot DCE/CSE/DCE sequence consumes it.
+- Every gradient-eligible selected occurrence remains intact because task 0004 has not yet defined
+  operation, saved-value, extrema-tie, or repeated-operand backward semantics.
+- Task 0003A reads exact immutable scalar operation attributes but rejects Tensor constant
+  recognition, floating ADD/SUB zero, MUL zero, cancellation, bounds/clamp identities, other POW
+  exponents, broader algebra, reassociation, commutation, reciprocal substitution, and exceptional-
+  value assumptions. POW 2, -1, and other small integers remain possible future backend-prepare
+  strength reductions subject to explicit numerical/conformance contracts; relaxed or fast-math
+  transformations require a future explicit numerical-permission contract.
 - Draft task 0003B follows 0003A and owns compile-time constants and constant folding. It must
   define compiler-owned immutable constant facts and their ingress representation, perform only
   exact deterministic folding, never treat mutable public Tensor host storage as authoritative
@@ -189,6 +209,8 @@ aggregate or public artifact.
   artifact contracts before their consumers exist.
 - Applying a mathematically familiar arithmetic identity without proving it against the current
   operation, data-type, exceptional-value, signed-zero, overflow, and promotion semantics.
+- Bypassing an arithmetic output whose descriptor differs from its input, or collapsing a
+  graph-output occurrence whose distinct requested identity must remain observable.
 - Deriving authoritative compile-time constants from mutable public Tensor host storage instead
   of a compiler-owned immutable ingress fact.
 

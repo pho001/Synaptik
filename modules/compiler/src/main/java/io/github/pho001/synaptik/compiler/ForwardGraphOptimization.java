@@ -7,16 +7,18 @@ import java.util.Objects;
 /**
  * Orders mandatory graph canonicalization and the bounded optional forward optimization pipeline.
  *
- * <p>Canonicalization always rebuilds graph-local identifiers densely. When optional optimization
- * is enabled, the pipeline invokes dead-code elimination (DCE), exact common-subexpression
- * elimination (CSE), and one cleanup DCE, once each in that order. Every changed immutable
- * candidate is inferred and validated before another transform can consume it.</p>
+ * <p>Canonicalization always rebuilds graph-local identifiers densely and is then validated.
+ * When optional optimization is enabled, the pipeline performs one guarded seven-rule exact
+ * arithmetic scan, dead-code elimination (DCE), exact common-subexpression elimination (CSE), and
+ * one cleanup DCE, once each in that order. Compiler verification is repeated only after a helper
+ * returns a changed immutable candidate and before the next transform consumes that candidate.</p>
  */
 final class ForwardGraphOptimization {
     private ForwardGraphOptimization() {}
 
     /**
-     * Canonicalizes a successful graph and optionally applies one {@code DCE -> CSE -> DCE} pass.
+     * Canonicalizes and validates a successful graph, then optionally applies one guarded exact
+     * arithmetic rewrite scan followed by one {@code DCE -> CSE -> DCE} sequence.
      *
      * @param validatedGraph the non-null successful compiler validation result whose immutable
      *     graph is read; neither the result nor its graph is mutated
@@ -40,6 +42,8 @@ final class ForwardGraphOptimization {
             return current;
         }
 
+        current = validateWhenChanged(
+                current, ForwardExactArithmeticRewriting.rewrite(current.graph()));
         current = validateWhenChanged(
                 current, ForwardDeadCodeElimination.eliminate(current.graph()));
         current = validateWhenChanged(

@@ -3094,7 +3094,23 @@ the receiver reference. `clamp(minValue, maxValue)` is one first-class `CLAMP` o
 value meaning `minimum(maximum(input, lower), upper)`, but no stored intermediate producers.
 `clampMin` creates exactly one scalar `MAX` producer, and `clampMax` exactly one scalar `MIN`
 producer. Repeated, nested, identity-like, and special-value calls are not interned, folded, or
-simplified at this boundary.
+simplified at this public expression-construction boundary.
+
+The current package-private compiler has one narrower, guarded internal rewrite after canonical
+validation. It may bypass scalar `MUL` by exact typed positive one for all five numeric types,
+scalar `DIV` and `POW` by exact typed positive one for floating types, and scalar `ADD` and `SUB`
+by exact typed zero for `INT32` and `INT64`. It also recognizes duplicate-input binary `MIN` and
+`MAX`. Each bypass is limited to a non-gradient, one-output internal `FORWARD` occurrence with
+complete input/output descriptor equality and a result that is not a graph output. This does not
+change the public Tensor's fresh identity or provenance construction: the compiler consumes the
+later immutable graph occurrence.
+
+For the scalar rows, `ScalarValueAttrs` is immutable semantic metadata, not a Tensor constant.
+The compiler reads only its exact type and typed value; it does not inspect Tensor host storage,
+evaluate values, create constants, fold arbitrary expressions, or expose a public compiler API.
+Tensor zero/one recognition and result constants remain planned for Compiler 0003B. Floating
+ADD/SUB-zero, multiplication by zero, cancellation, other exponents, bounds/clamp identities, and
+broader algebra remain unsupported compiler rewrites.
 
 Floating scalar and Tensor-to-Tensor extrema share the same selected semantics: NaN propagates,
 infinities

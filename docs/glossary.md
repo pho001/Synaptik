@@ -20,12 +20,24 @@ well. Reusable or public capability matrices, public planning orchestration or o
 numeric or cost scoring, owner-map assembly, compiler consumers, physical memory, provider
 implementations, device-level capability, and device selection remain planned.
 
-The compiler currently provides package-private structural graph capture followed by binding-free
-captured-graph verification inference. Verification independently derives every current
-production operation occurrence's output descriptors, rejects semantic contradictions, and
-retains only undecidable descriptor-visible Shape obligations as typed internal deferred graph
-constraints. This is not a public compiler, concrete binding service, transformation pipeline,
-compile artifact, backend decision, or execution path.
+The compiler currently provides package-private structural graph capture, binding-free
+captured-graph verification inference, mandatory dense canonicalization, and one optional bounded
+forward transformation pipeline. Verification independently derives every current production
+operation occurrence's output descriptors, rejects semantic contradictions, and retains only
+undecidable descriptor-visible Shape obligations as typed internal deferred graph constraints.
+The optional pipeline performs one guarded exact arithmetic scan followed by one
+`DCE -> CSE -> DCE` sequence, revalidating only changed candidates. This is not a public compiler,
+concrete binding service, compile artifact, backend decision, or execution path.
+
+The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
+scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
+typed positive one for the three floating types; and scalar `ADD` and `SUB` by exact typed zero for
+the two integral types. A bypass requires a one-output internal `FORWARD` occurrence, complete
+input/output descriptor equality, false gradient eligibility, and a result that is not a graph
+output. Scalar rules read immutable `ScalarValueAttrs` metadata, not a Tensor constant or storage.
+Tensor constant recognition and folding remain planned for Compiler 0003B; broader algebra,
+autograd, value execution, downstream lifecycle work, and backend execution are not current
+effects of this scan.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element

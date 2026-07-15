@@ -5,8 +5,8 @@
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The compiler module now contains package-private structural
 forward capture, binding-free captured-graph verification inference, mandatory dense
-canonicalization, and one config-controlled forward optimization pipeline. The repository still
-provides no public or runnable graph compiler.
+canonicalization, and one config-controlled forward optimization pipeline with a guarded exact
+arithmetic scan. The repository still provides no public or runnable graph compiler.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -132,9 +132,28 @@ When optional optimization is disabled, that canonicalization and validation sti
 is enabled, the internal pipeline runs exactly once in this order:
 
 ```text
-forward dead-code elimination -> exact forward common-subexpression elimination
-                              -> forward dead-code elimination cleanup
+guarded exact arithmetic rewriting -> forward dead-code elimination
+                                   -> exact forward common-subexpression elimination
+                                   -> forward dead-code elimination cleanup
 ```
+
+The first scan recognizes exactly seven internal, one-output `FORWARD` identities: duplicate-input
+binary `MIN` and `MAX`; scalar `MUL` by exact typed positive one for `BFLOAT16`, `FLOAT32`,
+`FLOAT64`, `INT32`, and `INT64`; scalar `DIV` and `POW` by exact typed positive one for the three
+floating types; and scalar `ADD` and `SUB` by exact typed zero for `INT32` and `INT64`. Every bypass
+requires complete equality between the input and output `TensorDescriptor`, including Shape,
+layout, data type, and `requiresGrad`; the equal descriptor must have `requiresGrad == false`.
+The result must not be a graph output. Duplicate extrema compare already-remapped input IDs, while
+scalar rules require the exact `ScalarValueAttrs` carrier, matching scalar/input/output type, and
+matching typed value. A prior bypass can therefore expose a later eligible occurrence during the
+same scan without iteration.
+
+`ScalarValueAttrs` is immutable operation metadata already stored in the graph. Reading its exact
+typed `ScalarValue` is not Tensor constant discovery, host-storage inspection, value execution,
+or constant folding. Recognizing Tensor zeros or ones and creating result constants remain planned
+for Compiler 0003B. The scan deliberately does not add floating ADD/SUB-zero, multiplication by
+zero, cancellation, other powers, bounds/clamp identities, broader algebra, or relaxed numerical
+rules. It retains graph-output, gradient-eligible, non-forward, and multi-output occurrences.
 
 Dead-code elimination (DCE) retains every graph input and graph output, treats every non-forward
 node and its dependency closure as live roots, and retains all output slots of every live node.
@@ -146,9 +165,9 @@ candidate is immediately revalidated through the verification pass; an unchanged
 not redundantly revalidated.
 
 These are internal graph transformations, not numerical execution or a public compiler surface.
-They do not fold constants; rewrite casts, arithmetic, algebra, or views; construct autograd;
-derive publication, planning, or diagnostics; create `CompileArtifacts`; or affect trace,
-preparation, runtime, backend, or engine behavior.
+Outside the guarded seven-rule scan, they do not fold constants; rewrite casts, broader arithmetic,
+algebra, or views; construct autograd; derive publication, planning, or diagnostics; create
+`CompileArtifacts`; or affect trace, preparation, runtime, backend, or engine behavior.
 
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
@@ -986,8 +1005,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   policy, average-pooling fixed-divisor preservation, layout materialization
   planning remain planned. Package-private identity-based structural forward capture into graph
   values and nodes, binding-free verification inference, mandatory dense graph-local
-  canonicalization, and the exact one-shot forward DCE/CSE/DCE pipeline are current internal
-  behavior. The operation-specific rewrites listed above remain planned.
+  canonicalization, the guarded seven-rule exact arithmetic scan, and the exact one-shot forward
+  DCE/CSE/DCE cleanup are current internal behavior. All other operation-specific rewrites listed
+  above remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Package-private structural capture preserves the
@@ -1031,7 +1051,8 @@ not record MPSGraph or a custom Metal kernel. Metal prepare makes that later cho
 This scenario is conceptual. Current internal capture can build the structural forward graph,
 package-private verification can validate its operation descriptors and retain unresolved
 constraints, and the current internal transformation boundary can canonicalize and apply its
-bounded forward DCE/CSE/DCE sequence. None can run the illustrated lifecycle, bind concrete
+guarded seven-rule scan plus bounded forward DCE/CSE/DCE sequence. None can run the illustrated
+lifecycle, bind concrete
 dimensions, select ownership, or expose a public compilation result.
 
 ## Related contracts
