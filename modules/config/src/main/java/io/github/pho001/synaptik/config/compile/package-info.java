@@ -9,7 +9,9 @@
  * optional semantics-preserving compiler optimization, and
  * {@link io.github.pho001.synaptik.config.compile.PartitionScoringConfig} records an optional soft
  * device-class preference for later ranking after hard eligibility. These values describe
- * requests only; no current aggregate or compiler entry point consumes them.</p>
+ * requests only. The current package-private compiler transformation boundary consumes only the
+ * optimization permission. No current compile aggregate or public compiler entry point consumes
+ * these values, and compile mode, backend intent, and scoring orchestration remain planned.</p>
  *
  * <p>Later configuration work owns immutable profile inputs and the aggregate compile
  * configuration. Later planning evaluates hard eligibility, candidates, and scoring and chooses

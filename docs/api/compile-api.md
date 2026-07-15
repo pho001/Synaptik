@@ -4,8 +4,9 @@
 
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The compiler module now contains package-private structural
-forward capture followed by binding-free captured-graph verification inference, but the
-repository still provides no public or runnable graph compiler.
+forward capture, binding-free captured-graph verification inference, mandatory dense
+canonicalization, and one config-controlled forward optimization pipeline. The repository still
+provides no public or runnable graph compiler.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -72,11 +73,12 @@ or distinct wrappers that resolve to one graph output value. No caller collectio
 The returned graph owns immutable collection snapshots through `CompiledGraphModel`.
 
 Capture itself performs structural forward capture only. The following package-private
-verification-inference pass revalidates operands and descriptors, but neither step rewrites the
-graph, canonicalizes or optimizes it, constructs gradients or backward work, derives publication
-bindings, invokes planning, produces diagnostics or `CompileArtifacts`, prepares backends,
-allocates physical memory, or executes values. No public `GraphCompiler`, `CompiledGraph`, compile
-entry point, configuration aggregate, capture method, or validation method exists.
+verification-inference and transformation boundaries revalidate, canonicalize, and optionally
+optimize the captured graph. Capture does not perform those later steps. None of these internal
+steps constructs gradients or backward work, derives publication bindings, invokes planning,
+produces diagnostics or `CompileArtifacts`, prepares backends, allocates physical memory, or
+executes values. No public `GraphCompiler`, `CompiledGraph`, compile entry point, configuration
+aggregate, capture method, validation method, or optimizer method exists.
 
 ### Current package-private verification inference
 
@@ -112,8 +114,41 @@ remain outside descriptor-only verification.
 
 This pass is reusable compiler-internal state, not a public artifact. It performs no graph
 transformation, concrete dimension binding, autograd, publication or planning orchestration,
-diagnostic aggregation, preparation, backend lowering, runtime work, or execution. Future
-canonicalization must re-run the same semantic verification on each transformed graph candidate.
+diagnostic aggregation, preparation, backend lowering, runtime work, or execution. The current
+canonicalization and optional optimization pipeline reuses it after mandatory canonicalization
+and after every changed graph candidate.
+
+### Current package-private canonicalization and forward optimization
+
+Package-private `ForwardGraphOptimization.optimize(ValidatedGraph, GraphOptimizationConfig)`
+consumes only a successful verification result and the standalone optimization permission. It
+always rebuilds the graph through `GraphCanonicalization` before validating the rebuilt candidate.
+Graph inputs receive dense `ValueId` values first in boundary order. Node outputs then receive
+dense values in stored topological and output-slot order, while `NodeId` values follow stored node
+order. Operations, descriptors, phases, repeated input positions, every output slot, and ordered
+graph boundaries are preserved.
+
+When optional optimization is disabled, that canonicalization and validation still occur. When it
+is enabled, the internal pipeline runs exactly once in this order:
+
+```text
+forward dead-code elimination -> exact forward common-subexpression elimination
+                              -> forward dead-code elimination cleanup
+```
+
+Dead-code elimination (DCE) retains every graph input and graph output, treats every non-forward
+node and its dependency closure as live roots, and retains all output slots of every live node.
+Exact common-subexpression elimination (CSE) compares the forward phase, complete immutable
+operation value, ordered remapped inputs, and every ordered output descriptor. It merges a whole
+multi-output occurrence slot by slot. A producer containing a graph output may neither merge nor
+serve as a representative, so distinct requested boundaries remain distinct. Each changed
+candidate is immediately revalidated through the verification pass; an unchanged helper result is
+not redundantly revalidated.
+
+These are internal graph transformations, not numerical execution or a public compiler surface.
+They do not fold constants; rewrite casts, arithmetic, algebra, or views; construct autograd;
+derive publication, planning, or diagnostics; create `CompileArtifacts`; or affect trace,
+preparation, runtime, backend, or engine behavior.
 
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
@@ -133,14 +168,17 @@ zero-input, one-output `GraphRngKind.INITIAL_STATE` occurrence whose exact
 Tensor is fixed `INT64 Shape[2]`, unresolved-layout, non-gradient, unlabeled, and storage-free,
 with output index zero. Both `long` values are unsigned 64-bit bit patterns: key identifies a
 caller-selected stream/domain, and counter identifies the next abstract logical sample position.
-Equal words request replay-equivalent positions but do not merge expression identities.
+Equal words request replay-equivalent positions but do not merge expression identities in the
+public expression model.
 
 Current package-private structural capture preserves this state producer and its ordered state
 edges when they are reachable from a requested Tensor result. A future serializer must preserve
-the raw words losslessly. No current code defines serialization, common-subexpression policy,
-gradient rules, a byte encoding, a stable enum token, a random algorithm, prepared state, or
-execution. Without a selected portable algorithm, no cross-backend or cross-version bitstream
-follows from equal state.
+the raw words losslessly. Current exact internal CSE may merge equal initial-state and dropout
+graph occurrences only when their complete operation, ordered inputs, phase, and all output
+descriptors match; this does not merge their pre-capture expression identities or select a random
+algorithm. No current code defines serialization, gradient rules, a byte encoding, a stable enum
+token, prepared state, or execution. Without a selected portable algorithm, no cross-backend or
+cross-version bitstream follows from equal state.
 
 The public `Tensor` model is also current. Its seven binary arithmetic methods, six binary
 comparison methods, three boolean logical methods, nineteen unary elementwise methods, three
@@ -708,14 +746,15 @@ GraphOptimizationConfig standardOptimization =
         GraphOptimizationConfig.standard();
 ```
 
-The first value requests that a later compiler skip optional semantics-preserving optimization.
+The first value requests that the compiler skip optional semantics-preserving optimization.
 It cannot disable graph capture, ordering, inference, validation, mandatory canonical
 representation, mode-required autograd, publication binding, planning, preparation, or execution.
 The second permits the compiler's standard optional semantics-preserving pipeline without freezing
 a pass list, pass order, internal graph shape, or implementation strategy. It permits no
 approximate mathematics, changed numerical semantics, backend-specific fusion, preparation, or
 execution behavior. Direct construction retains either primitive boolean value, and both factories
-return fresh values. No current compiler consumes the permission.
+return fresh values. The current package-private compiler transformation boundary consumes this
+permission; no public compiler entry point or `CompileConfig` aggregate does.
 
 `io.github.pho001.synaptik.config.compile.PartitionScoringConfig` is the fourth current value. It
 holds exactly one `Optional<DeviceClass>` named `preferredDeviceClass`:
@@ -932,7 +971,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the public compiler entry point and every lifecycle orchestration surface,
-  canonicalization, saved-statistic and gradient construction,
+  saved-statistic and gradient construction,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
@@ -946,13 +985,16 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
   policy, average-pooling fixed-divisor preservation, layout materialization
   planning remain planned. Package-private identity-based structural forward capture into graph
-  values and nodes plus binding-free verification inference are current, with no transformation.
+  values and nodes, binding-free verification inference, mandatory dense graph-local
+  canonicalization, and the exact one-shot forward DCE/CSE/DCE pipeline are current internal
+  behavior. The operation-specific rewrites listed above remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Package-private structural capture preserves the
   reachable initial-state producer, state edge, and every dropout output slot. Direct state
-  boundary selection, serialization, transformation, lifetime policy, and public compilation
-  remain planned.
+  boundary selection, serialization, value rewriting, lifetime policy, and public compilation
+  remain planned. Current internal canonicalization preserves every state slot, exact CSE merges
+  only complete equal occurrences, and DCE retains all slots of a live dropout node.
 - `CompileConfig` will aggregate the current compile mode, `BackendIntent`, graph-optimization,
   and `PartitionScoringConfig` values with any later justified planning-cost inputs as data. It will not
   contain live backend services. Its exact surface and defaults remain planned.
@@ -986,10 +1028,11 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario is conceptual. Current internal capture can build the structural forward graph and
-current package-private verification can validate its operation descriptors and retain unresolved
-constraints. Neither can run the illustrated lifecycle, bind concrete dimensions, transform the
-graph, or select ownership.
+This scenario is conceptual. Current internal capture can build the structural forward graph,
+package-private verification can validate its operation descriptors and retain unresolved
+constraints, and the current internal transformation boundary can canonicalize and apply its
+bounded forward DCE/CSE/DCE sequence. None can run the illustrated lifecycle, bind concrete
+dimensions, select ownership, or expose a public compilation result.
 
 ## Related contracts
 

@@ -81,8 +81,10 @@ positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im
 or symbolic compatibility.
 Typed access, other expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, public compiler integration, runtime residency, and backend
-execution remain planned. Package-private compiler capture and binding-free operand/descriptor
-verification are current internal consumers of this model metadata. The authoritative module
+execution remain planned. Package-private compiler capture, binding-free operand/descriptor
+verification, mandatory dense graph-local canonicalization, and bounded forward DCE/CSE/DCE are
+current internal consumers of this model metadata. These compiler steps do not numerically execute
+Tensor expressions or add a public compiler surface. The authoritative module
 boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
@@ -100,8 +102,9 @@ validation, while `Tensor.reshape(Shape)` retains an exact normalized target. Th
 `Tensor.expand` overloads retain literal or exact target Shapes, validate directional
 right-aligned compatibility, and derive logical view strides when geometry is resolved.
 Package-private compiler verification of captured descriptors and retained reshape obligations is
-current; transformation, concrete binding, materialization, gradient, and execution behavior
-remain planned.
+current. Mandatory graph-local ID canonicalization and general exact CSE/DCE are also current
+internal behavior; reshape- or view-specific rewriting, concrete binding, materialization,
+gradient, and execution behavior remain planned.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while

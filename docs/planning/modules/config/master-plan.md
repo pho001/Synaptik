@@ -96,8 +96,10 @@ bearing consumer. Planning task 0005 is Complete with logical materialization an
 requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
 therefore remains Draft without a detailed specification and no config task is Ready. Planning
 0006 is Complete with a `CLOSED` documentation-only audit verdict. That closure does not define
-the cost-bearing consumer or make Config 0004 Ready; no global task is Ready pending a separate
-frontier reassessment.
+the cost-bearing consumer or make Config 0004 Ready. Compiler task 0003 now consumes only the
+completed standalone `GraphOptimizationConfig` permission through a package-private internal
+transformation boundary. It does not consume compile mode, backend intent, scoring config, a
+future aggregate, or cost-profile data, so no config task or status advances.
 
 ## Open questions
 
@@ -127,6 +129,10 @@ frontier reassessment.
 - Graph optimization configuration exposes only whether optional semantics-preserving compiler
   work is enabled. It does not expose compiler pass identities or order, and mandatory correctness
   work remains outside that switch.
+- Compiler task 0003 is the first current consumer of `GraphOptimizationConfig`. Its package-private
+  transformation boundary uses the boolean only to enable or skip optional forward optimization;
+  mandatory canonicalization and validation remain outside the permission. This consumer adds no
+  config API, dependency, aggregate, mode interpretation, intent interpretation, or scoring work.
 - Planning task 0001 intentionally interleaves before config task 0003. Capability answers the
   hard semantic question first; scoring configuration later describes how eligible ownership
   choices are compared and must not redefine capability.

@@ -1250,6 +1250,21 @@ not execute either function or define compiler decomposition, gradients, or back
 
 The graph that computes outputs from user inputs in the original direction of the tensor expression. It exists before any gradient computation is added. A forward-only compile uses this computation; a backward-capable compile may expand it with a [backward graph](#backward-graph).
 
+### Forward graph optimization
+
+The current package-private compiler's optional, semantics-preserving transformation of forward
+graph occurrences. The first bounded pipeline runs dead-code elimination (DCE), exact
+common-subexpression elimination (CSE), and one DCE cleanup once in that order. DCE removes only
+forward nodes unreachable from graph outputs and non-forward dependency roots, while retaining
+every graph input and every output slot of a live node. Exact CSE merges whole forward occurrences
+only when their operation value, ordered remapped inputs, phase, and complete ordered output
+descriptors match. A graph-output producer cannot merge or represent another occurrence.
+
+This optional work is distinct from mandatory [graph canonicalization](#graph-canonicalization).
+It does not execute values, rewrite constants, casts, arithmetic, algebra, or views, construct
+autograd, derive publication or planning, or expose a public compiler API. See [Compile
+API](api/compile-api.md#current-package-private-canonicalization-and-forward-optimization).
+
 ### Neural-network module, parameter, buffer, and forward context
 
 These are planned `extensions/nn` contracts; no Gradle `nn` project or production Java API exists
@@ -1295,15 +1310,29 @@ serialization, or optimizer-update phase.
 The implemented standalone config record whose sole boolean component,
 `optionalOptimizationsEnabled`, permits or suppresses optional semantics-preserving compiler
 optimization. `disabled()` creates a fresh false value that requests skipping optional work;
-`standard()` creates a fresh true value that permits a later compiler's standard optional pipeline.
+`standard()` creates a fresh true value that permits the compiler's standard optional pipeline.
 Direct construction retains either primitive value.
 
 False cannot disable graph capture, ordering, inference, validation, mandatory canonical
 representation, mode-required autograd, publication binding, backend-neutral planning,
 preparation, or execution. True does not freeze a pass list, pass order, internal graph shape, or
 implementation strategy and permits no approximate mathematics, changed numerical semantics,
-backend-specific fusion, preparation, or execution behavior. No current `CompileConfig` or
-compiler consumes this value.
+backend-specific fusion, preparation, or execution behavior. No current `CompileConfig` or public
+compiler entry point consumes this value. The current package-private compiler transformation
+boundary consumes it only to enable or skip the optional forward pipeline; mandatory [graph
+canonicalization](#graph-canonicalization) and validation always run.
+
+### Graph canonicalization
+
+The current mandatory package-private compiler normalization that rebuilds an accepted immutable
+graph with dense graph-local identifiers. Graph inputs are allocated first in boundary order,
+followed by node outputs in stored topological and output-slot order; node identifiers follow
+stored node order. Canonicalization preserves operations, descriptors, phases, repeated inputs,
+every output slot, and ordered graph boundaries, then the compiler revalidates the rebuilt graph.
+
+Canonicalization is not optional [forward graph optimization](#forward-graph-optimization), an
+operation-specific rewrite, numerical execution, concrete dimension binding, publication, or a
+public compiler API.
 
 ### Graph RNG state / `GraphRngState`
 

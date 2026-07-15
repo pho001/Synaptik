@@ -1,19 +1,20 @@
 package io.github.pho001.synaptik.config.compile;
 
 /**
- * Records whether a later compiler may apply optional semantics-preserving graph optimizations.
+ * Records whether the compiler may apply optional semantics-preserving graph optimizations.
  *
  * <p>Disabling optional optimization does not suppress graph capture, ordering, inference,
  * validation, mandatory canonical representation, mode-required autograd, publication binding,
- * backend-neutral planning, preparation, or execution. Enabling it permits a compiler-owned
- * standard pipeline without making its passes, order, internal graph shape, or implementation
- * strategy part of this public contract.</p>
+ * backend-neutral planning, preparation, or execution. The current package-private compiler
+ * consumer always canonicalizes and validates, then uses this permission only to select whether
+ * its internal standard forward optimization runs. The passes, order, internal graph shape, and
+ * implementation strategy are not part of this public config contract.</p>
  *
  * <p>This value grants no permission for approximate mathematics, changed numerical semantics,
  * backend-specific fusion, preparation, or execution behavior. Equality, hashing, and
  * diagnostic text follow ordinary record semantics over the primitive permission.</p>
  *
- * @param optionalOptimizationsEnabled {@code true} to permit a later compiler's standard optional
+ * @param optionalOptimizationsEnabled {@code true} to permit the compiler's standard optional
  *     semantics-preserving optimization pipeline; {@code false} to request that such optional
  *     work be skipped
  */
@@ -21,7 +22,7 @@ public record GraphOptimizationConfig(boolean optionalOptimizationsEnabled) {
     /**
      * Creates an optimization configuration retaining the exact primitive permission.
      *
-     * @param optionalOptimizationsEnabled {@code true} to permit a later compiler's standard
+     * @param optionalOptimizationsEnabled {@code true} to permit the compiler's standard
      *     optional semantics-preserving optimization pipeline; {@code false} to request that such
      *     optional work be skipped
      */
@@ -50,7 +51,7 @@ public record GraphOptimizationConfig(boolean optionalOptimizationsEnabled) {
     }
 
     /**
-     * Reports whether a later compiler may apply its standard optional semantics-preserving graph
+     * Reports whether the compiler may apply its standard optional semantics-preserving graph
      * optimization pipeline.
      *
      * @return {@code true} when standard optional optimization is permitted; {@code false} when

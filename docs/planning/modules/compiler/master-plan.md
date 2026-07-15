@@ -51,17 +51,20 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 
 ```text
 io.github.pho001.synaptik.compiler/
-  <root>  package-private graph capture and captured-graph verification inference, including
-          typed internal deferred constraints and cohesive family inference helpers; later narrow
-          public or cross-package collaborations only when a concrete consumer justifies them
+  <root>  package-private graph capture, captured-graph verification inference, typed deferred
+          constraints, deterministic graph canonicalization, and the bounded forward DCE/CSE/DCE
+          pipeline; later narrow public or cross-package collaborations only when a concrete
+          consumer justifies them
 ```
 
-The root package is the cohesive internal front-end boundary through task 0002. Capture produces
-the structurally closed graph; verification inference revalidates semantics and retains unresolved
-constraints without widening Java visibility. It must not become a catch-all for unrelated
-transformation passes, artifacts, diagnostics, planning adapters, and public facades. Task 0003
-must revisit this map before adding transformation types, and task 0005 must justify any narrow
-cross-package/public orchestration boundary from its concrete consumer.
+The root package remains one cohesive internal front-end and forward-transformation boundary
+through task 0003. Capture produces the structurally closed graph; verification inference
+revalidates semantics and retains unresolved constraints; canonicalization normalizes graph-local
+IDs; and one narrow orchestrator applies exact internal forward DCE/CSE/DCE under the existing
+config permission. No pass registry, generic rewrite framework, public optimizer, or candidate
+model is planned. The package must not become a catch-all for artifacts, diagnostics, planning
+adapters, and public facades. Task 0005 must justify any narrow cross-package/public orchestration
+boundary from its concrete consumer.
 
 ## Task list
 
@@ -69,15 +72,18 @@ cross-package/public orchestration boundary from its concrete consumer.
 |---|---|---|---|---|
 | 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replaced the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
 | 0002 | [Captured-graph inference and validation](tasks/0002-captured-graph-inference-and-validation.md) | Complete | 0001 | Independently derives and verifies every current operation occurrence descriptor, rejects operand/domain contradictions, and retains only genuinely unresolved typed Shape constraints without transformation, binding, or backend decisions. |
-| 0003 | Canonicalization and forward optimization | Draft | 0002 | Add the bounded semantics-preserving canonicalization and forward optimization pipeline after graph validation is stable. |
-| 0004 | Autograd and backward graph construction | Draft | 0002–0003 | Expand selected compile modes into valid combined forward/backward graph state, then support post-autograd optimization. |
-| 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
+| 0003 | [Canonicalization and forward optimization](tasks/0003-canonicalization-and-forward-optimization.md) | Complete | 0002 | Added mandatory deterministic graph-local reindexing plus one config-controlled forward DCE/CSE/DCE sequence, revalidating every changed immutable graph candidate through task 0002. |
+| 0003A | Exact arithmetic rewriting | Draft | 0003 | Add operation-aware and data-type-aware rewrites proved exact under current strict semantics, revalidate changed candidates through Compiler 0002, and perform deterministic bounded cleanup; exclude relaxed or fast-math transformations until a future numerical-permission contract exists. |
+| 0003B | Compile-time constants and constant folding | Draft | 0003A | Define a compiler-owned immutable constant fact/ingress representation and exact deterministic folding, never treating mutable public Tensor host storage as authoritative compile-time data; revalidate every changed candidate through Compiler 0002 and exclude runtime/backend execution, physical allocation, broad partial evaluation, relaxed/fast-math, and architecture changes. |
+| 0004 | Autograd and backward graph construction | Draft | 0002, 0003, 0003A, and 0003B | Expand selected compile modes into valid combined forward/backward graph state after exact forward rewriting and constant folding, then support post-autograd optimization. |
+| 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004 including 0003A–0003B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
 
 
 ## Milestones
 
 - Capture and validation
-- Optimization and autograd
+- Optimization and autograd — run the compiler transformation-and-autograd capability checkpoint
+  after task 0004
 - Planning orchestration and compile artifacts
 
 ## Current status
@@ -88,15 +94,28 @@ expression/provenance surface into the current immutable graph model. Task 0002 
 package-private verification inference over that graph: every current production operation family
 is revalidated, complete output descriptors are independently derived and compared, and current
 dimension/Shape obligations are proven, rejected, or retained as typed internal constraints.
-Tasks 0003–0005 remain Draft rows without detailed specifications; no compiler task is currently
-Ready.
+Task 0003 is Complete. It adds only mandatory deterministic graph-local reindexing plus
+the smallest optional standard forward pipeline: dead-code elimination, exact common-subexpression
+elimination, then one dead-code cleanup. Each newly constructed graph candidate is revalidated
+through task 0002. The bounded sequence runs once and does not iterate to a fixed point.
+Task 0003A records the next strict-semantics capability without a detailed specification: exact
+operation-aware and data-type-aware arithmetic rewrites, task-0002 revalidation, and deterministic
+bounded cleanup. Draft task 0003B then defines the compiler-owned immutable fact/ingress boundary
+for compile-time constants and exact deterministic folding without reading mutable public Tensor
+host storage as authoritative compile-time data. It revalidates changed candidates through task
+0002 and excludes runtime/backend execution, physical allocation, broad partial evaluation,
+relaxed/fast-math, and architecture changes. Tasks 0003A and 0003B precede autograd so these
+separately proved forward-only rewrite boundaries are stable before task 0004 introduces backward
+occurrences and post-autograd optimization. Tasks 0003A, 0003B, 0004, and 0005 remain Draft rows
+without detailed specifications. No compiler task is Ready; selecting and specifying 0003A is a
+separate planning step.
 
 This interleave does not claim that the compiler project's full roadmap entry condition is met.
-Tasks 0001–0002 depend only on completed model contracts and use none of the still-Draft config
-cost, trace payload, runtime, prepare, planning-orchestration, publication, or compile-artifact
-surfaces. Task 0002 binds no concrete dimension, rewrites no graph, emits no diagnostics payload,
-and creates no public artifact. Its completion provides the accepted internal input contract for
-later transformation.
+Tasks 0001–0003 depend only on completed model contracts and the completed config optimization
+permission. They use none of the still-Draft config cost, trace payload, runtime, prepare,
+planning-orchestration, publication, or compile-artifact surfaces. Task 0003 consumes only a
+successful task-0002 result and the standalone `GraphOptimizationConfig`; it creates no compile
+aggregate or public artifact.
 
 ## Open questions
 
@@ -125,26 +144,53 @@ later transformation.
 - Task 0002 validates graph model data rather than reconstructing temporary Tensor expressions.
   It returns the exact accepted graph plus immutable unresolved constraints, fails closed for an
   unknown operation kind, and never binds named or expression dimensions.
-- Raw captured graphs receive ingress validation before transformation. Task 0003 must separately
-  canonicalize and then reuse the same inference/validation pass for every transformed graph
-  candidate, preserving the architecture compile order for transformed graphs.
-- Config 0004 is not selected because capture and validation consume no planning cost
-  classification or unit. Trace 0003+ are not selected because neither task emits a payload.
+- Task 0003 consumes only a successful `ValidatedGraph`. Mandatory canonicalization allocates
+  graph inputs first and then node outputs in topological/output-slot order, with dense IDs from
+  zero, while preserving exact operations, descriptors, phases, and graph boundaries.
+- Task 0003's optional standard pipeline is one forward DCE pass, one exact forward CSE pass, then
+  one forward DCE cleanup pass, without fixed-point iteration. CSE uses equal phase/operation/
+  ordered-remapped-input/complete-descriptor keys, merges all outputs slotwise, and permits graph-
+  output producers neither to merge nor to serve as representatives. DCE retains all graph inputs,
+  graph outputs, non-forward work and dependencies, and every output slot of a live node.
+- Task 0003 reuses task 0002 after mandatory canonicalization and after every changed optional
+  candidate. Disabled optimization suppresses only the DCE/CSE/DCE sequence, never
+  canonicalization or validation.
+- Constant value execution, cast/arithmetic/algebraic/view rewrites, decomposition, fusion, a pass
+  registry, graph-candidate collection, cost/tuning behavior, and backend-specific work are not
+  justified by this first pipeline and remain absent.
+- Task 0003 hands arithmetic and algebraic rewriting to Draft task 0003A. That follow-up may select
+  only rules proved exact for the current operation kind, attributes, data type, and strict
+  numerical semantics; relaxed reassociation, exceptional-value assumptions, and other fast-math
+  transformations require a future explicit numerical-permission contract and remain excluded.
+- Draft task 0003B follows 0003A and owns compile-time constants and constant folding. It must
+  define compiler-owned immutable constant facts and their ingress representation, perform only
+  exact deterministic folding, never treat mutable public Tensor host storage as authoritative
+  compile-time data, and revalidate every changed graph candidate through Compiler 0002. It must
+  not add runtime/backend execution, physical allocation, broad partial evaluation,
+  relaxed/fast-math behavior, or architecture changes.
+- Config 0004 is not selected because capture, validation, and graph transformation consume no
+  planning cost classification or unit. Trace 0003+ are not selected because none of these tasks
+  emits a payload.
   Runtime is not selected because prepared contracts and runtime-facing config/trace consumers
   are not yet stable. Prepare is not selected because it requires compiler artifacts and runtime
-  contracts, neither of which tasks 0001–0002 invent.
+  contracts, none of which tasks 0001–0003 invents.
 
 ## Risks
 
 - Creating prepared or backend-specific state during compilation.
-- Accidentally merging structurally equal but identity-distinct Tensor producers.
-- Dropping unrequested producer output slots that later compiler work may need as auxiliary or
-  opaque state values.
+- Merging identity-distinct occurrences without the complete exact CSE key, or collapsing a
+  graph-output/publication boundary that must remain distinct.
+- Dropping an output slot from a retained multi-output producer that later compiler work may need
+  as an auxiliary, saved, or opaque state value.
 - Publishing a speculative compiler facade before engine/config/artifact consumers are stable.
 - Duplicating model-time validation incompletely and silently trusting an unhandled operation
   family instead of failing closed.
 - Treating an unresolved symbolic obligation as proven, or inventing runtime binding/public
   artifact contracts before their consumers exist.
+- Applying a mathematically familiar arithmetic identity without proving it against the current
+  operation, data-type, exceptional-value, signed-zero, overflow, and promotion semantics.
+- Deriving authoritative compile-time constants from mutable public Tensor host storage instead
+  of a compiler-owned immutable ingress fact.
 
 ## Notes
 
