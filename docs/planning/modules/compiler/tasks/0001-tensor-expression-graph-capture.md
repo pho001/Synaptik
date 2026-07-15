@@ -2,7 +2,7 @@
 
 ## Status
 
-Review needed
+Complete
 
 ## Goal
 
@@ -95,8 +95,10 @@ differentiate, plan, prepare, emit diagnostics, or execute the graph.
   serialization
 - prepare, runtime, engine, backend, lowering, kernel, executable, schedule, physical-memory,
   transfer, residency, publication-delivery, or execution behavior
-- dependencies, Gradle configuration, architecture rules, ADRs, architecture tests, backend
-  conformance tests, integration tests, or another module's source/tests
+- dependencies, shared Gradle configuration, compiler Gradle configuration other than the narrow
+  package-level Javadoc visibility needed to document this task's internal contract, architecture
+  rules, ADRs, architecture tests, backend conformance tests, integration tests, or another
+  module's source/tests
 - planning orchestration or changes to the current package-private planning operations
 - sibling-output lookup, generic tuple APIs, output Tensor synthesis, or mutation of model-owned
   Tensor/provenance/producer state
@@ -286,22 +288,24 @@ Expected implementation paths:
   `modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/GraphCapture.java`
 - add
   `modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/GraphCaptureTest.java`
+- update `modules/compiler/build.gradle.kts` only so the compiler Javadoc task includes
+  package-private declarations without changing Java visibility
 - update [Compile API](../../../../api/compile-api.md)
 - update and finalize this task specification
 - update [Compiler master plan](../master-plan.md)
 - update [Roadmap](../../../roadmap.md)
 
 Review without modification unless a documented conflict requires stopping: model source/tests,
-Tensor API, Public API, glossary, architecture documents/tests, Gradle files, config, trace,
-planning, runtime, prepare, engine, backend, conformance, and integration paths.
+Tensor API, Public API, glossary, architecture documents/tests, root/shared Gradle files, config,
+trace, planning, runtime, prepare, engine, backend, conformance, and integration paths.
 
 ## Maximum scope
 
-This task may create, modify, or remove at most the exact seven paths listed under
+This task may create, modify, or remove at most the exact eight paths listed under
 [Affected files](#affected-files).
 
 No other production type, test suite, documentation page, planning file, build file, module, or
-architecture path is authorized. If accurate implementation or documentation requires an eighth
+architecture path is authorized. If accurate implementation or documentation requires a ninth
 path, stop and propose a separately justified follow-up instead of silently expanding scope.
 
 ## Acceptance criteria
@@ -335,9 +339,11 @@ path, stop and propose a separately justified follow-up instead of silently expa
 - The Compile API describes package-private capture as current without claiming a public compile
   API, inference, validation beyond structural graph construction, transformation, autograd,
   planning, diagnostics, prepare, backend support, runtime behavior, or execution.
-- Tensor API, Public API, glossary, architecture docs/tests, other modules, Gradle, conformance,
-  and integration tests remain unchanged for the recorded reasons.
-- Exactly the seven authorized paths change, no later compiler task specification exists, and only
+- Tensor API, Public API, glossary, architecture docs/tests, other modules, shared Gradle
+  configuration, conformance, and integration tests remain unchanged for the recorded reasons.
+- Compiler Javadoc generation includes package-private declarations without changing source
+  visibility, Java behavior, dependencies, or Javadoc policy for another module.
+- Exactly the eight authorized paths change, no later compiler task specification exists, and only
   Compiler 0001 is `Ready` before implementation or `Complete` after all evidence is final.
 - A separate documentation-focused agent pass has finalized affected documentation, Javadocs,
   terminology, links, status, and glossary impact in this same overall change.
@@ -371,14 +377,15 @@ git status --short
 ```
 
 The documentation pass must also check local Markdown links and anchors, balanced fences, final
-newlines, terminology, exact seven-path scope, removal of `CompilerModule`, package-private
+newlines, terminology, exact eight-path scope, removal of `CompilerModule`, package-private
 capture visibility, source-Javadoc completeness for the new type and entry point, exactly one
 current detailed compiler task, synchronized task/master/roadmap status, and absence of a Compiler
 0002 or later specification.
 
 Repository-wide validation is deferred to the compiler capture-and-validation capability
 checkpoint or continuous integration. This task changes one module's internal implementation and
-no dependency, shared build configuration, architecture boundary, or public API.
+module-local Javadoc visibility, with no dependency, shared build configuration, architecture
+boundary, or public API change.
 
 ## Dependencies
 
@@ -429,10 +436,11 @@ docs/planning/modules/compiler/tasks/0001-tensor-expression-graph-capture.md. Re
 referenced model source/tests and current Compile/Tensor/Public API boundaries needed to verify
 the task.
 
-Implement Compiler 0001 exactly as specified within its seven authorized paths. Do not implement
-out-of-scope inference, proof, optimization, autograd, publication/planning orchestration,
+Implement Compiler 0001 exactly as specified within its eight authorized paths. The only build
+change permitted is compiler-local Javadoc inclusion of package-private declarations. Do not
+implement out-of-scope inference, proof, optimization, autograd, publication/planning orchestration,
 CompileArtifacts, diagnostics/tracing, public facades, prepare/runtime/backend/engine work, or
-dependency/build changes. Stop on any scope or architecture conflict.
+dependency/shared-build changes. Stop on any scope or architecture conflict.
 
 After code implementation and the final compiler test evidence, hand the actual diff and evidence
 to a separate documentation-focused agent or thread with clean context. That targeted pass must
@@ -495,8 +503,9 @@ acceptance criterion finish.
 - Repository-wide validation remains deferred to the named compiler capability checkpoint or CI
   because this task changes one module's internal implementation and no dependency, shared build
   configuration, architecture boundary, or public API.
-- The separate clean-context documentation pass was performed by Codex task identity `/root` on
-  2026-07-15, acting only as the mandatory documentation-focused completion agent. It applied the
+- The initial separate clean-context documentation pass was performed by Codex task identity
+  `/root` on 2026-07-15, acting only as the mandatory documentation-focused review agent. It
+  applied the
   General, API/Javadoc, and Planning documentation profiles; it also reviewed the Example profile,
   but added no new runnable or conceptual example requiring example validation.
 - That pass independently reviewed `AGENTS.md`, `ARCHITECTURE.md`, the current architecture index,
@@ -558,6 +567,58 @@ acceptance criterion finish.
 - Gradle configuration required no semantic or dependency change for the implementation. However,
   the exact compiler Javadoc failure above is a concrete build-documentation validation gap that
   cannot be corrected within this task's authorized paths. No Gradle file was changed.
+- The narrowly authorized follow-up implementation context `/root/fix_compiler_javadoc` expanded
+  the task scope by one path, `modules/compiler/build.gradle.kts`, and configured only its standard
+  `javadoc` task with `JavadocMemberLevel.PACKAGE`. Production and test Java source, dependencies,
+  root/shared Gradle conventions, other modules, and source visibility remained unchanged.
+- That context ran `./gradlew :modules:compiler:javadoc` after the configuration stabilized. It
+  passed with `BUILD SUCCESSFUL in 1s`; 7 actionable tasks were considered, 1 executed and 6 were
+  up-to-date. The generated options contain `-package`, the generated class index and
+  `GraphCapture.html` contain the package-private type and `capture(List)` method, and the page
+  excludes the private constructor, `resolve` helper, and `TraversalFrame` implementation detail.
+- The same context then ran exactly one `./gradlew :modules:compiler:test` after the build
+  configuration stabilized. It passed with `BUILD SUCCESSFUL in 957ms`; 13 actionable tasks were
+  considered, 1 executed and 12 were up-to-date. The final XML report still records 12 tests, 0
+  skipped, 0 failures, and 0 errors for `GraphCaptureTest`.
+- The follow-up's final `git diff --check` passed. `git diff --name-status` contained only
+  the task specification and compiler build file, while `git diff HEAD^ --name-status` contained
+  exactly the task's eight authorized paths across the original capture commit and this follow-up.
+  The tasks directory still contains only `.gitkeep` and the 0001 specification; no 0002-or-later
+  detailed task exists.
+- The final separate clean-context documentation pass was performed by Codex task identity
+  `/root/finalize_compiler_0001` on 2026-07-15. It independently applied the General,
+  API/Javadoc, and Planning profiles and reviewed the Example profile; no example changed. It
+  reviewed the authoritative architecture and documentation workflow, planning guide, roadmap,
+  compiler master plan and task, Compile API, final source/tests, compiler Gradle configuration,
+  generated Javadoc, prior commit/diff, and recorded executable-test evidence.
+- No executable Java behavior changed after `/root/fix_compiler_javadoc` ran the final compiler
+  test suite, so this pass did not repeat it. The reused final XML report records 12 tests, 0
+  skipped, 0 failures, and 0 errors.
+- `./gradlew :modules:compiler:javadoc` passed after final documentation edits with
+  `BUILD SUCCESSFUL in 362ms`; 7 actionable tasks were up-to-date. The generated options contain
+  `-package`, generated Javadoc contains package-private `GraphCapture` and `capture(List)`, and it
+  excludes the private constructor, `resolve` helper, and `TraversalFrame` implementation detail.
+- One intervening repeat of that command failed before executing Gradle tasks because the sandbox
+  denied access to Gradle's home-directory wrapper lock file. The exact command was rerun with the
+  required filesystem approval and produced the successful 362ms result above; this was an
+  environmental permission failure, not a source or Javadoc failure.
+- `python3 /tmp/validate_synaptik_markdown.py` passed after final planning synchronization: 232
+  Markdown files, 4,159 local links, 252 local anchors, 2,930 fence markers, and all final-newline
+  and trailing-whitespace checks passed.
+- Final scope/status checks passed: `git diff HEAD^ --name-status` contains exactly the eight
+  authorized paths; the compiler tasks directory contains only `.gitkeep` and task 0001; task
+  0001, its master-plan row, and the roadmap all record `Complete`; tasks 0002–0005 remain Draft
+  master-plan rows without detailed specifications; `CompilerModule` is absent; and capture
+  remains package-private.
+- Final `git diff --check` passed. Final `git status --short` contains only the task specification,
+  compiler master plan, roadmap, and compiler build file because the other four authorized paths
+  are already present in the immediately preceding implementation commit.
+- Tensor API and Public API still require no change because capture remains internal and does not
+  alter any model or public declaration. The glossary still requires no change because capture,
+  producer/provenance, and `CompiledGraphModel` retain their existing meanings. Architecture
+  documentation/tests and Gradle dependencies require no change because ownership, dependency
+  direction, and module boundaries are unchanged. Other modules, backend conformance, and
+  integration tests require no change because this task adds no backend or end-to-end behavior.
 
 ## Implementation notes
 
@@ -579,34 +640,35 @@ acceptance criterion finish.
   remain traversal-local and do not escape.
 - No inference, constraint proof, transformation, optimization, autograd, publication/planning
   orchestration, compile aggregate, tracing, public facade, prepare/runtime/backend/engine work,
-  dependency, build, architecture, or later-task implementation was added.
+  dependency, shared-build, architecture, or later-task implementation was added.
+- The authorized follow-up changed only compiler-local Javadoc member inclusion from Gradle's
+  default public/protected level to package level; it did not change Java behavior, source
+  visibility, dependency direction, or another module's documentation policy.
 
 ## Completion summary
 
 - Completed changes: implemented the complete package-private graph-capture contract and focused
-  executable tests; removed only the compiler placeholder.
-- Files changed or created by the implementation pass: removed `CompilerModule.java`; added
-  `GraphCapture.java` and `GraphCaptureTest.java`; updated this task only with implementation
-  evidence and handoff facts. The pre-existing compiler master-plan and roadmap planning diff was
-  preserved without implementation-pass edits.
-- Tests and validation: both focused runs passed; the one final compiler-module run passed with 12
-  tests, 0 skipped, 0 failures, and 0 errors.
-- Documentation-agent review: the mandatory clean-context pass finalized the authorized Javadocs,
-  Compile API boundary, terminology, links, and evidence without changing executable behavior.
+  executable tests; removed the compiler placeholder; configured compiler-local Javadoc to render
+  package-private contracts; and synchronized task, master-plan, and roadmap completion state.
+- Files changed or created in the complete task: updated Compile API, compiler master plan, this
+  task, roadmap, and compiler build configuration; removed `CompilerModule.java`; and added
+  `GraphCapture.java` and `GraphCaptureTest.java`—exactly the eight authorized paths.
+- Tests and validation: both focused runs passed; the implementation's stabilized module run and
+  the Javadoc-configuration follow-up's final module run each passed, with the final report
+  recording 12 tests, 0 skipped, 0 failures, and 0 errors.
+- Documentation-agent review: the mandatory final clean-context pass finalized the authorized
+  Javadocs, Compile API boundary, terminology, links, evidence, and planning status without
+  changing executable behavior.
 - Documentation impact: `docs/api/compile-api.md` now distinguishes current internal structural
   forward capture from every planned public or later compiler lifecycle responsibility. Tensor
   API, Public API, glossary, architecture documentation, and other module documentation were
   reviewed and remain unchanged for the recorded reasons.
-- Javadoc review: source Javadocs and a diagnostic private-member rendering passed inspection, but
-  the exact required Gradle Javadoc task failed because the module contains no public or protected
-  declaration.
+- Javadoc review: source and generated Javadocs passed inspection; the exact compiler Gradle
+  Javadoc task now passes with package-level inclusion while private implementation details remain
+  excluded.
 - Glossary impact: no new reusable term or changed term boundary; no glossary edit required.
-- Unresolved issues: required compiler Javadoc validation does not pass within the authorized
-  seven-path scope.
-- Follow-up required: authorize and implement the narrow build/Javadoc configuration needed for
-  `:modules:compiler:javadoc` to include package-private compiler contracts, then rerun the exact
-  Javadoc and final combined validation before synchronizing task/master/roadmap to `Complete`.
+- Unresolved issues: None.
+- Follow-up required: None. Compiler tasks 0002–0005 remain Draft and require their own future
+  planning steps.
 
-Status: Incomplete
-Follow-up required: Make the compiler Javadoc task document package-private contracts without
-widening `GraphCapture`, then rerun final validation and synchronize completion status.
+Status: Complete

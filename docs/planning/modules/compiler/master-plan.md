@@ -64,7 +64,7 @@ Later tasks must refine this map before adding another package or making another
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Ready | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replace the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
+| 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replaced the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
 | 0002 | Captured-graph inference and validation | Draft | 0001 | Revalidate operand domains and descriptors, represent and prove deferred constraints where possible, and reject invalid captured graphs without transformation or backend decisions. |
 | 0003 | Canonicalization and forward optimization | Draft | 0002 | Add the bounded semantics-preserving canonicalization and forward optimization pipeline after graph validation is stable. |
 | 0004 | Autograd and backward graph construction | Draft | 0002–0003 | Expand selected compile modes into valid combined forward/backward graph state, then support post-autograd optimization. |
@@ -79,15 +79,15 @@ Later tasks must refine this map before adding another package or making another
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Task 0001 is the sole `Ready`
-compiler task and the only detailed compiler specification. It captures the now-closed model
-expression/provenance surface into the already-current immutable graph model. Tasks 0002–0005
-remain Draft rows without detailed specifications.
+In progress through an explicitly bounded roadmap interleave. Task 0001 is Complete and remains
+the only detailed compiler specification. It captures the now-closed model expression/provenance
+surface into the already-current immutable graph model. Tasks 0002–0005 remain Draft rows without
+detailed specifications; no next compiler task is `Ready` until its separate planning step.
 
 This interleave does not claim that the compiler project's full roadmap entry condition is met.
 Task 0001 depends only on completed model contracts and uses none of the still-Draft config cost,
 trace payload, runtime, prepare, planning-orchestration, publication, or compile-artifact
-surfaces. Completing capture now creates the concrete compiler producer needed to make those later
+surfaces. Completed capture creates the concrete compiler producer needed to make those later
 contracts consumer-driven.
 
 ## Open questions

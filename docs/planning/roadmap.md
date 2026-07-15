@@ -38,9 +38,9 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The next active implementation frontier is
+The latest completed implementation frontier is
 [Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md).
-It is the sole `Ready` task and the only detailed compiler specification. The bounded task replaces
+It is `Complete` and remains the only detailed compiler specification. The bounded task replaces
 the compiler placeholder with package-private deterministic forward capture returning only
 `CompiledGraphModel`. It traverses requested Tensor results by identity, emits exact shared
 producer occurrences once in topological order, assigns graph-local IDs deterministically,
@@ -59,16 +59,19 @@ attribute/payload schema or emission behavior. Runtime remains Draft because its
 runtime-facing config, and producer-specific trace contracts are not stabilized by capture.
 Prepare remains Draft because it depends on future compiler artifacts and runtime contracts.
 Bounded compiler capture is valid now because it creates the first concrete compiler producer
-without guessing any of those downstream surfaces.
+without guessing any of those downstream surfaces. No next compiler task is `Ready`; selecting
+and detailing task 0002 requires a separate planning step.
 
 Compiler tasks 0002–0005 remain Draft master-plan rows without detailed specifications. Task 0001
 explicitly excludes inference and deferred proof, optimization/canonicalization, autograd,
 publication planning, planning orchestration, backend capability or ownership, `CompileArtifacts`,
-trace payloads/emission, prepare, runtime, backend, engine, build/dependency changes, and later
-specifications. Planning's audited evaluator/generator operations remain package-private until a
-later concrete compiler orchestrator justifies one narrow collaboration.
+trace payloads/emission, prepare, runtime, backend, engine, dependency/shared-build changes, and
+later specifications. Its sole build change configures compiler-local Javadoc to include
+package-private declarations without changing Java visibility, dependencies, or another module's
+documentation policy. Planning's audited evaluator/generator operations remain package-private
+until a later concrete compiler orchestrator justifies one narrow collaboration.
 
-The latest completed implementation frontier is
+The preceding completed planning frontier is
 [Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
 Its implementation and independent documentation pass add one immutable requirement for every
 graph value plus the ordered `LogicalMemoryPlan` aggregate. Derivation consumes
@@ -132,7 +135,7 @@ representative model corpus may pre-seed the same workload cache, but no separat
 calibration workflow or profile remains planned. These later rows do not change the current
 frontier. Config 0004 and every task after Planning 0006 remain Draft without another detailed
 specification. That statement records the state at Planning 0006 closure; the subsequent frontier
-reassessment selected only Compiler 0001 as `Ready`.
+reassessment selected only Compiler 0001, which is now Complete.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
