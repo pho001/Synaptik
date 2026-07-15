@@ -51,21 +51,24 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 
 ```text
 io.github.pho001.synaptik.compiler/
-  <root>  package-private graph capture now; later narrow public or cross-package compiler
-          collaborations only when a concrete consumer justifies them
+  <root>  package-private graph capture and captured-graph verification inference, including
+          typed internal deferred constraints and cohesive family inference helpers; later narrow
+          public or cross-package collaborations only when a concrete consumer justifies them
 ```
 
-The root package begins with one cohesive internal capture operation. It must not become a
-catch-all for unrelated passes, artifacts, diagnostics, planning adapters, and public facades.
-Later tasks must refine this map before adding another package or making another detailed task
-`Ready`.
+The root package is the cohesive internal front-end boundary through task 0002. Capture produces
+the structurally closed graph; verification inference revalidates semantics and retains unresolved
+constraints without widening Java visibility. It must not become a catch-all for unrelated
+transformation passes, artifacts, diagnostics, planning adapters, and public facades. Task 0003
+must revisit this map before adding transformation types, and task 0005 must justify any narrow
+cross-package/public orchestration boundary from its concrete consumer.
 
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
 | 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replaced the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
-| 0002 | Captured-graph inference and validation | Draft | 0001 | Revalidate operand domains and descriptors, represent and prove deferred constraints where possible, and reject invalid captured graphs without transformation or backend decisions. |
+| 0002 | [Captured-graph inference and validation](tasks/0002-captured-graph-inference-and-validation.md) | Complete | 0001 | Independently derives and verifies every current operation occurrence descriptor, rejects operand/domain contradictions, and retains only genuinely unresolved typed Shape constraints without transformation, binding, or backend decisions. |
 | 0003 | Canonicalization and forward optimization | Draft | 0002 | Add the bounded semantics-preserving canonicalization and forward optimization pipeline after graph validation is stable. |
 | 0004 | Autograd and backward graph construction | Draft | 0002–0003 | Expand selected compile modes into valid combined forward/backward graph state, then support post-autograd optimization. |
 | 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
@@ -79,21 +82,29 @@ Later tasks must refine this map before adding another package or making another
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Task 0001 is Complete and remains
-the only detailed compiler specification. It captures the now-closed model expression/provenance
-surface into the already-current immutable graph model. Tasks 0002–0005 remain Draft rows without
-detailed specifications; no next compiler task is `Ready` until its separate planning step.
+In progress through an explicitly bounded roadmap interleave. Tasks 0001–0002 are Complete and
+close the compiler capture-and-validation milestone. Task 0001 captures the closed model
+expression/provenance surface into the current immutable graph model. Task 0002 adds
+package-private verification inference over that graph: every current production operation family
+is revalidated, complete output descriptors are independently derived and compared, and current
+dimension/Shape obligations are proven, rejected, or retained as typed internal constraints.
+Tasks 0003–0005 remain Draft rows without detailed specifications; no compiler task is currently
+Ready.
 
 This interleave does not claim that the compiler project's full roadmap entry condition is met.
-Task 0001 depends only on completed model contracts and uses none of the still-Draft config cost,
-trace payload, runtime, prepare, planning-orchestration, publication, or compile-artifact
-surfaces. Completed capture creates the concrete compiler producer needed to make those later
-contracts consumer-driven.
+Tasks 0001–0002 depend only on completed model contracts and use none of the still-Draft config
+cost, trace payload, runtime, prepare, planning-orchestration, publication, or compile-artifact
+surfaces. Task 0002 binds no concrete dimension, rewrites no graph, emits no diagnostics payload,
+and creates no public artifact. Its completion provides the accepted internal input contract for
+later transformation.
 
 ## Open questions
 
 - The candidate boundary remains Draft until graph transformations, compile artifacts, and the
   prepare/tuning orchestration consumer are stable. No public Java declaration is selected here.
+- The owning public/artifact boundary for unresolved graph constraints remains deferred until
+  task 0005 and a concrete prepare/runtime binding consumer are stable. Task 0002 uses an internal
+  result only and does not decide serialization or concrete binding.
 - The first cross-package collaboration with planning remains deferred to task 0005. Planning's
   four current evaluator/generator operations stay package-private until that concrete compiler
   orchestrator can justify one narrow boundary.
@@ -111,11 +122,17 @@ contracts consumer-driven.
   internal opaque RNG-state edges.
 - Direct `GraphRngState` boundary selection remains unsupported because the model deliberately
   exposes no public state Tensor. Reachable state edges are captured through producer inputs.
-- Config 0004 is not selected because capture consumes no planning cost classification or unit.
-  Trace 0003+ are not selected because capture emits no payload. Runtime is not selected because
-  prepared contracts and runtime-facing config/trace consumers are not yet stable. Prepare is not
-  selected because it requires compiler artifacts and runtime contracts, neither of which task
-  0001 invents.
+- Task 0002 validates graph model data rather than reconstructing temporary Tensor expressions.
+  It returns the exact accepted graph plus immutable unresolved constraints, fails closed for an
+  unknown operation kind, and never binds named or expression dimensions.
+- Raw captured graphs receive ingress validation before transformation. Task 0003 must separately
+  canonicalize and then reuse the same inference/validation pass for every transformed graph
+  candidate, preserving the architecture compile order for transformed graphs.
+- Config 0004 is not selected because capture and validation consume no planning cost
+  classification or unit. Trace 0003+ are not selected because neither task emits a payload.
+  Runtime is not selected because prepared contracts and runtime-facing config/trace consumers
+  are not yet stable. Prepare is not selected because it requires compiler artifacts and runtime
+  contracts, neither of which tasks 0001–0002 invent.
 
 ## Risks
 
@@ -124,6 +141,10 @@ contracts consumer-driven.
 - Dropping unrequested producer output slots that later compiler work may need as auxiliary or
   opaque state values.
 - Publishing a speculative compiler facade before engine/config/artifact consumers are stable.
+- Duplicating model-time validation incompletely and silently trusting an unhandled operation
+  family instead of failing closed.
+- Treating an unresolved symbolic obligation as proven, or inventing runtime binding/public
+  artifact contracts before their consumers exist.
 
 ## Notes
 

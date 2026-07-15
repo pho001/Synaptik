@@ -3,8 +3,9 @@
 ## Purpose and implementation status
 
 This reference separates the compile-time model values implemented today from the compiler and
-engine APIs that remain planned. The compiler module now contains one package-private structural
-forward-capture step, but the repository still provides no public or runnable graph compiler.
+engine APIs that remain planned. The compiler module now contains package-private structural
+forward capture followed by binding-free captured-graph verification inference, but the
+repository still provides no public or runnable graph compiler.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -70,12 +71,49 @@ The request rejects a null list, an empty list, a null element, a repeated exact
 or distinct wrappers that resolve to one graph output value. No caller collection is mutated.
 The returned graph owns immutable collection snapshots through `CompiledGraphModel`.
 
-This current step performs structural forward capture only. It does not revalidate operand
-domains, infer or rewrite descriptors, prove deferred constraints, canonicalize or optimize,
-construct gradients or backward work, derive publication bindings, invoke planning, produce
-diagnostics or `CompileArtifacts`, prepare backends, allocate physical memory, or execute values.
-No public `GraphCompiler`, `CompiledGraph`, compile entry point, configuration aggregate, or
-capture method exists.
+Capture itself performs structural forward capture only. The following package-private
+verification-inference pass revalidates operands and descriptors, but neither step rewrites the
+graph, canonicalizes or optimizes it, constructs gradients or backward work, derives publication
+bindings, invokes planning, produces diagnostics or `CompileArtifacts`, prepares backends,
+allocates physical memory, or executes values. No public `GraphCompiler`, `CompiledGraph`, compile
+entry point, configuration aggregate, capture method, or validation method exists.
+
+### Current package-private verification inference
+
+Package-private `CapturedGraphInference.inferAndValidate(CompiledGraphModel)` is the current
+semantic boundary after structural capture. It visits stored nodes in deterministic topological
+order, resolves ordered input and output descriptors, selects a typed operation-family rule, and
+independently derives the complete expected `TensorDescriptor` list. It checks data-type domains
+and promotion, operand roles, ranks, axes, Shape and attribute relationships, output roles,
+resolved-or-unresolved layout, and gradient-eligibility metadata. The first unequal expected and
+stored descriptor fails with node, operation-kind, output-position, and value context.
+
+The pass covers every current production operation-kind enum and accepted attributes variant in
+five cohesive families: elementwise, reduction/normalization/ordering, indexing,
+layout/composition/window, and structured numeric/loss/RNG-state operations. Dispatch is closed
+and typed. An unrecognized custom `OperationKind` fails rather than bypassing validation.
+
+Some model operations determine an exact output descriptor while leaving a Shape relationship
+undecidable. The compiler represents such a relationship as a package-private
+`DeferredGraphConstraint`: one owning `NodeId`, one semantic subject, and one typed immutable
+predicate. A conservative three-valued proof returns proven, disproven, or deferred from static,
+structural, and available bounded dimension facts. Proven predicates disappear; disproven
+predicates fail in deterministic rule order; deferred predicates remain ordered in the successful
+result. The evaluator never binds or unifies symbols, and checked-arithmetic overflow makes a
+proof unavailable rather than false.
+
+On success, package-private `ValidatedGraph` retains the exact accepted `CompiledGraphModel`
+reference and snapshots only the unresolved constraints. For example, a reshape from Shape
+`[N]` to Shape `[M]`, where `N` and `M` are distinct unresolved dimensions, retains an
+element-count-equality constraint because the output descriptor is already exact but equality is
+not locally decidable. This proves neither a concrete binding nor executability. Value-dependent
+index bounds, duplicate scatter targets, target contents, numerical results, and storage validity
+remain outside descriptor-only verification.
+
+This pass is reusable compiler-internal state, not a public artifact. It performs no graph
+transformation, concrete dimension binding, autograd, publication or planning orchestration,
+diagnostic aggregation, preparation, backend lowering, runtime work, or execution. Future
+canonicalization must re-run the same semantic verification on each transformed graph candidate.
 
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
@@ -157,12 +195,12 @@ for maximum. Range
 `MIN` producer. Integral ADD, SUB, and MUL have fixed-width two's-complement modular meaning, and
 integral MIN, MAX, and comparisons use signed order. These are current model semantics and
 metadata-construction facts, not compiler validation, gradient, lowering, backend, or execution
-claims. Package-private structural capture can preserve them without adding those behaviors. An `OperationSignature`
+claims. Package-private structural capture preserves them, and the following package-private
+verification pass independently revalidates them. An `OperationSignature`
 still validates only the exact attribute class and occurrence cardinality because an `Operation`
 has no operand
-descriptor. Future compiler graph validation is expected to revalidate operand domains and exact
-scalar/input data-type equality for captured or otherwise constructed occurrences; structural
-capture is current, while revalidation remains planned. `Tensor.where` requires an exact BOOL
+descriptor. Current package-private compiler verification revalidates operand domains and exact
+scalar/input data-type equality for captured or otherwise constructed occurrences. `Tensor.where` requires an exact BOOL
 condition, promotes two floating branches, composes branch-first and condition-second local
 broadcasts, propagates gradient eligibility from the branches only, and records exact ordered
 condition/true-branch/false-branch provenance. It constructs no selected values or gradient rule.
@@ -176,15 +214,16 @@ leading axes reduce, aligned target-one axes reduce and remain, and equal aligne
 Provable static incompatibility fails locally; any pair involving an unresolved Dimension remains
 an obligation for later binding validation. The result preserves exact input type and gradient
 eligibility, has unresolved layout, and records exact one-input/output-index-zero provenance.
-Current package-private capture preserves this model metadata structurally. Constraint
-representation or proof, adjoint construction, canonicalization, lowering, backend selection, and
-execution remain unimplemented.
+Current package-private capture preserves this model metadata structurally, and current
+package-private verification represents and proves or retains the Shape obligation. Adjoint
+construction, canonicalization, lowering, backend selection, and execution remain unimplemented.
 `Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
 vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
 contraction dimensions fail locally; unresolved contraction equality and the accepted
 unresolved-versus-static batch singleton-or-equal cases remain obligations for later compiler
-validation or concrete binding. Package-private structural capture is current; graph-wide operand
-validation, constraint proof, gradients, lowering, backend support, and execution remain planned.
+validation or concrete binding. Package-private structural capture plus graph-wide verification
+and conservative constraint proof are current; gradients, lowering, backend support, concrete
+binding, and execution remain planned.
 `Tensor.linear(weight)` and `Tensor.linear(weight, bias)` are also current model construction, but
 they add no LINEAR operation. Conventional `[outFeatures, inFeatures]` weight is explicitly
 transposed through PERMUTE `[1, 0]`, followed by MATMUL and optional exact rank-one
@@ -207,9 +246,10 @@ kind's sole signature accepts three to four inputs and one to two outputs; produ
 count identifies the requested occurrence form without adding another kind. Unresolved embedding
 positivity/equality, key/value sequence equality, batch singleton-or-equal, and mask
 singleton-or-equal facts remain obligations for later compiler validation or concrete binding.
-Package-private structural capture can preserve this compiler-visible metadata. Revalidation,
-constraint representation, legal decomposition, attention gradient, saved-value lifetime,
-backend lowering, and execution remain planned.
+Package-private structural capture preserves this compiler-visible metadata, and package-private
+verification revalidates it and proves or retains its typed Shape constraints. Legal
+decomposition, attention gradient, saved-value lifetime, backend lowering, and execution remain
+planned.
 `Tensor.conv2d(weight, attrs)` and `Tensor.conv2d(weight, bias, attrs)` are current first-class
 grouped NCHW cross-correlation model construction. Each call records one `CONV2D` occurrence with
 exact ordered inputs, intrinsic stride/padding/dilation/group attributes, promoted floating
@@ -217,9 +257,10 @@ descriptor, and static or canonical-symbolic output Shape. Input and weight have
 `[N, C_in, H, W]` and `[C_out, C_in/groups, K_h, K_w]`; optional bias has `[C_out]`.
 Unresolved channel divisibility, grouped weight/input equality, bias/output equality, and dynamic
 spatial non-negativity remain obligations for future compiler validation or concrete binding.
-This metadata can be structurally captured but does not mean the repository compiles convolution.
-Constraint representation and proof, legal decomposition, convolution gradients/adjoints and
-saved values, backend lowering, algorithm selection, and execution remain planned in their owning
+This metadata can be structurally captured and package-private verification now represents and
+proves or retains its descriptor-only constraints, but the repository still cannot compile or run
+convolution. Legal decomposition, convolution gradients/adjoints and saved values, concrete
+binding, backend lowering, algorithm selection, and execution remain planned in their owning
 layers.
 `Tensor.maxPool2d(attrs)` is current first-class NCHW maximum-pooling model construction. One
 `MAX_POOL2D` occurrence records exact ordered input `[input]`, `MaxPool2dAttrs`, one output at
@@ -228,10 +269,10 @@ static or canonical-symbolic floor/ceil spatial extents. Dynamic spatial non-neg
 future compiler-validation or concrete-binding obligation. Literal ceil mode retains every
 ceiling-grid window, even when the terminal window is all-padding; padding exclusion, negative-
 infinity empty windows, NaN propagation, signed-zero ordering, and first-logical-sample ties are
-semantic metadata. Package-private structural capture can preserve the occurrence, but the
-repository does not compile pooling. Operand revalidation and binding proof, legal decomposition,
-gradients and adjoints, and saved-index decisions remain planned, as do backend lowering,
-algorithms, kernels, and execution.
+semantic metadata. Package-private structural capture and descriptor verification are current,
+but the repository does not compile pooling. Concrete binding, legal decomposition, gradients and
+adjoints, and saved-index decisions remain planned, as do backend lowering, algorithms, kernels,
+and execution.
 `Tensor.averagePool2d(attrs)` is current first-class NCHW average-pooling model construction. One
 `AVERAGE_POOL2D` occurrence records exact ordered input `[input]`, `AveragePool2dAttrs`, one output
 at index zero, the unchanged floating type and gradient request, exact batch/channel Dimensions,
@@ -241,17 +282,17 @@ conceptual positive-zero padding that counts in that divisor, FLOAT32 accumulati
 BFLOAT16 and FLOAT32, FLOAT64 accumulation/division for FLOAT64, one final division, and the
 documented NaN/infinity/signed-zero/all-padding policies. Dynamic spatial non-negativity remains a
 future compiler-validation or concrete-binding obligation. This does not mean the repository
-currently compiles average pooling. Package-private structural capture can preserve the
-occurrence. Operand revalidation and binding proof, any legal decomposition that preserves the
-fixed divisor and special-value meaning, gradient or adjoint construction, backend lowering,
-algorithms, tolerances, kernels, and execution remain planned in their owning layers.
+currently compiles average pooling. Package-private structural capture and descriptor verification
+are current. Concrete binding, any legal decomposition that preserves the fixed divisor and
+special-value meaning, gradient or adjoint construction, backend lowering, algorithms,
+tolerances, kernels, and execution remain planned in their owning layers.
 `Tensor.sort(axis[, descending])` and `Tensor.argsort(axis[, descending])` currently construct
 distinct stable, one-input, one-output ordering expressions. Both normalize the axis, preserve the
 exact input Shape reference, leave layout unresolved, and use fixed NaN-last ordering in both
 directions with stable logical-index ties. Sort preserves input type and gradient eligibility;
 argsort uses non-differentiable INT64. These model-expression and provenance facts are structurally
-capturable now; operand revalidation, gradient construction, algorithm selection, lowering,
-backend support, runtime behavior, and execution remain planned.
+capturable and package-private operand/descriptor revalidation is current; gradient construction,
+algorithm selection, lowering, backend support, runtime behavior, and execution remain planned.
 `Tensor.topK(k, axis[, largest, sorted])` currently constructs one compiler-neutral
 `TopKKind.TOP_K` model occurrence with ordered outputs `[values, indices]`. The values output
 preserves input type and gradient eligibility; indices are non-differentiable INT64. Both share
@@ -260,8 +301,9 @@ zero and one. A known static selected extent is checked during Tensor constructi
 extent is dynamic or expression-based, the obligation `bound extent >= k` is deliberately
 deferred: future compiler or binding validation must reject an insufficient bound rather than
 clamp, pad, wrap, or reduce the output count. Package-private capture preserves the shared TOP_K
-producer and both output positions. It does not infer or revalidate descriptors, construct
-gradients, select an algorithm, lower the operation, report backend support, or execute it.
+producer and both output positions. The following package-private pass revalidates both descriptors
+and proves or retains the selected-extent obligation. It does not construct gradients, select an
+algorithm, lower the operation, report backend support, bind an extent, or execute it.
 `Tensor.embedding(indices)` currently validates a rank-two floating weight receiver and exact
 INT32/INT64 indices, then constructs the existing ordinary axis-zero GATHER occurrence directly.
 The result Shape is the complete indices Shape plus the exact weight axis-one Dimension; result
@@ -336,10 +378,10 @@ domain count at most correction while deferring dynamic proof.
 The model now fixes floating and BOOL empty/special-value reduction semantics, including NaN,
 infinity, signed zero, positive-zero/one or infinite identities, ALL/ANY identities, stable
 log-sum-exp targets, corrected statistical formulas, and non-negative norm targets. These are
-compiler-visible requested meanings that current package-private capture preserves structurally,
-not operand revalidation, numerical algorithms, gradients, lowering, backend support, or
-execution. A future compiler must revalidate
-dynamic corrected-domain counts before execution without inventing a callable API here.
+compiler-visible requested meanings that current package-private capture preserves structurally.
+Current package-private verification revalidates operands and proves, rejects, or retains dynamic
+corrected-domain constraints. Numerical algorithms, gradients, lowering, backend support,
+concrete binding, and execution remain planned.
 `Tensor.cumSum` and `Tensor.cumProd` are current model expressibility for shape-preserving
 cumulative addition and multiplication. Each family accepts floating or integral input and one
 positive or negative axis. Each short form explicitly selects inclusive forward traversal; each
@@ -367,18 +409,20 @@ form records `AffineLayerNormAttrs` and ordered inputs `[input, scale, bias]`. B
 normalized Shape and typed epsilon parameters, exact input result Shape, one output at index zero,
 and no saved-statistic output. Local construction rejects known static mismatches and defers an
 unresolved trailing-dimension equality when output Shape is still exact. Package-private capture
-preserves this metadata structurally; operand revalidation, representing and proving deferred
-constraints, saved-statistic lifetime, gradients or adjoints, legal decomposition, lowering, and
-execution remain planned in their owning layers.
+preserves this metadata structurally, and package-private compiler verification revalidates the
+operands and proves or retains deferred constraints. Saved-statistic lifetime, gradients or
+adjoints, legal decomposition, lowering, concrete binding, and execution remain planned in their
+owning layers.
 `Tensor.rmsNorm` is current model metadata construction for exact trailing-Shape uncentered
 root-mean-square normalization. One `RmsNormAttrs(normalizedShape, epsilon)` value supports the
 safe ordered inputs `[input]` and `[input, scale]`, each with exactly one output at index zero. The
 result retains the exact input Shape; the scaled form requires scale Shape exactly equal to the
 normalized Shape. Local construction rejects known static trailing mismatches and defers
-unresolved equality. Package-private capture preserves this metadata structurally. Operand
-revalidation, representation and proof of deferred constraints, compiler-generated saved values,
-gradients or adjoints, legal decomposition, lowering, backend preparation, tolerance enforcement,
-and runtime execution remain planned in their owning layers.
+unresolved equality. Package-private capture preserves this metadata structurally, and current
+package-private verification revalidates operands and proves or retains deferred constraints.
+Compiler-generated saved values, gradients or adjoints, legal decomposition, lowering, backend
+preparation, tolerance enforcement, concrete binding, and runtime execution remain planned in
+their owning layers.
 `Tensor.batchNormInference` is current stateless model metadata construction with exact ordered
 inputs `[input, scale, bias, runningMean, runningVariance]` and exactly one output at index zero.
 It retains `BatchNormInferenceAttrs(normalizedChannelAxis, epsilon)`, preserves the exact input
@@ -386,9 +430,10 @@ Shape, requires rank-one `[C]` affine/statistic vectors, defers unresolved chann
 and uses ordered floating promotion with exact-result-typed positive epsilon. The channel axis is
 layout-neutral, and running variance is interpreted directly by the formula with epsilon inside
 the denominator square root. Package-private capture preserves this compiler-visible metadata;
-operand revalidation, deferred-constraint representation and proof, saved-value
-and gradient construction, legal decomposition, lowering, backend preparation, tolerance
-enforcement, runtime execution, and numerical evaluation remain planned in their owning layers.
+current verification revalidates the operands and proves or retains channel constraints.
+Saved-value and gradient construction, legal decomposition, lowering, backend preparation,
+tolerance enforcement, concrete binding, runtime execution, and numerical evaluation remain
+planned in their owning layers.
 `Tensor.batchNormTraining` is current five-output model metadata with exact ordered inputs
 `[input, scale, bias, runningMean, runningVariance]`. Its producer describes normalized output,
 next running mean, next running variance, saved batch mean, and saved inverse standard deviation
@@ -396,11 +441,11 @@ in that order. `BatchNormTrainingResult` exposes positions zero through two; pos
 four remain real producer descriptors that package-private capture preserves. The model records a normalized
 channel axis, exact typed new-batch-weight momentum and epsilon, the all-non-channel reduction
 domain, biased forward variance, correction-one running variance, output Shapes, types, gradient
-eligibility, and indexed provenance. Structural capture of every position is current; deferred
-`C == 0 || N >= 2` proof, saved-value materialization or lifetime, autograd/backward construction,
-publication, liveness, graph optimization, lowering, preparation, execution, or cross-step
-statistic ownership. Those remain planned in the compiler, training extension, runtime, and
-backend layers that own them.
+eligibility, and indexed provenance. Structural capture of every position and package-private
+proof or retention of the `C == 0 || N >= 2` constraint are current. Saved-value materialization
+or lifetime, autograd/backward construction, publication, liveness, graph optimization, concrete
+binding, lowering, preparation, execution, and cross-step statistic ownership remain planned in
+the compiler, training extension, runtime, and backend layers that own them.
 `Tensor.meanSquaredError(target, reduction)` is current one-output model metadata with exact
 ordered inputs `[prediction, target]`. It records `LossKind.MEAN_SQUARED_ERROR` and one
 `MeanSquaredErrorAttrs` carrying explicit `NONE`, `SUM`, or `MEAN` reduction. Local construction
@@ -408,10 +453,10 @@ accepts only floating inputs, promotes them in input order, rejects unequal know
 without broadcasting, and defers unequal pairs involving an unresolved Dimension. `NONE` retains
 the exact prediction Shape; `SUM` and `MEAN` use the scalar Shape. Mean divides by the complete
 logical element count, so scalar count is one, empty sum is positive zero, and empty mean is NaN.
-This compiler-visible requested meaning is structurally capturable. Revalidation, representation
-and proof of deferred equality, gradient or adjoint construction, legal decomposition, optimization,
-lowering, backend support, runtime execution, and training coordination remain planned in their
-owning layers.
+This compiler-visible requested meaning is structurally capturable, and package-private
+verification now revalidates it and proves or retains deferred equality. Gradient or adjoint
+construction, legal decomposition, optimization, concrete binding, lowering, backend support,
+runtime execution, and training coordination remain planned in their owning layers.
 `Tensor.categoricalCrossEntropyWithLogits(target, classAxis, reduction)` is current one-output
 model metadata with ordered inputs `[logits, target]`. Exact floating target type dispatches to the
 unchanged dense target-weighted stable-log-softmax meaning, including floating promotion,
@@ -887,8 +932,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the public compiler entry point and every lifecycle orchestration surface,
-  scan/reduction/normalization/loss/attention inference and canonicalization, layer-, RMS-, batch-
-  normalization, and loss deferred-constraint proof, saved-statistic and gradient construction,
+  canonicalization, saved-statistic and gradient construction,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
@@ -896,14 +940,13 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   updates, crops, selects,
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
-  compiler-generated use of public `FOLD_AXIS`, deferred slice-update upper-bound and crop-bound
-  proof, their possible use in adjoint construction, deferred
-  dynamic reshape count validation, expand compatibility constraints, dynamic select upper-bound
-  validation placement, attention, convolution, and pooling deferred-constraint proof, legal
+  compiler-generated use of public `FOLD_AXIS`, possible use of slice-update and crop metadata in
+  adjoint construction, concrete dynamic binding and value-dependent select/index validation,
+  legal
   convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
   policy, average-pooling fixed-divisor preservation, layout materialization
   planning remain planned. Package-private identity-based structural forward capture into graph
-  values and nodes is current, with no inference or transformation.
+  values and nodes plus binding-free verification inference are current, with no transformation.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Package-private structural capture preserves the
@@ -943,8 +986,10 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario is conceptual. Current internal capture can build only the structural forward graph;
-it cannot run the illustrated compiler lifecycle, validate its operands, or select ownership.
+This scenario is conceptual. Current internal capture can build the structural forward graph and
+current package-private verification can validate its operation descriptors and retain unresolved
+constraints. Neither can run the illustrated lifecycle, bind concrete dimensions, transform the
+graph, or select ownership.
 
 ## Related contracts
 

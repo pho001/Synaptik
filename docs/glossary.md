@@ -20,6 +20,13 @@ well. Reusable or public capability matrices, public planning orchestration or o
 numeric or cost scoring, owner-map assembly, compiler consumers, physical memory, provider
 implementations, device-level capability, and device selection remain planned.
 
+The compiler currently provides package-private structural graph capture followed by binding-free
+captured-graph verification inference. Verification independently derives every current
+production operation occurrence's output descriptors, rejects semantic contradictions, and
+retains only undecidable descriptor-visible Shape obligations as typed internal deferred graph
+constraints. This is not a public compiler, concrete binding service, transformation pipeline,
+compile artifact, backend decision, or execution path.
+
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
 span, view, `TensorDescriptor`, typed
@@ -1187,6 +1194,28 @@ Every non-static form is dynamic. Only the named form has a `dynamicSymbol()`: a
 unknown has no caller-defined name. Dynamic dimensions are explicit values, not negative-number
 sentinels, and local code does not assume that different names or distinct unknowns are equal. See
 [Shapes and dimensions](api/tensor-api.md#shapes-and-dimensions).
+
+### Deferred graph constraint
+
+A **deferred graph constraint** is one typed, occurrence-owned Shape obligation that current
+package-private compiler verification cannot prove or disprove from immutable graph descriptors.
+It records the owning `NodeId`, a concise semantic subject, and a closed immutable predicate such
+as dimension equality, a minimum or divisibility requirement, Shape element-count equality, or a
+fit-within relation. Equal-looking obligations from different operation occurrences remain
+distinct because later diagnostics and transformations need their graph context.
+
+Verification uses three outcomes. A proven predicate disappears, a disproven predicate rejects
+the graph in deterministic node/rule/axis order, and an undecidable predicate is retained in the
+internal `ValidatedGraph`. Proof may use static values, structural model equality, and conservative
+bounds already carried by symbolic expressions. It never assigns a value to a symbol, unifies
+different symbols, or treats unavailable or overflowing interval arithmetic as contradiction.
+
+This term is narrower than a **concrete binding constraint**. The current internal value provides
+no binding map, substitution, public evaluation API, serialization format, or executable promise.
+It also excludes value-dependent obligations such as index contents and bounds, duplicate scatter
+targets, categorical target contents, numerical results, and storage validity, which cannot be
+decided from descriptor-only graph values. See [current package-private verification
+inference](api/compile-api.md#current-package-private-verification-inference).
 
 ### Element stride
 

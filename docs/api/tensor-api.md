@@ -80,8 +80,10 @@ overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col 
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
 Typed access, other expression families, gradient objects and publication behavior,
-native/runtime/backend allocation, compiler integration, runtime residency, and backend execution
-remain planned. The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+native/runtime/backend allocation, public compiler integration, runtime residency, and backend
+execution remain planned. Package-private compiler capture and binding-free operand/descriptor
+verification are current internal consumers of this model metadata. The authoritative module
+boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
 `BATCH_NORM_TRAINING`. Inference has one output. Training has five ordered outputs: normalized
@@ -96,8 +98,10 @@ Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape
 `Tensor.reshape(long...)` normalizes raw dimensions and performs locally provable count
 validation, while `Tensor.reshape(Shape)` retains an exact normalized target. The matching
 `Tensor.expand` overloads retain literal or exact target Shapes, validate directional
-right-aligned compatibility, and derive logical view strides when geometry is resolved. Compiler,
-materialization, gradient, and execution behavior remains planned.
+right-aligned compatibility, and derive logical view strides when geometry is resolved.
+Package-private compiler verification of captured descriptors and retained reshape obligations is
+current; transformation, concrete binding, materialization, gradient, and execution behavior
+remain planned.
 
 `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
 `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
@@ -115,9 +119,10 @@ and single-axis slicing normalize raw directional half-open bounds against selec
 dimensions; `flip(int...)` constructs the same negative-step extraction directly. Positive
 non-empty extraction may derive logical view geometry, while every negative-step extraction
 remains layout-unresolved. Public `sliceUpdate` and `cropToShape` always leave layout unresolved,
-record exact replacement/crop metadata, and retain unresolved upper-bound obligations. Gradients,
-compiler behavior, materialization, backend lowering, ONNX mapping, and execution remain planned
-in their owning layers.
+record exact replacement/crop metadata, and retain unresolved upper-bound obligations. Current
+package-private compiler verification proves, rejects, or retains descriptor-visible bounds;
+gradients, transformation, concrete binding, materialization, backend lowering, ONNX mapping, and
+execution remain planned in their owning layers.
 
 `PadKind.PAD` with `PadAttrs` and `TileKind.TILE` with `TileAttrs` are current semantic contracts.
 Padding attributes store immutable ordered before/after widths plus one exact typed scalar value.
@@ -796,7 +801,9 @@ Equal named symbols and structurally equal exact expressions are compatible, and
 expand to any dynamic dimension. A constrained unknown is equal only when the exact same unknown
 is reused. Different symbols, unequal expressions, distinct unknowns, or a dynamic dimension
 paired with a non-singleton static size are rejected because local model code cannot prove their
-compatibility. Graph-wide symbolic constraints belong to future compiler shape inference.
+compatibility. Current package-private compiler verification does not broaden this local
+broadcasting rule: it retains a symbolic obligation only when an operation contract can already
+select one exact output descriptor.
 
 Shape broadcasting does not calculate strides, layouts, storage, materialization, or backend execution information.
 
@@ -4117,11 +4124,12 @@ and the logical OR of input, scale, and bias flags for affine construction. One 
 output at index zero and exact inputs `[input]` or `[input, scale, bias]`; no saved mean, variance,
 inverse standard deviation, sibling result, hidden affine constant, or extra output is created.
 
-These facts are current model API behavior. Compiler capture, proof of deferred equality, operand
-revalidation, saved values, gradients or adjoints, and legal decomposition are planned compiler
-responsibilities. Backend prepare will own algorithm selection, lowering, specialization, and
-tolerance satisfaction; runtime will execute prepared work. Calling `layerNorm` today performs
-none of those steps and does not read or normalize stored values.
+These facts are current model API behavior. Package-private compiler capture, operand
+revalidation, and proof or retention of deferred equality are current. Saved values, gradients or
+adjoints, legal decomposition, concrete binding, and public compilation remain planned compiler
+or lifecycle responsibilities. Backend prepare will own algorithm selection, lowering,
+specialization, and tolerance satisfaction; runtime will execute prepared work. Calling
+`layerNorm` today performs none of those steps and does not read or normalize stored values.
 
 ### RMS-normalization expressions
 
@@ -4172,9 +4180,10 @@ rmsNorm normalized dimension mismatch at normalized axis 0: input=StaticDimensio
 ```
 
 When corresponding unequal Dimensions are unresolved, local construction defers their equality
-proof because the result Shape remains the exact input Shape. A future compiler must represent
-and prove that constraint before execution. Scale is stricter at construction: its complete Shape
-must be structurally equal to `normalizedShape`, including dynamic or expression structure.
+proof because the result Shape remains the exact input Shape. Current package-private compiler
+verification represents the equality and proves, rejects, or retains it without binding either
+Dimension. Scale is stricter at construction: its complete Shape must be structurally equal to
+`normalizedShape`, including dynamic or expression structure.
 
 A corresponding zero normalized extent or any zero leading extent makes the entire result empty;
 no divisor or root mean square is evaluated. In a non-empty slice, any NaN makes all normalized
@@ -4274,8 +4283,9 @@ batchNormInference scale channel dimension mismatch: input=StaticDimension[size=
 
 Structurally equal static, dynamic, or symbolic-expression Dimensions pass. Unequal static
 Dimensions fail. If either unequal Dimension is unresolved, construction defers the equality
-obligation because the result Shape remains exactly the input Shape. Later compiler capture and
-binding must represent and prove that obligation before execution.
+obligation because the result Shape remains exactly the input Shape. Current package-private
+compiler capture and verification represent and prove, reject, or retain that obligation without
+binding it; concrete binding remains required before execution.
 
 A static channel extent zero is valid with four `[0]` vectors. A zero on another input axis is
 also valid while the vectors continue to describe `C`. Either case produces an empty result, so
@@ -4312,10 +4322,11 @@ storage, or provenance is mutated.
 
 These facts are current model metadata behavior. There is no training/evaluation flag, batch-
 statistic calculation, running-statistic transition, momentum, saved statistic, auxiliary output,
-or hidden state. Compiler capture, deferred-constraint proof, operand revalidation, saved-value
-and gradient construction, and legal decomposition remain planned compiler work. Backend prepare
-will own algorithms, lowering, specialization, fusion, and tolerance satisfaction; runtime will
-execute only prepared work. The [Compile API](compile-api.md) records that boundary, and the
+or hidden state. Package-private compiler capture, operand revalidation, and proof or retention of
+deferred constraints are current. Saved-value and gradient construction, legal decomposition,
+concrete binding, and public compilation remain planned compiler or lifecycle work. Backend
+prepare will own algorithms, lowering, specialization, fusion, and tolerance satisfaction;
+runtime will execute only prepared work. The [Compile API](compile-api.md) records that boundary, and the
 formula corresponds to official [ONNX
 BatchNormalization](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html) while retaining
 Synaptik's explicit channel axis and exact typed contracts.
@@ -4384,8 +4395,9 @@ The one shared producer describes these exact ordered outputs:
 Slots three and four are hidden only at the public wrapper level. Their descriptors and indexed
 positions remain reachable through the exact producer retained by each public result. There is no
 public sibling-output lookup, and the result record contains exactly the first three outputs.
-Later compiler capture may create graph values for all five positions and own saved-value
-lifetime; the model does not retain the discarded Tensor wrappers or define backward formulas.
+Current package-private compiler capture creates graph values for all five reachable positions;
+saved-value lifetime remains future compiler work. The model does not retain the discarded Tensor
+wrappers or define backward formulas.
 
 #### Numerical example
 
@@ -4448,12 +4460,14 @@ five IDs in output order under one identity-distinct producer. Local validation 
 before factory delegation and consume no ID. Identifier exhaustion may leave IDs for earlier
 output positions consumed, returns no partial result, and does not mutate a running statistic.
 
-These are current model metadata facts only. Compiler capture, proof of deferred constraints,
-saved-value materialization and lifetime, autograd/backward construction, publication, liveness,
-and graph optimization remain planned compiler work. Cross-step statistic assignment, session and
-checkpoint ownership remain planned training-extension work. Runtime publication and execution
-remain planned runtime work, while lowering, algorithms, kernels, and tolerances remain backend
-work. No layer, buffer owner, training mode, in-place update, or state across calls is created.
+These are current model metadata facts only. Package-private compiler capture and proof or
+retention of deferred constraints are current. Saved-value materialization and lifetime,
+autograd/backward construction, publication, liveness, graph optimization, concrete binding, and
+public compilation remain planned compiler or lifecycle work. Cross-step statistic assignment,
+session and checkpoint ownership remain planned training-extension work. Runtime publication and
+execution remain planned runtime work, while lowering, algorithms, kernels, and tolerances remain
+backend work. No layer, buffer owner, training mode, in-place update, or state across calls is
+created.
 
 ### Mean-squared-error loss expressions
 
@@ -4634,10 +4648,11 @@ infinity.
 Every successful request creates one fresh unlabeled, storage-free Tensor with unresolved layout,
 one producer, one ID, and output-index-zero provenance over `[logits, target]`. It creates no
 softmax, gather, select, cast, arithmetic, reduction, or one-hot sub-producer and mutates no input.
-These are current model-expression facts only. Compiler capture, deferred proof, constant
-analysis, bounds enforcement, gradients, decomposition, optimization, backend lowering,
-preparation, numerical execution, runtime publication, and training coordination remain planned
-in their owning lifecycle layers.
+These are current model-expression facts only. Package-private compiler capture and
+descriptor-visible deferred proof are current. Constant analysis, value-dependent bounds and
+target-content enforcement, concrete binding, gradients, decomposition, optimization, backend
+lowering, preparation, numerical execution, runtime publication, and training coordination remain
+planned in their owning lifecycle layers.
 
 ### Contiguous expressions
 
@@ -6951,8 +6966,9 @@ more restrictive because construction must select an exact output Dimension:
 
 These rules are local to MATMUL and do not change general `ShapeBroadcast`. Null checks, numeric
 promotion, rank checks, static contraction checks, and leading-to-trailing batch checks all occur
-before result identity allocation. Later compiler validation or concrete binding must prove every
-deferred equality or singleton-or-equal obligation before execution.
+before result identity allocation. Current package-private compiler verification proves, rejects,
+or retains every deferred equality or singleton-or-equal obligation; concrete binding must
+discharge any retained obligation before execution.
 
 #### Data type, numerical meaning, and result metadata
 
@@ -7168,7 +7184,8 @@ can be derived. These rules are attention-specific and do not change general `Sh
 
 Static unequal query/key embedding extents or key/value sequence extents fail locally, as does a
 static-zero query embedding extent. When those extents are unresolved, equality or positivity is
-deferred for later compiler validation or concrete binding. A mask with an unresolved Dimension
+handled by current package-private compiler verification and may remain for concrete binding. A
+mask with an unresolved Dimension
 against a static non-singleton score Dimension is accepted with the corresponding deferred
 singleton-or-equal obligation; combinations that cannot preserve the already selected exact score
 Shape fail locally.
@@ -7313,8 +7330,8 @@ width must themselves be statically known and positive.
 Static input and output channel counts must each be divisible by `groups`. When the relevant
 Dimensions are static, `weightChannelsPerGroup * groups` must equal `C_in`, and bias length must
 equal `C_out`. A relation involving an unresolved Dimension is retained as an obligation for
-future compiler validation or concrete binding because the exact descriptors and attributes
-remain in provenance.
+current package-private compiler verification or later concrete binding because the exact
+descriptors and attributes remain in provenance.
 
 #### Grouped Shape and provenance example
 
@@ -7408,9 +7425,10 @@ Every successful call returns one fresh, unlabeled, storage-free Tensor with unr
 the exact derived Shape, and gradient eligibility equal to the logical OR of the actual inputs.
 Its one-output provenance has index zero, retains the exact `Conv2dAttrs` reference, and records
 ordered inputs `[input, weight]` or `[input, weight, bias]`. Current construction reads no values
-and creates no gradient rule. Future compiler work owns capture, proof of deferred bindings,
-legal decomposition, gradients, adjoints, and saved values. Backend prepare owns conforming
-algorithms, lowering, and kernel selection; runtime owns only prepared execution.
+and creates no gradient rule. Package-private compiler capture and descriptor-visible proof or
+retention of deferred constraints are current. Legal decomposition, concrete binding, gradients,
+adjoints, and saved values remain future compiler or lifecycle work. Backend prepare owns
+conforming algorithms, lowering, and kernel selection; runtime owns only prepared execution.
 
 ### NCHW maximum-pooling expressions
 
@@ -7524,11 +7542,12 @@ infinity in the input type. Otherwise selection follows these rules:
 Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It
 retains the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its
 one-output provenance has index zero and ordered inputs `[input]`. The gradient request is
-metadata, not a gradient implementation. Future compiler work owns capture, proof of deferred
-bindings, legal decomposition, gradient/adjoint construction, and any decision to retain max
-indices for backward use. Backend prepare owns conforming algorithms and kernel selection;
-runtime owns only prepared execution. No current compiler, backend, or runtime support for
-`MAX_POOL2D` is claimed here.
+metadata, not a gradient implementation. Package-private compiler capture and descriptor-visible
+proof or retention of deferred constraints are current. Legal decomposition, concrete binding,
+gradient/adjoint construction, and any decision to retain max indices for backward use remain
+future work. Backend prepare owns conforming algorithms and kernel selection; runtime owns only
+prepared execution. No runnable compiler, backend, or runtime support for `MAX_POOL2D` is claimed
+here.
 
 ### NCHW average-pooling expressions
 
@@ -7630,9 +7649,10 @@ later backend conformance must select and validate tolerances.
 Every success returns one fresh, unlabeled, storage-free Tensor with unresolved layout. It retains
 the exact input type, `N` and `C` Dimension references, and `requiresGrad` request. Its one-output
 provenance has index zero and ordered inputs `[input]`. The gradient request is metadata only.
-Future compiler work owns capture, deferred binding proof, any legal decomposition that preserves
-the fixed divisor and special-value policy, and gradient/adjoint construction. Backend prepare
-owns conforming algorithms and kernel selection; runtime executes only prepared work. No current
+Package-private compiler capture and descriptor-visible proof or retention of deferred constraints
+are current. Concrete binding, any legal decomposition that preserves the fixed divisor and
+special-value policy, and gradient/adjoint construction remain future work. Backend prepare owns
+conforming algorithms and kernel selection; runtime executes only prepared work. No runnable
 compiler, backend, or runtime support for `AVERAGE_POOL2D` is claimed here.
 
 ### Matrix-multiplication semantic kind
@@ -9529,10 +9549,12 @@ TensorId[value=9]
 ```
 
 The result shows the operation kind, validated graph boundaries, compile-time node phase, and
-public tensor identity selected by the standalone binding. Construction proves structural graph
-closure and local operation occurrence cardinality. It does not validate descriptor compatibility, prove that the binding
-belongs to this graph, create a compiler-owned `PublicationPlan` or `CompileArtifacts`, choose
-storage or a backend, prepare execution, or run the operation.
+public tensor identity selected by the standalone binding. Model construction proves structural
+graph closure and local operation occurrence cardinality; it does not itself validate descriptor
+compatibility. Current package-private compiler verification can perform that semantic check, but
+it does not prove that the binding belongs to this graph, create a compiler-owned
+`PublicationPlan` or `CompileArtifacts`, choose storage or a backend, prepare execution, or run the
+operation.
 
 #### Failures and useful variations
 
@@ -9551,8 +9573,9 @@ storage or a backend, prepare execution, or run the operation.
 
 `GraphValue` and `CompiledNode` validation is deliberately local. `CompiledGraphModel` adds
 graph-wide existence, ID uniqueness, producer, boundary, topology, and phase-coverage validation.
-The selected operation signature validates local input and output counts; descriptor agreement,
-compiler transformations, and execution remain outside the model container.
+The selected operation signature validates local input and output counts. Descriptor agreement
+remains outside the model container and is current only through package-private compiler
+verification; compiler transformations and execution remain planned.
 
 ## Planned contracts
 
@@ -9580,8 +9603,9 @@ The following contracts appear in the architecture and planning documents but ar
   gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
-- compiler entry points and transformations, compiler-owned `PublicationPlan` and
-  `CompileArtifacts`, and the engine `CompiledGraph` facade; and
+- public compiler entry points, graph transformations, concrete dimension binding,
+  compiler-owned `PublicationPlan` and `CompileArtifacts`, and the engine `CompiledGraph` facade;
+  package-private structural capture and binding-free verification inference are current; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,
@@ -9628,13 +9652,15 @@ MATMUL semantics and public `Tensor.matmul` expression construction are current 
 higher floating or signed-integral operands. Construction promotes within one numeric category,
 derives exact vector/matrix/broadcast-batch Shape metadata, defers only the documented unresolved
 obligations, and records fresh ordered two-input provenance. It performs no multiplication,
-gradient construction, compiler capture, backend selection, or execution.
+gradient construction, graph transformation, backend selection, or execution; package-private
+compiler capture and verification are current.
 The two public `linear` overloads are current explicit composition over rank-two PERMUTE,
 MATMUL, and optional exact rank-one ADD bias. They introduce no LINEAR kind or layer state, fully
 prevalidate caller-controlled failures before intermediate IDs, and leave the primitive producer
 chain visible. The biased result is Shape-equal to its MATMUL product with exact corresponding
 Dimension references, but its outer Shape object may be distinct. Compiler capture, recognition,
-fusion, gradients, backend support, and execution remain planned.
+fusion, gradients, backend support, and execution remain planned except for current package-private
+capture of the primitive chain.
 The four public `scaledDotProductAttention` overloads and four
 `scaledDotProductAttentionWithWeights` overloads are current first-class model construction. They
 derive exact broadcast-batch, score/weights, and output Shapes for floating query/key/value
@@ -9642,10 +9668,10 @@ inputs; optionally retain an exact BOOL mask; and record default-or-explicit sca
 eligibility in `ScaledDotProductAttentionAttrs`. The original family creates exactly one output
 and no hidden weights or random-state output. The explicit family returns
 `ScaledDotProductAttentionResult` with output slot zero and normalized weights slot one from one
-exact shared producer. Deferred embedding, sequence, batch, and mask obligations remain for
-future compiler validation or binding. Numerical execution, compiler capture or legal
-decomposition, gradient construction, saved-value lifetime, dropout, backend support, and runtime
-execution remain planned in their owning layers.
+exact shared producer. Deferred embedding, sequence, batch, and mask obligations are current
+package-private compiler-verification inputs and may remain for later concrete binding. Numerical
+execution, legal decomposition, gradient construction, saved-value lifetime, dropout, backend
+support, and runtime execution remain planned in their owning layers.
 Axis permutation, singleton-axis insertion, and selected singleton-axis removal semantic values
 are current. Public permutation, rank-two transpose, expand-dimensions, and squeeze expression
 construction is also current. Signed-step slice semantics and public general/single-axis slice and

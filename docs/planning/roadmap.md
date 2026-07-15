@@ -39,37 +39,48 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation frontier is
-[Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md).
-It is `Complete` and remains the only detailed compiler specification. The bounded task replaces
-the compiler placeholder with package-private deterministic forward capture returning only
-`CompiledGraphModel`. It traverses requested Tensor results by identity, emits exact shared
-producer occurrences once in topological order, assigns graph-local IDs deterministically,
-preserves every producer output position and provenance output-index mapping, derives ordered
-leaf-input and requested-output boundaries, and retains reachable opaque RNG-state producers and
-edges. Direct `GraphRngState` boundary selection remains unsupported because model intentionally
-does not expose its private state Tensor.
+[Compiler 0002 Captured-graph inference and validation](modules/compiler/tasks/0002-captured-graph-inference-and-validation.md).
+It follows completed
+[Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md),
+which remains unchanged. Task 0002 adds one package-private verification-inference boundary over
+the captured immutable graph. It independently derives complete output descriptors for every
+current production operation family, rejects operand/domain/descriptor contradictions, and
+proves, rejects, or retains current dimension/Shape obligations as typed internal constraints.
+It returns the exact accepted graph reference, binds no concrete size, and performs no graph
+transformation.
 
 This is an explicit ordering interleave, not a dependency or architecture change. The selected
-capture capability depends only on the closed model Tensor/provenance and immutable graph
-contracts. It consumes no config cost profile, planning evaluator/generator, compile aggregate,
-trace payload, runtime contract, prepare contract, backend capability, or executable state.
+capture-and-validation capability depends only on the closed model Tensor/provenance, operation,
+descriptor, Shape/Dimension, layout, and immutable graph contracts. It consumes no config cost
+profile, planning evaluator/generator, compile aggregate, trace payload, runtime contract, prepare
+contract, backend capability, or executable state.
 Config 0004 therefore remains Draft until a concrete cost-bearing planning consumer defines its
-classification and units. Trace 0003 and later remain Draft because capture selects no trace
-attribute/payload schema or emission behavior. Runtime remains Draft because its prepared-state,
-runtime-facing config, and producer-specific trace contracts are not stabilized by capture.
+classification and units. Trace 0003 and later remain Draft because neither capture nor validation
+selects a trace attribute/payload schema or emission behavior. Runtime remains Draft because its
+prepared-state, runtime-facing config, and producer-specific trace contracts are not stabilized by
+either internal compiler step.
 Prepare remains Draft because it depends on future compiler artifacts and runtime contracts.
-Bounded compiler capture is valid now because it creates the first concrete compiler producer
-without guessing any of those downstream surfaces. No next compiler task is `Ready`; selecting
-and detailing task 0002 requires a separate planning step.
+Bounded compiler validation is valid now because it strengthens the concrete compiler producer
+without guessing any of those downstream surfaces.
 
-Compiler tasks 0002–0005 remain Draft master-plan rows without detailed specifications. Task 0001
-explicitly excludes inference and deferred proof, optimization/canonicalization, autograd,
-publication planning, planning orchestration, backend capability or ownership, `CompileArtifacts`,
-trace payloads/emission, prepare, runtime, backend, engine, dependency/shared-build changes, and
-later specifications. Its sole build change configures compiler-local Javadoc to include
-package-private declarations without changing Java visibility, dependencies, or another module's
-documentation policy. Planning's audited evaluator/generator operations remain package-private
-until a later concrete compiler orchestrator justifies one narrow collaboration.
+Compiler task 0002 is Complete and remains the latest detailed compiler specification. Tasks
+0003–0005 remain Draft master-plan rows without detailed specifications; no compiler task is
+currently Ready. Task 0002 explicitly excludes graph
+rewriting/optimization, autograd, publication/planning orchestration, backend capability or
+ownership, `CompileArtifacts`, trace payloads/emission, concrete binding, prepare, runtime,
+backend, engine, dependency/build changes, and later specifications. It handles dynamic and
+expression Dimensions conservatively: static, structural, and current bounded facts may prove or
+disprove a requirement; every genuinely undecidable compile-visible requirement remains ordered
+internal pass state. Value-dependent index, target-content, duplicate-target, storage, and
+numerical-result validation remains with future lifecycle owners that possess values.
+
+Raw captures receive this validation as a safe ingress boundary. Task 0003 must consume a
+successful internal result, perform its separately specified canonicalization and forward
+optimization, and reuse the same inference/validation pass on each transformed candidate. That
+preserves the architecture's canonicalization-before-authoritative-inference sequence for
+transformed graphs without allowing malformed captured metadata into transformation code.
+Planning's audited evaluator/generator operations remain package-private until task 0005 provides
+a concrete compiler orchestrator and justifies one narrow collaboration.
 
 The preceding completed planning frontier is
 [Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
