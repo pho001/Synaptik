@@ -20,7 +20,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
 | 5 | [`modules/planning`](modules/planning/master-plan.md) | Complete | Stable model/backend identity contracts permit the explicitly bounded capability-query interleave before config scoring is complete. | Ownership, partitioning, scoring, logical memory planning, and the selected contract-closure audit are complete. |
 | 6 | [`modules/runtime`](modules/runtime/master-plan.md) | Draft | Runtime-facing config, backend identities, and trace contracts are ready. | Prepared runtime contracts and dynamic run-state foundations are complete. |
-| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | Draft | Model, config, planning, backend-contract, and trace contracts are ready. | Compile artifacts, graph transformations, and autograd compilation are complete. |
+| 7 | [`modules/compiler`](modules/compiler/master-plan.md) | In progress (interleaved) | Model, config, planning, backend-contract, and trace contracts are ready for the complete compiler lifecycle; bounded task 0001 may start from the closed model graph/provenance contracts alone. | Compile artifacts, graph transformations, and autograd compilation are complete. |
 | 8 | [`modules/prepare`](modules/prepare/master-plan.md) | Draft | Compiler, planning, runtime, config, backend-contract, and trace contracts are ready. | Shared prepare contracts and validation are complete. |
 | 9 | [`backends/openblas-provider`](backends/openblas-provider/master-plan.md) | Draft | Native interop conventions needed by the provider are decided. | The low-level provider contract and validation are complete. |
 | 10 | [`backends/cpu`](backends/cpu/master-plan.md) | Draft | Model, config, planning, runtime, prepare, backend-contract, trace, and OpenBLAS contracts are ready. | CPU is a conforming reference backend for the selected capability set. |
@@ -37,6 +37,36 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 The order above is the default delivery sequence, not a new dependency rule. Allowed and forbidden dependencies remain defined only by `ARCHITECTURE.md`.
 
 ## Current frontier
+
+The next active implementation frontier is
+[Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md).
+It is the sole `Ready` task and the only detailed compiler specification. The bounded task replaces
+the compiler placeholder with package-private deterministic forward capture returning only
+`CompiledGraphModel`. It traverses requested Tensor results by identity, emits exact shared
+producer occurrences once in topological order, assigns graph-local IDs deterministically,
+preserves every producer output position and provenance output-index mapping, derives ordered
+leaf-input and requested-output boundaries, and retains reachable opaque RNG-state producers and
+edges. Direct `GraphRngState` boundary selection remains unsupported because model intentionally
+does not expose its private state Tensor.
+
+This is an explicit ordering interleave, not a dependency or architecture change. The selected
+capture capability depends only on the closed model Tensor/provenance and immutable graph
+contracts. It consumes no config cost profile, planning evaluator/generator, compile aggregate,
+trace payload, runtime contract, prepare contract, backend capability, or executable state.
+Config 0004 therefore remains Draft until a concrete cost-bearing planning consumer defines its
+classification and units. Trace 0003 and later remain Draft because capture selects no trace
+attribute/payload schema or emission behavior. Runtime remains Draft because its prepared-state,
+runtime-facing config, and producer-specific trace contracts are not stabilized by capture.
+Prepare remains Draft because it depends on future compiler artifacts and runtime contracts.
+Bounded compiler capture is valid now because it creates the first concrete compiler producer
+without guessing any of those downstream surfaces.
+
+Compiler tasks 0002–0005 remain Draft master-plan rows without detailed specifications. Task 0001
+explicitly excludes inference and deferred proof, optimization/canonicalization, autograd,
+publication planning, planning orchestration, backend capability or ownership, `CompileArtifacts`,
+trace payloads/emission, prepare, runtime, backend, engine, build/dependency changes, and later
+specifications. Planning's audited evaluator/generator operations remain package-private until a
+later concrete compiler orchestrator justifies one narrow collaboration.
 
 The latest completed implementation frontier is
 [Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
@@ -101,7 +131,8 @@ generators; and `tools/tuning` owns the single two-phase model-autotuning workfl
 representative model corpus may pre-seed the same workload cache, but no separate platform-
 calibration workflow or profile remains planned. These later rows do not change the current
 frontier. Config 0004 and every task after Planning 0006 remain Draft without another detailed
-specification. No global task is Ready pending a separate frontier reassessment.
+specification. That statement records the state at Planning 0006 closure; the subsequent frontier
+reassessment selected only Compiler 0001 as `Ready`.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -122,7 +153,8 @@ Planning task 0004 is Complete with its detailed specification; Planning task 00
 with its detailed specification; and Planning task 0006 is Complete with its detailed
 documentation-only closure audit and `CLOSED` verdict. Config 0004 remains Draft because the current
 baseline, same-owner grouping, and descriptor-retaining logical requirements consume no cost
-classification or profile. No global task is Ready pending a separate frontier reassessment.
+classification or profile. The subsequent frontier reassessment selected only bounded Compiler
+0001 capture as `Ready`; it does not consume or advance Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
