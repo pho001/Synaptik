@@ -82,9 +82,10 @@ or symbolic compatibility.
 Typed access, other expression families, gradient objects and publication behavior,
 native/runtime/backend allocation, public compiler integration, runtime residency, and backend
 execution remain planned. Package-private compiler capture, binding-free operand/descriptor
-verification, mandatory dense graph-local canonicalization, and bounded forward DCE/CSE/DCE are
-current internal consumers of this model metadata. These compiler steps do not numerically execute
-Tensor expressions or add a public compiler surface. The authoritative module
+verification, mandatory dense graph-local canonicalization, explicit logical-splat ingress,
+bounded integral/BOOL constant folding, and sidecar-aware forward DCE/CSE/DCE are current internal
+consumers of this model metadata. These compiler steps do not turn public Tensor host storage into
+constant evidence, perform general numerical execution, or add a public compiler surface. The authoritative module
 boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
@@ -3106,11 +3107,19 @@ change the public Tensor's fresh identity or provenance construction: the compil
 later immutable graph occurrence.
 
 For the scalar rows, `ScalarValueAttrs` is immutable semantic metadata, not a Tensor constant.
-The compiler reads only its exact type and typed value; it does not inspect Tensor host storage,
-evaluate values, create constants, fold arbitrary expressions, or expose a public compiler API.
-Tensor zero/one recognition and result constants remain planned for Compiler 0003B. Floating
-ADD/SUB-zero, multiplication by zero, cancellation, other exponents, bounds/clamp identities, and
-broader algebra remain unsupported compiler rewrites.
+The compiler reads only its exact type and typed value; it does not inspect Tensor host storage or
+expose a public compiler API. A later current scan can combine an explicit integral logical-splat
+fact for the graph-valued input with an exact same-typed integral attribute for scalar `ADD`,
+`SUB`, `MUL`, `MIN`, or `MAX`. That result is a new fixed logical splat, not a Tensor, dense
+payload, or physical allocation. Floating scalar evaluation, CLAMP, DIV, POW, multiplication by
+zero as an identity rewrite, cancellation, other exponents, bounds/clamp identities, and broader
+algebra remain unsupported compiler rewrites.
+
+Factory-created leaves are not constants merely because they have host storage or were created by
+`scalar`, `zeros`, `ones`, `full`, import, allocation, or random construction. The package-private
+compiler recognizes a fixed leaf only through explicit exact Tensor-identity ingress. An absent
+leaf remains bindable, and changing, replacing, clearing, or losing its host-storage association
+does not create or alter a supplied immutable splat fact.
 
 Floating scalar and Tensor-to-Tensor extrema share the same selected semantics: NaN propagates,
 infinities
@@ -9594,7 +9603,8 @@ operation.
 graph-wide existence, ID uniqueness, producer, boundary, topology, and phase-coverage validation.
 The selected operation signature validates local input and output counts. Descriptor agreement
 remains outside the model container and is current only through package-private compiler
-verification; compiler transformations and execution remain planned.
+verification. The bounded compiler transformations described above are current; broader
+transformation and execution remain planned.
 
 ## Planned contracts
 
@@ -9622,9 +9632,10 @@ The following contracts appear in the architecture and planning documents but ar
   gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
-- public compiler entry points, graph transformations, concrete dimension binding,
+- public compiler entry points, concrete dimension binding,
   compiler-owned `PublicationPlan` and `CompileArtifacts`, and the engine `CompiledGraph` facade;
-  package-private structural capture and binding-free verification inference are current; and
+  package-private structural capture, binding-free verification inference, canonicalization,
+  exact rewriting, bounded logical-splat folding, and forward DCE/CSE are current; and
 - planning, prepare, runtime, publication execution, and backend execution.
 
 `OperationKind`, `OperationAttrs`, `NoOperationAttrs`, `Operation`, `BinaryArithmeticKind`,

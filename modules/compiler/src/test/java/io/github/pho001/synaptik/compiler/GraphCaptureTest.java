@@ -9,10 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -37,6 +39,8 @@ final class GraphCaptureTest {
     @Test
     void exposesOnlyThePackagePrivateStatelessCaptureContract() throws Exception {
         var capture = GraphCapture.class.getDeclaredMethod("capture", List.class);
+        var captureConstants = GraphCapture.class.getDeclaredMethod(
+                "capture", List.class, CompileTimeConstantGraph.Ingress.class);
         assertAll(
                 () -> assertTrue(Modifier.isFinal(GraphCapture.class.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(GraphCapture.class.getModifiers())),
@@ -44,10 +48,90 @@ final class GraphCaptureTest {
                 () -> assertTrue(Modifier.isStatic(capture.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(capture.getModifiers())),
                 () -> assertSame(CompiledGraphModel.class, capture.getReturnType()),
-                () -> assertEquals(1, Arrays.stream(GraphCapture.class.getDeclaredMethods())
+                () -> assertSame(
+                        CompileTimeConstantGraph.class, captureConstants.getReturnType()),
+                () -> assertEquals(2, Arrays.stream(GraphCapture.class.getDeclaredMethods())
                         .filter(method -> !method.isSynthetic())
                         .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                         .count()));
+    }
+
+    @Test
+    void mapsOnlyExplicitReachableLeafIdentitiesAndPreservesBindableEncounterOrder() {
+        Tensor explicit = tensor(DataType.INT32, Shape.of(2), false);
+        Tensor bindableFirst = tensor(DataType.INT32, Shape.of(2), false);
+        Tensor equalButDistinct = tensor(DataType.INT32, Shape.of(2), false);
+        Tensor output = bindableFirst.add(explicit).add(equalButDistinct);
+        var splat = new CompileTimeConstantGraph.Splat(ScalarValue.int32(7));
+
+        CompileTimeConstantGraph captured = GraphCapture.capture(
+                List.of(output),
+                new CompileTimeConstantGraph.Ingress(List.of(
+                        new CompileTimeConstantGraph.Binding(explicit, splat))));
+
+        assertAll(
+                () -> assertEquals(ids(0, 1, 3), captured.graph().inputs()),
+                () -> assertSame(splat, captured.constants().get(new ValueId(1))),
+                () -> assertEquals(ids(0, 3), captured.bindableInputs()),
+                () -> assertEquals(1, captured.constants().size()),
+                () -> assertEquals(GraphCapture.capture(List.of(output)),
+                        GraphCapture.capture(List.of(output),
+                                CompileTimeConstantGraph.Ingress.empty()).graph()));
+    }
+
+    @Test
+    void explicitFactoryLeavesAreFactsOnlyWhenBoundAndStorageIsNeverTheFact() {
+        Tensor scalar = TensorFactory.scalar(9, Optional.empty(), false);
+        Tensor zero = TensorFactory.zeros(
+                Shape.of(2), DataType.INT32, Optional.empty(), false);
+        Tensor one = TensorFactory.ones(
+                Shape.of(2), DataType.INT32, Optional.empty(), false);
+        Tensor full = TensorFactory.full(Shape.of(2), 5, Optional.empty(), false);
+        Tensor imported = TensorFactory.fromFlatArray(
+                new TensorDescriptor(
+                        DataType.INT32,
+                        Shape.of(2),
+                        Optional.of(LayoutDescriptor.contiguous(Shape.of(2))),
+                        false),
+                Optional.empty(),
+                new int[] {4, 4});
+        var supplied = new CompileTimeConstantGraph.Splat(ScalarValue.int32(-123));
+
+        CompileTimeConstantGraph captured = GraphCapture.capture(
+                List.of(scalar, zero, one, full, imported),
+                new CompileTimeConstantGraph.Ingress(List.of(
+                        new CompileTimeConstantGraph.Binding(full, supplied))));
+
+        assertAll(
+                () -> assertEquals(ids(0, 1, 2, 4), captured.bindableInputs()),
+                () -> assertSame(supplied, captured.constants().get(new ValueId(3))),
+                () -> assertEquals(-123,
+                        captured.constants().get(new ValueId(3)).value().int32Value()),
+                () -> assertTrue(scalar.hostStorage().isPresent()),
+                () -> assertTrue(full.hostStorage().isPresent()));
+    }
+
+    @Test
+    void rejectsNullIngressAfterOutputChecksAndFirstUnreachableBinding() {
+        Tensor reachable = tensor(DataType.INT64, Shape.scalar(), false);
+        Tensor unrelated = tensor(DataType.INT64, Shape.scalar(), false);
+        var binding = new CompileTimeConstantGraph.Binding(
+                unrelated, new CompileTimeConstantGraph.Splat(ScalarValue.int64(4)));
+
+        assertAll(
+                () -> assertEquals("outputs", assertThrows(NullPointerException.class,
+                        () -> GraphCapture.capture(null, null)).getMessage()),
+                () -> assertEquals("outputs must not be empty",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> GraphCapture.capture(List.of(), null)).getMessage()),
+                () -> assertEquals("ingress", assertThrows(NullPointerException.class,
+                        () -> GraphCapture.capture(List.of(reachable), null)).getMessage()),
+                () -> assertEquals("ingress.bindings()[0] is not a reachable leaf",
+                        assertThrows(IllegalArgumentException.class,
+                                () -> GraphCapture.capture(
+                                        List.of(reachable),
+                                        new CompileTimeConstantGraph.Ingress(List.of(binding))))
+                                .getMessage()));
     }
 
     @Test

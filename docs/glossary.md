@@ -25,9 +25,10 @@ captured-graph verification inference, mandatory dense canonicalization, and one
 forward transformation pipeline. Verification independently derives every current production
 operation occurrence's output descriptors, rejects semantic contradictions, and retains only
 undecidable descriptor-visible Shape obligations as typed internal deferred graph constraints.
-The optional pipeline performs one guarded exact arithmetic scan followed by one
-`DCE -> CSE -> DCE` sequence, revalidating only changed candidates. This is not a public compiler,
-concrete binding service, compile artifact, backend decision, or execution path.
+The optional pipeline performs one guarded exact arithmetic scan, one bounded logical-splat
+folding scan, and one sidecar-aware `DCE -> CSE -> DCE` sequence, revalidating only changed
+candidates. This is not a public compiler, concrete binding service, compile artifact, backend
+decision, or execution path.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -35,9 +36,10 @@ typed positive one for the three floating types; and scalar `ADD` and `SUB` by e
 the two integral types. A bypass requires a one-output internal `FORWARD` occurrence, complete
 input/output descriptor equality, false gradient eligibility, and a result that is not a graph
 output. Scalar rules read immutable `ScalarValueAttrs` metadata, not a Tensor constant or storage.
-Tensor constant recognition and folding remain planned for Compiler 0003B; broader algebra,
-autograd, value execution, downstream lifecycle work, and backend execution are not current
-effects of this scan.
+The following current fold scan consumes only explicitly supplied logical splats and selects BOOL
+logic, signed-integral binary arithmetic/comparison, and same-typed signed-integral scalar
+arithmetic. Broader algebra, floating/BFLOAT16 evaluation, autograd, downstream lifecycle work,
+and backend execution are not current effects of either scan.
 
 The currently implemented terms are the model foundations: data type, static, named dynamic, and
 symbolic-expression dimension, shape, broadcasting, layout, element stride, referenced element
@@ -958,6 +960,17 @@ configuration. Equal graph RNG key/counter state and equal consuming-operation i
 equal results within that boundary. It is not a cross-backend or cross-version bitstream promise,
 because no portable pseudorandom-number-generator algorithm is currently selected.
 
+### Bindable input
+
+A structural graph input that a later caller or run is allowed to supply. In the current internal
+compiler boundary, bindability is derived from the ordered `CompiledGraphModel.inputs()` list:
+inputs absent from the immutable compile-time constant sidecar are bindable, while inputs with
+logical-splat facts are fixed [compile-time constant sources](#compile-time-constant-source).
+
+The classification is logical and immutable for that candidate graph. It does not read Tensor
+storage, bind a value now, allocate a buffer, define a public input API, or implement runtime
+binding. Sidecar-aware dead-code elimination preserves every bindable input even when unused.
+
 ### Cast expression
 
 An implemented public `Tensor.cast(targetDataType)` request that records elementwise conversion
@@ -1001,6 +1014,21 @@ backend-owned partitions, logical memory requirements, a compiler-owned publicat
 compile diagnostics. `CompileArtifacts` is not implemented. It will be a recipe for prepare, not
 executable state, and will contain no physical buffers, concrete kernel routes, runtime residency,
 or mutable run state.
+
+### Compile-time constant source
+
+A current package-private compiler classification for a fixed logical graph source. Structurally,
+the source remains an ordinary `CompiledGraphModel` input, satisfying the existing graph-closure
+rules. An immutable sidecar associates its `ValueId` with one [logical splat](#logical-splat), and
+the source is therefore excluded from the derived [bindable inputs](#bindable-input).
+
+Initial facts enter only through explicit exact Tensor-identity bindings for reachable
+provenance-free, non-gradient leaves. The compiler does not infer them from a Tensor factory,
+descriptor, label, layout, provenance absence, or mutable host storage. Folding may create a
+synthetic constant source deterministically. Compiler task 0005 must transport the facts into
+future compile artifacts; future prepare/backend work owns physical materialization. The current
+classification is not a public binding API, dense payload, physical buffer, runtime value, or
+executable constant.
 
 ### Compile mode / `CompileMode`
 
@@ -1265,17 +1293,23 @@ The graph that computes outputs from user inputs in the original direction of th
 ### Forward graph optimization
 
 The current package-private compiler's optional, semantics-preserving transformation of forward
-graph occurrences. The first bounded pipeline runs dead-code elimination (DCE), exact
-common-subexpression elimination (CSE), and one DCE cleanup once in that order. DCE removes only
-forward nodes unreachable from graph outputs and non-forward dependency roots, while retaining
-every graph input and every output slot of a live node. Exact CSE merges whole forward occurrences
-only when their operation value, ordered remapped inputs, phase, and complete ordered output
-descriptors match. A graph-output producer cannot merge or represent another occurrence.
+graph occurrences. The current bounded order is exact arithmetic rewriting, logical-splat
+constant folding, dead-code elimination (DCE), exact common-subexpression elimination (CSE), and
+one DCE cleanup, once each. A changed candidate is revalidated before the following transform.
+
+The graph-only DCE contract removes only forward nodes unreachable from graph outputs and non-
+forward dependency roots while retaining every graph input and every output slot of a live node.
+The sidecar-aware form additionally prunes only unused fixed constant sources and retains every
+bindable input. Exact CSE merges whole forward occurrences only when their operation value,
+ordered remapped inputs, phase, and complete ordered output descriptors match. A graph-output
+producer cannot merge or represent another occurrence.
 
 This optional work is distinct from mandatory [graph canonicalization](#graph-canonicalization).
-It does not execute values, rewrite constants, casts, arithmetic, algebra, or views, construct
-autograd, derive publication or planning, or expose a public compiler API. See [Compile
-API](api/compile-api.md#current-package-private-canonicalization-and-forward-optimization).
+The selected fold matrix is limited to BOOL logic, signed-integral binary arithmetic/comparison,
+and same-typed signed-integral scalar arithmetic over explicit splats. It does not evaluate
+floating/BFLOAT16 facts, casts, unselected operations, or dense payloads; construct autograd;
+derive publication or planning; allocate physical values; or expose a public compiler API. See
+[Compile API](api/compile-api.md#current-package-private-canonicalization-and-forward-optimization).
 
 ### Neural-network module, parameter, buffer, and forward context
 
@@ -1423,6 +1457,21 @@ that semantic kernel is not an executable implementation route.
 ### Layout
 
 The logical mapping from a tensor's multidimensional indices to positions in storage. A layout can describe contiguous, offset-contiguous, strided, or broadcast views using facts such as element strides and storage offset. Layout describes geometry and aliasing; it does not own storage or decide whether a copy must be materialized. See the [Tensor API](api/tensor-api.md#resolved-layouts).
+
+### Logical splat
+
+One exact typed immutable `ScalarValue` that applies to every logical coordinate of one graph
+value. The current compiler sidecar uses logical splats only for fixed structural graph inputs.
+Equality preserves the scalar data type and exact represented bits, so floating signed zeros and
+distinct NaN payloads remain distinct, raw BFLOAT16 bits remain exact, and integral/BOOL values
+retain their current canonical representations.
+
+A logical splat has constant payload size even for a dynamic, scalar, or empty Shape. It contains
+no Shape, Tensor, host storage, array, memory segment, dense element payload, physical buffer,
+backend value, or runtime state. The compiler can fold only the explicitly selected BOOL and
+signed-integral operation matrix over these facts. Floating/BFLOAT16 splats are representable but
+are not currently evaluated. Physical repetition and storage allocation remain future
+prepare/backend materialization work.
 
 ### Logical memory plan
 

@@ -5,8 +5,10 @@
 This reference separates the compile-time model values implemented today from the compiler and
 engine APIs that remain planned. The compiler module now contains package-private structural
 forward capture, binding-free captured-graph verification inference, mandatory dense
-canonicalization, and one config-controlled forward optimization pipeline with a guarded exact
-arithmetic scan. The repository still provides no public or runnable graph compiler.
+canonicalization, an immutable logical-splat sidecar for explicitly supplied fixed sources, and
+one config-controlled forward optimization pipeline with guarded exact arithmetic rewriting,
+bounded constant folding, and constant-aware cleanup. The repository still provides no public or
+runnable graph compiler.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
@@ -72,6 +74,22 @@ The request rejects a null list, an empty list, a null element, a repeated exact
 or distinct wrappers that resolve to one graph output value. No caller collection is mutated.
 The returned graph owns immutable collection snapshots through `CompiledGraphModel`.
 
+An overload accepts a package-private immutable constant-ingress request. Each binding pairs one
+exact provenance-free, non-gradient Tensor leaf identity with one exact typed logical splat. A
+logical splat means that the same `ScalarValue` applies at every logical coordinate; it contains no
+Shape, dense payload, storage, Tensor, buffer, or backend value. Capture maps a binding only at the
+existing Tensor-identity-to-`ValueId` boundary and rejects a binding that is not encountered as a
+reachable leaf. It does not read `Tensor.hostStorage()` or infer a constant from a factory method,
+descriptor, layout, label, storage contents, or the mere absence of provenance.
+
+The result of that overload is an internal immutable sidecar around the unchanged
+`CompiledGraphModel`. Every fixed source remains structurally a graph input, while the sidecar's
+derived bindable-input list contains exactly the graph inputs without facts, in graph-input order.
+Consequently an explicitly fixed source cannot also be supplied later as a caller input. An
+otherwise identical leaf absent from ingress remains bindable, including a leaf created by a
+scalar, zero, one, full, import, allocation, or random factory path. There is no public constant-
+binding or compile entry point.
+
 Capture itself performs structural forward capture only. The following package-private
 verification-inference and transformation boundaries revalidate, canonicalize, and optionally
 optimize the captured graph. Capture does not perform those later steps. None of these internal
@@ -104,8 +122,11 @@ predicates fail in deterministic rule order; deferred predicates remain ordered 
 result. The evaluator never binds or unifies symbols, and checked-arithmetic overflow makes a
 proof unavailable rather than false.
 
-On success, package-private `ValidatedGraph` retains the exact accepted `CompiledGraphModel`
-reference and snapshots only the unresolved constraints. For example, a reshape from Shape
+On success, package-private `ValidatedGraph` retains the exact accepted compiler sidecar and
+snapshots only the unresolved constraints. Its graph-only compatibility path wraps the accepted
+`CompiledGraphModel` with no constant facts. The semantic inference rules continue to inspect the
+graph alone; sidecar construction independently checks that every fact names a non-gradient graph
+input of the same data type. For example, a reshape from Shape
 `[N]` to Shape `[M]`, where `N` and `M` are distinct unresolved dimensions, retains an
 element-count-equality constraint because the output descriptor is already exact but equality is
 not locally decidable. This proves neither a concrete binding nor executability. Value-dependent
@@ -132,9 +153,10 @@ When optional optimization is disabled, that canonicalization and validation sti
 is enabled, the internal pipeline runs exactly once in this order:
 
 ```text
-guarded exact arithmetic rewriting -> forward dead-code elimination
+guarded exact arithmetic rewriting -> constant folding
+                                   -> sidecar-aware forward dead-code elimination
                                    -> exact forward common-subexpression elimination
-                                   -> forward dead-code elimination cleanup
+                                   -> sidecar-aware forward dead-code elimination cleanup
 ```
 
 The first scan recognizes exactly seven internal, one-output `FORWARD` identities: duplicate-input
@@ -149,14 +171,47 @@ matching typed value. A prior bypass can therefore expose a later eligible occur
 same scan without iteration.
 
 `ScalarValueAttrs` is immutable operation metadata already stored in the graph. Reading its exact
-typed `ScalarValue` is not Tensor constant discovery, host-storage inspection, value execution,
-or constant folding. Recognizing Tensor zeros or ones and creating result constants remain planned
-for Compiler 0003B. The scan deliberately does not add floating ADD/SUB-zero, multiplication by
+typed `ScalarValue` for an identity proof is not Tensor constant discovery or host-storage
+inspection. The scan deliberately does not add floating ADD/SUB-zero, multiplication by
 zero, cancellation, other powers, bounds/clamp identities, broader algebra, or relaxed numerical
 rules. It retains graph-output, gradient-eligible, non-forward, and multi-output occurrences.
 
-Dead-code elimination (DCE) retains every graph input and graph output, treats every non-forward
-node and its dependency closure as live roots, and retains all output slots of every live node.
+The following constant-folding scan reads only logical splat facts already present in the
+compiler sidecar. It folds exactly these current rows:
+
+| Family | Current selected kinds and domains |
+|---|---|
+| Boolean logical | `NOT`, `AND`, and `OR` over exact `BOOL` splats |
+| Binary arithmetic | `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` over `INT32`/`INT64` splats, including mixed-width signed promotion |
+| Binary comparison | All six comparisons over `INT32`/`INT64` splats, producing exact `BOOL` splats |
+| Scalar elementwise | `ADD`, `SUB`, `MUL`, `MIN`, and `MAX` over one integral splat and an exact same-typed integral `ScalarValueAttrs` value |
+
+Integral addition, subtraction, and multiplication use the current fixed-width modular semantics;
+extrema and comparisons use signed order. If either binary operand is `INT64`, an `INT32` operand
+is sign-extended and the result domain is `INT64`. The scalar input remains the left operand, so
+subtraction preserves operand order. A folded splat can feed a later selected occurrence during
+the same topological scan, but the compiler does not seek a fixed point or run a second folding
+scan.
+
+Each selected fold replaces one internal, one-output, non-gradient `FORWARD` occurrence with one
+synthetic constant graph input. Original inputs remain first; synthetic sources follow in original
+fold-occurrence order; retained outputs and nodes are then rebuilt densely and deterministically.
+Graph-output producers, all multi-output producers, `BACKWARD` nodes, and gradient-eligible values
+remain occurrences. Equal splats are not interned.
+
+Floating and BFLOAT16 splats retain exact type and bits in the sidecar, including signed zeros and
+NaN payloads, but no floating or BFLOAT16 operation is evaluated. Casts, unselected scalar kinds,
+unary numerical functions, reductions, scans, normalization, loss, linear algebra, indexing,
+layout/view operations, random/state operations, and generic partial evaluation are also outside
+the current fold matrix. The compiler reads no host storage, creates no dense constant payload,
+and allocates no physical value.
+
+The existing graph-only dead-code elimination (DCE) entry retains every graph input and graph
+output, treats every non-forward node and its dependency closure as live roots, and retains all
+output slots of every live node. Its sidecar-aware overload first applies those same liveness
+rules, then removes only fixed constant inputs that are neither graph outputs nor inputs to a
+retained node. It always preserves bindable inputs, even when unused. This prevents obsolete
+ingress or synthetic constants from becoming downstream materialization obligations.
 Exact common-subexpression elimination (CSE) compares the forward phase, complete immutable
 operation value, ordered remapped inputs, and every ordered output descriptor. It merges a whole
 multi-output occurrence slot by slot. A producer containing a graph output may neither merge nor
@@ -164,10 +219,13 @@ serve as a representative, so distinct requested boundaries remain distinct. Eac
 candidate is immediately revalidated through the verification pass; an unchanged helper result is
 not redundantly revalidated.
 
-These are internal graph transformations, not numerical execution or a public compiler surface.
-Outside the guarded seven-rule scan, they do not fold constants; rewrite casts, broader arithmetic,
-algebra, or views; construct autograd; derive publication, planning, or diagnostics; create
-`CompileArtifacts`; or affect trace, preparation, runtime, backend, or engine behavior.
+These are internal graph transformations, not a public compiler surface. They do not rewrite
+casts, broader arithmetic, algebra, or views; construct autograd; derive publication, planning, or
+diagnostics; create `CompileArtifacts`; or affect trace, preparation, runtime, backend, or engine
+behavior. Compiler task 0005 must transport the exact immutable facts, or a named component with
+identical semantics, into future compile artifacts and must expose only the derived bindable
+inputs. Planning may then see the unchanged logical graph. Future prepare/backend work owns
+physical splat materialization, storage allocation, lowering, and execution.
 
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
@@ -1005,9 +1063,9 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   policy, average-pooling fixed-divisor preservation, layout materialization
   planning remain planned. Package-private identity-based structural forward capture into graph
   values and nodes, binding-free verification inference, mandatory dense graph-local
-  canonicalization, the guarded seven-rule exact arithmetic scan, and the exact one-shot forward
-  DCE/CSE/DCE cleanup are current internal behavior. All other operation-specific rewrites listed
-  above remain planned.
+  canonicalization, the guarded seven-rule exact arithmetic scan, the bounded logical-splat fold
+  matrix, and the exact one-shot sidecar-aware DCE/CSE/DCE cleanup are current internal behavior.
+  All other operation-specific rewrites listed above remain planned.
 - `GraphRngState` is an implemented opaque model expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Package-private structural capture preserves the
@@ -1048,11 +1106,11 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario is conceptual. Current internal capture can build the structural forward graph,
-package-private verification can validate its operation descriptors and retain unresolved
-constraints, and the current internal transformation boundary can canonicalize and apply its
-guarded seven-rule scan plus bounded forward DCE/CSE/DCE sequence. None can run the illustrated
-lifecycle, bind concrete
+This scenario is conceptual. Current internal capture can build the structural forward graph and
+map explicit logical-splat ingress, package-private verification can validate its operation
+descriptors and retain unresolved constraints, and the current internal transformation boundary
+can canonicalize and apply its guarded seven-rule scan, bounded exact constant-folding matrix, and
+sidecar-aware forward DCE/CSE/DCE sequence. None can run the illustrated lifecycle, bind concrete
 dimensions, select ownership, or expose a public compilation result.
 
 ## Related contracts

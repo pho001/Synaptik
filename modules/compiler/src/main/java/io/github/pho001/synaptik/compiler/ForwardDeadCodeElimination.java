@@ -83,6 +83,41 @@ final class ForwardDeadCodeElimination {
         return rebuild(graph, liveNodes, liveCount);
     }
 
+    /**
+     * Eliminates dead forward work and prunes only unused fixed constant sources.
+     *
+     * <p>The graph-only pass runs first and preserves its existing contract. Source roles are then
+     * remapped by input position. Every bindable input remains even when unused; a constant input
+     * remains only when it is a graph output or an ordered input of a retained node.</p>
+     *
+     * @param constantGraph non-null immutable graph and exact source facts; it is not mutated
+     * @return the exact argument when neither graph work nor a constant source is removed;
+     *     otherwise a non-null immutable sidecar with dense input-first IDs and remapped facts,
+     *     nodes, phases, and outputs
+     * @throws NullPointerException if {@code constantGraph} is null
+     */
+    static CompileTimeConstantGraph eliminate(CompileTimeConstantGraph constantGraph) {
+        Objects.requireNonNull(constantGraph, "constantGraph");
+        CompiledGraphModel eliminated = eliminate(constantGraph.graph());
+        CompileTimeConstantGraph current =
+                constantGraph.replaceGraphPreservingInputRoles(eliminated);
+
+        Set<ValueId> liveConstants = new HashSet<>(eliminated.outputs());
+        for (CompiledNode node : eliminated.nodes()) {
+            liveConstants.addAll(node.inputs());
+        }
+        int retainedInputs = 0;
+        for (ValueId input : eliminated.inputs()) {
+            if (!current.constants().containsKey(input) || liveConstants.contains(input)) {
+                retainedInputs++;
+            }
+        }
+        if (retainedInputs == eliminated.inputs().size()) {
+            return current;
+        }
+        return pruneConstantInputs(current, liveConstants, retainedInputs);
+    }
+
     private static void addNeeded(
             List<ValueId> values, Set<ValueId> neededValues, ArrayDeque<ValueId> work) {
         for (ValueId value : values) {
@@ -135,6 +170,59 @@ final class ForwardDeadCodeElimination {
 
         return new CompiledGraphModel(
                 values, nodes, inputs, remap(graph.outputs(), valueRemapping), phases);
+    }
+
+    private static CompileTimeConstantGraph pruneConstantInputs(
+            CompileTimeConstantGraph source,
+            Set<ValueId> liveConstants,
+            int retainedInputCount) {
+        CompiledGraphModel graph = source.graph();
+        Map<ValueId, GraphValue> originalValues = new HashMap<>();
+        for (GraphValue value : graph.values()) {
+            originalValues.put(value.id(), value);
+        }
+
+        Map<ValueId, ValueId> remapping = new HashMap<>();
+        Map<ValueId, CompileTimeConstantGraph.Splat> constants = new HashMap<>();
+        List<GraphValue> values = new ArrayList<>(
+                graph.values().size() - (graph.inputs().size() - retainedInputCount));
+        List<ValueId> inputs = new ArrayList<>(retainedInputCount);
+        long nextValueId = 0;
+        for (ValueId input : graph.inputs()) {
+            CompileTimeConstantGraph.Splat splat = source.constants().get(input);
+            if (splat != null && !liveConstants.contains(input)) {
+                continue;
+            }
+            ValueId rebuilt = new ValueId(nextValueId++);
+            remapping.put(input, rebuilt);
+            inputs.add(rebuilt);
+            values.add(new GraphValue(rebuilt, originalValues.get(input).descriptor()));
+            if (splat != null) {
+                constants.put(rebuilt, splat);
+            }
+        }
+
+        List<CompiledNode> nodes = new ArrayList<>(graph.nodes().size());
+        Map<NodeId, GraphPhase> phases = new LinkedHashMap<>();
+        long nextNodeId = 0;
+        for (CompiledNode node : graph.nodes()) {
+            List<ValueId> rebuiltInputs = remap(node.inputs(), remapping);
+            List<ValueId> rebuiltOutputs = new ArrayList<>(node.outputs().size());
+            for (ValueId output : node.outputs()) {
+                ValueId rebuiltOutput = new ValueId(nextValueId++);
+                remapping.put(output, rebuiltOutput);
+                rebuiltOutputs.add(rebuiltOutput);
+                values.add(new GraphValue(rebuiltOutput, originalValues.get(output).descriptor()));
+            }
+            NodeId rebuiltNode = new NodeId(nextNodeId++);
+            nodes.add(new CompiledNode(
+                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+            phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
+        }
+
+        CompiledGraphModel rebuilt = new CompiledGraphModel(
+                values, nodes, inputs, remap(graph.outputs(), remapping), phases);
+        return new CompileTimeConstantGraph(rebuilt, constants);
     }
 
     private static List<ValueId> remap(

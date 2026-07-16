@@ -9,16 +9,17 @@ import java.util.Objects;
  *
  * <p>Canonicalization always rebuilds graph-local identifiers densely and is then validated.
  * When optional optimization is enabled, the pipeline performs one guarded seven-rule exact
- * arithmetic scan, dead-code elimination (DCE), exact common-subexpression elimination (CSE), and
- * one cleanup DCE, once each in that order. Compiler verification is repeated only after a helper
- * returns a changed immutable candidate and before the next transform consumes that candidate.</p>
+ * arithmetic scan, one exact logical-splat fold scan, sidecar-aware dead-code elimination (DCE),
+ * exact common-subexpression elimination (CSE), and one sidecar-aware cleanup DCE, once each in
+ * that order. Compiler verification is repeated only after a helper returns a changed immutable
+ * candidate and before the next transform consumes that candidate.</p>
  */
 final class ForwardGraphOptimization {
     private ForwardGraphOptimization() {}
 
     /**
      * Canonicalizes and validates a successful graph, then optionally applies one guarded exact
-     * arithmetic rewrite scan followed by one {@code DCE -> CSE -> DCE} sequence.
+     * arithmetic rewrite scan, constant folding, and one {@code DCE -> CSE -> DCE} sequence.
      *
      * @param validatedGraph the non-null successful compiler validation result whose immutable
      *     graph is read; neither the result nor its graph is mutated
@@ -37,24 +38,31 @@ final class ForwardGraphOptimization {
 
         CompiledGraphModel canonical =
                 GraphCanonicalization.canonicalize(validatedGraph.graph());
-        ValidatedGraph current = CapturedGraphInference.inferAndValidate(canonical);
+        CompileTimeConstantGraph canonicalConstants =
+                validatedGraph.constantGraph().replaceGraphPreservingInputRoles(canonical);
+        ValidatedGraph current = CapturedGraphInference.inferAndValidate(canonicalConstants);
         if (!optimizationConfig.optionalOptimizationsEnabled()) {
             return current;
         }
 
+        CompiledGraphModel rewritten = ForwardExactArithmeticRewriting.rewrite(current.graph());
         current = validateWhenChanged(
-                current, ForwardExactArithmeticRewriting.rewrite(current.graph()));
+                current, current.constantGraph().replaceGraphPreservingInputRoles(rewritten));
         current = validateWhenChanged(
-                current, ForwardDeadCodeElimination.eliminate(current.graph()));
+                current, ForwardConstantFolding.fold(current.constantGraph()));
         current = validateWhenChanged(
-                current, ForwardCommonSubexpressionElimination.eliminate(current.graph()));
+                current, ForwardDeadCodeElimination.eliminate(current.constantGraph()));
+        CompiledGraphModel common =
+                ForwardCommonSubexpressionElimination.eliminate(current.graph());
+        current = validateWhenChanged(
+                current, current.constantGraph().replaceGraphPreservingInputRoles(common));
         return validateWhenChanged(
-                current, ForwardDeadCodeElimination.eliminate(current.graph()));
+                current, ForwardDeadCodeElimination.eliminate(current.constantGraph()));
     }
 
     private static ValidatedGraph validateWhenChanged(
-            ValidatedGraph current, CompiledGraphModel candidate) {
-        if (candidate == current.graph()) {
+            ValidatedGraph current, CompileTimeConstantGraph candidate) {
+        if (candidate == current.constantGraph()) {
             return current;
         }
         return CapturedGraphInference.inferAndValidate(candidate);

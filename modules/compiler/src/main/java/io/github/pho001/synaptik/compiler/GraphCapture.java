@@ -53,6 +53,29 @@ final class GraphCapture {
      *     value; duplicate messages identify both request positions
      */
     static CompiledGraphModel capture(List<Tensor> outputs) {
+        return capture(outputs, CompileTimeConstantGraph.Ingress.empty()).graph();
+    }
+
+    /**
+     * Captures one ordered Tensor selection and maps only explicitly supplied leaf splats.
+     *
+     * <p>Output validation and traversal are identical to {@link #capture(List)}. Ingress matches
+     * exact Tensor object identity only. Every binding must be encountered as a reachable
+     * provenance-free leaf; capture never reads host storage or infers constants from factory
+     * history, descriptors, layouts, labels, or other Tensor metadata.</p>
+     *
+     * @param outputs non-null, non-empty ordered requested results with no null element, repeated
+     *     exact Tensor reference, or duplicate resolved graph output
+     * @param ingress non-null ordered immutable explicit leaf bindings
+     * @return a non-null immutable captured graph plus exact source facts; unbound leaves remain
+     *     bindable and binding order does not change graph input order
+     * @throws NullPointerException if output validation encounters a null first, or if
+     *     {@code ingress} is null after output validation succeeds
+     * @throws IllegalArgumentException if output validation fails or an ingress binding is not a
+     *     reachable leaf
+     */
+    static CompileTimeConstantGraph capture(
+            List<Tensor> outputs, CompileTimeConstantGraph.Ingress ingress) {
         Objects.requireNonNull(outputs, "outputs");
         if (outputs.isEmpty()) {
             throw new IllegalArgumentException("outputs must not be empty");
@@ -68,6 +91,15 @@ final class GraphCapture {
                         "outputs[" + index + "] duplicates outputs[" + firstIndex + "]");
             }
         }
+        Objects.requireNonNull(ingress, "ingress");
+
+        var requestedConstants = new IdentityHashMap<
+                Tensor, CompileTimeConstantGraph.Splat>();
+        for (CompileTimeConstantGraph.Binding binding : ingress.bindings()) {
+            requestedConstants.put(binding.tensor(), binding.splat());
+        }
+        var encounteredIngress = new IdentityHashMap<Tensor, Boolean>();
+        var constants = new HashMap<ValueId, CompileTimeConstantGraph.Splat>();
 
         var values = new ArrayList<GraphValue>();
         var nodes = new ArrayList<CompiledNode>();
@@ -87,6 +119,12 @@ final class GraphCapture {
                     leafValues.put(requested, valueId);
                     graphInputs.add(valueId);
                     values.add(new GraphValue(valueId, requested.descriptor()));
+                    addConstant(
+                            requested,
+                            valueId,
+                            requestedConstants,
+                            encounteredIngress,
+                            constants);
                 }
                 continue;
             }
@@ -113,6 +151,12 @@ final class GraphCapture {
                             leafValues.put(input, valueId);
                             graphInputs.add(valueId);
                             values.add(new GraphValue(valueId, input.descriptor()));
+                            addConstant(
+                                    input,
+                                    valueId,
+                                    requestedConstants,
+                                    encounteredIngress,
+                                    constants);
                         }
                     } else {
                         TensorProducer inputProducer = inputProvenance.producer();
@@ -157,7 +201,29 @@ final class GraphCapture {
             }
             graphOutputs.add(valueId);
         }
-        return new CompiledGraphModel(values, nodes, graphInputs, graphOutputs, nodePhases);
+        for (int index = 0; index < ingress.bindings().size(); index++) {
+            Tensor tensor = ingress.bindings().get(index).tensor();
+            if (!encounteredIngress.containsKey(tensor)) {
+                throw new IllegalArgumentException(
+                        "ingress.bindings()[" + index + "] is not a reachable leaf");
+            }
+        }
+        CompiledGraphModel graph =
+                new CompiledGraphModel(values, nodes, graphInputs, graphOutputs, nodePhases);
+        return new CompileTimeConstantGraph(graph, constants);
+    }
+
+    private static void addConstant(
+            Tensor tensor,
+            ValueId valueId,
+            IdentityHashMap<Tensor, CompileTimeConstantGraph.Splat> requestedConstants,
+            IdentityHashMap<Tensor, Boolean> encounteredIngress,
+            Map<ValueId, CompileTimeConstantGraph.Splat> constants) {
+        CompileTimeConstantGraph.Splat splat = requestedConstants.get(tensor);
+        if (splat != null) {
+            encounteredIngress.put(tensor, Boolean.TRUE);
+            constants.put(valueId, splat);
+        }
     }
 
     private static ValueId resolve(

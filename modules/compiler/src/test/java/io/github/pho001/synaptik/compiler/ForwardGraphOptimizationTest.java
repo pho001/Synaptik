@@ -20,6 +20,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
@@ -198,6 +199,62 @@ final class ForwardGraphOptimizationTest {
     }
 
     @Test
+    void preservesConstantRolesWhenDisabledAndFoldsBeforeSidecarCleanupWhenEnabled() {
+        TensorDescriptor descriptor = new TensorDescriptor(
+                DataType.INT32, Shape.of(2), Optional.empty(), false);
+        Operation add = operation(BinaryArithmeticKind.ADD);
+        Operation output = new Operation(
+                ScalarElementwiseKind.ADD,
+                new ScalarValueAttrs(ScalarValue.int32(0)));
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(
+                        new GraphValue(new ValueId(10), descriptor),
+                        new GraphValue(new ValueId(20), descriptor),
+                        new GraphValue(new ValueId(30), descriptor),
+                        new GraphValue(new ValueId(40), descriptor)),
+                List.of(
+                        new CompiledNode(new NodeId(50), add,
+                                List.of(new ValueId(10), new ValueId(20)),
+                                List.of(new ValueId(30))),
+                        new CompiledNode(new NodeId(60), output,
+                                List.of(new ValueId(30)), List.of(new ValueId(40)))),
+                List.of(new ValueId(10), new ValueId(20)),
+                List.of(new ValueId(40)),
+                Map.of(
+                        new NodeId(50), GraphPhase.FORWARD,
+                        new NodeId(60), GraphPhase.FORWARD));
+        CompileTimeConstantGraph sidecar = new CompileTimeConstantGraph(
+                graph,
+                Map.of(
+                        new ValueId(10), new CompileTimeConstantGraph.Splat(ScalarValue.int32(2)),
+                        new ValueId(20), new CompileTimeConstantGraph.Splat(ScalarValue.int32(3))));
+        ValidatedGraph incoming = CapturedGraphInference.inferAndValidate(sidecar);
+
+        ValidatedGraph disabled = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.disabled());
+        ValidatedGraph standard = ForwardGraphOptimization.optimize(
+                incoming, GraphOptimizationConfig.standard());
+
+        assertAll(
+                () -> assertEquals(2, disabled.graph().nodes().size()),
+                () -> assertEquals(2, disabled.constants().size()),
+                () -> assertEquals(List.of(), disabled.bindableInputs()),
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1)),
+                        disabled.graph().inputs()),
+                () -> assertEquals(1, standard.graph().nodes().size()),
+                () -> assertSame(output, standard.graph().nodes().getFirst().operation()),
+                () -> assertEquals(List.of(new ValueId(0)), standard.graph().inputs()),
+                () -> assertEquals(List.of(), standard.bindableInputs()),
+                () -> assertEquals(5, standard.constants().get(new ValueId(0))
+                        .value().int32Value()),
+                () -> assertEquals(List.of(new ValueId(0)),
+                        standard.graph().nodes().getFirst().inputs()),
+                () -> assertSame(standard.constantGraph(),
+                        CapturedGraphInference.inferAndValidate(
+                                standard.constantGraph()).constantGraph()));
+    }
+
+    @Test
     void changedRewriteCandidateIsValidatedAndRegeneratesRetainedConstraints() {
         DynamicDimension inputExtent = new DynamicDimension("N");
         DynamicDimension outputExtent = new DynamicDimension("M");
@@ -365,10 +422,11 @@ final class ForwardGraphOptimizationTest {
     }
 
     @Test
-    void sourceLocksOneShotCanonicalizeValidateRewriteDceCseDceOrder() throws IOException {
+    void sourceLocksOneShotCanonicalizeValidateRewriteFoldDceCseDceOrder() throws IOException {
         String source = Files.readString(findOptimizationSource());
         int canonicalize = source.indexOf("GraphCanonicalization.canonicalize(");
         int rewrite = source.indexOf("ForwardExactArithmeticRewriting.rewrite(");
+        int fold = source.indexOf("ForwardConstantFolding.fold(");
         int firstDce = source.indexOf("ForwardDeadCodeElimination.eliminate(");
         int cse = source.indexOf("ForwardCommonSubexpressionElimination.eliminate(");
         int secondDce = source.indexOf(
@@ -377,7 +435,8 @@ final class ForwardGraphOptimizationTest {
         assertAll(
                 () -> assertTrue(canonicalize >= 0),
                 () -> assertTrue(rewrite > canonicalize),
-                () -> assertTrue(firstDce > rewrite),
+                () -> assertTrue(fold > rewrite),
+                () -> assertTrue(firstDce > fold),
                 () -> assertTrue(cse > firstDce),
                 () -> assertTrue(secondDce > cse),
                 () -> assertEquals(-1, source.indexOf(
@@ -386,9 +445,12 @@ final class ForwardGraphOptimizationTest {
                         "ForwardCommonSubexpressionElimination.eliminate(", cse + 1)),
                 () -> assertEquals(-1, source.indexOf(
                         "ForwardExactArithmeticRewriting.rewrite(", rewrite + 1)),
+                () -> assertEquals(-1, source.indexOf(
+                        "ForwardConstantFolding.fold(", fold + 1)),
                 () -> assertFalse(source.contains("while (")),
                 () -> assertFalse(source.contains("for (")),
-                () -> assertTrue(source.contains("if (candidate == current.graph())")),
+                () -> assertTrue(source.contains(
+                        "if (candidate == current.constantGraph())")),
                 () -> assertEquals(2, occurrences(
                         source, "CapturedGraphInference.inferAndValidate(")));
     }

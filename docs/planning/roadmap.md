@@ -39,8 +39,12 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation frontier is
-[Compiler 0003 Canonicalization and forward optimization](modules/compiler/tasks/0003-canonicalization-and-forward-optimization.md).
+[Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md).
 It follows completed
+[Compiler 0003A Exact arithmetic rewriting](modules/compiler/tasks/0003a-exact-arithmetic-rewriting.md),
+which follows completed
+[Compiler 0003 Canonicalization and forward optimization](modules/compiler/tasks/0003-canonicalization-and-forward-optimization.md),
+which follows completed
 [Compiler 0002 Captured-graph inference and validation](modules/compiler/tasks/0002-captured-graph-inference-and-validation.md).
 Task 0002 follows completed
 [Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md),
@@ -69,7 +73,7 @@ of each live node. Every changed candidate is revalidated through task 0002. Dis
 suppresses the optional sequence only, not canonicalization or validation.
 
 [Complete Compiler 0003A](modules/compiler/tasks/0003a-exact-arithmetic-rewriting.md) follows task
-0003 as the sole detailed compiler frontier. Its deliberately small strict-semantics rule set has
+0003. Its deliberately small strict-semantics rule set has
 exactly seven rows: internal forward binary `MIN(x, x)` and `MAX(x, x)`; scalar MUL by exact typed
 positive one in every current numeric domain; scalar DIV and POW by exact typed positive one in
 current floating domains; and scalar ADD and SUB by exact typed zero in current integral domains.
@@ -79,16 +83,35 @@ eligible occurrences remain intact because task 0004 has not selected operation,
 operand-multiplicity backward semantics. One topological scan runs after canonical validation and
 before task 0003's unchanged one-shot `DCE -> CSE -> DCE` sequence; Compiler 0002 revalidates a
 changed candidate. Immutable typed scalar attributes are compiler-visible semantic facts, not
-Tensor constants; Tensor zeros/ones and new result constants remain 0003B work. Floating ADD/SUB
+graph-value constants; Tensor zeros/ones and new result constants remain 0003B work. Floating ADD/SUB
 zero, MUL zero, cancellation, other POW exponents, bounds/clamp identities, broader algebra, and
-relaxed mathematics remain excluded. Draft Compiler 0003B follows 0003A and
-precedes Compiler 0004. It must define a compiler-owned immutable constant fact/ingress
-representation and exact deterministic folding, never read mutable public Tensor host storage as
-authoritative compile-time data, and revalidate every changed candidate through Compiler 0002.
-Runtime/backend execution, physical allocation, broad partial evaluation, relaxed/fast-math, and
-architecture changes remain outside 0003B. This order keeps both forward-only safety proofs
-separate and stable before autograd introduces backward occurrences and post-autograd
-optimization. This is implementation sequencing, not a new architecture rule.
+relaxed mathematics remain excluded.
+
+[Complete Compiler 0003B](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md)
+precedes Compiler 0004. It adds one
+compiler-owned immutable logical-splat sidecar and explicit ingress for reachable provenance-free
+non-gradient leaves. A constant source is an existing structural graph input plus one exact typed
+fact; derived bindable inputs exclude those fixed sources. Provenance-free leaves absent from
+ingress remain bindable regardless of factory history or mutable host storage.
+
+One scan folds only BOOL NOT/AND/OR; signed-integral binary ADD/SUB/MUL/MIN/MAX; all six signed-
+integral comparisons; and same-typed signed-integral scalar ADD/SUB/MUL/MIN/MAX over a known input
+splat. It preserves graph-output producers, multi-output producers, BACKWARD work, and gradient-
+eligible values. Floating/BFLOAT16 facts preserve exact bits but are not evaluated; casts, other
+scalar operations, dense payloads, and broad partial evaluation remain excluded. Compiler 0003A
+still owns attribute-only identity bypasses, while 0003B combines a selected integral attribute
+with a known graph-value splat to calculate a new splat.
+
+Folding runs after 0003A and before the unchanged one-shot `DCE -> CSE -> DCE` order. The existing
+graph-only DCE contract stays unchanged; a sidecar-aware overload prunes unused constant sources
+while preserving every bindable input and live dependency. Compiler 0002 revalidates every changed
+candidate. Compiler 0005 must transport the exact immutable facts, or a semantically identical
+named constant-plan component, in compile artifacts and exclude fixed sources from runtime
+binding; future prepare/backend work owns physical materialization. Runtime/backend execution,
+physical allocation, relaxed/fast-math, public compilation, and architecture changes remain
+outside 0003B. This order keeps both forward-only safety proofs separate and stable before
+autograd introduces backward occurrences and post-autograd optimization. This is implementation
+sequencing, not a new architecture rule.
 
 This is an explicit ordering interleave, not a dependency or architecture change. The selected
 capture, validation, and transformation capability depends only on the closed model
@@ -106,13 +129,14 @@ Bounded compiler transformation is valid now because it strengthens the concrete
 producer without guessing any downstream surface.
 
 Task 0003 remains Complete and owns only mandatory canonicalization plus the optional one-shot
-`DCE -> CSE -> DCE` sequence. Complete task 0003A is now the latest detailed compiler specification
-and inserts only its closed seven-rule exact arithmetic scan before that unchanged sequence. It
+`DCE -> CSE -> DCE` sequence. Complete task 0003A inserts only its closed seven-rule exact
+arithmetic scan before that unchanged sequence. It
 uses exact immutable scalar attributes but excludes Tensor constant recognition/folding, floating
 ADD/SUB zero, MUL zero, cancellation, other POW exponents, bounds/clamp identities, broader
 algebra, and relaxed mathematics. POW 2, -1, and other small integers remain possible future
 backend-prepare strength reductions subject to explicit numerical/conformance contracts; no
-backend plan changes here. Draft task 0003B owns compile-time constant representation and folding.
+backend plan changes here. Complete task 0003B owns only the explicit logical-splat representation,
+bounded exact matrix, synthetic constant sources, and constant-aware pruning described above.
 Task 0003 continues to exclude
 constant value execution/folding,
 cast/arithmetic/algebraic/view rewrites, decomposition, fusion, pass registries,
@@ -122,8 +146,8 @@ concrete binding, prepare, runtime, backend, engine, dependency/build changes, a
 specifications. Value-dependent index, target-content, duplicate-target, storage, and numerical-
 result validation remains with lifecycle owners that possess values.
 
-Compiler 0003A is Complete. Compiler 0003B, 0004, and 0005 remain Draft rows without detailed
-specifications; no compiler task is Ready.
+Compiler 0003A and Compiler 0003B are Complete. Compiler 0004 and 0005 remain Draft rows without
+detailed specifications, and no compiler task is Ready.
 
 Raw captures still receive task-0002 validation as a safe ingress boundary. Task 0003's mandatory
 canonicalization and candidate-by-candidate reuse of that pass preserve the architecture's
@@ -196,10 +220,10 @@ representative model corpus may pre-seed the same workload cache, but no separat
 calibration workflow or profile remains planned. These later rows do not change the current
 frontier. At Planning 0006 closure, Config 0004 and later work remained Draft without another
 detailed specification. Subsequent reassessments completed Compiler 0001 capture, Compiler 0002
-validation, and Compiler 0003 transformation in order. The current reassessment selected and
-completed only Compiler 0003A exact arithmetic rewriting while leaving Compiler 0003B
-compile-time constants/folding Draft before autograd. It does not advance cost, tuning, or
-downstream lifecycle work, and no 0003B-or-later detailed compiler specification exists.
+validation, Compiler 0003 transformation, and Compiler 0003A exact arithmetic rewriting in order.
+The subsequent reassessment selected only Compiler 0003B compile-time constants/folding before
+autograd, and that task is now Complete. It does not advance cost, tuning, or downstream lifecycle
+work, and no 0004-or-later detailed compiler specification exists.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -222,8 +246,8 @@ documentation-only closure audit and `CLOSED` verdict. Config 0004 remains Draft
 baseline, same-owner grouping, and descriptor-retaining logical requirements consume no cost
 classification or profile. Subsequent frontier reassessments selected bounded Compiler 0001
 capture, Compiler 0002 validation, and Compiler 0003 transformation in order; all are Complete.
-Compiler 0003A is Complete, followed by Draft Compiler 0003B and Compiler 0004 without detailed
-specifications. No compiler task is Ready, and none consumes or advances Config 0004.
+Compiler 0003A and Compiler 0003B are Complete, followed by Draft Compiler 0004 without a detailed
+specification. No compiler task consumes or advances Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

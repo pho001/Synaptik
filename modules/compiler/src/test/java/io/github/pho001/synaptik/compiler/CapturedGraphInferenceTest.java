@@ -34,7 +34,8 @@ final class CapturedGraphInferenceTest {
         assertSame(graph, validated.graph());
         assertTrue(validated.constraints().isEmpty());
         assertEquals("graph", assertThrows(NullPointerException.class,
-                () -> CapturedGraphInference.inferAndValidate(null)).getMessage());
+                () -> CapturedGraphInference.inferAndValidate((CompiledGraphModel) null))
+                .getMessage());
     }
 
     @Test

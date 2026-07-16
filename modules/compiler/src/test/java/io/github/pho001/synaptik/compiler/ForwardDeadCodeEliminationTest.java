@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
@@ -40,6 +41,8 @@ final class ForwardDeadCodeEliminationTest {
     void exposesOnlyThePackagePrivateStatelessDceContract() throws Exception {
         var method = ForwardDeadCodeElimination.class.getDeclaredMethod(
                 "eliminate", CompiledGraphModel.class);
+        var sidecarMethod = ForwardDeadCodeElimination.class.getDeclaredMethod(
+                "eliminate", CompileTimeConstantGraph.class);
         var constructor = ForwardDeadCodeElimination.class.getDeclaredConstructor();
 
         assertAll(
@@ -52,11 +55,95 @@ final class ForwardDeadCodeEliminationTest {
                 () -> assertTrue(Modifier.isStatic(method.getModifiers())),
                 () -> assertFalse(Modifier.isPublic(method.getModifiers())),
                 () -> assertSame(CompiledGraphModel.class, method.getReturnType()),
-                () -> assertEquals(1, Arrays.stream(
+                () -> assertSame(CompileTimeConstantGraph.class, sidecarMethod.getReturnType()),
+                () -> assertEquals(2, Arrays.stream(
                                 ForwardDeadCodeElimination.class.getDeclaredMethods())
                         .filter(declared -> !declared.isSynthetic())
                         .filter(declared -> !Modifier.isPrivate(declared.getModifiers()))
                         .count()));
+    }
+
+    @Test
+    void sidecarPrunesOnlyUnusedConstantsAndRebuildsDenseSourceRoles() {
+        TensorDescriptor descriptor = descriptor(DataType.INT32, Shape.of(2), false);
+        Operation live = operation(UnaryElementwiseKind.NEG);
+        CompiledGraphModel graph = graph(
+                List.of(descriptor, descriptor, descriptor, descriptor),
+                List.of(node(0, live, List.of(2L), List.of(3L))),
+                List.of(0L, 1L, 2L),
+                List.of(3L),
+                List.of(GraphPhase.FORWARD));
+        var unused = new CompileTimeConstantGraph.Splat(ScalarValue.int32(4));
+        var consumed = new CompileTimeConstantGraph.Splat(ScalarValue.int32(9));
+        CompileTimeConstantGraph source = new CompileTimeConstantGraph(
+                graph, Map.of(new ValueId(1), unused, new ValueId(2), consumed));
+
+        CompileTimeConstantGraph result = ForwardDeadCodeElimination.eliminate(source);
+
+        assertAll(
+                () -> assertEquals(List.of(new ValueId(0), new ValueId(1)),
+                        result.graph().inputs()),
+                () -> assertEquals(List.of(new ValueId(0)), result.bindableInputs()),
+                () -> assertEquals(Map.of(new ValueId(1), consumed), result.constants()),
+                () -> assertEquals(List.of(new ValueId(1)),
+                        result.graph().nodes().getFirst().inputs()),
+                () -> assertEquals(List.of(new ValueId(2)), result.graph().outputs()),
+                () -> assertSame(live, result.graph().nodes().getFirst().operation()),
+                () -> assertEquals(GraphPhase.FORWARD,
+                        result.graph().nodePhases().get(new NodeId(0))));
+    }
+
+    @Test
+    void sidecarRetainsConstantGraphOutputsConsumedConstantsAndNonForwardDependencies() {
+        TensorDescriptor descriptor = descriptor(DataType.INT32, Shape.of(2), false);
+        var splat = new CompileTimeConstantGraph.Splat(ScalarValue.int32(3));
+        CompiledGraphModel passThrough = graph(
+                List.of(descriptor), List.of(), List.of(0L), List.of(0L), List.of());
+        CompileTimeConstantGraph graphOutput =
+                new CompileTimeConstantGraph(passThrough, Map.of(new ValueId(0), splat));
+
+        Operation backward = operation(UnaryElementwiseKind.NEG);
+        CompiledGraphModel backwardGraph = graph(
+                List.of(descriptor, descriptor),
+                List.of(node(0, backward, List.of(0L), List.of(1L))),
+                List.of(0L), List.of(0L), List.of(GraphPhase.BACKWARD));
+        CompileTimeConstantGraph backwardSidecar = new CompileTimeConstantGraph(
+                backwardGraph, Map.of(new ValueId(0), splat));
+
+        assertAll(
+                () -> assertSame(graphOutput,
+                        ForwardDeadCodeElimination.eliminate(graphOutput)),
+                () -> assertSame(backwardSidecar,
+                        ForwardDeadCodeElimination.eliminate(backwardSidecar)),
+                () -> assertEquals(1, ForwardDeadCodeElimination
+                        .eliminate(backwardSidecar).constants().size()));
+    }
+
+    @Test
+    void sidecarPrunesConstantUsedOnlyByRemovedForwardWorkAndKeepsUnusedBindableInput() {
+        TensorDescriptor descriptor = descriptor(DataType.INT32, Shape.of(2), false);
+        CompiledGraphModel graph = graph(
+                List.of(descriptor, descriptor, descriptor, descriptor),
+                List.of(
+                        node(0, operation(UnaryElementwiseKind.NEG),
+                                List.of(1L), List.of(2L)),
+                        node(1, operation(UnaryElementwiseKind.NEG),
+                                List.of(0L), List.of(3L))),
+                List.of(0L, 1L), List.of(3L),
+                List.of(GraphPhase.FORWARD, GraphPhase.FORWARD));
+        CompileTimeConstantGraph source = new CompileTimeConstantGraph(
+                graph,
+                Map.of(new ValueId(1),
+                        new CompileTimeConstantGraph.Splat(ScalarValue.int32(8))));
+
+        CompileTimeConstantGraph result = ForwardDeadCodeElimination.eliminate(source);
+
+        assertAll(
+                () -> assertTrue(result.constants().isEmpty()),
+                () -> assertEquals(List.of(new ValueId(0)), result.bindableInputs()),
+                () -> assertEquals(1, result.graph().nodes().size()),
+                () -> assertEquals(List.of(new ValueId(0)),
+                        result.graph().nodes().getFirst().inputs()));
     }
 
     @Test
@@ -72,7 +159,8 @@ final class ForwardDeadCodeEliminationTest {
 
         assertAll(
                 () -> assertEquals("graph", assertThrows(NullPointerException.class,
-                        () -> ForwardDeadCodeElimination.eliminate(null)).getMessage()),
+                        () -> ForwardDeadCodeElimination.eliminate((CompiledGraphModel) null))
+                        .getMessage()),
                 () -> assertSame(graph, ForwardDeadCodeElimination.eliminate(graph)));
     }
 

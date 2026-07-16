@@ -54,7 +54,21 @@ final class CapturedGraphInference {
      * @throws IllegalArgumentException if an occurrence violates its semantic descriptor contract
      */
     static ValidatedGraph inferAndValidate(CompiledGraphModel graph) {
-        Objects.requireNonNull(graph, "graph");
+        return inferAndValidate(CompileTimeConstantGraph.withoutConstants(graph));
+    }
+
+    /**
+     * Validates a graph while retaining its already validated immutable constant-source roles.
+     *
+     * @param constantGraph non-null immutable structural graph and exact source facts
+     * @return an immutable successful result retaining the exact sidecar and unresolved graph
+     *     constraints; never {@code null}
+     * @throws NullPointerException if {@code constantGraph} is null
+     * @throws IllegalArgumentException if graph inference or descriptor validation fails
+     */
+    static ValidatedGraph inferAndValidate(CompileTimeConstantGraph constantGraph) {
+        Objects.requireNonNull(constantGraph, "constantGraph");
+        CompiledGraphModel graph = constantGraph.graph();
         Map<ValueId, GraphValue> values = new HashMap<>();
         for (GraphValue value : graph.values()) values.put(value.id(), value);
         List<DeferredGraphConstraint> deferred = new ArrayList<>();
@@ -96,7 +110,7 @@ final class CapturedGraphInference {
                 }
             }
         }
-        return new ValidatedGraph(graph, deferred);
+        return new ValidatedGraph(constantGraph, deferred);
     }
 
     private static List<TensorDescriptor> descriptors(List<ValueId> ids, Map<ValueId, GraphValue> values) {
