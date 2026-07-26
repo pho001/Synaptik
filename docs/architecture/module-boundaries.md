@@ -20,7 +20,13 @@ It does not own capabilities implementation, operation support logic, kernel reg
 
 ### `modules/model`
 
-Owns the public tensor model, operation semantics, shape/data type/layout types, host storage abstractions, and immutable graph model. `Tensor` remains public mutable API state; `CompiledGraphModel`, `CompiledNode`, and graph values are compile-time state.
+Owns the public tensor model, operation semantics, shape/data type/layout types, host storage
+abstractions, and immutable graph model. A `Tensor` has immutable identity, descriptor, and
+expression provenance, plus its existing mutable borrowed host-storage association; it has no
+gradient/backward lifecycle state. Each derived `TensorProducer` retains the canonical exact
+wrapper for every output position so compiler-owned pre-capture formulas can use hidden auxiliary
+outputs without reconstructing wrappers. `CompiledGraphModel`, `CompiledNode`, and graph values
+remain distinct compile-time state.
 
 The model does not know backend support, device residency, kernel selection, backend-specific storage, prepared execution, or runtime state. `Operation` expresses semantics and never exposes `supportedBackends()`. Runtime device storage belongs outside this module.
 
@@ -46,7 +52,11 @@ See [Partition Scoring](partition-scoring.md).
 
 ### `modules/compiler`
 
-Owns graph capture and compilation: indexing and ordering, inference and validation, canonicalization and optimization, autograd expansion, publication binding, planning orchestration, compile diagnostics, and `CompileArtifacts`.
+Owns graph capture and compilation: fail-closed pre-capture autograd inventory, named
+gradient-rule dispatch, per-compile identity-based contribution accumulation, one phase-aware
+combined capture, indexing and ordering, inference and validation, canonicalization and combined
+optimization, publication binding, planning orchestration, compile diagnostics, and
+`CompileArtifacts`.
 
 Its output is immutable compile-time state. It does not create physical buffers, backend executables, runtime workspaces, prepared schedules, or `PreparedExecution`, and it has no concrete backend dependencies.
 

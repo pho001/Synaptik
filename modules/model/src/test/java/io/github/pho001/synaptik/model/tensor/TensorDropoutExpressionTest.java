@@ -81,12 +81,17 @@ public final class TensorDropoutExpressionTest {
         TensorProvenance stateProvenance = nextStateTensor.provenance().orElseThrow();
         TensorProducer producer = outputProvenance.producer();
         List<TensorDescriptor> descriptors = producer.outputDescriptors();
+        Tensor hiddenMask = producer.output(1);
+        TensorProvenance maskProvenance = hiddenMask.provenance().orElseThrow();
 
         assertAll(
                 () -> assertEquals(before, output.id().value()),
                 () -> assertEquals(before + 2, nextStateTensor.id().value()),
                 () -> assertEquals(before + 3, next.get()),
                 () -> assertEquals(3, producer.outputCount()),
+                () -> assertSame(output, producer.output(0)),
+                () -> assertSame(nextStateTensor, producer.output(2)),
+                () -> assertSame(producer, maskProvenance.producer()),
                 () -> assertSame(producer, stateProvenance.producer()),
                 () -> assertSame(DropoutKind.DROPOUT, producer.operation().kind()),
                 () -> assertEquals(new DropoutAttrs(0.25d), producer.operation().attrs()),
@@ -94,9 +99,13 @@ public final class TensorDropoutExpressionTest {
                 () -> assertSame(input, producer.inputs().get(0)),
                 () -> assertSame(stateTensor, producer.inputs().get(1)),
                 () -> assertEquals(0, outputProvenance.outputIndex()),
+                () -> assertEquals(1, maskProvenance.outputIndex()),
                 () -> assertEquals(2, stateProvenance.outputIndex()),
                 () -> assertSame(output.descriptor(), descriptors.get(0)),
+                () -> assertSame(hiddenMask.descriptor(), descriptors.get(1)),
                 () -> assertSame(nextStateTensor.descriptor(), descriptors.get(2)),
+                () -> assertTrue(hiddenMask.label().isEmpty()),
+                () -> assertTrue(hiddenMask.hostStorage().isEmpty()),
                 () -> assertEquals(DataType.BOOL, descriptors.get(1).dataType()),
                 () -> assertSame(shape, descriptors.get(1).shape()),
                 () -> assertTrue(descriptors.get(1).layout().isEmpty()),

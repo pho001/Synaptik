@@ -88,6 +88,20 @@ consumers of this model metadata. These compiler steps do not turn public Tensor
 constant evidence, perform general numerical execution, or add a public compiler surface. The authoritative module
 boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
+Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:
+every producer retains and returns the canonical exact Tensor wrapper for each ordered output
+slot. `TensorFactory` constructs the producer, all wrappers, and their indexed provenance as one
+unpublished immutable occurrence before returning a result. The resulting
+Tensor/provenance/producer/output cycle is ordinary collectable model metadata, not graph
+membership or runtime ownership.
+
+Compiler task 0004 remains Draft without a detailed specification or implementation. Its accepted
+design says named gradient rules will reuse the existing public Tensor expression methods directly
+on the original forward expression and capture the combined forward and gradient expression once.
+No current Tensor method or ergonomic result carrier changes. The design adds no
+`Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder Tensor for a captured
+`ValueId`, or model-owned derivative rule.
+
 The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
 `BATCH_NORM_TRAINING`. Inference has one output. Training has five ordered outputs: normalized
 output, next running mean, next running variance, saved batch mean, and saved inverse standard
@@ -977,15 +991,27 @@ structurally equal.
 
 `TensorProvenance(producer, outputIndex)` associates one result Tensor with a zero-based producer
 position. Its `operation()`, `inputs()`, and `outputDescriptor()` methods derive their exact
-references from the producer. A derived Tensor must retain the same descriptor object as its
-selected producer position; a merely equal descriptor object is rejected. Single-output
-expressions use a one-descriptor producer and index zero.
+references from the producer. `producer.output(outputIndex)` returns that factory-created
+position's exact canonical Tensor wrapper; it does not allocate, traverse, infer, or reconstruct a
+wrapper. A derived Tensor retains the same descriptor object as its selected producer position; a
+merely equal descriptor object is rejected. Negative indices and indices at least
+`producer.outputCount()` fail with `IndexOutOfBoundsException` that reports the requested index
+and available count. Single-output expressions use a one-descriptor producer and index zero.
 
-The producer stores descriptors, not output Tensor objects. References therefore point only from
-result Tensor to provenance to producer, so the model creates no producer/result cycle. Producer
-identity is not a `NodeId`, `ValueId`, graph membership, compiler-capture result, runtime state, or
-execution promise. The producer constructor and multi-output construction seam are package-private;
-the public API currently exposes only the producers created by existing Tensor expressions.
+Factory construction validates the complete occurrence before requesting its first Tensor ID,
+creates wrappers in ascending output order, and assigns the producer's final immutable output
+snapshot before returning any wrapper. Every wrapper has the exact slot descriptor, current label
+policy, no storage, and indexed provenance back to the same producer. Failure after allocation
+does not roll back consumed IDs, and a failed multi-output request publishes no partial result.
+
+These references intentionally form one immutable, safely published
+`Tensor -> TensorProvenance -> TensorProducer -> outputs -> Tensor` cycle. Retaining one result may
+retain its sibling results. The cycle owns no external resource and is ordinarily
+garbage-collectable when the complete occurrence is unreachable. Producer identity is not a
+`NodeId`, `ValueId`, graph membership, compiler-capture result, gradient or backward state,
+runtime state, or execution promise. The producer constructor and derived-construction seams are
+package-private; the public API exposes producers created by Tensor expressions and the public
+indexed output accessor.
 
 #### Single-output example
 
@@ -1017,6 +1043,7 @@ public final class SingleOutputProducerExample {
         System.out.println(producer.inputs().getFirst() == input);
         System.out.println(origin.outputDescriptor() == result.descriptor());
         System.out.println(producer.operation() == origin.operation());
+        System.out.println(producer.output(0) == result);
     }
 }
 ```
@@ -1031,36 +1058,46 @@ The program prints:
 true
 true
 true
+true
 ```
 
 The result has one producer output at index zero, retains the exact input reference, and shares
-the exact descriptor and operation references exposed through provenance. It does not prove that
-negation ran, that a graph was captured, or that a gradient rule exists.
+the exact descriptor and operation references exposed through provenance. Indexed lookup returns
+that same exact result object. It does not prove that negation ran, that a graph was captured, or
+that a gradient rule exists.
 
 ##### Useful variation
 
 Calling `input.neg()` twice creates two structurally equivalent but identity-distinct producers.
 The model does not intern them or perform common-subexpression elimination.
 
-#### Conceptual two-output example
-
-This is a conceptual model illustration, not a callable public multi-output API or an implemented
-operation:
+#### Multi-output and hidden-output identity
 
 ```text
 producer P
-  operation:          hypothetical two-output operation
+  operation:          one current multi-output operation
   inputs:             [input]
   outputDescriptors: [primaryDescriptor, auxiliaryDescriptor]
+  outputs:            [primaryResult, auxiliaryResult]
 
 primaryResult.provenance   = (P, 0)
 auxiliaryResult.provenance = (P, 1)
+P.output(0)                = primaryResult   // exact object identity
+P.output(1)                = auxiliaryResult // exact object identity
 ```
 
 Both results share the exact producer reference, while each retains the exact descriptor from its
-own ordered position. `P` retains neither result Tensor. This illustrates what the model can
-represent; no production multi-output operation, public sibling-result lookup, compiler capture,
-or graph-node creation is implemented by this contract.
+own ordered position. The producer retains both canonical wrappers, including output positions
+omitted from an ergonomic result carrier.
+
+For dropout, `result.output().provenance().orElseThrow().producer().output(1)` returns the hidden
+same-occurrence `BOOL` keep-mask wrapper. `DropoutResult` remains the two-component public carrier
+for the visible output and next RNG state; the mask is not added to it. For batch-normalization
+training, producer outputs three and four are the hidden saved mean and saved inverse standard
+deviation. `BatchNormTrainingResult` still exposes only the visible output, next running mean, and
+next running variance. These lookups expose current model identity and descriptors only; they do
+not sample dropout, compute statistics, construct gradients, capture a graph, compile, or execute
+the occurrence.
 
 Construction remains package-private so `Tensor` keeps one validation path. Code outside
 `model.tensor` creates tensors through the public static `TensorFactory`: `create(descriptor)`
@@ -9979,8 +10016,10 @@ remain planned.
 - `TensorProducer` rejects null components and indexed elements, empty output descriptors, and
   input/output counts outside the selected operation signature. It snapshots ordered inputs and
   output descriptors with exact element references, derives output count from the descriptor
-  list, retains no output Tensor, and uses ordinary object identity rather than structural
-  equality or an allocated producer ID.
+  list, and uses ordinary object identity rather than structural equality or an allocated producer
+  ID. It retains one canonical exact Tensor wrapper per output slot in a final immutable snapshot;
+  indexed lookup validates both bounds and returns the retained wrapper without allocation,
+  traversal, or reconstruction.
 - `TensorProvenance` rejects a null producer and every output index outside
   `[0, producer.outputCount())`. It retains the exact producer and index, then derives the exact
   operation, immutable ordered inputs, and selected descriptor. Record equality uses producer

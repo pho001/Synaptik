@@ -17,6 +17,7 @@ Focused architecture documentation:
 - [Partition scoring](partition-scoring.md)
 - [Performance evidence and model autotuning](performance-evidence-and-tuning.md)
 - [Training graph](training-graph.md)
+- [ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
 - [ADR 0007: Neural-network module and training boundary](../design/decisions/0007-neural-network-module-and-training-boundary.md)
 - [Tracing](tracing.md)
 - [Runtime / Prepare / Backend boundary](runtime-prepare-backend-boundary.md)

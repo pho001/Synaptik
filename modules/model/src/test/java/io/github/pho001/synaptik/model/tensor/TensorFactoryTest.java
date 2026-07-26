@@ -285,7 +285,9 @@ class TensorFactoryTest {
                 () -> assertFalse(Modifier.isPublic(createDerivedOutputs.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(createDerivedOutputs.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(createDerivedOutputs.getModifiers())),
-                () -> assertTrue(Modifier.isPrivate(allocator.getModifiers())),
+                () -> assertFalse(Modifier.isPublic(allocator.getModifiers())),
+                () -> assertFalse(Modifier.isProtected(allocator.getModifiers())),
+                () -> assertFalse(Modifier.isPrivate(allocator.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(convenience.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(complete.getModifiers())),
                 () -> assertTrue(Modifier.isStatic(allocateConvenience.getModifiers())),
@@ -435,6 +437,7 @@ class TensorFactoryTest {
                 () -> assertSame(input, provenance.inputs().getFirst()),
                 () -> assertEquals(1, provenance.producer().outputCount()),
                 () -> assertEquals(0, provenance.outputIndex()),
+                () -> assertSame(derived, provenance.producer().output(0)),
                 () -> assertSame(descriptor, provenance.outputDescriptor()),
                 () -> assertTrue(derived.hostStorage().isEmpty()));
     }
@@ -471,6 +474,8 @@ class TensorFactoryTest {
                 () -> assertTrue(first.hostStorage().isEmpty()),
                 () -> assertTrue(second.hostStorage().isEmpty()),
                 () -> assertSame(firstProvenance.producer(), secondProvenance.producer()),
+                () -> assertSame(first, firstProvenance.producer().output(0)),
+                () -> assertSame(second, firstProvenance.producer().output(1)),
                 () -> assertSame(operation, firstProvenance.operation()),
                 () -> assertSame(input, firstProvenance.inputs().getFirst()),
                 () -> assertEquals(0, firstProvenance.outputIndex()),

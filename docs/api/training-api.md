@@ -6,6 +6,13 @@ This reference records the planned public training concepts without inventing ca
 
 Training will own backend-independent optimizer algorithms and session concepts. The compiler will own global automatic differentiation (autograd), while concrete backends will own any backend-specific lowering or fused optimizer route.
 
+The accepted compiler design builds first-order gradients with existing public Tensor operations
+before one combined forward/backward capture. Model task 0025 is Complete; Compiler task 0004
+remains Draft and awaits its dedicated planning pass. Public Tensors gain no gradient/backward
+lifecycle state. The initial `TRAINING_STEP` mode uses combined forward/backward construction but
+adds no optimizer updates. Publication, explicit objectives/targets/seeds, higher-order
+differentiation, optimizer behavior, preparation, and execution remain planned.
+
 ## Planned concepts
 
 - `extensions/nn` will own `Parameter` and `Buffer` declarations as module state. Training will

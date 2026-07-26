@@ -12,25 +12,42 @@ a runnable training API.
 Synaptik distinguishes three compile modes:
 
 - **Forward-only mode** (`FORWARD_ONLY`) compiles only the forward computation and its requested publications.
-- **Forward-and-backward mode** (`FORWARD_AND_BACKWARD`) applies autograd to the forward graph and compiles the resulting forward and backward computation.
-- **Training-step mode** (`TRAINING_STEP`) represents a training step in which forward, backward, and eventually optimizer-update work may participate in one compiled plan.
+- **Forward-and-backward mode** (`FORWARD_AND_BACKWARD`) constructs gradient Tensor expressions
+  from the original forward expression and captures both phases together.
+- **Training-step mode** (`TRAINING_STEP`) initially uses that same combined forward/backward
+  construction. Optimizer-update graph work remains future.
 
 The compile mode changes the compile-time graph and publication needs. It does not allow a backend to own global autograd.
 
 ## Combined forward and backward graph
 
-When a compile mode requires gradients, the compiler may expand the captured forward graph before post-autograd optimization:
+When a compile mode requires gradients, the compiler builds backward expressions before the only
+capture:
 
 ```text
-forward graph
-  -> autograd expansion
-  -> combined forward + backward graph
-  -> post-autograd optimization
+original forward Tensor expression DAG
+  -> fail-closed compiler autograd preflight
+  -> gradient formulas through ordinary public Tensor operations
+  -> combined forward + gradient Tensor expression DAG
+  -> one phase-aware capture
+  -> immutable combined forward + backward graph
+  -> inference, validation, combined optimization, and final validation
   -> publication binding
   -> planning and partitioning
 ```
 
-The combined graph is still immutable compile-time graph state. Backends receive only their planned regions during prepare and execute only those prepared regions at runtime.
+The compiler uses exact Tensor identity only for temporary reverse-accumulation bookkeeping and
+ordinary `Tensor.add` for contribution accumulation. This is not a second graph representation.
+Named compiler rules own dispatch; model operations remain derivative-agnostic. Seeds and other
+derivative constants are storage-free leaves registered explicitly as compile-time splats.
+
+Phase-aware capture receives the original forward-producer identity set, forward outputs,
+gradient roots and target roles, and exact constant facts. It assigns graph-local IDs once and
+retains `FORWARD` or `BACKWARD` on every node. Two targets may share one captured gradient value;
+the role mapping remains target-specific while the graph output boundary lists that value once.
+
+The combined graph is immutable compile-time graph state. Backends receive only their planned
+regions during prepare and execute only those prepared regions at runtime.
 
 Compile-time combination does not require a single runtime schedule. Prepare may expose separate forward and backward schedules or one training-step schedule, depending on prepare-time decisions.
 
@@ -46,6 +63,22 @@ Seeing forward and backward work together allows compiler and planning passes to
 - ownership and partition decisions informed by the full training computation.
 
 These are global graph concerns, so they belong to compiler and backend-neutral planning rather than concrete backends.
+
+The first implementation reuses only already-proved exact rewrites and folding rules. Common
+subexpression elimination stays phase-local, and every changed immutable candidate is revalidated.
+No new algebraic identity follows merely from combining the phases.
+
+## Failures and future derivative order
+
+Preflight rejects any unsupported backward-reachable operation, exact attributes, or required
+derivative policy before it constructs backward expressions. Full inference follows capture, so a
+later failure can consume temporary Tensor IDs; callers must already treat those IDs as opaque.
+
+Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives are
+deliberately absent from the first implementation. A later lifecycle decision must define an
+explicit create-graph or derivative-order request, rules for every operation used inside gradient
+formulas, and a graph representation that distinguishes derivative order from forward/backward
+phase. No such extension may add mutable gradient state to Tensor.
 
 ## Optimizer as a backend-agnostic step
 

@@ -2,26 +2,33 @@
 
 ## Goal
 
-Compile tensor expressions into immutable compile artifacts through capture, validation, transformation, autograd, and planning orchestration.
+Compile Tensor expressions into immutable compile artifacts through one phase-aware capture,
+validation, exact graph transformation, compiler-owned autograd, and planning orchestration.
 
 ## Architecture references
 
 - [Architecture contract](../../../../ARCHITECTURE.md)
+- [Lifecycle](../../../architecture/lifecycle.md)
+- [Training graph](../../../architecture/training-graph.md)
 - [Module boundaries](../../../architecture/module-boundaries.md)
 - [Dependency rules](../../../architecture/dependency-rules.md)
+- [ADR 0009](../../../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
 
 ## Scope
 
 - graph capture and indexing
-- shape and data type inference and validation
-- canonicalization and graph optimization
-- complete valid backend-neutral graph-transformation candidate generation for later bounded
-  model tuning
-- autograd and backward graph construction
+- shape/data-type inference and validation
+- canonicalization and exact graph optimization
+- compiler-owned pre-capture Tensor-expression autograd
+- combined forward/backward graph construction
+- complete valid backend-neutral graph-transformation candidates for later bounded model tuning
 - publication, planning, logical memory orchestration, and diagnostics
 
 ## Out of scope
 
+- Tensor gradient/backward lifecycle state
+- model-owned derivative rules
+- a second low-level gradient algebra
 - physical buffers
 - prepared schedules and executions
 - backend-specific lowering
@@ -32,8 +39,11 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 - Compiler output is immutable compile-time state.
 - Compiler never constructs runtime execution units.
 - Compiler has no concrete backend dependency.
-- Compiler owns the semantics and validity of graph candidates; tuning tooling may measure a
-  bounded set but does not construct or reinterpret them.
+- Autograd rules and reverse accumulation belong to compiler.
+- Tensor identity maps exist only during one compile request and are not graph representations.
+- One phase-aware capture assigns combined graph-local IDs once.
+- Compiler owns graph-candidate semantics and validity; tuning may measure bounded complete
+  candidates but does not construct or reinterpret them.
 
 ## Allowed dependencies
 
@@ -51,191 +61,134 @@ Compile tensor expressions into immutable compile artifacts through capture, val
 
 ```text
 io.github.pho001.synaptik.compiler/
-  <root>  package-private graph capture, captured-graph verification inference, typed deferred
-          constraints, deterministic graph canonicalization, guarded exact arithmetic rewriting,
-          compiler-owned logical-splat facts and folding, and the bounded forward DCE/CSE/DCE
-          pipeline with constant-source pruning; later narrow public or
-          cross-package collaborations only when a concrete consumer justifies them
+  <root>  package-private forward/combined capture, inference and typed constraints,
+          deterministic canonicalization, exact arithmetic rewriting, logical-splat facts and
+          folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
+          accumulation, and combined graph result roles; later narrow public or cross-package
+          orchestration only when a concrete consumer justifies it
 ```
 
-The root package remains one cohesive internal front-end and forward-transformation boundary
-through task 0003B. Capture produces the structurally closed graph and maps only explicit
-constant ingress; verification inference
-revalidates semantics and retains unresolved constraints; canonicalization normalizes graph-local
-IDs; one guarded topological helper applies a closed seven-rule set comprising duplicate binary
-MIN/MAX, exact typed scalar positive-one identities, and exact typed integral scalar-zero
-identities; one constant helper folds only BOOL logic, signed-integral binary arithmetic and
-comparison, and same-typed signed-integral scalar arithmetic over known splats; and one narrow
-orchestrator applies both helpers before the existing forward DCE/CSE/DCE sequence under the
-existing config permission. Sidecar-aware DCE prunes only unused constant sources while preserving
-every bindable input. No pass registry,
-generic rewrite framework, public optimizer, or candidate model is planned. The package must not
-become a catch-all for artifacts, diagnostics, planning adapters, and public facades. Task 0005
-must justify any narrow cross-package/public orchestration boundary from its concrete consumer.
+The root package remains one cohesive internal compiler-front-end boundary. It must not become a
+catch-all for public facades, pass registries, gradient registries, generic algebra builders,
+artifacts, diagnostics, or planning adapters. Compiler task 0005 must justify any narrow
+cross-package/public orchestration boundary from a concrete consumer.
 
 ## Task list
 
 | ID | Task | Status | Depends on | Summary |
 |---|---|---|---|---|
-| 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Replaced the placeholder with package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving identity, every producer output slot, graph boundaries, and opaque state edges without a public facade. |
-| 0002 | [Captured-graph inference and validation](tasks/0002-captured-graph-inference-and-validation.md) | Complete | 0001 | Independently derives and verifies every current operation occurrence descriptor, rejects operand/domain contradictions, and retains only genuinely unresolved typed Shape constraints without transformation, binding, or backend decisions. |
-| 0003 | [Canonicalization and forward optimization](tasks/0003-canonicalization-and-forward-optimization.md) | Complete | 0002 | Added mandatory deterministic graph-local reindexing plus one config-controlled forward DCE/CSE/DCE sequence, revalidating every changed immutable graph candidate through task 0002. |
-| 0003A | [Exact arithmetic rewriting](tasks/0003a-exact-arithmetic-rewriting.md) | Complete | 0003 | Added a closed seven-rule set: guarded non-gradient internal forward binary `MIN(x, x)`/`MAX(x, x)`, exact typed scalar MUL-by-one for every current numeric domain, DIV/POW-by-one for floating domains, and ADD/SUB-zero for integral domains; it runs after canonical validation and before unchanged one-shot DCE/CSE/DCE, revalidates changes through Compiler 0002, distinguishes immutable scalar attributes from 0003B graph-value constants, and excludes broader algebra and relaxed/fast math. |
-| 0003B | [Compile-time constants and constant folding](tasks/0003b-compile-time-constants-and-constant-folding.md) | Complete | 0003A | Added an internal immutable logical-splat sidecar and explicit leaf ingress; folds only BOOL logic, exact signed-integral binary arithmetic/comparison, and same-typed signed-integral scalar arithmetic; prunes unused constant sources without dropping bindable inputs; and preserves the sidecar for task 0005 artifact transport without reading Tensor storage or allocating physical values. |
-| 0004 | Autograd and backward graph construction | Draft | 0002, 0003, 0003A, and 0003B | Expand selected compile modes into valid combined forward/backward graph state after exact forward rewriting and constant folding, then support post-autograd optimization. |
-| 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004 including 0003A–0003B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
-
+| 0001 | [Tensor expression graph capture](tasks/0001-tensor-expression-graph-capture.md) | Complete | Completed model graph/provenance/RNG-state foundations and model milestone closure | Added package-private deterministic forward capture from requested Tensor outputs to `CompiledGraphModel`, preserving exact producer identity, every output slot, graph boundaries, and opaque state edges. |
+| 0002 | [Captured-graph inference and validation](tasks/0002-captured-graph-inference-and-validation.md) | Complete | 0001 | Independently derives and verifies every current operation descriptor, rejects semantic contradictions, and retains only genuinely unresolved typed Shape constraints. |
+| 0003 | [Canonicalization and forward optimization](tasks/0003-canonicalization-and-forward-optimization.md) | Complete | 0002 | Added mandatory deterministic graph-local reindexing plus one config-controlled forward DCE/CSE/DCE sequence, revalidating every changed immutable candidate through 0002. |
+| 0003A | [Exact arithmetic rewriting](tasks/0003a-exact-arithmetic-rewriting.md) | Complete | 0003 | Added the closed seven-rule guarded exact arithmetic matrix before the forward DCE/CSE/DCE sequence, with 0002 revalidation and no relaxed algebra. |
+| 0003B | [Compile-time constants and constant folding](tasks/0003b-compile-time-constants-and-constant-folding.md) | Complete | 0003A | Added explicit logical-splat ingress, bounded BOOL/signed-integral folding, and sidecar-aware constant-source pruning without storage reads or physical values. |
+| 0004 | Compiler-owned pre-capture autograd and combined graph compilation | Draft | Model 0025; Compiler 0001–0003B | Preflight the original forward Tensor DAG, build a closed first gradient matrix through ordinary public Tensor operations, capture forward outputs and gradient roles together once, infer/validate, and apply only proved exact rewriting, folding, DCE, and phase-local CSE to the immutable combined graph before final validation. |
+| 0004A | Exact-composition gradient-rule extensions | Draft | 0004 | Extend the supported matrix with bounded regular formulas after the core one-capture pipeline is proved. |
+| 0004B | Derivative-policy selection and policy-dependent gradient rules | Draft | 0004A | Select explicit boundary, tie, discontinuity, singularity, and cross-floating conversion policies before adding policy-dependent formulas. |
+| 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
+| 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005 and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, formula-operation coverage, and phase/order representation without Tensor gradient lifecycle state. |
 
 ## Milestones
 
-- Capture and validation
-- Optimization and autograd — run the compiler transformation-and-autograd capability checkpoint
-  after task 0004
-- Planning orchestration and compile artifacts
+- Capture and validation — Complete through task 0002.
+- Exact optimization foundations — Complete through task 0003B.
+- Pre-capture autograd and combined graph compilation — tasks 0004–0004B; run the compiler
+  transformation/autograd capability checkpoint after 0004B.
+- Planning orchestration and compile artifacts — task 0005.
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Tasks 0001–0002 are Complete and
-close the compiler capture-and-validation milestone. Task 0001 captures the closed model
-expression/provenance surface into the current immutable graph model. Task 0002 adds
-package-private verification inference over that graph: every current production operation family
-is revalidated, complete output descriptors are independently derived and compared, and current
-dimension/Shape obligations are proven, rejected, or retained as typed internal constraints.
-Task 0003 is Complete. It adds only mandatory deterministic graph-local reindexing plus
-the smallest optional standard forward pipeline: dead-code elimination, exact common-subexpression
-elimination, then one dead-code cleanup. Each newly constructed graph candidate is revalidated
-through task 0002. The bounded sequence runs once and does not iterate to a fixed point.
-Task 0003A is Complete. Its implementation provides a closed seven-rule set:
-internal forward binary `MIN(x, x)`/`MAX(x, x)` plus exact typed scalar MUL-by-positive-one in all
-numeric domains, DIV/POW-by-positive-one in floating domains, and ADD/SUB-zero in integral
-domains. Every bypass requires complete descriptor equality, `requiresGrad == false`, a one-output
-occurrence, and a non-graph-output result; scalar rows additionally require the exact immutable
-`ScalarValueAttrs` carrier, type, and typed value. One scan runs after canonical validation and
-before task 0003's unchanged one-shot DCE/CSE/DCE sequence; a changed candidate is revalidated
-through task 0002. Scalar attributes are graph-visible semantic facts, not graph-value constants;
-Tensor zero/one recognition and new result constants remain 0003B. Gradient-eligible occurrences
-remain until task 0004 defines their operation, tie, and operand-multiplicity semantics.
-Task 0003B is Complete. It adds one compiler-owned immutable
-logical-splat sidecar and explicit ingress for reachable provenance-free non-gradient leaves.
-Every constant is a structural graph input plus an exact typed fact; derived bindable inputs
-exclude fixed sources, and sidecar-aware DCE prunes unused constant sources without dropping any
-bindable input. One scan folds BOOL NOT/AND/OR, signed-integral binary ADD/SUB/MUL/MIN/MAX, all six
-signed-integral comparisons, and same-typed signed-integral scalar ADD/SUB/MUL/MIN/MAX. It runs
-after task 0003A and before task 0003's unchanged one-shot DCE/CSE/DCE order, with task 0002
-revalidation after every changed candidate. Floating/BFLOAT16 evaluation, casts, other scalar
-operations, graph-output or multi-output folding, dense payloads, broad partial evaluation,
-host-storage reads, and physical allocation are excluded. Task 0005 must transport the exact
-immutable sidecar or a semantically identical named constant-plan component in compile artifacts,
-while prepare/backend remain physical materialization owners. Tasks 0003A and 0003B precede
-autograd so these separately proved forward-only rewrite boundaries are stable before task 0004
-introduces backward occurrences and post-autograd optimization. Tasks 0004 and 0005 remain Draft
-rows without detailed specifications; no compiler task is Ready.
+In progress through an explicitly bounded roadmap interleave, but no compiler task is Ready.
+Tasks 0001–0003B remain Complete with their recorded source, tests, documentation, and validation.
 
-This interleave does not claim that the compiler project's full roadmap entry condition is met.
-Tasks 0001–0003B depend only on completed model contracts and the completed config optimization
-permission. They use none of the still-Draft config cost, trace payload, runtime, prepare,
-planning-orchestration, publication, or compile-artifact surfaces. Task 0003 consumes only a
-successful task-0002 result and the standalone `GraphOptimizationConfig`; it creates no compile
-aggregate or public artifact. Task 0003A consumes the same internal graph/config boundary and adds
-no new module or public dependency. Complete task 0003B consumes the same boundary plus exact model
-`ScalarValue` facts supplied explicitly at capture and likewise adds no public declaration or
-module dependency.
+Accepted ADR 0009 changes the next compiler architecture from captured-forward placeholder
+conversion to compiler-owned pre-capture Tensor-expression autograd. The prerequisite is
+[Model task 0025](../model/tasks/0025-canonical-tensor-producer-outputs.md), which is Complete. It
+makes exact hidden producer outputs retrievable without reconstructing wrappers. Compiler 0004
+remains Draft without a detailed task specification and awaits a separate dedicated planning
+pass; completion of the model prerequisite does not automatically advance compiler status.
+
+This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
+for a forward-only immutable graph. Compiler 0004 must reassess their orchestration rather than
+rewrite that history: after one combined capture and initial validation, it applies their existing
+exact rules only where current guards prove them phase-safe, performs whole-graph liveness, keeps
+CSE phase-local initially, and revalidates every changed candidate through task 0002. It invents
+no new rewrite.
+
+Config 0004 remains Draft because these compiler transformations require no planning-cost
+classification. Trace 0003 and later remain Draft because no stable emission schema is selected.
+Runtime and prepare remain Draft because no prepared or executable state is introduced.
 
 ## Open questions
 
-- The candidate boundary remains Draft until graph transformations, compile artifacts, and the
-  prepare/tuning orchestration consumer are stable. No public Java declaration is selected here.
-- The owning public/artifact boundary for unresolved graph constraints remains deferred until
-  task 0005 and a concrete prepare/runtime binding consumer are stable. Task 0002 uses an internal
-  result only and does not decide serialization or concrete binding.
-- The first cross-package collaboration with planning remains deferred to task 0005. Planning's
-  four current evaluator/generator operations stay package-private until that concrete compiler
-  orchestrator can justify one narrow boundary.
+- The exact first gradient-rule matrix and package-private result type remain Draft task-0004
+  planning decisions for a separate dedicated planning pass after completed model task 0025. They
+  must fit the accepted architecture rather than reopen placeholder conversion.
+- The public/artifact boundary for explicit objectives, targets, seeds, unresolved constraints,
+  and gradient roles remains deferred until task 0005 and its consumers are stable.
+- The first cross-package collaboration with planning remains deferred to task 0005.
 
 ## Decisions made
 
-- The implementation must follow the current architecture contract.
-- Legacy code is capability evidence only; new implementation is written from scratch.
-- Model autotuning does not move backend-neutral graph-transformation ownership out of the
-  compiler or backend-specific fusion ownership out of concrete backends.
-- Task 0001 uses one package-private capture entry point returning only `CompiledGraphModel`.
-  It adds no transitional public compiler facade or API.
-- Capture assigns graph-local IDs from deterministic requested-output/input/output-slot encounter
-  order, deduplicates exact producer identities, preserves every producer output slot, and keeps
-  internal opaque RNG-state edges.
-- Direct `GraphRngState` boundary selection remains unsupported because the model deliberately
-  exposes no public state Tensor. Reachable state edges are captured through producer inputs.
-- Task 0002 validates graph model data rather than reconstructing temporary Tensor expressions.
-  It returns the exact accepted graph plus immutable unresolved constraints, fails closed for an
-  unknown operation kind, and never binds named or expression dimensions.
-- Task 0003 consumes only a successful `ValidatedGraph`. Mandatory canonicalization allocates
-  graph inputs first and then node outputs in topological/output-slot order, with dense IDs from
-  zero, while preserving exact operations, descriptors, phases, and graph boundaries.
-- Task 0003's optional standard pipeline is one forward DCE pass, one exact forward CSE pass, then
-  one forward DCE cleanup pass, without fixed-point iteration. CSE uses equal phase/operation/
-  ordered-remapped-input/complete-descriptor keys, merges all outputs slotwise, and permits graph-
-  output producers neither to merge nor to serve as representatives. DCE retains all graph inputs,
-  graph outputs, non-forward work and dependencies, and every output slot of a live node.
-- Task 0003 reuses task 0002 after mandatory canonicalization and after every changed optional
-  candidate. Disabled optimization suppresses only the DCE/CSE/DCE sequence, never
-  canonicalization or validation.
-- Constant value execution, cast/arithmetic/algebraic/view rewrites, decomposition, fusion, a pass
-  registry, graph-candidate collection, cost/tuning behavior, and backend-specific work are not
-  justified by this first pipeline and remain absent.
-- Complete task 0003A selects exactly seven non-gradient internal forward rules: duplicate binary
-  MIN/MAX, exact typed scalar MUL-by-one in every current numeric domain, DIV/POW-by-one in current
-  floating domains, and ADD/SUB-zero in current integral domains. Complete input/output descriptor
-  equality, one output, and graph-output exclusion are common guards; a changed candidate is
-  revalidated before task 0003's unchanged one-shot DCE/CSE/DCE sequence consumes it.
-- Every gradient-eligible selected occurrence remains intact because task 0004 has not yet defined
-  operation, saved-value, extrema-tie, or repeated-operand backward semantics.
-- Task 0003A reads exact immutable scalar operation attributes but rejects Tensor constant
-  recognition, floating ADD/SUB zero, MUL zero, cancellation, bounds/clamp identities, other POW
-  exponents, broader algebra, reassociation, commutation, reciprocal substitution, and exceptional-
-  value assumptions. POW 2, -1, and other small integers remain possible future backend-prepare
-  strength reductions subject to explicit numerical/conformance contracts; relaxed or fast-math
-  transformations require a future explicit numerical-permission contract.
-- Complete task 0003B follows 0003A and owns compiler-local compile-time splats and constant folding.
-  Its explicit ingress names reachable provenance-free non-gradient leaves; absent leaves remain
-  bindable regardless of factory history or storage. Constant sources are structural graph inputs
-  excluded from the derived bindable-input list. Folding selects only BOOL logic, signed-integral
-  binary arithmetic/comparison, and same-typed signed-integral scalar arithmetic; graph-output,
-  multi-output, floating/BFLOAT16, cast, gradient, and other operations remain. Sidecar-aware DCE
-  prunes unused constants while graph-only DCE remains unchanged. Every changed candidate is
-  revalidated through Compiler 0002. Task 0005 must transport the exact immutable facts in compile
-  artifacts for later prepare/backend materialization; 0003B adds no runtime/backend execution,
-  physical allocation, broad partial evaluation, relaxed/fast-math behavior, public facade, or
-  architecture change.
-- Config 0004 is not selected because capture, validation, and graph transformation consume no
-  planning cost classification or unit. Trace 0003+ are not selected because none of these tasks
-  emits a payload.
-  Runtime is not selected because prepared contracts and runtime-facing config/trace consumers
-  are not yet stable. Prepare is not selected because it requires compiler artifacts and runtime
-  contracts, none of which tasks 0001–0003 invents.
+- Legacy code is read-only capability and formula evidence. Its mutable `Tensor.gradient`,
+  `ThreadLocal` compilation scope, Tensor-owned derivative dispatch, and mutable graph cloning are
+  rejected.
+- `FORWARD_ONLY` skips autograd.
+- `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` construct the combined Tensor expression
+  before capture. `TRAINING_STEP` adds no optimizer updates yet.
+- Before backward construction, compiler inventories every backward-reachable producer occurrence,
+  output role, exact attributes, and required derivative policy. Unsupported work fails closed.
+- Full inference/validation occurs after the one combined capture. Later failures may consume
+  temporary Tensor IDs; IDs are never rolled back or reused.
+- Named compiler components such as `ElementwiseGradientRules` own dispatch. Formulas use only
+  ordinary public Tensor operations such as `mul`, `add`, `sumToShape`, and `transpose`.
+- One compile request may use `IdentityHashMap`-style Tensor-to-contribution and
+  Tensor-to-accumulated-gradient bookkeeping. It is ephemeral compiler state, not Tensor state,
+  graph IR, or a second graph.
+- Contribution accumulation uses ordinary `Tensor.add` in deterministic contribution order.
+- Seeds and derivative constants are storage-free Tensor leaves/expressions explicitly registered
+  as logical splats. Tensor storage and factory history are never constant evidence.
+- Model task 0025 supplies the exact canonical wrapper for every producer output slot, including
+  hidden dropout and batch-normalization auxiliaries. Compiler does not reconstruct wrappers.
+- Phase-aware capture receives forward outputs, gradient roots and target roles, the original
+  forward-producer identity set, and explicit constant facts. It assigns `NodeId`/`ValueId` once
+  and retains `GraphPhase` per node.
+- Multiple targets may map independently to the same captured gradient `ValueId`; the graph output
+  boundary lists each distinct gradient value once and adds no identity node for role separation.
+- Initial combined optimization applies only the exact 0003A/0003B rules whose current guards are
+  proved safe, whole-graph DCE, and phase-local CSE. Every changed graph is revalidated through
+  0002. No new algebra follows from autograd.
+- Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives wait
+  for 0006's explicit create-graph/derivative-order lifecycle, complete rule coverage for formula
+  operations, and phase/order representation.
+- No task adds `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder
+  `ValueId` conversion, a second low-level algebra, a public gradient registry/facade, a physical
+  tape, or backend-owned global autograd.
+- Compiler 0005 owns later publication and planning orchestration. It does not inherit unfinished
+  graph simplification.
 
 ## Risks
 
-- Creating prepared or backend-specific state during compilation.
-- Merging identity-distinct occurrences without the complete exact CSE key, or collapsing a
-  graph-output/publication boundary that must remain distinct.
-- Dropping an output slot from a retained multi-output producer that later compiler work may need
-  as an auxiliary, saved, or opaque state value.
-- Publishing a speculative compiler facade before engine/config/artifact consumers are stable.
-- Duplicating model-time validation incompletely and silently trusting an unhandled operation
-  family instead of failing closed.
-- Treating an unresolved symbolic obligation as proven, or inventing runtime binding/public
-  artifact contracts before their consumers exist.
-- Applying a mathematically familiar arithmetic identity without proving it against the current
-  operation, data-type, exceptional-value, signed-zero, overflow, and promotion semantics.
-- Bypassing an arithmetic output whose descriptor differs from its input, or collapsing a
-  graph-output occurrence whose distinct requested identity must remain observable.
-- Deriving authoritative compile-time constants from mutable public Tensor host storage instead
-  of a compiler-owned immutable ingress fact.
-- Exposing a constant source through later public/run input binding, or dropping its immutable
-  sidecar before Compiler 0005 transports it to prepare-time materialization.
-- Retaining unused synthetic or ingress constant sources forever because graph-only DCE preserves
-  every graph input, instead of applying the planned sidecar-aware pruning boundary.
+- Treating pre-capture Tensor expressions as graph-local IR.
+- Publishing or reconstructing a sibling output instead of using the producer's canonical exact
+  wrapper.
+- Constructing partial backward expressions before discovering an unsupported exact attribute or
+  policy.
+- Losing repeated-operand contributions or changing deterministic accumulation order.
+- Inferring constants from Tensor storage, labels, descriptors, provenance absence, or factory
+  history.
+- Assigning graph-local IDs in separate forward and backward passes.
+- Replacing per-node phase with only a positional backward boundary.
+- Manufacturing identity nodes when result roles share one gradient value.
+- Applying forward-only rewrite/folding assumptions to backward nodes without proving their
+  existing guards.
+- Merging equal expressions across phases before an explicit proof.
+- Turning logical saved Tensor edges into physical buffers, recomputation policy, runtime
+  scheduling, or a compiler-owned tape.
+- Creating a public facade before the engine/config/artifact consumers are stable.
 
 ## Notes
 
-Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+Follow the planning guide's progressive-planning rule. Model 0025 is Complete. Compiler 0004
+remains Draft without a detailed task specification until a separate dedicated planning pass
+advances the roadmap.

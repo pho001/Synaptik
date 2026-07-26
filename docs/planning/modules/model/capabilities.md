@@ -68,9 +68,18 @@ updated random-number-generator (RNG) state, and attention weights now use true 
 provenance. The selected design is one immutable identity-
 bearing producer with an exact operation, ordered input Tensors, and ordered output descriptors.
 Each result Tensor carries the exact producer reference plus its zero-based output position.
-Output count is derived from the descriptor list; the producer never retains output Tensor
-objects. The same representation covers single-output expressions at output position zero. It
-must remain provenance, not graph IR, and must not give Tensor a graph-local `NodeId`.
+Output count is derived from the descriptor list. Accepted ADR 0009 exposes one compiler
+prerequisite that completed task 0018L deliberately excluded: pre-capture gradient formulas need
+the canonical exact wrapper for hidden auxiliary positions. Completed task 0025 now makes the
+producer retain and retrieve each factory-created output Tensor. The same representation covers
+single-output expressions at output position zero. It remains provenance, not graph IR, and does
+not give Tensor a graph-local `NodeId`.
+
+The reference cycle from output Tensor through provenance to producer and back to canonical
+outputs is immutable, safely published, and collectable. Factory construction completes the final
+output snapshot before returning any wrapper. Retaining one result may retain siblings, but the
+cycle owns no external resource. No wrapper reconstruction, global registry, weak-reference
+lifecycle, gradient state, storage ownership, or runtime resource is selected.
 
 Unstack does not justify a true multi-output primitive. It is a public convenience that constructs
 independent scalar `select` expressions. Genuine multi-output operations use the shared producer
@@ -815,7 +824,9 @@ called the already-implemented public mutable Tensor API planned. Completed
 [task 0024A](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) corrected that sole
 documentation blocker to current-status wording, preserved the Java declaration and behavior,
 recorded the audit closure, and passed final model-Javadoc and documentation validation. The
-selected model capability milestone is now Complete.
+selected model capability milestone remains historically Complete. Completed task 0025 is a
+focused compiler-enabling producer foundation discovered later by ADR 0009; it does not reopen
+operation semantics or the public Tensor method inventory.
 
 Task 0023E's focused run passed 44 tests, and its single final model suite passed 1,008 tests across
 126 suites. Its separate documentation pass validated model Javadoc, Java 26 API shape, generated

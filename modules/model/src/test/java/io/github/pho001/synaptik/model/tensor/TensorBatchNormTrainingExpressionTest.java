@@ -88,6 +88,8 @@ final class TensorBatchNormTrainingExpressionTest {
         Tensor nextVariance = result.nextRunningVariance();
         TensorProducer producer = output.provenance().orElseThrow().producer();
         List<TensorDescriptor> descriptors = producer.outputDescriptors();
+        Tensor savedMean = producer.output(3);
+        Tensor savedInverseStandardDeviation = producer.output(4);
 
         assertAll(
                 () -> assertEquals(before, output.id().value()),
@@ -95,11 +97,26 @@ final class TensorBatchNormTrainingExpressionTest {
                 () -> assertEquals(before + 2, nextVariance.id().value()),
                 () -> assertEquals(before + 5, next.get()),
                 () -> assertEquals(5, producer.outputCount()),
+                () -> assertSame(output, producer.output(0)),
+                () -> assertSame(nextMean, producer.output(1)),
+                () -> assertSame(nextVariance, producer.output(2)),
                 () -> assertSame(producer, nextMean.provenance().orElseThrow().producer()),
                 () -> assertSame(producer, nextVariance.provenance().orElseThrow().producer()),
+                () -> assertSame(
+                        producer, savedMean.provenance().orElseThrow().producer()),
+                () -> assertSame(
+                        producer,
+                        savedInverseStandardDeviation
+                                .provenance().orElseThrow().producer()),
                 () -> assertEquals(0, output.provenance().orElseThrow().outputIndex()),
                 () -> assertEquals(1, nextMean.provenance().orElseThrow().outputIndex()),
                 () -> assertEquals(2, nextVariance.provenance().orElseThrow().outputIndex()),
+                () -> assertEquals(
+                        3, savedMean.provenance().orElseThrow().outputIndex()),
+                () -> assertEquals(
+                        4,
+                        savedInverseStandardDeviation
+                                .provenance().orElseThrow().outputIndex()),
                 () -> assertSame(BatchNormKind.BATCH_NORM_TRAINING,
                         producer.operation().kind()),
                 () -> assertEquals(new BatchNormTrainingAttrs(1, momentum, epsilon),
@@ -125,6 +142,13 @@ final class TensorBatchNormTrainingExpressionTest {
                 () -> assertTrue(descriptors.get(2).requiresGrad()),
                 () -> assertTrue(descriptors.get(3).requiresGrad()),
                 () -> assertTrue(descriptors.get(4).requiresGrad()),
+                () -> assertSame(descriptors.get(3), savedMean.descriptor()),
+                () -> assertSame(
+                        descriptors.get(4), savedInverseStandardDeviation.descriptor()),
+                () -> assertTrue(savedMean.label().isEmpty()),
+                () -> assertTrue(savedMean.hostStorage().isEmpty()),
+                () -> assertTrue(savedInverseStandardDeviation.label().isEmpty()),
+                () -> assertTrue(savedInverseStandardDeviation.hostStorage().isEmpty()),
                 () -> assertTrue(List.of(output, nextMean, nextVariance).stream()
                         .allMatch(tensor -> tensor.label().isEmpty()
                                 && tensor.hostStorage().isEmpty())));

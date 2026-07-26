@@ -671,7 +671,17 @@ The normative rules that define Synaptik's module responsibilities, dependency d
 
 ### Autograd
 
-Automatic differentiation: a compiler transformation that derives gradient computations from the forward computation when the compile mode requires them. In Synaptik, the compiler performs global autograd and constructs the backward graph. A concrete backend does not perform global autograd; it prepares and executes only its assigned regions. See [Training graph](architecture/training-graph.md).
+Automatic differentiation: a compiler transformation that derives gradient computations from the
+forward computation when the compile mode requires them. In Synaptik, the compiler owns global
+reverse traversal, gradient-rule selection, seeds, targets, ordered contribution accumulation,
+one phase-aware combined capture, validation, and combined-graph optimization. A concrete backend
+does not perform global autograd; it prepares and executes only its assigned regions.
+
+The accepted [pre-capture Tensor-expression autograd](#pre-capture-tensor-expression-autograd)
+design uses ordinary public Tensor operations over the original forward expression. This strategy
+does not add public Tensor gradient/backward lifecycle state. Model task 0025 is Complete and
+supplies canonical producer-output wrappers; Compiler task 0004 remains Draft without a detailed
+task specification or implementation. See [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
 
@@ -867,7 +877,10 @@ report contract and harness remain planned in `tools/benchmarks`.
 
 ### Backward graph
 
-The graph of gradient computations derived by autograd from a forward graph. It propagates derivatives from requested outputs toward differentiable inputs or parameters. In backward-capable compile modes, the compiler may combine it with the forward graph before post-autograd optimization and planning. See [Training graph](architecture/training-graph.md).
+The graph nodes produced by capturing gradient Tensor expressions derived from an original
+forward Tensor expression. In backward-capable compile modes, the compiler captures forward
+outputs and gradient roots together once, then validates and optimizes the immutable combined
+graph before planning. See [Training graph](architecture/training-graph.md).
 
 ### Batch dimension
 
@@ -1005,7 +1018,11 @@ contract remains planned.
 
 ### Compile
 
-The lifecycle stage that captures a tensor expression, builds and validates graph semantics, applies graph transformations, adds autograd when requested, assigns backend ownership, and creates immutable compile artifacts. Compile creates a logical recipe; it does not allocate physical buffers, choose concrete kernels, or create backend executables. See [Lifecycle](architecture/lifecycle.md).
+The lifecycle stage that optionally builds gradient Tensor expressions, captures one forward-only
+or combined graph, validates and transforms immutable graph semantics, assigns backend ownership,
+and creates immutable compile artifacts. Compile creates a logical recipe; it does not allocate
+physical buffers, choose concrete kernels, or create backend executables. See
+[Lifecycle](architecture/lifecycle.md).
 
 ### Compile artifacts
 
@@ -1310,6 +1327,24 @@ and same-typed signed-integral scalar arithmetic over explicit splats. It does n
 floating/BFLOAT16 facts, casts, unselected operations, or dense payloads; construct autograd;
 derive publication or planning; allocate physical values; or expose a public compiler API. See
 [Compile API](api/compile-api.md#current-package-private-canonicalization-and-forward-optimization).
+
+### Pre-capture Tensor-expression autograd
+
+The accepted compiler design for constructing gradient formulas with the existing public Tensor
+operation vocabulary before graph capture. Named compiler gradient-rule components traverse the
+original forward expression, use exact Tensor identity for temporary contribution bookkeeping,
+and combine contributions with ordinary `Tensor.add`.
+
+Seeds and derivative constants are storage-free leaves registered explicitly as logical splats.
+One capture receives forward outputs, gradient roots and target roles, original forward-producer
+identities, and constant facts. It assigns graph-local IDs once and records each node's
+`FORWARD` or `BACKWARD` phase. The immutable combined graph then receives inference, validation,
+exact optimization, and final validation.
+
+The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
+public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
+Model task 0025 is Complete; Compiler task 0004 remains Draft without a detailed specification or
+implementation.
 
 ### Neural-network module, parameter, buffer, and forward context
 
@@ -2094,9 +2129,13 @@ derived from the descriptor-list size rather than stored independently.
 Separate producers use ordinary object identity even when operation, inputs, and descriptors are
 structurally equal. This is occurrence identity in the public expression model, not an allocated
 producer ID, `NodeId`, `ValueId`, graph membership, graph capture, or a common-subexpression key.
-The producer retains no output Tensor, label, storage, value, gradient, compiler, backend, runtime,
-or execution state. Result references therefore point from Tensor to provenance to producer, with
-no producer/result cycle. See [Expression producers and indexed
+The producer retains one canonical exact Tensor wrapper for every output slot, and
+`output(outputIndex)` returns the retained wrapper without allocation or reconstruction. Each
+wrapper's indexed provenance points back to the same producer, producing one immutable, safely
+published `Tensor -> TensorProvenance -> TensorProducer -> outputs -> Tensor` cycle. Retaining one
+result may retain siblings; the cycle owns no external resource and is ordinarily collectable
+when unreachable. The producer still gains no label, storage, value, gradient, compiler, backend,
+runtime, or execution state. See [Expression producers and indexed
 provenance](api/tensor-api.md#expression-producers-and-indexed-provenance).
 
 ### Provenance
@@ -2592,8 +2631,8 @@ operations, which share one producer across distinct output indices.
 
 ### Tensor
 
-The implemented public mutable API object for stable tensor metadata and optional host-visible
-state. The current final `Tensor` retains one exact immutable [`TensorId`](#tensorid), one exact
+The implemented public model object for stable tensor metadata and optional host-visible state.
+The current final `Tensor` retains one exact immutable [`TensorId`](#tensorid), one exact
 immutable [`TensorDescriptor`](#tensor-descriptor), one normalized immutable optional label, and
 immutable optional [`TensorProvenance`](#provenance). Its only current mutation is a synchronized
 optional borrowed [`HostTensorStorage`](#host-storage) association. Replacement validates matching
@@ -2605,6 +2644,12 @@ Provenance remains the same exact value across every storage transition and is a
 synchronization because it is final. When present, its selected output descriptor must be the
 same exact reference as the Tensor descriptor; an equal but separately constructed descriptor is
 rejected.
+
+Tensor owns no gradient field, backward method, or gradient-lifecycle state. Each producer now
+retains the canonical exact Tensor wrapper for every output slot, so hidden same-occurrence
+auxiliaries can be retrieved without reconstructing wrappers. Retaining one derived Tensor may
+therefore retain its producer's sibling outputs; the immutable cycle owns no external resource and
+remains ordinarily collectable when unreachable.
 
 Construction remains package-private, and the implemented [`TensorFactory`](#tensor-factory) is
 the supported public construction boundary. The object uses ordinary identity equality and
@@ -3189,7 +3234,7 @@ expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window tr
 
 | `Tensor` | Graph value |
 |---|---|
-| Implemented public mutable API state | Immutable compile-time graph state |
+| Implemented public model state with immutable identity, descriptor, label, and provenance plus one existing mutable borrowed-host-storage association | Immutable compile-time graph state |
 | Retains stable ID, descriptor, label, and optional provenance plus optional mutable host storage | Represents logical data flowing between graph nodes |
 | Identified by `TensorId` | Identified by graph-local `ValueId` |
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |

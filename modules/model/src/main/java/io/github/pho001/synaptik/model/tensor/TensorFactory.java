@@ -54,12 +54,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * tensor access, expose caller-supplied provenance, allocate native or backend memory, or provide
  * compiler, runtime, backend, or random-source behavior. Every public creation method produces a
  * provenance-free leaf. Package-private derived-construction seams create one validated
- * {@link TensorProducer} and attach indexed provenance to either one labeled-or-unlabeled result
- * or an immutable ordered list of unlabeled results. They perform no graph capture, traversal,
- * inference, or evaluation. Integer ranges synthesize canonical dense INT32 or INT64 leaf data
- * and reuse flat import for final allocation and identity assignment. Explicit-source random leaf
- * initialization belongs to {@link TensorRandoms}; test-fixture prefix preparation is not a
- * production capability.</p>
+ * {@link TensorProducer} together with every canonical output wrapper and indexed provenance.
+ * They assign the producer's final output snapshot before returning any wrapper, then return
+ * either canonical output zero or an immutable ordered list assembled from canonical indexed
+ * outputs. This intentionally creates an immutable
+ * {@code Tensor -> TensorProvenance -> TensorProducer -> outputs -> Tensor} cycle. Retaining one
+ * result may retain sibling results; the cycle owns no external resource and remains eligible for
+ * ordinary garbage collection when unreachable. These seams perform no graph capture, traversal,
+ * gradient construction, compiler work, inference, evaluation, or execution. Integer ranges
+ * synthesize canonical dense INT32 or INT64 leaf data and reuse flat import for final allocation
+ * and identity assignment. Explicit-source random leaf initialization belongs to
+ * {@link TensorRandoms}; test-fixture prefix preparation is not a production capability.</p>
  */
 public final class TensorFactory {
     /**
@@ -161,13 +166,16 @@ public final class TensorFactory {
      * is created. One producer snapshots the ordered input references and the exact descriptor as
      * its sole output, then validates the resulting counts through the selected operation
      * signature. Producer validation failures consume no identifier. The result uses producer
-     * output index zero and retains that same descriptor reference.</p>
+     * output index zero, retains that same descriptor reference, and is the exact object returned
+     * by its producer's {@link TensorProducer#output(int) output(0)} accessor.</p>
      *
      * <p>After producer validation, exactly one identifier is allocated. A blank label rejected by
      * the package-private Tensor constructor consumes that identifier; exhaustion reports before
-     * Tensor construction and is not rolled back. The fresh result has no host storage. This seam
-     * performs no family-specific operand validation, descriptor inference, graph capture or
-     * traversal, gradient inference, storage allocation, or eager evaluation.</p>
+     * Tensor construction and is not rolled back. The producer's final output snapshot is assigned
+     * before the canonical result is returned, so successful publication cannot expose a partial
+     * occurrence. The fresh result has no host storage. This seam performs no family-specific
+     * operand validation, descriptor inference, graph capture or traversal, gradient inference,
+     * storage allocation, eager evaluation, or execution.</p>
      *
      * @param descriptor non-null completed immutable descriptor to retain by exact reference
      * @param label non-null value-based optional diagnostic label; Tensor normalizes and validates
@@ -196,13 +204,13 @@ public final class TensorFactory {
         Objects.requireNonNull(label, "label");
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
-        TensorProducer producer = new TensorProducer(operation, inputs, List.of(descriptor));
-        return new Tensor(
-                nextTensorId(),
-                descriptor,
+        TensorProducer producer = new TensorProducer(
+                operation,
+                inputs,
+                List.of(descriptor),
                 label,
-                Optional.of(new TensorProvenance(producer, 0)),
-                Optional.empty());
+                TensorFactory::nextTensorId);
+        return producer.output(0);
     }
 
     /**
@@ -212,11 +220,15 @@ public final class TensorFactory {
      * allocation. Exactly one producer snapshots the ordered inputs and output descriptors,
      * validates their counts, and is then shared by every returned tensor. Each tensor retains the
      * exact descriptor reference from its zero-based producer position, receives an independent
-     * ID, and has no label or host storage. The returned list is an immutable ordered snapshot.</p>
+     * ID, and has no label or host storage. The returned list is an immutable ordered snapshot
+     * assembled only through {@link TensorProducer#output(int)}; every element is therefore the
+     * exact producer-retained wrapper at the same index.</p>
      *
      * <p>If identifier exhaustion occurs after earlier output IDs were allocated, those IDs remain
-     * consumed and no partial result list is returned. The producer retains descriptors, not the
-     * result tensors, so this construction creates no producer/result/provenance cycle.</p>
+     * consumed and no partial result list is returned. The producer owns the canonical result
+     * tensors and their indexed provenance intentionally points back to that producer. Its final
+     * output snapshot is assigned before the list becomes caller-visible, so successful
+     * publication exposes only a complete occurrence.</p>
      *
      * @param operation exact non-null operation reference retained by the producer
      * @param inputs non-null ordered input tensor references snapshotted by the producer
@@ -238,16 +250,15 @@ public final class TensorFactory {
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputDescriptors, "outputDescriptors");
-        TensorProducer producer = new TensorProducer(operation, inputs, outputDescriptors);
+        TensorProducer producer = new TensorProducer(
+                operation,
+                inputs,
+                outputDescriptors,
+                Optional.empty(),
+                TensorFactory::nextTensorId);
         List<Tensor> outputs = new ArrayList<>(producer.outputCount());
         for (int outputIndex = 0; outputIndex < producer.outputCount(); outputIndex++) {
-            TensorDescriptor descriptor = producer.outputDescriptors().get(outputIndex);
-            outputs.add(new Tensor(
-                    nextTensorId(),
-                    descriptor,
-                    Optional.empty(),
-                    Optional.of(new TensorProvenance(producer, outputIndex)),
-                    Optional.empty()));
+            outputs.add(producer.output(outputIndex));
         }
         return List.copyOf(outputs);
     }
@@ -1469,6 +1480,13 @@ public final class TensorFactory {
     /**
      * Allocates the next unique non-negative tensor identifier for this JVM.
      *
+     * <p>This package-owned, non-public seam is shared by ordinary factory methods and
+     * {@link TensorProducer}'s existing package-private three-argument construction path. That
+     * path now creates canonical wrappers and must use the same global identity sequence. Package
+     * visibility is the minimal collaboration needed to preserve uniqueness without another
+     * allocator type, duplicate state, reflection, or a redundant forwarding abstraction; it
+     * does not broaden the public API.</p>
+     *
      * <p>Ordinary candidates from zero through {@code Long.MAX_VALUE - 1} are linearized by a
      * successful compare-and-set that advances the counter. At {@code Long.MAX_VALUE}, a separate
      * compare-and-set lets exactly one caller claim the valid final candidate. Every later call
@@ -1480,7 +1498,7 @@ public final class TensorFactory {
      * @throws IllegalStateException if {@code Long.MAX_VALUE} was already claimed, with message
      *     {@code tensor identifier space exhausted}
      */
-    private static TensorId nextTensorId() {
+    static TensorId nextTensorId() {
         while (true) {
             long candidate = NEXT_TENSOR_ID.get();
             if (candidate < Long.MAX_VALUE) {

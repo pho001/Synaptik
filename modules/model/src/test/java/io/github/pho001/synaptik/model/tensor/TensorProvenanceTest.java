@@ -72,7 +72,14 @@ class TensorProvenanceTest {
                 () -> assertEquals(1, provenance.outputIndex()),
                 () -> assertSame(producer.operation(), provenance.operation()),
                 () -> assertSame(producer.inputs(), provenance.inputs()),
-                () -> assertSame(producer.outputDescriptors().get(1), provenance.outputDescriptor()));
+                () -> assertSame(producer.outputDescriptors().get(1), provenance.outputDescriptor()),
+                () -> assertSame(
+                        producer,
+                        producer.output(1).provenance().orElseThrow().producer()),
+                () -> assertEquals(
+                        provenance, producer.output(1).provenance().orElseThrow()),
+                () -> assertSame(
+                        provenance.outputDescriptor(), producer.output(1).descriptor()));
     }
 
     @Test

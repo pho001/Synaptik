@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted — reflected in the current architecture contract. The original decision date and historical alternatives are not documented.
+Superseded — 2026-07-26, by
+[ADR 0009: Compiler-owned pre-capture Tensor-expression autograd](0009-compiler-owned-pre-capture-tensor-expression-autograd.md).
+The combined immutable graph decision remains, but capture timing and construction ownership are
+replaced.
 
 ## Context
 
@@ -21,7 +24,9 @@ No historical comparison is available. The contract describes a combined compile
 
 ## Decision
 
-For backward-capable compile modes, the compiler may expand the forward graph into a combined forward and backward graph before post-autograd optimization, publication binding, and planning. The combined graph is immutable compile-time state and does not force one runtime schedule.
+This historical decision selected a combined forward/backward compile-time graph but did not
+decide whether autograd ran before or after graph capture. ADR 0009 now requires compiler-owned
+Tensor-expression autograd before one combined capture.
 
 ## Rationale
 
@@ -36,3 +41,4 @@ The compiler needs explicit graph phases and derivative semantics. Logical memor
 - [Training graph](../../architecture/training-graph.md)
 - [Autograd strategy](../notes/autograd-strategy.md)
 - [Training API status](../../api/training-api.md)
+- [ADR 0009](0009-compiler-owned-pre-capture-tensor-expression-autograd.md)

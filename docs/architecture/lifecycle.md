@@ -17,20 +17,23 @@ The compiler does not create physical buffers or executable units. Runtime does 
 ## Compile lifecycle
 
 ```text
-Tensor output
-  -> GraphCapture
+forward Tensor outputs
+  -> if backward is requested:
+     - fail-closed operation/attribute/policy preflight
+     - reverse accumulation through ordinary public Tensor operations
+     - combined forward + gradient Tensor expression DAG
+  -> one phase-aware GraphCapture
   -> topological sort
   -> producer/use index
-  -> canonicalization
   -> shape and data type inference
   -> validation
-  -> forward optimization
+  -> canonicalization
+  -> combined-graph optimization
      - dead-code elimination
-     - common subexpression elimination
+     - phase-local common subexpression elimination
      - constant folding
      - algebraic simplification
-  -> autograd, when required by CompileMode
-  -> post-autograd optimization
+  -> final validation
   -> publication binding
   -> backend intent propagation
   -> capability analysis
@@ -42,6 +45,15 @@ Tensor output
 ```
 
 `CompileArtifacts` packages the immutable graph, planned partitions, logical memory plan, publication plan, and compile diagnostics. Compile does not create prepared schedules, executable units, physical buffers, runtime workspaces, concrete kernel routes, or backend-specific executable graphs.
+
+Autograd preflight checks every backward-reachable producer occurrence and its exact attributes
+before constructing a derivative expression. The compiler then uses exact Tensor identity only
+for temporary contribution accumulation and combines contributions with ordinary `Tensor.add`.
+Seeds and derivative constants are storage-free leaves registered explicitly as logical splats.
+The one capture call receives the original forward-producer identity set so it can assign
+`FORWARD` or `BACKWARD` per node while assigning graph-local IDs only once. Full inference happens
+after capture; a failure at that or a later stage may therefore consume temporary Tensor IDs,
+which remain opaque and non-reusable.
 
 Partition scoring chooses backend ownership, not concrete implementation. See [Partition Scoring](partition-scoring.md).
 
@@ -91,13 +103,17 @@ the selected mode to children. This is not optimizer work: for example, a batch-
 layer can select its training or inference forward behavior before gradients exist. The generic
 Tensor operations used by that forward pass remain owned by `modules/model`.
 
-The compile mode determines how much graph the compiler constructs:
+The compile mode determines how much expression and graph work the compiler constructs:
 
 - `FORWARD_ONLY` compiles forward computation only.
-- `FORWARD_AND_BACKWARD` expands the forward graph with autograd and compiles a combined forward and backward graph.
+- `FORWARD_AND_BACKWARD` constructs backward Tensor expressions from the original forward
+  expression and captures a combined forward and backward graph once.
 - `TRAINING_STEP` represents the training-step direction in which optimizer updates may also become graph operations.
 
-In backward-capable modes, forward and backward may be combined at compile time so post-autograd optimization and planning can see the entire graph. Prepare may still expose separate forward and backward schedules or one training-step schedule.
+In the initial backward-capable lifecycle, `FORWARD_AND_BACKWARD` and `TRAINING_STEP` both build
+the combined expression before capture; `TRAINING_STEP` does not yet add optimizer-update graph
+work. Combined optimization and planning therefore see the entire immutable graph. Prepare may
+still expose separate forward and backward schedules or one training-step schedule.
 
 See [Training Graph](training-graph.md) for the graph model and optimization rationale.
 
@@ -107,10 +123,10 @@ The initial lifecycle keeps the optimizer as a backend-agnostic step after the p
 
 ```text
 compile:
-  forward graph
-  -> autograd
-  -> combined forward + backward graph
-  -> optimize
+  forward Tensor expression DAG
+  -> compiler-owned autograd through ordinary Tensor expressions
+  -> one phase-aware capture of forward outputs and gradient roots
+  -> infer, validate, optimize, and revalidate the immutable combined graph
   -> CompileArtifacts
 
 run:

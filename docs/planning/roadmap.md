@@ -14,7 +14,7 @@ Parallel work is not the default. It requires an explicit roadmap or master-plan
 
 | Order | Project area | Status | Entry condition | Exit condition |
 |---|---|---|---|---|
-| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | Selected model capabilities and all model task acceptance criteria are complete. |
+| 1 | [`modules/model`](modules/model/master-plan.md) | Complete | Repository and planning infrastructure are ready. | The historical selected capability milestone remains closed, and focused compiler-foundation task 0025 is complete. |
 | 2 | [`modules/trace`](modules/trace/master-plan.md) | In progress (interleaved) | Required model contracts are stable or confirmed unnecessary. | Typed trace DTO contracts and validation are complete. |
 | 3 | [`modules/backend-contract`](modules/backend-contract/master-plan.md) | Complete | Foundational value-model conventions and the stable trace foundation are complete. | Backend identity and declarative requirement contracts are complete. |
 | 4 | [`modules/config`](modules/config/master-plan.md) | In progress (interleaved) | Model and backend identity contracts required by configuration are stable. | Compile, prepare, run, planning-cost, and model-autotuning request contracts are complete where stable consumers justify them. |
@@ -38,123 +38,66 @@ The order above is the default delivery sequence, not a new dependency rule. All
 
 ## Current frontier
 
-The latest completed implementation frontier is
-[Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md).
-It follows completed
+No implementation task is currently Ready. The latest completed implementation frontier is
+[Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
+The historical selected model capability milestone remains closed; this focused interleave reopens
+the model plan only to supply the smallest missing prerequisite for compiler-owned pre-capture
+automatic differentiation. Each `TensorProducer` now retains one canonical `Tensor` wrapper for
+every output slot and exposes exact indexed lookup. `TensorFactory` constructs the producer and all
+wrappers atomically, so ordinary and hidden multi-output values have stable object identities
+without reconstructing wrappers from captured graph values.
+
+Task 0025 does not add gradient or backward lifecycle state to `Tensor`, a result carrier, mutable
+gradient storage, derivative rules, graph capture changes, or compiler behavior. The intentional
+`Tensor -> provenance -> TensorProducer -> outputs -> Tensor` cycle is safely published through
+final state and is ordinarily garbage-collectable when unreachable. This is a model contract and
+Javadoc/test task, not a new dependency direction.
+
+The latest completed compiler frontier remains
+[Compiler 0003B Compile-time constants and constant folding](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md),
+after completed
 [Compiler 0003A Exact arithmetic rewriting](modules/compiler/tasks/0003a-exact-arithmetic-rewriting.md),
-which follows completed
 [Compiler 0003 Canonicalization and forward optimization](modules/compiler/tasks/0003-canonicalization-and-forward-optimization.md),
-which follows completed
-[Compiler 0002 Captured-graph inference and validation](modules/compiler/tasks/0002-captured-graph-inference-and-validation.md).
-Task 0002 follows completed
-[Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md),
-which remains unchanged. Task 0002 adds one package-private verification-inference boundary over
-the captured immutable graph. It independently derives complete output descriptors for every
-current production operation family, rejects operand/domain/descriptor contradictions, and
-proves, rejects, or retains current dimension/Shape obligations as typed internal constraints.
-It returns the exact accepted graph reference, binds no concrete size, and performs no graph
-transformation.
+[Compiler 0002 Captured-graph inference and validation](modules/compiler/tasks/0002-captured-graph-inference-and-validation.md),
+and [Compiler 0001 Tensor expression graph capture](modules/compiler/tasks/0001-tensor-expression-graph-capture.md).
+Their completed contracts remain unchanged.
 
-Task 0003 consumes only that successful internal result and the completed standalone
-`GraphOptimizationConfig`. Mandatory canonicalization rebuilds graph-local IDs densely and
-deterministically from graph-input order followed by stored topological node/output-slot order,
-while preserving exact operations, descriptors, phases, every node output, and ordered graph
-boundaries. Compiler 0002 then validates the canonical candidate and regenerates its deferred
-constraints.
+Compiler 0004 is Draft and deliberately has no detailed task specification or implementation.
+Its Model 0025 prerequisite is complete. Its accepted architecture is compiler-owned pre-capture
+Tensor-expression autograd:
 
-When optional optimization is enabled, the exact first standard pipeline is one forward dead-code
-elimination pass, one exact forward common-subexpression elimination pass, and one final forward
-dead-code cleanup pass. The sequence runs once and does not iterate to a fixed point. Exact CSE
-compares phase, the complete immutable operation value, ordered remapped inputs, and every ordered
-output descriptor; it merges whole multi-output occurrences and permits graph-output producers
-neither to merge nor to serve as representatives, so distinct publication roots remain distinct.
-DCE retains every graph input, graph output, non-forward occurrence and dependency, and all slots
-of each live node. Every changed candidate is revalidated through task 0002. Disabled optimization
-suppresses the optional sequence only, not canonicalization or validation.
+```text
+original forward Tensor expression DAG
+  -> fail-closed derivative preflight
+  -> compiler reverse traversal using public Tensor operations
+  -> combined forward-and-gradient Tensor DAG
+  -> one phase-aware capture
+  -> inference, canonicalization, exact combined optimization, and validation
+```
 
-[Complete Compiler 0003A](modules/compiler/tasks/0003a-exact-arithmetic-rewriting.md) follows task
-0003. Its deliberately small strict-semantics rule set has
-exactly seven rows: internal forward binary `MIN(x, x)` and `MAX(x, x)`; scalar MUL by exact typed
-positive one in every current numeric domain; scalar DIV and POW by exact typed positive one in
-current floating domains; and scalar ADD and SUB by exact typed zero in current integral domains.
-Complete input/output descriptor equality, `requiresGrad == false`, one output, non-graph-output
-status, and exact operation/attribute compatibility guard every applicable bypass. Gradient-
-eligible occurrences remain intact because task 0004 has not selected operation, extrema-tie, or
-operand-multiplicity backward semantics. One topological scan runs after canonical validation and
-before task 0003's unchanged one-shot `DCE -> CSE -> DCE` sequence; Compiler 0002 revalidates a
-changed candidate. Immutable typed scalar attributes are compiler-visible semantic facts, not
-graph-value constants; Tensor zeros/ones and new result constants remain 0003B work. Floating ADD/SUB
-zero, MUL zero, cancellation, other POW exponents, bounds/clamp identities, broader algebra, and
-relaxed mathematics remain excluded.
+Compiler-owned named rule families will build ordinary Tensor expressions, accumulate
+contributions by original Tensor object identity, and keep all identity maps local to one compile.
+Generated zeros and ones will be explicit storage-free logical-splat constants. Capture will
+receive forward outputs, gradient publication roles, the original forward producer identity set,
+and explicit constants; it will assign graph IDs once and classify original occurrences as
+`FORWARD` and generated derivative occurrences as `BACKWARD`. Distinct requested gradient targets
+may intentionally share one captured `ValueId`, while the final publication boundary lists each
+distinct output value once.
 
-[Complete Compiler 0003B](modules/compiler/tasks/0003b-compile-time-constants-and-constant-folding.md)
-precedes Compiler 0004. It adds one
-compiler-owned immutable logical-splat sidecar and explicit ingress for reachable provenance-free
-non-gradient leaves. A constant source is an existing structural graph input plus one exact typed
-fact; derived bindable inputs exclude those fixed sources. Provenance-free leaves absent from
-ingress remain bindable regardless of factory history or mutable host storage.
+The combined graph, not an already optimized captured forward graph, is the optimization unit.
+Only exact rules already proved by Compiler 0003, 0003A, and 0003B may be applied; CSE remains
+phase-local and every changed graph is revalidated through Compiler 0002. Compiler 0004 also owns
+the bounded first fail-closed rule matrix and this exact combined optimization, so no separate
+0004C task is planned. Compiler 0004A retains later exact formula extensions, Compiler 0004B
+retains explicit derivative-policy work, Compiler 0005 retains compile artifacts and
+publication/planning orchestration, and Compiler 0006 retains an explicit higher-derivative
+create-graph/order contract. All remain Draft without detailed specifications.
 
-One scan folds only BOOL NOT/AND/OR; signed-integral binary ADD/SUB/MUL/MIN/MAX; all six signed-
-integral comparisons; and same-typed signed-integral scalar ADD/SUB/MUL/MIN/MAX over a known input
-splat. It preserves graph-output producers, multi-output producers, BACKWARD work, and gradient-
-eligible values. Floating/BFLOAT16 facts preserve exact bits but are not evaluated; casts, other
-scalar operations, dense payloads, and broad partial evaluation remain excluded. Compiler 0003A
-still owns attribute-only identity bypasses, while 0003B combines a selected integral attribute
-with a known graph-value splat to calculate a new splat.
-
-Folding runs after 0003A and before the unchanged one-shot `DCE -> CSE -> DCE` order. The existing
-graph-only DCE contract stays unchanged; a sidecar-aware overload prunes unused constant sources
-while preserving every bindable input and live dependency. Compiler 0002 revalidates every changed
-candidate. Compiler 0005 must transport the exact immutable facts, or a semantically identical
-named constant-plan component, in compile artifacts and exclude fixed sources from runtime
-binding; future prepare/backend work owns physical materialization. Runtime/backend execution,
-physical allocation, relaxed/fast-math, public compilation, and architecture changes remain
-outside 0003B. This order keeps both forward-only safety proofs separate and stable before
-autograd introduces backward occurrences and post-autograd optimization. This is implementation
-sequencing, not a new architecture rule.
-
-This is an explicit ordering interleave, not a dependency or architecture change. The selected
-capture, validation, and transformation capability depends only on the closed model
-Tensor/provenance, operation, descriptor, Shape/Dimension, layout, immutable graph and explicit
-RNG-state contracts plus the completed boolean optimization permission. It consumes no config
-cost profile, planning evaluator/generator, compile aggregate, trace payload, runtime contract,
-prepare contract, backend capability, or executable state.
-Config 0004 therefore remains Draft until a concrete cost-bearing planning consumer defines its
-classification and units. Trace 0003 and later remain Draft because the internal transformation
-pipeline selects no trace attribute/payload schema or emission behavior. Runtime remains Draft
-because its prepared-state, runtime-facing config, and producer-specific trace contracts are not
-stabilized by these internal compiler steps.
-Prepare remains Draft because it depends on future compiler artifacts and runtime contracts.
-Bounded compiler transformation is valid now because it strengthens the concrete compiler
-producer without guessing any downstream surface.
-
-Task 0003 remains Complete and owns only mandatory canonicalization plus the optional one-shot
-`DCE -> CSE -> DCE` sequence. Complete task 0003A inserts only its closed seven-rule exact
-arithmetic scan before that unchanged sequence. It
-uses exact immutable scalar attributes but excludes Tensor constant recognition/folding, floating
-ADD/SUB zero, MUL zero, cancellation, other POW exponents, bounds/clamp identities, broader
-algebra, and relaxed mathematics. POW 2, -1, and other small integers remain possible future
-backend-prepare strength reductions subject to explicit numerical/conformance contracts; no
-backend plan changes here. Complete task 0003B owns only the explicit logical-splat representation,
-bounded exact matrix, synthetic constant sources, and constant-aware pruning described above.
-Task 0003 continues to exclude
-constant value execution/folding,
-cast/arithmetic/algebraic/view rewrites, decomposition, fusion, pass registries,
-candidate collections and tuning, autograd/backward construction, publication/planning
-orchestration, backend capability or ownership, `CompileArtifacts`, trace payloads/emission,
-concrete binding, prepare, runtime, backend, engine, dependency/build changes, and later
-specifications. Value-dependent index, target-content, duplicate-target, storage, and numerical-
-result validation remains with lifecycle owners that possess values.
-
-Compiler 0003A and Compiler 0003B are Complete. Compiler 0004 and 0005 remain Draft rows without
-detailed specifications, and no compiler task is Ready.
-
-Raw captures still receive task-0002 validation as a safe ingress boundary. Task 0003's mandatory
-canonicalization and candidate-by-candidate reuse of that pass preserve the architecture's
-canonicalization-before-authoritative-inference sequence for transformed graphs without allowing
-malformed captured metadata into transformation code.
-Planning's audited evaluator/generator operations remain package-private until task 0005 provides
-a concrete compiler orchestrator and justifies one narrow collaboration.
+This interleave changes neither allowed dependencies nor downstream lifecycle readiness. Config
+0004, Trace 0003 and later, Runtime, Prepare, backends, Engine, and training extensions remain
+Draft at their existing frontiers. Planning's audited evaluator/generator operations remain
+package-private until Compiler 0005 provides a concrete orchestrator and justifies one narrow
+collaboration.
 
 The preceding completed planning frontier is
 [Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
@@ -222,8 +165,11 @@ frontier. At Planning 0006 closure, Config 0004 and later work remained Draft wi
 detailed specification. Subsequent reassessments completed Compiler 0001 capture, Compiler 0002
 validation, Compiler 0003 transformation, and Compiler 0003A exact arithmetic rewriting in order.
 The subsequent reassessment selected only Compiler 0003B compile-time constants/folding before
-autograd, and that task is now Complete. It does not advance cost, tuning, or downstream lifecycle
-work, and no 0004-or-later detailed compiler specification exists.
+autograd, and that task is now Complete. The current reassessment selected only focused Model 0025
+before compiler work resumes, and that task is now Complete. It does not advance cost, tuning, or
+downstream lifecycle work. Compiler 0004, 0004A, 0004B, 0005, and 0006 remain Draft rows without detailed
+specifications; Compiler 0004 owns combined exact cleanup before 0005
+partitioning/orchestration, while 0006 waits for the stable public compile/artifact boundary.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -246,8 +192,12 @@ documentation-only closure audit and `CLOSED` verdict. Config 0004 remains Draft
 baseline, same-owner grouping, and descriptor-retaining logical requirements consume no cost
 classification or profile. Subsequent frontier reassessments selected bounded Compiler 0001
 capture, Compiler 0002 validation, and Compiler 0003 transformation in order; all are Complete.
-Compiler 0003A and Compiler 0003B are Complete, followed by Draft Compiler 0004 without a detailed
-specification. No compiler task consumes or advances Config 0004.
+Compiler 0003A and Compiler 0003B are Complete. No compiler task is Ready. Focused
+[Model 0025](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) is Complete and
+supplies Compiler 0004's canonical-output prerequisite. Compiler 0004, 0004A, 0004B, 0005, and
+0006 have no detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
+partitioning/orchestration; 0006 follows the stable public compile/artifact boundary. No compiler
+task consumes or advances Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and
@@ -408,6 +358,8 @@ model capability and contract closure audit is Complete with a `BLOCKING_GAP` ve
 [task 0024A](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md), the
 bounded `GraphValue` Tensor-status Javadoc correction, is Complete. It resolved the audit's sole
 blocker without changing Java behavior and closed the selected model capability milestone.
+Focused task 0025 is a later compiler-foundation interleave and does not reopen that historical
+capability audit or its verdict.
 Task 0023B's focused 15-suite run passed 124 tests, its single final model suite passed 981 tests
 across 125 suites, and the separate documentation pass validated model Javadoc, the executable
 example, Markdown, exact 26-path scope, the 190-method public Tensor surface, and synchronized
@@ -1047,6 +999,7 @@ authorized Compile API status correction.
 | 120 | [0023F Scaled dot-product attention weights output](modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete |
 | 121 | [0024 Model capability and contract closure audit](modules/model/tasks/0024-model-capability-and-contract-closure-audit.md) | Complete |
 | 122 | [0024A GraphValue Tensor-status Javadoc correction](modules/model/tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete |
+| 123 | [0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) | Complete |
 
 Task dependencies in the model master plan remain hard prerequisites. The table order is the default execution order even when a later task has no explicit dependency on an earlier task.
 
@@ -1105,6 +1058,8 @@ Complete. Task 0022B is Complete. Task 0023 is Complete with its detailed specif
 result artifact. Tasks 0023A–0023F are Complete with their detailed specifications; established
 task 0024 is Complete with its historical `BLOCKING_GAP` result artifact. Task 0024A is Complete,
 its sole Javadoc blocker is resolved, and the selected model capability milestone is closed.
+Focused task 0025 is the only later model task and supplies canonical producer-output identity for
+compiler-owned pre-capture autograd without altering the historical closure result.
 Completed task 0016E originally added fixed-INT64 one-axis arg-max expression metadata without
 changing the ordinary reduction helper or adding value comparison, empty-axis policy, or
 execution. Completed task 0018U1 now supplies the shared arg-extrema model policy and integral

@@ -21,6 +21,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
@@ -40,13 +44,13 @@ class TensorProducerTest {
                 () -> assertTrue(Modifier.isFinal(TensorProducer.class.getModifiers())),
                 () -> assertFalse(TensorProducer.class.isRecord()),
                 () -> assertEquals(
-                        List.of("operation", "inputs", "outputDescriptors"),
+                        List.of("operation", "inputs", "outputDescriptors", "outputs"),
                         fields.stream().map(field -> field.getName()).toList()),
                 () -> assertTrue(fields.stream().allMatch(field ->
                         Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
                 () -> assertEquals(
-                        Set.of("operation", "inputs", "outputDescriptors", "outputCount"),
+                        Set.of("operation", "inputs", "outputDescriptors", "outputCount", "output"),
                         publicMethods));
     }
 
@@ -97,6 +101,8 @@ class TensorProducerTest {
         TensorProducer producer = new TensorProducer(operation, inputs, outputs);
         inputs.clear();
         outputs.clear();
+        Tensor firstOutput = producer.output(0);
+        Tensor secondOutput = producer.output(1);
 
         assertAll(
                 () -> assertSame(operation, producer.operation()),
@@ -106,12 +112,91 @@ class TensorProducerTest {
                 () -> assertEquals(2, producer.outputCount()),
                 () -> assertSame(descriptor, producer.outputDescriptors().get(0)),
                 () -> assertSame(descriptor, producer.outputDescriptors().get(1)),
+                () -> assertSame(firstOutput, producer.output(0)),
+                () -> assertSame(secondOutput, producer.output(1)),
+                () -> assertNotSame(firstOutput, secondOutput),
+                () -> assertSame(descriptor, firstOutput.descriptor()),
+                () -> assertSame(descriptor, secondOutput.descriptor()),
+                () -> assertSame(
+                        producer, firstOutput.provenance().orElseThrow().producer()),
+                () -> assertSame(
+                        producer, secondOutput.provenance().orElseThrow().producer()),
+                () -> assertEquals(
+                        0, firstOutput.provenance().orElseThrow().outputIndex()),
+                () -> assertEquals(
+                        1, secondOutput.provenance().orElseThrow().outputIndex()),
                 () -> assertThrows(
                         UnsupportedOperationException.class,
                         () -> producer.inputs().add(input)),
                 () -> assertThrows(
                         UnsupportedOperationException.class,
                         () -> producer.outputDescriptors().add(descriptor)));
+    }
+
+    @Test
+    void rejectsBothOutputBoundsWithRequestedIndexAndAvailableCount() {
+        TensorProducer producer = new TensorProducer(
+                operation(MultiKind.MULTI),
+                List.of(tensor(1), tensor(2)),
+                List.of(descriptor(), descriptor()));
+
+        IndexOutOfBoundsException negative =
+                assertThrows(IndexOutOfBoundsException.class, () -> producer.output(-1));
+        IndexOutOfBoundsException tooLarge =
+                assertThrows(IndexOutOfBoundsException.class, () -> producer.output(2));
+
+        assertAll(
+                () -> assertTrue(negative.getMessage().contains("outputIndex -1")),
+                () -> assertTrue(negative.getMessage().contains("output count 2")),
+                () -> assertTrue(tooLarge.getMessage().contains("outputIndex 2")),
+                () -> assertTrue(tooLarge.getMessage().contains("output count 2")));
+    }
+
+    @Test
+    void concurrentlyPublishedResultsExposeCompleteCanonicalProducerState() throws Exception {
+        Operation operation = operation(MultiKind.MULTI);
+        Tensor input = tensor(1);
+        TensorDescriptor firstDescriptor = descriptor();
+        TensorDescriptor secondDescriptor = descriptor();
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            List<Future<List<Tensor>>> futures = new ArrayList<>();
+            for (int occurrence = 0; occurrence < 64; occurrence++) {
+                futures.add(executor.submit(() -> TensorFactory.createDerivedOutputs(
+                        operation,
+                        List.of(input, input),
+                        List.of(firstDescriptor, secondDescriptor))));
+            }
+
+            for (Future<List<Tensor>> future : futures) {
+                List<Tensor> publishedOutputs = future.get(5, TimeUnit.SECONDS);
+                TensorProducer producer =
+                        publishedOutputs.getFirst().provenance().orElseThrow().producer();
+                assertAll(
+                        () -> assertEquals(2, producer.outputCount()),
+                        () -> assertSame(publishedOutputs.get(0), producer.output(0)),
+                        () -> assertSame(publishedOutputs.get(1), producer.output(1)),
+                        () -> assertSame(
+                                producer,
+                                producer.output(0).provenance().orElseThrow().producer()),
+                        () -> assertSame(
+                                producer,
+                                producer.output(1).provenance().orElseThrow().producer()),
+                        () -> assertEquals(
+                                0,
+                                producer.output(0)
+                                        .provenance().orElseThrow().outputIndex()),
+                        () -> assertEquals(
+                                1,
+                                producer.output(1)
+                                        .provenance().orElseThrow().outputIndex()),
+                        () -> assertSame(firstDescriptor, producer.output(0).descriptor()),
+                        () -> assertSame(secondDescriptor, producer.output(1).descriptor()));
+            }
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
     }
 
     @Test

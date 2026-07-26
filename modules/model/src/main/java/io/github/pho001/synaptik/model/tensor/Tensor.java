@@ -70,8 +70,14 @@ import java.util.Optional;
  * <p>Provenance is stable expression-origin metadata, independent of storage replacement,
  * clearing, or later storage death. A present provenance identifies one zero-based output of one
  * exact {@link TensorProducer}; this tensor retains the exact descriptor reference from that
- * producer output position. The producer is pre-capture occurrence identity, not graph-local node
- * or value identity, and does not make a tensor an intermediate-representation node. Binary
+ * producer output position. For factory-created derived state, the producer also returns this
+ * exact canonical wrapper from the same output index. The resulting immutable
+ * {@code Tensor -> TensorProvenance -> TensorProducer -> outputs -> Tensor} cycle means retaining
+ * one result may retain its sibling results. The cycle owns no external resource and remains
+ * eligible for ordinary garbage collection when the complete occurrence is unreachable. The
+ * producer is pre-capture occurrence identity, not graph-local node or value identity, gradient
+ * or backward state, compiler state, runtime state, or execution behavior, and does not make a
+ * tensor an intermediate-representation node. Binary
  * arithmetic, binary comparison,
  * boolean logical, conditional selection, explicit cast, numeric and boolean aggregate reduction,
  * parameterized scalar, and unary

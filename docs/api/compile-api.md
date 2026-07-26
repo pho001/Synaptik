@@ -227,6 +227,43 @@ identical semantics, into future compile artifacts and must expose only the deri
 inputs. Planning may then see the unchanged logical graph. Future prepare/backend work owns
 physical splat materialization, storage allocation, lowering, and execution.
 
+### Planned pre-capture autograd
+
+Model task 0025 is Complete, so a producer now returns the canonical exact Tensor wrapper for
+every output slot, including hidden dropout masks and batch-normalization saved statistics,
+without changing public Tensor methods or ergonomic result carriers. This supplies the model
+prerequisite for Compiler task 0004. Compiler 0004 remains Draft, has no detailed task
+specification, and has no implementation in the compiler module.
+
+In backward-capable modes, the compiler will inventory every backward-reachable producer
+occurrence and exact attributes or derivative policies before constructing gradients. Named
+compiler rules such as `ElementwiseGradientRules` will call only existing public Tensor
+operations. One compile request may use Tensor-identity maps to retain ordered contributions and
+accumulated gradients; contribution accumulation uses ordinary `Tensor.add`. This ephemeral
+state is not Tensor state or another graph.
+
+The compiler will then capture the forward outputs and requested gradient roots together once.
+The capture request includes target-specific result roles, the original forward-producer identity
+set, and explicit constant-splat facts. It assigns each graph-local node and value identity once,
+retains a per-node `FORWARD` or `BACKWARD` phase, and permits several targets to map to one
+gradient `ValueId` while listing that distinct output value once.
+
+Authoritative inference and validation follow the combined capture. Canonicalization, the exact
+task-0003A rewrites, task-0003B folding, dead-code elimination, and initially phase-local
+common-subexpression elimination operate on the immutable combined graph only where their
+existing guards remain valid. Every changed candidate is revalidated through the current
+verification pass.
+
+Seeds and derivative constants are storage-free Tensor leaves or expressions registered
+explicitly as compile-time splats. No constant is inferred from Tensor storage or construction
+history. A later compilation failure may consume temporary Tensor IDs.
+
+This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient field, ThreadLocal
+scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula
+language, public gradient registry, runtime tape, physical saved buffer, backend autograd, or
+public compile entry point. Higher derivatives remain future work with an explicit create-graph
+or derivative-order lifecycle contract.
+
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
 rules and then checks that the final ordered input and output counts lie within that signature's
@@ -279,8 +316,9 @@ storage-free expressions with immutable producer-and-output-index provenance. Fo
 methods add ascending or explicitly directed `sort` and `argsort` requests. Every current
 single-output expression creates one identity-distinct producer whose ordered descriptor list has
 one entry and whose provenance index is zero. The producer snapshots the exact operation and input
-Tensor references and retains no output Tensor objects. The
-parameterless `contiguous` method
+Tensor references and retains the exact canonical Tensor wrapper for that output. Its public
+indexed lookup returns that same wrapper without reconstruction. The parameterless `contiguous`
+method
 adds the same expression provenance for a canonical-layout request, and the two `reshape`
 overloads add normalized target-shape expressions. Two `expand` overloads add directional
 right-aligned target-shape expressions.

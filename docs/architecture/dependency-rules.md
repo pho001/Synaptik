@@ -80,7 +80,15 @@ Every phase may emit diagnostics, so trace DTOs must be safe for every phase to 
 
 ### Model is backend- and runtime-independent
 
-The model defines computation semantics and the public tensor abstraction. Keeping backend capability, device residency, physical buffers, and prepared execution out of it makes the same graph meaningful before any backend is chosen. It also prevents public mutable `Tensor` state from becoming runtime device state.
+The model defines computation semantics and the public tensor abstraction. Keeping backend
+capability, device residency, physical buffers, and prepared execution out of it makes the same
+graph meaningful before any backend is chosen. It also prevents the Tensor's mutable borrowed
+host-storage association from becoming runtime device state.
+
+The compiler may depend inward on the model's public Tensor operations and producer/provenance
+contracts to build gradients before capture. That existing direction does not let model own
+derivative rules or depend back on compiler. Compiler-local identity maps are temporary
+bookkeeping and create no new package or module edge.
 
 ### Runtime is independent of concrete backends
 

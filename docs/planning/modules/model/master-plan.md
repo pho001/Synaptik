@@ -31,7 +31,9 @@ tensor state, and host storage contracts suitable for useful inference and train
 
 ## Module invariants
 
-- `Tensor` is public mutable API state and is not an IR node.
+- `Tensor` is public model state and is not an IR node; its existing borrowed host-storage
+  association is its only mutable field.
+- `Tensor` has no gradient/backward lifecycle state.
 - `Operation` owns semantics and never backend support.
 - Compiled graph state is immutable.
 - Host storage never represents runtime device residency.
@@ -63,7 +65,8 @@ io.github.pho001.synaptik.model.layout
 
 io.github.pho001.synaptik.model.tensor
   Public Tensor state, TensorId, TensorDescriptor, TensorFactory, eager initialization helpers,
-  immutable expression-producer identity, and indexed provenance.
+  immutable expression-producer identity, canonical producer output wrappers, and indexed
+  provenance.
 
 io.github.pho001.synaptik.model.storage
   Host-visible storage contracts and implementations.
@@ -279,6 +282,7 @@ Operation-family subpackages are introduced only when a focused operation task d
 | 0023F | [Scaled dot-product attention weights output](tasks/0023f-scaled-dot-product-attention-weights-output.md) | Complete | 0018K–0018L, 0019E, 0023, 0023E | Preserved fluent one-output attention and added an explicit two-output result whose output and normalized weights share one exact producer occurrence. |
 | 0024 | [Model capability and contract closure audit](tasks/0024-model-capability-and-contract-closure-audit.md) | Complete | 0001–0023F | Audited the exact model surface and checkpoint with a `BLOCKING_GAP` verdict: behavior is coherent, but one `GraphValue` Javadoc sentence incorrectly calls the current public Tensor planned. |
 | 0024A | [GraphValue Tensor-status Javadoc correction](tasks/0024a-graph-value-tensor-status-javadoc-correction.md) | Complete | 0024 | Corrected the one stale `GraphValue` Javadoc status sentence, preserved every declaration and behavior, recorded historical audit closure, and passed focused Javadoc/documentation validation. |
+| 0025 | [Canonical TensorProducer outputs](tasks/0025-canonical-tensor-producer-outputs.md) | Complete | 0018L, 0019B1, 0021C, 0023F, 0024A; prerequisite for Compiler 0004 | Retains and retrieves the canonical exact Tensor wrapper for every producer output slot through one factory-atomic, safely published occurrence, without changing Tensor methods or ergonomic result carriers. |
 
 ## Milestones
 
@@ -298,6 +302,8 @@ Operation-family subpackages are introduced only when a focused operation task d
 - Adjoint expressibility, its six evidence-selected public-capability follow-ups, the model
   capability-and-contract closure audit, and its bounded Javadoc gap: tasks 0023–0024A, including
   0023A–0023F before 0024 and completed 0024A after the audit
+- Compiler-enabling producer foundation: task 0025, reopened only for the exact hidden-output
+  wrapper prerequisite discovered by the pre-capture autograd architecture decision
 
 Each listed checkpoint runs the full repository test suite, affected architecture tests, final
 Javadoc and documentation validation, and the cross-task checks deferred by the preceding tasks.
@@ -305,7 +311,7 @@ Individual single-module tasks use the task-level validation defined in the plan
 
 ## Current status
 
-Draft, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
+Complete through focused task 0025, with tasks 0014A through 0015H complete and the post-0014B vertical-slice reassessment
 recorded. The broad former task 0016 is decomposed into 0016A–0016J. Tasks 0016A through 0016E are
 complete. Tasks 0016F, 0016F1, 0016G, 0016H, 0016I, and 0016J are also complete. The broad former
 task 0017 is decomposed into focused tasks 0017A–0017N. Tasks 0017A and 0017B are complete; 0017C
@@ -513,6 +519,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
+- ADR 0009 reopens the model queue for exactly one compiler-enabling prerequisite. Task 0025
+  changes the completed 0018L producer contract only by retaining the canonical exact wrapper for
+  every output slot and exposing the smallest indexed retrieval surface. It adds no derivative
+  rule, Tensor method, graph identity, registry, or runtime state.
 - The selected capability baseline is defined by semantic coherence and a useful
   inference/training target, not by blanket legacy parity.
 - The former broad loss row is split without renumbering established tasks 0023–0024. Completed
@@ -648,8 +658,10 @@ Tensor expressions from the still-planned compiler capture lifecycle.
   scalar select and does not retain a distinct UNSTACK semantic primitive.
 - Shared provenance uses one identity-bearing `TensorProducer` with exact operation, ordered input
   Tensors, and ordered output descriptors. Each result records that exact producer and its output
-  index. Output count is derived from descriptors, no producer retains output Tensor objects, and
-  single-output expressions use the same model at index zero.
+  index. Output count is derived from descriptors, and single-output expressions use the same
+  model at index zero. Completed task 0025 intentionally supersedes only the historical
+  no-output-wrapper constraint: the producer retains and retrieves each canonical exact output
+  Tensor so pre-capture compiler rules can use hidden auxiliaries without reconstruction.
 - Completed task 0019C keeps full `SORT` and `ARGSORT` as distinct one-output occurrences. It selects
   unconditional stability, deterministic logical-index ties, NaNs last for both directions,
   negative-zero-before-positive-zero ascending, all six current input types, values-only sort,
@@ -1664,7 +1676,9 @@ Task 0019A2, task 0019B, task 0019B1, task 0019C, task 0019C1, and task 0019D ar
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
 specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
 while task 0024 is Complete with its closure artifact and task 0024A is Complete. The selected
-model capability milestone is closed; no later detailed task specification is created here.
+model capability milestone remains historically closed. Accepted ADR 0009 exposed one later
+compiler-enabling foundation gap; task 0025 is Complete and remains the latest detailed model
+specification.
 Other operation-family rows are not permission for oversized
 implementations; apply the normal limits in the
 [planning guide](../../planning-guide.md).
@@ -1742,6 +1756,7 @@ Tasks 0019E, 0020, 0020A, 0020A1, 0021, and 0021A are complete. Task 0021B is Co
 specification and result artifact. Tasks 0023A and 0023B are Complete with their detailed
 specifications. Tasks 0023C, 0023D, 0023E, and 0023F are Complete with detailed specifications,
 while task 0024 is Complete with its closure artifact and task 0024A is Complete. The selected
-model capability milestone is closed; no later detailed task specification is created here.
+model capability milestone remains historically closed. Task 0025 is the completed focused
+compiler prerequisite and the only later detailed model task specification.
 The legacy branch must be consulted read-only for capability and test evidence when preparing each
 applicable capability task.

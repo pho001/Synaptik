@@ -11,10 +11,17 @@ import java.util.Objects;
  * The operation, ordered immutable inputs, and exact selected output descriptor are derived from
  * that producer. Single-output expressions use output index zero.</p>
  *
- * <p>This record is not graph membership, an intermediate-representation node, or executable
- * behavior. Record equality and hashing compare the producer through its ordinary object identity
- * and the output index. Thus two positions of one producer differ, and structurally equal but
- * separately invoked producers remain distinct.</p>
+ * <p>A factory-created derived tensor at this position is the producer's exact canonical
+ * {@link TensorProducer#output(int) output} wrapper. That wrapper retains this provenance back to
+ * the producer, while the producer retains every canonical output. The resulting immutable cycle
+ * owns no external resource and remains ordinarily garbage-collectable when the complete
+ * occurrence is unreachable; retaining one result may retain its sibling results.</p>
+ *
+ * <p>This record is not graph membership, an intermediate-representation node, gradient state,
+ * compiler or backend state, a runtime resource, or executable behavior. Record equality and
+ * hashing compare the producer through its ordinary object identity and the output index. Thus two
+ * positions of one producer differ, and structurally equal but separately invoked producers
+ * remain distinct.</p>
  *
  * @param producer the exact non-null immutable expression producer reference to retain
  * @param outputIndex the zero-based producer output position
@@ -24,7 +31,9 @@ public record TensorProvenance(TensorProducer producer, int outputIndex) {
      * Creates immutable expression-origin metadata.
      *
      * <p>Validation checks the producer reference, then the lower and upper output-index bounds.
-     * The exact producer reference is retained without traversal, inference, or graph capture.</p>
+     * The exact producer reference is retained without output-wrapper reconstruction, traversal,
+     * inference, or graph capture. Producer construction assigns all snapshots before making the
+     * completed occurrence externally reachable.</p>
      *
      * @param producer the exact non-null immutable expression producer reference to retain
      * @param outputIndex the zero-based producer output position
