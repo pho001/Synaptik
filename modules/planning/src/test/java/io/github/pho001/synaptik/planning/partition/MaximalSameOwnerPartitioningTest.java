@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 
 class MaximalSameOwnerPartitioningTest {
     @Test
-    void hasTheExactPackagePrivateStatelessGeneratorShape() throws ReflectiveOperationException {
+    void hasTheExactPublicStatelessGeneratorShape() throws ReflectiveOperationException {
         Class<MaximalSameOwnerPartitioning> type = MaximalSameOwnerPartitioning.class;
         Constructor<?>[] constructors = type.getDeclaredConstructors();
         Method[] methods = type.getDeclaredMethods();
@@ -49,7 +49,7 @@ class MaximalSameOwnerPartitioningTest {
         assertAll(
                 () -> assertEquals(
                         "io.github.pho001.synaptik.planning.partition", type.getPackageName()),
-                () -> assertFalse(Modifier.isPublic(type.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(type.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(type.getModifiers())),
                 () -> assertFalse(type.isRecord()),
                 () -> assertFalse(type.isEnum()),
@@ -63,7 +63,7 @@ class MaximalSameOwnerPartitioningTest {
                 () -> assertEquals(1, methods.length),
                 () -> assertEquals(partition, methods[0]),
                 () -> assertTrue(Modifier.isStatic(partition.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(partition.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(partition.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(partition.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(partition.getModifiers())),
                 () -> assertArrayEquals(

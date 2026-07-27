@@ -6,14 +6,12 @@ This guide explains the current backend-neutral contract through which a concret
 report whether it can semantically own one operation occurrence. `OperationCapabilityQuery` and
 `BackendCapabilityProvider` are current public planning contracts. The shared backend identities,
 supplied availability snapshot, hard-requirement vocabulary, and `BackendIntent` optionality are
-also current. The repository does not yet ship a provider implementation, compiler consumer, or
-public planning consumer. Planning now contains one internal per-query hard-eligibility consumer,
-but it is not a public integration API: it combines explicitly supplied providers, matching
-availability snapshots, and `BackendIntent` into backend identities only. One further internal
-step selects an owner from those identities by optional preferred-class match and provider order.
-Reusable/public
-capability matrices, public planning orchestration or owner selection, cost scoring, concrete
-backend preparation, registration, and execution remain planned.
+also current. The repository does not yet ship a provider implementation or public compile
+consumer. Package-private Compiler is the current consumer: for every final graph node it creates
+one query and calls public `BackendOwnerPlanning.selectOwner(...)`. That collaboration composes
+internal per-query hard eligibility and baseline owner comparison without exposing their
+intermediate. Reusable/public capability matrices, a public graph-wide Planning workflow, numeric
+cost scoring, concrete backend preparation, registration, and execution remain planned.
 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
@@ -116,9 +114,11 @@ optional preferred DeviceClass + that complete candidate list + associated snaps
   -> current internal preferred-class/provider-order baseline
   -> one BackendId owner
 complete per-occurrence owners + closed graph
-  -> current internal maximal same-owner partitioning
+  -> Compiler-owned complete owner map
+  -> current public stateless maximal same-owner partitioning
   -> current immutable partition and logical-memory recipes
-  -> planned public orchestration and cost-bearing scoring
+  -> current immutable CompileArtifacts
+  -> planned public compiler facade and cost-bearing scoring
 ```
 
 A concrete backend may implement the current provider interface. Current internal planning first
@@ -132,15 +132,21 @@ currently reported. The provider answer remains backend-level: this step does no
 for a particular device, choose one, or retain one. A valid no-match produces an immutable empty
 list.
 
-The current package-private selector consumes that list directly. It validates the complete
+The package-private selector consumes that list directly. It validates the complete
 snapshot input, associates equal backend IDs, permits extra unique snapshots, and treats an empty
 matching snapshot as a preference nonmatch. With no preference it returns the first eligible
 identity. With a preference it returns the first provider-order match, or falls back to the first
 eligible identity when none matches. An empty eligible list fails internally before snapshot
 elements are read, and the exact eligibility identity reference is returned. The selector never
-re-evaluates capability or hard eligibility and selects no device, route, or kernel. Later public
-orchestration may translate the internal failure but must not weaken the hard target. Compile-time
-plans will retain `BackendId` values, never provider objects.
+re-evaluates capability or hard eligibility and selects no device, route, or kernel.
+
+Public `BackendOwnerPlanning.selectOwner(...)` validates the query, intent, providers, snapshots,
+and scoring config in declaration order, then calls eligibility and selection once each. Its
+result is the exact selected eligibility identity. Package-private Compiler invokes it once per
+final graph node, stops at the first failure, and retains only `BackendId` ownership in compile
+artifacts. The terminal no-hard-eligible failure receives node context from Compiler; other
+composition failures and provider-thrown runtime exceptions propagate unchanged. Neither
+providers nor snapshots are retained in the artifacts.
 
 ## Illustrative current provider
 
@@ -194,7 +200,7 @@ The two exact input descriptors and one output descriptor all describe FLOAT32 S
 `supported` is `true`. The result means only that the illustrative provider accepts semantic CPU
 ownership of this occurrence. It does not prove CPU availability, evaluate a hard requirement,
 select scalar, Vector API, or OpenBLAS execution, prepare the occurrence, or calculate matrix
-values. CPU prepare will own any route decision after ownership planning exists.
+values. CPU prepare will own any route decision during later preparation.
 
 A current `false` answer carries no rejection reason. A later separate result or trace contract may
 provide typed evidence only after its consumers and diagnostic vocabulary are defined.
@@ -205,9 +211,8 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 - Complete provider/snapshot composition errors fail before any `supports` call.
 - Empty availability or an exact hard-target mismatch skips the provider before capability is
   queried.
-- Empty internal hard eligibility fails before baseline selection can choose a fallback; when a
-  compiler consumer exists, it must translate that condition rather than defer discovery to
-  runtime.
+- Empty internal hard eligibility fails before baseline selection can choose a fallback; current
+  Compiler adds node occurrence context and does not defer discovery to runtime.
 - Capability evaluation must be deterministic for the supplied immutable compile-time facts.
 - A null query must fail with `NullPointerException("query")`; a provider must not reinterpret it
   as unsupported work.
@@ -217,9 +222,9 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
 Provider implementations require unit tests for supported and rejected combinations and
 architecture tests for dependency direction once concrete implementations exist. Backend-
 conformance tests comparing declared support with actual preparation remain necessary once
-concrete preparation exists. The current internal eligibility and baseline-selection steps change
-no concrete backend behavior and therefore add no backend-conformance or integration test
-requirement.
+concrete preparation exists. The current callable Planning seam and Compiler orchestration change
+no concrete backend implementation or preparation behavior and therefore add no
+backend-conformance or integration test requirement.
 
 See [Partition scoring](../architecture/partition-scoring.md), [backend
 selection](../user-guide/backend-selection.md), and the [backend guide

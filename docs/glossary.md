@@ -1035,17 +1035,45 @@ and creates immutable compile artifacts. Compile creates a logical recipe; it do
 physical buffers, choose concrete kernels, or create backend executables. See
 [Lifecycle](architecture/lifecycle.md).
 
-The current package-private compiler implements this lifecycle only through a validated
-forward-only or combined first-order graph-stage result. Public compilation, publication,
-planning orchestration, `CompileArtifacts`, preparation, and execution remain planned.
+The current package-private compiler implements the lifecycle through a validated forward-only or
+combined first-order graph stage followed by publication roles, per-node owner selection, maximal
+partitions, logical memory, constants, diagnostics, and immutable `CompileArtifacts`. Public
+compilation, publication delivery, preparation, and execution remain planned.
 
 ### Compile artifacts
 
-The planned immutable output of compilation: an implemented compiled graph model plus planned
-backend-owned partitions, logical memory requirements, a compiler-owned publication plan, and
-compile diagnostics. `CompileArtifacts` is not implemented. It will be a recipe for prepare, not
-executable state, and will contain no physical buffers, concrete kernel routes, runtime residency,
-or mutable run state.
+The current public immutable seven-component `CompileArtifacts` record returned by the
+package-private complete compiler entry. It contains the exact compile mode and final
+`CompiledGraphModel`, an immutable membership snapshot of maximal backend-owned partitions, the
+derived `LogicalMemoryPlan`, and exact `PublicationPlan`, `CompileConstantPlan`, and
+`CompileDiagnostics` references.
+
+The constructor cross-validates graph identity, mode and phase roles, maximal graph-order
+partitioning, logical memory, complete graph-input source roles, constant type and gradient
+eligibility, and diagnostic node membership. Compile artifacts are a recipe for later prepare
+work, not executable state. They contain no provider, availability snapshot, selected device,
+physical buffer, concrete route or kernel, transfer, schedule, executable, runtime residency, or
+mutable run state. The artifact type is public, but no public compile entry currently produces it.
+
+### Compile constant plan
+
+The current compiler-owned output-only classification of every final graph input as either a
+[bindable input](#bindable-input) or one exact
+[compile-time constant source](#compile-time-constant-source). `CompileConstantPlan` snapshots
+both ordered role lists while retaining exact immutable element references.
+`ConstantSource(ValueId, ScalarValue)` carries the exact input identity and exact typed scalar
+repeated at every logical coordinate. It is not a Tensor, Shape, dense payload, storage object,
+materialization instruction, backend value, or physical allocation.
+
+### Compile diagnostics
+
+The current compiler-owned output-only successful-compile diagnostic bundle.
+`CompileDiagnostics` exposes ordered immutable
+`DeferredConstraintDiagnostic(NodeId, subject, predicate)` projections from the final deferred
+graph constraints and privately retains the exact internal constraints for later compiler-owned
+binding validation. Subject and predicate text are deterministic and nonblank, but they are not a
+public predicate language, binding API, trace payload, warning taxonomy, rejection result, or
+serialization. A failed compilation returns no partial artifact or successful diagnostic bundle.
 
 ### Compile-time constant source
 
@@ -1057,8 +1085,8 @@ the source is therefore excluded from the derived [bindable inputs](#bindable-in
 Initial facts enter only through explicit exact Tensor-identity bindings for reachable
 provenance-free, non-gradient leaves. The compiler does not infer them from a Tensor factory,
 descriptor, label, layout, provenance absence, or mutable host storage. Folding may create a
-synthetic constant source deterministically. Compiler task 0005 must transport the facts into
-future compile artifacts; future prepare/backend work owns physical materialization. The current
+synthetic constant source deterministically. The current complete compiler entry transports the
+facts into `CompileConstantPlan`; future prepare/backend work owns physical materialization. The current
 classification is not a public binding API, dense payload, physical buffer, runtime value, or
 executable constant.
 
@@ -1068,9 +1096,10 @@ The implemented standalone config enum that records requested compile-time graph
 values, in declaration order, are `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and `TRAINING_STEP`.
 Forward-only requests forward graph construction and requested forward publications. Forward-and-
 backward requests compiler autograd expansion plus combined forward/backward compile-time graph
-work. Package-private `GraphCompiler` currently consumes these two modes and `TRAINING_STEP`; the
-latter performs the same internal first-order combined graph stage without adding an optimizer,
-optimizer-update graph, training session, publication, schedule, or execution behavior.
+work. Package-private `GraphCompiler` currently consumes these two modes and `TRAINING_STEP` for
+both graph-stage and complete artifact compilation; the latter performs the same internal
+first-order combined graph construction without adding an optimizer, optimizer-update graph,
+training session, publication delivery, schedule, or execution behavior.
 
 A compile mode is a request, not completed public compiler behavior. No current public aggregate
 or compiler entry point consumes it, and constructing a value does not capture or transform a
@@ -1398,7 +1427,7 @@ Compiler task 0004 implements the general package-private entry owner `GraphComp
 mode-neutral internal result `GraphCompilation`; it adds no request aggregate. `FORWARD_ONLY`
 produces no BACKWARD nodes and empty gradient results, while backward-capable modes may produce
 the combined forward/backward graph described above. `GraphCompilation` is graph-stage state and
-is distinct from the later `CompileArtifacts` aggregate.
+is distinct from the later-lifecycle `CompileArtifacts` aggregate.
 
 The current request contains one exact requested scalar floating objective, an ordered non-empty
 identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
@@ -2319,11 +2348,25 @@ identity, or graph output slot.
 ### Publication binding
 
 The implemented immutable `PublicationBinding` record associates one [`TensorId`](#tensorid) with
-one graph-local [`ValueId`](#valueid). It is standalone model data for a later compiler-owned
-`PublicationPlan`, not a component of `CompiledGraphModel`. A binding cannot by itself prove that
-its value belongs to a particular graph, and it carries no public `Tensor`, gradient role,
-publication policy or target, storage, backend, or runtime state. The planned publication plan,
-prepare, and run layers will add their own owning context and behavior.
+one graph-local [`ValueId`](#valueid). It is standalone model data used by the current
+compiler-owned `PublicationPlan`, not a component of `CompiledGraphModel`. A binding cannot by
+itself prove that its value belongs to a particular graph, and it carries no public `Tensor`,
+intrinsic gradient role, publication policy or target, storage, backend, or runtime state.
+
+### Publication plan
+
+The current compiler-owned output-only graph context for ordered publication roles.
+`PublicationPlan` retains the exact final `CompiledGraphModel` and immutable membership snapshots
+of separate forward-output and gradient-result `PublicationBinding` lists. Forward bindings pair
+requested Tensor IDs with the forward graph-output prefix. Gradient bindings pair differentiation
+target IDs with final gradient values. A Tensor ID may occur once in both lists, and gradient
+values may repeat or equal a forward value.
+
+The plan validates every binding against the exact graph and requires the complete graph-output
+boundary to be the forward prefix followed by each previously unseen gradient value in first role
+order. It proves graph membership and boundary order only. It contains no publication delivery
+policy, alias/copy decision, Tensor gradient state, storage, backend behavior, preparation, or
+runtime publication.
 
 ### Residency
 
@@ -3358,8 +3401,9 @@ expressions](api/tensor-api.md#nchw-average-pooling-expressions), and [Window tr
 | Can participate in more than one separately compiled graph | Belongs to one owning graph context |
 | Must not become runtime device residency | Must not be confused with a physical buffer or slot |
 
-The implemented standalone `PublicationBinding` connects the two identity domains. The planned
-compiler-owned publication plan will provide owning-graph and publication-policy context. Public
+The implemented standalone `PublicationBinding` connects the two identity domains. Current
+compiler-owned `PublicationPlan` provides owning-graph and ordered role context but no publication
+delivery policy. Public
 descriptor-based leaf construction, immutable provenance, and floating plus selected signed-
 integral binary arithmetic, comparison, and scalar Tensor expression construction are
 implemented. Unary construction remains floating-only; BOOL-only logical expression construction,

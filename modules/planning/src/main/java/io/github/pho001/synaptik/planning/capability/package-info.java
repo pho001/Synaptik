@@ -7,12 +7,16 @@
  * occurrence. The package also contains an internal per-query step that validates a complete
  * provider-to-availability-snapshot association, applies current availability and one optional
  * exact hard requirement, and retains the supported backend identities that remain eligible. A
- * second internal step selects one owner from that complete ordered candidate set:</p>
+ * second internal step selects one owner from that complete ordered candidate set. The public
+ * {@link io.github.pho001.synaptik.planning.capability.BackendOwnerPlanning} collaboration
+ * composes those two internal steps for one compiler-supplied occurrence without exposing the
+ * intermediate:</p>
  *
  * <pre>{@code
  * OperationCapabilityQuery -> BackendCapabilityProvider -> boolean ownership capability
  *                          -> internal hard eligibility -> ordered BackendId values
- *                          -> internal baseline selection -> one BackendId owner
+ *                          -> BackendOwnerPlanning
+ *                             -> internal baseline selection -> one BackendId owner
  * }</pre>
  *
  * <p>The internal eligibility result follows provider encounter order and retains only backend
@@ -23,11 +27,12 @@
  * Provider order resolves ties. Empty hard eligibility fails internally before selection. No
  * device is selected or retained by either step.</p>
  *
- * <p>The public surface remains the query and provider contracts. Reusable or public capability
- * matrices, public planning orchestration or owner selection, numeric or cost scoring,
- * operation-family or workload classification, profiles, partitioning, logical memory, compiler
- * integration, device-level capability or selection, preparation, kernel or route selection,
- * runtime state, execution, and provider implementations remain outside this package or
- * planned.</p>
+ * <p>The public surface is the query/provider pair plus the one-method per-occurrence
+ * owner-selection collaboration. The current compiler constructs one query for each final graph
+ * node and owns the graph-wide loop and owner map. Reusable or public capability matrices,
+ * eligibility results, a graph-wide Planning workflow, numeric or cost scoring, operation-family
+ * or workload classification, profiles, device-level capability or selection, preparation,
+ * kernel or route selection, runtime state, execution, and provider implementations remain
+ * outside this package or planned.</p>
  */
 package io.github.pho001.synaptik.planning.capability;

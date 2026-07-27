@@ -6,9 +6,11 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
  * Answers whether one named backend can semantically own an operation occurrence.
  *
  * <p>This planning-owned interface is an explicitly supplied compile-time collaboration that a
- * concrete backend may implement. It is not a registry, discovery mechanism, service locator,
- * availability report, hard-requirement evaluator, scoring policy, route selector, preparer, or
- * execution service.</p>
+ * concrete backend may implement. The current package-private compiler artifact entry supplies
+ * providers to Planning once per final graph node and retains only the selected
+ * {@link BackendId}; neither the compiler result nor a Planning output retains the provider. This
+ * interface is not a registry, discovery mechanism, service locator, availability report,
+ * hard-requirement evaluator, scoring policy, route selector, preparer, or execution service.</p>
  *
  * <p>An implementation's immutable configuration participates in its capability answer. For the
  * same immutable query and unchanged immutable provider configuration, repeated answers are
@@ -32,7 +34,8 @@ public interface BackendCapabilityProvider {
      * <p>The result is deterministic for an immutable query and unchanged immutable provider
      * configuration. It does not report registration or availability, evaluate a hard backend
      * requirement, score ownership candidates, select a kernel or route, inspect prepare or
-     * runtime state, or promise successful preparation or execution.</p>
+     * runtime state, or promise successful preparation or execution. Current compiler
+     * orchestration uses this answer only as one input to backend-neutral ownership selection.</p>
      *
      * @param query the non-null immutable operation occurrence to inspect
      * @return {@code true} only when this provider's backend supports semantic ownership of the

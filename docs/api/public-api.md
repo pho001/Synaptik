@@ -9,20 +9,23 @@ selected public model foundation, tensor-expression metadata surface, common tra
 plus model-correlation identifiers, and the first backend-neutral planning capability contracts.
 It also contains backend and backend-scoped device identity values plus a coarse
 CPU-versus-accelerator device classification. Planning also contains internal per-query hard-
-eligibility evaluation, cost-free baseline owner selection, and maximal consecutive same-owner
-generation. The first two steps are internal; partition generation adds the public immutable
-`PlannedPartition` recipe but no callable external planning workflow. A following internal step
-derives the current public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes
-from the graph and ordered partitions. Compiler orchestration, reusable or public capability
-matrices, public ownership planning, physical memory, prepare, runtime, concrete backend
-integration, and engine APIs remain planned. The backend
+eligibility evaluation and cost-free baseline owner comparison. Those two steps remain internal;
+public `BackendOwnerPlanning` composes them for one operation occurrence. Public stateless
+`MaximalSameOwnerPartitioning` and `LogicalMemoryPlanning` generate the current immutable
+partition and logical-memory recipes from compiler-owned graph-wide inputs. Package-private
+Compiler orchestration now consumes those three operations and returns public immutable
+`CompileArtifacts`, `PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics`.
+Reusable or public capability matrices, a public graph-wide Planning workflow, public compiler
+entry, physical memory, prepare, runtime, concrete backend integration, and engine APIs remain
+planned. The backend
 contract also contains an immutable caller-supplied availability snapshot; it is data, not a
 discovery or liveness API. A sealed requirement family can now name one hard eligibility target.
 The current config module can record that hard-target optionality, requested graph scope,
 permission for optional semantics-preserving compiler optimization, and one optional soft coarse
-device-class preference. The internal baseline consumes that preference after hard eligibility;
-no current compile aggregate, compiler, public capability-matrix or eligibility surface, scoring
-evaluator, or ownership planner is callable by users. APIs may change through the ordered
+device-class preference. The internal baseline consumes that preference after hard eligibility.
+The complete Compiler entry consumes all four config leaves directly but remains package-private;
+no current `CompileConfig`, public capability-matrix or eligibility surface, numeric scoring
+evaluator, or public compile lifecycle is callable by users. APIs may change through the ordered
 planning process.
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) defines module boundaries, not source or binary
 compatibility.
@@ -195,12 +198,13 @@ The canonical constructor rejects a null optional with message `hardRequirement`
 The record evaluates no requirement and contains no preference, scoring, profile, service,
 preparation, run, publication, or execution behavior.
 
-`graphScope` requests later compiler autograd expansion and combined forward/backward compile-time
-graph work. The other exact values are `FORWARD_ONLY` and `TRAINING_STEP`. The latter records the
+`graphScope` requests current internal compiler autograd expansion and combined
+forward/backward compile-time graph work. The other exact values are `FORWARD_ONLY` and
+`TRAINING_STEP`. The latter records the
 architecture's training-step direction but does not add an optimizer, optimizer-update graph,
 training session, schedule, or execution behavior.
 
-`optimization.optionalOptimizationsEnabled()` is `true`, so a later compiler may apply its
+`optimization.optionalOptimizationsEnabled()` is `true`, so the current internal compiler may apply its
 standard optional semantics-preserving pipeline. `GraphOptimizationConfig.disabled()` returns a
 fresh false value that requests skipping only optional optimization. It cannot disable capture,
 ordering, inference, validation, mandatory canonical representation, mode-required autograd,
@@ -218,23 +222,29 @@ rejects null with message `preferredDeviceClass`; `preferring(null)` rejects nul
 
 `PartitionScoringConfig` itself does not enumerate or evaluate candidates, calculate or compare
 scores, contain profile measurements, choose ownership or a device, select a route or kernel, or
-perform compiler, prepare, runtime, or execution work. Current package-private planning interprets
-only its optional class preference through a cost-free provider-order baseline. `CompileConfig`,
-immutable cost profiles, public planning orchestration, compiler consumption, and every public
-lifecycle consumer remain planned.
+perform compiler, prepare, runtime, or execution work. Current Planning interprets only its
+optional class preference through a cost-free provider-order baseline, and package-private
+Compiler supplies that value per final graph node. `CompileConfig`, immutable cost profiles,
+public graph-wide planning, and every public lifecycle consumer remain planned.
 
-The public `modules:planning` surface contains five backend-neutral compile-time contracts:
+The public `modules:planning` surface contains eight backend-neutral compile-time declarations:
 
 - `OperationCapabilityQuery`, an immutable operation occurrence consisting of one exact
   backend-independent `Operation` reference plus ordered immutable membership snapshots of input
   and output `TensorDescriptor` references; and
 - `BackendCapabilityProvider`, an explicitly supplied collaboration with a stable non-null
   `BackendId` and a deterministic boolean capability answer; and
+- `BackendOwnerPlanning`, a stateless one-method collaboration that composes internal hard
+  eligibility and baseline owner comparison for one occurrence;
 - `PlannedPartition`, an immutable owner-plus-node-ID recipe for one non-empty consecutive region
   of an owning compiled graph;
+- `MaximalSameOwnerPartitioning`, the stateless generator over one complete compiler-assembled
+  node-to-owner map;
 - `LogicalMemoryRequirement`, one immutable graph-value recipe retaining logical descriptor,
   optional producer partition, distinct consumer partitions, and graph-output obligation; and
-- `LogicalMemoryPlan`, an immutable ordered snapshot of distinct per-value requirements.
+- `LogicalMemoryPlan`, an immutable ordered snapshot of distinct per-value requirements; and
+- `LogicalMemoryPlanning`, the stateless derivation over one closed graph and its ordered complete
+  partitions.
 
 The query validates only non-null references and the input/output occurrence counts declared by
 the operation signature. It does not validate operand data types, Shapes, layouts, graph closure,
@@ -285,7 +295,8 @@ backend identity `"cpu"`. The result is `true` because this illustrative provide
 operation kind. It proves only semantic ownership support for this immutable occurrence; it does
 not prove CPU registration or availability, evaluate `BackendIntent`, choose a device or CPU
 route, prepare work, or execute values. The repository supplies no production provider
-implementation and no current compiler or public planning consumer.
+implementation. Package-private Compiler is the current consumer, while no public graph-wide
+planning consumer exists.
 
 Provider implementations must reject a null query with `NullPointerException("query")`. A false
 answer carries no diagnostic reason. Inside the same package, current implementation code
@@ -298,11 +309,12 @@ returns the exact eligibility reference, allows extra unique snapshots, treats a
 snapshot as a preference nonmatch, and selects no device. Empty eligibility fails internally
 before snapshot elements are read.
 
-These eligibility and selection contracts are not public APIs. Planning also contains a separate
-package-private generator that consumes one `CompiledGraphModel` and a complete
+The eligibility result and selector remain package-private. Public
+`BackendOwnerPlanning.selectOwner(...)` composes them once for a non-null query, intent, provider
+list, snapshot list, and scoring config. The intermediate does not escape. Public
+`MaximalSameOwnerPartitioning.partition(...)` consumes one `CompiledGraphModel` and a complete
 `Map<NodeId, BackendId>`. It validates exact owner-map coverage, then groups consecutive nodes in
-the graph's stored topological order while equal `BackendId` values continue. The public result
-type is current, but callers cannot invoke this internal generator.
+the graph's stored topological order while equal `BackendId` values continue.
 
 The following current code constructs the public recipe directly:
 
@@ -323,7 +335,8 @@ PlannedPartition partition =
 non-empty ordered snapshot that contains the exact `first` and `second` references. Construction
 rejects a null owner or list, an empty list, the first null element, and the first later duplicate.
 This direct example proves only the DTO contract; it does not prove that those node IDs belong to
-one graph or share an owner. The internal generator establishes those graph-relative facts.
+one graph or share an owner. `MaximalSameOwnerPartitioning` establishes those graph-relative
+facts.
 
 The generator defines adjacency only by consecutive positions in `CompiledGraphModel.nodes()`.
 Graph edges, phases, fan-out, merges, repeated inputs, graph input/output values, and multiple
@@ -332,7 +345,7 @@ no partitions. Each generated partition retains the exact graph `NodeId` referen
 owner reference associated with its first node, and both the result list and membership lists are
 immutable.
 
-Planning's next package-private step accepts the closed graph and ordered complete partition
+Public `LogicalMemoryPlanning.plan(...)` accepts the closed graph and ordered complete partition
 recipes. It validates partition nulls, membership, exact graph-order coverage, and adjacent-owner
 maximality before deriving one requirement per graph value in `CompiledGraphModel.values()`
 order. Generated producer and consumer entries retain exact supplied partition references;
@@ -343,7 +356,7 @@ The two logical-memory records are public data and can also be constructed direc
 `LogicalMemoryPlan` may be empty and validates only that its requirements are non-null and have
 distinct `ValueId` values. A standalone requirement validates and snapshots its components but
 has no owning graph against which to prove producer, consumer, or output relationships. The
-package-private generator establishes those graph-relative facts.
+public generator establishes those graph-relative facts.
 
 These records retain `TensorDescriptor` rather than calculating element or byte counts, so
 dynamic and expression dimensions remain representable. They carry no `PublicationBinding`,
@@ -351,9 +364,34 @@ dynamic and expression dimensions remain representable. They carry no `Publicati
 prepared schedule, or runtime residency. `graphOutput` is a logical preservation obligation, not
 a publication target or policy.
 
-Reusable or public capability matrices, public eligibility evaluation or planner orchestration,
-numeric or cost scoring, profiles, owner-map assembly, compiler integration, physical memory,
-preparation, runtime, execution, and diagnostics remain planned.
+Reusable or public capability matrices, public eligibility evaluation, a public graph-wide
+Planning workflow, numeric or cost scoring, profiles, physical memory, preparation, runtime, and
+execution remain planned. Compiler currently owns owner-map assembly and immutable artifact
+construction.
+
+The public `modules:compiler` output surface now contains:
+
+- `CompileArtifacts`, the exact seven-component immutable recipe containing mode, final graph,
+  maximal partitions, logical memory, publication, constants, and diagnostics;
+- `PublicationPlan`, an output-only exact-graph context with separate immutable ordered forward
+  and gradient `PublicationBinding` lists;
+- `CompileConstantPlan`, an output-only immutable graph-input classification with nested
+  `ConstantSource(ValueId, ScalarValue)` values; and
+- `CompileDiagnostics`, an output-only immutable successful-compile projection with nested
+  `DeferredConstraintDiagnostic(NodeId, subject, predicate)` values.
+
+The three output-only classes have package-private constructors. `CompileArtifacts` is a public
+record whose canonical constructor cross-validates the supplied components and snapshots
+partition membership. These types are public so later prepare and engine work can consume stable
+compile-time data. They do not make compilation callable: both `GraphCompiler` entries, the
+first-order request, and `GraphCompilation` remain package-private.
+
+The artifact result retains no provider, availability snapshot, selected device, route, kernel,
+physical buffer, transfer, prepared schedule, executable, residency, or mutable run state.
+`PublicationPlan` validates graph membership and boundary order but adds no delivery policy.
+`CompileConstantPlan` carries logical splats rather than dense data or storage.
+`CompileDiagnostics` carries deterministic text projections rather than a public predicate
+language, trace schema, or serialization.
 
 ## Planned public lifecycle
 

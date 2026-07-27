@@ -8,16 +8,17 @@
  * {@link io.github.pho001.synaptik.config.compile.GraphOptimizationConfig} records permission for
  * optional semantics-preserving compiler optimization, and
  * {@link io.github.pho001.synaptik.config.compile.PartitionScoringConfig} records an optional soft
- * device-class preference for later ranking after hard eligibility. These values describe
- * requests only. The current package-private compiler transformation boundary consumes only the
- * optimization permission. No current compile aggregate or public compiler entry point consumes
- * these values, and compile mode, backend intent, and scoring orchestration remain planned.</p>
+ * device-class preference for ranking after hard eligibility. These values describe requests
+ * only. Current package-private compiler entries consume mode and optimization permission; the
+ * complete artifact entry additionally passes backend intent and scoring preference to Planning
+ * once per final graph node. No public compile aggregate or public compiler entry point consumes
+ * these values.</p>
  *
  * <p>Later configuration work owns immutable profile inputs and the aggregate compile
- * configuration. Later planning evaluates hard eligibility, candidates, and scoring and chooses
- * ownership; compiler orchestration, preparation, runtime, engine composition, and concrete
- * backend implementation remain outside this package. This package contains no compiler pass
- * API, profile data, scoring evaluator, live service, runtime state, or concrete backend
- * implementation.</p>
+ * configuration. Current Planning evaluates hard eligibility and applies the cost-free
+ * preferred-class/provider-order owner-selection baseline. Numeric cost scoring, preparation,
+ * runtime, engine composition, and concrete backend implementation remain outside this package.
+ * This package contains no compiler pass API, profile data, scoring evaluator, live service,
+ * runtime state, or concrete backend implementation.</p>
  */
 package io.github.pho001.synaptik.config.compile;

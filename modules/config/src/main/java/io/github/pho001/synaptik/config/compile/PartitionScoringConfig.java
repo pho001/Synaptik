@@ -4,7 +4,7 @@ import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import java.util.Optional;
 
 /**
- * Records an optional soft device-class preference for later ownership ranking.
+ * Records an optional soft device-class preference for ownership ranking.
  *
  * <p>Planning applies this immutable input only after hard eligibility has established candidate
  * ownership choices. An empty preference means only that no explicit coarse device-class
@@ -13,10 +13,12 @@ import java.util.Optional;
  * candidate ineligible, weaken a hard backend requirement, or guarantee selection of a candidate
  * in the preferred class.</p>
  *
- * <p>This value does not evaluate eligibility or candidates, calculate or compare scores, contain
- * calibrated profile data, select an owner, device, route, or kernel, or perform compilation,
- * preparation, runtime, or execution work. Equality, hashing, and diagnostic text follow ordinary
- * record semantics over the optional preference.</p>
+ * <p>The current Planning owner-selection collaboration consumes only this optional coarse
+ * preference through its cost-free provider-order baseline. This value does not itself evaluate
+ * eligibility or candidates, calculate or compare numeric scores, contain calibrated profile
+ * data, select an owner, device, route, or kernel, or perform compilation, preparation, runtime,
+ * or execution work. Equality, hashing, and diagnostic text follow ordinary record semantics
+ * over the optional preference.</p>
  *
  * @param preferredDeviceClass optional soft device-class preference; must not be {@code null};
  *     the exact optional reference and, when present, exact device-class reference are retained
@@ -74,7 +76,7 @@ public record PartitionScoringConfig(Optional<DeviceClass> preferredDeviceClass)
     }
 
     /**
-     * Returns the optional soft device-class preference retained for later ownership ranking.
+     * Returns the optional soft device-class preference retained for ownership ranking.
      *
      * @return the exact non-null optional reference supplied at construction, containing the
      *     exact supplied device-class reference when present

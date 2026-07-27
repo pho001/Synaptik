@@ -79,14 +79,16 @@ select expressions. `unfold` adds general-axis window materialization and `foldA
 overlap-summing target transformation. The two `unfold2d` forms add NCHW im2col with conceptual
 positive-zero or exact typed padding, while `fold2d` adds overlap-summing col2im with exact static
 or symbolic compatibility.
-Typed access, public gradient requests and publication, native/runtime/backend allocation, public
-compiler integration, runtime residency, and backend execution remain planned. Current
-package-private compiler consumers include forward-only and phase-aware combined capture,
+Typed access, public gradient requests and publication delivery, native/runtime/backend
+allocation, the public compiler facade, runtime residency, and backend execution remain planned.
+Current package-private compiler consumers include forward-only and phase-aware combined capture,
 binding-free operand/descriptor verification, closed first-order automatic differentiation
 (autograd), mandatory dense graph-local canonicalization, explicit logical-splat ingress, bounded
-integral/BOOL constant folding, whole-graph dead-code elimination, and phase-local
-common-subexpression elimination. These compiler steps do not turn public Tensor host storage
-into constant evidence, perform general numerical execution, or add a public compiler surface.
+integral/BOOL constant folding, whole-graph dead-code elimination, phase-local
+common-subexpression elimination, publication-role construction, backend-neutral Planning
+orchestration, and immutable `CompileArtifacts` assembly. These compiler steps do not turn public
+Tensor host storage into constant evidence, perform general numerical execution, deliver a
+publication, or add a public compile call.
 The authoritative module boundary remains [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
 
 Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:
@@ -100,7 +102,7 @@ Compiler task 0004 is Complete. Package-private named gradient rules reuse exist
 expression methods directly on the original forward expression, and package-private
 `GraphCompiler` captures forward outputs and generated gradient roots together once. This changes
 no public Tensor method or ergonomic result carrier. Its mode-neutral internal
-`GraphCompilation` is not a Tensor result carrier or the later `CompileArtifacts` aggregate. The
+`GraphCompilation` is not a Tensor result carrier or the current `CompileArtifacts` aggregate. The
 implementation adds no
 `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder Tensor for a captured
 `ValueId`, or model-owned derivative rule.
@@ -8076,8 +8078,9 @@ lifecycles.
 Graph-local numeric identifiers may be reused by different graph containers. `NodeId` identifies a computation, whereas `ValueId` identifies data flowing between computations. A value can exist without a producing node, one node can produce multiple values, and one value can have multiple consumers.
 
 An implemented `PublicationBinding` associates a public `TensorId` with a `ValueId`. The binding is
-standalone and cannot prove that the value belongs to a particular graph; a later compiler-owned
-`PublicationPlan` will provide that context. The implemented `Tensor` stores no graph-local IDs
+standalone and cannot prove that the value belongs to a particular graph; current compiler-owned
+`PublicationPlan` provides that context and separates forward-output from gradient-result roles.
+The implemented `Tensor` stores no graph-local IDs
 because the same tensor may participate in multiple separately compiled graphs. `OperationId` is
 not currently defined: operation semantics occur through graph nodes, and no independent
 operation-identity lifecycle has been established.
@@ -9544,7 +9547,7 @@ computation, graph boundaries, node phase, and publication association separate:
 | `CompiledNode` | `NodeId id`, `Operation operation`, ordered `inputs`, ordered `outputs` | One occurrence of computation and the value positions it consumes and produces. |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` | A node's compile-time classification, not a compile mode or runtime schedule. |
 | `CompiledGraphModel` | Ordered `values`, topological `nodes`, ordered `inputs` and `outputs`, exact `nodePhases` | One immutable, structurally closed compile-time graph. |
-| `PublicationBinding` | `TensorId tensorId`, `ValueId valueId` | A standalone association for a later compiler-owned publication plan. |
+| `PublicationBinding` | `TensorId tensorId`, `ValueId valueId` | A standalone association used inside current compiler-owned publication plans. |
 
 Both identity types are local to an owning graph context. Equal numeric IDs in another graph do
 not establish a relationship, and a `NodeId` is never interchangeable with a `ValueId`.
@@ -9574,8 +9577,9 @@ zero-input nodes, unused graph inputs, and a zero-node pass-through graph are va
 
 `GraphPhase` contains only `FORWARD` and `BACKWARD`, in that declaration order. It does not encode
 an optimizer phase, compile mode, or runtime schedule. `PublicationBinding` remains separate from
-`CompiledGraphModel` and carries no `Tensor`, gradient role, publication policy or target, storage,
-backend, or execution state.
+`CompiledGraphModel` and carries no `Tensor`, intrinsic gradient role, publication policy or
+target, storage, backend, or execution state. Current `PublicationPlan` supplies exact graph
+context and role-list membership without changing the model record.
 
 ### Complete test-local graph-model example
 
@@ -9682,10 +9686,10 @@ TensorId[value=9]
 The result shows the operation kind, validated graph boundaries, compile-time node phase, and
 public tensor identity selected by the standalone binding. Model construction proves structural
 graph closure and local operation occurrence cardinality; it does not itself validate descriptor
-compatibility. Current package-private compiler verification can perform that semantic check, but
-it does not prove that the binding belongs to this graph, create a compiler-owned
-`PublicationPlan` or `CompileArtifacts`, choose storage or a backend, prepare execution, or run the
-operation.
+compatibility. Current package-private compiler verification can perform that semantic check. The
+current complete compiler entry can place a binding in an exact-graph `PublicationPlan` and
+`CompileArtifacts`, but model construction itself does not prove that relationship, choose
+storage or a backend, prepare execution, or run the operation.
 
 #### Failures and useful variations
 
@@ -9735,8 +9739,9 @@ The following contracts appear in the architecture and planning documents but ar
   gather-ND,
   axis-scatter, scatter-ND, and window-transform semantics, plus
   family-specific attribute values beyond those documented above;
-- public compiler entry points, concrete dimension binding,
-  compiler-owned `PublicationPlan` and `CompileArtifacts`, and the engine `CompiledGraph` facade;
+- public compiler entry points, concrete dimension binding, publication delivery, and the engine
+  `CompiledGraph` facade; compiler-owned `PublicationPlan` and `CompileArtifacts` are current
+  output contracts whose producing entry remains package-private;
   package-private forward-only and phase-aware combined capture, closed first-order autograd,
   binding-free verification inference, canonicalization, exact rewriting, bounded logical-splat
   folding, whole-graph DCE, and phase-local CSE are current; and

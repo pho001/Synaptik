@@ -1,12 +1,13 @@
 package io.github.pho001.synaptik.config.compile;
 
 /**
- * Identifies the requested graph scope for a later graph-compilation operation.
+ * Identifies the requested graph scope for graph compilation.
  *
  * <p>A compile mode is immutable declarative configuration. It does not capture or transform a
  * graph, construct gradients, bind publications, select a runtime schedule, prepare backend
- * executables, or run a computation. The compiler and later lifecycle layers will interpret the
- * selected mode when their APIs are introduced.</p>
+ * executables, or run a computation. The current package-private compiler entries interpret the
+ * selected mode for graph-stage compilation and immutable compile artifacts; a public compiler
+ * facade and later lifecycle layers remain planned.</p>
  */
 public enum CompileMode {
     /**
@@ -15,8 +16,8 @@ public enum CompileMode {
     FORWARD_ONLY,
 
     /**
-     * Requests later compiler autograd expansion and combined forward and backward compile-time
-     * graph work.
+     * Requests current internal compiler autograd expansion and combined forward and backward
+     * compile-time graph work.
      */
     FORWARD_AND_BACKWARD,
 

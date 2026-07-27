@@ -2,28 +2,32 @@
 
 ## Purpose and implementation status
 
-This reference separates the compile-time model values implemented today from the compiler and
-engine APIs that remain planned. The compiler module now contains package-private
-`GraphCompiler`, which compiles a forward-only or combined first-order Tensor expression into
-package-private immutable `GraphCompilation`. Its current stages are fail-closed autograd
-preflight, formula construction through public Tensor operations, one phase-aware capture,
-binding-free captured-graph verification, mandatory dense canonicalization, explicit
-logical-splat facts, and one bounded exact whole-graph optimization pipeline. The repository
-still provides no public compiler entry point, public gradient request, publication plan,
-`CompileArtifacts`, prepared execution, or runnable graph compiler.
+This reference separates the compile-time contracts implemented today from the public engine
+lifecycle that remains planned. The compiler module contains package-private `GraphCompiler`.
+Its original five-argument entry compiles a forward-only or combined first-order Tensor
+expression into package-private immutable `GraphCompilation`. A second package-private
+nine-argument entry completes publication and backend-neutral planning and returns public
+immutable `CompileArtifacts`.
+
+The current stages are fail-closed autograd preflight, formula construction through public Tensor
+operations, one phase-aware capture, binding-free captured-graph verification, mandatory dense
+canonicalization, explicit logical-splat facts, one bounded exact whole-graph optimization
+pipeline, publication-role validation, one owner selection per final graph node, maximal
+same-owner partitioning, logical-memory derivation, and immutable artifact assembly. The
+repository still provides no public compiler entry point, public gradient request,
+`CompileConfig` aggregate, engine `CompiledGraph`, prepared execution, or runnable public graph
+compiler.
 The current config module provides four immutable standalone input values that a later compile
 configuration aggregate can contain: `BackendIntent`, `CompileMode`, and
 `GraphOptimizationConfig`, plus `PartitionScoringConfig`. The current planning module provides the
 immutable `OperationCapabilityQuery` and the explicitly supplied `BackendCapabilityProvider`
-collaboration. It also contains one package-private per-query hard-eligibility step, but it does
-not expose that step publicly. A second package-private step now selects one `BackendId` owner by
-optional preferred-class match and provider order. The module still provides no reusable/public
-capability matrix, public planner orchestration or owner selector, general cost scoring,
-owner-map assembly, or compiler integration. It now provides the public
-immutable `PlannedPartition(owner, nodeIds)` recipe and a package-private generator that groups a
-complete node-to-owner assignment into maximal consecutive same-owner runs. A following
-package-private step derives public immutable `LogicalMemoryRequirement` and `LogicalMemoryPlan`
-recipes from a closed graph and ordered complete partitions.
+collaboration. It keeps per-query hard eligibility and baseline comparison package-private and
+exposes one public `BackendOwnerPlanning.selectOwner(...)` collaboration that composes them
+without exposing the intermediate. It also exposes the existing stateless
+`MaximalSameOwnerPartitioning.partition(...)` and `LogicalMemoryPlanning.plan(...)` operations in
+their owning packages. The module still provides no reusable/public capability matrix, public
+graph-wide planner workflow, general cost scoring, or owner-map assembly. Compiler owns the
+graph-wide loop and invokes those three Planning operations directly.
 
 Compilation will answer two questions: what the computation means, and which backend identity owns
 each planned region. It will not create physical buffers, choose concrete kernels, or construct
@@ -44,7 +48,7 @@ compiler work can produce and consume:
 | `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
 | `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
 | `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
-| `PublicationBinding` | Standalone `TensorId`-to-`ValueId` association | Not an owning publication plan and not a `CompiledGraphModel` component |
+| `PublicationBinding` | Standalone `TensorId`-to-`ValueId` association used inside current compiler publication plans | Not an owning publication plan and not a `CompiledGraphModel` component |
 
 `CompiledGraphModel` validates structural closure when constructed. It snapshots its lists and
 phase map, requires resolvable references and topological node order, enforces producer and phase
@@ -103,8 +107,9 @@ identity node.
 
 Capture itself performs no inference, transformation, or derivative-rule selection. The
 following package-private boundaries revalidate, canonicalize, and optionally optimize the
-captured graph. None derives publication bindings, invokes planning, produces diagnostics or
-`CompileArtifacts`, prepares backends, allocates physical memory, or executes values. No public
+captured graph. The original graph-stage entry stops there; the complete entry derives
+publication, invokes Planning, and constructs `CompileArtifacts` only after final graph
+validation. Neither entry prepares backends, allocates physical memory, or executes values. No public
 `GraphCompiler`, `CompiledGraph`, compile entry point, configuration aggregate, capture method,
 validation method, or optimizer method exists.
 
@@ -234,11 +239,11 @@ the verification pass; an unchanged helper result is not redundantly revalidated
 
 These are internal graph transformations, not a public compiler surface. They do not rewrite
 casts, broader arithmetic, algebra, or views; construct autograd; derive publication, planning, or
-diagnostics; create `CompileArtifacts`; or affect trace, preparation, runtime, backend, or engine
-behavior. Compiler task 0005 must transport the exact immutable facts, or a named component with
-identical semantics, into future compile artifacts and must expose only the derived bindable
-inputs. Planning may then see the unchanged logical graph. Future prepare/backend work owns
-physical splat materialization, storage allocation, lowering, and execution.
+diagnostics; or affect trace, preparation, runtime, backend, or engine behavior. The current
+complete compiler entry transports the exact immutable facts into `CompileConstantPlan`, exposing
+only derived bindable inputs and exact logical-splat sources. Planning sees the unchanged logical
+graph. Future prepare/backend work owns physical splat materialization, storage allocation,
+lowering, and execution.
 
 ### Current package-private pre-capture autograd
 
@@ -256,7 +261,7 @@ mode-neutral `GraphCompilation`. `FORWARD_ONLY` requires no first-order request,
 `BACKWARD` nodes, and has empty gradient results. `FORWARD_AND_BACKWARD` and the current internal
 `TRAINING_STEP` path require the same request and may carry one combined graph.
 `GraphCompilation` retains the final `ValidatedGraph`, ordered forward output values, and ordered
-target-`TensorId`/gradient-`ValueId` roles. It is graph-stage state, not the later public or
+target-`TensorId`/gradient-`ValueId` roles. It is graph-stage state, not the current public
 cross-package `CompileArtifacts`.
 
 The current first-order request has one exact objective Tensor that is also a requested forward
@@ -392,6 +397,101 @@ public compile entry point. It adds no publication, optimizer update, training s
 backend lowering, preparation, execution, or runtime behavior. Higher derivatives remain future
 work with an explicit create-graph or derivative-order lifecycle contract.
 
+### Current package-private artifact compilation
+
+The complete `GraphCompiler.compile(...)` overload has these nine direct inputs:
+
+```text
+CompileMode
+ordered forward Tensors
+optional internal first-order request
+explicit logical-splat ingress
+GraphOptimizationConfig
+BackendIntent
+PartitionScoringConfig
+ordered BackendCapabilityProvider values
+BackendAvailabilitySnapshot values
+```
+
+It validates the nine top-level references in declaration order before graph construction, then
+invokes the unchanged five-argument graph-stage entry exactly once. Provider and snapshot list
+elements are inspected only when a final graph node is planned. A valid zero-node pass-through
+graph therefore asks no capability question, accepts unused list elements without inspecting
+them, produces no partitions, and still receives one logical-memory requirement per graph value.
+Caller collections are neither retained nor mutated.
+
+After graph-stage success, Compiler performs this exact sequence:
+
+```text
+final GraphCompilation
+  -> PublicationPlan
+  -> CompileConstantPlan + CompileDiagnostics
+  -> one OperationCapabilityQuery and owner selection per final node
+  -> complete Map<NodeId, BackendId>
+  -> MaximalSameOwnerPartitioning.partition(...)
+  -> LogicalMemoryPlanning.plan(...)
+  -> CompileArtifacts
+```
+
+`PublicationPlan` is a public final output-only type with package-private construction. It retains
+the exact final `CompiledGraphModel` reference and immutable membership snapshots of separate
+forward-output and gradient-result `PublicationBinding` lists. Forward bindings pair requested
+Tensor IDs with the final forward graph-output prefix in request order. Gradient bindings pair
+requested differentiation-target Tensor IDs with final gradient values in target order. Tensor
+IDs are unique within each list but may occur once in both lists. Gradient values may repeat or
+equal a forward value; the graph boundary contains the forward prefix followed by each previously
+unseen gradient value in first role order.
+
+`CompileConstantPlan` is a public final output-only source-role classification with
+package-private construction. Its immutable `bindableInputs()` list and immutable
+`constantSources()` list classify every final graph input exactly once in graph-input order. A
+`ConstantSource(ValueId, ScalarValue)` retains the exact input identity and exact typed scalar
+whose bits repeat at every logical coordinate. It is not a dense payload, Tensor, storage object,
+materialization instruction, or physical allocation.
+
+`CompileDiagnostics` is a public final output-only successful-compile diagnostic bundle with
+package-private construction. It exposes ordered immutable
+`DeferredConstraintDiagnostic(NodeId, subject, predicate)` projections. Subject and predicate
+text are nonblank and deterministic for diagnostics, but the predicate text is not a public
+binding language, trace schema, or serialization format. The exact immutable internal constraints
+remain privately retained for later compiler-owned binding validation. A rejected compile returns
+no partial artifact and is not converted into a successful diagnostic.
+
+`CompileArtifacts` is the exact seven-component public immutable record:
+
+```java
+public record CompileArtifacts(
+        CompileMode mode,
+        CompiledGraphModel graph,
+        List<PlannedPartition> partitions,
+        LogicalMemoryPlan memory,
+        PublicationPlan publication,
+        CompileConstantPlan constants,
+        CompileDiagnostics diagnostics) {}
+```
+
+Its canonical constructor validates components in declaration order, snapshots partition-list
+membership, retains exact immutable element and plan references, and cross-checks graph identity,
+mode/phase/result roles, maximal graph-order partitions, derived logical memory, complete
+graph-input source classification, constant type and gradient eligibility, and diagnostic node
+membership. The aggregate contains no provider, availability snapshot, selected device, route,
+kernel, physical buffer, transfer, schedule, executable, runtime residency, or mutable run state.
+It is an immutable recipe for later prepare work, not `GraphCompilation`, a public compile facade,
+engine `CompiledGraph`, or `PreparedExecution`.
+
+For each final `CompiledNode`, Compiler resolves ordered input and output descriptors, constructs
+one `OperationCapabilityQuery` retaining the exact operation and descriptor references, and calls
+`BackendOwnerPlanning.selectOwner(...)` once. Planning validates and evaluates hard eligibility
+once, then applies its preferred-class/provider-order baseline once. Compiler retains only the
+selected exact `BackendId` in its construction-local owner map; providers and snapshots do not
+enter the artifacts. The first no-hard-eligible node fails immediately with graph occurrence
+context and retains Planning's terminal failure as its cause. Provider-thrown runtime exceptions
+and other Planning composition failures propagate unchanged.
+
+This current boundary adds no public compile request, public lifecycle call, cost-bearing scoring,
+trace event, concrete-dimension binding, prepare/runtime/backend/engine behavior, physical memory,
+or higher-order differentiation.
+
 Before a node enters that container, `Operation` validates its exact kind/attributes pairing and
 derives a family-owned `OperationSignature`. `CompiledNode` preserves its existing local list
 rules and then checks that the final ordered input and output counts lie within that signature's
@@ -399,10 +499,10 @@ inclusive bounds. This catches a unary operation connected to two inputs, for ex
 claiming that operand Shapes or data types are compatible. Zero-input, bounded, variadic-input,
 and multi-output occurrences remain representable when their kind explicitly declares them.
 
-A `PublicationBinding` carries only two identities. A later compiler-owned `PublicationPlan` will
-group bindings with their owning compilation context and publication policy. The binding itself
-does not retain a public `Tensor`, gradient role, runtime target, storage, backend, or execution
-state.
+A `PublicationBinding` carries only two identities. Current compiler-owned `PublicationPlan`
+groups bindings with the exact final graph and assigns forward-output or gradient-result meaning
+through separate ordered lists. The binding itself does not retain a public `Tensor`, intrinsic
+gradient role, publication policy, runtime target, storage, backend, or execution state.
 
 `GraphRngState.initial(key, counter)` is also current model construction. It creates a fresh
 zero-input, one-output `GraphRngKind.INITIAL_STATE` occurrence whose exact
@@ -958,16 +1058,17 @@ BackendIntent requireCuda =
 ```
 
 The first value has no hard eligibility target. The second retains the exact supplied requirement
-reference for later planning. Neither construction evaluates availability or capability, ranks
+reference for Planning. Neither construction evaluates availability or capability, ranks
 candidates, chooses ownership, discovers a service, or invokes a compiler. In particular,
 `unconstrained()` does not mean “automatic backend selection succeeded”; it records only the
 absence of a hard target.
 
 The canonical constructor rejects a null optional with `NullPointerException("hardRequirement")`.
 The `requiring` factory rejects a null requirement with `NullPointerException("requirement")`.
-Current internal planning evaluates the hard target before its cost-free baseline owner selection.
-General score calculation, planning cost profiles, `CompileConfig`, compiler consumption, and a
-public no-match failure remain planned. The separate current `PartitionScoringConfig` value
+Current internal planning evaluates the hard target before its cost-free baseline owner selection,
+and the package-private complete compiler entry supplies this intent once per final graph node.
+General score calculation, planning cost profiles, `CompileConfig`, and a public compile failure
+remain planned. The separate current `PartitionScoringConfig` value
 described below supplies only soft preference input; it does not change these hard-intent
 semantics.
 
@@ -983,12 +1084,13 @@ CompileMode trainingStepDirection = CompileMode.TRAINING_STEP;
 ```
 
 `FORWARD_ONLY` requests forward graph construction and requested forward publications.
-Package-private `GraphCompiler` currently interprets it as a forward-only graph-stage request and
-requires the first-order request to be absent. `FORWARD_AND_BACKWARD` requests current internal
+Package-private `GraphCompiler` currently interprets it as a forward-only graph-stage or complete
+artifact request and requires the first-order request to be absent. `FORWARD_AND_BACKWARD`
+requests current internal
 first-order pre-capture autograd plus combined forward/backward graph-stage work.
-`TRAINING_STEP` currently performs the same internal graph-stage construction, but the enum value
-does not itself introduce an optimizer, optimizer-update graph, session, publication, schedule,
-or execution behavior. Public compiler consumption of all three values remains planned.
+`TRAINING_STEP` currently performs the same internal graph and artifact construction, but the enum value
+does not itself introduce an optimizer, optimizer-update graph, session, publication delivery,
+schedule, or execution behavior. Public compiler consumption of all three values remains planned.
 
 `io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 
@@ -1037,8 +1139,9 @@ candidate enumeration or evaluation, score calculation or comparison, profile lo
 or device selection, route or kernel selection, compilation, preparation, runtime work, or
 execution. Current package-private planning consumes only its optional class preference: the first
 eligible class match wins, or the first eligible backend wins when no preference or match exists.
-The backend-neutral cost classification, planning cost inputs, public scoring evaluation,
-compiler consumer, and aggregate remain planned.
+The package-private complete compiler entry supplies this value to the current per-occurrence
+Planning collaboration. Backend-neutral cost classification, planning cost inputs, public numeric
+scoring evaluation, and the aggregate remain planned.
 
 ## Current operation-capability contracts
 
@@ -1062,11 +1165,12 @@ configuration, the boolean answer is deterministic. Implementations reject a nul
 `NullPointerException("query")`. `true` means only that the backend can semantically own the
 described occurrence; `false` carries no reason.
 
-The provider is supplied explicitly to compile-time planning. The public contract performs
-no registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
-evaluation, scoring, route or kernel selection, preparation, or execution. The repository supplies
-no production provider implementation and no compiler consumer. Compile-time plans will retain a
-`BackendId`, not a provider object.
+The provider is supplied explicitly to compile-time planning. The public contract performs no
+registry, discovery, classpath scan, `ServiceLoader` lookup, availability or hard-requirement
+evaluation, scoring, route or kernel selection, preparation, or execution. The repository
+supplies no production provider implementation. The current package-private compiler artifact
+entry is the concrete consumer: it supplies providers once per final graph node and retains only a
+selected `BackendId`, not a provider object.
 
 Current package-private planning implementation validates a complete association between ordered
 providers and caller-supplied availability snapshots by equal `BackendId`, then applies non-empty
@@ -1083,11 +1187,15 @@ before snapshot-element reads. A neutral configuration returns the first eligibl
 present preference returns the first provider-order class match or falls back to the first
 eligible identity. Empty snapshots are preference nonmatches, and the exact eligibility identity
 reference is returned. No provider is called again and no device, route, or kernel is selected.
+Public `BackendOwnerPlanning.selectOwner(...)` validates its five top-level references in
+declaration order and composes these two internal steps exactly once for one occurrence. The
+eligibility result remains package-private and does not escape.
 
-Reusable or public capability matrices, a public eligibility result/evaluator or owner selector,
-public planning orchestration, numeric or cost scoring and profiles, owner-map assembly, compiler
-integration, device-level capability or selection, preparation, runtime, execution, and typed
-rejection diagnostics remain planned.
+Reusable or public capability matrices, a public eligibility result/evaluator, public graph-wide
+planning orchestration, numeric or cost scoring and profiles, device-level capability or
+selection, preparation, runtime, execution, and typed trace/rejection schemas remain planned.
+Compiler currently owns owner-map assembly and contextualizes only the terminal no-hard-eligible
+failure.
 
 ## Current planned-partition recipe
 
@@ -1105,11 +1213,12 @@ snapshot. The record retains the exact owner and element references, uses ordina
 equality and hashing, and carries no graph values, partition ID, boundary edges, transfer or
 memory facts, selected device, route, kernel, executable, or runtime state.
 
-The package-private generator accepts one immutable `CompiledGraphModel` and one complete
-`Map<NodeId, BackendId>`. Equal map keys associate with graph nodes, but output membership always
-uses the exact `NodeId` references from `graph.nodes()`. It validates all keys, graph coverage, and
-owners before constructing a result. For each maximal run it retains the exact owner reference
-mapped to the first node and compares later owners with `BackendId.equals`.
+Public stateless `MaximalSameOwnerPartitioning.partition(...)` accepts one immutable
+`CompiledGraphModel` and one complete `Map<NodeId, BackendId>`. Equal map keys associate with graph
+nodes, but output membership always uses the exact `NodeId` references from `graph.nodes()`. It
+validates all keys, graph coverage, and owners before constructing a result. For each maximal run
+it retains the exact owner reference mapped to the first node and compares later owners with
+`BackendId.equals`.
 
 For graph order `[n0, n1, n2, n3, n4]` and owner values
 `[cpu, cpu, metal, metal, cpu]`, the current result meaning is:
@@ -1126,11 +1235,11 @@ Graph edges, phase changes, fan-out, merges, repeated input positions, graph inp
 and multiple output values from one producer do not independently create boundaries. A valid
 zero-node pass-through graph produces an immutable empty list.
 
-The generator itself is intentionally not public. No current API assembles the complete owner map
-from capability and selection results or invokes partitioning for callers. The following internal
-logical-memory step is current, but compiler orchestration and `CompileArtifacts` remain planned.
-A partition is an immutable ownership recipe, not a promise of one fused kernel, one executable,
-or any prepare/runtime behavior.
+Compiler currently assembles the complete owner map from per-occurrence results and invokes this
+operation directly. Public visibility serves that concrete cross-package consumer; it does not
+create a graph-wide Planning facade or public compile workflow. A partition is an immutable
+ownership recipe, not a promise of one fused kernel, one executable, or any prepare/runtime
+behavior.
 
 ## Current logical-memory recipes
 
@@ -1159,13 +1268,13 @@ requirement constructor likewise snapshots consumer membership and rejects null 
 duplicate partitions. Directly constructed DTOs have no owning graph and therefore do not prove
 that caller-supplied producer, consumer, or output facts are graph-valid.
 
-The package-private derivation accepts one `CompiledGraphModel` and one ordered
-`List<PlannedPartition>`. It completes all partition null, graph-membership, coverage, graph-order,
-and adjacent-owner maximality checks before constructing a requirement. It then emits exactly one
-requirement for every `graph.values()` entry in that encounter order. Producer facts come from
-node outputs; consumer facts come from node inputs. Repeated inputs, fan-out, merges, unused graph
-inputs, unused produced values, multi-output nodes, forward/backward uses, and zero-node
-pass-through graphs require no synthetic node or role.
+Public stateless `LogicalMemoryPlanning.plan(...)` accepts one `CompiledGraphModel` and one
+ordered `List<PlannedPartition>`. It completes all partition null, graph-membership, coverage,
+graph-order, and adjacent-owner maximality checks before constructing a requirement. It then emits
+exactly one requirement for every `graph.values()` entry in that encounter order. Producer facts
+come from node outputs; consumer facts come from node inputs. Repeated inputs, fan-out, merges,
+unused graph inputs, unused produced values, multi-output nodes, forward/backward uses, and
+zero-node pass-through graphs require no synthetic node or role.
 
 The primitive facts describe overlapping logical roles: graph input, partition input, partition
 output, same-owner or cross-owner boundary, graph-output preservation, and partition-internal
@@ -1175,10 +1284,11 @@ count.
 
 This is logical planning only. The derivation accepts no `PublicationBinding` or `TensorId` and
 creates no `PublicationPlan`. It selects no alias, copy, transfer, lifetime, physical slot,
-allocation, device, route, kernel, schedule, executable, or runtime residency. The derivation is
-not public, and no current compiler invokes it end to end.
+allocation, device, route, kernel, schedule, executable, or runtime residency. The current
+package-private compiler invokes it after partition generation and retains the exact plan in
+`CompileArtifacts`.
 
-## Current expression input and planned compiler output
+## Current expression input and compile output
 
 Conceptually, compilation will receive a requested tensor output and declarative `CompileConfig`:
 
@@ -1255,17 +1365,24 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
 - `CompileConfig` will aggregate the current compile mode, `BackendIntent`, graph-optimization,
   and `PartitionScoringConfig` values with any later justified planning-cost inputs as data. It will not
   contain live backend services. Its exact surface and defaults remain planned.
-- `PublicationPlan` will be compiler-owned context around publication bindings. It is planned and
-  is separate from the current model graph.
-- `CompileArtifacts` will combine a `CompiledGraphModel`, planned partitions, a logical memory
-  plan, a `PublicationPlan`, and diagnostics. It is planned and will remain non-executable.
+- `PublicationPlan` is current compiler-owned output-only context around ordered forward and
+  gradient publication bindings and the exact final graph. It is separate from the model graph
+  and adds no publication delivery policy or runtime behavior.
+- `CompileConstantPlan` is current compiler-owned output-only classification of final graph inputs
+  as caller-bindable or exact logical splats.
+- `CompileDiagnostics` is current compiler-owned output-only projection of successful deferred
+  graph constraints without exposing the internal predicate vocabulary.
+- `CompileArtifacts` currently combines mode, the exact final `CompiledGraphModel`, maximal
+  backend-owned partitions, the derived logical memory plan, publication roles, constant/input
+  roles, and diagnostics. Its public record and nested output data are implemented, while the only
+  complete construction entry remains package-private.
 - `CompiledGraph` will be an engine facade over immutable `CompileArtifacts`, not the same object
   as the current `CompiledGraphModel`.
 
 The planned artifacts deliberately contain no device buffers, backend executable objects, runtime
 residency, prepared schedules, or mutable run state.
 
-## Planned lifecycle and failures
+## Current internal lifecycle and planned public failures
 
 ```text
 forward Tensor outputs
@@ -1274,14 +1391,17 @@ forward Tensor outputs
   -> one phase-aware capture
   -> inference and validation
   -> canonicalization and one-shot exact whole-graph optimization
-  -> future publication, backend ownership, and logical plans
+  -> publication, backend ownership, partitions, and logical memory
   -> CompileArtifacts
 ```
 
-Compilation is expected to reject invalid shapes, data types, operations, graph structure, or
-unsatisfied backend capabilities before preparation. Exact exception types and callable signatures
-remain to be specified by compiler and engine tasks; callers must not code against invented
-exceptions from this conceptual page.
+The current internal entry rejects invalid shapes, data types, operations, graph structure,
+publication roles, planning composition, unsatisfied hard capability, partitions, memory, source
+roles, or diagnostics before returning an artifact. A no-hard-eligible occurrence becomes a
+compiler-owned `IllegalStateException` with node index, ID, and operation-kind context, while the
+Planning failure remains its cause. Provider runtime failures otherwise propagate unchanged.
+There is still no public callable compiler failure contract; exact public request signatures and
+exception taxonomy remain for compiler and engine tasks.
 
 ## Example interpretation
 
@@ -1290,11 +1410,12 @@ capability analysis may find both CPU and Metal valid. Backend-neutral scoring m
 nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
 not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
 
-This scenario is conceptual. Current package-private `GraphCompiler` can construct and validate
-its bounded forward-only or combined first-order graph-stage result with explicit logical splats
-and one-shot whole-graph exact cleanup. It cannot run the illustrated lifecycle, publish
-gradients, bind concrete dimensions, select backend ownership, produce `CompileArtifacts`,
-prepare work, execute a backend, or expose a public compilation result.
+This scenario remains conceptual because no production provider or public compile entry exists.
+Current package-private `GraphCompiler` can construct and validate its bounded forward-only or
+combined first-order graph, query explicitly supplied test or future backend providers, select
+backend ownership, derive partitions and logical memory, and return `CompileArtifacts`. It cannot
+deliver publications, bind concrete dimensions, prepare work, execute a backend, or expose a
+public lifecycle result.
 
 ## Related contracts
 

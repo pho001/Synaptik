@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 
 class LogicalMemoryPlanningTest {
     @Test
-    void hasTheExactPackagePrivateStatelessGeneratorShape() throws ReflectiveOperationException {
+    void hasTheExactPublicStatelessGeneratorShape() throws ReflectiveOperationException {
         Class<LogicalMemoryPlanning> type = LogicalMemoryPlanning.class;
         Constructor<?>[] constructors = type.getDeclaredConstructors();
         Method[] methods = type.getDeclaredMethods();
@@ -51,7 +51,7 @@ class LogicalMemoryPlanningTest {
         assertAll(
                 () -> assertEquals(
                         "io.github.pho001.synaptik.planning.memory", type.getPackageName()),
-                () -> assertFalse(Modifier.isPublic(type.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(type.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(type.getModifiers())),
                 () -> assertFalse(type.isRecord()),
                 () -> assertFalse(type.isEnum()),
@@ -65,7 +65,7 @@ class LogicalMemoryPlanningTest {
                 () -> assertEquals(1, methods.length),
                 () -> assertEquals(plan, methods[0]),
                 () -> assertTrue(Modifier.isStatic(plan.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(plan.getModifiers())),
+                () -> assertTrue(Modifier.isPublic(plan.getModifiers())),
                 () -> assertFalse(Modifier.isPrivate(plan.getModifiers())),
                 () -> assertFalse(Modifier.isProtected(plan.getModifiers())),
                 () -> assertArrayEquals(

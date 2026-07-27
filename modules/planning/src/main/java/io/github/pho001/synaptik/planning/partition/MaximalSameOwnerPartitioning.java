@@ -15,13 +15,15 @@ import java.util.Set;
 /**
  * Generates maximal consecutive same-owner partitions for one compiled graph.
  *
- * <p>This stateless package-private operation consumes the graph's stored topological node order
- * and one complete node-to-owner assignment. Consecutive nodes join while their
+ * <p>This public stateless operation is the package-owned partition-generation seam used by the
+ * package-private compiler orchestrator. It consumes the graph's stored topological node order
+ * and one complete node-to-owner assignment assembled by Compiler. Consecutive nodes join while their
  * {@link BackendId} owners are equal; graph edges, phases, value boundaries, and map iteration
  * order do not redefine adjacency. The result records backend ownership only and performs no
- * scoring, lowering, routing, memory planning, preparation, or execution.</p>
+ * scoring, owner selection, lowering, routing, memory planning, preparation, or execution. This
+ * type is not a graph-wide Planning facade or service.</p>
  */
-final class MaximalSameOwnerPartitioning {
+public final class MaximalSameOwnerPartitioning {
     /**
      * Prevents instances because partition generation retains no state between calls.
      */
@@ -71,7 +73,7 @@ final class MaximalSameOwnerPartitioning {
      *     is {@code ownershipByNodeId missing NodeId[value=n]}, with nodes checked in stored graph
      *     order before any owner value is validated
      */
-    static List<PlannedPartition> partition(
+    public static List<PlannedPartition> partition(
             CompiledGraphModel graph,
             Map<NodeId, BackendId> ownershipByNodeId) {
         Objects.requireNonNull(graph, "graph");

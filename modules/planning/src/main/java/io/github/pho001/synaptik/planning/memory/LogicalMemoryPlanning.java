@@ -18,12 +18,13 @@ import java.util.Set;
 /**
  * Derives logical value requirements from one closed graph and its complete partition recipes.
  *
- * <p>This package-private stateless seam validates exact graph-order partition coverage and
- * maximal adjacent owner runs before deriving producer, consumer, and graph-output facts. It
- * performs no graph repair, physical memory planning, publication binding, transfer selection,
- * preparation, or execution.</p>
+ * <p>This public stateless package-owned seam is invoked by the package-private compiler
+ * orchestrator after maximal partition generation. It validates exact graph-order partition
+ * coverage and maximal adjacent owner runs before deriving producer, consumer, and graph-output
+ * facts. It performs no graph repair, physical memory planning, publication binding, transfer
+ * selection, preparation, or execution, and it is not a graph-wide Planning workflow.</p>
  */
-final class LogicalMemoryPlanning {
+public final class LogicalMemoryPlanning {
     /** Prevents instances because logical-memory derivation retains no state. */
     private LogicalMemoryPlanning() {}
 
@@ -48,7 +49,7 @@ final class LogicalMemoryPlanning {
      * @throws IllegalArgumentException if a partition names an unknown or duplicate node, misses
      *     a graph node, violates graph order, or is adjacent to an equal-owner partition
      */
-    static LogicalMemoryPlan plan(
+    public static LogicalMemoryPlan plan(
             CompiledGraphModel graph,
             List<PlannedPartition> partitions) {
         Objects.requireNonNull(graph, "graph");

@@ -6,11 +6,13 @@ import java.util.Objects;
 /**
  * Associates one public tensor identity with one graph-local logical value identity.
  *
- * <p>This immutable data-transfer object carries model data for a later compiler-owned
+ * <p>This immutable data-transfer object carries model data used by the current compiler-owned
  * publication plan. It remains separate from {@link CompiledGraphModel}: the binding itself
- * cannot prove that its {@link ValueId} belongs to a particular graph. It retains identities
- * only, not a public tensor object, gradient role, publication policy or target, storage, backend
- * state, or runtime publication behavior.</p>
+ * cannot prove that its {@link ValueId} belongs to a particular graph. The compiler plan supplies
+ * that owning graph context and assigns separate forward-output or gradient-result role through
+ * list membership. The binding retains identities only, not a public tensor object, an intrinsic
+ * gradient role, publication policy or target, storage, backend state, or runtime publication
+ * behavior.</p>
  *
  * <p>Record-generated equality and hashing use both typed identities. The generated
  * {@link #toString()} is diagnostic text, not a serialization, parsing, global-identity, or
@@ -38,7 +40,7 @@ public record PublicationBinding(TensorId tensorId, ValueId valueId) {
     }
 
     /**
-     * Returns the identity of the public tensor state to which a later plan may publish.
+     * Returns the public tensor identity represented by this standalone association.
      *
      * @return the exact non-null immutable {@link TensorId} reference supplied at construction;
      *     the result belongs to the public tensor identity domain

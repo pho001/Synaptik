@@ -1,15 +1,35 @@
 package io.github.pho001.synaptik.compiler;
 
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
+import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.graph.NodeId;
+import io.github.pho001.synaptik.model.graph.PublicationBinding;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.planning.capability.BackendOwnerPlanning;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlan;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
+import io.github.pho001.synaptik.planning.partition.MaximalSameOwnerPartitioning;
+import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -22,9 +42,12 @@ import java.util.Optional;
  * Every mode then passes its single immutable graph through inference, mandatory
  * canonicalization, bounded exact optional optimization, and final validation.</p>
  *
- * <p>This owner returns internal graph-stage state only. It performs no publication or planning
- * orchestration, storage allocation, backend lowering, preparation, execution, optimizer update,
- * or higher-order differentiation and exposes no public compiler facade.</p>
+ * <p>The original direct entry returns internal graph-stage state. A package-private complete
+ * overload additionally derives publication roles, logical constants and diagnostics, selects
+ * backend ownership once per final node, and invokes Planning's partition and logical-memory
+ * operations to return immutable compile artifacts. Neither entry allocates storage, lowers a
+ * backend, prepares or executes work, performs optimizer updates or higher-order differentiation,
+ * or exposes a public compiler facade.</p>
  */
 final class GraphCompiler {
     private GraphCompiler() {}
@@ -113,6 +136,151 @@ final class GraphCompiler {
                     optimized.graph().outputs().get(ordinal)));
         }
         return new GraphCompilation(mode, optimized, finalForward, gradientResults);
+    }
+
+    /**
+     * Compiles one graph and derives its immutable publication and backend-neutral planning
+     * artifacts.
+     *
+     * <p>All nine top-level arguments are validated in declaration order before graph
+     * construction. The existing graph-stage compile entry is invoked exactly once. Publication,
+     * constant, and diagnostic snapshots are then built from its final graph before each node is
+     * queried in stored order, followed by maximal partitioning, logical-memory derivation, and
+     * final aggregate cross-validation.</p>
+     *
+     * @param mode non-null graph-scope mode
+     * @param forwardOutputs non-null, non-empty ordered requested forward boundary
+     * @param firstOrderRequest non-null optional first-order request with mode-compatible presence
+     * @param forwardConstants non-null explicit logical-splat ingress
+     * @param optimizationConfig non-null exact graph-optimization permission
+     * @param backendIntent non-null optional hard backend target
+     * @param partitionScoringConfig non-null optional coarse device-class preference
+     * @param capabilityProviders non-null ordered capability providers; list elements are first
+     *     inspected only when a graph node is planned
+     * @param availabilitySnapshots non-null availability snapshots; list elements are first
+     *     inspected only when a graph node is planned
+     * @return non-null immutable complete compile artifacts retaining no provider or snapshot
+     * @throws NullPointerException if a required argument or nested value is {@code null}
+     * @throws IllegalArgumentException if graph compilation, publication, planning composition,
+     *     partitioning, memory derivation, or artifact cross-validation rejects the request
+     * @throws IllegalStateException if a graph node has no hard-eligible backend; the message adds
+     *     node occurrence context and the Planning failure is retained as its cause
+     * @throws RuntimeException if a capability provider throws; the same failure propagates
+     *     unchanged
+     */
+    static CompileArtifacts compile(
+            CompileMode mode,
+            List<Tensor> forwardOutputs,
+            Optional<AutogradPreflight.FirstOrderRequest> firstOrderRequest,
+            CompileTimeConstantGraph.Ingress forwardConstants,
+            GraphOptimizationConfig optimizationConfig,
+            BackendIntent backendIntent,
+            PartitionScoringConfig partitionScoringConfig,
+            List<BackendCapabilityProvider> capabilityProviders,
+            List<BackendAvailabilitySnapshot> availabilitySnapshots) {
+        Objects.requireNonNull(mode, "mode");
+        validateForwardOutputs(forwardOutputs);
+        Objects.requireNonNull(firstOrderRequest, "firstOrderRequest");
+        Objects.requireNonNull(forwardConstants, "forwardConstants");
+        Objects.requireNonNull(optimizationConfig, "optimizationConfig");
+        Objects.requireNonNull(backendIntent, "backendIntent");
+        Objects.requireNonNull(partitionScoringConfig, "partitionScoringConfig");
+        Objects.requireNonNull(capabilityProviders, "capabilityProviders");
+        Objects.requireNonNull(availabilitySnapshots, "availabilitySnapshots");
+
+        GraphCompilation compilation = compile(
+                mode,
+                forwardOutputs,
+                firstOrderRequest,
+                forwardConstants,
+                optimizationConfig);
+        ValidatedGraph validated = compilation.validatedGraph();
+        CompiledGraphModel graph = validated.graph();
+
+        List<PublicationBinding> forwardBindings =
+                new ArrayList<>(compilation.forwardOutputs().size());
+        for (int index = 0; index < compilation.forwardOutputs().size(); index++) {
+            forwardBindings.add(new PublicationBinding(
+                    forwardOutputs.get(index).id(),
+                    compilation.forwardOutputs().get(index)));
+        }
+        List<PublicationBinding> gradientBindings =
+                new ArrayList<>(compilation.gradientResults().size());
+        for (GraphCompilation.GradientResultRole role : compilation.gradientResults()) {
+            gradientBindings.add(new PublicationBinding(role.target(), role.gradient()));
+        }
+        PublicationPlan publication =
+                new PublicationPlan(graph, forwardBindings, gradientBindings);
+
+        List<ValueId> bindableInputs = new ArrayList<>();
+        List<CompileConstantPlan.ConstantSource> constantSources = new ArrayList<>();
+        for (ValueId input : graph.inputs()) {
+            CompileTimeConstantGraph.Splat splat = validated.constants().get(input);
+            if (splat == null) {
+                bindableInputs.add(input);
+            } else {
+                constantSources.add(
+                        new CompileConstantPlan.ConstantSource(input, splat.value()));
+            }
+        }
+        CompileConstantPlan constants =
+                new CompileConstantPlan(bindableInputs, constantSources);
+        CompileDiagnostics diagnostics = new CompileDiagnostics(validated.constraints());
+
+        Map<ValueId, TensorDescriptor> descriptors = new HashMap<>();
+        for (GraphValue value : graph.values()) {
+            descriptors.put(value.id(), value.descriptor());
+        }
+        Map<NodeId, BackendId> ownershipByNodeId = new LinkedHashMap<>();
+        for (int nodeIndex = 0; nodeIndex < graph.nodes().size(); nodeIndex++) {
+            CompiledNode node = graph.nodes().get(nodeIndex);
+            List<TensorDescriptor> inputs = new ArrayList<>(node.inputs().size());
+            for (ValueId input : node.inputs()) {
+                inputs.add(descriptors.get(input));
+            }
+            List<TensorDescriptor> outputs = new ArrayList<>(node.outputs().size());
+            for (ValueId output : node.outputs()) {
+                outputs.add(descriptors.get(output));
+            }
+            OperationCapabilityQuery query =
+                    new OperationCapabilityQuery(node.operation(), inputs, outputs);
+            BackendId owner;
+            try {
+                owner = BackendOwnerPlanning.selectOwner(
+                        query,
+                        backendIntent,
+                        capabilityProviders,
+                        availabilitySnapshots,
+                        partitionScoringConfig);
+            } catch (IllegalStateException failure) {
+                if (!"no hard-eligible backend is available for ownership selection"
+                                .equals(failure.getMessage())
+                        || failure.getCause() == null
+                        || !"no hard-eligible backend is available for ownership selection"
+                                .equals(failure.getCause().getMessage())) {
+                    throw failure;
+                }
+                throw new IllegalStateException(
+                        "nodes[" + nodeIndex + "] " + node.id() + " "
+                                + node.operation().kind().getClass().getName() + "."
+                                + node.operation().kind().name() + ": "
+                                + failure.getMessage(),
+                        failure.getCause());
+            }
+            ownershipByNodeId.put(node.id(), owner);
+        }
+
+        List<PlannedPartition> partitions =
+                MaximalSameOwnerPartitioning.partition(graph, ownershipByNodeId);
+        LogicalMemoryPlan memory = LogicalMemoryPlanning.plan(graph, partitions);
+        return new CompileArtifacts(
+                mode,
+                graph,
+                partitions,
+                memory,
+                publication,
+                constants,
+                diagnostics);
     }
 
     private static void validateForwardOutputs(List<Tensor> forwardOutputs) {

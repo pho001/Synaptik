@@ -96,10 +96,11 @@ bearing consumer. Planning task 0005 is Complete with logical materialization an
 requirements derived without numeric cost, element/byte estimates, or profile input. Config 0004
 therefore remains Draft without a detailed specification and no config task is Ready. Planning
 0006 is Complete with a `CLOSED` documentation-only audit verdict. That closure does not define
-the cost-bearing consumer or make Config 0004 Ready. Compiler task 0003 now consumes only the
-completed standalone `GraphOptimizationConfig` permission through a package-private internal
-transformation boundary. It does not consume compile mode, backend intent, scoring config, a
-future aggregate, or cost-profile data, so no config task or status advances.
+the cost-bearing consumer or make Config 0004 Ready. Compiler task 0005 now consumes all four
+completed standalone leaves through its package-private complete artifact entry: compile mode and
+optimization configure graph work, while backend intent and scoring preference are passed to
+Planning once per final node. It adds no config type, aggregate, default, profile, or public
+compile entry, so Config 0004 remains Draft and no config status advances.
 
 ## Open questions
 
@@ -115,7 +116,8 @@ future aggregate, or cost-profile data, so no config task or status advances.
 
 - The implementation must follow the current architecture contract.
 - Legacy code is capability evidence only; new implementation is written from scratch.
-- Backend intent owns optionality for one hard `BackendRequirement`; planning later evaluates it.
+- Backend intent owns optionality for one hard `BackendRequirement`; current Planning evaluates it
+  for Compiler-supplied operation occurrences.
 - Hard eligibility, ranking preference, planning cost, model autotuning, benchmarking, and runtime
   profiling are separate concepts.
 - `tools/benchmarks` later produces observational reports from fixed workloads and never selects
@@ -133,6 +135,10 @@ future aggregate, or cost-profile data, so no config task or status advances.
   transformation boundary uses the boolean only to enable or skip optional forward optimization;
   mandatory canonicalization and validation remain outside the permission. This consumer adds no
   config API, dependency, aggregate, mode interpretation, intent interpretation, or scoring work.
+- Compiler task 0005 is the first current consumer of `CompileMode`, `BackendIntent`, and
+  `PartitionScoringConfig` together with `GraphOptimizationConfig`. Its package-private direct
+  entry validates them in declaration order, preserves each leaf's semantics, and adds no
+  `CompileConfig`, profile, config-to-Planning dependency, public compiler facade, or default.
 - Planning task 0001 intentionally interleaves before config task 0003. Capability answers the
   hard semantic question first; scoring configuration later describes how eligible ownership
   choices are compared and must not redefine capability.

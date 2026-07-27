@@ -5,12 +5,13 @@
  * graph value's exact identity and logical descriptor together with its optional producing
  * partition, ordered distinct consuming partitions, and graph-output obligation. A
  * {@link io.github.pho001.synaptik.planning.memory.LogicalMemoryPlan} collects those requirements
- * in graph-value order. Package-private derivation validates complete, graph-ordered, maximal
+ * in graph-value order. Public stateless derivation validates complete, graph-ordered, maximal
  * partition recipes before constructing the plan:</p>
  *
  * <pre>{@code
  * CompiledGraphModel + ordered complete PlannedPartition recipes
  *     -> validate exact coverage, graph order, and maximal owner runs
+ *     -> LogicalMemoryPlanning.plan(...)
  *     -> derive producer, distinct consumers, descriptor, and graph-output facts
  *     -> immutable LogicalMemoryPlan
  * }</pre>
@@ -28,6 +29,8 @@
  * representation. A logical materialization requirement states only that a value must be
  * available to a consuming partition or preserved at the graph-output boundary. This package
  * does not choose aliasing, copying, transfers, bytes, lifetimes, buffers, slots, allocation,
- * publication targets, devices, layouts, routes, kernels, schedules, or runtime residency.</p>
+ * publication targets, devices, layouts, routes, kernels, schedules, or runtime residency. The
+ * package-private compiler currently invokes this operation after partition generation and
+ * retains the resulting plan in immutable compile artifacts.</p>
  */
 package io.github.pho001.synaptik.planning.memory;

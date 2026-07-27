@@ -67,13 +67,13 @@ io.github.pho001.synaptik.compiler/
   <root>  package-private forward capture and backward-capable combined capture, inference and typed constraints,
           deterministic canonicalization, exact arithmetic rewriting, logical-splat facts and
           folding, DCE/CSE orchestration, named Tensor-expression gradient rules, reverse
-          accumulation, and combined-graph gradient result roles; later narrow public or cross-package
-          orchestration only when a concrete consumer justifies it
+          accumulation, combined-graph gradient result roles, and the current narrow public
+          artifact/cross-package Planning boundary justified by Compiler 0005
 ```
 
 The root package remains one cohesive internal compiler-front-end boundary. It must not become a
 catch-all for public facades, pass registries, gradient registries, generic algebra builders,
-artifacts, diagnostics, or planning adapters. Compiler task 0005 must justify any narrow
+artifacts, diagnostics, or planning adapters. Compiler task 0005 justifies its narrow
 cross-package/public orchestration boundary from a concrete consumer.
 
 ## Task list
@@ -88,8 +88,32 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0004 | [Compiler-owned pre-capture autograd and graph compilation](tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md) | Complete | Model 0025; Compiler 0001–0003B; Config 0002 | Added fail-closed preflight for one scalar-objective/implicit-unit-seed first-order request, the closed initial gradient matrix through ordinary public Tensor operations, one combined phase-aware capture, and proved exact whole-graph optimization with phase-local CSE. |
 | 0004A | [Exact-composition gradient-rule extensions](tasks/0004a-exact-composition-gradient-rule-extensions.md) | Complete | 0004 | Added the bounded policy-free matrix for typed ERF, masked and locally invertible shape-target SUM, role-aware floating MATMUL, and selected exact data-movement adjoints through the existing one-capture pipeline. |
 | 0004B | [Shared-algebra cotangent normalization and local derivative rules](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md) | Complete | 0004A | Added mixed-floating Shape/DataType normalization, ordinary DIV and MEAN formulas, and direct-zero FLOOR/CEIL/SIGN plus masked-all-false local conventions without a gradient-specific algebra or optimization policy. |
-| 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
-| 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005 and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, formula-operation coverage, and phase/order representation without Tensor gradient lifecycle state. |
+| 0005 | [Publication, planning orchestration, and compile artifacts](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) | Complete | 0001–0004B; Planning 0006 closure; stable Config 0001–0003 and Backend Contract 0001–0004 inputs | Added the package-private complete compile entry, ordered publication/constant/diagnostic artifacts, and Compiler-owned graph-wide orchestration through three narrow package-cohesive Planning operations without prepare/runtime/backend state. |
+| 0005A | Derivative policy and elementwise/activation gradient completion | Draft | 0005 | Complete the binary/scalar arithmetic, selection/cast, unary, and activation inventory; make every required tie, endpoint, discontinuity, domain, and exceptional-value derivative decision explicit while preserving BOOL comparison/logical/classification roles as non-differentiable. |
+| 0005B | Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including explicit boundary policies, non-differentiable mask/index roles, and same-occurrence saved batch-statistic outputs. |
+| 0005C | Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete remaining layout/slice/composition and dynamic window rules, Gather/scatter variants, sort/top-K routing, and dropout through canonical auxiliaries; keep coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles non-differentiable. |
+| 0005D | Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete the remaining structured-ML inventory: attention with same-occurrence weights, grouped convolution, pooling, and every current loss role and reduction mode with explicit special-case policies and non-differentiable mask/index/configuration roles. |
+| 0005E | First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role as implemented differentiable coverage or intentionally non-differentiable; prove fail-closed inventory and transitive differentiability of formula operations, then run the first-order capability checkpoint. |
+| 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, disconnected-result behavior, and phase/order representation over the first-order formula-operation closure without Tensor gradient lifecycle state. |
+
+Tasks 0005A–0005D partition the complete current model operation inventory without claiming that
+every role has a gradient. A task may claim family coverage only after it has implemented every
+differentiable role in its assigned signatures, preserved every intentionally non-differentiable
+BOOL, index, RNG-state, mask, or configuration role, and explicitly selected every required
+subgradient, boundary, or exceptional-value policy. Dynamic or binding-dependent rules and
+same-occurrence auxiliary outputs remain logical compiler concerns; they must not become static-
+Shape assumptions, physical saved buffers, a runtime tape, or backend work.
+
+The milestone extends rather than replaces completed Compiler 0004–0004B. Their supported matrices
+remain the implemented baseline; each family task must preserve and revalidate its assigned
+implemented rows while adding only the missing differentiable roles and explicit decisions.
+
+Task 0005E is the first-order closure gate, not another formula-family task. It must verify the
+current inventory against source rather than a stale hand-maintained list, confirm that unknown or
+new operations still fail closed, and check that every operation emitted by a gradient formula is
+itself covered for differentiable roles before task 0006 may request differentiation through that
+formula. This transitive check preserves the higher-order path without implementing higher-order
+requests before 0006.
 
 ## Milestones
 
@@ -97,7 +121,9 @@ cross-package/public orchestration boundary from a concrete consumer.
 - Exact optimization foundations — Complete through task 0003B.
 - Pre-capture autograd and graph compilation — Complete through task 0004B and its compiler
   transformation/autograd capability checkpoint.
-- Planning orchestration and compile artifacts — task 0005.
+- Planning orchestration and compile artifacts — Complete through task 0005.
+- Complete current-inventory first-order gradient coverage — Draft tasks 0005A–0005E; task 0005E
+  is the closure checkpoint and the dependency gate for task 0006.
 
 ## Current status
 
@@ -112,8 +138,19 @@ expressions retain one shared algebra and exact optimization contract. The final
 change contains five production files, four tests, and seven documentation/planning files. The
 compiler module passed 18 suites/136 tests; the final transformation/autograd checkpoint passed
 167 suites/1,275 tests with no skipped tests, failures, or errors; and the independent
-documentation pass finalized Javadocs and current status. Tasks 0005 and 0006 and every later
-gradient-family task remain Draft without detailed specifications.
+documentation pass finalized Javadocs and current status.
+[Compiler 0005](tasks/0005-publication-planning-orchestration-and-compile-artifacts.md) is Complete
+with recorded source, tests, documentation, and validation. Compiler 0005A–0005E and 0006 remain
+concise Draft rows without detailed specifications, so no later compiler task is Ready.
+
+The first clean Compiler 0005 implementation context stopped before edits after confirming that
+the originally planned `planning.compiler` facade could not call package-private top-level
+operations in three sibling Java packages. The corrected specification kept the two
+capability internals package-private, added one colocated public owner-selection collaboration, and
+widened only the already-audited partition and logical-memory operations in their owning packages.
+The completed 37-path change therefore includes their package Javadocs and existing
+visibility-locking tests atomically. No compiler artifact, semantic, failure-order, or architecture
+decision changed.
 
 Accepted ADR 0009 changes the next compiler architecture from captured-forward placeholder
 conversion to compiler-owned pre-capture Tensor-expression autograd. The prerequisite is
@@ -139,7 +176,27 @@ The current general package-private entry owner is `GraphCompiler`, and its exac
 parameter list is not wrapped in a request aggregate. It returns mode-neutral package-private
 `GraphCompilation`: `FORWARD_ONLY` has no BACKWARD nodes and empty gradient results, while
 backward-capable modes may carry the combined forward/backward graph. This internal graph-stage
-result is distinct from the later `CompileArtifacts` aggregate owned by task 0005.
+result is distinct from the later-lifecycle `CompileArtifacts` aggregate added by task 0005.
+
+Compiler 0005 preserves that entry and result while adding one package-private complete
+compile overload. Compiler remains the graph-wide orchestrator: it validates ordered forward and
+gradient publication roles, asks Planning for one owner decision per final graph node, assembles
+the complete owner map, and invokes Planning's existing partition and logical-memory derivation.
+The task exposes only `BackendOwnerPlanning.selectOwner(...)` in `planning.capability` plus the
+existing `MaximalSameOwnerPartitioning.partition(...)` and `LogicalMemoryPlanning.plan(...)`
+operations widened in their owning packages. `BackendEligibility` and `BackendOwnerSelection`
+remain package-private. The task returns immutable `CompileArtifacts` containing output-only
+`PublicationPlan`, `CompileConstantPlan`, and `CompileDiagnostics` values. Those artifacts retain
+logical compile state only; they do not retain live providers, availability snapshots, selected
+devices, routes, kernels, physical memory, prepared/runtime state, trace events, or executables.
+
+After Compiler 0005, tasks 0005A–0005E form one explicit dependency-ordered milestone
+that closes first-order gradient coverage across the complete current model inventory before
+higher-order work. The sequence first resolves elementwise/activation derivative policies and
+formula foundations, then reductions/scans/softmax/statistics/normalization, then dynamic layout/
+window/indexing/scatter/ordering/stochastic families, then structured attention/convolution/
+pooling/loss families, and finally one source-backed coverage checkpoint. No row beyond 0005 is
+Ready and no later detailed task specification exists.
 
 This reordering preserves completed history. Tasks 0003, 0003A, and 0003B were correctly completed
 for a forward-only immutable graph. Compiler 0004 reused their existing exact rules only where
@@ -153,23 +210,21 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Open questions
 
-- The artifact boundary for unresolved constraints and gradient roles remains deferred until task
-  0005 and its consumers are stable.
 - The public functional boundary for explicit objectives, targets, seeds, and derivative order
-  remains deferred to task 0006 after the compile/artifact consumer is stable.
-- Task 0004A fixed the bounded policy-free exact-composition matrix. Binding-dependent shape
-  inversion, indexing/scatter, windows, structured linear operations, pooling, losses,
-  normalization, multi-output attention, ordering, and stochastic rules remain later cohesive
-  planning decisions.
-- Task 0004B adds only its closed cotangent-normalization, DIV, direct-zero discontinuity, and
-  ordinary/masked MEAN matrix. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN are local
-  derivative conventions; arithmetic, casts, reductions, numerical edges, validation, and
-  optimization remain the shared model/compiler contracts. Floating-comparison-dependent extrema,
-  clamp, ABS, and ReLU remain blocked by the general model comparison contract. Power,
-  incomplete-semantics unary/softmax rows, and independently cohesive activation, product,
-  statistical/norm, pooling, loss, normalization, attention, ordering, indexing/scatter, window,
-  and stochastic families remain explicitly blocked or deferred as recorded in the specification.
-- The first cross-package collaboration with planning remains deferred to task 0005.
+  remains deferred to task 0006 after the compile/artifact boundary and task 0005E first-order
+  closure are stable.
+- Task 0005A must select and document the exact derivative behavior needed for elementwise and
+  activation ties, endpoints, discontinuities, invalid domains, signed zero, infinities, and NaNs;
+  this synchronization selects none of those policies.
+- Task 0005B must select the corresponding empty-domain, zero-product, extrema, softmax,
+  correction, zero-norm/variance, and normalization policies and close binding-dependent
+  sum-to-Shape plus saved batch-statistic roles.
+- Task 0005C must select duplicate-target scatter, ordering/cutoff, window-selection, and dropout
+  probability-edge policies while preserving dynamic geometry and non-differentiable index/RNG
+  roles.
+- Task 0005D must select the remaining attention, convolution, pooling, and loss special-case
+  policies and exact auxiliary-output use. Task 0005E accepts no unresolved policy for a current
+  differentiable role.
 
 ## Decisions made
 
@@ -219,8 +274,22 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - No task adds `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder
   `ValueId` conversion, a second low-level algebra, a public gradient registry/facade, a physical
   tape, or backend-owned global autograd.
-- Compiler 0005 owns later publication and planning orchestration. It does not inherit unfinished
-  graph simplification.
+- Compiler 0005 fixes the publication, constant, diagnostic, and immutable compile-artifact
+  boundary and keeps graph-wide planning orchestration in Compiler. Planning exposes only one
+  colocated owner-selection collaboration over its two internal capability stages and the two
+  existing package-owned stateless operations needed to generate partitions and derive logical
+  memory; the task does not inherit unfinished graph simplification.
+- The first-order completion milestone is ordered 0005A -> 0005B -> 0005C -> 0005D -> 0005E.
+  Formula families remain compiler-owned pre-capture Tensor-expression construction through the
+  same request-local identity maps, one combined capture, inference/validation, and exact
+  optimization pipeline established by 0004–0004B.
+- Coverage means every current operation role is either supported for first-order
+  differentiation or intentionally non-differentiable. It does not mean that BOOL, index,
+  RNG-state, mask, or configuration roles receive cotangents.
+- Derivative boundary and subgradient choices are implementation-frontier decisions in their
+  assigned Draft task. This planning synchronization does not choose them.
+- Task 0005E must prove transitive formula-operation differentiation coverage before 0006. It
+  adds no create-graph behavior, derivative-order representation, or higher-order request.
 
 ## Risks
 
@@ -241,6 +310,14 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   existing guards.
 - Treating DIV, MEAN, casts, exceptional values, or optimization eligibility as a separate gradient
   algebra instead of using their ordinary shared operation contracts.
+- Treating complete inventory coverage as a claim that BOOL, index, RNG-state, mask, or
+  configuration roles are differentiable.
+- Silently selecting a tie, subgradient, discontinuity, empty-domain, or exceptional-value policy
+  while adding a family formula.
+- Assuming static geometry where a current rule is binding-dependent, or reconstructing/resampling
+  a saved auxiliary instead of using the canonical same-occurrence output.
+- Entering higher-order work while an operation used by a generated first-order formula still
+  fails the differentiable-role inventory.
 - Merging equal expressions across phases before an explicit proof.
 - Turning logical saved Tensor edges into physical buffers, recomputation policy, runtime
   scheduling, or a compiler-owned tape.
@@ -252,5 +329,7 @@ Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0
 Complete. Compiler 0004B stayed within its exact 16-path ceiling: five compiler production files,
 four compiler tests, and seven documentation/planning files. Its compiler module validation,
 independent documentation pass, and compiler transformation/autograd capability checkpoint all
-passed. Compiler 0005, 0006, and later cohesive gradient-family work remain Draft without detailed
-specifications.
+passed. Compiler 0005 is Complete. Compiler 0005A–0005E and 0006 remain Draft without detailed
+specifications, and no later compiler task is Ready. Create only the 0005A detailed specification
+when that task is deliberately promoted. Keep 0005B–0005E and 0006 as concise Draft rows until
+each becomes the next unfinished frontier.

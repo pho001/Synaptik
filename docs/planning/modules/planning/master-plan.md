@@ -47,14 +47,14 @@ Make backend-neutral compile-time ownership, partitioning, capability, and logic
 
 ```text
 io.github.pho001.synaptik.planning/
-  capability/  public operation capability query/provider contracts, internal per-query hard
-               eligibility, and task-0003 internal baseline owner selection
+  capability/  public operation capability query/provider contracts and one per-occurrence
+               owner-selection collaboration over internal hard eligibility/baseline comparison
   ownership/   later public/cross-package ownership, candidate, and scoring contracts when a
                concrete compiler or partition consumer justifies them
-  partition/   task-0004 public immutable partition recipe and internal deterministic maximal
-               consecutive same-owner generation
-  memory/      task-0005 public logical value requirements and plan plus internal derivation from
-               the closed graph and ordered complete partitions
+  partition/   public immutable partition recipe and public deterministic maximal consecutive
+               same-owner generation for the concrete compiler consumer
+  memory/      public logical value requirements and plan plus public stateless derivation from
+               the closed graph and ordered complete partitions for Compiler
 ```
 
 The module root is not a catch-all facade. Task 0001 opens only `capability` with the immutable
@@ -64,7 +64,11 @@ yet justifies a public matrix/evaluator or a public config signature. Complete t
 smallest consumer colocated with that internal value, uses the eligible identity list directly as
 the candidate set, and adds no public ownership package or facade. Complete task 0004 opens
 `partition` with the architecture-named immutable recipe plus an internal generator over complete
-per-node ownership; it does not widen the current capability selector or add orchestration.
+per-node ownership; it did not initially widen the current capability selector or add
+orchestration. Compiler 0005 now supplies the concrete cross-package consumer: it adds one
+colocated public owner-selection collaboration and widens only the existing partition and memory
+operations in their owning packages. Compiler retains graph-wide sequencing and owner-map
+assembly.
 
 ## Task list
 
@@ -93,7 +97,15 @@ Task 0003 adds the smallest internal owner-selection consumer: the eligible `Bac
 the candidate set, preferred matches precede nonmatches, provider order resolves ties and
 fallback, and an empty list fails terminally before selection.
 
-Task 0004 now provides one public `PlannedPartition(owner, nodeIds)` recipe and package-private
+Compiler 0005 is now the concrete consumer anticipated by the closure audit. Public
+`BackendOwnerPlanning.selectOwner(...)` composes the unchanged package-private eligibility and
+selector once per final graph node. Public `MaximalSameOwnerPartitioning.partition(...)` and
+`LogicalMemoryPlanning.plan(...)` retain their completed semantics and are invoked directly after
+Compiler assembles the complete owner map. Planning still owns no graph-wide workflow, compiler
+artifact, provider registry, numeric cost model, device/route choice, physical memory, prepare, or
+runtime behavior.
+
+Task 0004 now provides one public `PlannedPartition(owner, nodeIds)` recipe and public stateless
 maximal consecutive-run generation over a complete `Map<NodeId, BackendId>`. It preserves stored
 topological order, equality-based ownership, exact graph-node and first-owner references, and
 immutable results, including the empty result for a zero-node graph. It adds no ownership row,
@@ -101,7 +113,7 @@ public orchestration facade, graph traversal or reordering, graph-boundary DTO, 
 profile, lowering, or executable construction.
 
 [Task 0005](tasks/0005-logical-materialization-and-memory-requirements.md) is Complete. It adds the
-public `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes plus package-private derivation
+public `LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes plus public stateless derivation
 from `CompiledGraphModel` and ordered complete partitions. The generator validates complete graph-
 order coverage and maximal owner runs before retaining exact `ValueId`, `TensorDescriptor`,
 producer partition, distinct consumer partitions, and graph-output facts in graph-value order.
@@ -109,12 +121,12 @@ It adds no eager byte count, lifetime, transfer/copy, physical slot/allocation,
 `PublicationBinding`, public orchestration, prepare/runtime/backend behavior, or cost
 classification.
 
-[Task 0006](tasks/0006-planning-contract-closure-audit.md) is Complete. Its clean documentation-
-focused audit confirms that the five public declarations are sufficient and minimal and that the
-four evaluator/generator operations may remain internal until compiler orchestration has a
-concrete consumer. One provider-guide lifecycle phrase was corrected; no Java, test, Gradle,
-architecture, compiler, prepare, runtime, backend, cost-profile, or public-orchestration behavior
-changed.
+[Task 0006](tasks/0006-planning-contract-closure-audit.md) is Complete. Its historical clean
+documentation-focused audit confirmed that the five then-public declarations were sufficient and
+that the four evaluator/generator operations could remain internal until compiler orchestration
+had a concrete consumer. Compiler 0005 supplies that consumer and opens only the three
+package-cohesive operations it needs; eligibility and its selector remain internal. The audit's
+semantic and dependency verdict remains unchanged.
 
 Config task 0004 remains Draft pending a concrete cost-bearing consumer. No task is Ready, no
 later detailed specification exists, and a separate reassessment must select the next frontier.
@@ -160,15 +172,16 @@ later detailed specification exists, and a separate reassessment must select the
 - No stable shared production `OperationFamily` or workload-bucket contract exists. Planning 0003
   must not invent one merely to keep the implementation queue moving.
 - Task 0003 uses the existing package-private `BackendEligibility` directly through one
-  package-private stateless selector in `planning.capability`. Widening eligibility or opening a
-  public ownership facade waits for a concrete compiler consumer.
+  package-private stateless selector in `planning.capability`. Compiler 0005 leaves both internal
+  and adds one public colocated collaboration that composes them for a single query.
 - The task-0002 eligible `BackendId` list is the complete task-0003 candidate set. No production
   candidate record or score map is required.
 - Baseline comparison is lexicographic rather than numeric: the first eligible backend with the
   configured preferred class wins; when no preference or match exists, the first eligible backend
   wins; provider order resolves every tie.
-- Empty hard eligibility fails internally before scoring with the exact task-0003 failure. Later
-  public compiler orchestration may translate it but may not weaken the hard requirement.
+- Empty hard eligibility fails internally before scoring with the exact task-0003 failure. Current
+  package-private compiler orchestration adds node context and may not weaken the hard
+  requirement.
 - The current baseline consumes no cost quantity and therefore needs no production operation-
   family, workload-bucket, or cost-profile classification. Config 0004 remains Draft.
 - Planning task 0004 uses `CompiledGraphModel.nodes()` as its exact deterministic adjacency and
@@ -184,9 +197,9 @@ later detailed specification exists, and a separate reassessment must select the
   and fan-out, merge, publication, or phase changes do not split an equal-owner consecutive run.
   Completed task 0005 derives boundary and logical-materialization facts from the graph plus
   partition node IDs; transfers and physical materialization remain with later lifecycle owners.
-- Only the partition recipe is public for later cross-package and lifecycle consumption.
-  Generation remains package-private until planning closure or a concrete compiler consumer
-  justifies a narrow orchestration surface.
+- The partition recipe and stateless generation operation are public for cross-package compiler
+  consumption. Compiler, not Planning, assembles the complete owner map and controls graph-wide
+  orchestration.
 - Planning task 0005 consumes only `CompiledGraphModel` plus an ordered `List<PlannedPartition>`.
   It validates complete graph-order coverage and adjacent-owner maximality before deriving any
   value requirement because the public partition DTO can also be constructed directly.

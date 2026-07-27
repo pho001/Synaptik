@@ -39,11 +39,13 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
-[Compiler 0004B Shared-algebra cotangent normalization and local derivative rules](modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md).
-Its completed compiler prerequisites are
+[Compiler 0005 Publication, planning orchestration, and compile artifacts](modules/compiler/tasks/0005-publication-planning-orchestration-and-compile-artifacts.md).
+Its completed compiler prerequisites include
 [Compiler 0004 Compiler-owned pre-capture autograd and graph compilation](modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
 and
 [Compiler 0004A Exact-composition gradient-rule extensions](modules/compiler/tasks/0004a-exact-composition-gradient-rule-extensions.md).
+The immediately preceding compiler task is
+[Compiler 0004B Shared-algebra cotangent normalization and local derivative rules](modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md).
 Its latest completed model prerequisite frontier is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
 Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
@@ -54,7 +56,46 @@ algebra, validation contract, numerical contract, and exact optimization pipelin
 comparison-dependent and every later cohesive gradient-family task remain blocked or Draft as
 recorded in the task. The final exact 16-path change passed its 136-test compiler module suite,
 independent documentation review, and 1,275-test compiler transformation/autograd capability
-checkpoint. Compiler 0005 and 0006 remain Draft without detailed specifications.
+checkpoint. Compiler 0005 keeps the graph-wide loop in Compiler, invokes Planning
+through one colocated owner-selection collaboration and the existing package-owned partition and
+logical-memory operations, and returns immutable compile artifacts with output-only publication,
+constant, and diagnostic plans. Its final affected-module validation passed 9 Planning suites with
+68 tests and 22 Compiler suites with 150 tests; the repository and architecture checkpoint passed
+172 suites with 1,294 tests, including 3 architecture suites with 3 tests, with no skipped tests,
+failures, or errors.
+
+The first clean Compiler 0005 implementation context stopped before edits because the originally
+planned fourth-package facade could not invoke package-private top-level operations in its three
+sibling Java packages. The corrected task kept eligibility and its baseline selector
+package-private, added one public owner-selection collaboration in `planning.capability`, and
+widened only the audited partition and logical-memory operations in their owning packages. The
+completed 37-path change includes the affected package Javadocs and visibility-locking tests;
+architecture, completed Planning semantics, Compiler artifact design, and failure ordering remain
+unchanged.
+
+After 0005, one explicit first-order gradient-completion milestone covers the complete current
+model operation inventory before higher-order work:
+
+| Compiler task | Status | Depends on | Milestone responsibility |
+|---|---|---|---|
+| 0005A Derivative policy and elementwise/activation gradient completion | Draft | 0005 | Complete binary/scalar arithmetic, selection/cast, unary, and activation roles with explicit derivative-boundary decisions; comparison, BOOL logic, and classification results remain non-differentiable. |
+| 0005B Reduction, scan, softmax, statistics, and normalization gradient completion | Draft | 0005A | Complete binding-dependent sum-to-Shape, products, extrema, scans, softmax/log-softmax, statistics, norms, and layer/RMS/batch normalization, including saved batch-statistic outputs and non-differentiable mask/index roles. |
+| 0005C Layout, window, indexing, scatter, ordering, and stochastic gradient completion | Draft | 0005B | Complete dynamic layout/slice/composition/window rules, Gather/scatter variants, sort/top-K, and dropout while preserving non-differentiable coordinates, indices, one-hot/BOOL outputs, RNG state, masks, and configuration roles. |
+| 0005D Attention, convolution, pooling, and loss gradient completion | Draft | 0005B, 0005C | Verify the implemented MATMUL/linear chain and complete attention, grouped convolution, pooling, and every current loss role and reduction mode with required same-occurrence auxiliaries and explicit special-case policies. |
+| 0005E First-order gradient coverage closure checkpoint | Draft | 0005A, 0005B, 0005C, 0005D | Audit every current operation signature, output slot, and input role; prove fail-closed coverage and transitive differentiability of formula operations; run the first-order checkpoint. |
+| 0006 Explicit functional gradient requests and higher-order differentiation | Draft | 0005E and a stable public compile/artifact boundary | Add explicit objectives, targets, seeds, create-graph/order, disconnected-result behavior, and phase/order representation only after first-order closure. |
+
+No row beyond 0005 is Ready, and none has a detailed task specification. Family tasks must not
+claim that every operation role has a gradient: BOOL, index, random-number-generator (RNG) state,
+mask, and configuration roles remain intentionally non-differentiable where applicable. Each
+task must explicitly choose its required tie, subgradient, discontinuity, empty-domain, or
+exceptional-value policy before claiming coverage; this planning synchronization chooses none.
+Completed Compiler 0004–0004B matrices remain the implemented baseline and must be preserved,
+not replanned as missing work.
+Dynamic and binding-dependent rules remain logical compile work, and canonical same-occurrence
+auxiliary outputs remain Tensor-expression inputs rather than physical saved buffers or a runtime
+tape. Task 0005E must also verify that operations used inside generated formulas are themselves
+differentiable before 0006 can request differentiation through them.
 The historical selected model capability milestone remains closed; this focused interleave reopens
 the model plan only to supply the smallest missing prerequisite for compiler-owned pre-capture
 automatic differentiation. Each `TensorProducer` now retains one canonical `Tensor` wrapper for
@@ -108,7 +149,8 @@ perform identical combined construction; `TRAINING_STEP` adds no optimizer updat
 The current general package-private entry owner is `GraphCompiler`; its exact parameter list
 remains direct and has no request aggregate. It returns mode-neutral `GraphCompilation`.
 `FORWARD_ONLY` has no BACKWARD nodes and empty gradient results; backward-capable modes may carry
-the combined forward/backward graph. This graph-stage result is not the later `CompileArtifacts`
+the combined forward/backward graph. This graph-stage result is not the later-lifecycle
+`CompileArtifacts`
 aggregate.
 
 The closed implemented 0004/0004A rule matrix contains same-floating-type binary ADD/SUB/MUL,
@@ -139,17 +181,23 @@ gradient-only arithmetic, comparison, cast, exceptional-value, validation, rewri
 contract. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN require explicit local
 first-order conventions; mixed floating, DIV, and ordinary MEAN use ordinary Tensor operations
 and their shared semantics.
-Compiler 0005 retains compile artifacts and publication/planning orchestration, and Compiler 0006
-retains an explicit higher-derivative create-graph/order contract. Those later tasks remain Draft
-without detailed specifications. Compiler 0004B's module validation, independent documentation
-pass, and compiler transformation/autograd capability checkpoint all passed; the checkpoint
-covered 167 suites and 1,275 tests with no skipped tests, failures, or errors.
+Complete Compiler 0005 retains compile artifacts and Compiler-owned publication/planning
+orchestration through its implementation. Draft Compiler 0005A–0005E then complete
+the current-inventory first-order milestone in the dependency order above. Compiler 0006 retains
+an explicit higher-derivative create-graph/order contract, remains Draft without a detailed
+specification, and now depends on the completed 0005E closure checkpoint rather than only on the
+artifact boundary.
+Compiler 0004B's module validation, independent documentation pass, and compiler
+transformation/autograd capability checkpoint all passed; the checkpoint covered 167 suites and
+1,275 tests with no skipped tests, failures, or errors.
 
 This interleave changes neither allowed dependencies nor downstream lifecycle readiness. Config
 0004, Trace 0003 and later, Runtime, Prepare, backends, Engine, and training extensions remain
-Draft at their existing frontiers. Planning's audited evaluator/generator operations remain
-package-private until Compiler 0005 provides a concrete orchestrator and justifies one narrow
-collaboration.
+Draft at their existing frontiers. Compiler 0005 is the concrete orchestrator that justifies
+one narrow package-cohesive Planning callable seam: owner selection composes the two internal
+capability stages, while the existing partition and logical-memory operations become directly
+callable in their owning packages. Its implementation preserves the audited evaluator/generator
+semantics.
 
 The preceding completed planning frontier is
 [Planning 0005 Logical materialization and memory requirements](modules/planning/tasks/0005-logical-materialization-and-memory-requirements.md).
@@ -169,7 +217,8 @@ Its clean documentation-focused
 `CLOSED` verdict: the five public declarations are sufficient and minimal, and the four current
 evaluator/generator operations may remain package-private until a concrete compiler-owned
 orchestrator establishes one narrow collaboration. The audit changed no Java or executable
-behavior.
+behavior. Compiler 0005 is that later concrete consumer: it adds the narrow owner-selection
+collaboration and widens only the existing partition and logical-memory operations.
 
 Planning 0003 consumes the package-private hard-eligibility result through one colocated
 package-private stateless selector. The provider-ordered eligible `BackendId` list is already the
@@ -192,20 +241,22 @@ orchestration.
 For this bounded frontier, adjacency means consecutive positions in the stored topological node
 list. Equal owners form one maximal run; an owner transition splits it; nonconsecutive equal owners
 remain separate. Graph inputs/outputs are values, and a multi-output producer remains one
-indivisible node. Planning 0005 now completes the next derived boundary, materialization, and
-logical-memory step. Both generators remain package-private, while the immutable partition and
-logical-memory recipes are public for later cross-package lifecycle consumers. No ownership row,
-phase split, graph-edge component search, cost/workload classification, device/route/kernel
-choice, lowering, or executable state is added.
+indivisible node. Planning 0005 completed the next derived boundary, materialization, and
+logical-memory step. At that completed Planning frontier both generators were package-private,
+while the immutable partition and logical-memory recipes were public for later cross-package
+lifecycle consumers. Compiler 0005 is the first concrete consumer and widens those exact two
+operations without changing their semantics. No ownership row, phase split,
+graph-edge component search, cost/workload classification, device/route/kernel choice, lowering,
+or executable state is added.
 
 Planning 0005 uses only the closed graph and ordered partition recipes. It validates exact
 graph-order coverage and maximal owner runs before deriving values. It keeps dynamic and
 expression Shapes representable by retaining `TensorDescriptor`; it adds no eager element or
 byte count, lifetime, slot, allocation, transfer, copy, device, route, schedule, or residency.
-`PublicationBinding` is not an input because it remains standalone model data for a future
-compiler-owned `PublicationPlan`; `graph.outputs()` supplies only logical preservation at this
-frontier. Planning 0006 is Complete with the selected planning milestone; compiler orchestration
-remains Draft.
+`PublicationBinding` is not a Planning input. Compiler 0005 places it in the compiler-owned
+`PublicationPlan`; `graph.outputs()` supplied only logical preservation at the earlier Planning
+frontier. Planning 0006 is Complete with the selected planning milestone, and Compiler 0005 now
+supplies the concrete orchestration consumer.
 
 The performance follow-up remains Draft-only at its actual future owners. Compiler and planning
 own complete valid graph and ownership candidates; shared prepare owns a future opaque
@@ -219,9 +270,12 @@ validation, Compiler 0003 transformation, and Compiler 0003A exact arithmetic re
 The subsequent reassessment selected only Compiler 0003B compile-time constants/folding before
 autograd, and that task is now Complete. The subsequent reassessment selected only focused Model
 0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
-now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 and 0006
-remain Draft without detailed specifications. Compiler 0004 owns combined exact cleanup before
-0005 partitioning/orchestration, while 0006 waits for the stable public compile/artifact boundary.
+now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 is Complete.
+Compiler 0005A–0005E and 0006 remain Draft without detailed specifications, and no later compiler
+task is Ready.
+Compiler 0004 owns combined exact cleanup before 0005 partitioning/orchestration; the new
+first-order milestone follows 0005, and 0006 waits for both the stable public compile/artifact
+boundary and the completed 0005E closure checkpoint.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -247,10 +301,13 @@ capture, Compiler 0002 validation, and Compiler 0003 transformation in order; al
 Compiler 0003A, Compiler 0003B, Compiler 0004, and Compiler 0004A are Complete. Focused
 [Model 0025](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) is Complete and
 supplies Compiler 0004's canonical-output prerequisite. Compiler 0004B is also Complete after its
-module tests, independent documentation pass, and capability checkpoint; 0005 and 0006 remain
-Draft without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
-partitioning/orchestration; 0006 follows the stable public compile/artifact boundary. No compiler
-task consumes or advances Config 0004.
+module tests, independent documentation pass, and capability checkpoint; Compiler 0005 is also
+Complete after its module tests, independent documentation pass, and repository/architecture
+checkpoint. Compiler 0005A–0005E and 0006 remain Draft without detailed specifications, and no
+later compiler task is Ready. Compiler 0004 owns combined exact cleanup before 0005
+partitioning/orchestration;
+0005A–0005E follow 0005, and 0006 follows the 0005E first-order closure checkpoint plus the stable
+public compile/artifact boundary. No compiler task consumes or advances Config 0004.
 
 Trace tasks
 [0001 Core trace event envelope](modules/trace/tasks/0001-core-trace-event-envelope.md) and

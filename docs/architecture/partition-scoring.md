@@ -3,17 +3,21 @@
 This document explains backend-neutral partition scoring as defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md). The contract remains authoritative.
 
 The operation-capability question and provider collaboration used before scoring are implemented.
-Planning also has two internal per-query steps. Hard eligibility validates the complete
-provider/snapshot association, applies current availability and one exact hard requirement, and
-retains supported backend identities in provider order. Baseline owner selection treats that list
-as the complete candidate set and applies the current optional soft `DeviceClass` preference.
-Planning now also exposes the immutable `PlannedPartition(owner, nodeIds)` recipe and contains an
-internal generator for maximal consecutive same-owner runs. It also exposes immutable per-value
-`LogicalMemoryRequirement` and `LogicalMemoryPlan` recipes and contains an internal derivation
-step over a closed graph plus ordered complete partitions. Reusable or public capability matrices,
-public planning orchestration or owner selection, numeric or cost scoring, and compiler
-integration remain planned. This page explains the accepted boundary and current internal
-baseline; it does not define a public scoring API, weights, or a general cost formula.
+Planning keeps hard eligibility and baseline comparison package-private, then composes them
+through the public one-method `BackendOwnerPlanning` collaboration. Hard eligibility validates
+the complete provider/snapshot association, applies current availability and one exact hard
+requirement, and retains supported backend identities in provider order. Baseline owner selection
+treats that list as the complete candidate set and applies the current optional soft
+`DeviceClass` preference.
+
+Planning also exposes `MaximalSameOwnerPartitioning.partition(...)` and
+`LogicalMemoryPlanning.plan(...)` as public stateless operations in their owning packages. The
+current package-private Compiler artifact entry constructs one query per final graph node,
+assembles the complete owner map, invokes those operations, and returns immutable
+`CompileArtifacts`. Reusable or public capability matrices, public graph-wide planning or compile
+orchestration, numeric or cost scoring, and a public compiler facade remain planned. This page
+explains the accepted boundary and current cost-free baseline; it does not define weights or a
+general cost formula.
 
 ## Purpose and pipeline position
 
@@ -30,15 +34,17 @@ It runs after intent propagation and capability analysis and before maximal same
 backend intent
   -> current OperationCapabilityQuery
   -> current BackendCapabilityProvider boolean answer
-  -> current internal per-query hard eligibility
+  -> current BackendOwnerPlanning collaboration
+     -> internal per-query hard eligibility
   -> current PartitionScoringConfig preference input
-  -> current internal preferred-class/provider-order baseline
+     -> internal preferred-class/provider-order baseline
   -> current BackendId owner for that occurrence
-  -> later orchestration assembles a complete Map<NodeId, BackendId>
-  -> current internal maximal consecutive same-owner partitioning
+  -> current Compiler orchestration assembles a complete Map<NodeId, BackendId>
+  -> current MaximalSameOwnerPartitioning.partition(...)
   -> current immutable PlannedPartition(owner, nodeIds) recipes
-  -> current internal logical-memory derivation
+  -> current LogicalMemoryPlanning.plan(...)
   -> current immutable LogicalMemoryPlan
+  -> current immutable CompileArtifacts
 ```
 
 The current public capability contract asks whether one named backend can semantically own one
@@ -47,7 +53,7 @@ immutable operation occurrence. The query contains an `Operation` plus ordered i
 boolean answer for its stable `BackendId`. It does not discover a backend, inspect availability,
 evaluate a hard requirement, select a device or route, or explain a rejection.
 
-The current package-private eligibility step combines those answers with caller-supplied
+The package-private eligibility step combines those answers with caller-supplied
 `BackendAvailabilitySnapshot` values and `BackendIntent`. It first validates a complete
 one-provider/one-snapshot association by equal `BackendId`. It then skips empty snapshots and
 exact hard-requirement mismatches before querying each remaining provider once. The result is an
@@ -55,7 +61,7 @@ immutable provider-ordered `BackendId` list, which may be empty. Exact-device an
 requirements prove only matching availability in the associated snapshot: capability remains
 backend-level, and the step neither selects nor retains a device.
 
-The current package-private selector uses the eligible identity list directly as its complete
+The package-private selector uses the eligible identity list directly as its complete
 candidate set. It validates every supplied snapshot for null and duplicate equal identities,
 requires one equal-identity snapshot for every eligible backend, and permits extra unique
 snapshots. An empty eligible list fails internally before any snapshot element is read. With no
@@ -65,9 +71,11 @@ empty matching snapshot is only a preference nonmatch, and provider order resolv
 fallback. The selector returns the exact identity reference from hard eligibility and never
 selects or retains a device.
 
-This is one cost-free internal ownership baseline, not the public planning workflow or a general
-numeric scoring model. Later cost-bearing scoring may use additional compile-time facts. Once a
-complete owner map exists, the current package-private partitioner scans
+`BackendOwnerPlanning.selectOwner(...)` validates its five top-level inputs in declaration order,
+then invokes each internal step once. The eligibility result does not escape. This is one
+cost-free per-occurrence collaboration, not a public graph-wide planning workflow or a general
+numeric scoring model. Later cost-bearing scoring may use additional compile-time facts. Once
+Compiler has assembled a complete owner map, the public stateless partitioner scans
 `CompiledGraphModel.nodes()` in its stored validated topological order and starts a partition only
 at the first node or an owner transition. Equality is `BackendId` value equality; graph edges,
 phase changes, fan-out, merges, repeated inputs, graph boundaries, and multi-output values do not
@@ -76,10 +84,10 @@ redefine adjacency or split an equal-owner run.
 The resulting public recipe retains only the first node's exact owner reference and the exact
 graph `NodeId` references in order. Its outer and inner lists are immutable. A valid zero-node
 pass-through graph yields no partitions because inputs and outputs are values, not synthetic
-nodes. The generator remains internal, so there is still no public workflow that assembles the
-owner map or invokes partitioning.
+nodes. The operation is public because Compiler is its concrete cross-package consumer; Compiler,
+not Planning, still owns the graph-wide loop and owner-map assembly.
 
-The current package-private logical-memory step accepts that closed `CompiledGraphModel` and the
+The public stateless logical-memory operation accepts that closed `CompiledGraphModel` and the
 ordered partition recipes. Because `PlannedPartition` is publicly constructible, it first checks
 that the recipes contain no null, unknown, duplicate, missing, or out-of-order node and that
 adjacent owners differ. It then emits one requirement for every graph value in graph-value order.
@@ -90,8 +98,8 @@ These facts describe graph inputs, partition inputs and outputs, same-owner and 
 boundaries, partition-internal values, and graph-output preservation without storing a closed role
 enum. Retaining the descriptor keeps dynamic and expression dimensions representable. The plan
 does not calculate element or byte counts, accept `PublicationBinding`, choose a transfer or copy,
-allocate physical storage, resolve a device or route, or create prepared/runtime state. Its
-generator remains internal and is not the missing public end-to-end planning workflow.
+allocate physical storage, resolve a device or route, or create prepared/runtime state. Public
+visibility of this package-owned operation does not make it an end-to-end Planning workflow.
 
 ## Information scoring may use
 
@@ -174,13 +182,13 @@ fused backend executable
 
 Those choices depend on backend-specific lowering, specialization, fusion, prepare configuration, and workspace constraints. They are made by the owning concrete backend during prepare.
 
-The current internal baseline returns one `BackendId` owner for one eligible occurrence. The
-current internal generator can turn a complete per-node owner map into public immutable
-`PlannedPartition` values, and the following internal step can derive a public immutable
-`LogicalMemoryPlan` from those partitions and the graph. Building the owner map through public
-planning orchestration and assembling the complete immutable compile recipe remain planned.
-Neither an owner identity, a partition recipe, nor a logical requirement is an executable
-implementation or physical schedule.
+The current owner-selection collaboration returns one `BackendId` owner for one eligible
+occurrence. Compiler builds the complete per-node owner map, invokes the public package-owned
+partition and logical-memory operations, and retains their results in public immutable
+`CompileArtifacts`. The callable compiler entry remains package-private; there is no public
+graph-wide Planning workflow or public lifecycle facade. Neither an owner identity, a partition
+recipe, a logical requirement, nor compile artifacts are an executable implementation or physical
+schedule.
 
 See [Lifecycle](lifecycle.md) for the full compile pipeline and [Runtime, Prepare, and Backend Boundary](runtime-prepare-backend-boundary.md) for where implementation selection occurs.
 See [Performance Evidence and Model Autotuning](performance-evidence-and-tuning.md) for the
