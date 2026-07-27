@@ -84,7 +84,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0003A | [Exact arithmetic rewriting](tasks/0003a-exact-arithmetic-rewriting.md) | Complete | 0003 | Added the closed seven-rule guarded exact arithmetic matrix before the forward DCE/CSE/DCE sequence, with 0002 revalidation and no relaxed algebra. |
 | 0003B | [Compile-time constants and constant folding](tasks/0003b-compile-time-constants-and-constant-folding.md) | Complete | 0003A | Added explicit logical-splat ingress, bounded BOOL/signed-integral folding, and sidecar-aware constant-source pruning without storage reads or physical values. |
 | 0004 | [Compiler-owned pre-capture autograd and graph compilation](tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md) | Complete | Model 0025; Compiler 0001–0003B; Config 0002 | Added fail-closed preflight for one scalar-objective/implicit-unit-seed first-order request, the closed initial gradient matrix through ordinary public Tensor operations, one combined phase-aware capture, and proved exact whole-graph optimization with phase-local CSE. |
-| 0004A | Exact-composition gradient-rule extensions | Draft | 0004 | Extend the supported matrix with bounded regular formulas after the core one-capture pipeline is proved. |
+| 0004A | [Exact-composition gradient-rule extensions](tasks/0004a-exact-composition-gradient-rule-extensions.md) | Complete | 0004 | Added the bounded policy-free matrix for typed ERF, masked and locally invertible shape-target SUM, role-aware floating MATMUL, and selected exact data-movement adjoints through the existing one-capture pipeline. |
 | 0004B | Derivative-policy selection and policy-dependent gradient rules | Draft | 0004A | Select explicit boundary, tie, discontinuity, singularity, and cross-floating conversion policies before adding policy-dependent formulas. |
 | 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
 | 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005 and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, formula-operation coverage, and phase/order representation without Tensor gradient lifecycle state. |
@@ -99,9 +99,9 @@ cross-package/public orchestration boundary from a concrete consumer.
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Compiler 0004 is Complete with its
-recorded source, tests, documentation, and validation. There is no Ready compiler implementation
-task. Compiler 0004A is the next Draft planning frontier and has no detailed specification.
+In progress through an explicitly bounded roadmap interleave. Compiler 0004 and 0004A are
+Complete with recorded source, tests, documentation, and validation. Compiler 0004B is the next
+unfinished compiler row but remains Draft without a detailed specification, as do later tasks.
 
 Accepted ADR 0009 changes the next compiler architecture from captured-forward placeholder
 conversion to compiler-owned pre-capture Tensor-expression autograd. The prerequisite is
@@ -115,6 +115,13 @@ optimization. The implementation first verified exactly six obsolete untracked J
 deleted them without reading or adapting their contents, and verified their absence before Gradle
 and at final status. Those removal-only paths plus 32 tracked create/modify paths stayed within
 the 38 touched-path ceiling.
+
+[Compiler 0004A](tasks/0004a-exact-composition-gradient-rule-extensions.md) is Complete with the
+additive fail-closed `SUPPORTED_0004A` matrix. It adds fixed-bit typed ERF, masked SUM, locally
+provable SUM_TO_SHAPE inversion, every floating MATMUL vector/matrix rank case, and guarded
+SLICE/SLICE_UPDATE/SELECT/PAD/TILE/CONCAT/STACK cotangents. The implementation preserves
+Compiler 0004's request, seed, identity accumulation, one-capture, phase, validation, and
+optimization contracts.
 
 The current general package-private entry owner is `GraphCompiler`, and its exact
 parameter list is not wrapped in a request aggregate. It returns mode-neutral package-private
@@ -138,10 +145,12 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   0005 and its consumers are stable.
 - The public functional boundary for explicit objectives, targets, seeds, and derivative order
   remains deferred to task 0006 after the compile/artifact consumer is stable.
-- The next policy-free exact-composition additions remain task-0004A planning decisions after
-  0004 completes.
+- Task 0004A fixed the bounded policy-free exact-composition matrix. Binding-dependent shape
+  inversion, indexing/scatter, windows, structured linear operations, pooling, losses,
+  normalization, multi-output attention, ordering, and stochastic rules remain later cohesive
+  planning decisions.
 - Tie, discontinuity, singularity, exceptional-value, empty-domain, and cross-floating cotangent
-  policies remain task-0004B decisions; 0004 selects none of them.
+  policies remain task-0004B decisions; 0004 and 0004A select none of them.
 - The first cross-package collaboration with planning remains deferred to task 0005.
 
 ## Decisions made
@@ -177,6 +186,9 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - Generated gradients remain ordinary differentiable Tensor expressions. Higher derivatives wait
   for 0006's explicit create-graph/derivative-order lifecycle, complete rule coverage for formula
   operations, and phase/order representation.
+- Compiler 0004A extends the closed preflight and named rule owners only. Its ERF coefficient uses
+  fixed typed scalar-attribute bits; its MATMUL and SLICE_UPDATE selection is role-aware; and
+  repeated operand positions remain repeated deterministic contributions.
 - Compiler 0004 first verifies the exact path/status of six obsolete untracked Java prototypes
   under the production source root, deletes them before any implementation edit or compiler
   invocation, and never copies, adapts, moves, stages, or treats their contents as design
@@ -211,6 +223,7 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Notes
 
-Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0004 are Complete.
-There is no Ready compiler implementation task. Compiler 0004A is the next Draft planning
-frontier; it and later tasks remain without detailed specifications until the frontier advances.
+Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0004–0004A are
+Complete. Compiler 0004B is the next unfinished compiler row and remains Draft without a detailed
+specification; this completion does not create or advance that specification. Later tasks also
+remain Draft.

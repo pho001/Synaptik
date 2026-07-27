@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,8 +10,17 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -19,6 +29,214 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class GradientRulesTest {
+    @Test
+    void erfUsesTheFixedCorrectlyRoundedCoefficientForEveryFloatingType() {
+        for (DataType dataType :
+                List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            Tensor target = tensor(dataType, Shape.of(3));
+            Tensor objective = target.erf().sum();
+
+            Tensor gradient = gradient(objective, target);
+            ScalarValue coefficient = assertInstanceOf(
+                    ScalarValueAttrs.class,
+                    gradient.provenance().orElseThrow().operation().attrs())
+                    .value();
+
+            switch (dataType) {
+                case BFLOAT16 -> assertEquals((short) 0x3F90, coefficient.bfloat16Bits());
+                case FLOAT32 -> assertEquals(
+                        0x3F906EBB, Float.floatToRawIntBits(coefficient.float32Value()));
+                case FLOAT64 -> assertEquals(
+                        0x3FF20DD750429B6DL,
+                        Double.doubleToRawLongBits(coefficient.float64Value()));
+                case INT32, INT64, BOOL -> throw new AssertionError(dataType);
+            }
+        }
+    }
+
+    @Test
+    void maskedSumRestoresTheFullShapeAndRoutesNoMaskCotangent() {
+        Tensor target = tensor(Shape.of(2, 0, 3));
+        Tensor mask = TensorFactory.create(new TensorDescriptor(
+                DataType.BOOL, Shape.of(1, 0, 3), Optional.empty(), false));
+        Tensor objective = target.sum(1, mask).sum();
+
+        Tensor gradient = gradient(objective, target);
+        var where = gradient.provenance().orElseThrow();
+
+        assertEquals(WhereSelectionKind.WHERE, where.operation().kind());
+        assertSame(mask, where.inputs().get(0));
+        assertEquals(target.descriptor().shape(), gradient.descriptor().shape());
+        assertEquals(target.descriptor().shape(), where.inputs().get(1).descriptor().shape());
+        assertEquals(target.descriptor().shape(), where.inputs().get(2).descriptor().shape());
+    }
+
+    @Test
+    void sumToShapeInvertsLeadingExactSingletonScalarAndZeroExtentCases() {
+        Tensor leading = tensor(Shape.of(2, 3, 1));
+        Tensor singleton = tensor(Shape.of(4, 1));
+        Tensor scalar = tensor(Shape.of(2, 3));
+        Tensor zero = tensor(Shape.of(0, 1));
+
+        assertEquals(
+                leading.descriptor().shape(),
+                gradient(leading.sumToShape(Shape.of(1)).sum(), leading)
+                        .descriptor().shape());
+        assertEquals(
+                singleton.descriptor().shape(),
+                gradient(singleton.sumToShape(Shape.of(1, 1)).sum(), singleton)
+                        .descriptor().shape());
+        assertEquals(
+                scalar.descriptor().shape(),
+                gradient(scalar.sumToShape(Shape.scalar()), scalar)
+                        .descriptor().shape());
+        Tensor zeroGradient = gradient(zero.sumToShape(Shape.of(1)).sum(), zero);
+        assertEquals(zero.descriptor().shape(), zeroGradient.descriptor().shape());
+        assertEquals(
+                ShapeTransformKind.EXPAND,
+                zeroGradient.provenance().orElseThrow().operation().kind());
+    }
+
+    @Test
+    void matmulBuildsEveryRankCaseAndUnbroadcastsEitherBatchOperand() {
+        assertMatmulGradient(Shape.of(3), Shape.of(3), 0);
+        assertMatmulGradient(Shape.of(3), Shape.of(3, 4), 0);
+        assertMatmulGradient(Shape.of(2, 3), Shape.of(3), 1);
+        assertMatmulGradient(Shape.of(2, 3), Shape.of(3, 4), 0);
+        assertMatmulGradient(Shape.of(1, 2, 3), Shape.of(5, 3, 4), 0);
+        assertMatmulGradient(Shape.of(5, 2, 3), Shape.of(1, 3, 4), 1);
+        assertMatmulGradient(Shape.of(2, 0), Shape.of(0, 4), 0);
+    }
+
+    @Test
+    void matmulSupportsTheSelectedPromotedRoleAndRepeatedOperandMultiplicity() {
+        Tensor selectedLeft = tensor(DataType.FLOAT32, Shape.of(2, 3));
+        Tensor narrowerRight = tensor(DataType.BFLOAT16, Shape.of(3, 4));
+        assertEquals(
+                selectedLeft.descriptor().shape(),
+                gradient(selectedLeft.matmul(narrowerRight).sum(), selectedLeft)
+                        .descriptor().shape());
+
+        Tensor narrowerLeft = tensor(DataType.BFLOAT16, Shape.of(2, 3));
+        Tensor selectedRight = tensor(DataType.FLOAT32, Shape.of(3, 4));
+        assertEquals(
+                selectedRight.descriptor().shape(),
+                gradient(narrowerLeft.matmul(selectedRight).sum(), selectedRight)
+                        .descriptor().shape());
+
+        Tensor repeated = tensor(Shape.of(2, 2));
+        Tensor repeatedGradient = gradient(repeated.matmul(repeated).sum(), repeated);
+        assertEquals(
+                BinaryArithmeticKind.ADD,
+                repeatedGradient.provenance().orElseThrow().operation().kind());
+    }
+
+    @Test
+    void sliceAndSliceUpdatePreserveSignedEmptyAndRepeatedGeometry() {
+        Tensor target = tensor(Shape.of(5));
+        assertGradientCompiles(
+                target.slice(
+                                new long[] {1},
+                                new long[] {5},
+                                new int[] {0},
+                                new long[] {2})
+                        .sum(),
+                target);
+        assertGradientCompiles(
+                target.slice(
+                                new long[] {4},
+                                new long[] {-6},
+                                new int[] {0},
+                                new long[] {-1})
+                        .sum(),
+                target);
+        assertGradientCompiles(
+                target.slice(
+                                new long[] {0},
+                                new long[] {0},
+                                new int[] {0},
+                                new long[] {-3})
+                        .sum(),
+                target);
+        assertGradientCompiles(
+                target.slice(new long[] {}, new long[] {}, new int[] {}, new long[] {}).sum(),
+                target);
+
+        Tensor base = tensor(Shape.of(5));
+        Tensor update = tensor(Shape.of(2));
+        Tensor replaced = base.sliceUpdate(
+                update, new long[] {4}, new int[] {0}, new long[] {-2});
+        Tensor baseGradient = gradient(replaced.sum(), base);
+        Tensor updateGradient = gradient(replaced.sum(), update);
+        assertEquals(SliceKind.SLICE_UPDATE,
+                baseGradient.provenance().orElseThrow().operation().kind());
+        assertEquals(SliceKind.SLICE,
+                updateGradient.provenance().orElseThrow().operation().kind());
+        SliceAttrs extraction = assertInstanceOf(
+                SliceAttrs.class,
+                updateGradient.provenance().orElseThrow().operation().attrs());
+        assertEquals(List.of(4L), extraction.starts());
+        assertEquals(List.of(2L), extraction.lengths());
+        assertEquals(List.of(-2L), extraction.steps());
+
+        Tensor repeated = tensor(Shape.of(2));
+        Tensor repeatedGradient = gradient(
+                repeated.sliceUpdate(
+                                repeated,
+                                new long[] {},
+                                new int[] {},
+                                new long[] {})
+                        .sum(),
+                repeated);
+        assertEquals(
+                BinaryArithmeticKind.ADD,
+                repeatedGradient.provenance().orElseThrow().operation().kind());
+    }
+
+    @Test
+    void selectPadTileConcatAndStackUseExactPublicInverseCompositions() {
+        Tensor selected = tensor(Shape.of(2, 3));
+        Tensor selectGradient = gradient(selected.select(1, 2).sum(), selected);
+        assertEquals(
+                SliceKind.SLICE_UPDATE,
+                selectGradient.provenance().orElseThrow().operation().kind());
+
+        Tensor scalar = tensor(Shape.scalar());
+        assertGradientCompiles(scalar.tile(), scalar);
+        assertGradientCompiles(
+                scalar.pad(new long[] {}, new long[] {}, ScalarValue.float32(0.0f)),
+                scalar);
+
+        DynamicDimension dynamic = new DynamicDimension("N");
+        Tensor dynamicInput = tensor(Shape.ofDimensions(dynamic, new StaticDimension(0)));
+        assertGradientCompiles(dynamicInput.pad(
+                        new long[] {2, 0},
+                        new long[] {3, 1},
+                        ScalarValue.float32(0.0f))
+                .sum(), dynamicInput);
+        assertGradientCompiles(dynamicInput.tile(2, 3).sum(), dynamicInput);
+
+        Tensor first = tensor(Shape.ofDimensions(dynamic, new StaticDimension(2)));
+        Tensor second = tensor(Shape.ofDimensions(new DynamicDimension("M"), new StaticDimension(2)));
+        Tensor concatGradient = gradient(Tensor.concat(0, first, second).sum(), second);
+        CropToShapeAttrs crop = assertInstanceOf(
+                CropToShapeAttrs.class,
+                concatGradient.provenance().orElseThrow().operation().attrs());
+        assertEquals(first.descriptor().shape().dimension(0), crop.prefixShape().dimension(0));
+
+        Tensor stackGradient = gradient(Tensor.stack(1, first, first).sum(), first);
+        assertEquals(
+                BinaryArithmeticKind.ADD,
+                stackGradient.provenance().orElseThrow().operation().kind());
+        for (Tensor contribution : stackGradient.provenance().orElseThrow().inputs()) {
+            assertEquals(Shape.ofDimensions(dynamic, new StaticDimension(2)),
+                    contribution.descriptor().shape());
+            assertEquals(
+                    SelectKind.SELECT,
+                    contribution.provenance().orElseThrow().operation().kind());
+        }
+    }
+
     @Test
     void multiplyUsesExactForwardOperandAndUnbroadcastsOnlySelectedRole() {
         Tensor target = tensor(Shape.of(2, 1));
@@ -110,6 +328,31 @@ final class GradientRulesTest {
                 CompileTimeConstantGraph.Ingress.empty(),
                 GraphOptimizationConfig.disabled());
         assertEquals(target.id(), result.gradientResults().getFirst().target());
+    }
+
+    private static Tensor gradient(Tensor objective, Tensor target) {
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                CompileTimeConstantGraph.Ingress.empty());
+        return FirstOrderAutograd.expand(
+                        plan, CompileTimeConstantGraph.Ingress.empty())
+                .targetGradients()
+                .getFirst()
+                .gradient();
+    }
+
+    private static void assertMatmulGradient(
+            Shape leftShape, Shape rightShape, int selectedInput) {
+        Tensor left = tensor(leftShape);
+        Tensor right = tensor(rightShape);
+        Tensor result = left.matmul(right);
+        Tensor objective = result.descriptor().shape().rank() == 0 ? result : result.sum();
+        Tensor selected = selectedInput == 0 ? left : right;
+        assertEquals(
+                selected.descriptor().shape(),
+                gradient(objective, selected).descriptor().shape());
     }
 
     private static ScalarValue one(DataType dataType) {

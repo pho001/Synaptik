@@ -683,7 +683,8 @@ The accepted [pre-capture Tensor-expression autograd](#pre-capture-tensor-expres
 design uses ordinary public Tensor operations over the original forward expression. This strategy
 does not add public Tensor gradient/backward lifecycle state. Model task 0025 is Complete and
 supplies canonical producer-output wrappers; Compiler task 0004 is Complete with its first
-bounded package-private implementation. See
+bounded package-private implementation; Compiler task 0004A is Complete with its first
+policy-free exact-composition rule extension. See
 [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
@@ -1380,13 +1381,18 @@ is distinct from the later `CompileArtifacts` aggregate.
 The current request contains one exact requested scalar floating objective, an ordered non-empty
 identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
 unit seed. Its closed matrix covers same-floating-type binary/scalar ADD/SUB/MUL, same-type
-branch-only WHERE and floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH, ordinary SUM, CUM_SUM,
-CONTIGUOUS, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, and PERMUTE. Everything else fails closed on a
-selected route until its formula or derivative policy is selected.
+branch-only WHERE and floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH/ERF, ordinary and masked SUM,
+locally invertible SUM_TO_SHAPE, CUM_SUM, every floating MATMUL vector/matrix rank pairing, and
+the guarded floating CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/
+SLICE_UPDATE/SELECT/PAD/TILE/CONCAT/STACK families. Selected MATMUL operands must have the output
+type; SLICE_UPDATE's selected update role requires static selected base extents; and
+SUM_TO_SHAPE accepts only aligned exact Dimension equality or a static target singleton.
+Everything else fails closed on a selected route until its formula or derivative policy is
+selected.
 
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler task 0004 are Complete. Public requests/publication,
+Model task 0025 and Compiler tasks 0004 and 0004A are Complete. Public requests/publication,
 `CompileArtifacts`, higher derivatives, optimizer updates, preparation, and execution remain
 planned.
 
@@ -1637,7 +1643,9 @@ is stricter than general broadcasting. No-bias returns the MATMUL product direct
 form, ADD produces a structurally equal final Shape with the exact product Dimension references,
 although its outer Shape object may be distinct. A linear projection here is storage-free model
 metadata, not a stateful linear layer: it owns no parameters, initialization, serialization,
-gradient rule, compiler pass, fusion, backend kernel, or execution. See
+dedicated gradient rule, compiler pass, fusion, backend kernel, or execution. Its visible
+floating PERMUTE/MATMUL/ADD primitive chain is differentiable by current package-private compiler
+autograd when each primitive satisfies its closed rule guards. See
 [Linear-projection convenience](api/tensor-api.md#linear-projection-convenience).
 
 ### Masked reduction
@@ -1656,8 +1664,10 @@ normalized reduction axis, preserve input type and gradient eligibility, and rec
 `[input, mask]` provenance. Callers make other axis intent visible with rank-edit or Shape
 expressions before the reduction. A static zero-sized reduction axis produces zero sum slices and
 NaN mean slices; runtime zero-sized or all-false dynamic slices follow the same semantics. Storage
-alignment, value selection, counting, aggregation, division, gradient rules, compiler capture,
-backend behavior, and numerical execution remain planned.
+alignment, value selection, counting, aggregation, division, backend behavior, and numerical
+execution remain planned. Current package-private compiler autograd supports masked floating SUM:
+it restores the reduced axis, expands the cotangent, and routes it with the original mask and an
+exact typed zero. Masked MEAN and other masked reduction gradient policies remain planned.
 
 ### Mean-squared error / MSE
 
@@ -1681,8 +1691,12 @@ right-aligned, and retains the remaining row and column axes. Rank-one operands 
 promoted to matrices and their inserted result axes are removed, so vector-vector `MATMUL`
 produces a scalar. `MatmulKind.MATMUL` is parameterless with exactly two logical inputs and one
 output; public `Tensor.matmul` constructs the current storage-free expression metadata. The
-operation does not itself capture a graph, multiply stored values, define gradients, select a
-backend algorithm, or execute. See [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
+operation does not itself capture a graph, multiply stored values, select a backend algorithm, or
+execute. Current package-private compiler autograd constructs cotangents for every floating
+vector/matrix rank pairing and unbroadcasts batch axes. Each selected operand must have the output
+type; an unselected narrower operand is allowed, while integral MATMUL and a selected
+cross-floating role are rejected. See
+[Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
 ### Memory slot
 
@@ -2064,7 +2078,8 @@ symbolic-extent expressions, and zero widths preserve the exact input Dimension 
 result preserves exact type and gradient eligibility and is a fresh unresolved storage-free
 expression with normalized attributes and provenance `[input]`. It requires exact constant/input
 type equality but does not bind or evaluate a symbolic extent, convert the constant, or
-materialize values. See [Pad and tile
+materialize values. Current package-private compiler autograd crops a supported floating PAD
+cotangent by the exact before widths. See [Pad and tile
 expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
 normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 
@@ -2363,8 +2378,9 @@ Scalar select differs from conditional `WHERE`, which chooses between branch val
 corresponding positions, and general `SLICE`, which selects half-open intervals without removing
 an axis. Public unstack composes ordered scalar-select occurrences. Tensor-index gather instead
 uses one or more tensors to supply indices.
-Gradients, compiler capture and canonicalization, materialization, backend lowering, and execution
-remain planned. See [Scalar select semantic kind and
+Current package-private compiler autograd scatters a supported floating SELECT cotangent into an
+input-shaped exact typed zero at the restored axis coordinate. Compiler canonicalization,
+materialization, backend lowering, and execution remain planned. See [Scalar select semantic kind and
 attributes](api/tensor-api.md#scalar-select-semantic-kind-and-attributes).
 
 ### Sigmoid linear unit / SiLU
@@ -2413,8 +2429,10 @@ fresh, unlabeled, and storage-free, and records one `SliceKind.SLICE` producer w
 `[input]`, one output descriptor, and provenance output index zero. The three-argument
 `sliceAxis` uses step one; the four-argument form uses an explicit signed step; `flip` places all
 requested axes into one operation. There is no `SLICE_AXIS` or `FLIP` kind. These methods do not
-read values, define gradients, capture or canonicalize a graph, materialize storage, lower a
-backend or ONNX operation, or execute selection. See [Slice expressions](api/tensor-api.md#slice-expressions)
+read values, capture or canonicalize a graph, materialize storage, lower a backend or ONNX
+operation, or execute selection. Current package-private compiler autograd scatters a supported
+normalized floating SLICE cotangent into an input-shaped exact typed zero. See
+[Slice expressions](api/tensor-api.md#slice-expressions)
 and [Slice semantic kind and normalized
 attributes](api/tensor-api.md#slice-semantic-kind-and-normalized-attributes).
 
@@ -2436,7 +2454,9 @@ operation-specific backward kind.
 Public `Tensor.sliceUpdate` accepts all current data types with exact base/update type equality,
 combines their gradient eligibility, leaves result layout unresolved, and creates one fresh,
 unlabeled, storage-free result at provenance index zero. It reads no values and defines no
-gradient, compiler, lowering, backend, or execution behavior. See [Slice update and
+lowering, backend, or execution behavior. Current package-private compiler autograd masks the
+supported floating base cotangent and extracts the supported floating update cotangent; only the
+selected update role requires static selected base extents. See [Slice update and
 target-relative crop expressions](api/tensor-api.md#slice-update-and-target-relative-crop-expressions).
 
 ### Target-relative crop
@@ -2682,6 +2702,10 @@ axis count up front, then returns an immutable ordered list of independent scala
 zero and uses SELECT's conditional layout behavior. A zero count returns an immutable empty list
 without creating a producer, Tensor, or identifier. This differs from future genuine multi-output
 operations, which share one producer across distinct output indices.
+
+Current package-private compiler autograd crops a supported floating CONCAT cotangent by each
+ordered symbolic input prefix and selects the corresponding inserted-axis coordinate for each
+supported floating STACK input. Repeated positions remain repeated contributions.
 
 ### Tensor
 
@@ -3085,7 +3109,9 @@ static or symbolic multiplication. Repeat one preserves the exact input Dimensio
 other positive repeats retain an exact symbolic-extent expression. The result preserves exact
 type and gradient eligibility and is a fresh unresolved storage-free expression with normalized
 attributes and provenance `[input]`. It does not bind or evaluate the formula, repeat values, or
-materialize storage. See [Pad and tile
+materialize storage. Current package-private compiler autograd reshapes a supported floating TILE
+cotangent to interleaved repeat/input axes, sums the repeat axes, and restores the input Shape. See
+[Pad and tile
 expressions](api/tensor-api.md#pad-and-tile-expressions) and [Pad and tile semantic kinds and
 normalized attributes](api/tensor-api.md#pad-and-tile-semantic-kinds-and-normalized-attributes).
 

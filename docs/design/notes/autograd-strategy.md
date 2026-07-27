@@ -10,6 +10,8 @@ The design is accepted and its first bounded package-private implementation is c
 0025 lets every producer return its canonical exact Tensor wrapper for each output position.
 [Compiler task 0004](../../planning/modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
 is Complete with the scalar-objective, implicit-unit-seed first-order graph-stage contract.
+[Compiler task 0004A](../../planning/modules/compiler/tasks/0004a-exact-composition-gradient-rule-extensions.md)
+is Complete with the first policy-free exact-composition rule extension.
 Public gradient requests, publication, compile artifacts, higher derivatives, optimizer updates,
 preparation, and execution remain planned.
 
@@ -76,25 +78,42 @@ producer occurrence, output role, exact attributes, and required derivative poli
 or ambiguous work fails closed. This prevents a known incomplete rule matrix from creating a
 partial backward expression.
 
-The closed `SUPPORTED_0004` matrix is:
+The closed union of `SUPPORTED_0004` and `SUPPORTED_0004A` is:
 
 | Family | Current exact variants |
 |---|---|
-| Elementwise | Same-floating-type binary and exact-scalar `ADD`/`SUB`/`MUL`; same-type branch-only `WHERE`; same-type floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH` |
-| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`; floating `CUM_SUM` |
-| Logical layout | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE` |
+| Elementwise | Same-floating-type binary and exact-scalar `ADD`/`SUB`/`MUL`; same-type branch-only `WHERE`; same-type floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF` |
+| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`; masked floating `SUM`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
+| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware selected-operand type checks and batch unbroadcasting |
+| Logical layout/selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
-Broadcast reversal uses public `sumToShape`; SUM restores removed axes before expansion; CUM_SUM
-retains exclusivity and reverses scan direction; PERMUTE uses the inverse permutation. WHERE's
-BOOL condition is non-differentiable.
+Broadcast reversal uses public `sumToShape`; ordinary SUM restores removed axes before expansion;
+CUM_SUM retains exclusivity and reverses scan direction; and PERMUTE uses the inverse permutation.
+WHERE's BOOL condition is non-differentiable. Masked SUM restores the reduced axes, expands the
+cotangent, and routes it with the original mask while placing an exact typed zero elsewhere.
+`SUM_TO_SHAPE` is invertible only when every aligned input/target Dimension is either exactly
+equal or the static target extent is one.
 
-Everything outside this table fails closed on a selected route. Task 0004A retains policy-free
-exact-composition formulas. Task 0004B retains mixed-floating cotangent conversion and
-tie/endpoint/discontinuity/singularity/empty-domain/NaN/infinity policies. In particular, the
-current matrix excludes division, power, extrema, clamp and nonsmooth unary families,
-reciprocal/log/root families, product/mean/extrema/statistical reductions, `CUM_PROD`, softmax and
-normalization, linear algebra, indexing, random/dropout, losses, and other unlisted operation
-families.
+ERF constructs `g * exp(-(x * x)) * (2 / sqrt(pi))`. Its coefficient is exact scalar-operation
+metadata with fixed BFLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3F906EBB`, and
+`0x3FF20DD750429B6D`; the rule does not evaluate host floating arithmetic.
+
+MATMUL handles vector-vector, vector-matrix, matrix-vector, and matrix-matrix rank promotion.
+Each selected operand must have the output floating type; an unselected narrower operand is
+permitted because no cotangent conversion is needed for that role. Integral MATMUL is rejected.
+SLICE scatters into an input-shaped typed zero. SLICE_UPDATE masks the base cotangent or extracts
+the update cotangent; only the update role requires all selected base extents to be static.
+SELECT scatters at one restored axis coordinate. PAD crops its before-width prefix. TILE reshapes
+to interleaved repeat/input axes and sums the repeat axes. CONCAT crops by ordered symbolic input
+prefixes. STACK selects the corresponding inserted-axis coordinate. Repeated input positions
+remain repeated contributions and therefore accumulate deterministically.
+
+Everything outside this table fails closed on a selected route. Task 0004B retains
+mixed-floating cotangent conversion and tie/endpoint/discontinuity/singularity/empty-domain/
+NaN/infinity policies. Current exclusions include division and power; extrema, clamp, and other
+nonsmooth families; reciprocal/log/root families; product, mean, extrema, and statistical
+reductions; `CUM_PROD`; softmax and normalization; indexing families outside the listed exact
+layout rules; random/dropout; losses; and other unlisted operation families.
 
 Preflight is not full graph inference. The compiler performs authoritative inference and
 validation after the one combined capture. A later Tensor construction, capture, inference,
@@ -104,9 +123,10 @@ compatible with the existing opaque, monotonic, non-reusable ID contract.
 ## Constants and hidden outputs
 
 The implicit unit seed, WHERE routing zeros, and other derivative constants are storage-free
-Tensor leaves or expressions. The compiler registers each BFLOAT16, FLOAT32, or FLOAT64 scalar
+Tensor leaves or expressions. The compiler registers each BFLOAT16, FLOAT32, or FLOAT64 zero/one
 base explicitly with one exact logical-splat fact for combined capture. BFLOAT16 zero/one use
-exact bits `0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. Host storage,
+exact bits `0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. The ERF coefficient
+is instead exact scalar-operation metadata and is not registered as a splat leaf. Host storage,
 labels, factory history, Shape, layout, and provenance absence never imply constant status.
 
 Some formulas need producer outputs omitted from a public ergonomic result. Dropout, for example,

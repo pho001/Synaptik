@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -80,6 +82,96 @@ final class AutogradPreflightTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new AutogradPreflight.FirstOrderRequest(vector, List.of(vector, vector)));
+    }
+
+    @Test
+    void admitsOnlyLocallyProvableSumToShapeInversion() {
+        DynamicDimension sourceExtent = new DynamicDimension("N");
+        Tensor exactTarget = tensor(Shape.ofDimensions(sourceExtent), true);
+        Tensor exactObjective =
+                exactTarget.sumToShape(Shape.ofDimensions(sourceExtent)).sum();
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(exactObjective),
+                new AutogradPreflight.FirstOrderRequest(exactObjective, List.of(exactTarget)),
+                CompileTimeConstantGraph.Ingress.empty());
+        assertEquals(2, plan.selectedOccurrences().size());
+
+        Tensor bindingDependent = tensor(Shape.ofDimensions(sourceExtent), true);
+        Tensor unsupportedObjective = bindingDependent
+                .sumToShape(Shape.ofDimensions(new DynamicDimension("M")))
+                .sum();
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(unsupportedObjective),
+                        new AutogradPreflight.FirstOrderRequest(
+                                unsupportedObjective, List.of(bindingDependent)),
+                        CompileTimeConstantGraph.Ingress.empty()));
+        assertTrue(failure.getMessage().contains("SUM_TO_SHAPE"));
+    }
+
+    @Test
+    void sliceUpdateAppliesTheStaticBaseGuardOnlyToTheUpdateRole() {
+        DynamicDimension dynamic = new DynamicDimension("N");
+        Tensor base = tensor(Shape.ofDimensions(dynamic), true);
+        Tensor update = tensor(Shape.ofDimensions(new StaticDimension(2)), true);
+        Tensor objective = base.sliceUpdate(
+                        update,
+                        new long[] {0},
+                        new int[] {0},
+                        new long[] {1})
+                .sum();
+
+        AutogradPreflight.Plan basePlan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(base)),
+                CompileTimeConstantGraph.Ingress.empty());
+        assertTrue(basePlan.selectedOccurrences().stream()
+                .anyMatch(occurrence -> occurrence.selectedInput(0)));
+
+        IllegalArgumentException updateFailure = assertThrows(
+                IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(objective),
+                        new AutogradPreflight.FirstOrderRequest(objective, List.of(update)),
+                        CompileTimeConstantGraph.Ingress.empty()));
+        assertTrue(updateFailure.getMessage().contains("static selected base Dimensions"));
+    }
+
+    @Test
+    void keepsMaskAndRepresentativePolicyDependentRoutesNonDifferentiable() {
+        Tensor data = tensor(Shape.of(3), true);
+        Tensor maskSource = tensor(Shape.of(3), true);
+        Tensor mask = maskSource.greaterThan(data);
+        Tensor maskedObjective = data.sum(0, mask);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD,
+                        List.of(maskedObjective),
+                        new AutogradPreflight.FirstOrderRequest(
+                                maskedObjective, List.of(maskSource)),
+                        CompileTimeConstantGraph.Ingress.empty()));
+
+        for (Tensor objective : List.of(
+                data.div(tensor(Shape.of(3), true)).sum(),
+                data.mean(),
+                data.softmax(0).sum(),
+                data.cropToShape(Shape.of(2), Shape.of(0)).sum())) {
+            IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> AutogradPreflight.preflight(
+                            CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(objective),
+                            new AutogradPreflight.FirstOrderRequest(
+                                    objective, List.of(data)),
+                            CompileTimeConstantGraph.Ingress.empty()));
+            assertTrue(failure.getMessage().contains("producerPostorder["));
+        }
     }
 
     private static Tensor tensor(Shape shape, boolean requiresGrad) {

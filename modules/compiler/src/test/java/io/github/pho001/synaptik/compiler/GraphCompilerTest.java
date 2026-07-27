@@ -11,7 +11,9 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -141,6 +143,91 @@ final class GraphCompilerTest {
                 GraphOptimizationConfig.disabled()));
 
         assertEquals(before, nextTensorId());
+    }
+
+    @Test
+    void preflightOnly0004AFailuresConsumeNoTensorIdentity() throws Exception {
+        DynamicDimension dynamic = new DynamicDimension("N");
+        Tensor source = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(dynamic),
+                Optional.empty(),
+                true));
+        Tensor bindingDependent = source
+                .sumToShape(Shape.ofDimensions(new DynamicDimension("M")))
+                .sum();
+        long beforeShapeFailure = nextTensorId();
+        assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(bindingDependent),
+                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                        bindingDependent, List.of(source))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled()));
+        assertEquals(beforeShapeFailure, nextTensorId());
+
+        Tensor base = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(dynamic),
+                Optional.empty(),
+                true));
+        Tensor update = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(new StaticDimension(2)),
+                Optional.empty(),
+                true));
+        Tensor replacement = base.sliceUpdate(
+                        update,
+                        new long[] {0},
+                        new int[] {0},
+                        new long[] {1})
+                .sum();
+        long beforeRoleFailure = nextTensorId();
+        assertThrows(IllegalArgumentException.class, () -> GraphCompiler.compile(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(replacement),
+                Optional.of(new AutogradPreflight.FirstOrderRequest(
+                        replacement, List.of(update))),
+                CompileTimeConstantGraph.Ingress.empty(),
+                GraphOptimizationConfig.disabled()));
+        assertEquals(beforeRoleFailure, nextTensorId());
+    }
+
+    @Test
+    void capturesRepresentative0004AFormulasOnceWithPhasesRolesAndConstants() {
+        for (GraphOptimizationConfig optimization :
+                List.of(GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {
+            Tensor target = TensorFactory.create(new TensorDescriptor(
+                    DataType.FLOAT32, Shape.of(2, 2), Optional.empty(), true));
+            Tensor objective = target.erf()
+                    .matmul(target)
+                    .slice(
+                            new long[] {0},
+                            new long[] {2},
+                            new int[] {0},
+                            new long[] {1})
+                    .pad(
+                            new long[] {0, 1},
+                            new long[] {0, 0},
+                            ScalarValue.float32(0.0f))
+                    .sum();
+
+            GraphCompilation result = GraphCompiler.compile(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective),
+                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                            objective, List.of(target))),
+                    CompileTimeConstantGraph.Ingress.empty(),
+                    optimization);
+
+            assertEquals(1, result.forwardOutputs().size());
+            assertEquals(target.id(), result.gradientResults().getFirst().target());
+            assertTrue(result.validatedGraph().graph().nodePhases()
+                    .containsValue(GraphPhase.FORWARD));
+            assertTrue(result.validatedGraph().graph().nodePhases()
+                    .containsValue(GraphPhase.BACKWARD));
+            assertTrue(result.validatedGraph().constants().size() >= 2);
+        }
     }
 
     private static Tensor tensor() {

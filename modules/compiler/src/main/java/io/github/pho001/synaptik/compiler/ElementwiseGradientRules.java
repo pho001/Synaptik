@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.compiler;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
@@ -14,9 +16,14 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  *
  * <p>The selected rows are exact same-floating-type binary {@code ADD}/{@code SUB}/{@code MUL},
  * scalar {@code ADD}/{@code SUB}/{@code MUL}, branch-only {@code WHERE}, same-type floating
- * {@code CAST}, and {@code NEG}/{@code EXP}/{@code EXPM1}/{@code SIGMOID}/{@code TANH}. Every
- * formula is expressed only through public Tensor operations. Preflight owns descriptor,
- * attributes, role, and policy validation before this owner is called.</p>
+ * {@code CAST}, and {@code NEG}/{@code EXP}/{@code EXPM1}/{@code SIGMOID}/{@code TANH}/{@code
+ * ERF}. For input {@code x} and output cotangent {@code g}, ERF constructs
+ * {@code g * exp(-(x * x)) * C}, where {@code C} is the exact typed representation of
+ * {@code 2 / sqrt(pi)}: BFLOAT16 bits {@code 0x3F90}, FLOAT32 bits {@code 0x3F906EBB}, or
+ * FLOAT64 bits {@code 0x3FF20DD750429B6D}. The coefficient is scalar operation metadata, not a
+ * Tensor leaf or logical-splat binding, and is never computed with a host transcendental
+ * function. Every formula is expressed only through public Tensor operations. Preflight owns
+ * descriptor, attributes, role, and policy validation before this owner is called.</p>
  *
  * <p>This owner constructs expression metadata only. It performs no graph capture, numerical
  * evaluation, storage access, lowering, backend selection, or execution.</p>
@@ -36,7 +43,7 @@ final class ElementwiseGradientRules {
      * @return a new input-position-aligned Tensor array; a {@code null} element denotes an
      *     unselected or non-differentiable role
      * @throws IllegalStateException if called for an operation kind that did not pass the closed
-     *     preflight matrix
+     *     preflight matrix, or if preflight admitted ERF with a non-floating type
      */
     static Tensor[] apply(
             TensorProducer producer,
@@ -112,12 +119,38 @@ final class ElementwiseGradientRules {
                 case TANH -> new Tensor[] {
                     gradient.mul(constants.oneLike(output).sub(output.mul(output)))
                 };
-                case ABS, RECIPROCAL, LOG, LOG1P, ERF, SQRT, RSQRT, FLOOR, CEIL, SIGN, RELU,
+                case ERF -> new Tensor[] {
+                    gradient.mul(producer.inputs().getFirst()
+                                    .mul(producer.inputs().getFirst())
+                                    .neg()
+                                    .exp())
+                            .mul(erfCoefficient(output.descriptor().dataType()))
+                };
+                case ABS, RECIPROCAL, LOG, LOG1P, SQRT, RSQRT, FLOOR, CEIL, SIGN, RELU,
                         GELU, GELU_TANH_APPROXIMATION, SILU ->
                         throw new IllegalStateException("unary kind was not preflight-approved: " + kind);
             };
         }
         throw new IllegalStateException(
                 "elementwise operation was not preflight-approved: " + producer.operation());
+    }
+
+    /**
+     * Returns the fixed correctly rounded scalar coefficient for the selected ERF type.
+     *
+     * @param dataType non-null preflight-approved floating ERF data type
+     * @return a non-null immutable scalar value with the task-specified raw representation
+     * @throws IllegalStateException if preflight admitted an integral or BOOL type
+     */
+    private static ScalarValue erfCoefficient(DataType dataType) {
+        return switch (dataType) {
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F90);
+            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x3F906EBB));
+            case FLOAT64 -> ScalarValue.float64(
+                    Double.longBitsToDouble(0x3FF20DD750429B6DL));
+            case INT32, INT64, BOOL ->
+                    throw new IllegalStateException(
+                            "ERF preflight admitted non-floating type: " + dataType);
+        };
     }
 }

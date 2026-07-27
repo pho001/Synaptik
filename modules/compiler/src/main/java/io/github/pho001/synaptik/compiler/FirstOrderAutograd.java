@@ -9,9 +9,15 @@ import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSele
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -34,6 +40,12 @@ import java.util.Set;
  * through left-associated public Tensor addition. The only seed is an implicit exact typed
  * positive one for the scalar objective. Request-local BFLOAT16, FLOAT32, or FLOAT64 zero/one
  * leaves are storage-free and are registered explicitly as logical splats.</p>
+ *
+ * <p>Formula ownership remains split among {@link ElementwiseGradientRules},
+ * {@link ReductionGradientRules}, {@link LinearAlgebraGradientRules}, and
+ * {@link LayoutGradientRules}. This class dispatches only preflight-approved occurrences and
+ * preserves every selected positional contribution, including repeated MATMUL, slice-update,
+ * concat, and stack operands; it does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
  * combined capture. This owner does not retain global state, mutate an original Tensor, infer a
@@ -149,12 +161,22 @@ final class FirstOrderAutograd {
                     constants);
         }
         if (kind == AggregateReductionKind.SUM || kind == CumulativeScanKind.CUM_SUM) {
-            return ReductionGradientRules.apply(producer, gradient);
+            return ReductionGradientRules.apply(producer, gradient, constants);
+        }
+        if (kind == MatmulKind.MATMUL) {
+            return LinearAlgebraGradientRules.apply(
+                    producer, gradient, occurrence.selectedInputs());
         }
         if (kind == ContiguousKind.CONTIGUOUS
                 || kind instanceof ShapeTransformKind
-                || kind instanceof AxisTransformKind) {
-            return LayoutGradientRules.apply(producer, gradient);
+                || kind instanceof AxisTransformKind
+                || kind instanceof SliceKind
+                || kind == SelectKind.SELECT
+                || kind == PadKind.PAD
+                || kind == TileKind.TILE
+                || kind instanceof TensorCompositionKind) {
+            return LayoutGradientRules.apply(
+                    producer, gradient, occurrence.selectedInputs(), constants);
         }
         throw new IllegalStateException("operation was not preflight-approved: " + kind);
     }

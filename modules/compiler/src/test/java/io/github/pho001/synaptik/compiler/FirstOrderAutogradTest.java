@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -87,6 +89,37 @@ final class FirstOrderAutogradTest {
                         constants.bindings().get(1).splat().value().bfloat16Bits());
             }
         }
+    }
+
+    @Test
+    void preservesEveryRepeatedConcatPositionInDeterministicInputOrder() {
+        DynamicDimension dynamic = new DynamicDimension("N");
+        Tensor target = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT32,
+                Shape.ofDimensions(dynamic),
+                Optional.empty(),
+                true));
+        Tensor objective = Tensor.concat(0, target, target).sum();
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                CompileTimeConstantGraph.Ingress.empty());
+
+        Tensor gradient = FirstOrderAutograd.expand(
+                        plan, CompileTimeConstantGraph.Ingress.empty())
+                .targetGradients()
+                .getFirst()
+                .gradient();
+        var addition = gradient.provenance().orElseThrow();
+        CropToShapeAttrs first = (CropToShapeAttrs) addition.inputs()
+                .get(0).provenance().orElseThrow().operation().attrs();
+        CropToShapeAttrs second = (CropToShapeAttrs) addition.inputs()
+                .get(1).provenance().orElseThrow().operation().attrs();
+
+        assertEquals(BinaryArithmeticKind.ADD, addition.operation().kind());
+        assertEquals(Shape.of(0), first.prefixShape());
+        assertEquals(dynamic, second.prefixShape().dimension(0));
     }
 
     private static void assertTrueLeaf(Tensor tensor) {

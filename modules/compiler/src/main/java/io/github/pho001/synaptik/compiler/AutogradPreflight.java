@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
@@ -11,17 +12,35 @@ import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElemen
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.index.SelectAttrs;
+import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.PadAttrs;
+import io.github.pho001.synaptik.model.operation.layout.PadKind;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
+import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
+import io.github.pho001.synaptik.model.operation.layout.TileAttrs;
+import io.github.pho001.synaptik.model.operation.layout.TileKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.shape.ShapeBroadcast;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
@@ -34,8 +53,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed {@code SUPPORTED_0004} first-order rule matrix before constructing any
- * derivative Tensor expression.
+ * Preflights the closed {@code SUPPORTED_0004} and {@code SUPPORTED_0004A} first-order rule
+ * matrices before constructing any derivative Tensor expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
  * the requested forward boundary. Objective ancestry, target reachability, occurrence selection,
@@ -44,9 +63,22 @@ import java.util.Set;
  * it retains deterministic producer postorder and the original-producer identity set needed by
  * reverse accumulation and phase-aware capture.</p>
  *
+ * <p>The additive {@code SUPPORTED_0004A} rows are exact-type {@code ERF}; masked
+ * {@code SUM}; locally invertible {@code SUM_TO_SHAPE}; role-aware floating {@code MATMUL};
+ * normalized {@code SLICE} and both {@code SLICE_UPDATE} data roles; {@code SELECT},
+ * {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}. Matrix-multiplication and slice
+ * replacement are validated per selected input role: an unselected promoted operand does not
+ * require a cotangent conversion, and only a selected slice-update input requires static selected
+ * base extents. Binding-dependent shape inversion and every operation or role outside the two
+ * closed matrices still fail.</p>
+ *
  * <p>This owner selects rules and rejects unsupported operation, attribute, role, data-type,
- * Shape, and policy combinations. It neither performs captured-graph inference nor reads Tensor
- * payloads, captures a graph, allocates storage, lowers work, or executes computation.</p>
+ * Shape, and policy combinations. A known rejection occurs before the seed, a derivative
+ * constant, or a formula Tensor is constructed, so it consumes no derivative {@code TensorId}.
+ * The guarantee ends after a successful plan is returned: later public Tensor construction,
+ * capture, inference, validation, or optimization may consume IDs before failing. This owner
+ * neither performs captured-graph inference nor reads Tensor payloads, captures a graph,
+ * allocates storage, lowers work, or executes computation.</p>
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -103,7 +135,9 @@ final class AutogradPreflight {
      * least one requested target through a differentiable input role, and validates every
      * selected occurrence against the closed matrix. The first known failure is reported before
      * derivative Tensor identity allocation. Full captured-graph inference and validation remain
-     * a later compiler stage.</p>
+     * a later compiler stage. The returned plan retains exact original object references and is
+     * owned by the current compile request; callers must hand it directly to reverse accumulation
+     * and discard it after combined capture.</p>
      *
      * @param mode non-null backward-capable compile mode; {@link CompileMode#FORWARD_ONLY} is
      *     rejected
@@ -335,7 +369,8 @@ final class AutogradPreflight {
                             && kind != UnaryElementwiseKind.EXP
                             && kind != UnaryElementwiseKind.EXPM1
                             && kind != UnaryElementwiseKind.SIGMOID
-                            && kind != UnaryElementwiseKind.TANH)) {
+                            && kind != UnaryElementwiseKind.TANH
+                            && kind != UnaryElementwiseKind.ERF)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported unary variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
@@ -343,6 +378,63 @@ final class AutogradPreflight {
             return;
         }
         if (operation.kind() == AggregateReductionKind.SUM) {
+            if (operation.attrs() instanceof MaskedReductionAttrs attrs) {
+                requireInputs(producerIndex, producer, outputIndex, 2);
+                if (selectedInputs[1]) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 1,
+                            "masked SUM mask role is non-differentiable");
+                }
+                Tensor data = producer.inputs().get(0);
+                Tensor mask = producer.inputs().get(1);
+                requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+                if (mask.descriptor().dataType() != DataType.BOOL) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 1,
+                            "masked SUM mask must be BOOL");
+                }
+                Shape broadcast;
+                try {
+                    broadcast = ShapeBroadcast.broadcast(
+                            mask.descriptor().shape(), data.descriptor().shape());
+                } catch (IllegalArgumentException exception) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 1,
+                            "masked SUM mask cannot broadcast to data Shape");
+                }
+                if (!broadcast.equals(data.descriptor().shape())
+                        || attrs.axis() >= data.descriptor().shape().rank()
+                        || !output.descriptor().shape().equals(
+                                removeAxis(data.descriptor().shape(), attrs.axis()))) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "masked SUM descriptor or normalized axis is inconsistent");
+                }
+                return;
+            }
+            if (operation.attrs() instanceof SumToShapeAttrs attrs) {
+                requireInputs(producerIndex, producer, outputIndex, 1);
+                requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+                Shape inputShape = producer.inputs().getFirst().descriptor().shape();
+                Shape targetShape = attrs.targetShape();
+                if (!output.descriptor().shape().equals(targetShape)
+                        || targetShape.rank() > inputShape.rank()) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "SUM_TO_SHAPE target rank or output Shape is inconsistent");
+                }
+                int offset = inputShape.rank() - targetShape.rank();
+                for (int axis = 0; axis < targetShape.rank(); axis++) {
+                    Dimension target = targetShape.dimension(axis);
+                    Dimension input = inputShape.dimension(offset + axis);
+                    if (!target.equals(input) && !isStaticOne(target)) {
+                        throw unsupported(
+                                producerIndex, producer, outputIndex, 0,
+                                "SUM_TO_SHAPE aligned target must be exact input Dimension or static one");
+                    }
+                }
+                return;
+            }
             if (operation.attrs() != NoOperationAttrs.INSTANCE
                     && !(operation.attrs() instanceof AxisReductionAttrs)
                     && !(operation.attrs() instanceof MultiAxisReductionAttrs)) {
@@ -350,6 +442,48 @@ final class AutogradPreflight {
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
+            return;
+        }
+        if (operation.kind() == MatmulKind.MATMUL) {
+            if (operation.attrs() != NoOperationAttrs.INSTANCE) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1, "unsupported MATMUL attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 2);
+            Tensor left = producer.inputs().get(0);
+            Tensor right = producer.inputs().get(1);
+            if (!left.descriptor().dataType().isFloating()
+                    || !right.descriptor().dataType().isFloating()
+                    || DataTypePromotion.promoteFloating(
+                                    left.descriptor().dataType(), right.descriptor().dataType())
+                            != output.descriptor().dataType()) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "MATMUL operands and output must have the current floating promotion");
+            }
+            for (int input = 0; input < selectedInputs.length; input++) {
+                if (selectedInputs[input]
+                        && producer.inputs().get(input).descriptor().dataType()
+                                != output.descriptor().dataType()) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, input,
+                            "selected MATMUL input must have the output floating type");
+                }
+            }
+            Shape expected;
+            try {
+                expected = matmulShape(
+                        left.descriptor().shape(), right.descriptor().shape());
+            } catch (IllegalArgumentException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "MATMUL rank, contraction, or batch Shape is inconsistent");
+            }
+            if (!expected.equals(output.descriptor().shape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "MATMUL output Shape is inconsistent");
+            }
             return;
         }
         if (operation.kind() == CumulativeScanKind.CUM_SUM) {
@@ -392,9 +526,130 @@ final class AutogradPreflight {
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
             return;
         }
+        if (operation.kind() instanceof SliceKind kind) {
+            if (!(operation.attrs() instanceof SliceAttrs attrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "only normalized SliceAttrs are supported");
+            }
+            int expectedInputs = kind == SliceKind.SLICE ? 1 : 2;
+            requireInputs(producerIndex, producer, outputIndex, expectedInputs);
+            requireSameFloatingTypes(producerIndex, producer, outputIndex);
+            Tensor base = producer.inputs().getFirst();
+            Shape selectedShape;
+            try {
+                selectedShape = sliceShape(base.descriptor().shape(), attrs);
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "normalized slice geometry is inconsistent");
+            }
+            if (kind == SliceKind.SLICE) {
+                if (!selectedShape.equals(output.descriptor().shape())) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "SLICE output Shape is inconsistent");
+                }
+                return;
+            }
+            Tensor update = producer.inputs().get(1);
+            if (!update.descriptor().shape().equals(selectedShape)
+                    || !output.descriptor().shape().equals(base.descriptor().shape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "SLICE_UPDATE base, update, or output Shape is inconsistent");
+            }
+            if (selectedInputs[1]) {
+                for (int axis : attrs.axes()) {
+                    if (!(base.descriptor().shape().dimension(axis)
+                            instanceof StaticDimension)) {
+                        throw unsupported(
+                                producerIndex, producer, outputIndex, 1,
+                                "SLICE_UPDATE update role requires static selected base Dimensions");
+                    }
+                }
+            }
+            return;
+        }
+        if (operation.kind() == SelectKind.SELECT) {
+            if (!(operation.attrs() instanceof SelectAttrs attrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1, "unsupported SELECT attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            Shape inputShape = producer.inputs().getFirst().descriptor().shape();
+            if (attrs.axis() >= inputShape.rank()
+                    || !output.descriptor().shape().equals(removeAxis(inputShape, attrs.axis()))
+                    || (inputShape.dimension(attrs.axis()) instanceof StaticDimension selected
+                            && attrs.index() >= selected.size())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "SELECT normalized index or output Shape is inconsistent");
+            }
+            return;
+        }
+        if (operation.kind() == PadKind.PAD) {
+            if (!(operation.attrs() instanceof PadAttrs attrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1, "unsupported PAD attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            Tensor input = producer.inputs().getFirst();
+            if (attrs.before().size() != input.descriptor().shape().rank()
+                    || attrs.constantValue().dataType() != input.descriptor().dataType()
+                    || !output.descriptor().shape().equals(
+                            padShape(input.descriptor().shape(), attrs))) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "PAD attributes or output Shape are inconsistent");
+            }
+            return;
+        }
+        if (operation.kind() == TileKind.TILE) {
+            if (!(operation.attrs() instanceof TileAttrs attrs)) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1, "unsupported TILE attrs");
+            }
+            requireInputs(producerIndex, producer, outputIndex, 1);
+            requireSameFloatingType(producerIndex, producer, outputIndex, 0);
+            Tensor input = producer.inputs().getFirst();
+            if (attrs.repeats().size() != input.descriptor().shape().rank()
+                    || !output.descriptor().shape().equals(
+                            tileShape(input.descriptor().shape(), attrs))) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, 0,
+                        "TILE repeats or output Shape are inconsistent");
+            }
+            return;
+        }
+        if (operation.kind() instanceof TensorCompositionKind kind) {
+            if (!(operation.attrs() instanceof CompositionAxisAttrs attrs)
+                    || producer.inputs().isEmpty()) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "unsupported composition attributes or empty inputs");
+            }
+            requireSameFloatingTypes(producerIndex, producer, outputIndex);
+            Shape expected;
+            try {
+                expected = compositionShape(kind, attrs.axis(), producer.inputs());
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "composition input Shapes or normalized axis are inconsistent");
+            }
+            if (!expected.equals(output.descriptor().shape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "composition output Shape is inconsistent");
+            }
+            return;
+        }
         throw unsupported(
                 producerIndex, producer, outputIndex, firstSelected(selectedInputs),
-                "operation is outside SUPPORTED_0004");
+                "operation is outside SUPPORTED_0004 and SUPPORTED_0004A");
     }
 
     private static void requireInputs(
@@ -435,6 +690,241 @@ final class AutogradPreflight {
                         "input/output floating types must match exactly");
             }
         }
+    }
+
+    /**
+     * Requires one selected input and its producer output to share one exact floating type.
+     *
+     * @param producerIndex deterministic producer postorder position used in diagnostics
+     * @param producer non-null original producer occurrence
+     * @param outputIndex valid selected producer-output position
+     * @param inputIndex valid selected producer-input position
+     * @throws IllegalArgumentException if the output is not floating or the two types differ
+     */
+    private static void requireSameFloatingType(
+            int producerIndex, TensorProducer producer, int outputIndex, int inputIndex) {
+        DataType outputType = producer.output(outputIndex).descriptor().dataType();
+        if (!outputType.isFloating()
+                || producer.inputs().get(inputIndex).descriptor().dataType() != outputType) {
+            throw unsupported(
+                    producerIndex, producer, outputIndex, inputIndex,
+                    "selected input/output floating types must match exactly");
+        }
+    }
+
+    /**
+     * Tests whether one non-null Dimension is the resolved singleton extent.
+     *
+     * @param dimension non-null Dimension to inspect without binding or mutation
+     * @return {@code true} only for a static extent of exactly one
+     */
+    private static boolean isStaticOne(Dimension dimension) {
+        return dimension instanceof StaticDimension staticDimension
+                && staticDimension.size() == 1;
+    }
+
+    /**
+     * Returns a Shape with one existing axis removed and all other Dimension references retained.
+     *
+     * @param shape non-null source Shape
+     * @param removedAxis zero-based axis in {@code shape}
+     * @return a new Shape without {@code removedAxis}, including the scalar Shape when rank was one
+     * @throws IndexOutOfBoundsException if {@code removedAxis} is outside the source rank
+     */
+    private static Shape removeAxis(Shape shape, int removedAxis) {
+        List<Dimension> dimensions = new ArrayList<>(shape.dimensions());
+        dimensions.remove(removedAxis);
+        return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+    }
+
+    /**
+     * Re-derives the current vector/matrix MATMUL result Shape for preflight comparison.
+     *
+     * @param left non-null left operand Shape with positive rank
+     * @param right non-null right operand Shape with positive rank
+     * @return a new Shape retaining the selected exact operand Dimension references
+     * @throws IllegalArgumentException if a rank, static contraction, or batch pair is invalid
+     */
+    private static Shape matmulShape(Shape left, Shape right) {
+        int leftRank = left.rank();
+        int rightRank = right.rank();
+        if (leftRank < 1 || rightRank < 1) {
+            throw new IllegalArgumentException("MATMUL rank must be positive");
+        }
+        Dimension leftInner = left.dimension(leftRank - 1);
+        Dimension rightInner = right.dimension(rightRank == 1 ? 0 : rightRank - 2);
+        if (leftInner instanceof StaticDimension leftStatic
+                && rightInner instanceof StaticDimension rightStatic
+                && leftStatic.size() != rightStatic.size()) {
+            throw new IllegalArgumentException("MATMUL contraction mismatch");
+        }
+        int leftBatchRank = Math.max(0, leftRank - 2);
+        int rightBatchRank = Math.max(0, rightRank - 2);
+        int resultBatchRank = Math.max(leftBatchRank, rightBatchRank);
+        int leftOffset = resultBatchRank - leftBatchRank;
+        int rightOffset = resultBatchRank - rightBatchRank;
+        List<Dimension> dimensions = new ArrayList<>();
+        for (int axis = 0; axis < resultBatchRank; axis++) {
+            Dimension leftDimension =
+                    axis < leftOffset ? null : left.dimension(axis - leftOffset);
+            Dimension rightDimension =
+                    axis < rightOffset ? null : right.dimension(axis - rightOffset);
+            dimensions.add(matmulBatchDimension(leftDimension, rightDimension));
+        }
+        if (leftRank != 1) {
+            dimensions.add(left.dimension(leftRank - 2));
+        }
+        if (rightRank != 1) {
+            dimensions.add(right.dimension(rightRank - 1));
+        }
+        return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+    }
+
+    /**
+     * Selects one current right-aligned MATMUL batch Dimension.
+     *
+     * @param left nullable left batch Dimension; {@code null} means an absent leading axis
+     * @param right nullable right batch Dimension; {@code null} means an absent leading axis
+     * @return the non-null exact Dimension retained by current MATMUL batch broadcasting
+     * @throws IllegalArgumentException if two present Dimensions cannot broadcast under the
+     *     current local rules
+     */
+    private static Dimension matmulBatchDimension(Dimension left, Dimension right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null || left.equals(right)) {
+            return left;
+        }
+        if (isStaticOne(left)) {
+            return right;
+        }
+        if (isStaticOne(right)) {
+            return left;
+        }
+        if (left instanceof StaticDimension && !(right instanceof StaticDimension)) {
+            return left;
+        }
+        if (right instanceof StaticDimension && !(left instanceof StaticDimension)) {
+            return right;
+        }
+        throw new IllegalArgumentException("MATMUL batch mismatch");
+    }
+
+    /**
+     * Re-derives the selected Shape of normalized finite slice metadata.
+     *
+     * @param base non-null base Shape whose unselected Dimension references are retained
+     * @param attrs non-null normalized slice attributes
+     * @return a new same-rank Shape with selected extents replaced by recorded static lengths
+     * @throws IllegalArgumentException if an axis or statically provable coordinate is invalid
+     * @throws ArithmeticException if a recorded final coordinate overflows
+     */
+    private static Shape sliceShape(Shape base, SliceAttrs attrs) {
+        List<Dimension> dimensions = new ArrayList<>(base.dimensions());
+        for (int index = 0; index < attrs.axes().size(); index++) {
+            int axis = attrs.axes().get(index);
+            if (axis < 0 || axis >= base.rank()) {
+                throw new IllegalArgumentException("slice axis out of range");
+            }
+            long length = attrs.lengths().get(index);
+            if (length > 0) {
+                long last = Math.addExact(
+                        attrs.starts().get(index),
+                        Math.multiplyExact(length - 1, attrs.steps().get(index)));
+                if (last < 0
+                        || (base.dimension(axis) instanceof StaticDimension extent
+                                && (attrs.starts().get(index) >= extent.size()
+                                        || last >= extent.size()))) {
+                    throw new IllegalArgumentException("slice coordinate out of range");
+                }
+            }
+            dimensions.set(axis, new StaticDimension(length));
+        }
+        return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+    }
+
+    /**
+     * Re-derives a constant-pad output Shape through checked symbolic extent addition.
+     *
+     * @param input non-null input Shape
+     * @param attrs non-null rank-aligned normalized pad attributes
+     * @return a new Shape containing the exact checked padded extent expressions
+     * @throws ArithmeticException if a combined static width overflows
+     */
+    private static Shape padShape(Shape input, PadAttrs attrs) {
+        Dimension[] dimensions = new Dimension[input.rank()];
+        for (int axis = 0; axis < input.rank(); axis++) {
+            dimensions[axis] = DimensionExpressions.addConstant(
+                    input.dimension(axis),
+                    Math.addExact(attrs.before().get(axis), attrs.after().get(axis)));
+        }
+        return Shape.ofDimensions(dimensions);
+    }
+
+    /**
+     * Re-derives a tile output Shape through canonical symbolic extent multiplication.
+     *
+     * @param input non-null input Shape
+     * @param attrs non-null rank-aligned positive repeat attributes
+     * @return a new Shape containing the exact repeated extent expressions
+     * @throws ArithmeticException if a static repeated extent overflows
+     */
+    private static Shape tileShape(Shape input, TileAttrs attrs) {
+        Dimension[] dimensions = new Dimension[input.rank()];
+        for (int axis = 0; axis < input.rank(); axis++) {
+            dimensions[axis] =
+                    DimensionExpressions.multiply(input.dimension(axis), attrs.repeats().get(axis));
+        }
+        return Shape.ofDimensions(dimensions);
+    }
+
+    /**
+     * Re-derives the output Shape of one normalized CONCAT or STACK occurrence.
+     *
+     * @param kind non-null composition kind
+     * @param axis normalized existing CONCAT axis or inserted STACK axis
+     * @param inputs non-null, non-empty ordered input list; observed but not mutated
+     * @return a new exact composition Shape
+     * @throws IllegalArgumentException if the axis, ranks, or required input Dimensions disagree
+     * @throws ArithmeticException if a static concatenated extent overflows
+     */
+    private static Shape compositionShape(
+            TensorCompositionKind kind, int axis, List<Tensor> inputs) {
+        Shape first = inputs.getFirst().descriptor().shape();
+        if (kind == TensorCompositionKind.STACK) {
+            if (axis < 0 || axis > first.rank()) {
+                throw new IllegalArgumentException("STACK axis out of range");
+            }
+            List<Dimension> dimensions = new ArrayList<>(first.dimensions());
+            for (Tensor input : inputs) {
+                if (!input.descriptor().shape().equals(first)) {
+                    throw new IllegalArgumentException("STACK Shape mismatch");
+                }
+            }
+            dimensions.add(axis, new StaticDimension(inputs.size()));
+            return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
+        }
+        if (axis < 0 || axis >= first.rank()) {
+            throw new IllegalArgumentException("CONCAT axis out of range");
+        }
+        Dimension extent = new StaticDimension(0);
+        for (Tensor input : inputs) {
+            Shape shape = input.descriptor().shape();
+            if (shape.rank() != first.rank()) {
+                throw new IllegalArgumentException("CONCAT rank mismatch");
+            }
+            for (int candidate = 0; candidate < first.rank(); candidate++) {
+                if (candidate != axis
+                        && !shape.dimension(candidate).equals(first.dimension(candidate))) {
+                    throw new IllegalArgumentException("CONCAT Shape mismatch");
+                }
+            }
+            extent = DimensionExpressions.add(extent, shape.dimension(axis));
+        }
+        List<Dimension> dimensions = new ArrayList<>(first.dimensions());
+        dimensions.set(axis, extent);
+        return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
     }
 
     private static IllegalArgumentException unsupported(

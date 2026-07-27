@@ -270,23 +270,53 @@ Before constructing the seed or any formula Tensor, `AutogradPreflight` iterativ
 the complete original forward request and validates every selected objective-to-target
 occurrence, exact output and input role, attributes variant, data-type and Shape relationship,
 and derivative policy. Known unsupported work fails before allocating derivative Tensor
-identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`, and `LayoutGradientRules`
-then build formulas only with existing public Tensor operations. Exact Tensor identity keys
-ordered contributions during one compile request, and ordinary left-associated `Tensor.add`
-accumulates them. This ephemeral state is neither Tensor state nor graph IR.
+identity. Named `ElementwiseGradientRules`, `ReductionGradientRules`,
+`LinearAlgebraGradientRules`, and `LayoutGradientRules` then build formulas only with existing
+public Tensor operations. Exact Tensor identity keys ordered contributions during one compile
+request, and ordinary left-associated `Tensor.add` accumulates them. This ephemeral state is
+neither Tensor state nor graph intermediate representation (IR).
 
-The closed `SUPPORTED_0004` matrix is:
+The current matrix is the union of the original `SUPPORTED_0004` rows and the additive
+`SUPPORTED_0004A` exact-composition rows:
 
-| Family | Exact supported variants |
+| Family | Current exact supported variants |
 |---|---|
-| Elementwise | Same-floating-type binary `ADD`, `SUB`, and `MUL`; exact same-type scalar `ADD`, `SUB`, and `MUL`; same-type floating branches for `WHERE`; same-type floating `CAST`; `NEG`, `EXP`, `EXPM1`, `SIGMOID`, and `TANH` |
-| Reductions and scan | Ordinary full, single-axis, and ordered multi-axis `SUM`; `CUM_SUM` for all current exclusive/reverse combinations |
-| Logical layout transforms | `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE` |
+| Elementwise | Same-floating-type binary `ADD`, `SUB`, and `MUL`; exact same-type scalar `ADD`, `SUB`, and `MUL`; same-type floating branches for `WHERE`; same-type floating `CAST`; `NEG`, `EXP`, `EXPM1`, `SIGMOID`, `TANH`, and `ERF` |
+| Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM`; masked floating `SUM`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
+| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware selected-operand type checks and batch unbroadcasting |
+| Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
-Broadcasted contributions use the public binding-aware `sumToShape` operation. SUM rules restore
-removed axes before expansion, CUM_SUM reverses the scan direction while retaining exclusivity,
-and permutation uses the inverse axis order. WHERE routes no cotangent through its BOOL
-condition.
+For input `x` and output cotangent `g`, ERF constructs
+`g * exp(-(x * x)) * (2 / sqrt(pi))`. The coefficient is exact scalar-operation metadata with
+fixed BFLOAT16 bits `0x3F90`, FLOAT32 bits `0x3F906EBB`, or FLOAT64 bits
+`0x3FF20DD750429B6D`; compilation does not evaluate a host transcendental function or add a
+coefficient Tensor leaf.
+
+Masked SUM restores the removed axis, expands `g` to the data Shape, and selects that value where
+the exact BOOL mask is true or an explicit typed zero where it is false. The mask receives no
+cotangent. A forward `sumToShape` is inverted only when every right-aligned target Dimension is
+the exact input Dimension or static one; leading input axes are permitted. Any
+binding-dependent singleton-or-equal pair still fails preflight.
+
+MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
+rank edits, last-two-axis permutation, multiplication or MATMUL, followed by `sumToShape` for
+each selected operand where batch broadcasting may have occurred. A selected operand must have
+the output floating type. The unselected floating operand may be narrower under the current
+promotion rule because no cotangent conversion is needed for that role. Integral MATMUL remains
+non-differentiable.
+
+SLICE writes `g` into an input-shaped typed zero. For SLICE_UPDATE, the base role writes an
+update-shaped zero into `g`, while the update role extracts the exact normalized finite
+coordinate sequence from `g`; only that update role requires static selected base Dimensions.
+SELECT writes an axis-restored `g` at the selected coordinate. PAD crops away its before-width
+prefix. TILE reshapes to interleaved repeat/input axes, sums the repeat axes, then restores the
+input Shape. CONCAT crops `g` by each ordered symbolic input prefix, and STACK selects the
+corresponding inserted-axis coordinate. Repeated input positions remain repeated contributions.
+
+The original rules remain unchanged: broadcasted elementwise contributions use `sumToShape`;
+ordinary SUM restores removed axes before expansion; CUM_SUM reverses scan direction while
+retaining exclusivity; and PERMUTE uses the inverse axis order. WHERE routes no cotangent through
+its BOOL condition.
 
 Generated BFLOAT16, FLOAT32, and FLOAT64 positive-zero and positive-one bases are
 provenance-free, storage-free, non-gradient scalar leaves. BFLOAT16 uses exact bits `0x0000` and
@@ -309,15 +339,16 @@ existing guards. Every changed candidate is revalidated through the current veri
 A later construction, capture, validation, or optimization failure may consume temporary Tensor
 IDs; IDs remain opaque and are not rolled back.
 
-Everything outside the table fails closed when it lies on a selected route. Compiler 0004A
-retains policy-free exact-composition additions. Compiler 0004B retains mixed-floating cotangent
-conversion and tie, endpoint, discontinuity, singularity, empty-domain, NaN/infinity, and other
-exceptional-value policies. Current exclusions include binary/scalar `DIV` and `POW`, extrema and
-clamp families, `ABS`/`RELU` and other nonsmooth transforms, reciprocal/log/root families,
-`CUM_PROD`, masked and binding-aware forward SUM variants, non-SUM reductions, normalization and
-softmax, linear algebra, attention, convolution, pooling, losses, indexing/scatter, slicing,
-padding/tiling/composition/windows, ordering/top-K, dropout, and batch normalization. BOOL logic,
-comparisons, classification, index roles, and graph RNG state do not receive cotangents.
+Everything outside the table fails closed when it lies on a selected route. Compiler 0004B
+retains mixed-floating cotangent conversion and tie, endpoint, discontinuity, singularity,
+empty-domain, NaN/infinity, and other exceptional-value policies. Current exclusions include
+binary/scalar `DIV` and `POW`, extrema and clamp families, `ABS`/`RELU` and other nonsmooth
+transforms, reciprocal/log/root families, `CUM_PROD`, masked `MEAN`, binding-dependent
+SUM_TO_SHAPE inversion, non-SUM reductions, normalization and softmax, attention, convolution,
+pooling, losses, gather/scatter and other indexing, target-relative crop and windows,
+ordering/top-K, dropout, and batch normalization. BOOL logic, comparisons, classification, index
+roles, padding constants, select coordinates, masks, and graph RNG state do not receive
+cotangents.
 
 This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient field, ThreadLocal
 scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula
@@ -431,14 +462,18 @@ an obligation for later binding validation. The result preserves exact input typ
 eligibility, has unresolved layout, and records exact one-input/output-index-zero provenance.
 Current package-private capture preserves this model metadata structurally, and current
 package-private verification represents and proves or retains the Shape obligation. Adjoint
-construction, canonicalization, lowering, backend selection, and execution remain unimplemented.
+construction is current only for the locally provable floating subset described in the autograd
+matrix above; binding-dependent inversion, lowering, backend selection, and execution remain
+unimplemented.
 `Tensor.matmul` currently constructs one fresh two-input MATMUL expression with a locally derived
 vector, matrix, or broadcast-batch Shape and same-category promoted numeric type. Unequal static
 contraction dimensions fail locally; unresolved contraction equality and the accepted
 unresolved-versus-static batch singleton-or-equal cases remain obligations for later compiler
 validation or concrete binding. Package-private structural capture plus graph-wide verification
-and conservative constraint proof are current; gradients, lowering, backend support, concrete
-binding, and execution remain planned.
+and conservative constraint proof are current. Current package-private autograd constructs
+role-aware floating MATMUL cotangents for all four vector/matrix rank pairings when the selected
+operand has the output type; integral and cross-floating selected roles remain unsupported.
+Lowering, backend support, concrete binding, and execution remain planned.
 `Tensor.linear(weight)` and `Tensor.linear(weight, bias)` are also current model construction, but
 they add no LINEAR operation. Conventional `[outFeatures, inFeatures]` weight is explicitly
 transposed through PERMUTE `[1, 0]`, followed by MATMUL and optional exact rank-one
@@ -447,8 +482,9 @@ No-bias returns the MATMUL product after two wrapper/ID allocations; biased cons
 ADD after three. The biased final Shape is structurally equal to the product Shape and reuses its
 ordered Dimension references, although the outer Shape object may differ. These visible primitive
 producer chains are current inputs to package-private structural capture. This page does not claim
-linear-pattern recognition, canonicalization, fusion, gradient construction, lowering, backend
-support, or execution.
+linear-pattern recognition, canonicalization, fusion, lowering, backend support, or execution.
+The visible floating PERMUTE/MATMUL/ADD chain is differentiable when every selected primitive row
+meets the current closed autograd guards; there is no separate LINEAR rule.
 `Tensor.scaledDotProductAttention` and `Tensor.scaledDotProductAttentionWithWeights` are current
 first-class model construction with three ordered query/key/value inputs and an optional fourth
 BOOL mask input. Both locally derive the promoted type and exact broadcast-batch, weights, and
@@ -746,8 +782,10 @@ creates one negative-step SLICE occurrence for explicit axes. Empty flip axes me
 Every success preserves exact type and gradient eligibility, records one identity-distinct
 producer with exact `[input]`, one output descriptor, and provenance index zero, and remains fresh,
 unlabeled, and storage-free. Package-private structural capture can preserve the occurrence;
-slice-chain or flip canonicalization, physical aliasing or copying, gradient-scatter construction,
-materialization, backend/ONNX lowering, and execution remain planned.
+slice-chain or flip canonicalization, physical aliasing or copying, materialization,
+backend/ONNX lowering, and execution remain planned. Closed first-order autograd currently
+constructs the normalized floating SLICE cotangent described above; unsupported types and
+non-normalized metadata fail during preflight.
 `Tensor.sliceUpdate(update, starts, axes, steps)` is now current model construction for functional
 signed multi-axis replacement. It derives normalized finite `SliceAttrs` lengths from selected
 static update Dimensions, requires exact base/update type and same-rank Shape compatibility,
@@ -759,11 +797,12 @@ obligation for later binding or execution; no start is clamped or shifted to fit
 `SLICE` occurrence with exact `CropToShapeAttrs`, retains the supplied target Shape as the result,
 and interprets the prefix Shape as per-axis logical extents preceding the region. Fully static
 `prefix + target <= input` bounds are checked locally; inequalities involving any unresolved
-Dimension remain deferred. Both primitives are structurally capturable, but neither represents a
-constraint, constructs an adjoint, mutates values, chooses materialization, lowers, or executes
-work. A later compiler may compose them for Slice, Select, Pad, or Concat adjoints, but no such
-adjoint construction, binding proof, saved-value policy, accumulation, or canonicalization is
-implemented today.
+Dimension remain deferred. Both primitives are structurally capturable, but neither mutates
+values, chooses materialization, lowers, or executes work. Closed first-order autograd currently
+constructs guarded floating cotangents for normalized SLICE and for both normalized SLICE_UPDATE
+data roles. The update-role rule requires every selected base extent to be static. Inverting the
+separate `CropToShapeAttrs` form, binding unresolved bounds, saved-value policy, and
+canonicalization remain planned.
 `Tensor.select(int, long)` normalizes one source axis and one scalar coordinate, removes the
 selected Dimension, preserves every unaffected exact Dimension reference, and records normalized
 `SelectAttrs` with exact one-input provenance. A static selected extent supplies immediate
@@ -773,8 +812,9 @@ rejected. Resolved input geometry with a non-empty result produces checked selec
 and offset advancement in one new logical view descriptor; unresolved input and empty results stay
 unresolved. The fresh result preserves exact type and eligibility and has no label or storage.
 Package-private structural capture can preserve this expression. Value selection, physical
-aliasing, gradient construction, canonicalization, materialization, backend lowering, and
-execution remain planned.
+aliasing, canonicalization, materialization, backend lowering, and execution remain planned.
+Closed first-order autograd currently constructs the guarded floating SELECT cotangent described
+above; dynamic-coordinate binding remains outside this binding-free phase.
 `Tensor.gather` and `gatherElements` consume exact ordered `[data, indices]` inputs with `INT32` or
 `INT64` indices. They normalize one data axis and apply canonical axis-replacement or same-rank
 aligned-Shape rules. Every fresh result retains data type and gradient eligibility, leaves layout
@@ -833,8 +873,9 @@ immutable ordered List of scalar `SELECT` expressions after upfront count valida
 result removes that axis, has an independent one-output producer, and uses provenance index zero
 over the same input; its `SelectAttrs` stores the coordinate. A zero extent returns no result or
 ID. Package-private structural capture preserves each independent occurrence; decomposition,
-grouping, backward construction, materialization, backend lowering, ONNX mapping, and execution
-remain planned.
+grouping, materialization, backend lowering, ONNX mapping, and execution remain planned. Closed
+first-order autograd currently constructs guarded floating CONCAT and STACK cotangents, including
+STACK occurrences produced by repeated SELECT operations during `unstack`.
 `Tensor.unfold`, `Tensor.foldAxis`, both `Tensor.unfold2d` forms, and `Tensor.fold2d` construct the
 current public storage-free window-transform expressions. General-axis fold restores an explicit
 target extent under overlap summation. The 2D forms preserve canonical rank-three im2col/col2im,
@@ -1150,7 +1191,7 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   non-public producer mask slot,
   are implemented;
   the public compiler entry point and every lifecycle orchestration surface,
-  saved-statistic and gradient construction,
+  saved-statistic construction and gradient construction outside the closed support table above,
   optional
   softmax, layer-normalization, RMS-normalization, attention, or activation decomposition,
   activation/attention-gradient construction,
@@ -1158,8 +1199,8 @@ CompiledGraph graph = CompiledGraph.compile(output, CompileConfig.auto());
   updates, crops, selects,
   axis-gather/one-hot/Gather-ND/axis-scatter/Scatter-ND/pad/tile/composition/window-transform
   canonicalization or decomposition,
-  compiler-generated use of public `FOLD_AXIS`, possible use of slice-update and crop metadata in
-  adjoint construction, concrete dynamic binding and value-dependent select/index validation,
+  compiler-generated use of public `FOLD_AXIS`, inversion of `CropToShapeAttrs`, concrete dynamic
+  binding and value-dependent select/index validation,
   legal
   convolution/pooling decomposition and gradient construction, maximum-pooling saved-index
   policy, average-pooling fixed-divisor preservation, layout materialization
