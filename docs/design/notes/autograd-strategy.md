@@ -12,6 +12,9 @@ The design is accepted and its first bounded package-private implementation is c
 is Complete with the scalar-objective, implicit-unit-seed first-order graph-stage contract.
 [Compiler task 0004A](../../planning/modules/compiler/tasks/0004a-exact-composition-gradient-rule-extensions.md)
 is Complete with the first policy-free exact-composition rule extension.
+[Compiler task 0004B](../../planning/modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
+is Complete with mixed-floating cotangent normalization, division, direct-zero local conventions,
+and ordinary or masked mean.
 Public gradient requests, publication, compile artifacts, higher derivatives, optimizer updates,
 preparation, and execution remain planned.
 
@@ -46,8 +49,8 @@ One backward-capable internal request contains:
 - one exact objective Tensor that is also a requested forward output, has scalar Shape, one
   floating data type, and gradient eligibility;
 - one non-empty ordered list of exact-object-identity-unique target Tensors in the objective
-  ancestry, each with the objective's exact type, gradient eligibility, and a selected
-  differentiable route; and
+  ancestry, each with a floating type, gradient eligibility, and a selected differentiable route;
+  a target may have a different floating type from the objective; and
 - one implicit rank-zero positive-one seed with the objective's exact type.
 
 A target may be a leaf, an intermediate, or the objective itself. Target order becomes
@@ -78,29 +81,53 @@ producer occurrence, output role, exact attributes, and required derivative poli
 or ambiguous work fails closed. This prevents a known incomplete rule matrix from creating a
 partial backward expression.
 
-The closed union of `SUPPORTED_0004` and `SUPPORTED_0004A` is:
+The closed union of `SUPPORTED_0004`, `SUPPORTED_0004A`, and `SUPPORTED_0004B` is:
 
 | Family | Current exact variants |
 |---|---|
-| Elementwise | Same-floating-type binary and exact-scalar `ADD`/`SUB`/`MUL`; same-type branch-only `WHERE`; same-type floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF` |
-| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`; masked floating `SUM`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
-| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware selected-operand type checks and batch unbroadcasting |
+| Elementwise | Promoted floating binary `ADD`/`SUB`/`MUL`/`DIV`; exact-type floating scalar `ADD`/`SUB`/`MUL`/`DIV`; promoted branch-only `WHERE`; floating-to-floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF`; direct-zero `FLOOR`/`CEIL`/`SIGN` |
+| Reduction/scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
+| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
 | Logical layout/selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
-Broadcast reversal uses public `sumToShape`; ordinary SUM restores removed axes before expansion;
-CUM_SUM retains exclusivity and reverses scan direction; and PERMUTE uses the inverse permutation.
-WHERE's BOOL condition is non-differentiable. Masked SUM restores the reduced axes, expands the
-cotangent, and routes it with the original mask while placing an exact typed zero elsewhere.
-`SUM_TO_SHAPE` is invertible only when every aligned input/target Dimension is either exactly
-equal or the static target extent is one.
+Forward and generated expressions use one model-owned Tensor algebra, inference/validation
+contract, numerical-semantics contract, and exact optimization pipeline. For a selected mixed-
+floating input, cotangent normalization first reverses ordinary broadcasting with public
+`sumToShape` when needed and then calls ordinary `cast` exactly when the contribution type
+differs. The contribution has the selected input's exact Shape and floating data type before it
+enters deterministic accumulation. `WHERE` applies this rule independently to its branches;
+MATMUL applies it after the rank-specific formula and batch unbroadcasting. Same-type rows add no
+cast.
+
+Binary DIV constructs `g / right` for the left input and the exact ordered expression
+`-(g * left) / (right * right)` for the right input. Scalar DIV constructs `g / scalar`. These
+ordinary operations retain the shared arithmetic, exceptional-value, validation, rewrite, fold,
+DCE, and phase-local CSE contracts. There is no gradient-only singularity, NaN, infinity,
+signed-zero, overflow, underflow, rounding, or optimization policy.
+
+`FLOOR`, `CEIL`, and `SIGN` use a direct exact positive-zero first-order cotangent at every
+represented input, independent of `g`; the rule constructs neither `g * 0` nor a floating
+comparison. Ordinary MEAN derives its denominator by reducing an input-shaped exact logical-one
+expression over the selected full, single-axis, or ordered multi-axis domain, then divides the
+restored cotangent by the expanded count. This formula represents static, dynamic, expression,
+zero-sized, and empty-axis-list extents without a host count or exact-integer threshold.
+
+Masked SUM restores the reduced axis, expands the cotangent, and routes it with the original mask
+while placing an exact typed zero elsewhere. Masked MEAN constructs its true count with ordinary
+`WHERE` and `SUM`, divides the restored cotangent, and uses a final ordinary `WHERE`. The selected
+all-false-slice convention returns zero at every input coordinate; it neither suppresses the
+intermediate quotient nor defines branch evaluation. BOOL conditions and masks receive no
+cotangent. `SUM_TO_SHAPE` is invertible only when every aligned input/target Dimension is either
+exactly equal or the static target extent is one. CUM_SUM retains exclusivity and reverses scan
+direction; PERMUTE uses the inverse permutation.
 
 ERF constructs `g * exp(-(x * x)) * (2 / sqrt(pi))`. Its coefficient is exact scalar-operation
 metadata with fixed BFLOAT16/FLOAT32/FLOAT64 bits `0x3F90`, `0x3F906EBB`, and
 `0x3FF20DD750429B6D`; the rule does not evaluate host floating arithmetic.
 
 MATMUL handles vector-vector, vector-matrix, matrix-vector, and matrix-matrix rank promotion.
-Each selected operand must have the output floating type; an unselected narrower operand is
-permitted because no cotangent conversion is needed for that role. Integral MATMUL is rejected.
+Each selected result reverses batch broadcasting and then casts once if the operand type differs
+from the promoted type. Integral MATMUL is rejected.
 SLICE scatters into an input-shaped typed zero. SLICE_UPDATE masks the base cotangent or extracts
 the update cotangent; only the update role requires all selected base extents to be static.
 SELECT scatters at one restored axis coordinate. PAD crops its before-width prefix. TILE reshapes
@@ -108,12 +135,15 @@ to interleaved repeat/input axes and sums the repeat axes. CONCAT crops by order
 prefixes. STACK selects the corresponding inserted-axis coordinate. Repeated input positions
 remain repeated contributions and therefore accumulate deterministically.
 
-Everything outside this table fails closed on a selected route. Task 0004B retains
-mixed-floating cotangent conversion and tie/endpoint/discontinuity/singularity/empty-domain/
-NaN/infinity policies. Current exclusions include division and power; extrema, clamp, and other
-nonsmooth families; reciprocal/log/root families; product, mean, extrema, and statistical
-reductions; `CUM_PROD`; softmax and normalization; indexing families outside the listed exact
-layout rules; random/dropout; losses; and other unlisted operation families.
+Everything outside this table fails closed on a selected route. Binary/scalar `POW`,
+`RECIPROCAL`, `LOG`, `SQRT`, and `SOFTMAX`/`LOG_SOFTMAX` remain blocked by incomplete shared
+model numerical semantics. Extrema, clamp, `ABS`, and `RELU` remain blocked by the incomplete
+general floating-comparison contract. `LOG1P`, `RSQRT`, activation, product, statistical/norm,
+normalization, pooling, loss, attention, ordering, indexing/scatter, window, convolution,
+dropout, and batch-normalization rules remain later cohesive work. Binding-dependent
+`SUM_TO_SHAPE`, target-relative crop, and unselected layout variants remain unchanged later
+Shape/layout work. Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema outputs,
+one-hot and other index roles, masks, and graph RNG state remain non-differentiable.
 
 Preflight is not full graph inference. The compiler performs authoritative inference and
 validation after the one combined capture. A later Tensor construction, capture, inference,
@@ -122,12 +152,14 @@ compatible with the existing opaque, monotonic, non-reusable ID contract.
 
 ## Constants and hidden outputs
 
-The implicit unit seed, WHERE routing zeros, and other derivative constants are storage-free
+The implicit unit seed, WHERE routing zeros, MEAN logical ones, and other derivative constants are storage-free
 Tensor leaves or expressions. The compiler registers each BFLOAT16, FLOAT32, or FLOAT64 zero/one
 base explicitly with one exact logical-splat fact for combined capture. BFLOAT16 zero/one use
 exact bits `0x0000`/`0x3F80`; FLOAT32 and FLOAT64 use exact positive zero/one. The ERF coefficient
 is instead exact scalar-operation metadata and is not registered as a splat leaf. Host storage,
 labels, factory history, Shape, layout, and provenance absence never imply constant status.
+Only generated bases reachable from returned gradient expressions remain in combined-capture
+ingress, so a direct-zero formula does not expose an unreachable seed.
 
 Some formulas need producer outputs omitted from a public ergonomic result. Dropout, for example,
 returns the public result and next RNG state while its same-occurrence keep mask is hidden.

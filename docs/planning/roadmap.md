@@ -39,13 +39,22 @@ The order above is the default delivery sequence, not a new dependency rule. All
 ## Current frontier
 
 The latest completed implementation task is
+[Compiler 0004B Shared-algebra cotangent normalization and local derivative rules](modules/compiler/tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md).
+Its completed compiler prerequisites are
+[Compiler 0004 Compiler-owned pre-capture autograd and graph compilation](modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md)
+and
 [Compiler 0004A Exact-composition gradient-rule extensions](modules/compiler/tasks/0004a-exact-composition-gradient-rule-extensions.md).
-Its completed compiler prerequisite is
-[Compiler 0004 Compiler-owned pre-capture autograd and graph compilation](modules/compiler/tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md).
 Its latest completed model prerequisite frontier is
 [Model 0025 Canonical TensorProducer outputs](modules/model/tasks/0025-canonical-tensor-producer-outputs.md).
-No compiler implementation task is currently Ready. Compiler 0004B is the next unfinished
-compiler row and remains Draft without a detailed specification.
+Compiler 0004B's closed matrix covers mixed-floating cotangent Shape/DataType
+normalization through ordinary `sumToShape` and `cast`, binary/scalar DIV formulas, direct-zero
+FLOOR/CEIL/SIGN conventions, and ordinary/masked MEAN formulas with logical-one denominators for
+static, dynamic, and expression Shapes. Forward and generated expressions retain one shared
+algebra, validation contract, numerical contract, and exact optimization pipeline. Floating-
+comparison-dependent and every later cohesive gradient-family task remain blocked or Draft as
+recorded in the task. The final exact 16-path change passed its 136-test compiler module suite,
+independent documentation review, and 1,275-test compiler transformation/autograd capability
+checkpoint. Compiler 0005 and 0006 remain Draft without detailed specifications.
 The historical selected model capability milestone remains closed; this focused interleave reopens
 the model plan only to supply the smallest missing prerequisite for compiler-owned pre-capture
 automatic differentiation. Each `TensorProducer` now retains one canonical `Tensor` wrapper for
@@ -102,14 +111,14 @@ remains direct and has no request aggregate. It returns mode-neutral `GraphCompi
 the combined forward/backward graph. This graph-stage result is not the later `CompileArtifacts`
 aggregate.
 
-The closed current rule matrix contains same-floating-type binary ADD/SUB/MUL, scalar ADD/SUB/MUL,
+The closed implemented 0004/0004A rule matrix contains same-floating-type binary ADD/SUB/MUL,
+scalar ADD/SUB/MUL,
 same-type WHERE branches, same-type floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH/ERF, ordinary and
 masked SUM, locally invertible SUM_TO_SHAPE, CUM_SUM, every floating MATMUL vector/matrix rank
 pairing, CONTIGUOUS, RESHAPE, EXPAND, EXPAND_DIMS, SQUEEZE, PERMUTE, normalized SLICE and both
 SLICE_UPDATE data roles, SELECT, PAD, TILE, CONCAT, and STACK under their recorded guards. Every
-operation whose rule would require mixed-floating cotangent conversion or an unselected tie,
-discontinuity, singularity, empty-domain, or exceptional-value policy fails preflight before any
-derivative Tensor identity is allocated.
+operation outside that implemented matrix fails preflight before any derivative Tensor identity is
+allocated.
 
 Before implementation, the task verified that six exact obsolete Java prototype paths under the
 compiler production source root were present and untracked, then deleted them as its first cleanup
@@ -125,9 +134,16 @@ optimization, so no separate cleanup task is planned. Complete Compiler 0004A ad
 audited policy-free matrix for typed ERF, masked and locally invertible shape-target SUM,
 role-aware floating MATMUL, and selected exact slice/select/pad/tile/composition adjoints. It
 preserves the request and one-capture pipeline.
-Compiler 0004B retains explicit derivative-policy work, Compiler 0005 retains compile artifacts
-and publication/planning orchestration, and Compiler 0006 retains an explicit higher-derivative
-create-graph/order contract. Those later tasks remain Draft without detailed specifications.
+Complete Compiler 0004B adds the bounded shared-algebra matrix described above. It introduces no
+gradient-only arithmetic, comparison, cast, exceptional-value, validation, rewrite, fold, or pass
+contract. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN require explicit local
+first-order conventions; mixed floating, DIV, and ordinary MEAN use ordinary Tensor operations
+and their shared semantics.
+Compiler 0005 retains compile artifacts and publication/planning orchestration, and Compiler 0006
+retains an explicit higher-derivative create-graph/order contract. Those later tasks remain Draft
+without detailed specifications. Compiler 0004B's module validation, independent documentation
+pass, and compiler transformation/autograd capability checkpoint all passed; the checkpoint
+covered 167 suites and 1,275 tests with no skipped tests, failures, or errors.
 
 This interleave changes neither allowed dependencies nor downstream lifecycle readiness. Config
 0004, Trace 0003 and later, Runtime, Prepare, backends, Engine, and training extensions remain
@@ -202,11 +218,10 @@ detailed specification. Subsequent reassessments completed Compiler 0001 capture
 validation, Compiler 0003 transformation, and Compiler 0003A exact arithmetic rewriting in order.
 The subsequent reassessment selected only Compiler 0003B compile-time constants/folding before
 autograd, and that task is now Complete. The subsequent reassessment selected only focused Model
-0025 before compiler work resumed, and that task is Complete. Compiler 0004 and 0004A are now
-Complete; neither advances cost, tuning, or downstream lifecycle work. Compiler 0004B is the next
-unfinished compiler row and remains Draft without a detailed specification; 0005 and 0006 also
-remain Draft without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
-partitioning/orchestration, while 0006 waits for the stable public compile/artifact boundary.
+0025 before compiler work resumed, and that task is Complete. Compiler 0004, 0004A, and 0004B are
+now Complete; none advances cost, tuning, or downstream lifecycle work. Compiler 0005 and 0006
+remain Draft without detailed specifications. Compiler 0004 owns combined exact cleanup before
+0005 partitioning/orchestration, while 0006 waits for the stable public compile/artifact boundary.
 
 The preceding completed planning step is
 [Planning 0002 Per-query backend hard eligibility](modules/planning/tasks/0002-per-query-backend-hard-eligibility.md).
@@ -231,9 +246,9 @@ classification or profile. Subsequent frontier reassessments selected bounded Co
 capture, Compiler 0002 validation, and Compiler 0003 transformation in order; all are Complete.
 Compiler 0003A, Compiler 0003B, Compiler 0004, and Compiler 0004A are Complete. Focused
 [Model 0025](modules/model/tasks/0025-canonical-tensor-producer-outputs.md) is Complete and
-supplies Compiler 0004's canonical-output prerequisite. Compiler 0004B is the next unfinished
-compiler row and remains Draft without a detailed specification; 0005 and 0006 remain Draft
-without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
+supplies Compiler 0004's canonical-output prerequisite. Compiler 0004B is also Complete after its
+module tests, independent documentation pass, and capability checkpoint; 0005 and 0006 remain
+Draft without detailed specifications. Compiler 0004 owns combined exact cleanup before 0005
 partitioning/orchestration; 0006 follows the stable public compile/artifact boundary. No compiler
 task consumes or advances Config 0004.
 

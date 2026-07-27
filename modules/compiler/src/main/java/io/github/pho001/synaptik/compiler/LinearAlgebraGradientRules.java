@@ -7,9 +7,10 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * Builds the closed role-aware floating {@code MATMUL} first-order formulas.
  *
  * <p>The four vector/matrix rank pairings use only public Tensor rank edits, permutation,
- * multiplication, matrix multiplication, and sum-to-Shape operations. Batch broadcasting is
- * reversed independently for each selected operand. Preflight owns promotion, selected-role
- * exact-type, rank, contraction, batch, output-Shape, attribute, and policy validation.</p>
+ * multiplication, matrix multiplication, sum-to-Shape, and floating cast operations. Batch
+ * broadcasting is reversed independently for each selected operand, then an ordinary cast
+ * converts a promoted cotangent to the selected operand type when needed. Preflight owns
+ * promotion, rank, contraction, batch, output-Shape, attribute, and policy validation.</p>
  *
  * <p>For output cotangent {@code g}, left {@code l}, right {@code r}, and
  * {@code T(v)} denoting a swap of the final two axes, the four cases are: vector/vector
@@ -17,9 +18,8 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * {@code [squeeze(expandDims(g) @ T(r)), expandDims(l) @ expandDims(g)]};
  * matrix/vector {@code [expandDims(g) @ expandDims(r), T(l) @ g]}; and matrix/matrix
  * {@code [g @ T(r), T(l) @ g]}. Each selected result is reduced with
- * {@code sumToShape(operand.shape())} when batch broadcasting may have occurred. An unselected
- * role remains {@code null}; preflight permits a narrower promoted unselected operand but rejects
- * any selected operand whose cotangent would require cross-floating conversion.</p>
+ * {@code sumToShape(operand.shape())} when batch broadcasting occurred and is then cast once when
+ * its promoted type differs from the selected operand. An unselected role remains {@code null}.
  *
  * <p>This owner constructs expression metadata only. It reads no values or storage, captures no
  * graph, selects no numerical implementation, and performs no lowering or execution.</p>
@@ -91,7 +91,30 @@ final class LinearAlgebraGradientRules {
                         .sumToShape(right.descriptor().shape());
             }
         }
-        return new Tensor[] {leftGradient, rightGradient};
+        return new Tensor[] {
+            normalize(leftGradient, left),
+            normalize(rightGradient, right)
+        };
+    }
+
+    /**
+     * Converts one optional promoted MATMUL cotangent to its selected operand contract.
+     *
+     * @param gradient selected promoted cotangent, or {@code null} for an unselected operand
+     * @param input non-null original floating operand whose exact Shape and data type are required
+     * @return {@code null} for an unselected operand; otherwise a non-null ordinary Tensor
+     *     expression with the operand's exact Shape and data type
+     */
+    private static Tensor normalize(Tensor gradient, Tensor input) {
+        if (gradient == null) {
+            return null;
+        }
+        Tensor normalized = gradient.descriptor().shape().equals(input.descriptor().shape())
+                ? gradient
+                : gradient.sumToShape(input.descriptor().shape());
+        return normalized.descriptor().dataType() == input.descriptor().dataType()
+                ? normalized
+                : normalized.cast(input.descriptor().dataType());
     }
 
     /**

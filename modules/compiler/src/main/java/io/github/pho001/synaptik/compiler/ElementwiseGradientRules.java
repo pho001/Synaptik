@@ -14,10 +14,13 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
 /**
  * Builds the closed elementwise portion of the first-order derivative matrix.
  *
- * <p>The selected rows are exact same-floating-type binary {@code ADD}/{@code SUB}/{@code MUL},
- * scalar {@code ADD}/{@code SUB}/{@code MUL}, branch-only {@code WHERE}, same-type floating
- * {@code CAST}, and {@code NEG}/{@code EXP}/{@code EXPM1}/{@code SIGMOID}/{@code TANH}/{@code
- * ERF}. For input {@code x} and output cotangent {@code g}, ERF constructs
+ * <p>The selected rows include promoted floating binary {@code ADD}/{@code SUB}/{@code MUL}/
+ * {@code DIV}, scalar {@code ADD}/{@code SUB}/{@code MUL}/{@code DIV}, branch-only
+ * {@code WHERE}, floating {@code CAST}, direct-zero {@code FLOOR}/{@code CEIL}/{@code SIGN}, and
+ * {@code NEG}/{@code EXP}/{@code EXPM1}/{@code SIGMOID}/{@code TANH}/{@code ERF}. Binary and
+ * branch contributions reverse broadcasting with ordinary {@code sumToShape} and then use an
+ * ordinary floating cast when the selected input type differs. For input {@code x} and output
+ * cotangent {@code g}, ERF constructs
  * {@code g * exp(-(x * x)) * C}, where {@code C} is the exact typed representation of
  * {@code 2 / sqrt(pi)}: BFLOAT16 bits {@code 0x3F90}, FLOAT32 bits {@code 0x3F906EBB}, or
  * FLOAT64 bits {@code 0x3FF20DD750429B6D}. The coefficient is scalar operation metadata, not a
@@ -57,24 +60,26 @@ final class ElementwiseGradientRules {
             Tensor right = producer.inputs().get(1);
             return switch (kind) {
                 case ADD -> new Tensor[] {
-                    selectedInputs[0] ? gradient.sumToShape(left.descriptor().shape()) : null,
-                    selectedInputs[1] ? gradient.sumToShape(right.descriptor().shape()) : null
+                    selectedInputs[0] ? normalize(gradient, left) : null,
+                    selectedInputs[1] ? normalize(gradient, right) : null
                 };
                 case SUB -> new Tensor[] {
-                    selectedInputs[0] ? gradient.sumToShape(left.descriptor().shape()) : null,
-                    selectedInputs[1]
-                            ? gradient.neg().sumToShape(right.descriptor().shape())
-                            : null
+                    selectedInputs[0] ? normalize(gradient, left) : null,
+                    selectedInputs[1] ? normalize(gradient.neg(), right) : null
                 };
                 case MUL -> new Tensor[] {
-                    selectedInputs[0]
-                            ? gradient.mul(right).sumToShape(left.descriptor().shape())
-                            : null,
+                    selectedInputs[0] ? normalize(gradient.mul(right), left) : null,
+                    selectedInputs[1] ? normalize(gradient.mul(left), right) : null
+                };
+                case DIV -> new Tensor[] {
+                    selectedInputs[0] ? normalize(gradient.div(right), left) : null,
                     selectedInputs[1]
-                            ? gradient.mul(left).sumToShape(right.descriptor().shape())
+                            ? normalize(
+                                    gradient.mul(left).neg().div(right.mul(right)),
+                                    right)
                             : null
                 };
-                case DIV, MIN, MAX, POW ->
+                case MIN, MAX, POW ->
                         throw new IllegalStateException("binary kind was not preflight-approved: " + kind);
             };
         }
@@ -84,7 +89,8 @@ final class ElementwiseGradientRules {
             return switch (kind) {
                 case ADD, SUB -> new Tensor[] {gradient};
                 case MUL -> new Tensor[] {gradient.mul(attrs.value())};
-                case DIV, MIN, MAX, POW, CLAMP ->
+                case DIV -> new Tensor[] {gradient.div(attrs.value())};
+                case MIN, MAX, POW, CLAMP ->
                         throw new IllegalStateException("scalar kind was not preflight-approved: " + kind);
             };
         }
@@ -96,17 +102,20 @@ final class ElementwiseGradientRules {
             return new Tensor[] {
                 null,
                 selectedInputs[1]
-                        ? Tensor.where(condition, gradient, zero)
-                                .sumToShape(ifTrue.descriptor().shape())
+                        ? normalize(Tensor.where(condition, gradient, zero), ifTrue)
                         : null,
                 selectedInputs[2]
-                        ? Tensor.where(condition, zero, gradient)
-                                .sumToShape(ifFalse.descriptor().shape())
+                        ? normalize(Tensor.where(condition, zero, gradient), ifFalse)
                         : null
             };
         }
         if (producer.operation().kind() == CastKind.CAST) {
-            return new Tensor[] {gradient};
+            Tensor input = producer.inputs().getFirst();
+            return new Tensor[] {
+                gradient.descriptor().dataType() == input.descriptor().dataType()
+                        ? gradient
+                        : gradient.cast(input.descriptor().dataType())
+            };
         }
         if (producer.operation().kind() instanceof UnaryElementwiseKind kind) {
             return switch (kind) {
@@ -126,13 +135,32 @@ final class ElementwiseGradientRules {
                                     .exp())
                             .mul(erfCoefficient(output.descriptor().dataType()))
                 };
-                case ABS, RECIPROCAL, LOG, LOG1P, SQRT, RSQRT, FLOOR, CEIL, SIGN, RELU,
+                case FLOOR, CEIL, SIGN ->
+                        new Tensor[] {constants.zeroLike(producer.inputs().getFirst())};
+                case ABS, RECIPROCAL, LOG, LOG1P, SQRT, RSQRT, RELU,
                         GELU, GELU_TANH_APPROXIMATION, SILU ->
                         throw new IllegalStateException("unary kind was not preflight-approved: " + kind);
             };
         }
         throw new IllegalStateException(
                 "elementwise operation was not preflight-approved: " + producer.operation());
+    }
+
+    /**
+     * Reverses ordinary broadcasting and converts one contribution to its selected input type.
+     *
+     * @param contribution non-null floating contribution in the producer output algebra
+     * @param input non-null selected floating input whose exact Shape and data type are required
+     * @return a non-null ordinary Tensor expression with the input's exact descriptor Shape and
+     *     data type
+     */
+    private static Tensor normalize(Tensor contribution, Tensor input) {
+        Tensor normalized = contribution.descriptor().shape().equals(input.descriptor().shape())
+                ? contribution
+                : contribution.sumToShape(input.descriptor().shape());
+        return normalized.descriptor().dataType() == input.descriptor().dataType()
+                ? normalized
+                : normalized.cast(input.descriptor().dataType());
     }
 
     /**

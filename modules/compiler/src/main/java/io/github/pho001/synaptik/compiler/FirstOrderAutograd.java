@@ -24,6 +24,7 @@ import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -45,12 +46,15 @@ import java.util.Set;
  * {@link ReductionGradientRules}, {@link LinearAlgebraGradientRules}, and
  * {@link LayoutGradientRules}. This class dispatches only preflight-approved occurrences and
  * preserves every selected positional contribution, including repeated MATMUL, slice-update,
- * concat, and stack operands; it does not absorb family formulas or infer support.</p>
+ * concat, and stack operands. Its closed reduction dispatch includes ordinary and masked
+ * {@code MEAN}; it does not absorb family formulas or infer support.</p>
  *
  * <p>The returned Tensor roles and original-producer identities are an ephemeral handoff to one
- * combined capture. This owner does not retain global state, mutate an original Tensor, infer a
- * constant from storage or provenance, capture or validate a graph, materialize values, lower
- * work, or execute computation.</p>
+ * combined capture. Generated logical-splat bindings are retained only when reachable from a
+ * returned gradient role, so a direct local-zero result does not expose an otherwise unreachable
+ * seed binding as graph ingress. This owner does not retain global state, mutate an original
+ * Tensor, infer a constant from storage or provenance, capture or validate a graph, materialize
+ * values, lower work, or execute computation.</p>
  */
 final class FirstOrderAutograd {
     private FirstOrderAutograd() {}
@@ -62,8 +66,8 @@ final class FirstOrderAutograd {
      * @param forwardIngress non-null caller-ordered explicit forward constant bindings; observed
      *     but not mutated
      * @return a non-null expansion handoff with target roles in request order, the original
-     *     producer identity set, and ingress ordered as caller bindings followed by generated
-     *     derivative bindings
+     *     producer identity set, and ingress ordered as caller bindings followed by reachable
+     *     generated derivative bindings in deterministic first-use order
      * @throws NullPointerException if {@code plan} or {@code forwardIngress} is {@code null}
      * @throws IllegalArgumentException if a generated derivative leaf collides by exact Tensor
      *     identity with caller ingress
@@ -129,7 +133,12 @@ final class FirstOrderAutograd {
             seen.put(binding.tensor(), Boolean.TRUE);
             merged.add(binding);
         }
+        IdentityHashMap<Tensor, Boolean> reachableDerivativeTensors =
+                reachableDerivativeTensors(roles);
         for (CompileTimeConstantGraph.Binding binding : constants.bindings()) {
+            if (!reachableDerivativeTensors.containsKey(binding.tensor())) {
+                continue;
+            }
             if (seen.putIfAbsent(binding.tensor(), Boolean.TRUE) != null) {
                 throw new IllegalArgumentException(
                         "generated derivative constant collides with forward ingress");
@@ -140,6 +149,31 @@ final class FirstOrderAutograd {
                 roles,
                 plan.originalProducers(),
                 new CompileTimeConstantGraph.Ingress(merged));
+    }
+
+    /**
+     * Inventories the exact Tensor-expression ancestry of the returned gradient roles.
+     *
+     * @param roles non-null ordered target-gradient roles whose gradient expressions are roots
+     * @return a non-null identity-keyed set containing each exact reachable gradient Tensor,
+     *     including provenance-free leaves; owned by the current expansion and never retained
+     */
+    private static IdentityHashMap<Tensor, Boolean> reachableDerivativeTensors(
+            List<TargetGradient> roles) {
+        IdentityHashMap<Tensor, Boolean> reachable = new IdentityHashMap<>();
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        for (TargetGradient role : roles) {
+            pending.addLast(role.gradient());
+        }
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (reachable.put(tensor, Boolean.TRUE) != null) {
+                continue;
+            }
+            tensor.provenance().ifPresent(
+                    provenance -> provenance.inputs().forEach(pending::addLast));
+        }
+        return reachable;
     }
 
     private static Tensor[] apply(
@@ -160,7 +194,9 @@ final class FirstOrderAutograd {
                     occurrence.selectedInputs(),
                     constants);
         }
-        if (kind == AggregateReductionKind.SUM || kind == CumulativeScanKind.CUM_SUM) {
+        if (kind == AggregateReductionKind.SUM
+                || kind == AggregateReductionKind.MEAN
+                || kind == CumulativeScanKind.CUM_SUM) {
             return ReductionGradientRules.apply(producer, gradient, constants);
         }
         if (kind == MatmulKind.MATMUL) {
@@ -210,6 +246,11 @@ final class FirstOrderAutograd {
         private final Map<DataType, Tensor> zeros = new EnumMap<>(DataType.class);
         private final Map<DataType, Tensor> ones = new EnumMap<>(DataType.class);
         private final List<CompileTimeConstantGraph.Binding> bindings = new ArrayList<>();
+
+        /**
+         * Creates one empty request-local cache with deterministic first-use binding order.
+         */
+        DerivativeConstants() {}
 
         /**
          * Returns an exact typed positive-zero expression with the supplied Tensor's Shape.

@@ -6,11 +6,11 @@ This guide explains what Synaptik's current internal automatic differentiation (
 construct and what a user still cannot invoke. Autograd derives gradient expressions from a
 forward Tensor expression.
 
-Compiler tasks 0004 and 0004A implement a bounded package-private first-order graph stage and its
-first policy-free exact-composition rule extension. There is no public compile request for an
-objective, targets, or seed; no gradient publication; and no prepared or executable training
-workflow. The current `CompileMode` enum is standalone declarative configuration, not a public
-compiler entry point:
+Compiler tasks 0004, 0004A, and 0004B implement a bounded package-private first-order graph stage,
+its first policy-free exact-composition extension, and its shared-algebra local-rule extension.
+There is no public compile request for an objective, targets, or seed; no gradient publication;
+and no prepared or executable training workflow. The current `CompileMode` enum is standalone
+declarative configuration, not a public compiler entry point:
 
 ```java
 import io.github.pho001.synaptik.config.compile.CompileMode;
@@ -44,9 +44,9 @@ combined construction; `TRAINING_STEP` adds no optimizer update.
 
 The objective must be one exact requested forward-output Tensor with scalar Shape, a floating
 data type, and gradient eligibility. Targets are a non-empty ordered list of exact-object-
-identity-unique Tensors in that objective's ancestry. Each target must have the objective's exact
-floating type, request gradients, and lie on a selected differentiable route. A target may be a
-leaf, an intermediate, or the objective itself.
+identity-unique Tensors in that objective's ancestry. Each target must have a floating type,
+request gradients, and lie on a selected differentiable route. A target may have a different
+floating type from the objective and may be a leaf, an intermediate, or the objective itself.
 
 The only current seed is an implicit rank-zero positive one with the objective's exact type.
 Generated BFLOAT16, FLOAT32, and FLOAT64 zero/one bases are storage-free leaves registered
@@ -60,31 +60,54 @@ The closed current matrix contains only:
 
 | Family | Supported variants |
 |---|---|
-| Elementwise | Same-floating-type binary and exact-scalar `ADD`/`SUB`/`MUL`; same-type branch-only `WHERE`; same-type floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF` |
-| Reduction and scan | Floating ordinary full, single-axis, and multi-axis `SUM`; masked floating `SUM`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
-| Linear algebra | Every floating `MATMUL` vector/matrix rank pairing, with role-aware selected-operand type checks |
+| Elementwise | Promoted floating binary `ADD`/`SUB`/`MUL`/`DIV`; exact-type floating scalar `ADD`/`SUB`/`MUL`/`DIV`; promoted branch-only `WHERE`; floating-to-floating `CAST`; `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`/`ERF`; direct-zero `FLOOR`/`CEIL`/`SIGN` |
+| Reduction and scan | Floating ordinary full, single-axis, and multi-axis `SUM`/`MEAN`; masked floating `SUM`/`MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` |
+| Linear algebra | Every floating `MATMUL` vector/matrix rank pairing, including mixed-floating selected operands |
 | Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
 
-Broadcasted contributions use `sumToShape`. Ordinary SUM restores removed axes before expansion;
-masked SUM additionally routes the expanded cotangent through the original mask. CUM_SUM retains
-exclusivity while reversing scan direction, and PERMUTE applies the inverse permutation. WHERE
-routes no cotangent through its BOOL condition. A `SUM_TO_SHAPE` route is accepted only when each
-aligned input/target Dimension is exactly equal or the target extent is statically one.
+Forward expressions and generated gradients use the same ordinary Tensor operations, model
+numerical semantics, inference, validation, and exact optimization rules. A mixed-floating
+contribution first uses `sumToShape` when broadcasting must be reversed and then uses ordinary
+`cast` only when its type differs from the selected input. The contribution therefore reaches
+accumulation with that input's exact Shape and floating type.
 
-MATMUL supports all four vector/matrix rank pairings. A selected operand must have the output
-floating type; an unselected narrower operand may differ. SLICE and SELECT scatter into typed
-zeros; SLICE_UPDATE routes separately to its base and update roles; PAD crops; TILE sums
-interleaved repeat axes; CONCAT crops by ordered input prefixes; and STACK selects its inserted
-axis. The SLICE_UPDATE update-role rule needs static selected base extents. Repeated operand
-positions remain repeated contributions.
+Binary DIV uses `g / right` for its left input and the exact ordered expression
+`-(g * left) / (right * right)` for its right input; scalar DIV uses `g / scalar`. These formulas
+have no gradient-only rule for singularities, NaNs, infinities, signed zeros, overflow,
+underflow, rounding, rewriting, or folding. `FLOOR`, `CEIL`, and `SIGN` instead use an explicit
+first-order local convention: a direct exact positive-zero cotangent, without `g * 0` or a
+floating comparison.
+
+Ordinary MEAN restores and expands `g`, reduces an input-shaped logical-one expression over the
+same axes to obtain a count, expands that count, and divides. This represents static, dynamic,
+expression, zero-sized, and empty-axis-list domains without host count calculation. Masked MEAN
+counts true positions with ordinary `WHERE` and `SUM`, divides, and applies a final ordinary
+`WHERE`; an all-false slice receives zero at every input coordinate. This convention makes no
+promise about evaluation of the unselected quotient branch.
+
+Ordinary SUM restores removed axes before expansion; masked SUM additionally routes the expanded
+cotangent through the original mask. CUM_SUM retains exclusivity while reversing scan direction,
+and PERMUTE applies the inverse permutation. WHERE routes no cotangent through its BOOL
+condition, and masked reductions route none through their mask. A `SUM_TO_SHAPE` route is accepted
+only when each aligned input/target Dimension is exactly equal or the target extent is statically
+one.
+
+MATMUL supports all four vector/matrix rank pairings. Each selected contribution reverses batch
+broadcasting and then casts once when its promoted type differs from the operand. SLICE and SELECT
+scatter into typed zeros; SLICE_UPDATE routes separately to its base and update roles; PAD crops;
+TILE sums interleaved repeat axes; CONCAT crops by ordered input prefixes; and STACK selects its
+inserted axis. The SLICE_UPDATE update-role rule needs static selected base extents. Repeated
+operand positions remain repeated contributions.
 
 An unlisted operation on a selected route fails before the compiler creates the seed or any
-formula Tensor. Later work retains mixed-floating cotangent conversion and rules needing tie,
-endpoint, discontinuity, singularity, empty-domain, NaN/infinity, or other exceptional-value
-policies. Current exclusions therefore include division/power, extrema/clamp and other nonsmooth
-operations, reciprocal/log/root families, product/mean/statistical reductions, `CUM_PROD`,
-softmax and normalization, indexing outside the listed layout rules, random/dropout, losses, and
-other unlisted families.
+formula Tensor. Power, reciprocal/log/square-root, and softmax families remain blocked where the
+shared model numerical-edge contract is incomplete. Extrema, clamp, `ABS`, and `RELU` remain
+blocked by the general floating-comparison contract. `LOG1P`, `RSQRT`, activations, product,
+statistics/norms, normalization, pooling, losses, attention, ordering, indexing/scatter, windows,
+convolution, dropout, and batch normalization remain later cohesive work. Binding-dependent
+`SUM_TO_SHAPE`, target-relative crop, and other unselected layout cases retain their existing
+fail-closed guards. Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema outputs,
+indices, masks, and graph RNG state are non-differentiable.
 
 ## Conceptual example
 
@@ -130,6 +153,7 @@ prepare storage, or execute a graph.
 |---|---|---|
 | A public call site cannot provide objective and targets | The current request and `GraphCompiler` are package-private. | Wait for the planned public compile/publication contract; do not depend on internal compiler types. |
 | Preflight rejects an operation that has a public Tensor method | Public expression construction does not imply a selected derivative rule or policy. | Keep the selected route inside the closed matrix or wait for its owning follow-up. |
+| Preflight rejects a mixed-floating route | Mixed types are accepted only for the exact binary, `WHERE`, floating `CAST`, and `MATMUL` rows with a complete `sumToShape`-then-`cast` normalization path. | Make every selected role floating and keep the route inside those current promotion and Shape guards. |
 | A BOOL condition or comparison is requested as a target | BOOL roles are non-differentiable. | Request a floating target reached through selected differentiable input roles. |
 | `TRAINING_STEP` produces no optimizer update | The current internal mode covers only the same combined forward/backward graph stage as `FORWARD_AND_BACKWARD`. | Keep optimizer behavior in the planned training lifecycle. |
 

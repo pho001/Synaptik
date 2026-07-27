@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -120,6 +121,30 @@ final class FirstOrderAutogradTest {
         assertEquals(BinaryArithmeticKind.ADD, addition.operation().kind());
         assertEquals(Shape.of(0), first.prefixShape());
         assertEquals(dynamic, second.prefixShape().dimension(0));
+    }
+
+    @Test
+    void routesMeanToTheReductionOwnerAndRetainsOrdinaryDivision() {
+        Tensor target = tensor();
+        Tensor objective = target.mean();
+        AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                CompileMode.FORWARD_AND_BACKWARD,
+                List.of(objective),
+                new AutogradPreflight.FirstOrderRequest(objective, List.of(target)),
+                CompileTimeConstantGraph.Ingress.empty());
+
+        Tensor gradient = FirstOrderAutograd.expand(
+                        plan, CompileTimeConstantGraph.Ingress.empty())
+                .targetGradients()
+                .getFirst()
+                .gradient();
+
+        assertEquals(BinaryArithmeticKind.DIV,
+                gradient.provenance().orElseThrow().operation().kind());
+        Tensor denominator = gradient.provenance().orElseThrow().inputs().get(1);
+        assertEquals(AggregateReductionKind.SUM,
+                denominator.provenance().orElseThrow().inputs().getFirst()
+                        .provenance().orElseThrow().operation().kind());
     }
 
     private static void assertTrueLeaf(Tensor tensor) {

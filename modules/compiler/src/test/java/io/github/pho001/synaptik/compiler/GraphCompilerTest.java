@@ -131,7 +131,7 @@ final class GraphCompilerTest {
     void knownUnsupportedPreflightFailureConsumesNoTensorIdentity() throws Exception {
         Tensor target = tensor();
         Tensor other = tensor();
-        Tensor objective = target.div(other).sum();
+        Tensor objective = target.pow(other).sum();
         var request = new AutogradPreflight.FirstOrderRequest(objective, List.of(target));
         long before = nextTensorId();
 
@@ -143,6 +143,30 @@ final class GraphCompilerTest {
                 GraphOptimizationConfig.disabled()));
 
         assertEquals(before, nextTensorId());
+    }
+
+    @Test
+    void compilesSharedAlgebraDivisionMeanAndDirectZeroInBothOptimizationModes() {
+        for (GraphOptimizationConfig optimization :
+                List.of(GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {
+            Tensor narrow = TensorFactory.create(new TensorDescriptor(
+                    DataType.BFLOAT16, Shape.of(2, 1), Optional.empty(), true));
+            Tensor wide = TensorFactory.create(new TensorDescriptor(
+                    DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), true));
+            Tensor objective = narrow.div(wide).floor().mean();
+
+            GraphCompilation result = GraphCompiler.compile(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective),
+                    Optional.of(new AutogradPreflight.FirstOrderRequest(
+                            objective, List.of(narrow))),
+                    CompileTimeConstantGraph.Ingress.empty(),
+                    optimization);
+
+            assertEquals(narrow.id(), result.gradientResults().getFirst().target());
+            assertTrue(result.validatedGraph().graph().nodePhases()
+                    .containsValue(GraphPhase.BACKWARD));
+        }
     }
 
     @Test

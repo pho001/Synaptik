@@ -40,6 +40,8 @@ validation, exact graph transformation, compiler-owned autograd, and planning or
 - Compiler never constructs runtime execution units.
 - Compiler has no concrete backend dependency.
 - Autograd rules and reverse accumulation belong to compiler.
+- Forward and generated gradient expressions share one model algebra, inference/validation
+  contract, numerical-semantics contract, and exact optimization pipeline.
 - Tensor identity maps exist only during one compile request and are not graph representations.
 - One phase-aware capture assigns graph-local IDs once, including the combined graph for
   backward-capable modes.
@@ -85,7 +87,7 @@ cross-package/public orchestration boundary from a concrete consumer.
 | 0003B | [Compile-time constants and constant folding](tasks/0003b-compile-time-constants-and-constant-folding.md) | Complete | 0003A | Added explicit logical-splat ingress, bounded BOOL/signed-integral folding, and sidecar-aware constant-source pruning without storage reads or physical values. |
 | 0004 | [Compiler-owned pre-capture autograd and graph compilation](tasks/0004-compiler-owned-pre-capture-autograd-and-combined-graph-compilation.md) | Complete | Model 0025; Compiler 0001–0003B; Config 0002 | Added fail-closed preflight for one scalar-objective/implicit-unit-seed first-order request, the closed initial gradient matrix through ordinary public Tensor operations, one combined phase-aware capture, and proved exact whole-graph optimization with phase-local CSE. |
 | 0004A | [Exact-composition gradient-rule extensions](tasks/0004a-exact-composition-gradient-rule-extensions.md) | Complete | 0004 | Added the bounded policy-free matrix for typed ERF, masked and locally invertible shape-target SUM, role-aware floating MATMUL, and selected exact data-movement adjoints through the existing one-capture pipeline. |
-| 0004B | Derivative-policy selection and policy-dependent gradient rules | Draft | 0004A | Select explicit boundary, tie, discontinuity, singularity, and cross-floating conversion policies before adding policy-dependent formulas. |
+| 0004B | [Shared-algebra cotangent normalization and local derivative rules](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md) | Complete | 0004A | Added mixed-floating Shape/DataType normalization, ordinary DIV and MEAN formulas, and direct-zero FLOOR/CEIL/SIGN plus masked-all-false local conventions without a gradient-specific algebra or optimization policy. |
 | 0005 | Publication, planning orchestration, and compile artifacts | Draft | 0001–0004B, stable config/planning/trace consumers | Orchestrate publication, backend-neutral ownership/partition/logical-memory planning, diagnostics, and immutable `CompileArtifacts` without prepare/runtime/backend state. |
 | 0006 | Explicit functional gradient requests and higher-order differentiation | Draft | 0005 and a stable public compile/artifact boundary | Define explicit objectives, targets, seeds, create-graph or derivative order, formula-operation coverage, and phase/order representation without Tensor gradient lifecycle state. |
 
@@ -93,15 +95,25 @@ cross-package/public orchestration boundary from a concrete consumer.
 
 - Capture and validation — Complete through task 0002.
 - Exact optimization foundations — Complete through task 0003B.
-- Pre-capture autograd and graph compilation — tasks 0004–0004B; run the compiler
-  transformation/autograd capability checkpoint after 0004B.
+- Pre-capture autograd and graph compilation — Complete through task 0004B and its compiler
+  transformation/autograd capability checkpoint.
 - Planning orchestration and compile artifacts — task 0005.
 
 ## Current status
 
-In progress through an explicitly bounded roadmap interleave. Compiler 0004 and 0004A are
-Complete with recorded source, tests, documentation, and validation. Compiler 0004B is the next
-unfinished compiler row but remains Draft without a detailed specification, as do later tasks.
+In progress through an explicitly bounded roadmap interleave. Compiler 0004, 0004A, and 0004B are
+Complete with recorded source, tests, documentation, and validation.
+[Compiler 0004B](tasks/0004b-shared-algebra-cotangent-normalization-and-local-derivative-rules.md)
+adds the closed mixed-floating cotangent
+Shape/DataType normalization through ordinary `sumToShape` and `cast`, binary/scalar DIV local
+formulas, direct-zero FLOOR/CEIL/SIGN conventions, and ordinary/masked MEAN formulas whose logical-
+one denominators support static, dynamic, and expression Shapes. Forward and generated
+expressions retain one shared algebra and exact optimization contract. The final exact 16-path
+change contains five production files, four tests, and seven documentation/planning files. The
+compiler module passed 18 suites/136 tests; the final transformation/autograd checkpoint passed
+167 suites/1,275 tests with no skipped tests, failures, or errors; and the independent
+documentation pass finalized Javadocs and current status. Tasks 0005 and 0006 and every later
+gradient-family task remain Draft without detailed specifications.
 
 Accepted ADR 0009 changes the next compiler architecture from captured-forward placeholder
 conversion to compiler-owned pre-capture Tensor-expression autograd. The prerequisite is
@@ -149,8 +161,14 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   inversion, indexing/scatter, windows, structured linear operations, pooling, losses,
   normalization, multi-output attention, ordering, and stochastic rules remain later cohesive
   planning decisions.
-- Tie, discontinuity, singularity, exceptional-value, empty-domain, and cross-floating cotangent
-  policies remain task-0004B decisions; 0004 and 0004A select none of them.
+- Task 0004B adds only its closed cotangent-normalization, DIV, direct-zero discontinuity, and
+  ordinary/masked MEAN matrix. Only direct-zero FLOOR/CEIL/SIGN and all-false masked MEAN are local
+  derivative conventions; arithmetic, casts, reductions, numerical edges, validation, and
+  optimization remain the shared model/compiler contracts. Floating-comparison-dependent extrema,
+  clamp, ABS, and ReLU remain blocked by the general model comparison contract. Power,
+  incomplete-semantics unary/softmax rows, and independently cohesive activation, product,
+  statistical/norm, pooling, loss, normalization, attention, ordering, indexing/scatter, window,
+  and stochastic families remain explicitly blocked or deferred as recorded in the specification.
 - The first cross-package collaboration with planning remains deferred to task 0005.
 
 ## Decisions made
@@ -162,11 +180,16 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP` construct the combined Tensor expression
   before capture. `TRAINING_STEP` adds no optimizer updates yet.
 - Before backward construction, compiler inventories every backward-reachable producer occurrence,
-  output role, exact attributes, and required derivative policy. Unsupported work fails closed.
+  output role, exact attributes, cotangent-normalization path, and required local differentiation
+  rule or convention. Unsupported work fails closed.
 - Full inference/validation occurs after the one backward-capable combined capture. Later failures
   may consume temporary Tensor IDs; IDs are never rolled back or reused.
 - Named compiler components such as `ElementwiseGradientRules` own dispatch. Formulas use only
   ordinary public Tensor operations such as `mul`, `add`, `sumToShape`, and `transpose`.
+- Generated gradient expressions obey exactly the same model algebra, inference, validation,
+  numerical semantics, and existing guarded optimization rules as forward expressions. Autograd
+  adds local differentiation formulas, genuinely necessary local conventions, and cotangent
+  Shape/DataType normalization; it adds no gradient-only numerical or optimization policy.
 - One compile request may use `IdentityHashMap`-style Tensor-to-contribution and
   Tensor-to-accumulated-gradient bookkeeping. It is ephemeral compiler state, not Tensor state,
   graph IR, or a second graph.
@@ -206,8 +229,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
   Gradle would compile unauthorized code, or adapting their contents instead of deleting them.
 - Publishing or reconstructing a sibling output instead of using the producer's canonical exact
   wrapper.
-- Constructing partial backward expressions before discovering an unsupported exact attribute or
-  policy.
+- Constructing partial backward expressions before discovering an unsupported exact attribute,
+  normalization path, local differentiation rule, or convention.
 - Losing repeated-operand contributions or changing deterministic accumulation order.
 - Inferring constants from Tensor storage, labels, descriptors, provenance absence, or factory
   history.
@@ -216,6 +239,8 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 - Manufacturing identity nodes when result roles share one gradient value.
 - Applying forward-only rewrite/folding assumptions to backward nodes without proving their
   existing guards.
+- Treating DIV, MEAN, casts, exceptional values, or optimization eligibility as a separate gradient
+  algebra instead of using their ordinary shared operation contracts.
 - Merging equal expressions across phases before an explicit proof.
 - Turning logical saved Tensor edges into physical buffers, recomputation policy, runtime
   scheduling, or a compiler-owned tape.
@@ -223,7 +248,9 @@ Runtime and prepare remain Draft because no prepared or executable state is intr
 
 ## Notes
 
-Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0004–0004A are
-Complete. Compiler 0004B is the next unfinished compiler row and remains Draft without a detailed
-specification; this completion does not create or advance that specification. Later tasks also
-remain Draft.
+Follow the planning guide's progressive-planning rule. Model 0025 and Compiler 0004–0004B are
+Complete. Compiler 0004B stayed within its exact 16-path ceiling: five compiler production files,
+four compiler tests, and seven documentation/planning files. Its compiler module validation,
+independent documentation pass, and compiler transformation/autograd capability checkpoint all
+passed. Compiler 0005, 0006, and later cohesive gradient-family work remain Draft without detailed
+specifications.

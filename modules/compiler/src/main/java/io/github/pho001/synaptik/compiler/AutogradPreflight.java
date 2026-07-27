@@ -53,8 +53,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Preflights the closed {@code SUPPORTED_0004} and {@code SUPPORTED_0004A} first-order rule
- * matrices before constructing any derivative Tensor expression.
+ * Preflights the closed {@code SUPPORTED_0004}, {@code SUPPORTED_0004A}, and
+ * {@code SUPPORTED_0004B} first-order rule matrices before constructing any derivative Tensor
+ * expression.
  *
  * <p>The iterative inventory covers every producer and canonical output wrapper reachable from
  * the requested forward boundary. Objective ancestry, target reachability, occurrence selection,
@@ -69,8 +70,17 @@ import java.util.Set;
  * {@code PAD}, {@code TILE}, {@code CONCAT}, and {@code STACK}. Matrix-multiplication and slice
  * replacement are validated per selected input role: an unselected promoted operand does not
  * require a cotangent conversion, and only a selected slice-update input requires static selected
- * base extents. Binding-dependent shape inversion and every operation or role outside the two
- * closed matrices still fail.</p>
+ * base extents. Binding-dependent shape inversion and every operation or role outside the closed
+ * matrices still fail.</p>
+ *
+ * <p>The additive {@code SUPPORTED_0004B} rows admit mixed-floating {@code ADD}/{@code SUB}/
+ * {@code MUL}/{@code DIV}, branch-only {@code WHERE}, floating {@code CAST}, and role-aware
+ * {@code MATMUL} when each selected contribution can reverse broadcasting and convert to its
+ * selected input type through ordinary Tensor operations. They also admit exact-type scalar
+ * {@code DIV}, direct-zero {@code FLOOR}/{@code CEIL}/{@code SIGN}, and ordinary or masked
+ * floating {@code MEAN}. Mask roles remain non-differentiable. The checks select local
+ * differentiation rules and normalization paths; they do not create a gradient-specific
+ * arithmetic, cast, comparison, exceptional-value, validation, or optimization contract.</p>
  *
  * <p>This owner selects rules and rejects unsupported operation, attribute, role, data-type,
  * Shape, and policy combinations. A known rejection occurs before the seed, a derivative
@@ -201,11 +211,11 @@ final class AutogradPreflight {
                 throw new IllegalArgumentException(
                         "firstOrderRequest.targets[" + index + "] is not in objective ancestry");
             }
-            if (target.descriptor().dataType() != objectiveType
+            if (!target.descriptor().dataType().isFloating()
                     || !target.descriptor().requiresGrad()) {
                 throw new IllegalArgumentException(
                         "firstOrderRequest.targets[" + index
-                                + "] must have the objective floating type and require gradients");
+                                + "] must be floating and require gradients");
             }
         }
 
@@ -241,7 +251,7 @@ final class AutogradPreflight {
                                 + "missing selected canonical output");
             }
             validateOccurrence(
-                    producerIndex, producer, selectedOutput, selectedInputs, objectiveType);
+                    producerIndex, producer, selectedOutput, selectedInputs);
             selected.add(new SelectedOccurrence(
                     producerIndex, producer, selectedOutput, selectedInputs));
             if (!selectedOutputContains) {
@@ -270,17 +280,15 @@ final class AutogradPreflight {
             int producerIndex,
             TensorProducer producer,
             int outputIndex,
-            boolean[] selectedInputs,
-            DataType objectiveType) {
+            boolean[] selectedInputs) {
         Operation operation = producer.operation();
         if (producer.outputCount() != 1 || outputIndex != 0) {
             throw unsupported(producerIndex, producer, outputIndex, -1, "requires one output");
         }
         Tensor output = producer.output(outputIndex);
-        if (output.descriptor().dataType() != objectiveType
-                || !output.descriptor().dataType().isFloating()) {
+        if (!output.descriptor().dataType().isFloating()) {
             throw unsupported(
-                    producerIndex, producer, outputIndex, -1, "output type is not the objective type");
+                    producerIndex, producer, outputIndex, -1, "output type must be floating");
         }
         if (!output.descriptor().requiresGrad()) {
             throw unsupported(
@@ -299,18 +307,44 @@ final class AutogradPreflight {
             if (operation.attrs() != NoOperationAttrs.INSTANCE
                     || (kind != BinaryArithmeticKind.ADD
                             && kind != BinaryArithmeticKind.SUB
-                            && kind != BinaryArithmeticKind.MUL)) {
+                            && kind != BinaryArithmeticKind.MUL
+                            && kind != BinaryArithmeticKind.DIV)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported binary variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 2);
-            requireSameFloatingDescriptors(producerIndex, producer, outputIndex, false);
+            Tensor left = producer.inputs().get(0);
+            Tensor right = producer.inputs().get(1);
+            if (!left.descriptor().dataType().isFloating()
+                    || !right.descriptor().dataType().isFloating()
+                    || DataTypePromotion.promoteFloating(
+                                    left.descriptor().dataType(), right.descriptor().dataType())
+                            != output.descriptor().dataType()) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "binary operands and output must have the current floating promotion");
+            }
+            Shape expected;
+            try {
+                expected = ShapeBroadcast.broadcast(
+                        left.descriptor().shape(), right.descriptor().shape());
+            } catch (IllegalArgumentException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "binary input Shapes are not broadcast-compatible");
+            }
+            if (!expected.equals(output.descriptor().shape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "binary output Shape is inconsistent");
+            }
             return;
         }
         if (operation.kind() instanceof ScalarElementwiseKind kind) {
             if (!(operation.attrs() instanceof ScalarValueAttrs attrs)
                     || (kind != ScalarElementwiseKind.ADD
                             && kind != ScalarElementwiseKind.SUB
-                            && kind != ScalarElementwiseKind.MUL)) {
+                            && kind != ScalarElementwiseKind.MUL
+                            && kind != ScalarElementwiseKind.DIV)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported scalar variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
@@ -334,13 +368,34 @@ final class AutogradPreflight {
                 throw unsupported(
                         producerIndex, producer, outputIndex, 0, "condition must be BOOL");
             }
-            for (int input = 1; input < 3; input++) {
-                if (producer.inputs().get(input).descriptor().dataType()
-                        != output.descriptor().dataType()) {
-                    throw unsupported(
-                            producerIndex, producer, outputIndex, input,
-                            "branch type must exactly match output");
-                }
+            Tensor ifTrue = producer.inputs().get(1);
+            Tensor ifFalse = producer.inputs().get(2);
+            if (!ifTrue.descriptor().dataType().isFloating()
+                    || !ifFalse.descriptor().dataType().isFloating()
+                    || DataTypePromotion.promoteFloating(
+                                    ifTrue.descriptor().dataType(),
+                                    ifFalse.descriptor().dataType())
+                            != output.descriptor().dataType()) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "WHERE branches and output must have the current floating promotion");
+            }
+            Shape expected;
+            try {
+                expected = ShapeBroadcast.broadcast(
+                        ShapeBroadcast.broadcast(
+                                producer.inputs().get(0).descriptor().shape(),
+                                ifTrue.descriptor().shape()),
+                        ifFalse.descriptor().shape());
+            } catch (IllegalArgumentException exception) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "WHERE input Shapes are not broadcast-compatible");
+            }
+            if (!expected.equals(output.descriptor().shape())) {
+                throw unsupported(
+                        producerIndex, producer, outputIndex, -1,
+                        "WHERE output Shape is inconsistent");
             }
             return;
         }
@@ -351,10 +406,11 @@ final class AutogradPreflight {
             requireInputs(producerIndex, producer, outputIndex, 1);
             DataType inputType = producer.inputs().getFirst().descriptor().dataType();
             if (!inputType.isFloating()
-                    || inputType != output.descriptor().dataType()
-                    || attrs.targetDataType() != inputType) {
+                    || !output.descriptor().dataType().isFloating()
+                    || attrs.targetDataType() != output.descriptor().dataType()) {
                 throw unsupported(
-                        producerIndex, producer, outputIndex, 0, "CAST must be same floating type");
+                        producerIndex, producer, outputIndex, 0,
+                        "CAST source and target must be floating and match the descriptor");
             }
             if (!producer.inputs().getFirst().descriptor().shape()
                     .equals(output.descriptor().shape())) {
@@ -370,20 +426,25 @@ final class AutogradPreflight {
                             && kind != UnaryElementwiseKind.EXPM1
                             && kind != UnaryElementwiseKind.SIGMOID
                             && kind != UnaryElementwiseKind.TANH
-                            && kind != UnaryElementwiseKind.ERF)) {
+                            && kind != UnaryElementwiseKind.ERF
+                            && kind != UnaryElementwiseKind.FLOOR
+                            && kind != UnaryElementwiseKind.CEIL
+                            && kind != UnaryElementwiseKind.SIGN)) {
                 throw unsupported(producerIndex, producer, outputIndex, -1, "unsupported unary variant");
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingDescriptors(producerIndex, producer, outputIndex, true);
             return;
         }
-        if (operation.kind() == AggregateReductionKind.SUM) {
+        if (operation.kind() == AggregateReductionKind.SUM
+                || operation.kind() == AggregateReductionKind.MEAN) {
+            boolean mean = operation.kind() == AggregateReductionKind.MEAN;
             if (operation.attrs() instanceof MaskedReductionAttrs attrs) {
                 requireInputs(producerIndex, producer, outputIndex, 2);
                 if (selectedInputs[1]) {
                     throw unsupported(
                             producerIndex, producer, outputIndex, 1,
-                            "masked SUM mask role is non-differentiable");
+                            "masked reduction mask role is non-differentiable");
                 }
                 Tensor data = producer.inputs().get(0);
                 Tensor mask = producer.inputs().get(1);
@@ -391,7 +452,7 @@ final class AutogradPreflight {
                 if (mask.descriptor().dataType() != DataType.BOOL) {
                     throw unsupported(
                             producerIndex, producer, outputIndex, 1,
-                            "masked SUM mask must be BOOL");
+                            "masked reduction mask must be BOOL");
                 }
                 Shape broadcast;
                 try {
@@ -400,7 +461,7 @@ final class AutogradPreflight {
                 } catch (IllegalArgumentException exception) {
                     throw unsupported(
                             producerIndex, producer, outputIndex, 1,
-                            "masked SUM mask cannot broadcast to data Shape");
+                            "masked reduction mask cannot broadcast to data Shape");
                 }
                 if (!broadcast.equals(data.descriptor().shape())
                         || attrs.axis() >= data.descriptor().shape().rank()
@@ -408,11 +469,16 @@ final class AutogradPreflight {
                                 removeAxis(data.descriptor().shape(), attrs.axis()))) {
                     throw unsupported(
                             producerIndex, producer, outputIndex, 0,
-                            "masked SUM descriptor or normalized axis is inconsistent");
+                            "masked reduction descriptor or normalized axis is inconsistent");
                 }
                 return;
             }
             if (operation.attrs() instanceof SumToShapeAttrs attrs) {
+                if (mean) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, -1,
+                            "MEAN does not support SUM_TO_SHAPE attributes");
+                }
                 requireInputs(producerIndex, producer, outputIndex, 1);
                 requireSameFloatingType(producerIndex, producer, outputIndex, 0);
                 Shape inputShape = producer.inputs().getFirst().descriptor().shape();
@@ -442,6 +508,32 @@ final class AutogradPreflight {
             }
             requireInputs(producerIndex, producer, outputIndex, 1);
             requireSameFloatingTypes(producerIndex, producer, outputIndex);
+            if (mean) {
+                Shape inputShape = producer.inputs().getFirst().descriptor().shape();
+                Shape expected;
+                try {
+                    if (operation.attrs() == NoOperationAttrs.INSTANCE) {
+                        expected = Shape.scalar();
+                    } else if (operation.attrs() instanceof AxisReductionAttrs attrs) {
+                        expected = reductionShape(
+                                inputShape, List.of(attrs.axis()), attrs.keepDimensions());
+                    } else {
+                        MultiAxisReductionAttrs attrs =
+                                (MultiAxisReductionAttrs) operation.attrs();
+                        expected = reductionShape(
+                                inputShape, attrs.axes(), attrs.keepDimensions());
+                    }
+                } catch (IllegalArgumentException exception) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "MEAN axes are not normalized and distinct");
+                }
+                if (!expected.equals(output.descriptor().shape())) {
+                    throw unsupported(
+                            producerIndex, producer, outputIndex, 0,
+                            "MEAN output Shape or normalized axes are inconsistent");
+                }
+            }
             return;
         }
         if (operation.kind() == MatmulKind.MATMUL) {
@@ -460,15 +552,6 @@ final class AutogradPreflight {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
                         "MATMUL operands and output must have the current floating promotion");
-            }
-            for (int input = 0; input < selectedInputs.length; input++) {
-                if (selectedInputs[input]
-                        && producer.inputs().get(input).descriptor().dataType()
-                                != output.descriptor().dataType()) {
-                    throw unsupported(
-                            producerIndex, producer, outputIndex, input,
-                            "selected MATMUL input must have the output floating type");
-                }
             }
             Shape expected;
             try {
@@ -721,6 +804,35 @@ final class AutogradPreflight {
     private static boolean isStaticOne(Dimension dimension) {
         return dimension instanceof StaticDimension staticDimension
                 && staticDimension.size() == 1;
+    }
+
+    /**
+     * Derives the expected Shape for one already normalized ordinary MEAN occurrence.
+     *
+     * @param input non-null exact input Shape
+     * @param axes non-null ordered axes; every axis must be normalized and distinct
+     * @param keepDimensions whether each reduced axis remains as a static singleton
+     * @return a non-null Shape retaining every unaffected exact Dimension reference
+     * @throws IllegalArgumentException if an axis is out of range or repeated
+     */
+    private static Shape reductionShape(
+            Shape input, List<Integer> axes, boolean keepDimensions) {
+        boolean[] reduced = new boolean[input.rank()];
+        for (int axis : axes) {
+            if (axis < 0 || axis >= input.rank() || reduced[axis]) {
+                throw new IllegalArgumentException("axes must be normalized and distinct");
+            }
+            reduced[axis] = true;
+        }
+        List<Dimension> dimensions = new ArrayList<>();
+        for (int axis = 0; axis < input.rank(); axis++) {
+            if (!reduced[axis]) {
+                dimensions.add(input.dimension(axis));
+            } else if (keepDimensions) {
+                dimensions.add(new StaticDimension(1));
+            }
+        }
+        return Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
     }
 
     /**

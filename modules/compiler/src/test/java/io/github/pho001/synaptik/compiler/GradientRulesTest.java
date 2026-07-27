@@ -10,14 +10,18 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.index.SelectKind;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceKind;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
+import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
+import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
@@ -291,9 +295,11 @@ final class GradientRulesTest {
             assertGradientCompiles(target.add(other).sum(), target);
             assertGradientCompiles(target.sub(other).sum(), target);
             assertGradientCompiles(target.mul(other).sum(), target);
+            assertGradientCompiles(target.div(other).sum(), target);
             assertGradientCompiles(target.add(scalar).sum(), target);
             assertGradientCompiles(target.sub(scalar).sum(), target);
             assertGradientCompiles(target.mul(scalar).sum(), target);
+            assertGradientCompiles(target.div(scalar).sum(), target);
             assertGradientCompiles(Tensor.where(condition, target, other).sum(), target);
             assertGradientCompiles(target.cast(dataType).sum(), target);
             assertGradientCompiles(target.neg().sum(), target);
@@ -301,11 +307,19 @@ final class GradientRulesTest {
             assertGradientCompiles(target.expm1().sum(), target);
             assertGradientCompiles(target.sigmoid().sum(), target);
             assertGradientCompiles(target.tanh().sum(), target);
+            assertGradientCompiles(target.floor().sum(), target);
+            assertGradientCompiles(target.ceil().sum(), target);
+            assertGradientCompiles(target.sign().sum(), target);
             assertGradientCompiles(target.sum(), target);
             assertGradientCompiles(target.sum(1).sum(), target);
             assertGradientCompiles(target.sum(1, true).sum(), target);
             assertGradientCompiles(target.sum(new int[] {1, 0}, false).sum(), target);
             assertGradientCompiles(target.sum(new int[] {}, false).sum(), target);
+            assertGradientCompiles(target.mean(), target);
+            assertGradientCompiles(target.mean(1).sum(), target);
+            assertGradientCompiles(target.mean(1, true).sum(), target);
+            assertGradientCompiles(target.mean(new int[] {1, 0}, false), target);
+            assertGradientCompiles(target.mean(new int[] {}, false).sum(), target);
             assertGradientCompiles(target.cumSum(1, true, false).sum(), target);
             assertGradientCompiles(target.contiguous().sum(), target);
             assertGradientCompiles(target.reshape(3, 2).sum(), target);
@@ -317,6 +331,71 @@ final class GradientRulesTest {
             Tensor squeezable = tensor(dataType, Shape.of(2, 1, 3));
             assertGradientCompiles(squeezable.squeeze(1).sum(), squeezable);
         }
+    }
+
+    @Test
+    void mixedFloatingContributionsUnbroadcastBeforeOneReverseCast() {
+        for (List<DataType> pair : List.of(
+                List.of(DataType.BFLOAT16, DataType.FLOAT32),
+                List.of(DataType.BFLOAT16, DataType.FLOAT64),
+                List.of(DataType.FLOAT32, DataType.FLOAT64))) {
+            Tensor narrow = tensor(pair.get(0), Shape.of(2, 1));
+            Tensor wide = tensor(pair.get(1), Shape.of(2, 3));
+            for (Tensor output : List.of(
+                    narrow.add(wide), narrow.sub(wide), narrow.mul(wide), narrow.div(wide))) {
+                Tensor contribution = gradient(output.sum(), narrow);
+                assertEquals(CastKind.CAST,
+                        contribution.provenance().orElseThrow().operation().kind());
+                Tensor unbroadcast = contribution.provenance().orElseThrow().inputs().getFirst();
+                assertTrue(unbroadcast.provenance().orElseThrow().operation().attrs()
+                        instanceof SumToShapeAttrs);
+                assertEquals(narrow.descriptor().shape(), contribution.descriptor().shape());
+                assertEquals(narrow.descriptor().dataType(), contribution.descriptor().dataType());
+            }
+        }
+    }
+
+    @Test
+    void divisionDirectZeroAndMeanUseOnlyOrdinaryTensorExpressions() {
+        Tensor target = tensor(Shape.of(2, 3));
+        Tensor other = tensor(Shape.of(2, 3));
+        Tensor rightGradient = gradient(target.div(other).sum(), other);
+        assertEquals(BinaryArithmeticKind.DIV,
+                rightGradient.provenance().orElseThrow().operation().kind());
+
+        for (Tensor output : List.of(target.floor(), target.ceil(), target.sign())) {
+            Tensor zero = gradient(output.sum(), target);
+            assertEquals(ShapeTransformKind.EXPAND,
+                    zero.provenance().orElseThrow().operation().kind());
+            assertTrue(zero.provenance().orElseThrow().inputs().getFirst()
+                    .provenance().isEmpty());
+        }
+
+        for (Shape shape : List.of(
+                Shape.of(0, 3),
+                Shape.ofDimensions(new DynamicDimension("N"), new StaticDimension(3)),
+                Shape.ofDimensions(
+                        DimensionExpressions.addConstant(new DynamicDimension("M"), 1),
+                        new StaticDimension(3)))) {
+            Tensor input = tensor(shape);
+            assertGradientCompiles(input.mean(), input);
+            assertGradientCompiles(input.mean(0).sum(), input);
+            assertGradientCompiles(input.mean(new int[] {1, 0}, false), input);
+            assertGradientCompiles(input.mean(new int[] {}, false).sum(), input);
+        }
+
+        Tensor mask = TensorFactory.create(new TensorDescriptor(
+                DataType.BOOL, Shape.of(1, 3), Optional.empty(), false));
+        Tensor masked = gradient(target.mean(0, mask).sum(), target);
+        assertEquals(WhereSelectionKind.WHERE,
+                masked.provenance().orElseThrow().operation().kind());
+        Tensor quotient = masked.provenance().orElseThrow().inputs().get(1);
+        assertEquals(BinaryArithmeticKind.DIV,
+                quotient.provenance().orElseThrow().operation().kind());
+        Tensor count = quotient.provenance().orElseThrow().inputs().get(1);
+        assertEquals(AggregateReductionKind.SUM,
+                count.provenance().orElseThrow().inputs().getFirst()
+                        .provenance().orElseThrow().operation().kind());
     }
 
     private static void assertGradientCompiles(Tensor objective, Tensor target) {

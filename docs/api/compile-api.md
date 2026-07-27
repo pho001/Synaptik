@@ -245,7 +245,9 @@ physical splat materialization, storage allocation, lowering, and execution.
 Model task 0025 is Complete, so a producer now returns the canonical exact Tensor wrapper for
 every output slot, including hidden dropout masks and batch-normalization saved statistics,
 without changing public Tensor methods or ergonomic result carriers. Compiler task 0004 is
-Complete and supplies the first internal autograd consumer of that identity contract.
+Complete and supplies the first internal autograd consumer of that identity contract. Compiler
+tasks 0004A and 0004B are also Complete with the exact-composition and shared-algebra local-rule
+extensions described below.
 
 Package-private `GraphCompiler.compile` takes `CompileMode`, ordered forward outputs, an optional
 package-private first-order request, explicit forward constant ingress, and
@@ -260,8 +262,9 @@ cross-package `CompileArtifacts`.
 The current first-order request has one exact objective Tensor that is also a requested forward
 output. The objective must have scalar Shape, one floating data type, and gradient eligibility.
 Targets are a non-empty ordered snapshot of exact-object-identity-unique Tensors in the objective
-ancestry; each target must have the objective's exact floating type, gradient eligibility, and a
-selected differentiable route. A target may be a leaf, intermediate, or the objective itself.
+ancestry; each target must have a floating type, gradient eligibility, and a selected
+differentiable route, but may have a different floating type from the objective. A target may be
+a leaf, intermediate, or the objective itself.
 The only seed is an implicit rank-zero positive one of the exact objective type. There is no
 public objective/target API, caller-supplied seed, disconnected-target zero policy,
 vector-Jacobian product, or higher-derivative request.
@@ -277,14 +280,42 @@ request, and ordinary left-associated `Tensor.add` accumulates them. This epheme
 neither Tensor state nor graph intermediate representation (IR).
 
 The current matrix is the union of the original `SUPPORTED_0004` rows and the additive
-`SUPPORTED_0004A` exact-composition rows:
+`SUPPORTED_0004A` exact-composition and `SUPPORTED_0004B` shared-algebra rows:
 
 | Family | Current exact supported variants |
 |---|---|
-| Elementwise | Same-floating-type binary `ADD`, `SUB`, and `MUL`; exact same-type scalar `ADD`, `SUB`, and `MUL`; same-type floating branches for `WHERE`; same-type floating `CAST`; `NEG`, `EXP`, `EXPM1`, `SIGMOID`, `TANH`, and `ERF` |
-| Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM`; masked floating `SUM`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
-| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware selected-operand type checks and batch unbroadcasting |
+| Elementwise | Promoted floating binary `ADD`, `SUB`, `MUL`, and `DIV`; exact same-type floating scalar `ADD`, `SUB`, `MUL`, and `DIV`; promoted floating branch-only `WHERE`; floating-to-floating `CAST`; `NEG`, `EXP`, `EXPM1`, `SIGMOID`, `TANH`, and `ERF`; direct-zero `FLOOR`, `CEIL`, and `SIGN` |
+| Reductions and scan | Ordinary full, single-axis, and ordered multi-axis floating `SUM` and `MEAN`; masked floating `SUM` and `MEAN`; locally invertible floating `SUM_TO_SHAPE`; floating `CUM_SUM` for all current exclusive/reverse combinations |
+| Linear algebra | Every current floating `MATMUL` vector/matrix rank pairing, with role-aware mixed-floating normalization and batch unbroadcasting |
 | Logical layout and selection | Floating `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, `PERMUTE`, normalized `SLICE`, both normalized `SLICE_UPDATE` data roles, `SELECT`, `PAD`, `TILE`, `CONCAT`, and `STACK` |
+
+Forward and generated expressions use one model-owned Tensor algebra. For a selected mixed-
+floating input, the compiler first reverses ordinary broadcasting with `sumToShape` when needed
+and then uses ordinary `cast` exactly when the contribution type differs from the input type.
+The resulting contribution has that input's exact Shape and floating data type before
+deterministic accumulation. `WHERE` applies this rule independently to its two branch roles, and
+MATMUL applies it after its rank-specific formula and batch-unbroadcast step. The BOOL condition,
+mask, and other non-floating control roles receive no cotangent.
+
+Binary DIV constructs the left contribution as `g / right` and the right contribution in the
+exact order `-(g * left) / (right * right)`. Scalar DIV constructs `g / scalar`. These are
+ordinary Tensor expressions: they inherit the same division, multiplication, negation, NaN,
+infinity, signed-zero, overflow, underflow, rounding, validation, and exact-optimization
+contracts as forward expressions. No gradient-specific singularity or exceptional-value rule is
+added.
+
+`FLOOR`, `CEIL`, and `SIGN` use a direct exact positive-zero cotangent as their selected
+first-order local convention. They do not construct `g * 0` or a floating comparison. This
+convention does not change the forward operations' model semantics.
+
+Ordinary MEAN restores and expands `g`, creates an input-shaped exact logical-one expression,
+reduces those ones across the same full, single-axis, or ordered multi-axis domain, expands the
+count, and divides. The same expression works for static, dynamic, expression, zero-sized, and
+empty-axis-list domains without a host-computed count or type-specific threshold. Masked MEAN
+constructs its per-slice true count with ordinary `WHERE` and `SUM`, divides the restored
+cotangent by that count, then applies a final ordinary `WHERE`. The selected local convention
+returns exact zero at every input coordinate of an all-false slice; it does not prescribe branch
+evaluation or suppress the intermediate quotient.
 
 For input `x` and output cotangent `g`, ERF constructs
 `g * exp(-(x * x)) * (2 / sqrt(pi))`. The coefficient is exact scalar-operation metadata with
@@ -300,9 +331,8 @@ binding-dependent singleton-or-equal pair still fails preflight.
 
 MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
 rank edits, last-two-axis permutation, multiplication or MATMUL, followed by `sumToShape` for
-each selected operand where batch broadcasting may have occurred. A selected operand must have
-the output floating type. The unselected floating operand may be narrower under the current
-promotion rule because no cotangent conversion is needed for that role. Integral MATMUL remains
+each selected operand where batch broadcasting may have occurred and then one ordinary cast when
+the promoted contribution type differs from that operand. Integral MATMUL remains
 non-differentiable.
 
 SLICE writes `g` into an input-shaped typed zero. For SLICE_UPDATE, the base role writes an
@@ -323,7 +353,8 @@ provenance-free, storage-free, non-gradient scalar leaves. BFLOAT16 uses exact b
 `0x3F80`; FLOAT32 and FLOAT64 use exact positive `0.0` and `1.0`. Each base is registered
 explicitly as one logical splat, and Shape-specific values are ordinary `expand` expressions.
 No storage, factory history, label, descriptor, layout, Shape, or provenance absence implies a
-constant.
+constant. Only bases reachable from returned gradient expressions remain in combined-capture
+ingress; direct-zero local formulas therefore do not retain an unreachable unit seed.
 
 The compiler captures forward outputs and generated gradient roots together once. The request
 includes target-specific roles, the original forward-producer identity set, and merged explicit
@@ -339,16 +370,20 @@ existing guards. Every changed candidate is revalidated through the current veri
 A later construction, capture, validation, or optimization failure may consume temporary Tensor
 IDs; IDs remain opaque and are not rolled back.
 
-Everything outside the table fails closed when it lies on a selected route. Compiler 0004B
-retains mixed-floating cotangent conversion and tie, endpoint, discontinuity, singularity,
-empty-domain, NaN/infinity, and other exceptional-value policies. Current exclusions include
-binary/scalar `DIV` and `POW`, extrema and clamp families, `ABS`/`RELU` and other nonsmooth
-transforms, reciprocal/log/root families, `CUM_PROD`, masked `MEAN`, binding-dependent
-SUM_TO_SHAPE inversion, non-SUM reductions, normalization and softmax, attention, convolution,
-pooling, losses, gather/scatter and other indexing, target-relative crop and windows,
-ordering/top-K, dropout, and batch normalization. BOOL logic, comparisons, classification, index
-roles, padding constants, select coordinates, masks, and graph RNG state do not receive
-cotangents.
+Everything outside the table fails closed when it lies on a selected route. The remaining matrix
+is intentionally explicit:
+
+| Classification | Current deferred or rejected families |
+|---|---|
+| Blocked by incomplete shared model semantics | Binary/scalar `POW`; `RECIPROCAL`, `LOG`, and `SQRT`; extrema, clamp, `ABS`, and `RELU` rows that require a complete floating-comparison contract; `SOFTMAX` and `LOG_SOFTMAX` numerical-edge behavior |
+| Later cohesive differentiation work | `LOG1P`, `RSQRT`; GELU variants and SiLU; `PROD`, `CUM_PROD`, `LOG_SUM_EXP`, statistics and norms; layer/RMS/batch normalization; pooling; losses; attention; ordering/top-K; indexing/scatter; windows, convolution, dropout, and other unlisted structured families |
+| Unchanged binding- or role-dependent work | Binding-dependent `SUM_TO_SHAPE`, target-relative crop, and unselected layout variants outside the current exact guards |
+| Non-differentiable roles and outputs | Comparisons, BOOL logic/classification, `ALL`, `ANY`, arg-extrema results, one-hot and other index roles, masks, padding constants, select coordinates, and graph RNG state |
+
+Unknown/custom kinds, wrong attribute classes or cardinalities, missing canonical outputs, and
+descriptor contradictions also fail deterministically. Later formulas must continue using the
+shared Tensor algebra; this table does not reserve a gradient-specific numerical or optimization
+policy for them.
 
 This strategy adds no `Tensor.gradient`, `Tensor.backward`, mutable gradient field, ThreadLocal
 scope, model derivative rule, placeholder/`ValueId` conversion map, direct graph-node formula

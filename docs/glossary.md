@@ -21,14 +21,16 @@ numeric or cost scoring, owner-map assembly, compiler consumers, physical memory
 implementations, device-level capability, and device selection remain planned.
 
 The compiler currently provides package-private structural graph capture, binding-free
-captured-graph verification inference, mandatory dense canonicalization, and one optional bounded
-forward transformation pipeline. Verification independently derives every current production
+captured-graph verification inference, mandatory dense canonicalization, a bounded first-order
+pre-capture autograd transformation, and one optional bounded transformation pipeline over either
+the forward-only or combined graph. Verification independently derives every current production
 operation occurrence's output descriptors, rejects semantic contradictions, and retains only
 undecidable descriptor-visible Shape obligations as typed internal deferred graph constraints.
-The optional pipeline performs one guarded exact arithmetic scan, one bounded logical-splat
-folding scan, and one sidecar-aware `DCE -> CSE -> DCE` sequence, revalidating only changed
-candidates. This is not a public compiler, concrete binding service, compile artifact, backend
-decision, or execution path.
+Forward and generated gradient expressions use one public Tensor algebra and one numerical,
+inference, validation, and exact-optimization contract. The optional pipeline performs one guarded
+exact arithmetic scan, one bounded logical-splat folding scan, and one sidecar-aware
+`DCE -> phase-local CSE -> DCE` sequence, revalidating only changed candidates. This is not a
+public compiler, concrete binding service, compile artifact, backend decision, or execution path.
 
 The exact arithmetic scan contains seven semantic rules: duplicate-input binary `MIN` and `MAX`;
 scalar `MUL` by exact typed positive one for all five numeric types; scalar `DIV` and `POW` by exact
@@ -110,8 +112,11 @@ representable targets, and public `Tensor.cast` now creates a fresh explicit sto
 expression for all 36 source/target pairs. It retains the exact input Shape, leaves layout
 unresolved, preserves a true gradient request only for floating-to-floating casts, and records
 typed target attributes plus exact one-input provenance. Numerical conversion behavior, gradient
-rules, compiler capture and canonicalization, and backend execution remain planned or separately
-owned.
+rules, compiler capture and canonicalization, and backend execution remain separately owned.
+Current package-private first-order compiler autograd reverses a selected floating-to-floating
+cast with one ordinary cast to the source floating type; a same-type cast passes the cotangent
+through. This adds no model conversion promise or gradient-specific rounding, NaN-payload, or
+backend-instruction contract.
 The `AggregateReductionKind` vocabulary is implemented for `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`,
 `ALL`, `ANY`, `ARG_MAX`, `ARG_MIN`, `LOG_SUM_EXP`, `VARIANCE`, `STANDARD_DEVIATION`, `L1_NORM`,
 and `L2_NORM`, together with normalized single-axis `AxisReductionAttrs`, ordered
@@ -684,7 +689,9 @@ design uses ordinary public Tensor operations over the original forward expressi
 does not add public Tensor gradient/backward lifecycle state. Model task 0025 is Complete and
 supplies canonical producer-output wrappers; Compiler task 0004 is Complete with its first
 bounded package-private implementation; Compiler task 0004A is Complete with its first
-policy-free exact-composition rule extension. See
+policy-free exact-composition rule extension; and Compiler task 0004B is Complete with mixed-
+floating cotangent normalization, ordinary DIV/MEAN formulas, and the selected direct-zero local
+conventions. See
 [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
@@ -1096,9 +1103,22 @@ kind](api/tensor-api.md#contiguous-semantic-kind), [Layout](#layout), and
 The reverse-mode sensitivity that flows backward from a scalar objective toward an earlier Tensor.
 Current package-private first-order autograd supplies one implicit exact typed scalar unit
 cotangent at the objective, combines multiple incoming contributions with ordinary `Tensor.add`,
-and returns the accumulated cotangent for each requested target. A cotangent here is a temporary
-compiler Tensor expression, not mutable Tensor gradient state, a runtime tape value, or an
-optimizer slot.
+normalizes each selected contribution to its input contract, and returns the accumulated cotangent
+for each requested target. A cotangent here is a temporary compiler Tensor expression, not
+mutable Tensor gradient state, a runtime tape value, or an optimizer slot.
+
+### Cotangent normalization
+
+The current first-order compiler step that makes one generated contribution match its selected
+input's exact Shape and floating data type before deterministic accumulation. For the selected
+0004B binary, WHERE-branch, and MATMUL roles, normalization first calls ordinary
+`sumToShape` when broadcast reversal is required and then calls ordinary `cast` exactly when the
+result type differs from the input type. A same-Shape or same-type row adds no redundant
+operation.
+
+Cotangent normalization is not a second algebra or a special conversion policy. Its SUM and CAST
+occurrences enter the same combined capture, model inference, validation, numerical-semantics, and
+exact optimization pipeline as forward expressions.
 
 ### Compiled graph / `CompiledGraphModel`
 
@@ -1326,10 +1346,12 @@ not execute either function or define compiler decomposition, gradients, or back
 
 The current package-private compiler request for exactly one reverse-mode derivative order. It
 contains one exact requested scalar floating objective and an ordered, non-empty,
-identity-unique target list in that objective's selected differentiable ancestry. The compiler
-supplies one implicit exact typed unit [cotangent](#cotangent); callers cannot yet provide an
-explicit seed or request a higher derivative order. `FORWARD_AND_BACKWARD` and the initial
-`TRAINING_STEP` require this request, while `FORWARD_ONLY` rejects it.
+identity-unique floating target list in that objective's selected differentiable ancestry. A
+target may have a different floating type from the objective when every selected role has a
+complete ordinary [cotangent normalization](#cotangent-normalization) path. The compiler supplies
+one implicit exact typed unit [cotangent](#cotangent); callers cannot yet provide an explicit seed
+or request a higher derivative order. `FORWARD_AND_BACKWARD` and the initial `TRAINING_STEP`
+require this request, while `FORWARD_ONLY` rejects it.
 
 ### Forward graph
 
@@ -1380,19 +1402,30 @@ is distinct from the later `CompileArtifacts` aggregate.
 
 The current request contains one exact requested scalar floating objective, an ordered non-empty
 identity-unique target list in its selected differentiable ancestry, and one implicit exact typed
-unit seed. Its closed matrix covers same-floating-type binary/scalar ADD/SUB/MUL, same-type
-branch-only WHERE and floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH/ERF, ordinary and masked SUM,
-locally invertible SUM_TO_SHAPE, CUM_SUM, every floating MATMUL vector/matrix rank pairing, and
-the guarded floating CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/
-SLICE_UPDATE/SELECT/PAD/TILE/CONCAT/STACK families. Selected MATMUL operands must have the output
-type; SLICE_UPDATE's selected update role requires static selected base extents; and
-SUM_TO_SHAPE accepts only aligned exact Dimension equality or a static target singleton.
-Everything else fails closed on a selected route until its formula or derivative policy is
-selected.
+unit seed. Targets may differ from the objective's floating type. Its closed matrix covers
+promoted floating binary ADD/SUB/MUL/DIV, exact-type floating scalar ADD/SUB/MUL/DIV, promoted
+branch-only WHERE, floating-to-floating CAST, NEG/EXP/EXPM1/SIGMOID/TANH/ERF, direct-zero
+FLOOR/CEIL/SIGN, ordinary and masked SUM/MEAN, locally invertible SUM_TO_SHAPE, CUM_SUM, every
+floating MATMUL vector/matrix rank pairing, and the guarded floating
+CONTIGUOUS/RESHAPE/EXPAND/EXPAND_DIMS/SQUEEZE/PERMUTE/SLICE/SLICE_UPDATE/SELECT/PAD/TILE/
+CONCAT/STACK families.
+
+Mixed-floating binary, WHERE-branch, and MATMUL contributions use ordinary
+[cotangent normalization](#cotangent-normalization). Ordinary MEAN derives its denominator by
+reducing an input-shaped logical-one expression across the selected axes. Masked MEAN counts true
+positions with ordinary WHERE and SUM, divides, then uses a final ordinary WHERE whose selected
+all-false-slice convention returns exact zero. FLOOR/CEIL/SIGN return a direct exact-zero
+first-order cotangent without `g * 0` or a floating comparison. These conventions do not create a
+gradient-only arithmetic, cast, exceptional-value, validation, rewrite, fold, or optimizer
+contract.
+
+SLICE_UPDATE's selected update role requires static selected base extents, and SUM_TO_SHAPE
+accepts only aligned exact Dimension equality or a static target singleton. Everything else fails
+closed on a selected route until its shared formula or derivative policy is selected.
 
 The technique adds no placeholder Tensor for a captured `ValueId`, second gradient algebra,
 public gradient, runtime tape, model derivative rule, or Tensor gradient/backward lifecycle.
-Model task 0025 and Compiler tasks 0004 and 0004A are Complete. Public requests/publication,
+Model task 0025 and Compiler tasks 0004, 0004A, and 0004B are Complete. Public requests/publication,
 `CompileArtifacts`, higher derivatives, optimizer updates, preparation, and execution remain
 planned.
 
@@ -1565,8 +1598,10 @@ backend value, or runtime state. The compiler can fold only the explicitly selec
 signed-integral operation matrix over these facts. Floating/BFLOAT16 splats are representable but
 are not currently evaluated. Current pre-capture autograd registers its generated typed zero and
 unit derivative leaves as exact logical splats, including raw floating or BFLOAT16 bits, without
-reading or allocating storage. Physical repetition and storage allocation remain future
-prepare/backend materialization work.
+reading or allocating storage. It also uses logical-one expansion to represent ordinary and
+masked MEAN counts for static, dynamic, and expression Shapes. Only generated splat bases
+reachable from returned gradient expressions remain in combined-capture ingress. Physical
+repetition and storage allocation remain future prepare/backend materialization work.
 
 ### Logical memory plan
 
@@ -1665,9 +1700,12 @@ normalized reduction axis, preserve input type and gradient eligibility, and rec
 expressions before the reduction. A static zero-sized reduction axis produces zero sum slices and
 NaN mean slices; runtime zero-sized or all-false dynamic slices follow the same semantics. Storage
 alignment, value selection, counting, aggregation, division, backend behavior, and numerical
-execution remain planned. Current package-private compiler autograd supports masked floating SUM:
-it restores the reduced axis, expands the cotangent, and routes it with the original mask and an
-exact typed zero. Masked MEAN and other masked reduction gradient policies remain planned.
+execution remain planned. Current package-private compiler autograd supports masked floating SUM
+and MEAN. Both restore the reduced axis and expand the cotangent. SUM routes it with the original
+mask and an exact typed zero. MEAN constructs the true count with ordinary WHERE and SUM, divides
+the restored cotangent, then applies a final ordinary WHERE. Its explicit all-false-slice
+first-order convention returns zero at every input coordinate without prescribing branch
+evaluation or suppressing the intermediate quotient. The BOOL mask receives no cotangent.
 
 ### Mean-squared error / MSE
 
@@ -1693,9 +1731,9 @@ produces a scalar. `MatmulKind.MATMUL` is parameterless with exactly two logical
 output; public `Tensor.matmul` constructs the current storage-free expression metadata. The
 operation does not itself capture a graph, multiply stored values, select a backend algorithm, or
 execute. Current package-private compiler autograd constructs cotangents for every floating
-vector/matrix rank pairing and unbroadcasts batch axes. Each selected operand must have the output
-type; an unselected narrower operand is allowed, while integral MATMUL and a selected
-cross-floating role are rejected. See
+vector/matrix rank pairing, unbroadcasts batch axes with ordinary `sumToShape`, and then uses one
+ordinary cast when a promoted contribution differs from the selected operand type. Integral
+MATMUL remains rejected. See
 [Matrix-multiplication expressions](api/tensor-api.md#matrix-multiplication-expressions).
 
 ### Memory slot

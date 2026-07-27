@@ -158,8 +158,6 @@ final class AutogradPreflightTest {
                         CompileTimeConstantGraph.Ingress.empty()));
 
         for (Tensor objective : List.of(
-                data.div(tensor(Shape.of(3), true)).sum(),
-                data.mean(),
                 data.softmax(0).sum(),
                 data.cropToShape(Shape.of(2), Shape.of(0)).sum())) {
             IllegalArgumentException failure = assertThrows(
@@ -171,6 +169,28 @@ final class AutogradPreflightTest {
                                     objective, List.of(data)),
                             CompileTimeConstantGraph.Ingress.empty()));
             assertTrue(failure.getMessage().contains("producerPostorder["));
+        }
+    }
+
+    @Test
+    void admitsMixedFloatingNormalizationDivisionDirectZeroAndMeanRows() {
+        Tensor narrow = TensorFactory.create(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.of(2, 1), Optional.empty(), true));
+        Tensor wide = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), true));
+        for (Tensor objective : List.of(
+                narrow.add(wide).mean(),
+                narrow.div(wide).mean(),
+                narrow.cast(DataType.FLOAT32).mean(),
+                narrow.floor().mean(),
+                narrow.ceil().mean(),
+                narrow.sign().mean())) {
+            AutogradPreflight.Plan plan = AutogradPreflight.preflight(
+                    CompileMode.FORWARD_AND_BACKWARD,
+                    List.of(objective),
+                    new AutogradPreflight.FirstOrderRequest(objective, List.of(narrow)),
+                    CompileTimeConstantGraph.Ingress.empty());
+            assertTrue(!plan.selectedOccurrences().isEmpty());
         }
     }
 
